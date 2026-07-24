@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jet3-rs:validation:support-matrix:1",
+  "$id": "urn:jet3-rs:validation:support-matrix:2",
   "title": "jet3-rs support matrix",
   "type": "object",
   "additionalProperties": false,
@@ -13,7 +13,7 @@
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "product_scope": {
       "type": "object",
@@ -76,6 +76,79 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
     },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path",
+        "sha256",
+        "commit",
+        "capability_id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "source",
+            "test",
+            "independent_report",
+            "dao_bundle"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "capability_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(?:[.][a-z][a-z0-9_]*)+$"
+        },
+        "scenario_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(DAO-(GEN|READ|WRITE|UPDATE)|UT|IT|PROP|GOLD|CORR|REG)-[A-Z0-9][A-Z0-9_-]*$"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "independent_report",
+                  "dao_bundle"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "scenario_ids"
+            ]
+          }
+        }
+      ]
+    },
     "capability": {
       "type": "object",
       "additionalProperties": false,
@@ -126,7 +199,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/repositoryPath"
+            "$ref": "#/$defs/evidence"
           }
         }
       },

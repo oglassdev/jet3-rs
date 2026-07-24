@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "product_scope": {
     "format": "Microsoft Jet 3 / Access 97",
     "encrypted": false,
@@ -168,9 +168,27 @@
       "verification": "internal_only",
       "required_verification": "independent_check",
       "evidence": [
-        "crates/jet3/src/binary.rs",
-        "crates/jet3/src/limits.rs",
-        "crates/jet3/src/source.rs"
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/binary.rs",
+          "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840",
+          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/limits.rs",
+          "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443",
+          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/source.rs",
+          "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        }
       ]
     },
     {

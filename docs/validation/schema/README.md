@@ -10,6 +10,8 @@ JSON Schema package.
 - `fixture-manifest.schema.json` describes reproducible fixture origins.
 - `benchmark-manifest.schema.json` describes checked benchmark baselines.
 - `gate-result.schema.json` describes one acceptance-gate result.
+- `acceptance-manifest.schema.json` describes the files retained by one run.
+- `acceptance-summary.schema.json` describes deterministic run counts and hashes.
 
 Repository paths in these documents use forward slashes, are relative to the
 repository root, and must not contain `.` or `..` path components. SHA-256

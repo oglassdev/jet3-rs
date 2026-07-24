@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import re
+import subprocess
 import sys
-import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -62,10 +63,32 @@ CAPABILITY_REQUIRED_KEYS = {
 }
 CAPABILITY_KEYS = CAPABILITY_REQUIRED_KEYS | {"reason"}
 CAPABILITY_ID = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
+GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+SCENARIO_ID = re.compile(
+    r"^(?:DAO-(?:GEN|READ|WRITE|UPDATE)|UT|IT|PROP|GOLD|CORR|REG)-"
+    r"[A-Z0-9][A-Z0-9_-]*$"
+)
 REPOSITORY_PATH = re.compile(
     r"^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*"
     r"(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
 )
+EVIDENCE_KINDS = ("source", "test", "independent_report", "dao_bundle")
+EVIDENCE_KEYS = {
+    "kind",
+    "path",
+    "sha256",
+    "commit",
+    "capability_id",
+    "scenario_ids",
+}
+EVIDENCE_REQUIRED_KEYS = {
+    "kind",
+    "path",
+    "sha256",
+    "commit",
+    "capability_id",
+}
 
 
 def _typename(value: Any) -> str:
@@ -139,10 +162,239 @@ def _validate_evidence_path(
     return []
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _git(
+    repo_root: Path, arguments: list[str], *, text: bool = True
+) -> subprocess.CompletedProcess[Any]:
+    return subprocess.run(
+        ["git", *arguments],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=text,
+    )
+
+
+def _git_head(repo_root: Path) -> str | None:
+    result = _git(repo_root, ["rev-parse", "HEAD"])
+    if result.returncode != 0:
+        return None
+    commit = result.stdout.strip()
+    return commit if GIT_COMMIT.fullmatch(commit) else None
+
+
+def _git_dirty(repo_root: Path) -> bool | None:
+    result = _git(
+        repo_root,
+        [
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--",
+            ".",
+            ":(exclude)artifacts/acceptance/**",
+        ],
+    )
+    if result.returncode != 0:
+        return None
+    return bool(result.stdout)
+
+
+def _git_blob(repo_root: Path, commit: str, path: str) -> bytes | None:
+    result = _git(repo_root, ["show", f"{commit}:{path}"], text=False)
+    if result.returncode != 0:
+        return None
+    return bytes(result.stdout)
+
+
+def _validate_independent_report(
+    path: Path,
+    capability_id: str,
+    commit: str,
+    scenario_ids: list[str],
+    location: str,
+) -> list[str]:
+    try:
+        report = load_json(path)
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"{location}: cannot parse independent report: {error}"]
+    if not isinstance(report, dict):
+        return [f"{location}: independent report must be a JSON object"]
+
+    errors = []
+    if report.get("git_commit") != commit:
+        errors.append(f"{location}: independent report commit does not match evidence")
+    if report.get("dirty") is not False:
+        errors.append(f"{location}: independent report is not clean-worktree eligible")
+    if report.get("status") != "PASS":
+        errors.append(f"{location}: independent report status is not PASS")
+    capability_ids = report.get("capability_ids")
+    if not isinstance(capability_ids, list) or capability_id not in capability_ids:
+        errors.append(f"{location}: independent report omits capability ID")
+    reported_scenarios = report.get("scenario_ids")
+    if not isinstance(reported_scenarios, list) or not set(scenario_ids).issubset(
+        reported_scenarios
+    ):
+        errors.append(f"{location}: independent report omits referenced scenarios")
+    return errors
+
+
+def _validate_evidence(
+    evidence: Any,
+    evidence_index: int,
+    capability_id: str,
+    verification: str,
+    repo_root: Path,
+    head_commit: str | None,
+    worktree_dirty: bool | None,
+) -> tuple[list[str], tuple[str, str] | None]:
+    location = f"evidence[{evidence_index}]"
+    if not isinstance(evidence, dict):
+        return [f"{location}: expected typed evidence object"], None
+
+    errors = _check_keys(
+        evidence, EVIDENCE_KEYS, EVIDENCE_REQUIRED_KEYS, location
+    )
+    kind = evidence.get("kind")
+    path = evidence.get("path")
+    expected_hash = evidence.get("sha256")
+    commit = evidence.get("commit")
+    linked_capability = evidence.get("capability_id")
+    scenario_ids = evidence.get("scenario_ids")
+
+    if kind not in EVIDENCE_KINDS:
+        errors.append(f"{location}.kind: unknown evidence kind {kind!r}")
+    if not isinstance(expected_hash, str) or not SHA256.fullmatch(expected_hash):
+        errors.append(f"{location}.sha256: expected lowercase SHA-256")
+    if not isinstance(commit, str) or not GIT_COMMIT.fullmatch(commit):
+        errors.append(f"{location}.commit: expected full lowercase git commit")
+    if linked_capability != capability_id:
+        errors.append(
+            f"{location}.capability_id: expected {capability_id!r}, "
+            f"got {linked_capability!r}"
+        )
+
+    if scenario_ids is not None:
+        if (
+            not isinstance(scenario_ids, list)
+            or not scenario_ids
+            or any(
+                not isinstance(item, str) or not SCENARIO_ID.fullmatch(item)
+                for item in scenario_ids
+            )
+            or len(set(scenario_ids)) != len(scenario_ids)
+        ):
+            errors.append(
+                f"{location}.scenario_ids: expected unique stable scenario IDs"
+            )
+            valid_scenarios: list[str] = []
+        else:
+            valid_scenarios = scenario_ids
+    else:
+        valid_scenarios = []
+    if kind in {"independent_report", "dao_bundle"} and not valid_scenarios:
+        errors.append(f"{location}.scenario_ids: {kind} requires scenario IDs")
+
+    if isinstance(path, str):
+        errors.extend(_validate_evidence_path(path, repo_root, f"{location}.path"))
+    else:
+        errors.append(f"{location}.path: expected repository-relative path")
+
+    candidate = repo_root / path if isinstance(path, str) else None
+    if candidate is not None and not errors:
+        if not candidate.is_file():
+            errors.append(f"{location}.path: evidence must be a regular file")
+        elif kind in {"independent_report", "dao_bundle"}:
+            actual_hash = _sha256_file(candidate)
+            if actual_hash != expected_hash:
+                errors.append(
+                    f"{location}.sha256: expected {expected_hash}, got {actual_hash}"
+                )
+
+    if (
+        kind in {"source", "test"}
+        and isinstance(commit, str)
+        and GIT_COMMIT.fullmatch(commit)
+        and isinstance(path, str)
+        and isinstance(expected_hash, str)
+        and SHA256.fullmatch(expected_hash)
+    ):
+        blob = _git_blob(repo_root, commit, path)
+        if blob is None:
+            errors.append(
+                f"{location}: {path!r} is not retained at commit {commit}"
+            )
+        elif hashlib.sha256(blob).hexdigest() != expected_hash:
+            errors.append(
+                f"{location}: retained git blob hash does not match evidence SHA-256"
+            )
+
+    rank = VERIFICATION_RANK.get(verification, -1)
+    if kind in {"source", "test"} and rank < 1:
+        errors.append(
+            f"{location}.kind: {kind} evidence requires internal_only or higher"
+        )
+    if kind == "independent_report" and rank < 2:
+        errors.append(
+            f"{location}.kind: independent_report requires independent_check or higher"
+        )
+    if kind == "dao_bundle" and rank < 3:
+        errors.append(f"{location}.kind: dao_bundle requires a DAO verification state")
+
+    if kind in {"independent_report", "dao_bundle"}:
+        if head_commit is None:
+            errors.append(f"{location}: cannot determine repository HEAD")
+        elif commit != head_commit:
+            errors.append(
+                f"{location}.commit: release evidence must match HEAD {head_commit}"
+            )
+        if worktree_dirty is None:
+            errors.append(f"{location}: cannot determine worktree state")
+        elif worktree_dirty:
+            errors.append(
+                f"{location}: release evidence is ineligible on a dirty worktree"
+            )
+
+    if (
+        kind == "independent_report"
+        and candidate is not None
+        and candidate.is_file()
+        and isinstance(commit, str)
+        and valid_scenarios
+    ):
+        errors.extend(
+            _validate_independent_report(
+                candidate,
+                capability_id,
+                commit,
+                valid_scenarios,
+                location,
+            )
+        )
+
+    if kind == "dao_bundle":
+        errors.append(
+            f"{location}: DAO bundle semantic validation is not integrated; "
+            "DAO evidence fails closed"
+        )
+
+    key = (str(kind), str(path)) if kind is not None and path is not None else None
+    return errors, key
+
+
 def _validate_capability(
     capability: Any,
     index: int,
     repo_root: Path,
+    head_commit: str | None,
+    worktree_dirty: bool | None,
 ) -> tuple[list[str], str | None]:
     location = f"$.capabilities[{index}]"
     if not isinstance(capability, dict):
@@ -183,18 +435,43 @@ def _validate_capability(
         evidence_items: list[Any] = []
     else:
         evidence_items = evidence
-        seen_evidence: set[str] = set()
-        for evidence_index, evidence_path in enumerate(evidence):
-            evidence_location = f"{location}.evidence[{evidence_index}]"
-            errors.extend(
-                _validate_evidence_path(evidence_path, repo_root, evidence_location)
+        seen_evidence: set[tuple[str, str]] = set()
+        evidence_kinds: set[str] = set()
+        if isinstance(capability_id, str):
+            for evidence_index, evidence_object in enumerate(evidence):
+                evidence_errors, evidence_key = _validate_evidence(
+                    evidence_object,
+                    evidence_index,
+                    capability_id,
+                    str(verification),
+                    repo_root,
+                    head_commit,
+                    worktree_dirty,
+                )
+                errors.extend(
+                    f"{location}.{error}" for error in evidence_errors
+                )
+                if evidence_key is not None:
+                    evidence_kinds.add(evidence_key[0])
+                    if evidence_key in seen_evidence:
+                        errors.append(
+                            f"{location}.evidence[{evidence_index}]: duplicate "
+                            f"evidence kind/path {evidence_key!r}"
+                        )
+                    seen_evidence.add(evidence_key)
+        verification_rank = VERIFICATION_RANK.get(str(verification), 0)
+        if verification_rank >= 1 and not evidence_kinds.intersection({"source", "test"}):
+            errors.append(
+                f"{location}.evidence: {verification} requires source or test evidence"
             )
-            if isinstance(evidence_path, str):
-                if evidence_path in seen_evidence:
-                    errors.append(
-                        f"{evidence_location}: duplicate evidence path {evidence_path!r}"
-                    )
-                seen_evidence.add(evidence_path)
+        if verification_rank >= 2 and "independent_report" not in evidence_kinds:
+            errors.append(
+                f"{location}.evidence: {verification} requires an independent report"
+            )
+        if verification_rank >= 3 and "dao_bundle" not in evidence_kinds:
+            errors.append(
+                f"{location}.evidence: {verification} requires a DAO bundle"
+            )
 
     if implementation == "out_of_scope_v1":
         if not isinstance(reason, str) or not reason.strip():
@@ -263,8 +540,8 @@ def validate_support_matrix(document: Any, repo_root: Path) -> list[str]:
     errors = _check_keys(document, TOP_LEVEL_KEYS, TOP_LEVEL_KEYS, "$")
 
     schema_version = document.get("schema_version")
-    if type(schema_version) is not int or schema_version != 1:
-        errors.append("$.schema_version: expected integer 1")
+    if type(schema_version) is not int or schema_version != 2:
+        errors.append("$.schema_version: expected integer 2")
 
     scope = document.get("product_scope")
     if not isinstance(scope, dict):
@@ -319,9 +596,11 @@ def validate_support_matrix(document: Any, repo_root: Path) -> list[str]:
         errors.append("$.capabilities: expected at least one capability")
 
     seen_ids: dict[str, int] = {}
+    head_commit = _git_head(repo_root)
+    worktree_dirty = _git_dirty(repo_root)
     for index, capability in enumerate(capabilities):
         capability_errors, capability_id = _validate_capability(
-            capability, index, repo_root
+            capability, index, repo_root, head_commit, worktree_dirty
         )
         errors.extend(capability_errors)
         if capability_id is not None:
@@ -348,6 +627,30 @@ def _self_test(repo_root: Path, matrix_path: Path) -> int:
     except (OSError, json.JSONDecodeError) as error:
         print(f"self-test setup failed: {error}", file=sys.stderr)
         return 1
+    head_commit = _git_head(repo_root)
+    if head_commit is None:
+        print("self-test setup failed: cannot determine git HEAD", file=sys.stderr)
+        return 1
+    readme_hash = _sha256_file(repo_root / "README.md")
+
+    def evidence(
+        kind: str,
+        path: str,
+        digest: str,
+        capability_id: str = "database.open",
+        *,
+        scenarios: list[str] | None = None,
+    ) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "kind": kind,
+            "path": path,
+            "sha256": digest,
+            "commit": head_commit,
+            "capability_id": capability_id,
+        }
+        if scenarios is not None:
+            item["scenario_ids"] = scenarios
+        return item
 
     cases: list[tuple[str, Any, str | None]] = [
         ("current matrix", current, None),
@@ -374,13 +677,17 @@ def _self_test(repo_root: Path, matrix_path: Path) -> int:
     unsafe_evidence = copy.deepcopy(current)
     unsafe_evidence["capabilities"][0]["implementation"] = "partial"
     unsafe_evidence["capabilities"][0]["verification"] = "internal_only"
-    unsafe_evidence["capabilities"][0]["evidence"] = ["../outside.json"]
+    unsafe_evidence["capabilities"][0]["evidence"] = [
+        evidence("source", "../outside.json", "0" * 64)
+    ]
     cases.append(("unsafe evidence path", unsafe_evidence, "unsafe evidence path"))
 
     missing_evidence = copy.deepcopy(current)
     missing_evidence["capabilities"][0]["implementation"] = "partial"
     missing_evidence["capabilities"][0]["verification"] = "internal_only"
-    missing_evidence["capabilities"][0]["evidence"] = ["artifacts/missing.json"]
+    missing_evidence["capabilities"][0]["evidence"] = [
+        evidence("source", "artifacts/missing.json", "0" * 64)
+    ]
     cases.append(
         ("missing evidence path", missing_evidence, "evidence path does not exist")
     )
@@ -391,31 +698,55 @@ def _self_test(repo_root: Path, matrix_path: Path) -> int:
         ("false supported claim", false_claim, "unsupported 'supported' claim")
     )
 
-    failures = 0
-    with tempfile.TemporaryDirectory() as temporary:
-        # Exercise the existence branch without creating repository evidence.
-        temporary_root = Path(temporary)
-        existing = copy.deepcopy(current)
-        for capability in existing["capabilities"]:
-            if capability["implementation"] != "out_of_scope_v1":
-                capability["implementation"] = "not_started"
-                capability["verification"] = "unverified"
-                capability["evidence"] = []
-        existing["capabilities"][0]["implementation"] = "partial"
-        existing["capabilities"][0]["verification"] = "internal_only"
-        existing["capabilities"][0]["evidence"] = ["evidence.json"]
-        (temporary_root / "evidence.json").write_text("{}", encoding="utf-8")
-        existing_errors = validate_support_matrix(existing, temporary_root)
-        if existing_errors:
-            print(
-                "not ok - existing safe evidence path:\n  "
-                + "\n  ".join(existing_errors),
-                file=sys.stderr,
-            )
-            failures += 1
-        else:
-            print("ok - existing safe evidence path")
+    existing = copy.deepcopy(current)
+    existing["capabilities"][0]["implementation"] = "partial"
+    existing["capabilities"][0]["verification"] = "internal_only"
+    existing["capabilities"][0]["evidence"] = [
+        evidence("source", "README.md", readme_hash)
+    ]
+    cases.append(("existing typed evidence", existing, None))
 
+    readme_as_dao = copy.deepcopy(current)
+    readme_as_dao["capabilities"][0]["implementation"] = "implemented"
+    readme_as_dao["capabilities"][0]["verification"] = "dao_differential"
+    readme_as_dao["capabilities"][0]["evidence"] = [
+        evidence("source", "README.md", readme_hash),
+        evidence(
+            "independent_report",
+            "README.md",
+            readme_hash,
+            scenarios=["IT-README"],
+        ),
+        evidence(
+            "dao_bundle",
+            "README.md",
+            readme_hash,
+            scenarios=["DAO-READ-README"],
+        ),
+    ]
+    cases.append(
+        (
+            "README cannot satisfy DAO evidence",
+            readme_as_dao,
+            "DAO bundle semantic validation is not integrated",
+        )
+    )
+
+    wrong_kind = copy.deepcopy(current)
+    wrong_kind["capabilities"][0]["implementation"] = "partial"
+    wrong_kind["capabilities"][0]["verification"] = "independent_check"
+    wrong_kind["capabilities"][0]["evidence"] = [
+        evidence("source", "README.md", readme_hash)
+    ]
+    cases.append(
+        (
+            "independent state needs independent report",
+            wrong_kind,
+            "requires an independent report",
+        )
+    )
+
+    failures = 0
     for name, document, expected_fragment in cases:
         errors = validate_support_matrix(document, repo_root)
         if expected_fragment is None:
@@ -431,7 +762,7 @@ def _self_test(repo_root: Path, matrix_path: Path) -> int:
             )
             failures += 1
 
-    print(f"self-test: {len(cases) + 1 - failures} passed, {failures} failed")
+    print(f"self-test: {len(cases) - failures} passed, {failures} failed")
     return 1 if failures else 0
 
 
