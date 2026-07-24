@@ -3,7 +3,7 @@
 Status: **BLOCKED**
 
 Audit date: 2026-07-24
-Audited commit: `0297a5a6d0006b08e7a2ed8fe49daf9b4a2090c6`
+Audited commit: `097cceebfb766c71a3a7e1841072b6798330af5c`
 
 This record explains why commit-bound Microsoft DAO evidence cannot currently
 be produced. It is a provider-availability record, not compatibility evidence,
