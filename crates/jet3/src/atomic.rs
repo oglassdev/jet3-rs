@@ -16,6 +16,10 @@
 //! must not modify or replace the private path, and validation by the writer or
 //! another project component is not independent verification or compatibility
 //! evidence.
+//! Pre-publication failures explicitly close and remove the private copy. If
+//! removal fails, [`PublishError::cleanup_error`] retains that secondary error.
+//! [`Drop`] retries removal as a last resort, but cannot report its result and
+//! therefore does not provide a cleanup guarantee.
 
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -38,7 +42,9 @@ type BoxError = Box<dyn StdError + Send + Sync + 'static>;
 /// [`PublishStage::Publish`] occurs before rename and leaves the original
 /// target in place. [`PublishStage::DirectorySync`] occurs after rename; an
 /// error at that stage reports that the verified replacement was published but
-/// its directory entry may not be durable across a crash.
+/// its directory entry may not be durable across a crash. [`Self::Cleanup`] is
+/// visited only after a pre-publication failure, after closing the private file
+/// and immediately before removing it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PublishStage {
     /// Create an exclusive private file beside the target.
@@ -59,6 +65,8 @@ pub enum PublishStage {
     Publish,
     /// Synchronize the containing directory where supported.
     DirectorySync,
+    /// Remove the closed private copy after a pre-publication failure.
+    Cleanup,
 }
 
 impl fmt::Display for PublishStage {
@@ -73,6 +81,7 @@ impl fmt::Display for PublishStage {
             Self::PrePublish => "pre-publication barrier",
             Self::Publish => "publication",
             Self::DirectorySync => "directory synchronization",
+            Self::Cleanup => "private-copy cleanup",
         };
         formatter.write_str(name)
     }
@@ -84,6 +93,7 @@ pub struct PublishError {
     stage: PublishStage,
     replacement_published: bool,
     source: BoxError,
+    cleanup_source: Option<BoxError>,
 }
 
 impl PublishError {
@@ -101,6 +111,16 @@ impl PublishError {
         self.replacement_published
     }
 
+    /// Returns a secondary private-copy cleanup failure, when one occurred.
+    ///
+    /// The primary error remains available through [`StdError::source`].
+    #[must_use]
+    pub fn cleanup_error(&self) -> Option<&(dyn StdError + 'static)> {
+        self.cleanup_source
+            .as_deref()
+            .map(|error| error as &(dyn StdError + 'static))
+    }
+
     fn new<E>(stage: PublishStage, replacement_published: bool, source: E) -> Self
     where
         E: StdError + Send + Sync + 'static,
@@ -109,7 +129,12 @@ impl PublishError {
             stage,
             replacement_published,
             source: Box::new(source),
+            cleanup_source: None,
         }
+    }
+
+    fn attach_cleanup_error(&mut self, cleanup_source: BoxError) {
+        self.cleanup_source = Some(cleanup_source);
     }
 }
 
@@ -120,14 +145,21 @@ impl fmt::Display for PublishError {
                 formatter,
                 "{} failed after replacement publication: {}",
                 self.stage, self.source
-            )
+            )?;
         } else {
             write!(
                 formatter,
                 "{} failed before replacement publication: {}",
                 self.stage, self.source
-            )
+            )?;
         }
+        if let Some(cleanup_source) = &self.cleanup_source {
+            write!(
+                formatter,
+                "; private-copy cleanup also failed: {cleanup_source}"
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -170,7 +202,9 @@ where
 ///
 /// This is intended for deterministic fault injection as well as diagnostics.
 /// A hook error is wrapped in [`PublishError`] with the stage and publication
-/// state at which it occurred.
+/// state at which it occurred. After a pre-publication error, the hook receives
+/// [`PublishStage::Cleanup`] after the private file is closed and before its
+/// removal.
 pub fn atomic_update_with_hook<M, V, H, ME, VE, HE>(
     target: impl AsRef<Path>,
     budget: &mut ResourceBudget,
@@ -205,42 +239,54 @@ where
     let mut private = PrivateCopy::create(target, parent)
         .map_err(|error| PublishError::new(PublishStage::PrivateCopyCreation, false, error))?;
 
-    call_hook(&mut before_stage, PublishStage::Copy, false)?;
-    copy_original(target, private.file_mut()?, metadata.len(), budget)?;
+    let update_result: Result<(), PublishError> = (|| {
+        call_hook(&mut before_stage, PublishStage::Copy, false)?;
+        copy_original(target, private.file_mut()?, metadata.len(), budget)?;
 
-    call_hook(&mut before_stage, PublishStage::Mutation, false)?;
-    let private_file = private.file_mut()?;
-    private_file
-        .seek(SeekFrom::Start(0))
-        .map_err(|error| PublishError::new(PublishStage::Mutation, false, error))?;
-    mutate(private_file)
-        .map_err(|error| PublishError::new(PublishStage::Mutation, false, error))?;
+        call_hook(&mut before_stage, PublishStage::Mutation, false)?;
+        let private_file = private.file_mut()?;
+        private_file
+            .seek(SeekFrom::Start(0))
+            .map_err(|error| PublishError::new(PublishStage::Mutation, false, error))?;
+        mutate(private_file)
+            .map_err(|error| PublishError::new(PublishStage::Mutation, false, error))?;
 
-    call_hook(&mut before_stage, PublishStage::Metadata, false)?;
-    fs::set_permissions(private.path(), metadata.permissions())
-        .map_err(|error| PublishError::new(PublishStage::Metadata, false, error))?;
+        call_hook(&mut before_stage, PublishStage::Metadata, false)?;
+        fs::set_permissions(private.path(), metadata.permissions())
+            .map_err(|error| PublishError::new(PublishStage::Metadata, false, error))?;
 
-    call_hook(&mut before_stage, PublishStage::Validation, false)?;
-    validate(private.path())
-        .map_err(|error| PublishError::new(PublishStage::Validation, false, error))?;
+        call_hook(&mut before_stage, PublishStage::Validation, false)?;
+        validate(private.path())
+            .map_err(|error| PublishError::new(PublishStage::Validation, false, error))?;
 
-    call_hook(&mut before_stage, PublishStage::FileSync, false)?;
-    private
-        .file_mut()?
-        .sync_all()
-        .map_err(|error| PublishError::new(PublishStage::FileSync, false, error))?;
-    private.close();
+        call_hook(&mut before_stage, PublishStage::FileSync, false)?;
+        private
+            .file_mut()?
+            .sync_all()
+            .map_err(|error| PublishError::new(PublishStage::FileSync, false, error))?;
+        private.close();
 
-    call_hook(&mut before_stage, PublishStage::PrePublish, false)?;
-    call_hook(&mut before_stage, PublishStage::Publish, false)?;
-    fs::rename(private.path(), target)
-        .map_err(|error| PublishError::new(PublishStage::Publish, false, error))?;
-    private.mark_published();
+        call_hook(&mut before_stage, PublishStage::PrePublish, false)?;
+        call_hook(&mut before_stage, PublishStage::Publish, false)?;
+        fs::rename(private.path(), target)
+            .map_err(|error| PublishError::new(PublishStage::Publish, false, error))?;
+        private.mark_published();
 
-    call_hook(&mut before_stage, PublishStage::DirectorySync, true)?;
-    sync_directory(parent)
-        .map_err(|error| PublishError::new(PublishStage::DirectorySync, true, error))?;
-    Ok(())
+        call_hook(&mut before_stage, PublishStage::DirectorySync, true)?;
+        sync_directory(parent)
+            .map_err(|error| PublishError::new(PublishStage::DirectorySync, true, error))?;
+        Ok(())
+    })();
+
+    match update_result {
+        Err(mut error) if !error.replacement_published() => {
+            if let Err(cleanup_error) = private.cleanup(&mut before_stage) {
+                error.attach_cleanup_error(cleanup_error);
+            }
+            Err(error)
+        }
+        result => result,
+    }
 }
 
 fn call_hook<H, HE>(
@@ -311,6 +357,7 @@ struct PrivateCopy {
     path: PathBuf,
     file: Option<File>,
     published: bool,
+    cleaned: bool,
 }
 
 impl PrivateCopy {
@@ -337,6 +384,7 @@ impl PrivateCopy {
                         path,
                         file: Some(file),
                         published: false,
+                        cleaned: false,
                     });
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
@@ -370,14 +418,49 @@ impl PrivateCopy {
     fn mark_published(&mut self) {
         self.published = true;
     }
+
+    fn cleanup<H, HE>(&mut self, before_stage: &mut H) -> Result<(), BoxError>
+    where
+        H: FnMut(PublishStage) -> Result<(), HE>,
+        HE: StdError + Send + Sync + 'static,
+    {
+        self.close();
+        before_stage(PublishStage::Cleanup).map_err(|error| Box::new(error) as BoxError)?;
+        prepare_private_for_removal(&self.path).map_err(|error| Box::new(error) as BoxError)?;
+        match fs::remove_file(&self.path) {
+            Ok(()) => {
+                self.cleaned = true;
+                Ok(())
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                self.cleaned = true;
+                Ok(())
+            }
+            Err(error) => Err(Box::new(error)),
+        }
+    }
 }
 
 impl Drop for PrivateCopy {
     fn drop(&mut self) {
-        if !self.published {
+        if !self.published && !self.cleaned {
+            self.close();
+            let _permission_result = prepare_private_for_removal(&self.path);
             let _cleanup_result = fs::remove_file(&self.path);
         }
     }
+}
+
+#[cfg(windows)]
+fn prepare_private_for_removal(path: &Path) -> io::Result<()> {
+    let mut permissions = fs::metadata(path)?.permissions();
+    permissions.set_readonly(false);
+    fs::set_permissions(path, permissions)
+}
+
+#[cfg(not(windows))]
+fn prepare_private_for_removal(_path: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(unix)]

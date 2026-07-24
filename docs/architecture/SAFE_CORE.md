@@ -60,10 +60,12 @@ operation-wide resource dimension before work begins.
 
 The format-neutral atomic publisher excludes concurrent writers and requires
 an existing regular file. Failures before rename leave the original path in
-place and clean up the private copy. A failure synchronizing the directory
-after rename is reported with `replacement_published = true`: the fully
-validated replacement is visible, but crash durability of the directory entry
-is uncertain.
+place and explicitly attempt to close and remove the private copy. If removal
+fails, the returned error retains both the primary update failure and the
+secondary cleanup failure; `Drop` retries removal but cannot guarantee or
+report success. A failure synchronizing the directory after rename is reported
+with `replacement_published = true`: the fully validated replacement is
+visible, but crash durability of the directory entry is uncertain.
 
 Same-directory `rename` and `sync_all` inherit the host operating system and
 filesystem guarantees. Network and unusual filesystems may be weaker, and

@@ -44,32 +44,15 @@ SCENARIO_ID = re.compile(
     r"^(?:DAO-(?:GEN|READ|WRITE|UPDATE)|UT|IT|PROP|GOLD|CORR|REG)-"
     r"[A-Z0-9][A-Z0-9_-]*$"
 )
-TRACEABILITY_IDS = frozenset(
-    {
-        "SCOPE-01",
-        "SCOPE-02",
-        "CLEAN-01",
-        "API-01",
-        "PHYS-01",
-        "SCHEMA-01",
-        "VALUE-01",
-        "ROW-01",
-        "LONG-01",
-        "CRUD-01",
-        "INDEX-01",
-        "REL-01",
-        "DET-01",
-        "TXN-01",
-        "SAFE-01",
-        "VERIFY-01",
-        "ORACLE-01",
-        "TEST-01",
-        "TOOL-01",
-        "PERF-01",
-        "CI-01",
-        "RELEASE-01",
-    }
-)
+TRACEABILITY_ID = re.compile(r"^[A-Z]+-[0-9]{2}$")
+ACCEPTANCE_GATES = tuple(f"G{number}" for number in range(9))
+TRACEABILITY_REGISTRY_KEYS = {"schema_version", "requirements"}
+TRACEABILITY_REQUIREMENT_KEYS = {
+    "id",
+    "requirement",
+    "acceptance_gates",
+    "required_evidence",
+}
 REPOSITORY_PATH = re.compile(
     r"^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*"
     r"(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
@@ -180,3 +163,59 @@ def git_blob(repo_root: Path, commit: str, path: str) -> bytes | None:
 def load_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as source:
         return json.load(source)
+
+
+def validate_traceability_registry(document: Any) -> tuple[set[str], list[str]]:
+    """Validate the authoritative requirement-ID registry."""
+    if not isinstance(document, dict):
+        return set(), ["traceability registry: expected object"]
+    errors = []
+    if set(document) != TRACEABILITY_REGISTRY_KEYS:
+        errors.append("traceability registry: invalid top-level keys")
+    if document.get("schema_version") != 1:
+        errors.append("traceability registry schema_version: expected integer 1")
+    requirements = document.get("requirements")
+    if not isinstance(requirements, list):
+        return set(), errors + ["traceability registry requirements: expected array"]
+    ids: set[str] = set()
+    ordered_ids = []
+    for index, item in enumerate(requirements):
+        location = f"traceability registry requirements[{index}]"
+        if not isinstance(item, dict) or set(item) != TRACEABILITY_REQUIREMENT_KEYS:
+            errors.append(f"{location}: invalid requirement shape")
+            continue
+        requirement_id = item.get("id")
+        if not isinstance(requirement_id, str) or not TRACEABILITY_ID.fullmatch(
+            requirement_id
+        ):
+            errors.append(f"{location}.id: invalid requirement ID")
+        elif requirement_id in ids:
+            errors.append(f"{location}.id: duplicate requirement ID")
+        else:
+            ids.add(requirement_id)
+            ordered_ids.append(requirement_id)
+        for field in ("requirement", "required_evidence"):
+            if not isinstance(item.get(field), str) or not item[field].strip():
+                errors.append(f"{location}.{field}: expected non-empty string")
+        gates = item.get("acceptance_gates")
+        if (
+            not isinstance(gates, list)
+            or not gates
+            or len(set(gates)) != len(gates)
+            or any(gate not in ACCEPTANCE_GATES for gate in gates)
+            or gates != sorted(gates, key=ACCEPTANCE_GATES.index)
+        ):
+            errors.append(f"{location}.acceptance_gates: invalid gate list")
+    if ordered_ids != sorted(ordered_ids):
+        errors.append("traceability registry requirements: IDs must be sorted")
+    return ids, errors
+
+
+def load_traceability_registry(repo_root: Path) -> tuple[set[str], list[str]]:
+    """Load and validate the sole machine-readable traceability vocabulary."""
+    path = repo_root / "docs/validation/traceability-ids.json"
+    try:
+        document = load_json(path)
+    except (OSError, json.JSONDecodeError) as error:
+        return set(), [f"cannot load traceability registry: {error}"]
+    return validate_traceability_registry(document)

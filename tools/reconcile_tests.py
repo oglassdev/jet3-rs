@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reconcile the checked Rust test manifest with Cargo's runtime inventory."""
+"""Reconcile immutable Rust test inventory with a separate Cargo observation."""
 
 from __future__ import annotations
 
@@ -13,7 +13,15 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from validation.common import REPOSITORY_PATH, SHA256, TRACEABILITY_IDS, sha256_file
+from validation.common import (
+    GIT_COMMIT,
+    REPOSITORY_PATH,
+    SHA256,
+    git_dirty,
+    git_head,
+    load_traceability_registry,
+    sha256_file,
+)
 
 CARGO_COMMAND = [
     "cargo",
@@ -25,7 +33,8 @@ CARGO_COMMAND = [
     "--",
     "--list",
 ]
-TOP_KEYS = {"schema_version", "cargo_command", "meaningful_case_count", "cases"}
+TOP_KEYS = {"schema_version", "inventory_policy", "cases"}
+POLICY_KEYS = {"include_ignored"}
 CASE_KEYS = {
     "id",
     "target",
@@ -35,10 +44,18 @@ CASE_KEYS = {
     "distinct_invariant",
     "fixtures",
     "expected_result",
-    "ignored",
-    "execution_status",
 }
 FIXTURE_KEYS = {"path", "sha256"}
+OBSERVATION_KEYS = {
+    "schema_version",
+    "git_commit",
+    "dirty",
+    "cargo_command",
+    "tests",
+    "counts",
+}
+OBSERVED_TEST_KEYS = {"target", "runtime_name", "ignored"}
+COUNT_KEYS = {"runtime_total", "ignored", "meaningful"}
 TEST_ID = re.compile(r"^(?:UT|IT|PROP|GOLD|CORR|REG)-[A-Z0-9][A-Z0-9_-]*$")
 TARGET = re.compile(r"^[a-z][a-z0-9_]*$")
 RUNTIME_NAME = re.compile(r"^[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*$")
@@ -65,7 +82,7 @@ def _target_name(executable: str) -> str:
 
 
 def parse_cargo_list(output: str) -> set[RuntimeTest]:
-    """Parse Cargo/libtest combined output into stable target/name identities."""
+    """Parse Cargo/libtest output without misattributing doctests."""
     tests: set[RuntimeTest] = set()
     current_target: str | None = None
     in_doc_tests = False
@@ -84,7 +101,7 @@ def parse_cargo_list(output: str) -> set[RuntimeTest]:
             continue
         if in_doc_tests:
             raise ValueError(
-                "Doc-tests are outside the unit-test manifest and require "
+                "Doc-tests are outside the unit-test inventory and require "
                 f"separate reconciliation: {listed.group(1)!r}"
             )
         if current_target is None:
@@ -97,8 +114,8 @@ def parse_cargo_list(output: str) -> set[RuntimeTest]:
 
 
 def _toolchain_channel(repo_root: Path) -> str:
-    toolchain = (repo_root / "rust-toolchain.toml").read_text(encoding="utf-8")
-    matched = re.search(r'^\s*channel\s*=\s*"([^"]+)"\s*$', toolchain, re.MULTILINE)
+    text = (repo_root / "rust-toolchain.toml").read_text(encoding="utf-8")
+    matched = re.search(r'^\s*channel\s*=\s*"([^"]+)"\s*$', text, re.MULTILINE)
     if not matched:
         raise RuntimeError("rust-toolchain.toml does not declare a channel")
     return matched.group(1)
@@ -116,15 +133,16 @@ def _cargo_environment(repo_root: Path) -> dict[str, str]:
     if located.returncode != 0:
         raise RuntimeError(f"cannot locate Rust {channel}: {located.stderr.strip()}")
     environment = os.environ.copy()
-    toolchain_bin = str(Path(located.stdout.strip()).parent)
-    environment["PATH"] = toolchain_bin + os.pathsep + environment.get("PATH", "")
+    environment["PATH"] = (
+        str(Path(located.stdout.strip()).parent)
+        + os.pathsep
+        + environment.get("PATH", "")
+    )
     return environment
 
 
 def _run_list(repo_root: Path, *, ignored_only: bool) -> set[RuntimeTest]:
-    command = list(CARGO_COMMAND)
-    if ignored_only:
-        command.append("--ignored")
+    command = [*CARGO_COMMAND, *(["--ignored"] if ignored_only else [])]
     completed = subprocess.run(
         command,
         cwd=repo_root,
@@ -146,38 +164,128 @@ def cargo_inventory(repo_root: Path) -> tuple[set[RuntimeTest], set[RuntimeTest]
     """Return all listed tests and the ignored subset."""
     all_tests = _run_list(repo_root, ignored_only=False)
     ignored = _run_list(repo_root, ignored_only=True)
-    unknown_ignored = ignored - all_tests
-    if unknown_ignored:
-        names = ", ".join(test.display for test in sorted(unknown_ignored))
-        raise RuntimeError(f"ignored listing contains tests absent from full listing: {names}")
+    unknown = ignored - all_tests
+    if unknown:
+        names = ", ".join(test.display for test in sorted(unknown))
+        raise RuntimeError(f"ignored tests absent from full listing: {names}")
     return all_tests, ignored
 
 
-def _validate_fixture(fixture: Any, repo_root: Path, location: str) -> list[str]:
-    if not isinstance(fixture, dict):
-        return [f"{location}: expected object"]
+def build_runtime_observation(
+    runtime_tests: set[RuntimeTest],
+    ignored_tests: set[RuntimeTest],
+    *,
+    git_commit: str,
+    dirty: bool,
+) -> dict[str, Any]:
+    """Build deterministic ephemeral observation data from Cargo listings."""
+    tests = [
+        {
+            "target": test.target,
+            "runtime_name": test.name,
+            "ignored": test in ignored_tests,
+        }
+        for test in sorted(runtime_tests)
+    ]
+    return {
+        "schema_version": 1,
+        "git_commit": git_commit,
+        "dirty": dirty,
+        "cargo_command": list(CARGO_COMMAND),
+        "tests": tests,
+        "counts": {
+            "runtime_total": len(runtime_tests),
+            "ignored": len(ignored_tests),
+            "meaningful": len(runtime_tests - ignored_tests),
+        },
+    }
+
+
+def validate_runtime_observation(
+    observation: Any,
+) -> tuple[set[RuntimeTest], set[RuntimeTest], dict[str, int], list[str]]:
+    """Validate observation shape and derive runtime/ignored sets."""
+    if not isinstance(observation, dict):
+        return set(), set(), {}, ["observation: expected object"]
     errors = []
-    if set(fixture) != FIXTURE_KEYS:
-        errors.append(f"{location}: expected exactly path and sha256")
-        return errors
-    raw_path = fixture.get("path")
-    digest = fixture.get("sha256")
+    if set(observation) != OBSERVATION_KEYS:
+        errors.append("observation: invalid top-level keys")
+    if observation.get("schema_version") != 1:
+        errors.append("observation.schema_version: expected integer 1")
+    commit = observation.get("git_commit")
+    if not isinstance(commit, str) or not GIT_COMMIT.fullmatch(commit):
+        errors.append("observation.git_commit: expected full lowercase git commit")
+    if type(observation.get("dirty")) is not bool:
+        errors.append("observation.dirty: expected boolean")
+    if observation.get("cargo_command") != CARGO_COMMAND:
+        errors.append("observation.cargo_command: command does not match contract")
+    tests = observation.get("tests")
+    runtime: set[RuntimeTest] = set()
+    ignored: set[RuntimeTest] = set()
+    if not isinstance(tests, list):
+        errors.append("observation.tests: expected array")
+        tests = []
+    for index, item in enumerate(tests):
+        location = f"observation.tests[{index}]"
+        if not isinstance(item, dict) or set(item) != OBSERVED_TEST_KEYS:
+            errors.append(f"{location}: invalid observed-test shape")
+            continue
+        target, name, is_ignored = (
+            item.get("target"),
+            item.get("runtime_name"),
+            item.get("ignored"),
+        )
+        if not isinstance(target, str) or not TARGET.fullmatch(target):
+            errors.append(f"{location}.target: invalid target")
+            continue
+        if not isinstance(name, str) or not RUNTIME_NAME.fullmatch(name):
+            errors.append(f"{location}.runtime_name: invalid name")
+            continue
+        if type(is_ignored) is not bool:
+            errors.append(f"{location}.ignored: expected boolean")
+            continue
+        test = RuntimeTest(target, name)
+        if test in runtime:
+            errors.append(f"{location}: duplicate runtime test {test.display}")
+        runtime.add(test)
+        if is_ignored:
+            ignored.add(test)
+    if isinstance(tests, list):
+        identities = [
+            (item.get("target"), item.get("runtime_name"))
+            for item in tests
+            if isinstance(item, dict)
+        ]
+        if identities != sorted(identities):
+            errors.append("observation.tests: entries must be sorted")
+    expected_counts = {
+        "runtime_total": len(runtime),
+        "ignored": len(ignored),
+        "meaningful": len(runtime - ignored),
+    }
+    counts = observation.get("counts")
+    if not isinstance(counts, dict) or set(counts) != COUNT_KEYS:
+        errors.append("observation.counts: invalid shape")
+    elif counts != expected_counts:
+        errors.append("observation.counts: values do not match observed tests")
+    return runtime, ignored, expected_counts, errors
+
+
+def _validate_fixture(fixture: Any, repo_root: Path, location: str) -> list[str]:
+    if not isinstance(fixture, dict) or set(fixture) != FIXTURE_KEYS:
+        return [f"{location}: expected exactly path and sha256"]
+    raw_path, digest = fixture.get("path"), fixture.get("sha256")
     if not isinstance(raw_path, str) or not REPOSITORY_PATH.fullmatch(raw_path):
-        errors.append(f"{location}.path: unsafe repository-relative path")
-        return errors
-    relative = PurePosixPath(raw_path)
-    candidate = repo_root.joinpath(*relative.parts)
+        return [f"{location}.path: unsafe repository-relative path"]
+    candidate = repo_root.joinpath(*PurePosixPath(raw_path).parts)
     try:
         resolved = candidate.resolve(strict=True)
         resolved.relative_to(repo_root.resolve(strict=True))
     except (FileNotFoundError, OSError):
-        errors.append(f"{location}.path: fixture does not exist")
-        return errors
+        return [f"{location}.path: fixture does not exist"]
     except ValueError:
-        errors.append(f"{location}.path: fixture escapes repository")
-        return errors
-    if not resolved.is_file():
-        errors.append(f"{location}.path: fixture must be a regular file")
+        return [f"{location}.path: fixture escapes repository"]
+    errors = [] if resolved.is_file() else [f"{location}.path: expected regular file"]
     if not isinstance(digest, str) or not SHA256.fullmatch(digest):
         errors.append(f"{location}.sha256: expected lowercase SHA-256")
     elif resolved.is_file() and sha256_file(resolved) != digest:
@@ -185,7 +293,9 @@ def _validate_fixture(fixture: Any, repo_root: Path, location: str) -> list[str]
     return errors
 
 
-def _validate_case(case: Any, index: int, repo_root: Path) -> tuple[list[str], RuntimeTest | None]:
+def _validate_case(
+    case: Any, index: int, repo_root: Path, traceability_ids: set[str]
+) -> tuple[list[str], RuntimeTest | None]:
     location = f"$.cases[{index}]"
     if not isinstance(case, dict):
         return [f"{location}: expected object"], None
@@ -195,37 +305,25 @@ def _validate_case(case: Any, index: int, repo_root: Path) -> tuple[list[str], R
             f"{location}: invalid keys; missing={sorted(CASE_KEYS - set(case))}, "
             f"unknown={sorted(set(case) - CASE_KEYS)}"
         )
-    test_id = case.get("id")
+    test_id, target, name = case.get("id"), case.get("target"), case.get("runtime_name")
     if not isinstance(test_id, str) or not TEST_ID.fullmatch(test_id):
         errors.append(f"{location}.id: invalid stable test ID")
-    target = case.get("target")
-    name = case.get("runtime_name")
     if not isinstance(target, str) or not TARGET.fullmatch(target):
         errors.append(f"{location}.target: invalid Cargo target")
     if not isinstance(name, str) or not RUNTIME_NAME.fullmatch(name):
         errors.append(f"{location}.runtime_name: invalid libtest name")
     runtime = RuntimeTest(target, name) if isinstance(target, str) and isinstance(name, str) else None
-
-    traceability = case.get("traceability_ids")
+    links = case.get("traceability_ids")
     if (
-        not isinstance(traceability, list)
-        or not traceability
-        or len(set(traceability)) != len(traceability)
-        or any(item not in TRACEABILITY_IDS for item in traceability)
+        not isinstance(links, list)
+        or not links
+        or len(set(links)) != len(links)
+        or any(item not in traceability_ids for item in links)
     ):
-        errors.append(f"{location}.traceability_ids: expected unique known IDs")
+        errors.append(f"{location}.traceability_ids: expected unique registered IDs")
     for field in ("purpose", "distinct_invariant", "expected_result"):
-        value = case.get(field)
-        if not isinstance(value, str) or not value.strip():
+        if not isinstance(case.get(field), str) or not case[field].strip():
             errors.append(f"{location}.{field}: expected non-empty string")
-    ignored = case.get("ignored")
-    if type(ignored) is not bool:
-        errors.append(f"{location}.ignored: expected boolean")
-    expected_status = "ignored" if ignored is True else "listed"
-    if case.get("execution_status") != expected_status:
-        errors.append(
-            f"{location}.execution_status: expected {expected_status!r} for ignored={ignored!r}"
-        )
     fixtures = case.get("fixtures")
     if not isinstance(fixtures, list):
         errors.append(f"{location}.fixtures: expected array")
@@ -241,32 +339,45 @@ def _validate_case(case: Any, index: int, repo_root: Path) -> tuple[list[str], R
 
 def reconcile_document(
     document: Any,
-    runtime_tests: set[RuntimeTest],
-    ignored_tests: set[RuntimeTest],
+    observation: Any,
     repo_root: Path,
+    *,
+    expected_commit: str,
+    expected_dirty: bool,
 ) -> tuple[dict[str, int], list[str]]:
-    """Validate a manifest and reconcile it with Cargo's unfiltered inventory."""
+    """Reconcile immutable inventory against separately validated observation."""
+    observed_runtime, ignored, summary, errors = validate_runtime_observation(
+        observation
+    )
+    if isinstance(observation, dict):
+        if observation.get("git_commit") != expected_commit:
+            errors.append("observation.git_commit: does not match expected HEAD")
+        if observation.get("dirty") is not expected_dirty:
+            errors.append("observation.dirty: does not match expected worktree state")
+    registered_ids, registry_errors = load_traceability_registry(repo_root)
+    errors.extend(registry_errors)
     if not isinstance(document, dict):
-        return {}, ["$: expected object"]
-    errors = []
+        return summary, errors + ["$: expected object"]
     if set(document) != TOP_KEYS:
-        errors.append(
-            f"$: invalid keys; missing={sorted(TOP_KEYS - set(document))}, "
-            f"unknown={sorted(set(document) - TOP_KEYS)}"
-        )
-    if document.get("schema_version") != 1:
-        errors.append("$.schema_version: expected integer 1")
-    if document.get("cargo_command") != CARGO_COMMAND:
-        errors.append("$.cargo_command: command does not match the binding contract")
+        errors.append("$: invalid inventory top-level keys")
+    if document.get("schema_version") != 2:
+        errors.append("$.schema_version: expected integer 2")
+    policy = document.get("inventory_policy")
+    if not isinstance(policy, dict) or set(policy) != POLICY_KEYS:
+        errors.append("$.inventory_policy: invalid shape")
+    elif policy.get("include_ignored") is not True:
+        errors.append("$.inventory_policy.include_ignored: must be true")
     cases = document.get("cases")
     if not isinstance(cases, list):
-        return {}, errors + ["$.cases: expected array"]
+        return summary, errors + ["$.cases: expected array"]
 
     ids: dict[str, int] = {}
     runtimes: dict[RuntimeTest, int] = {}
     invariants: dict[str, int] = {}
     for index, case in enumerate(cases):
-        case_errors, runtime = _validate_case(case, index, repo_root)
+        case_errors, case_runtime = _validate_case(
+            case, index, repo_root, registered_ids
+        )
         errors.extend(case_errors)
         if not isinstance(case, dict):
             continue
@@ -282,83 +393,58 @@ def reconcile_document(
                     )
                 else:
                     seen[value] = index
-        if runtime is not None:
-            if runtime in runtimes:
+        if case_runtime is not None:
+            if case_runtime in runtimes:
                 errors.append(
-                    f"$.cases[{index}]: duplicate runtime test {runtime.display}; "
-                    f"first at index {runtimes[runtime]}"
+                    f"$.cases[{index}]: duplicate runtime test {case_runtime.display}"
                 )
             else:
-                runtimes[runtime] = index
-            actually_ignored = runtime in ignored_tests
-            if case.get("ignored") is not actually_ignored:
-                errors.append(
-                    f"$.cases[{index}].ignored: manifest/runtime ignored state differs"
-                )
-    ordered_ids = [
-        case.get("id") for case in cases if isinstance(case, dict)
-    ]
+                runtimes[case_runtime] = index
+    ordered_ids = [case.get("id") for case in cases if isinstance(case, dict)]
     if ordered_ids != sorted(ordered_ids):
         errors.append("$.cases: entries must be sorted by stable test ID")
-
     manifested = set(runtimes)
-    for test in sorted(runtime_tests - manifested):
+    for test in sorted(observed_runtime - manifested):
         errors.append(f"runtime test missing from manifest: {test.display}")
-    for test in sorted(manifested - runtime_tests):
+    for test in sorted(manifested - observed_runtime):
         errors.append(f"stale manifest test absent at runtime: {test.display}")
-
-    active_runtime = runtime_tests - ignored_tests
-    meaningful = len(
-        [
-            case
-            for case in cases
-            if isinstance(case, dict) and case.get("ignored") is False
-        ]
-    )
-    if document.get("meaningful_case_count") != meaningful:
-        errors.append(
-            "$.meaningful_case_count: does not equal manifested non-ignored cases"
-        )
-    if meaningful != len(active_runtime):
-        errors.append(
-            f"meaningful count {meaningful} does not equal active runtime count "
-            f"{len(active_runtime)}"
-        )
-    summary = {
-        "ignored": len(ignored_tests),
-        "meaningful": meaningful,
-        "runtime_total": len(runtime_tests),
-    }
+    if len(manifested) != summary.get("runtime_total"):
+        errors.append("inventory size does not equal runtime observation total")
+    if ignored - manifested:
+        errors.append("ignored runtime tests are excluded despite inventory policy")
     return summary, errors
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--repo-root",
-        type=Path,
-        default=Path(__file__).resolve().parent.parent,
+        "--repo-root", type=Path, default=Path(__file__).resolve().parent.parent
     )
-    parser.add_argument(
-        "--manifest",
-        type=Path,
-        default=Path("tests/manifest.json"),
-    )
+    parser.add_argument("--manifest", type=Path, default=Path("tests/manifest.json"))
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
     repo_root = args.repo_root.resolve()
-    manifest_path = (
-        args.manifest
-        if args.manifest.is_absolute()
-        else repo_root / args.manifest
-    )
+    manifest_path = args.manifest if args.manifest.is_absolute() else repo_root / args.manifest
     try:
         document = json.loads(manifest_path.read_text(encoding="utf-8"))
         runtime, ignored = cargo_inventory(repo_root)
-        summary, errors = reconcile_document(document, runtime, ignored, repo_root)
+        commit = git_head(repo_root)
+        dirty = git_dirty(repo_root)
+        if commit is None or dirty is None:
+            raise RuntimeError("cannot determine exact git commit and dirty state")
+        observation = build_runtime_observation(
+            runtime, ignored, git_commit=commit, dirty=dirty
+        )
+        summary, errors = reconcile_document(
+            document,
+            observation,
+            repo_root,
+            expected_commit=commit,
+            expected_dirty=dirty,
+        )
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -367,7 +453,8 @@ def main() -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         print(f"test reconciliation failed with {len(errors)} error(s)", file=sys.stderr)
         return 1
-    print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
+    output = {"observation": observation, "reconciliation": summary}
+    print(json.dumps(output, sort_keys=True, separators=(",", ":")))
     return 0
 
 

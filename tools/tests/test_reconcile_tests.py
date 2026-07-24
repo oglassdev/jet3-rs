@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import sys
 import tempfile
 import unittest
@@ -23,13 +24,36 @@ class ReconcileTests(unittest.TestCase):
             reconcile.RuntimeTest("jet3", "source::tests::short_read"),
             reconcile.RuntimeTest("jet3_testkit", "tests::fixture_name"),
         }
-        self.ignored = {
-            reconcile.RuntimeTest("jet3_testkit", "tests::fixture_name")
-        }
-        self.document = {
+        self.ignored = {reconcile.RuntimeTest("jet3_testkit", "tests::fixture_name")}
+        registry = {
             "schema_version": 1,
-            "cargo_command": list(reconcile.CARGO_COMMAND),
-            "meaningful_case_count": 2,
+            "requirements": [
+                {
+                    "id": "SAFE-01",
+                    "requirement": "Safe parsing",
+                    "acceptance_gates": ["G1", "G2"],
+                    "required_evidence": "bounded tests",
+                },
+                {
+                    "id": "TEST-01",
+                    "requirement": "Test inventory",
+                    "acceptance_gates": ["G2"],
+                    "required_evidence": "reconciled manifest",
+                },
+            ],
+        }
+        path = self.repo / "docs/validation/traceability-ids.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(registry), encoding="utf-8")
+        self.observation = reconcile.build_runtime_observation(
+            self.runtime,
+            self.ignored,
+            git_commit="0" * 40,
+            dirty=False,
+        )
+        self.document = {
+            "schema_version": 2,
+            "inventory_policy": {"include_ignored": True},
             "cases": [
                 self._case(
                     "UT-BINARY-001",
@@ -48,19 +72,13 @@ class ReconcileTests(unittest.TestCase):
                     "jet3_testkit",
                     "tests::fixture_name",
                     "Fixture metadata uses the scoped format name.",
-                    ignored=True,
                 ),
             ],
         }
 
     @staticmethod
     def _case(
-        test_id: str,
-        target: str,
-        runtime_name: str,
-        invariant: str,
-        *,
-        ignored: bool = False,
+        test_id: str, target: str, runtime_name: str, invariant: str
     ) -> dict[str, object]:
         return {
             "id": test_id,
@@ -71,28 +89,32 @@ class ReconcileTests(unittest.TestCase):
             "distinct_invariant": invariant,
             "fixtures": [],
             "expected_result": "The asserted structured result is returned.",
-            "ignored": ignored,
-            "execution_status": "ignored" if ignored else "listed",
         }
 
-    def _errors(self, document: object | None = None) -> list[str]:
+    def _errors(
+        self, document: object | None = None, observation: object | None = None
+    ) -> list[str]:
         _, errors = reconcile.reconcile_document(
             self.document if document is None else document,
-            self.runtime,
-            self.ignored,
+            self.observation if observation is None else observation,
             self.repo,
+            expected_commit="0" * 40,
+            expected_dirty=False,
         )
         return errors
 
-    def test_valid_manifest_reconciles_honest_meaningful_count(self) -> None:
+    def test_valid_inventory_reconciles_separate_observation(self) -> None:
         summary, errors = reconcile.reconcile_document(
-            self.document, self.runtime, self.ignored, self.repo
+            self.document,
+            self.observation,
+            self.repo,
+            expected_commit="0" * 40,
+            expected_dirty=False,
         )
         self.assertEqual(errors, [])
-        self.assertEqual(
-            summary,
-            {"ignored": 1, "meaningful": 2, "runtime_total": 3},
-        )
+        self.assertEqual(summary, {"ignored": 1, "meaningful": 2, "runtime_total": 3})
+        self.assertNotIn("execution_status", self.document["cases"][0])
+        self.assertNotIn("ignored", self.document["cases"][0])
 
     def test_duplicate_ids_runtime_names_and_invariants_fail(self) -> None:
         for field, fragment in (
@@ -103,37 +125,59 @@ class ReconcileTests(unittest.TestCase):
             with self.subTest(field=field):
                 document = copy.deepcopy(self.document)
                 document["cases"][1][field] = document["cases"][0][field]
-                errors = self._errors(document)
-                self.assertTrue(any(fragment in error for error in errors), errors)
+                self.assertTrue(
+                    any(fragment in error for error in self._errors(document))
+                )
 
-    def test_missing_runtime_and_stale_manifest_entries_fail(self) -> None:
+    def test_missing_runtime_and_stale_inventory_entries_fail(self) -> None:
         missing = copy.deepcopy(self.document)
         missing["cases"].pop()
-        missing["meaningful_case_count"] = 2
-        self.assertTrue(
-            any("runtime test missing" in error for error in self._errors(missing))
-        )
-
+        self.assertTrue(any("runtime test missing" in error for error in self._errors(missing)))
         stale = copy.deepcopy(self.document)
         stale["cases"][0]["runtime_name"] = "binary::tests::removed"
         errors = self._errors(stale)
         self.assertTrue(any("stale manifest test" in error for error in errors))
         self.assertTrue(any("runtime test missing" in error for error in errors))
 
-    def test_ignored_state_and_status_must_match_runtime(self) -> None:
+    def test_runtime_state_fields_are_rejected_from_inventory(self) -> None:
         document = copy.deepcopy(self.document)
-        document["cases"][2]["ignored"] = False
-        document["cases"][2]["execution_status"] = "listed"
-        document["meaningful_case_count"] = 3
-        errors = self._errors(document)
-        self.assertTrue(any("ignored state differs" in error for error in errors))
-        self.assertTrue(any("active runtime count" in error for error in errors))
+        document["cases"][0]["ignored"] = False
+        document["cases"][0]["execution_status"] = "listed"
+        self.assertTrue(any("unknown=" in error for error in self._errors(document)))
 
-    def test_inflated_meaningful_count_fails(self) -> None:
-        document = copy.deepcopy(self.document)
-        document["meaningful_case_count"] = 300
+    def test_observation_owns_ignored_state_and_counts(self) -> None:
+        runtime, ignored, counts, errors = reconcile.validate_runtime_observation(
+            self.observation
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(runtime, self.runtime)
+        self.assertEqual(ignored, self.ignored)
+        self.assertEqual(counts["meaningful"], 2)
+        self.assertEqual(self.observation["git_commit"], "0" * 40)
+        self.assertFalse(self.observation["dirty"])
+        corrupted = copy.deepcopy(self.observation)
+        corrupted["counts"]["meaningful"] = 300
         self.assertTrue(
-            any("meaningful_case_count" in error for error in self._errors(document))
+            any("counts" in error for error in self._errors(observation=corrupted))
+        )
+
+    def test_observation_requires_exact_commit_and_dirty_state(self) -> None:
+        corrupted = copy.deepcopy(self.observation)
+        corrupted["git_commit"] = "HEAD"
+        corrupted["dirty"] = "false"
+        errors = self._errors(observation=corrupted)
+        self.assertTrue(any("git_commit" in error for error in errors))
+        self.assertTrue(any("dirty" in error for error in errors))
+
+    def test_observation_rejects_duplicates_and_nondeterministic_order(self) -> None:
+        duplicate = copy.deepcopy(self.observation)
+        duplicate["tests"].append(copy.deepcopy(duplicate["tests"][0]))
+        errors = self._errors(observation=duplicate)
+        self.assertTrue(any("duplicate runtime test" in error for error in errors))
+        reversed_observation = copy.deepcopy(self.observation)
+        reversed_observation["tests"].reverse()
+        self.assertTrue(
+            any("entries must be sorted" in error for error in self._errors(observation=reversed_observation))
         )
 
     def test_manifest_order_must_be_deterministic(self) -> None:
@@ -143,46 +187,40 @@ class ReconcileTests(unittest.TestCase):
             any("sorted by stable test ID" in error for error in self._errors(document))
         )
 
-    def test_unknown_traceability_and_command_drift_fail(self) -> None:
+    def test_registry_is_authoritative_and_validated(self) -> None:
         document = copy.deepcopy(self.document)
         document["cases"][0]["traceability_ids"] = ["MADE-UP-99"]
-        document["cargo_command"].append("--ignored")
-        errors = self._errors(document)
-        self.assertTrue(any("unique known IDs" in error for error in errors))
-        self.assertTrue(any("binding contract" in error for error in errors))
+        self.assertTrue(
+            any("registered IDs" in error for error in self._errors(document))
+        )
+        registry_path = self.repo / "docs/validation/traceability-ids.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["requirements"][1]["id"] = "SAFE-01"
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        self.assertTrue(any("duplicate requirement ID" in error for error in self._errors()))
 
     def test_fixture_paths_are_safe_existing_and_hash_bound(self) -> None:
-        fixture = self.repo / "fixtures" / "case.bin"
+        fixture = self.repo / "fixtures/case.bin"
         fixture.parent.mkdir()
         fixture.write_bytes(b"fixture")
         digest = hashlib.sha256(b"fixture").hexdigest()
-
         valid = copy.deepcopy(self.document)
-        valid["cases"][0]["fixtures"] = [
-            {"path": "fixtures/case.bin", "sha256": digest}
-        ]
+        valid["cases"][0]["fixtures"] = [{"path": "fixtures/case.bin", "sha256": digest}]
         self.assertEqual(self._errors(valid), [])
-
         unsafe = copy.deepcopy(valid)
         unsafe["cases"][0]["fixtures"][0]["path"] = "../case.bin"
         self.assertTrue(any("unsafe" in error for error in self._errors(unsafe)))
-
         wrong_hash = copy.deepcopy(valid)
         wrong_hash["cases"][0]["fixtures"][0]["sha256"] = "0" * 64
-        self.assertTrue(
-            any("hash mismatch" in error for error in self._errors(wrong_hash))
-        )
+        self.assertTrue(any("hash mismatch" in error for error in self._errors(wrong_hash)))
 
     def test_cargo_parser_tracks_targets_and_ignores_summaries(self) -> None:
         output = """
     Running unittests src/lib.rs (target/debug/deps/jet3-0123456789abcdef)
 binary::tests::boundary: test
-
 1 test, 0 benchmarks
     Running unittests src/lib.rs (target/debug/deps/jet3_testkit-fedcba9876543210)
 tests::fixture_name: test
-
-1 test, 0 benchmarks
 """
         self.assertEqual(
             reconcile.parse_cargo_list(output),
@@ -192,7 +230,7 @@ tests::fixture_name: test
             },
         )
 
-    def test_cargo_parser_rejects_unscoped_and_duplicate_tests(self) -> None:
+    def test_cargo_parser_rejects_unscoped_duplicate_and_doctests(self) -> None:
         with self.assertRaisesRegex(ValueError, "no preceding Cargo target"):
             reconcile.parse_cargo_list("tests::orphan: test\n")
         duplicate = """
@@ -202,6 +240,12 @@ tests::same: test
 """
         with self.assertRaisesRegex(ValueError, "duplicate test"):
             reconcile.parse_cargo_list(duplicate)
+        doctest = """
+   Doc-tests jet3
+crates/jet3/src/lib.rs - example (line 10): test
+"""
+        with self.assertRaisesRegex(ValueError, "Doc-tests are outside"):
+            reconcile.parse_cargo_list(doctest)
 
     def test_cargo_parser_accepts_top_level_integration_test_name(self) -> None:
         output = """
@@ -212,16 +256,6 @@ opens_database: test
             reconcile.parse_cargo_list(output),
             {reconcile.RuntimeTest("smoke", "opens_database")},
         )
-
-    def test_cargo_parser_diagnoses_doc_tests_instead_of_misattributing(self) -> None:
-        output = """
-    Running unittests src/lib.rs (target/debug/deps/jet3-0123456789abcdef)
-tests::unit: test
-   Doc-tests jet3
-crates/jet3/src/lib.rs - example (line 10): test
-"""
-        with self.assertRaisesRegex(ValueError, "Doc-tests are outside"):
-            reconcile.parse_cargo_list(output)
 
 
 if __name__ == "__main__":

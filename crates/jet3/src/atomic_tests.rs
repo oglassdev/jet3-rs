@@ -179,6 +179,39 @@ fn directory_sync_fault_reports_published_validated_replacement() -> TestResult 
 }
 
 #[test]
+fn cleanup_failure_is_reported_without_overwriting_primary_error() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    fs::write(&target, b"original")?;
+    let mut budget = ResourceBudget::new(limits(1024));
+    let error = atomic_update_with_hook(
+        &target,
+        &mut budget,
+        replace_contents,
+        validate_replacement,
+        |stage| match stage {
+            PublishStage::Validation => Err(TestFailure("primary validation fault")),
+            PublishStage::Cleanup => Err(TestFailure("secondary cleanup fault")),
+            _ => Ok(()),
+        },
+    )
+    .err()
+    .ok_or(TestFailure("combined fault unexpectedly succeeded"))?;
+
+    assert_eq!(error.stage(), PublishStage::Validation);
+    assert!(!error.replacement_published());
+    let cleanup = error
+        .cleanup_error()
+        .ok_or(TestFailure("cleanup fault was not retained"))?;
+    assert_eq!(cleanup.to_string(), "secondary cleanup fault");
+    assert!(error.to_string().contains("primary validation fault"));
+    assert!(error.to_string().contains("secondary cleanup fault"));
+    assert_eq!(fs::read(&target)?, b"original");
+    assert_eq!(directory.private_entries()?, 0);
+    Ok(())
+}
+
+#[test]
 fn mutation_and_validation_errors_preserve_original() -> TestResult {
     for fail_validation in [false, true] {
         let directory = TestDirectory::create()?;

@@ -1,35 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jet3-rs:validation:test-manifest:1",
+  "$id": "urn:jet3-rs:validation:test-manifest:2",
   "title": "jet3-rs deterministic test manifest",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "cargo_command",
-    "meaningful_case_count",
+    "inventory_policy",
     "cases"
   ],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
-    "cargo_command": {
-      "const": [
-        "cargo",
-        "test",
-        "--workspace",
-        "--all-targets",
-        "--all-features",
-        "--locked",
-        "--",
-        "--list"
-      ]
-    },
-    "meaningful_case_count": {
-      "type": "integer",
-      "minimum": 0
+    "inventory_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["include_ignored"],
+      "properties": {
+        "include_ignored": {"const": true}
+      }
     },
     "cases": {
       "type": "array",
@@ -75,9 +66,7 @@
         "purpose",
         "distinct_invariant",
         "fixtures",
-        "expected_result",
-        "ignored",
-        "execution_status"
+        "expected_result"
       ],
       "properties": {
         "id": {
@@ -119,20 +108,6 @@
         "expected_result": {
           "type": "string",
           "minLength": 1
-        },
-        "ignored": {
-          "type": "boolean"
-        },
-        "execution_status": {
-          "enum": [
-            "not_run",
-            "listed",
-            "ignored",
-            "passed",
-            "failed",
-            "blocked",
-            "skipped"
-          ]
         }
       }
     }
