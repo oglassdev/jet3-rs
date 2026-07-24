@@ -3,6 +3,7 @@
 /.vscode/
 *.swp
 *.tmp
+__pycache__/
 *.profraw
 coverage/
 fuzz/artifacts/

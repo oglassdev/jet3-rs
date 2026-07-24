@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
@@ -145,6 +146,20 @@ def _canonical_json(document: Any) -> bytes:
     ).encode("utf-8")
 
 
+def _fsync_directory(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        # Windows and some filesystems do not permit opening a directory.
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        pass
+    finally:
+        os.close(descriptor)
+
+
 def _write_immutable_json(path: Path, document: Any) -> None:
     encoded = _canonical_json(document)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,23 +167,29 @@ def _write_immutable_json(path: Path, document: Any) -> None:
         if not path.is_file() or path.read_bytes() != encoded:
             raise ReportError(f"refusing to overwrite immutable report {path}")
         return
-    try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    except FileExistsError:
-        if not path.is_file() or path.read_bytes() != encoded:
-            raise ReportError(f"concurrent conflicting report at {path}") from None
-        return
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    temporary_path = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as destination:
             destination.write(encoded)
             destination.flush()
             os.fsync(destination.fileno())
-    except BaseException:
         try:
-            path.unlink()
-        except OSError:
+            os.link(temporary_path, path)
+        except FileExistsError:
+            if not path.is_file() or path.read_bytes() != encoded:
+                raise ReportError(f"concurrent conflicting report at {path}") from None
+        _fsync_directory(path.parent)
+    finally:
+        try:
+            temporary_path.unlink()
+        except FileNotFoundError:
             pass
-        raise
 
 
 def _load_json(path: Path, description: str) -> Any:
@@ -461,9 +482,11 @@ def summarize(
         raise ReportError("clean acceptance summary cannot use a dirty tree")
 
     gates = list(required_gates)
-    if not gates or len(gates) != len(set(gates)) or any(gate not in GATES for gate in gates):
-        raise ReportError("required gates must be a non-empty unique subset of G0..G8")
-    gates.sort(key=GATES.index)
+    if tuple(gates) != GATES:
+        raise ReportError(
+            "release summary requires exactly G0 through G8 in canonical order; "
+            "gate subsets are diagnostic-only and cannot be published"
+        )
 
     run_relative, run_root = _paths(root, commit, run_id)
     metadata_path = run_root / "run-metadata.json"
@@ -582,6 +605,8 @@ def summarize(
         "git_commit": commit,
         "dirty": metadata["dirty"],
         "run_id": run_id,
+        "release_eligible": True,
+        "required_gates": list(GATES),
         "status": overall_status,
         "counts": counts,
         "gates": gate_summaries,

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
@@ -222,6 +223,8 @@ class AcceptanceReportTests(unittest.TestCase):
         path = report.summarize(repo_root=self.repo, run_id=self.run_id)
         summary = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(summary["status"], "FAIL")
+        self.assertTrue(summary["release_eligible"])
+        self.assertEqual(summary["required_gates"], list(report.GATES))
         self.assertEqual(summary["counts"], {"PASS": 7, "FAIL": 1, "BLOCKED": 1})
         manifest = self.repo / summary["manifest_path"]
         self.assertEqual(summary["manifest_sha256"], report.sha256_file(manifest))
@@ -243,21 +246,41 @@ class AcceptanceReportTests(unittest.TestCase):
         with self.assertRaisesRegex(report.ReportError, "missing G1 report"):
             report.summarize(repo_root=self.repo, run_id=self.run_id)
 
-    def test_summary_accepts_explicit_nonempty_gate_subset(self) -> None:
+    def test_summary_rejects_gate_subset_without_publishing_release_files(self) -> None:
         self._record("G0")
-        path = report.summarize(
-            repo_root=self.repo,
-            run_id=self.run_id,
-            required_gates=["G0"],
-        )
-        summary = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(summary["counts"], {"PASS": 1, "FAIL": 0, "BLOCKED": 0})
-        with self.assertRaisesRegex(report.ReportError, "non-empty unique subset"):
+        with self.assertRaisesRegex(report.ReportError, "exactly G0 through G8"):
             report.summarize(
                 repo_root=self.repo,
                 run_id=self.run_id,
-                required_gates=[],
+                required_gates=["G0"],
             )
+        run_root = (
+            self.repo
+            / "artifacts"
+            / "acceptance"
+            / self.commit
+            / self.run_id
+        )
+        self.assertFalse((run_root / "summary.json").exists())
+        self.assertFalse((run_root / "manifest.json").exists())
+
+    def test_summary_rejects_noncanonical_full_gate_order(self) -> None:
+        self._record_all()
+        with self.assertRaisesRegex(report.ReportError, "canonical order"):
+            report.summarize(
+                repo_root=self.repo,
+                run_id=self.run_id,
+                required_gates=reversed(report.GATES),
+            )
+        run_root = (
+            self.repo
+            / "artifacts"
+            / "acceptance"
+            / self.commit
+            / self.run_id
+        )
+        self.assertFalse((run_root / "summary.json").exists())
+        self.assertFalse((run_root / "manifest.json").exists())
 
     def test_summary_rejects_tampered_artifact(self) -> None:
         self._record_all()
@@ -295,12 +318,10 @@ class AcceptanceReportTests(unittest.TestCase):
         stdout = self._log("shared", "stdout")
         self._record("G0", stdout=stdout)
         self._record("G1", stdout=stdout)
+        for gate in report.GATES[2:]:
+            self._record(gate)
         with self.assertRaisesRegex(report.ReportError, "reused across reports"):
-            report.summarize(
-                repo_root=self.repo,
-                run_id=self.run_id,
-                required_gates=["G0", "G1"],
-            )
+            report.summarize(repo_root=self.repo, run_id=self.run_id)
 
     def test_clean_summary_rejects_dirty_reports(self) -> None:
         (self.repo / "README.md").write_text("changed\n", encoding="utf-8")
@@ -326,6 +347,14 @@ class AcceptanceReportTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(report.ReportError, "stale run"):
             report.summarize(repo_root=self.repo, run_id=self.run_id)
+
+    def test_immutable_write_cleans_temp_when_publication_is_interrupted(self) -> None:
+        destination = self.repo / "artifacts" / "acceptance" / "result.json"
+        with mock.patch.object(report.os, "link", side_effect=OSError("interrupted")):
+            with self.assertRaisesRegex(OSError, "interrupted"):
+                report._write_immutable_json(destination, {"status": "PASS"})
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(destination.parent.glob(".result.json.*.tmp")), [])
 
 
 if __name__ == "__main__":

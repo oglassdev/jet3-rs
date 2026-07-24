@@ -9,6 +9,8 @@
     "git_commit",
     "dirty",
     "run_id",
+    "release_eligible",
+    "required_gates",
     "status",
     "counts",
     "gates",
@@ -30,6 +32,22 @@
     "run_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "release_eligible": {
+      "const": true
+    },
+    "required_gates": {
+      "const": [
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G6",
+        "G7",
+        "G8"
+      ]
     },
     "status": {
       "enum": [
