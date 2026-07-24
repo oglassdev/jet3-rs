@@ -430,14 +430,16 @@ try {
         $DatabaseLocale,
         $DbVersion30
     )
+    Add-OperationEntry -Entries $entries -Action "create_database" `
+        -Status "pass" -Detail "Created an unencrypted dbVersion30 MDB."
     $database.Close()
     Release-ComObject -Value $database
     $database = $null
     if (-not (Test-Path -LiteralPath $workingDatabase -PathType Leaf)) {
         throw "DAO returned without retaining the dbVersion30 MDB."
     }
-    Add-OperationEntry -Entries $entries -Action "create_database" `
-        -Status "pass" -Detail "Created and closed an unencrypted dbVersion30 MDB."
+    Add-OperationEntry -Entries $entries -Action "close_database" `
+        -Status "pass" -Detail "Closed and retained the dbVersion30 MDB."
 
     $phase = "reopen_database"
     $database = $workspace.OpenDatabase($workingDatabase)

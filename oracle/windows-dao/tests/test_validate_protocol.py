@@ -189,19 +189,40 @@ def write_runner_bundle(root):
             {
                 "sequence": 1,
                 "timestamp_utc": TIMESTAMP,
-                "action": "create_database",
+                "action": "activate_provider",
                 "status": "pass",
                 "detail": "Synthetic protocol action.",
             },
             {
                 "sequence": 2,
                 "timestamp_utc": TIMESTAMP,
-                "action": "close_reopen_snapshot",
+                "action": "create_database",
                 "status": "pass",
                 "detail": "Synthetic protocol action.",
             },
             {
                 "sequence": 3,
+                "timestamp_utc": TIMESTAMP,
+                "action": "close_database",
+                "status": "pass",
+                "detail": "Synthetic protocol action.",
+            },
+            {
+                "sequence": 4,
+                "timestamp_utc": TIMESTAMP,
+                "action": "reopen_database",
+                "status": "pass",
+                "detail": "Synthetic protocol action.",
+            },
+            {
+                "sequence": 5,
+                "timestamp_utc": TIMESTAMP,
+                "action": "snapshot",
+                "status": "pass",
+                "detail": "Synthetic protocol action.",
+            },
+            {
+                "sequence": 6,
                 "timestamp_utc": TIMESTAMP,
                 "action": "finalize",
                 "status": "pass",
@@ -309,6 +330,8 @@ def write_runner_bundle(root):
         "report": report_path,
         "snapshot": snapshot_path,
         "snapshot_relative": snapshot_relative,
+        "operation_log": log_path,
+        "operation_log_relative": log_relative,
     }
 
 
@@ -682,6 +705,137 @@ class ProtocolValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 VALIDATOR.ValidationError,
                 "payload contract differs",
+            ):
+                VALIDATOR.validate_bundle(root)
+
+    def test_passing_bundle_rejects_forged_earlier_log_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / COMMIT / RUN_ID
+            root.mkdir(parents=True)
+            paths = write_runner_bundle(root)
+            operation_log = json.loads(
+                paths["operation_log"].read_text(encoding="utf-8")
+            )
+            operation_log["entries"][1]["status"] = "fail"
+            operation_log["entries"][1]["detail"] = "Forged earlier failure."
+            write_json(paths["operation_log"], operation_log)
+            report = json.loads(paths["report"].read_text(encoding="utf-8"))
+            report["scenarios"][0]["operation_log"]["sha256"] = sha256(
+                paths["operation_log"]
+            )
+            write_json(paths["report"], report)
+            update_manifest_payloads(
+                root, [paths["operation_log_relative"], "report.json"]
+            )
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError,
+                "cannot contain an earlier failure",
+            ):
+                VALIDATOR.validate_bundle(root)
+
+    def test_contradictory_differential_snapshots_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / COMMIT / RUN_ID
+            root.mkdir(parents=True)
+            paths = write_runner_bundle(root)
+            report = json.loads(paths["report"].read_text(encoding="utf-8"))
+            result = report["scenarios"][0]
+            database_reference = result["output_database"]
+            new_id = "DAO-READ-PROBE-001"
+
+            input_path = root / result["input"]["path"]
+            scenario = json.loads(input_path.read_text(encoding="utf-8"))
+            scenario["scenario_id"] = new_id
+            scenario["mode"] = "rust_read_dao"
+            scenario["database"]["input_role"] = "dao_created"
+            scenario["database"]["input_path"] = database_reference["path"]
+            scenario["database"]["input_sha256"] = database_reference["sha256"]
+            write_json(input_path, scenario)
+
+            dao_snapshot = json.loads(
+                paths["snapshot"].read_text(encoding="utf-8")
+            )
+            dao_snapshot["scenario_id"] = new_id
+            paths["snapshot"].write_bytes(canonical_bytes(dao_snapshot))
+            rust_snapshot = copy.deepcopy(dao_snapshot)
+            rust_snapshot["producer"]["kind"] = "rust"
+            rust_snapshot["tables"] = [
+                {
+                    "name": "contradiction",
+                    "kind": "user",
+                    "attributes": 0,
+                    "columns": [],
+                    "indexes": [],
+                    "properties": {},
+                    "rows": [],
+                }
+            ]
+            rust_relative = (
+                "scenarios/DAO-GEN-PROBE-001/rust-snapshot.json"
+            )
+            rust_path = root / rust_relative
+            rust_path.write_bytes(canonical_bytes(rust_snapshot))
+
+            operation_log = json.loads(
+                paths["operation_log"].read_text(encoding="utf-8")
+            )
+            operation_log["scenario_id"] = new_id
+            write_json(paths["operation_log"], operation_log)
+
+            result["scenario_id"] = new_id
+            result["mode"] = "rust_read_dao"
+            result["input"]["sha256"] = sha256(input_path)
+            result["source_database"] = database_reference
+            result["output_database"] = None
+            result["dao_snapshot"]["sha256"] = sha256(paths["snapshot"])
+            result["rust_snapshot"] = {
+                "path": rust_relative,
+                "sha256": sha256(rust_path),
+            }
+            result["operation_log"]["sha256"] = sha256(paths["operation_log"])
+            write_json(paths["report"], report)
+
+            manifest_path = root / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["scenario_ids"] = [new_id]
+            entry_by_path = {
+                entry["path"]: entry for entry in manifest["files"]
+            }
+            entry_by_path[database_reference["path"]]["role"] = "source_database"
+            entry_by_path[result["input"]["path"]]["sha256"] = sha256(input_path)
+            entry_by_path[result["input"]["path"]][
+                "size_bytes"
+            ] = input_path.stat().st_size
+            entry_by_path[result["dao_snapshot"]["path"]]["sha256"] = sha256(
+                paths["snapshot"]
+            )
+            entry_by_path[result["dao_snapshot"]["path"]][
+                "size_bytes"
+            ] = paths["snapshot"].stat().st_size
+            entry_by_path[result["operation_log"]["path"]]["sha256"] = sha256(
+                paths["operation_log"]
+            )
+            entry_by_path[result["operation_log"]["path"]][
+                "size_bytes"
+            ] = paths["operation_log"].stat().st_size
+            manifest["files"].append(
+                {
+                    "path": rust_relative,
+                    "role": "rust_snapshot",
+                    "sha256": sha256(rust_path),
+                    "size_bytes": rust_path.stat().st_size,
+                    "media_type": "application/json",
+                }
+            )
+            entry_by_path["report.json"]["sha256"] = sha256(paths["report"])
+            entry_by_path["report.json"][
+                "size_bytes"
+            ] = paths["report"].stat().st_size
+            write_json(manifest_path, manifest)
+
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError,
+                "differential mode is not implemented",
             ):
                 VALIDATOR.validate_bundle(root)
 

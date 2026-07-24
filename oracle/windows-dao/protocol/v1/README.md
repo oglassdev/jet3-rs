@@ -75,3 +75,12 @@ empty `tables` array; DAO-owned system objects are not user schema.
 
 The runner is intentionally not a general scenario interpreter. Adding another
 scenario requires a separately reviewed action mapping and evidence tests.
+The bundle validator likewise accepts product evidence only for the exact
+`DAO-GEN-PROBE-001` M0 scenario. `rust_read_dao`, `dao_open_rust`, and
+`dao_verify_rust_update` bundles fail closed until canonical semantic comparison
+and update `preserve_paths` evaluation are implemented.
+
+A passing M0 operation log has one exact action sequence: provider activation,
+every declared scenario step in order, reopen, snapshot, and finalization.
+Every entry must pass; a final passing entry cannot conceal an earlier failure,
+block, or harness error.
