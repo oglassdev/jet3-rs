@@ -17,20 +17,71 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.96.0
-          components: clippy
+          components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --workspace --all-targets --all-features --locked
-      - run: cargo doc --workspace --all-features --no-deps --locked
-        env:
-          RUSTDOCFLAGS: -D warnings
+      - name: Run G1 checks and record commit-bound evidence
+        run: >-
+          python tools/ci_evidence.py run-platform
+          --platform "${{ matrix.platform }}"
+          --output "artifacts/ci-evidence/${{ matrix.platform }}"
+      - name: Upload platform evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-${{ matrix.platform }}-${{ github.sha }}
+          path: artifacts/ci-evidence/${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 30
+
+  g1-evidence:
+    name: Aggregate G1 cross-platform evidence
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Download exact-run platform records
+        uses: actions/download-artifact@v4
+        with:
+          pattern: g1-*-${{ github.sha }}
+          path: artifacts/ci-evidence/downloaded
+      - name: Validate and aggregate exact-commit evidence
+        shell: bash
+        run: |
+          commit=$(git rev-parse HEAD)
+          test "$commit" = "$GITHUB_SHA"
+          python tools/ci_evidence.py aggregate \
+            --input-root artifacts/ci-evidence/downloaded \
+            --output artifacts/ci-evidence/g1-aggregate \
+            --expected-commit "$commit"
+          python tools/ci_evidence.py verify-aggregate \
+            artifacts/ci-evidence/g1-aggregate \
+            --expected-commit "$commit"
+      - name: Upload validated aggregate
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-cross-platform-${{ github.sha }}
+          path: artifacts/ci-evidence/g1-aggregate
+          if-no-files-found: error
+          retention-days: 30
 
   validation:
     name: Validation contracts and tooling

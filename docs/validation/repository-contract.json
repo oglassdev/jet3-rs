@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "workspace_packages": {
+    "production": [
+      {
+        "crate_root": "crates/jet3/src/lib.rs",
+        "manifest": "crates/jet3/Cargo.toml",
+        "name": "jet3"
+      },
+      {
+        "crate_root": "crates/jet3-cli/src/main.rs",
+        "manifest": "crates/jet3-cli/Cargo.toml",
+        "name": "jet3-cli"
+      }
+    ],
+    "support": [
+      {
+        "manifest": "crates/jet3-testkit/Cargo.toml",
+        "name": "jet3-testkit"
+      }
+    ]
+  },
+  "allowed_runtime_packages": [
+    "jet3",
+    "jet3-cli"
+  ],
+  "format_knowledge": {
+    "assertion_files": [
+      {
+        "path": "crates/jet3-cli/src/main.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005"
+        ],
+        "sha256": "9071032f737f6e12961905c40ce2827756ddcc5d7bc776060b1b84d9399bc088"
+      },
+      {
+        "path": "crates/jet3/src/header.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005"
+        ],
+        "sha256": "9e96022f0dacf4b3a8fd7b893ad3dafcdaef6e392e9ab8b140f4ffac3e281c22"
+      },
+      {
+        "path": "crates/jet3/src/jet3_page.rs",
+        "provenance_ids": [
+          "SRC-0005"
+        ],
+        "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6"
+      }
+    ],
+    "reviewed_non_assertion_files": [
+      {
+        "path": "crates/jet3/src/atomic.rs",
+        "reason": "Format-neutral atomic file replacement and recovery mechanics only.",
+        "sha256": "126dc31dbe5bc29eca15246dff399cb3eea464dea8a49dc2109a404806be5725"
+      },
+      {
+        "path": "crates/jet3/src/atomic_tests.rs",
+        "reason": "Test-only verification of format-neutral atomic file replacement.",
+        "sha256": "ae3e3c2e2f8cd21acdcbc6e39b045414ab16a1b29b317b5b65a7decb250ab93b"
+      },
+      {
+        "path": "crates/jet3/src/binary.rs",
+        "reason": "Format-neutral checked binary cursor and primitive little-endian decoding.",
+        "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840"
+      },
+      {
+        "path": "crates/jet3/src/error.rs",
+        "reason": "Structured error types for format-neutral checked operations.",
+        "sha256": "531e94dcfb6e9aa917de72a385cf5d17d11f396b5f0ac0892bf4186cd86edd50"
+      },
+      {
+        "path": "crates/jet3/src/header_tests.rs",
+        "reason": "Test-only verification of the provenance-bound header assertions in header.rs.",
+        "sha256": "143f512066dc2a698072fd08b26be000876d3ad39684dad61d5fefec640dda26"
+      },
+      {
+        "path": "crates/jet3/src/jet3_page_tests.rs",
+        "reason": "Test-only verification of the provenance-bound page-size use in jet3_page.rs.",
+        "sha256": "bff23b9a03e21578052e2bebb5f36eb6cf169cdf4ff737ab46ea05ae98409cb1"
+      },
+      {
+        "path": "crates/jet3/src/lib.rs",
+        "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
+        "sha256": "625fef36ebaa16ab61c6edf296dde2be0949637bd4ca6297ff4e5b300b704191"
+      },
+      {
+        "path": "crates/jet3/src/limits.rs",
+        "reason": "The only Jet reference explicitly states that the security defaults are format-independent.",
+        "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443"
+      },
+      {
+        "path": "crates/jet3/src/offset.rs",
+        "reason": "Format-neutral typed offset and byte-count arithmetic only.",
+        "sha256": "406f03894694b4910973ad05b987de7cd2d139164ace32d5e99c11d7536f8daa"
+      },
+      {
+        "path": "crates/jet3/src/page.rs",
+        "reason": "Format-neutral page geometry parameterized by an explicit caller-provided page size.",
+        "sha256": "875e13749f69b70dcbc0ee1bb7bc4cd9ecf3b98db7e0f79be6d102c4d67677c8"
+      },
+      {
+        "path": "crates/jet3/src/resource.rs",
+        "reason": "Format-neutral allocation, read, traversal, and work budgets.",
+        "sha256": "9534b310f73f1ef157a910fe23ba2c6c8f28d5c401af68e20f4244500fdd23f4"
+      },
+      {
+        "path": "crates/jet3/src/resource_tests.rs",
+        "reason": "Test-only verification of format-neutral resource budgets.",
+        "sha256": "6acd285e10ca0e2b22c9f83a0368682631e6e71790875e1273cef948cee727d4"
+      },
+      {
+        "path": "crates/jet3/src/source.rs",
+        "reason": "Format-neutral bounded random-access byte sources.",
+        "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a"
+      }
+    ]
+  },
+  "fixtures": {
+    "repository_manifest": "fixtures/manifest.json",
+    "seed_manifest": "fuzz/corpus/manifest.json",
+    "external_observational": {
+      "acceptance_fixture": false,
+      "documentation": "docs/validation/EXTERNAL_CORPUS.md",
+      "manifest": "docs/validation/external-corpus.json",
+      "provenance": "docs/PROVENANCE.md",
+      "redistributable": false,
+      "regenerable": false
+    }
+  }
+}

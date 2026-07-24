@@ -29,12 +29,12 @@ case "${1:-}" in
     G0)
         python3 tools/validate_contract.py
         python3 tools/validate_contract.py --self-test
-        if command -v cargo-deny >/dev/null 2>&1; then
-            configure_toolchain
-            run_cargo deny check
-            blocked "G0 cargo-deny passed, but no checked repository-fixture manifest validator or automated audit ties every production format assertion to provenance"
+        python3 tools/validate_repository_contract.py
+        if ! command -v cargo-deny >/dev/null 2>&1; then
+            blocked "G0 cargo-deny is unavailable"
         fi
-        blocked "G0 cargo-deny is unavailable, and no checked repository-fixture manifest validator or automated audit ties every production format assertion to provenance"
+        configure_toolchain
+        run_cargo deny check
         ;;
     G1)
         configure_toolchain
@@ -42,7 +42,13 @@ case "${1:-}" in
         RUSTDOCFLAGS="-D warnings" \
             run_cargo doc --workspace --all-features --no-deps --locked
         python3 -m unittest discover -s tools/tests -v
-        blocked "G1 lacks clean, commit-matched Linux, macOS, and Windows CI result bundles and complete public-API and malformed-input release evidence"
+        if [ -z "${JET3_G1_EVIDENCE:-}" ]; then
+            blocked "G1 requires JET3_G1_EVIDENCE to name a downloaded, exact-commit Linux/macOS/Windows aggregate; local checks alone are not release evidence"
+        fi
+        evidence_commit=$(git rev-parse HEAD)
+        python3 tools/ci_evidence.py verify-aggregate \
+            "$JET3_G1_EVIDENCE" \
+            --expected-commit "$evidence_commit"
         ;;
     G2)
         configure_toolchain

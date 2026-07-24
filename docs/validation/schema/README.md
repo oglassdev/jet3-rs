@@ -17,6 +17,32 @@ JSON Schema package.
 - `acceptance-manifest.schema.json` describes the files retained by one run.
 - `acceptance-summary.schema.json` describes deterministic run counts and hashes.
 - `traceability-registry.schema.json` describes the authoritative requirement-ID registry.
+- `ci-platform-evidence.schema.json` describes one deterministic, commit-bound
+  Linux, macOS, or Windows G1 command record and its hashed logs.
+- `ci-aggregate-evidence.schema.json` describes the exact-commit three-platform
+  aggregate consumed by G1. The validator also enforces uniqueness, canonical
+  command order and arguments, compiler-host/platform agreement, and
+  referenced-file hashes.
+- `repository-contract.schema.json` describes the fail-closed G0 inventory of
+  workspace roles, permitted runtime packages, format-knowledge files, and the
+  three distinct fixture classes.
+
+The repository fixture manifest may be empty only when the checked
+`fixtures/generated`, `fixtures/malformed`, and `fixtures/regression`
+directories contain no fixture files. Synthetic fuzz seeds are independently
+complete and hash-bound by `fuzz/corpus/manifest.json`. The donated external
+corpus is observational, nonredistributable, nonregenerable, optional, and
+never release evidence; its identity and handling records remain in
+`external-corpus.json`, `EXTERNAL_CORPUS.md`, and `docs/PROVENANCE.md`.
+
+Every Rust source file below each production package's `src` directory is
+inventoried by exact SHA-256. A format-assertion file names one or more existing
+provenance IDs, and every named ID must also appear in that source file.
+Reviewed test-only, presentation, or explicit non-assertion files instead
+record why they contain no production physical-format knowledge. Any source
+change or newly discovered source file fails G0 until that classification and
+its provenance are reviewed. Production packages may not use a build script or
+introduce a Cargo `custom-build` target.
 
 Repository paths in these documents use forward slashes, are relative to the
 repository root, and must not contain `.` or `..` path components. SHA-256

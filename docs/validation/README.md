@@ -8,6 +8,8 @@ contract, not synonyms for “our writer produced bytes that our reader accepts.
 The documents are normative for v1:
 
 - [EVIDENCE.md](EVIDENCE.md) defines status and evidence vocabulary.
+- [CI_EVIDENCE.md](CI_EVIDENCE.md) defines commit-bound Linux, macOS, and
+  Windows G1 records and explicit aggregate selection.
 - [ACCEPTANCE.md](ACCEPTANCE.md) defines measurable quality gates and the
   command that runs them.
 - [TRACEABILITY.md](TRACEABILITY.md) maps product requirements to evidence.

@@ -45,7 +45,11 @@ cargo test --workspace --all-targets --all-features
 Production source files are at most 800 physical lines. Public APIs are
 documented, checked decoders return structured errors, and tests assert that
 malformed input causes neither panic nor unbounded work. Linux, macOS, and
-Windows jobs all pass.
+Windows jobs all pass. The commit-bound record format, CI aggregation, and
+explicit local artifact-selection procedure are defined in
+[CI_EVIDENCE.md](CI_EVIDENCE.md). Without a downloaded exact-commit aggregate,
+local full acceptance reports G1 as `BLOCKED`; local quick checks remain
+network-independent and are not release evidence.
 
 ## G2 — deterministic and adversarial tests
 

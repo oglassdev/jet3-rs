@@ -8,7 +8,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-jet3 = { path = "../jet3" }
+jet3 = { path = "../jet3", version = "=0.0.0" }
 
 [lints]
 workspace = true
