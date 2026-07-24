@@ -715,6 +715,59 @@ Use `not applicable` explicitly rather than omitting a field.
   redistributed
 - Review: pending independent review
 
+### EXP-0006 — PowerShell byte-array marshalling through DAO 3.6
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: experiment and black-box result
+- Question: Which late-bound PowerShell runtime value and DAO API operation
+  deterministically round-trip the controlled `dbBinary` marker and
+  `dbLongBinary` boundary ladder?
+- Origin: project-controlled values from protocol 1.1, executed by
+  `oracle/windows-dao/experiments/m1-marshalling-probe.ps1`; no donated
+  database or third-party MDB implementation was used
+- Environment: Windows 11 Pro 10.0.22631 on x64; x86 Windows PowerShell
+  5.1.22621.6133; CLR 4.0.30319.42000; culture `en-US`; ANSI code page 1252;
+  Eastern Standard Time; `DAO.DBEngine.36` provider version 3.6 from
+  `dao360.dll` file version 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  clean repository commit `be8e0c9943fdab088a5a08be956435c897a4a1f2`
+- Protocol: require a ready protocol-1.1 environment whose process
+  architecture and provider binary hash match the running process; require the
+  exact clean Git commit; create a disposable `dbVersion30` database; test the
+  fixed eight-byte marker through direct `Field.Value`, `AppendChunk`, and a
+  unary-comma wrapper; test locally constructed `System.Byte[]` values filled
+  with `0xa5` through `dbLongBinary.AppendChunk` at lengths 1, 2047, 2048,
+  2049, 32767, 32768, and 32769; read every successful value through DAO and
+  record its CLR type and exact bytes or SHA-256; retain failure type, HRESULT,
+  and message; delete the disposable database after hashing it
+- Artifacts: ready environment record retained outside the repository,
+  SHA-256
+  `870ec9ceaaa6a5b9af0ebf16fbf0ef793b943718b49d9f003ed48cfd65af679f`;
+  experiment result retained outside the repository at
+  `%TEMP%\jet3-rs-m1-marshalling-be8e0c9943fdab088a5a08be956435c897a4a1f2-20260724T235348Z.json`,
+  SHA-256
+  `cf36d297d88d0d6d6f22b1d4a018479a335be7a38b4b301b0a195fc0e632ad28`
+- Observation: direct assignment of the marker as `System.Byte[]` to
+  `dbBinary.Value` returned `System.Byte[]` with exact hex
+  `0011223344556677`. `dbBinary.AppendChunk(System.Byte[])` failed with COM
+  HRESULT `0x800A0CBB` (“Invalid field data type”), and assigning the
+  unary-comma wrapper failed with `0x800A0D5D` (“Data type conversion error”).
+  `dbLongBinary.AppendChunk(System.Byte[])` passed at every controlled length;
+  every DAO readback was `System.Byte[]` with the exact input length and
+  SHA-256.
+- Interpretation: on this exact x86 PowerShell/DAO environment, an M1 executor
+  may use a locally constructed, non-enumerated `System.Byte[]` with direct
+  `Value` assignment for `dbBinary` and `AppendChunk` for `dbLongBinary`.
+  PowerShell functions returning a byte array must preserve it as one pipeline
+  object. This establishes only the adapter representation and DAO API
+  behavior; it establishes no MDB physical layout, general compatibility, or
+  passing protocol scenario.
+- Usage: `oracle/windows-dao/experiments/m1-marshalling-probe.ps1`;
+  future reviewed M1 executor adapter
+- Rights: generated locally through a licensed Microsoft DAO provider; the
+  result JSON is retained locally and the disposable MDB was deleted
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

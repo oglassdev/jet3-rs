@@ -3,39 +3,34 @@
 Status: **BLOCKED**
 
 Audit date: 2026-07-24
-Audited commit: `097cceebfb766c71a3a7e1841072b6798330af5c`
+Latest experiment commit: `be8e0c9943fdab088a5a08be956435c897a4a1f2`
 
-This record explains why commit-bound Microsoft DAO evidence cannot currently
-be produced. It is a provider-availability record, not compatibility evidence,
-and it does not advance any support-matrix capability.
+This record tracks the remaining Microsoft DAO execution blocker. A Windows
+host and provider are now available, M0 has produced a validated
+commit-bound bundle, and the controlled M1 marshalling experiment is complete.
+Those results do not advance any untested support-matrix capability.
 
 ## Exact blocking condition
 
-No Windows host with an independently licensed and provisioned in-process
-Microsoft DAO provider has been supplied to this checkout. The current macOS
-host cannot execute Windows COM, this checkout has no Git remote through which
-its Windows workflow can be dispatched, and the current GitHub-hosted Windows
-software manifests do not document Access, DAO, ACE, `dao360.dll`, or
-`ACEDAO.DLL` as installed.
-
-The release remains blocked until an interactive Windows environment runs
-`oracle/windows-dao/scripts/probe-provider.ps1` and reports `status: ready`,
-completes the separately reviewed M1 PowerShell/COM marshalling experiment,
-then runs the required declarative scenarios against the exact clean release
-commit and returns a complete evidence bundle.
+The checked protocol-1.1 contract still has no M1 executor or atomic bundle
+publisher. The completed experiment establishes the required PowerShell/COM
+representations, but execution code must be implemented, reviewed, tested, and
+run against the exact clean release commit before any M1 result exists.
 
 ## Local audit
 
-The audited host is macOS 26.3.1 on arm64. It has no `pwsh`,
-`powershell.exe`, Wine, QEMU, UTM, Parallels, VMware, or VirtualBox executable.
-Docker, Colima, and Lima are present only as Linux-container or Linux-VM
-routes; none was running during the audit, and none can provide Windows COM.
-`git remote -v` is empty.
+Windows 11 Pro build 22631 has an x86 `DAO.DBEngine.36` provider whose
+`dao360.dll` file version is 03.60.9765.0 and whose SHA-256 is
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The checked x86 probe passed disposable `dbVersion30` creation for both
+protocol 1.0 and 1.1 records. The x64 Windows PowerShell and PowerShell 7
+probes remained blocked because this provider is x86-only.
 
-No ready provider environment JSON or DAO evidence bundle exists in this
-checkout. The checked inputs comprise the unexecuted M0
-`DAO-GEN-PROBE-001` scenario plus nine controlled M1 scenario/pair documents;
-none is an executed DAO result.
+The corrected M0 runner passed at commit
+`416b834b0d786fdf68efa066ab0e38409e443edf`; its retained bundle validated
+independently. This proves only the empty-database scenario. The M1 preflight
+at the same clean commit bound the complete controlled inventory and ready
+provider, then exited `BLOCKED` without creating a database or bundle.
 
 The repository already has a cross-platform workflow at
 `.github/workflows/ci.yml`, but dispatching it requires a remote repository and
@@ -126,10 +121,12 @@ preservation checks are implemented. Even a successful M0 provider run would
 therefore prove only that exact empty-database probe, not general read, create,
 update, or Access 97 compatibility.
 
-M1 now has a checked, non-executing preflight. It binds the exact clean commit,
+M1 has a checked, non-executing preflight. It binds the exact clean commit,
 complete controlled inventory, ready protocol 1.1 provider record, Windows
 host, process bitness, and provider binary hash, then exits `BLOCKED` before
-COM activation or output mutation. It cannot publish a bundle. The remaining
-external boundary is deterministic late-bound PowerShell marshalling and DAO
-readback for `dbBinary` and `dbLongBinary` `AppendChunk`; the reviewed
-Microsoft sources do not define that representation.
+COM activation or output mutation. The checked experiment at commit
+`be8e0c9943fdab088a5a08be956435c897a4a1f2` resolved the external marshalling
+boundary: direct `System.Byte[]` assignment is required for `dbBinary`, while
+`dbLongBinary.AppendChunk(System.Byte[])` round-trips the complete boundary
+ladder. The remaining boundary is implementing and reviewing an executor and
+atomic protocol-valid publication path.

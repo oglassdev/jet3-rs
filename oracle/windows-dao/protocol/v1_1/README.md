@@ -68,14 +68,15 @@ There is no M1 PowerShell executor. The checked
 `scripts/preflight-m1-controlled.ps1` command verifies the exact clean commit,
 complete inventory, ready provider record, host, process bitness, and provider
 binary hash, but it always exits `BLOCKED` before COM activation or output
-mutation. Microsoft documents DAO object creation, field types, `dbText` size,
-indexes, `AddNew`/`Update`, and `AppendChunk`, but the reviewed sources do not
-define the late-bound PowerShell COM representation that a Jet 3 provider must
-receive for deterministic `dbBinary` and `dbLongBinary` values. Before
-execution code is admitted, a provisioned Windows host must run a separately
-reviewed marshalling experiment that records exact PowerShell, CLR, provider,
-process-bitness, locale, code page, input runtime types, DAO readback, and
-failure behavior.
+mutation. The checked
+`experiments/m1-marshalling-probe.ps1` experiment established on the recorded
+x86 DAO 3.6 environment that `dbBinary` accepts direct `System.Byte[]`
+assignment, rejects `AppendChunk`, and that `dbLongBinary.AppendChunk` accepts
+and exactly returns `System.Byte[]` at every controlled boundary. The
+experiment records the clean commit, environment hash, host, runtime, provider
+binary, input and readback types and hashes, and failure HRESULTs. It cannot
+publish protocol evidence. An executor and atomic protocol-valid publication
+path still require separate implementation and review.
 
 Until then these checked documents are experiment inputs only. They are not DAO
 observations or fixtures, cannot be cited as `dao_opened` or
