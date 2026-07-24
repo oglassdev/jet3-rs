@@ -78,6 +78,65 @@
             "UT-HEADER-012",
             "UT-HEADER-013"
           ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/candidate.rs",
+          "sha256": "f9637fcb2b5d0b2ad8a7a9dc12269e9bfa7d38d37aa97f5141fc70c7ab0243fc",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/candidate_tests.rs",
+          "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-CANDIDATE-001",
+            "UT-CANDIDATE-002",
+            "UT-CANDIDATE-003",
+            "UT-CANDIDATE-004",
+            "UT-CANDIDATE-005",
+            "UT-CANDIDATE-006",
+            "UT-CANDIDATE-007",
+            "UT-CANDIDATE-008",
+            "UT-CANDIDATE-009",
+            "UT-CANDIDATE-010",
+            "UT-CANDIDATE-011",
+            "UT-CANDIDATE-012",
+            "UT-CANDIDATE-013",
+            "UT-CANDIDATE-014",
+            "UT-CANDIDATE-015"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/commit_state.rs",
+          "sha256": "73600300cbbf2cce0a7ffcb30716e0c24dea8c22c6ef5a9993830b1d6636495e",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/commit_state_tests.rs",
+          "sha256": "b7493c23739a37f0a68bb75fcb3f633576888e3df44f0c7aa2badad61a6b805f",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-COMMIT-001",
+            "UT-COMMIT-002",
+            "UT-COMMIT-003",
+            "UT-COMMIT-004",
+            "UT-COMMIT-005",
+            "UT-COMMIT-006",
+            "UT-COMMIT-007",
+            "UT-COMMIT-008",
+            "UT-COMMIT-009",
+            "UT-COMMIT-010",
+            "UT-COMMIT-011",
+            "UT-COMMIT-012"
+          ]
         }
       ]
     },
