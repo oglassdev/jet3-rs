@@ -502,6 +502,7 @@ impl Drop for PrivateCopy {
 }
 
 #[cfg(windows)]
+#[allow(clippy::permissions_set_readonly_false)]
 fn prepare_private_for_removal(path: &Path) -> io::Result<()> {
     let mut permissions = fs::metadata(path)?.permissions();
     permissions.set_readonly(false);
