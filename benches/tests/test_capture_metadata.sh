@@ -33,3 +33,4 @@ else
     expected_dirty=false
 fi
 jq -e --argjson expected "$expected_dirty" '.dirty == $expected' "$output" >/dev/null
+jq -e '.suite_digest_sha256 | test("^[0-9a-f]{64}$")' "$output" >/dev/null

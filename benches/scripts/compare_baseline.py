@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import math
 import os
@@ -12,6 +13,12 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+
+from suite_identity import (
+    SuiteIdentityError,
+    digest_for_commit,
+    retained_blob,
+)
 
 LOWER_IS_BETTER = {
     "median_latency_ns",
@@ -32,8 +39,6 @@ METADATA_MATCH_FIELDS = {
     "memory_bytes",
     "rustc",
     "cargo",
-    "benchmark_manifest_sha256",
-    "benchmark_lockfile_sha256",
 }
 
 
@@ -44,7 +49,10 @@ class ComparisonError(ValueError):
 def _positive_number(value: Any, context: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ComparisonError(f"{context} must be a number")
-    number = float(value)
+    try:
+        number = float(value)
+    except (OverflowError, ValueError) as error:
+        raise ComparisonError(f"{context} cannot be represented as a finite float") from error
     if not math.isfinite(number) or number <= 0:
         raise ComparisonError(f"{context} must be finite and greater than zero")
     return number
@@ -116,7 +124,11 @@ def _metadata(document: dict[str, Any], label: str) -> dict[str, Any]:
         value = metadata.get(field)
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise ComparisonError(f"{label}.metadata.{field} must be a positive integer")
-    for field in ("benchmark_manifest_sha256", "benchmark_lockfile_sha256"):
+    for field in (
+        "benchmark_manifest_sha256",
+        "benchmark_lockfile_sha256",
+        "suite_digest_sha256",
+    ):
         value = metadata.get(field)
         if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
             raise ComparisonError(
@@ -125,13 +137,122 @@ def _metadata(document: dict[str, Any], label: str) -> dict[str, Any]:
     return metadata
 
 
+def _artifact_references(document: dict[str, Any], label: str) -> list[dict[str, str]]:
+    artifacts = document.get("raw_measurement_artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        raise ComparisonError(f"{label}.raw_measurement_artifacts must be non-empty")
+    references: list[dict[str, str]] = []
+    seen_paths: set[str] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256"}:
+            raise ComparisonError(
+                f"{label} raw measurement artifact must contain path and sha256"
+            )
+        path = artifact.get("path")
+        sha256 = artifact.get("sha256")
+        if not isinstance(path, str) or not path:
+            raise ComparisonError(f"{label} raw measurement artifact path is invalid")
+        if path in seen_paths:
+            raise ComparisonError(f"{label} repeats raw measurement artifact {path}")
+        if not isinstance(sha256, str) or SHA256_PATTERN.fullmatch(sha256) is None:
+            raise ComparisonError(
+                f"{label} raw measurement artifact sha256 is invalid"
+            )
+        seen_paths.add(path)
+        references.append({"path": path, "sha256": sha256})
+    return sorted(references, key=lambda reference: reference["path"])
+
+
+def _verify_commit_binding(
+    document: dict[str, Any],
+    label: str,
+    repository_root: Path,
+    measurements: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    metadata = document["metadata"]
+    commit = metadata["git_commit"]
+    references = _artifact_references(document, label)
+    try:
+        suite_digest = digest_for_commit(repository_root, commit)
+        manifest_blob = retained_blob(
+            repository_root, commit, "benches/manifest.json"
+        )
+        lockfile_blob = retained_blob(repository_root, commit, "benches/Cargo.lock")
+    except SuiteIdentityError as error:
+        raise ComparisonError(f"{label} commit binding failed: {error}") from error
+
+    if metadata["suite_digest_sha256"] != suite_digest:
+        raise ComparisonError(f"{label} suite digest does not match retained commit")
+    if metadata["benchmark_manifest_sha256"] != hashlib.sha256(
+        manifest_blob
+    ).hexdigest():
+        raise ComparisonError(f"{label} manifest hash does not match retained commit")
+    if metadata["benchmark_lockfile_sha256"] != hashlib.sha256(
+        lockfile_blob
+    ).hexdigest():
+        raise ComparisonError(f"{label} lockfile hash does not match retained commit")
+
+    retained_measurements: list[dict[str, Any]] = []
+    for reference in references:
+        try:
+            blob = retained_blob(repository_root, commit, reference["path"])
+        except SuiteIdentityError as error:
+            raise ComparisonError(
+                f"{label} raw measurement artifact is not retained: {error}"
+            ) from error
+        if hashlib.sha256(blob).hexdigest() != reference["sha256"]:
+            raise ComparisonError(
+                f"{label} raw measurement artifact hash does not match retained commit"
+            )
+        try:
+            raw_document = json.loads(blob)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            raise ComparisonError(
+                f"{label} raw measurement artifact is not valid JSON"
+            ) from error
+        if not isinstance(raw_document, dict) or set(raw_document) != {"measurements"}:
+            raise ComparisonError(
+                f"{label} raw measurement artifact must contain only measurements"
+            )
+        raw_measurements = raw_document["measurements"]
+        if not isinstance(raw_measurements, list):
+            raise ComparisonError(
+                f"{label} raw measurement artifact measurements must be an array"
+            )
+        retained_measurements.extend(raw_measurements)
+
+    retained_index = _measurements(
+        {"measurements": retained_measurements}, f"{label} retained raw"
+    )
+    if retained_index != measurements:
+        raise ComparisonError(
+            f"{label} normalized measurements differ from retained raw artifacts"
+        )
+    return {
+        "suite_digest_sha256": suite_digest,
+        "raw_measurement_artifacts": references,
+    }
+
+
 def _validate_documents(
-    baseline: dict[str, Any], candidate: dict[str, Any]
-) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
-    expected_keys = {"schema_version", "suite_id", "metadata", "measurements"}
+    baseline: dict[str, Any], candidate: dict[str, Any], repository_root: Path
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, Any],
+    dict[str, Any],
+]:
+    expected_keys = {
+        "schema_version",
+        "suite_id",
+        "metadata",
+        "measurements",
+        "raw_measurement_artifacts",
+    }
     if set(baseline) != expected_keys or set(candidate) != expected_keys:
         raise ComparisonError(
-            "both inputs must contain exactly schema_version, suite_id, metadata, and measurements"
+            "both inputs must contain exactly schema_version, suite_id, metadata, "
+            "measurements, and raw_measurement_artifacts"
         )
     if (
         type(baseline.get("schema_version")) is not int
@@ -157,13 +278,30 @@ def _validate_documents(
     candidate_measurements = _measurements(candidate, "candidate")
     if baseline_measurements.keys() != candidate_measurements.keys():
         raise ComparisonError("baseline and candidate measurement IDs differ")
-    return baseline_measurements, candidate_measurements
+    baseline_binding = _verify_commit_binding(
+        baseline, "baseline", repository_root, baseline_measurements
+    )
+    candidate_binding = _verify_commit_binding(
+        candidate, "candidate", repository_root, candidate_measurements
+    )
+    if (
+        baseline_binding["suite_digest_sha256"]
+        != candidate_binding["suite_digest_sha256"]
+    ):
+        raise ComparisonError("baseline and candidate retained benchmark suites differ")
+    return (
+        baseline_measurements,
+        candidate_measurements,
+        baseline_binding,
+        candidate_binding,
+    )
 
 
 def compare(
     baseline: dict[str, Any],
     candidate: dict[str, Any],
     threshold: float = 0.15,
+    repository_root: Path | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic comparison report or raise ComparisonError."""
     if (
@@ -173,8 +311,15 @@ def compare(
     ):
         raise ComparisonError("threshold must be finite and in [0, 0.15]")
 
-    baseline_measurements, candidate_measurements = _validate_documents(
-        baseline, candidate
+    if repository_root is None:
+        repository_root = Path(__file__).resolve().parents[2]
+    (
+        baseline_measurements,
+        candidate_measurements,
+        baseline_binding,
+        candidate_binding,
+    ) = _validate_documents(
+        baseline, candidate, repository_root
     )
     regressions: list[dict[str, Any]] = []
     comparisons: list[dict[str, Any]] = []
@@ -227,6 +372,13 @@ def compare(
         "suite_id": baseline["suite_id"],
         "baseline_git_commit": baseline["metadata"]["git_commit"],
         "candidate_git_commit": candidate["metadata"]["git_commit"],
+        "suite_digest_sha256": baseline_binding["suite_digest_sha256"],
+        "baseline_raw_measurement_artifacts": baseline_binding[
+            "raw_measurement_artifacts"
+        ],
+        "candidate_raw_measurement_artifacts": candidate_binding[
+            "raw_measurement_artifacts"
+        ],
         "threshold_fraction": threshold,
         "status": "FAIL" if regressions else "PASS",
         "comparisons": comparisons,
@@ -237,7 +389,7 @@ def compare(
 def _load(path: Path) -> dict[str, Any]:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, json.JSONDecodeError, ValueError) as error:
         raise ComparisonError(f"cannot read {path}: {error}") from error
     if not isinstance(document, dict):
         raise ComparisonError(f"{path} must contain a JSON object")
@@ -262,6 +414,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("candidate", type=Path)
     parser.add_argument("--threshold", type=float, default=0.15)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--repository-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+    )
     arguments = parser.parse_args(argv)
 
     try:
@@ -269,6 +426,7 @@ def main(argv: list[str] | None = None) -> int:
             _load(arguments.baseline),
             _load(arguments.candidate),
             arguments.threshold,
+            arguments.repository_root,
         )
     except ComparisonError as error:
         print(f"BLOCKED: {error}", file=sys.stderr)

@@ -72,6 +72,19 @@ the binding baseline ledger. No approved baseline is checked in yet. Missing
 peak RSS, output size, a clean commit, valid commit metadata, or a matching
 environment blocks comparison instead of silently passing.
 
+Each normalized input must name at least one raw measurement JSON artifact
+retained in its exact Git commit. A raw artifact contains only a
+`measurements` array in the normalized format. The comparator reads every
+artifact with `git show <commit>:<path>`, verifies its SHA-256, and requires the
+combined raw measurements to equal the input measurements.
+
+The comparator also reconstructs one canonical suite digest from the retained
+benchmark Cargo manifest and lockfile, harness, scenario manifest, comparison
+schema, metadata capture script, comparator, and suite-identity helper. The
+baseline and candidate digests must match. A claimed commit, source hash,
+artifact hash, or measurement value cannot satisfy comparison unless the
+corresponding retained Git blobs prove it.
+
 ## Scope limit
 
 This foundation does not satisfy G7. It has no Jet catalog, row, index, CRUD,

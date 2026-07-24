@@ -14,6 +14,10 @@ output-size measurements. Generate the environment portion with
 `../scripts/capture_metadata.sh`; do not copy Criterion results between
 machines or commits.
 
+Raw measurement JSON must be retained in the named commit and referenced by
+repository path and SHA-256. Comparison re-reads those exact Git blobs and
+reconstructs the canonical suite digest from retained benchmark sources.
+
 Compare a candidate only with a matching, approved baseline:
 
 ```sh

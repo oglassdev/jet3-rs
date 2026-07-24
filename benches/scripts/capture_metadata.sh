@@ -14,6 +14,10 @@ if ! command -v rustup >/dev/null 2>&1; then
     echo "BLOCKED: rustup is required for the pinned benchmark toolchain" >&2
     exit 3
 fi
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "BLOCKED: python3 is required for benchmark suite identity" >&2
+    exit 3
+fi
 
 repository_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 output=$1
@@ -87,6 +91,9 @@ rustc_description=$(rustc -vV)
 cargo_description=$(cargo -V)
 manifest_hash=$(sha256_file "$repository_root/benches/manifest.json")
 lockfile_hash=$(sha256_file "$repository_root/benches/Cargo.lock")
+suite_digest=$(python3 "$repository_root/benches/scripts/suite_identity.py" \
+    --repository-root "$repository_root" \
+    --worktree)
 
 mkdir -p "$output_directory"
 jq -n \
@@ -102,6 +109,7 @@ jq -n \
     --arg cargo "$cargo_description" \
     --arg benchmark_manifest_sha256 "$manifest_hash" \
     --arg benchmark_lockfile_sha256 "$lockfile_hash" \
+    --arg suite_digest_sha256 "$suite_digest" \
     '{
       git_commit: $git_commit,
       dirty: $dirty,
@@ -114,7 +122,8 @@ jq -n \
       rustc: $rustc,
       cargo: $cargo,
       benchmark_manifest_sha256: $benchmark_manifest_sha256,
-      benchmark_lockfile_sha256: $benchmark_lockfile_sha256
+      benchmark_lockfile_sha256: $benchmark_lockfile_sha256,
+      suite_digest_sha256: $suite_digest_sha256
     }' > "$temporary"
 mv "$temporary" "$output"
 trap - EXIT HUP INT TERM
