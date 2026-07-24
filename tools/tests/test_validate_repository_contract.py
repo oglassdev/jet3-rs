@@ -13,10 +13,67 @@ TOOLS = Path(__file__).resolve().parents[1]
 REPOSITORY = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 import validate_repository_contract as contract  # noqa: E402
+from validation import (  # noqa: E402
+    repository_common,
+    repository_fixture_external,
+    repository_provenance,
+    repository_shape,
+    repository_workspace_dependency,
+)
 
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+class ValidatorModuleBoundaryTests(unittest.TestCase):
+    def test_cli_preserves_validation_function_api_by_reexport(self) -> None:
+        self.assertIs(
+            contract.validate_contract_shape,
+            repository_shape.validate_contract_shape,
+        )
+        self.assertIs(
+            contract.validate_workspace_and_sources,
+            repository_workspace_dependency.validate_workspace_and_sources,
+        )
+        self.assertIs(
+            contract.validate_dependency_graph,
+            repository_workspace_dependency.validate_dependency_graph,
+        )
+        self.assertIs(
+            contract.validate_format_knowledge,
+            repository_provenance.validate_format_knowledge,
+        )
+        self.assertIs(
+            contract.validate_repository_fixtures,
+            repository_fixture_external.validate_repository_fixtures,
+        )
+        self.assertIs(
+            contract.validate_seed_manifest,
+            repository_fixture_external.validate_seed_manifest,
+        )
+        self.assertIs(
+            contract.validate_external_observational_corpus,
+            repository_fixture_external.validate_external_observational_corpus,
+        )
+
+    def test_repository_validation_modules_stay_below_800_lines(self) -> None:
+        modules = (
+            contract,
+            repository_common,
+            repository_fixture_external,
+            repository_provenance,
+            repository_shape,
+            repository_workspace_dependency,
+        )
+        for module in modules:
+            with self.subTest(module=module.__name__):
+                path = Path(module.__file__)
+                self.assertLess(
+                    len(path.read_text(encoding="utf-8").splitlines()),
+                    800,
+                    f"{path} must be decomposed before reaching 800 lines",
+                )
 
 
 class ContractShapeTests(unittest.TestCase):
