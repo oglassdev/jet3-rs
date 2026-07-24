@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 from .common import (
@@ -35,6 +37,44 @@ EVIDENCE_REQUIRED_KEYS = {
     "commit",
     "capability_id",
 }
+TEST_MANIFEST_PATH = Path("tests/manifest.json")
+
+
+def load_test_manifest(
+    repo_root: Path,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Load the stable test-ID index used by support evidence."""
+    try:
+        document = load_json(repo_root / TEST_MANIFEST_PATH)
+    except (OSError, json.JSONDecodeError) as error:
+        return {}, [f"test manifest: cannot load {TEST_MANIFEST_PATH}: {error}"]
+    if not isinstance(document, dict) or not isinstance(document.get("cases"), list):
+        return {}, ["test manifest: expected an object with a cases array"]
+
+    index: dict[str, dict[str, Any]] = {}
+    errors = []
+    for case_index, case in enumerate(document["cases"]):
+        location = f"test manifest cases[{case_index}]"
+        if not isinstance(case, dict):
+            errors.append(f"{location}: expected object")
+            continue
+        test_id = case.get("id")
+        target = case.get("target")
+        runtime_name = case.get("runtime_name")
+        if not isinstance(test_id, str) or not SCENARIO_ID.fullmatch(test_id):
+            errors.append(f"{location}.id: invalid stable test ID")
+            continue
+        if test_id in index:
+            errors.append(f"{location}.id: duplicate stable test ID {test_id!r}")
+            continue
+        if not isinstance(target, str) or not target:
+            errors.append(f"{location}.target: expected non-empty string")
+            continue
+        if not isinstance(runtime_name, str) or not runtime_name:
+            errors.append(f"{location}.runtime_name: expected non-empty string")
+            continue
+        index[test_id] = case
+    return index, errors
 
 
 def _scenario_ids(evidence: dict[str, Any], location: str) -> tuple[list[str], list[str]]:
@@ -120,6 +160,72 @@ def _validate_release_eligibility(
     return errors
 
 
+def _is_test_only_path(path: str) -> bool:
+    parsed = PurePosixPath(path)
+    return (
+        parsed.suffix == ".rs"
+        and (
+            parsed.name.endswith("_tests.rs")
+            or "tests" in parsed.parts[:-1]
+        )
+    )
+
+
+def _test_path_matches_case(path: str, case: dict[str, Any]) -> bool:
+    parsed = PurePosixPath(path)
+    target = case["target"]
+    runtime_name = case["runtime_name"]
+    parts = parsed.parts
+    if len(parts) == 4 and parts[0] == "crates" and parts[2] == "tests":
+        return parsed.stem == target
+    if len(parts) != 4 or parts[0] != "crates" or parts[2] != "src":
+        return False
+    module = runtime_name.split("::", 1)[0]
+    crate_target = parts[1].replace("-", "_")
+    return crate_target == target and parsed.name == f"{module}_tests.rs"
+
+
+def _test_function_is_retained(blob: bytes, runtime_name: str) -> bool:
+    function_name = runtime_name.rsplit("::", 1)[-1].encode("ascii", errors="ignore")
+    pattern = rb"\bfn\s+" + re.escape(function_name) + rb"\s*(?:<|\()"
+    return re.search(pattern, blob) is not None
+
+
+def _validate_test_evidence(
+    path: str,
+    scenarios: list[str],
+    blob: bytes | None,
+    manifest: dict[str, dict[str, Any]],
+    location: str,
+) -> list[str]:
+    errors = []
+    if not _is_test_only_path(path):
+        errors.append(
+            f"{location}.path: test evidence must reference a test-only Rust file"
+        )
+    for scenario_id in scenarios:
+        case = manifest.get(scenario_id)
+        if case is None:
+            errors.append(
+                f"{location}.scenario_ids: {scenario_id!r} is absent from "
+                f"{TEST_MANIFEST_PATH}"
+            )
+            continue
+        if not _test_path_matches_case(path, case):
+            errors.append(
+                f"{location}.scenario_ids: {scenario_id!r} does not map to {path!r}"
+            )
+            continue
+        if blob is not None and not _test_function_is_retained(
+            blob, case["runtime_name"]
+        ):
+            errors.append(
+                f"{location}: retained test blob omits the manifested function for "
+                f"{scenario_id!r}"
+            )
+    return errors
+
+
 def validate_evidence(
     evidence: Any,
     evidence_index: int,
@@ -128,6 +234,7 @@ def validate_evidence(
     repo_root: Path,
     head_commit: str | None,
     worktree_dirty: bool | None,
+    test_manifest: dict[str, dict[str, Any]],
 ) -> tuple[list[str], tuple[str, str] | None]:
     """Validate one typed evidence reference and return its kind/path key."""
     location = f"evidence[{evidence_index}]"
@@ -150,6 +257,8 @@ def validate_evidence(
 
     scenarios, scenario_errors = _scenario_ids(evidence, location)
     errors.extend(scenario_errors)
+    if kind == "test" and not scenarios:
+        errors.append(f"{location}.scenario_ids: test evidence requires scenario IDs")
     if kind in {"independent_report", "dao_bundle"} and not scenarios:
         errors.append(f"{location}.scenario_ids: {kind} requires scenario IDs")
     errors.extend(validate_repository_path(path, repo_root, f"{location}.path"))
@@ -165,6 +274,7 @@ def validate_evidence(
                     f"{location}.sha256: expected {expected_hash}, got {actual_hash}"
                 )
 
+    retained_blob = None
     if (
         kind in {"source", "test"}
         and isinstance(commit, str)
@@ -173,11 +283,17 @@ def validate_evidence(
         and isinstance(expected_hash, str)
         and SHA256.fullmatch(expected_hash)
     ):
-        blob = git_blob(repo_root, commit, path)
-        if blob is None:
+        retained_blob = git_blob(repo_root, commit, path)
+        if retained_blob is None:
             errors.append(f"{location}: {path!r} is not retained at commit {commit}")
-        elif hashlib.sha256(blob).hexdigest() != expected_hash:
+        elif hashlib.sha256(retained_blob).hexdigest() != expected_hash:
             errors.append(f"{location}: retained git blob hash does not match evidence")
+    if kind == "test" and isinstance(path, str):
+        errors.extend(
+            _validate_test_evidence(
+                path, scenarios, retained_blob, test_manifest, location
+            )
+        )
 
     errors.extend(_validate_kind_for_level(kind, verification, location))
     errors.extend(

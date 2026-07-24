@@ -16,7 +16,7 @@ from .common import (
     git_head,
     typename,
 )
-from .evidence import validate_evidence
+from .evidence import load_test_manifest, validate_evidence
 
 TOP_LEVEL_KEYS = {
     "schema_version",
@@ -61,6 +61,7 @@ def _validate_evidence_list(
     repo_root: Path,
     head_commit: str | None,
     worktree_dirty: bool | None,
+    test_manifest: dict[str, dict[str, Any]],
     location: str,
 ) -> tuple[list[str], list[Any]]:
     if not isinstance(evidence, list):
@@ -77,6 +78,7 @@ def _validate_evidence_list(
             repo_root,
             head_commit,
             worktree_dirty,
+            test_manifest,
         )
         errors.extend(f"{location}.{error}" for error in item_errors)
         if key is not None:
@@ -88,8 +90,8 @@ def _validate_evidence_list(
             seen.add(key)
 
     rank = VERIFICATION_RANK.get(verification, 0)
-    if rank >= 1 and not kinds.intersection({"source", "test"}):
-        errors.append(f"{location}.evidence: {verification} requires source or test evidence")
+    if rank >= 1 and "test" not in kinds:
+        errors.append(f"{location}.evidence: {verification} requires test evidence")
     if rank >= 2 and "independent_report" not in kinds:
         errors.append(f"{location}.evidence: {verification} requires an independent report")
     if rank >= 3 and "dao_bundle" not in kinds:
@@ -143,6 +145,7 @@ def _validate_capability(
     repo_root: Path,
     head_commit: str | None,
     worktree_dirty: bool | None,
+    test_manifest: dict[str, dict[str, Any]],
 ) -> tuple[list[str], str | None]:
     location = f"$.capabilities[{index}]"
     if not isinstance(capability, dict):
@@ -173,6 +176,7 @@ def _validate_capability(
         repo_root,
         head_commit,
         worktree_dirty,
+        test_manifest,
         location,
     )
     errors.extend(evidence_errors)
@@ -232,9 +236,16 @@ def validate_support_matrix(document: Any, repo_root: Path) -> list[str]:
     seen_ids: dict[str, int] = {}
     head_commit = git_head(repo_root)
     worktree_dirty = git_dirty(repo_root)
+    test_manifest, manifest_errors = load_test_manifest(repo_root)
+    errors.extend(manifest_errors)
     for index, capability in enumerate(capabilities):
         item_errors, capability_id = _validate_capability(
-            capability, index, repo_root, head_commit, worktree_dirty
+            capability,
+            index,
+            repo_root,
+            head_commit,
+            worktree_dirty,
+            test_manifest,
         )
         errors.extend(item_errors)
         if capability_id is not None:

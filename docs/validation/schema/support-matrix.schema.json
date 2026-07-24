@@ -146,6 +146,23 @@
               "scenario_ids"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "test"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "scenario_ids"
+            ]
+          }
         }
       ]
     },

@@ -29,7 +29,12 @@ earlier state. The required kind of evidence still depends on the capability.
 | `not_applicable` | External DAO evidence does not apply, normally for an explicitly out-of-scope item or a Rust-only safety property. A reason is required. |
 
 `dao_opened` is deliberately weaker than `dao_differential`. Neither state may
-be inferred from a file being accepted by the Rust reader.
+be inferred from a file being accepted by the Rust reader. `internal_only` and
+every higher state require at least one `test` artifact: it must be a test-only
+Rust file, name stable scenario IDs from `tests/manifest.json`, map those IDs to
+the file's Cargo target or unit-test module, and retain every manifested test
+function in the commit-bound blob. Production modules are `source` evidence
+even when they contain inline `#[cfg(test)]` code.
 
 ## User-facing labels
 

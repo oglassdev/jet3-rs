@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import sys
 from pathlib import Path
 from typing import Any
 
-from .common import git_head, load_json, sha256_file
+from .common import git_blob, git_head, load_json, sha256_file
 from .support import validate_support_matrix
 
 
@@ -22,6 +23,16 @@ def run(repo_root: Path, matrix_path: Path) -> int:
         print("self-test setup failed: cannot determine git HEAD", file=sys.stderr)
         return 1
     readme_hash = sha256_file(repo_root / "README.md")
+    atomic_path = "crates/jet3/src/atomic.rs"
+    atomic_blob = git_blob(repo_root, head_commit, atomic_path)
+    atomic_test_path = "crates/jet3/src/atomic_tests.rs"
+    atomic_test_blob = git_blob(repo_root, head_commit, atomic_test_path)
+    if atomic_blob is None or atomic_test_blob is None:
+        print("self-test setup failed: atomic evidence is absent at HEAD", file=sys.stderr)
+        return 1
+    atomic_hash = hashlib.sha256(atomic_blob).hexdigest()
+    atomic_test_hash = hashlib.sha256(atomic_test_blob).hexdigest()
+    atomic_scenario = ["UT-ATOMIC-001"]
 
     def evidence(
         kind: str,
@@ -30,12 +41,13 @@ def run(repo_root: Path, matrix_path: Path) -> int:
         capability_id: str = "database.open",
         *,
         scenarios: list[str] | None = None,
+        commit: str = head_commit,
     ) -> dict[str, Any]:
         item: dict[str, Any] = {
             "kind": kind,
             "path": path,
             "sha256": digest,
-            "commit": head_commit,
+            "commit": commit,
             "capability_id": capability_id,
         }
         if scenarios is not None:
@@ -83,9 +95,130 @@ def run(repo_root: Path, matrix_path: Path) -> int:
     existing["capabilities"][0].update(
         implementation="partial",
         verification="internal_only",
-        evidence=[evidence("source", "README.md", readme_hash)],
+        evidence=[
+            evidence("source", "README.md", readme_hash),
+            evidence(
+                "test",
+                atomic_test_path,
+                atomic_test_hash,
+                scenarios=atomic_scenario,
+            ),
+        ],
     )
     cases.append(("existing typed evidence", existing, None))
+
+    source_only = copy.deepcopy(current)
+    source_only["capabilities"][0].update(
+        implementation="partial",
+        verification="internal_only",
+        evidence=[evidence("source", "README.md", readme_hash)],
+    )
+    cases.append(
+        (
+            "internal state needs real test evidence",
+            source_only,
+            "requires test evidence",
+        )
+    )
+
+    test_without_scenario = copy.deepcopy(current)
+    test_without_scenario["capabilities"][0].update(
+        implementation="partial",
+        verification="internal_only",
+        evidence=[evidence("test", atomic_test_path, atomic_test_hash)],
+    )
+    cases.append(
+        (
+            "test evidence needs scenario IDs",
+            test_without_scenario,
+            "test evidence requires scenario IDs",
+        )
+    )
+
+    unknown_scenario = copy.deepcopy(current)
+    unknown_scenario["capabilities"][0].update(
+        implementation="partial",
+        verification="internal_only",
+        evidence=[
+            evidence(
+                "test",
+                atomic_test_path,
+                atomic_test_hash,
+                scenarios=["UT-NOT-MANIFESTED"],
+            )
+        ],
+    )
+    cases.append(
+        (
+            "test scenario must be manifested",
+            unknown_scenario,
+            "is absent from tests/manifest.json",
+        )
+    )
+
+    mismatched_scenario = copy.deepcopy(current)
+    mismatched_scenario["capabilities"][0].update(
+        implementation="partial",
+        verification="internal_only",
+        evidence=[
+            evidence(
+                "test",
+                atomic_test_path,
+                atomic_test_hash,
+                scenarios=["UT-CANDIDATE-001"],
+            )
+        ],
+    )
+    cases.append(
+        (
+            "test scenario must map to evidence path",
+            mismatched_scenario,
+            "does not map to",
+        )
+    )
+
+    production_as_test = copy.deepcopy(current)
+    production_as_test["capabilities"][0].update(
+        implementation="partial",
+        verification="internal_only",
+        evidence=[
+            evidence(
+                "test",
+                atomic_path,
+                atomic_hash,
+                scenarios=atomic_scenario,
+            )
+        ],
+    )
+    cases.append(
+        (
+            "production module is not test evidence",
+            production_as_test,
+            "test evidence must reference a test-only Rust file",
+        )
+    )
+
+    stale_test_blob = copy.deepcopy(current)
+    stale_test_blob["capabilities"][0].update(
+        implementation="partial",
+        verification="internal_only",
+        evidence=[
+            evidence(
+                "test",
+                atomic_test_path,
+                "2adec0ba244a2d46113aef6be89ab5cae57c693dc7e49672b38da3aa704fa9a1",
+                scenarios=["UT-ATOMIC-007"],
+                commit="ca5371454a465b0f9c314bed924bec6e193f34fc",
+            )
+        ],
+    )
+    cases.append(
+        (
+            "retained test blob must contain manifested function",
+            stale_test_blob,
+            "retained test blob omits the manifested function",
+        )
+    )
 
     readme_as_dao = copy.deepcopy(current)
     readme_as_dao["capabilities"][0].update(
@@ -93,6 +226,12 @@ def run(repo_root: Path, matrix_path: Path) -> int:
         verification="dao_differential",
         evidence=[
             evidence("source", "README.md", readme_hash),
+            evidence(
+                "test",
+                atomic_test_path,
+                atomic_test_hash,
+                scenarios=atomic_scenario,
+            ),
             evidence(
                 "independent_report",
                 "README.md",
@@ -119,7 +258,15 @@ def run(repo_root: Path, matrix_path: Path) -> int:
     wrong_kind["capabilities"][0].update(
         implementation="partial",
         verification="independent_check",
-        evidence=[evidence("source", "README.md", readme_hash)],
+        evidence=[
+            evidence("source", "README.md", readme_hash),
+            evidence(
+                "test",
+                atomic_test_path,
+                atomic_test_hash,
+                scenarios=atomic_scenario,
+            ),
+        ],
     )
     cases.append(
         (

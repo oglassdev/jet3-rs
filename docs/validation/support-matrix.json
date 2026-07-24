@@ -313,11 +313,38 @@
       "required_verification": "independent_check",
       "evidence": [
         {
-          "kind": "test",
+          "kind": "source",
           "path": "crates/jet3/src/atomic.rs",
-          "sha256": "d48ecb87af16bd4f584635d6889cd79d710fd112548eb5c37418b17378e0aee5",
-          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
+          "sha256": "126dc31dbe5bc29eca15246dff399cb3eea464dea8a49dc2109a404806be5725",
+          "commit": "fdd61c6322a5168b454c013ea72bc8c422ea3c36",
           "capability_id": "transactions.copy_on_write_atomic_publish"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/atomic_tests.rs",
+          "sha256": "ae3e3c2e2f8cd21acdcbc6e39b045414ab16a1b29b317b5b65a7decb250ab93b",
+          "commit": "fdd61c6322a5168b454c013ea72bc8c422ea3c36",
+          "capability_id": "transactions.copy_on_write_atomic_publish",
+          "scenario_ids": [
+            "UT-ATOMIC-001",
+            "UT-ATOMIC-002",
+            "UT-ATOMIC-003",
+            "UT-ATOMIC-004",
+            "UT-ATOMIC-005",
+            "UT-ATOMIC-006",
+            "UT-ATOMIC-007"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/atomic_publication.rs",
+          "sha256": "765dc7b14d5842f044bb235400a0147cf8f0e88910255e01ba3bd7a880c6b3cd",
+          "commit": "fdf206155f06a226421948adef83e6217f7c8256",
+          "capability_id": "transactions.copy_on_write_atomic_publish",
+          "scenario_ids": [
+            "IT-ATOMIC-001",
+            "IT-ATOMIC-002"
+          ]
         }
       ]
     },
@@ -349,7 +376,7 @@
           "capability_id": "safety.malformed_input_bounds_and_limits"
         },
         {
-          "kind": "test",
+          "kind": "source",
           "path": "crates/jet3/src/source.rs",
           "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
           "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
@@ -363,11 +390,45 @@
           "capability_id": "safety.malformed_input_bounds_and_limits"
         },
         {
-          "kind": "test",
+          "kind": "source",
           "path": "crates/jet3/src/atomic.rs",
           "sha256": "d48ecb87af16bd4f584635d6889cd79d710fd112548eb5c37418b17378e0aee5",
           "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
           "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/resource_tests.rs",
+          "sha256": "6acd285e10ca0e2b22c9f83a0368682631e6e71790875e1273cef948cee727d4",
+          "commit": "ca5371454a465b0f9c314bed924bec6e193f34fc",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "UT-RESOURCE-001",
+            "UT-RESOURCE-002",
+            "UT-RESOURCE-003",
+            "UT-RESOURCE-004",
+            "UT-RESOURCE-005",
+            "UT-RESOURCE-006",
+            "UT-RESOURCE-007",
+            "UT-RESOURCE-008",
+            "UT-RESOURCE-009",
+            "UT-RESOURCE-010"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/foundation_properties.rs",
+          "sha256": "29ae0cd91254de9a07a6f673f0940aa9d7af7447637a8236818cd6fb108ce811",
+          "commit": "e761151b39577eee6db207dba371aa983e048a7c",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "PROP-FOUNDATION-001",
+            "PROP-FOUNDATION-002",
+            "PROP-FOUNDATION-003",
+            "PROP-FOUNDATION-004",
+            "PROP-FOUNDATION-005",
+            "PROP-FOUNDATION-006"
+          ]
         }
       ]
     },
