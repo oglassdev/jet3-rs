@@ -206,9 +206,14 @@ python3 oracle/windows-dao/scripts/validate_protocol.py bundle \
   artifacts/dao-evidence/<git-commit>/<run-id>
 ```
 
-The standard-library validator enforces protocol invariants and bundle hashes.
-The JSON Schemas remain the portable machine-readable contract and may also be
-used with any Draft 2020-12 validator.
+The standard-library validators share one version-neutral schema engine and
+common snapshot, environment, and operation-log checks; v1 and v1.1 retain
+separate semantic adapters. The engine explicitly inventories its supported
+Draft 2020-12 keywords, rejects schemas that use any other keyword, and
+enforces all supported constraints in one recursive pass. It also enforces
+protocol invariants and bundle hashes. The JSON Schemas remain the portable
+machine-readable contract and may also be used with any Draft 2020-12
+validator.
 
 ## Evidence layout
 

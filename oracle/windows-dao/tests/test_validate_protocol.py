@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 SCRIPT = (
     Path(__file__).resolve().parents[1] / "scripts" / "validate_protocol.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("validate_protocol", SCRIPT)
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

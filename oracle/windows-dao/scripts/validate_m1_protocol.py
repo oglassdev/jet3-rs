@@ -8,11 +8,20 @@ canonical snapshots, exact semantic comparisons, and immutable bundle bindings.
 from __future__ import annotations
 
 import copy
-import importlib.util
-import json
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+from protocol_validation import (
+    ProtocolSchemaSet,
+    ValidationError,
+    canonical_json_bytes,
+    load_json,
+    sha256,
+    validate_environment,
+    validate_operation_log,
+    validate_snapshot,
+)
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -39,63 +48,7 @@ ROLES = {
     "left_snapshot": "dao_snapshot",
     "right_snapshot": "dao_snapshot",
 }
-
-_SPEC = importlib.util.spec_from_file_location(
-    "_dao_protocol_v1", HERE / "validate_protocol.py"
-)
-_V1 = importlib.util.module_from_spec(_SPEC)
-assert _SPEC.loader is not None
-_SPEC.loader.exec_module(_V1)
-ValidationError = _V1.ValidationError
-
-
-def _load_json(path: Path) -> Any:
-    return _V1._load_json(path)
-
-
-def _sha256(path: Path) -> str:
-    return _V1._sha256(path)
-
-
-def _schema_for(document_type: str) -> dict[str, Any]:
-    name = SCHEMAS.get(document_type)
-    if name is None:
-        raise ValidationError(f"unknown document_type {document_type!r}")
-    schema = _load_json(SCHEMA_DIR / name)
-    if not isinstance(schema, dict):
-        raise ValidationError(f"{name}: schema root must be an object")
-    return schema
-
-
-def _walk_schema_constraints(value: Any, schema: dict[str, Any], root: dict[str, Any], location: str) -> None:
-    """Enforce numeric maxima omitted by the small v1 schema evaluator."""
-    if "$ref" in schema:
-        _walk_schema_constraints(value, _V1._resolve_ref(root, schema["$ref"]), root, location)
-        return
-    if "anyOf" in schema:
-        for alternative in schema["anyOf"]:
-            try:
-                _V1._validate_schema_value(value, alternative, root, location)
-            except ValidationError:
-                continue
-            _walk_schema_constraints(value, alternative, root, location)
-            break
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        maximum = schema.get("maximum")
-        if maximum is not None and value > maximum:
-            raise ValidationError(f"{location}: number is above maximum")
-    if isinstance(value, list):
-        maximum = schema.get("maxItems")
-        if maximum is not None and len(value) > maximum:
-            raise ValidationError(f"{location}: array has too many items")
-        if "items" in schema:
-            for index, item in enumerate(value):
-                _walk_schema_constraints(item, schema["items"], root, f"{location}[{index}]")
-    if isinstance(value, dict):
-        properties = schema.get("properties", {})
-        for key, child in value.items():
-            if key in properties:
-                _walk_schema_constraints(child, properties[key], root, f"{location}.{key}")
+SCHEMA_SET = ProtocolSchemaSet(SCHEMA_DIR, SCHEMAS)
 
 
 def _require_equal(actual: Any, expected: Any, location: str) -> None:
@@ -373,12 +326,7 @@ def _validate_report(document: dict[str, Any]) -> None:
 
 
 def validate_document(document: Any) -> str:
-    if not isinstance(document, dict):
-        raise ValidationError("$: protocol document must be an object")
-    document_type = document.get("document_type")
-    schema = _schema_for(document_type)
-    _V1._validate_schema_value(document, schema, schema, "$")
-    _walk_schema_constraints(document, schema, schema, "$")
+    document_type = SCHEMA_SET.validate(document)
     if document.get("protocol_version") != PROTOCOL_VERSION:
         raise ValidationError("$.protocol_version: unsupported protocol version")
     if document_type == "dao_scenario":
@@ -386,18 +334,18 @@ def validate_document(document: Any) -> str:
     elif document_type == "dao_pair":
         _validate_pair(document)
     elif document_type == "canonical_snapshot":
-        _V1._validate_snapshot(document)
+        validate_snapshot(document)
     elif document_type == "dao_environment":
-        _V1._validate_environment(document)
+        validate_environment(document)
     elif document_type == "dao_operation_log":
-        _V1._validate_operation_log(document)
+        validate_operation_log(document)
     elif document_type == "dao_evidence_report":
         _validate_report(document)
     return document_type
 
 
 def _canonical_bytes(document: dict[str, Any]) -> bytes:
-    return (json.dumps(document, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+    return canonical_json_bytes(document)
 
 
 def validate_example_inventory(path: Path, document: dict[str, Any]) -> None:
@@ -409,7 +357,7 @@ def validate_example_inventory(path: Path, document: dict[str, Any]) -> None:
         candidate.name
         for candidate in path.parent.glob("*.json")
         if candidate.name != path.name
-        and isinstance((loaded := _load_json(candidate)), dict)
+        and isinstance((loaded := load_json(candidate)), dict)
         and loaded.get("protocol_version") == PROTOCOL_VERSION
         and loaded.get("document_type") in ("dao_scenario", "dao_pair")
     }
@@ -417,15 +365,15 @@ def validate_example_inventory(path: Path, document: dict[str, Any]) -> None:
         raise ValidationError("$.files: inventory does not exactly cover M1 examples")
     for entry in entries:
         candidate = path.parent / entry["path"]
-        loaded = _load_json(candidate)
+        loaded = load_json(candidate)
         if validate_document(loaded) != entry["document_type"]:
             raise ValidationError(f"{entry['path']}: inventory document type differs")
-        if _sha256(candidate) != entry["sha256"]:
+        if sha256(candidate) != entry["sha256"]:
             raise ValidationError(f"{entry['path']}: inventory SHA-256 differs")
 
 
 def validate_document_path(path: Path) -> str:
-    document = _load_json(path)
+    document = load_json(path)
     document_type = validate_document(document)
     if document_type == "canonical_snapshot" and path.read_bytes() != _canonical_bytes(document):
         raise ValidationError(f"{path}: canonical snapshot bytes are not normalized")
@@ -435,25 +383,7 @@ def validate_document_path(path: Path) -> str:
 
 
 def validate_schemas() -> None:
-    for document_type, name in SCHEMAS.items():
-        path = SCHEMA_DIR / name
-        schema = _load_json(path)
-        if not isinstance(schema, dict):
-            raise ValidationError(f"{path}: schema root must be an object")
-        if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
-            raise ValidationError(f"{path}: unexpected JSON Schema draft")
-        if schema.get("properties", {}).get("document_type", {}).get("const") != document_type:
-            raise ValidationError(f"{path}: document_type constant is inconsistent")
-        def walk(value: Any) -> None:
-            if isinstance(value, dict):
-                if "$ref" in value:
-                    _V1._resolve_ref(schema, value["$ref"])
-                for child in value.values():
-                    walk(child)
-            elif isinstance(value, list):
-                for child in value:
-                    walk(child)
-        walk(schema)
+    SCHEMA_SET.lint()
 
 
 def _pointer_escape(part: str) -> str:
@@ -518,7 +448,7 @@ def _reference(bundle: Path, entries: dict[str, dict[str, Any]], reference: dict
 
 def validate_bundle(bundle: Path) -> None:
     manifest_path = bundle / "bundle-manifest.json"
-    manifest = _load_json(manifest_path)
+    manifest = load_json(manifest_path)
     if validate_document(manifest) != "dao_bundle_manifest":
         raise ValidationError("bundle manifest has wrong document type")
     if bundle.name != manifest["run_id"] or bundle.parent.name != manifest["git_commit"]:
@@ -533,13 +463,17 @@ def validate_bundle(bundle: Path) -> None:
         raise ValidationError("manifest/file payload set differs")
     for entry in entries_list:
         path = _safe_path(bundle, entry["path"])
-        if not path.is_file() or path.stat().st_size != entry["size_bytes"] or _sha256(path) != entry["sha256"]:
+        if (
+            not path.is_file()
+            or path.stat().st_size != entry["size_bytes"]
+            or sha256(path) != entry["sha256"]
+        ):
             raise ValidationError(f"{entry['path']}: payload identity differs")
 
     report_entry = entries.get(manifest["report_path"])
     if report_entry is None or report_entry["role"] != "report":
         raise ValidationError("$.report_path: missing report-role entry")
-    report = _load_json(_safe_path(bundle, manifest["report_path"]))
+    report = load_json(_safe_path(bundle, manifest["report_path"]))
     validate_document(report)
     if (report["run_id"], report["git"]["commit"], report["git"]["dirty"], report["status"]) != (
         manifest["run_id"], manifest["git_commit"], manifest["dirty"], manifest["status"]
@@ -551,7 +485,9 @@ def validate_bundle(bundle: Path) -> None:
         raise ValidationError("report and manifest scenario order differs")
     if [item["pair_id"] for item in report["pairs"]] != manifest["pair_ids"]:
         raise ValidationError("report and manifest pair order differs")
-    environment = _load_json(_reference(bundle, entries, report["environment"], "environment"))
+    environment = load_json(
+        _reference(bundle, entries, report["environment"], "environment")
+    )
     validate_document(environment)
     if report["status"] == "pass" and environment["status"] != "ready":
         raise ValidationError("passing report requires a ready DAO environment")
@@ -561,7 +497,7 @@ def validate_bundle(bundle: Path) -> None:
     for result in report["scenarios"]:
         input_path = _reference(bundle, entries, result["input"], "scenario_input")
         referenced.add(result["input"]["path"])
-        scenario = _load_json(input_path)
+        scenario = load_json(input_path)
         validate_document(scenario)
         if (result["scenario_id"], result["recipe"]) != (scenario["scenario_id"], scenario["recipe"]):
             raise ValidationError(f"{result['scenario_id']}: result/input binding differs")
@@ -575,7 +511,7 @@ def validate_bundle(bundle: Path) -> None:
                 raise ValidationError(f"{result['scenario_id']}: passing result lacks artifacts")
             snapshot_path = _reference(bundle, entries, result["dao_snapshot"], "dao_snapshot")
             validate_document_path(snapshot_path)
-            snapshot = _load_json(snapshot_path)
+            snapshot = load_json(snapshot_path)
             if snapshot["scenario_id"] != result["scenario_id"] or snapshot["producer"]["kind"] != "dao":
                 raise ValidationError(f"{result['scenario_id']}: snapshot identity differs")
             if snapshot["producer"]["source_revision"] != report["git"]["commit"]:
@@ -583,7 +519,9 @@ def validate_bundle(bundle: Path) -> None:
             if snapshot["database_sha256"] != result["output_database"]["sha256"]:
                 raise ValidationError(f"{result['scenario_id']}: snapshot/database hash differs")
             _validate_snapshot_against_recipe(scenario, snapshot)
-            log = _load_json(_reference(bundle, entries, result["operation_log"], "operation_log"))
+            log = load_json(
+                _reference(bundle, entries, result["operation_log"], "operation_log")
+            )
             validate_document(log)
             if (log["run_id"], log["scenario_id"], log["git_commit"], log["final_status"]) != (
                 report["run_id"], result["scenario_id"], report["git"]["commit"], "pass"
@@ -597,7 +535,7 @@ def validate_bundle(bundle: Path) -> None:
     for result in report["pairs"]:
         pair_path = _reference(bundle, entries, result["input"], "pair_input")
         referenced.add(result["input"]["path"])
-        pair = _load_json(pair_path)
+        pair = load_json(pair_path)
         validate_document(pair)
         if (result["pair_id"], result["left_scenario_id"], result["right_scenario_id"]) != (
             pair["pair_id"], pair["left_scenario_id"], pair["right_scenario_id"]
