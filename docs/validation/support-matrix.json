@@ -45,10 +45,41 @@
     },
     {
       "id": "format.header_and_version",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "Generic Jet signature recognition and Jet 3 page-size geometry are implemented; the physical version discriminator, encryption-state validation, remaining header fields, and DAO differential evidence are not.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/header.rs",
+          "sha256": "9e96022f0dacf4b3a8fd7b893ad3dafcdaef6e392e9ab8b140f4ffac3e281c22",
+          "commit": "06dc93400f26579a76eceece088d823c44a3a0b7",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/header_tests.rs",
+          "sha256": "143f512066dc2a698072fd08b26be000876d3ad39684dad61d5fefec640dda26",
+          "commit": "06dc93400f26579a76eceece088d823c44a3a0b7",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-HEADER-001",
+            "UT-HEADER-002",
+            "UT-HEADER-003",
+            "UT-HEADER-004",
+            "UT-HEADER-005",
+            "UT-HEADER-006",
+            "UT-HEADER-007",
+            "UT-HEADER-008",
+            "UT-HEADER-009",
+            "UT-HEADER-010",
+            "UT-HEADER-011",
+            "UT-HEADER-012",
+            "UT-HEADER-013"
+          ]
+        }
+      ]
     },
     {
       "id": "format.pages_allocation_usage",
