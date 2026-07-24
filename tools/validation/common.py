@@ -44,6 +44,32 @@ SCENARIO_ID = re.compile(
     r"^(?:DAO-(?:GEN|READ|WRITE|UPDATE)|UT|IT|PROP|GOLD|CORR|REG)-"
     r"[A-Z0-9][A-Z0-9_-]*$"
 )
+TRACEABILITY_IDS = frozenset(
+    {
+        "SCOPE-01",
+        "SCOPE-02",
+        "CLEAN-01",
+        "API-01",
+        "PHYS-01",
+        "SCHEMA-01",
+        "VALUE-01",
+        "ROW-01",
+        "LONG-01",
+        "CRUD-01",
+        "INDEX-01",
+        "REL-01",
+        "DET-01",
+        "TXN-01",
+        "SAFE-01",
+        "VERIFY-01",
+        "ORACLE-01",
+        "TEST-01",
+        "TOOL-01",
+        "PERF-01",
+        "CI-01",
+        "RELEASE-01",
+    }
+)
 REPOSITORY_PATH = re.compile(
     r"^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*"
     r"(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"

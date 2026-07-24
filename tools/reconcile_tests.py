@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -13,6 +12,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
+
+from validation.common import REPOSITORY_PATH, SHA256, TRACEABILITY_IDS, sha256_file
 
 CARGO_COMMAND = [
     "cargo",
@@ -24,30 +25,6 @@ CARGO_COMMAND = [
     "--",
     "--list",
 ]
-TRACEABILITY_IDS = {
-    "SCOPE-01",
-    "SCOPE-02",
-    "CLEAN-01",
-    "API-01",
-    "PHYS-01",
-    "SCHEMA-01",
-    "VALUE-01",
-    "ROW-01",
-    "LONG-01",
-    "CRUD-01",
-    "INDEX-01",
-    "REL-01",
-    "DET-01",
-    "TXN-01",
-    "SAFE-01",
-    "VERIFY-01",
-    "ORACLE-01",
-    "TEST-01",
-    "TOOL-01",
-    "PERF-01",
-    "CI-01",
-    "RELEASE-01",
-}
 TOP_KEYS = {"schema_version", "cargo_command", "meaningful_case_count", "cases"}
 CASE_KEYS = {
     "id",
@@ -65,11 +42,6 @@ FIXTURE_KEYS = {"path", "sha256"}
 TEST_ID = re.compile(r"^(?:UT|IT|PROP|GOLD|CORR|REG)-[A-Z0-9][A-Z0-9_-]*$")
 TARGET = re.compile(r"^[a-z][a-z0-9_]*$")
 RUNTIME_NAME = re.compile(r"^[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*$")
-SHA256 = re.compile(r"^[0-9a-f]{64}$")
-REPOSITORY_PATH = re.compile(
-    r"^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*"
-    r"(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
-)
 RUNNING = re.compile(r"^\s*Running .+ \((?:.*[/\\])?([^/\\()]+)\)\s*$")
 LISTED_TEST = re.compile(r"^(.+): test$")
 DOC_TESTS = re.compile(r"^\s*Doc-tests\s+(\S+)\s*$")
@@ -181,14 +153,6 @@ def cargo_inventory(repo_root: Path) -> tuple[set[RuntimeTest], set[RuntimeTest]
     return all_tests, ignored
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _validate_fixture(fixture: Any, repo_root: Path, location: str) -> list[str]:
     if not isinstance(fixture, dict):
         return [f"{location}: expected object"]
@@ -216,7 +180,7 @@ def _validate_fixture(fixture: Any, repo_root: Path, location: str) -> list[str]
         errors.append(f"{location}.path: fixture must be a regular file")
     if not isinstance(digest, str) or not SHA256.fullmatch(digest):
         errors.append(f"{location}.sha256: expected lowercase SHA-256")
-    elif resolved.is_file() and _sha256(resolved) != digest:
+    elif resolved.is_file() and sha256_file(resolved) != digest:
         errors.append(f"{location}.sha256: fixture hash mismatch")
     return errors
 
