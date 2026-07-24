@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use jet3::{
-    ByteCount, FileSource, JET3_PAGE_SIZE, JetFileKind, PageGeometry, PageNumber, ReadAt,
-    ReadBudget, ReadLimits, jet3_page_geometry, read_jet_signature,
+    ByteCount, CandidateError, FileSource, JET3_PAGE_SIZE, JetFileKind, PageNumber,
+    RawJet3Candidate, ReadLimits, ResourceBudget, ResourceLimits,
 };
 
 const DEFAULT_MAX_INPUT_BYTES: u64 = 256 * 1024 * 1024;
@@ -48,6 +48,13 @@ struct ProbeOptions {
 struct ScanLimits {
     max_bytes: u64,
     max_pages: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScanResult {
+    pages_read: u64,
+    hashed_bytes: u64,
+    checksum: u64,
 }
 
 #[derive(Debug)]
@@ -178,25 +185,41 @@ fn parse_u64(
 }
 
 fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
-    let max_total_read = match options.scan {
-        Some(limits) => limits
-            .max_bytes
-            .checked_add(SIGNATURE_READ_BYTES)
-            .ok_or("invalid_limit")?,
-        None => SIGNATURE_READ_BYTES,
+    let (max_total_read, max_page_visits, max_total_work) = match options.scan {
+        Some(limits) => (
+            limits
+                .max_bytes
+                .checked_add(SIGNATURE_READ_BYTES)
+                .ok_or("invalid_limit")?,
+            limits.max_pages,
+            limits
+                .max_bytes
+                .checked_add(limits.max_pages)
+                .ok_or("invalid_limit")?,
+        ),
+        None => (SIGNATURE_READ_BYTES, 0, 0),
     };
     let read_limits = ReadLimits::new(
         ByteCount::new(options.max_input_bytes),
         ByteCount::new(PAGE_BYTES as u64),
         ByteCount::new(max_total_read),
     );
-    let mut budget = ReadBudget::new(read_limits);
-    let mut source = FileSource::open(&options.path, &budget).map_err(|_| "open_failed")?;
-    let signature =
-        read_jet_signature(&mut source, &mut budget).map_err(|_| "unrecognized_signature")?;
-    let geometry = jet3_page_geometry(&source).map_err(|_| "not_2k_aligned")?;
+    let resource_limits = ResourceLimits::new(read_limits)
+        .with_max_page_visits(max_page_visits)
+        .with_max_total_work_units(max_total_work);
+    let mut budget = ResourceBudget::new(resource_limits);
+    let source =
+        FileSource::open(&options.path, budget.read_budget()).map_err(|_| "open_failed")?;
+    let mut candidate =
+        RawJet3Candidate::inspect(source, &mut budget).map_err(|error| match error {
+            CandidateError::Input(_) => "input_limit_exceeded",
+            CandidateError::Signature(_) => "unrecognized_signature",
+            CandidateError::Geometry(_) => "not_2k_aligned",
+            _ => "candidate_inspection_failed",
+        })?;
+    let geometry = candidate.geometry();
 
-    let signature_name = match signature {
+    let signature_name = match candidate.signature_kind() {
         JetFileKind::Standard => "standard",
         JetFileKind::System => "system",
         JetFileKind::Temporary => "temporary",
@@ -204,17 +227,36 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
     };
 
     let scan_json = if let Some(limits) = options.scan {
-        if source.len().get() > limits.max_bytes {
+        let scan_bytes = geometry
+            .page_count()
+            .checked_mul(PAGE_BYTES as u64)
+            .ok_or("scan_count_overflow")?;
+        if scan_bytes > limits.max_bytes {
             return Err("scan_byte_limit_exceeded");
         }
         if geometry.page_count() > limits.max_pages {
             return Err("scan_page_limit_exceeded");
         }
-        let (pages_read, checksum) = scan_pages(&mut source, &mut budget, geometry)?;
+        let expected_work = scan_bytes
+            .checked_add(geometry.page_count())
+            .ok_or("scan_count_overflow")?;
+        let result = scan_pages(&mut candidate, &mut budget)?;
+        if result.pages_read != geometry.page_count()
+            || result.hashed_bytes != scan_bytes
+            || budget.page_visits() != geometry.page_count()
+            || budget.total_work_units() != expected_work
+        {
+            return Err("scan_accounting_failed");
+        }
         format!(
-            "{{\"checksum_algorithm\":\"fnv1a64\",\"checksum_hex\":\"{checksum:016x}\",\
-             \"pages_read\":{pages_read},\"bytes_read\":{}}}",
-            source.len().get()
+            "{{\"checksum_algorithm\":\"fnv1a64\",\"checksum_hex\":\"{:016x}\",\
+             \"pages_read\":{},\"bytes_read\":{},\"hash_work_units\":{},\
+             \"total_work_units\":{}}}",
+            result.checksum,
+            result.pages_read,
+            result.hashed_bytes,
+            result.hashed_bytes,
+            budget.total_work_units()
         )
     } else {
         "null".to_owned()
@@ -228,35 +270,41 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
          \"encryption_state_not_inspected\",\"database_structure_not_validated\",\
          \"compatibility_not_established\"]}}\n",
         geometry.page_count(),
-        source.len().get()
+        geometry.source_len().get()
     ))
 }
 
 fn scan_pages(
-    source: &mut FileSource,
-    budget: &mut ReadBudget,
-    geometry: PageGeometry,
-) -> Result<(u64, u64), &'static str> {
+    candidate: &mut RawJet3Candidate<FileSource>,
+    budget: &mut ResourceBudget,
+) -> Result<ScanResult, &'static str> {
     let mut buffer = [0_u8; PAGE_BYTES];
     let mut checksum = FNV1A64_OFFSET_BASIS;
     let mut pages_read = 0_u64;
-    while pages_read < geometry.page_count() {
-        let (offset, count) = geometry
-            .page_byte_range(PageNumber::new(pages_read))
-            .map_err(|_| "scan_range_failed")?;
-        if count.get() != PAGE_BYTES as u64 {
-            return Err("scan_range_failed");
-        }
-        source
-            .read_exact_at(offset, &mut buffer, budget)
+    let mut hashed_bytes = 0_u64;
+    while pages_read < candidate.geometry().page_count() {
+        candidate
+            .read_raw_page(PageNumber::new(pages_read), &mut buffer, budget)
             .map_err(|_| "scan_read_failed")?;
+        // One explicit work unit represents each byte processed by the
+        // checksum loop, in addition to the raw reader's page-visit charge.
+        budget
+            .charge_work_units(PAGE_BYTES as u64)
+            .map_err(|_| "scan_work_limit_exceeded")?;
         for byte in buffer {
             checksum ^= u64::from(byte);
             checksum = checksum.wrapping_mul(FNV1A64_PRIME);
         }
+        hashed_bytes = hashed_bytes
+            .checked_add(PAGE_BYTES as u64)
+            .ok_or("scan_count_overflow")?;
         pages_read = pages_read.checked_add(1).ok_or("scan_count_overflow")?;
     }
-    Ok((pages_read, checksum))
+    Ok(ScanResult {
+        pages_read,
+        hashed_bytes,
+        checksum,
+    })
 }
 
 fn error_json(code: &str) -> String {

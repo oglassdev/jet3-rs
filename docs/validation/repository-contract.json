@@ -32,7 +32,22 @@
           "SRC-0004",
           "SRC-0005"
         ],
-        "sha256": "9071032f737f6e12961905c40ce2827756ddcc5d7bc776060b1b84d9399bc088"
+        "sha256": "cd93457d8055378e3e90d08227879386bb1fef8f67114e9191d948fa770c83ce"
+      },
+      {
+        "path": "crates/jet3/src/candidate.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005"
+        ],
+        "sha256": "f9637fcb2b5d0b2ad8a7a9dc12269e9bfa7d38d37aa97f5141fc70c7ab0243fc"
+      },
+      {
+        "path": "crates/jet3/src/commit_state.rs",
+        "provenance_ids": [
+          "SRC-0013"
+        ],
+        "sha256": "73600300cbbf2cce0a7ffcb30716e0c24dea8c22c6ef5a9993830b1d6636495e"
       },
       {
         "path": "crates/jet3/src/header.rs",
@@ -67,6 +82,16 @@
         "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840"
       },
       {
+        "path": "crates/jet3/src/candidate_tests.rs",
+        "reason": "Test-only verification of the provenance-bound raw candidate composition in candidate.rs.",
+        "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e"
+      },
+      {
+        "path": "crates/jet3/src/commit_state_tests.rs",
+        "reason": "Test-only verification of the provenance-bound commit-region assertions in commit_state.rs.",
+        "sha256": "b7493c23739a37f0a68bb75fcb3f633576888e3df44f0c7aa2badad61a6b805f"
+      },
+      {
         "path": "crates/jet3/src/error.rs",
         "reason": "Structured error types for format-neutral checked operations.",
         "sha256": "531e94dcfb6e9aa917de72a385cf5d17d11f396b5f0ac0892bf4186cd86edd50"
@@ -84,7 +109,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "625fef36ebaa16ab61c6edf296dde2be0949637bd4ca6297ff4e5b300b704191"
+        "sha256": "8760fd67d3d54bf2ee6471611412bb8b13ea6071ddc1bbccb7db8a4c5ec43a8b"
       },
       {
         "path": "crates/jet3/src/limits.rs",

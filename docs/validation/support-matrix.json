@@ -48,7 +48,7 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Generic Jet signature recognition and Jet 3 page-size geometry are implemented; the physical version discriminator, encryption-state validation, remaining header fields, and DAO differential evidence are not.",
+      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, and bounded access to the documented contextual header commit region are implemented. Commit-state pairs are not interpreted as standalone validity or corruption evidence; the physical version discriminator, encryption-state validation, remaining header fields, contemporaneous .ldb correlation, and DAO differential evidence are not.",
       "evidence": [
         {
           "kind": "source",

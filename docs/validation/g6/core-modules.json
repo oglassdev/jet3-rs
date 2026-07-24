@@ -13,6 +13,16 @@
       "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840"
     },
     {
+      "path": "crates/jet3/src/candidate.rs",
+      "classification": "format_safety",
+      "sha256": "f9637fcb2b5d0b2ad8a7a9dc12269e9bfa7d38d37aa97f5141fc70c7ab0243fc"
+    },
+    {
+      "path": "crates/jet3/src/commit_state.rs",
+      "classification": "format_safety",
+      "sha256": "73600300cbbf2cce0a7ffcb30716e0c24dea8c22c6ef5a9993830b1d6636495e"
+    },
+    {
       "path": "crates/jet3/src/error.rs",
       "classification": "safety",
       "sha256": "531e94dcfb6e9aa917de72a385cf5d17d11f396b5f0ac0892bf4186cd86edd50"
@@ -30,7 +40,7 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "625fef36ebaa16ab61c6edf296dde2be0949637bd4ca6297ff4e5b300b704191"
+      "sha256": "8760fd67d3d54bf2ee6471611412bb8b13ea6071ddc1bbccb7db8a4c5ec43a8b"
     },
     {
       "path": "crates/jet3/src/limits.rs",

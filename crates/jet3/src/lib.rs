@@ -3,6 +3,8 @@
 
 pub mod atomic;
 pub mod binary;
+pub mod candidate;
+pub mod commit_state;
 pub mod error;
 pub mod header;
 pub mod jet3_page;
@@ -14,6 +16,12 @@ pub mod source;
 
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
+pub use candidate::{CandidateError, RawJet3Candidate};
+pub use commit_state::{
+    COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
+    CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
+    read_commit_region_into,
+};
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{
     HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,

@@ -58,7 +58,10 @@ fn raw_scan_is_deterministic_and_bounded() -> Result<(), Box<dyn std::error::Err
     assert!(first.status.success());
     assert_eq!(first.stdout, second.stdout);
     let stdout = String::from_utf8(first.stdout)?;
-    assert!(stdout.contains("\"pages_read\":1,\"bytes_read\":2048"));
+    assert!(stdout.contains(
+        "\"pages_read\":1,\"bytes_read\":2048,\"hash_work_units\":2048,\
+\"total_work_units\":2049"
+    ));
     assert!(stdout.contains("\"checksum_algorithm\":\"fnv1a64\""));
     Ok(())
 }
