@@ -115,6 +115,7 @@
         "additionalProperties": false,
         "required": [
           "id",
+          "throughput_unit",
           "metrics"
         ],
         "properties": {
@@ -122,13 +123,19 @@
             "type": "string",
             "pattern": "^BENCH-"
           },
+          "throughput_unit": {
+            "enum": [
+              "bytes",
+              "elements"
+            ]
+          },
           "metrics": {
             "type": "object",
             "additionalProperties": false,
             "minProperties": 1,
             "required": [
               "median_latency_ns",
-              "throughput_bytes_per_second",
+              "throughput_per_second",
               "peak_rss_bytes",
               "output_size_bytes"
             ],
@@ -136,7 +143,7 @@
               "median_latency_ns": {
                 "$ref": "#/$defs/positiveNumber"
               },
-              "throughput_bytes_per_second": {
+              "throughput_per_second": {
                 "$ref": "#/$defs/positiveNumber"
               },
               "peak_rss_bytes": {

@@ -76,6 +76,33 @@ python3 benches/scripts/compare_baseline.py \
   --output artifacts/benchmarks/comparison.json
 ```
 
+Normalize a Criterion 0.5 result tree after separately collecting the
+per-case fields described by `resource-metrics.schema.json`:
+
+```sh
+python3 benches/scripts/normalize_criterion.py \
+  --criterion-root benches/target/criterion \
+  --resources artifacts/benchmarks/resource-metrics.json \
+  --raw-output artifacts/benchmarks/raw-measurements.json
+```
+
+The first pass creates deterministic raw measurements. For a comparison input,
+retain that raw artifact in a clean commit, capture metadata for that commit,
+then rerun with `--metadata`, `--output`, and the repository-relative
+`--raw-artifact-path`. The second pass refuses a dirty metadata record, a stale
+suite hash, or a raw artifact not retained byte-for-byte by the named commit.
+
+A proposed binding baseline ledger can be checked independently:
+
+```sh
+python3 benches/scripts/validate_benchmark_manifest.py \
+  path/to/benchmark-manifest.json --repository-root .
+```
+
+The validator checks the binding schema version and field inventory, rejects an
+empty ledger, and verifies artifact hashes. It does not make an unrecorded
+baseline approved.
+
 `manifest.json` is the scenario inventory for this checked-foundations
 Criterion suite. It is not an approved-baseline ledger and does not conform to
 the binding `docs/validation/schema/benchmark-manifest.schema.json`. That
@@ -99,6 +126,14 @@ schema, metadata capture script, comparator, and suite-identity helper. The
 baseline and candidate digests must match. A claimed commit, source hash,
 artifact hash, or measurement value cannot satisfy comparison unless the
 corresponding retained Git blobs prove it.
+
+Normalized cases use the binding ledger's generic `throughput_per_second`
+spelling and record `throughput_unit` as either `bytes` or `elements`. This is
+intentional: Criterion cases in this suite use both units, so the former
+`throughput_bytes_per_second` name was false for element-count cases. The
+binding ledger has no throughput-unit field; a ledger entry can therefore be
+validated structurally, but its throughput semantics must be obtained from its
+retained benchmark artifact.
 
 ## Scope limit
 

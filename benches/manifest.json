@@ -139,7 +139,7 @@
   ],
   "required_comparison_metrics": {
     "median_latency_ns": "lower_is_better",
-    "throughput_bytes_per_second": "higher_is_better",
+    "throughput_per_second": "higher_is_better; unit is recorded per normalized Criterion case",
     "peak_rss_bytes": "lower_is_better",
     "output_size_bytes": "lower_is_better"
   },

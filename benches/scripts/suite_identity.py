@@ -15,9 +15,12 @@ SUITE_PATHS = (
     "benches/comparison-input.schema.json",
     "benches/format_primitives.rs",
     "benches/manifest.json",
+    "benches/resource-metrics.schema.json",
     "benches/scripts/capture_metadata.sh",
     "benches/scripts/compare_baseline.py",
+    "benches/scripts/normalize_criterion.py",
     "benches/scripts/suite_identity.py",
+    "benches/scripts/validate_benchmark_manifest.py",
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY_PATH_PATTERN = re.compile(

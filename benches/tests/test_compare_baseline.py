@@ -53,9 +53,10 @@ def document() -> dict:
         "measurements": [
             {
                 "id": "BENCH-CASE-001",
+                "throughput_unit": "bytes",
                 "metrics": {
                     "median_latency_ns": 100.0,
-                    "throughput_bytes_per_second": 100.0,
+                    "throughput_per_second": 100.0,
                     "peak_rss_bytes": 100.0,
                     "output_size_bytes": 100.0,
                 },
@@ -90,13 +91,19 @@ class CompareBaselineTests(unittest.TestCase):
         self.assertEqual(report["regressions"], [])
         self.assertEqual(report["baseline_git_commit"], "0" * 40)
         self.assertEqual(report["candidate_git_commit"], "f" * 40)
+        throughput = next(
+            entry
+            for entry in report["comparisons"]
+            if entry["metric"] == "throughput_per_second"
+        )
+        self.assertEqual(throughput["throughput_unit"], "bytes")
 
     def test_exactly_fifteen_percent_is_not_a_regression(self) -> None:
         baseline = document()
         candidate = copy.deepcopy(baseline)
         metrics = candidate["measurements"][0]["metrics"]
         metrics["median_latency_ns"] = 115.0
-        metrics["throughput_bytes_per_second"] = 85.0
+        metrics["throughput_per_second"] = 85.0
         metrics["peak_rss_bytes"] = 115.0
         metrics["output_size_bytes"] = 115.0
         self.assertEqual(MODULE.compare(baseline, candidate)["status"], "PASS")
@@ -113,19 +120,43 @@ class CompareBaselineTests(unittest.TestCase):
         baseline = document()
         candidate = copy.deepcopy(baseline)
         candidate["measurements"][0]["metrics"][
-            "throughput_bytes_per_second"
+            "throughput_per_second"
         ] = 84.99
         report = MODULE.compare(baseline, candidate)
         self.assertEqual(report["status"], "FAIL")
         self.assertEqual(
-            report["regressions"][0]["metric"], "throughput_bytes_per_second"
+            report["regressions"][0]["metric"], "throughput_per_second"
         )
+
+    def test_peak_rss_and_output_above_threshold_fail(self) -> None:
+        for metric in ("peak_rss_bytes", "output_size_bytes"):
+            with self.subTest(metric=metric):
+                baseline = document()
+                candidate = copy.deepcopy(baseline)
+                candidate["measurements"][0]["metrics"][metric] = 115.01
+                report = MODULE.compare(baseline, candidate)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertEqual(report["regressions"][0]["metric"], metric)
 
     def test_metric_set_mismatch_is_blocked(self) -> None:
         baseline = document()
         candidate = copy.deepcopy(baseline)
         del candidate["measurements"][0]["metrics"]["peak_rss_bytes"]
         with self.assertRaisesRegex(MODULE.ComparisonError, "four required metrics"):
+            MODULE.compare(baseline, candidate)
+
+    def test_throughput_unit_mismatch_is_blocked(self) -> None:
+        baseline = document()
+        candidate = copy.deepcopy(baseline)
+        candidate["measurements"][0]["throughput_unit"] = "elements"
+        with self.assertRaisesRegex(MODULE.ComparisonError, "throughput unit differs"):
+            MODULE.compare(baseline, candidate)
+
+    def test_missing_throughput_unit_is_blocked(self) -> None:
+        baseline = document()
+        candidate = copy.deepcopy(baseline)
+        del candidate["measurements"][0]["throughput_unit"]
+        with self.assertRaisesRegex(MODULE.ComparisonError, "throughput_unit"):
             MODULE.compare(baseline, candidate)
 
     def test_environment_mismatch_is_blocked(self) -> None:
@@ -332,6 +363,21 @@ class CommitBindingTests(unittest.TestCase):
         )
         candidate["raw_measurement_artifacts"][0]["sha256"] = "0" * 64
         with self.assertRaisesRegex(MODULE.ComparisonError, "hash does not match"):
+            MODULE.compare(
+                baseline, candidate, repository_root=self.repository_root
+            )
+
+    def test_stale_commit_for_newer_raw_artifact_is_blocked(self) -> None:
+        baseline = self._bound_document(
+            self.baseline_commit, "artifacts/benchmarks/baseline-raw.json"
+        )
+        candidate = self._bound_document(
+            self.candidate_commit, "artifacts/benchmarks/candidate-raw.json"
+        )
+        candidate["metadata"]["git_commit"] = self.baseline_commit
+        with self.assertRaisesRegex(
+            MODULE.ComparisonError, "raw measurement artifact is not retained"
+        ):
             MODULE.compare(
                 baseline, candidate, repository_root=self.repository_root
             )

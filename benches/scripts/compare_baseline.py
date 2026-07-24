@@ -25,7 +25,7 @@ LOWER_IS_BETTER = {
     "peak_rss_bytes",
     "output_size_bytes",
 }
-HIGHER_IS_BETTER = {"throughput_bytes_per_second"}
+HIGHER_IS_BETTER = {"throughput_per_second"}
 MAXIMUM_THRESHOLD = 0.15
 SUITE_ID = "BENCH-FORMAT-FOUNDATION-V1"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -67,23 +67,28 @@ def _measurements(document: dict[str, Any], label: str) -> dict[str, dict[str, A
     for measurement in raw_measurements:
         if not isinstance(measurement, dict):
             raise ComparisonError(f"{label} measurement must be an object")
-        if set(measurement) != {"id", "metrics"}:
+        if set(measurement) != {"id", "throughput_unit", "metrics"}:
             raise ComparisonError(
-                f"{label} measurement must contain exactly id and metrics"
+                f"{label} measurement must contain exactly id, throughput_unit, and metrics"
             )
         identifier = measurement.get("id")
+        throughput_unit = measurement.get("throughput_unit")
         metrics = measurement.get("metrics")
         if not isinstance(identifier, str) or BENCHMARK_ID_PATTERN.fullmatch(identifier) is None:
             raise ComparisonError(f"{label} measurement has an invalid id")
         if identifier in indexed:
             raise ComparisonError(f"{label} contains duplicate measurement {identifier}")
+        if throughput_unit not in {"bytes", "elements"}:
+            raise ComparisonError(
+                f"{label}.{identifier}.throughput_unit must be bytes or elements"
+            )
         if not isinstance(metrics, dict):
             raise ComparisonError(f"{label}.{identifier}.metrics must be an object")
         if set(metrics) != LOWER_IS_BETTER | HIGHER_IS_BETTER:
             raise ComparisonError(
                 f"{label}.{identifier}.metrics must contain exactly the four required metrics"
             )
-        indexed[identifier] = metrics
+        indexed[identifier] = {**metrics, "_throughput_unit": throughput_unit}
     return indexed
 
 
@@ -329,8 +334,14 @@ def compare(
         candidate_metrics = candidate_measurements[identifier]
         if baseline_metrics.keys() != candidate_metrics.keys():
             raise ComparisonError(f"metric set differs for {identifier}")
+        baseline_unit = baseline_metrics["_throughput_unit"]
+        candidate_unit = candidate_metrics["_throughput_unit"]
+        if baseline_unit != candidate_unit:
+            raise ComparisonError(f"throughput unit differs for {identifier}")
 
         for metric in sorted(baseline_metrics):
+            if metric == "_throughput_unit":
+                continue
             if metric not in LOWER_IS_BETTER | HIGHER_IS_BETTER:
                 raise ComparisonError(f"unknown metric for {identifier}: {metric}")
             baseline_value = _positive_number(
@@ -363,6 +374,8 @@ def compare(
                 "degradation_fraction": degradation,
                 "regressed": regressed,
             }
+            if metric == "throughput_per_second":
+                entry["throughput_unit"] = baseline_unit
             comparisons.append(entry)
             if regressed:
                 regressions.append(entry)
