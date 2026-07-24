@@ -11,6 +11,7 @@ JSON Schema package.
   observation (discovery and ignored state only). It is not pass/fail execution
   evidence; executed test results remain a separate acceptance-gate report.
 - `fixture-manifest.schema.json` describes reproducible fixture origins.
+- `external-corpus.schema.json` describes the opt-in, read-only external corpus.
 - `benchmark-manifest.schema.json` describes checked benchmark baselines.
 - `gate-result.schema.json` describes one acceptance-gate result.
 - `acceptance-manifest.schema.json` describes the files retained by one run.
