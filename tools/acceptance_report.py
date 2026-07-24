@@ -605,7 +605,7 @@ def summarize(
         "git_commit": commit,
         "dirty": metadata["dirty"],
         "run_id": run_id,
-        "release_eligible": True,
+        "release_eligible": overall_status == "PASS" and not metadata["dirty"],
         "required_gates": list(GATES),
         "status": overall_status,
         "counts": counts,

@@ -223,13 +223,23 @@ class AcceptanceReportTests(unittest.TestCase):
         path = report.summarize(repo_root=self.repo, run_id=self.run_id)
         summary = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(summary["status"], "FAIL")
-        self.assertTrue(summary["release_eligible"])
+        self.assertFalse(summary["release_eligible"])
         self.assertEqual(summary["required_gates"], list(report.GATES))
         self.assertEqual(summary["counts"], {"PASS": 7, "FAIL": 1, "BLOCKED": 1})
         manifest = self.repo / summary["manifest_path"]
         self.assertEqual(summary["manifest_sha256"], report.sha256_file(manifest))
         manifest_document = json.loads(manifest.read_text(encoding="utf-8"))
         self.assertEqual(len(manifest_document["files"]), 28)
+
+    def test_only_all_pass_summary_is_release_eligible(self) -> None:
+        self._record_all()
+        passing = json.loads(
+            report.summarize(repo_root=self.repo, run_id=self.run_id).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(passing["status"], "PASS")
+        self.assertTrue(passing["release_eligible"])
 
     def test_summary_is_deterministic_and_idempotent(self) -> None:
         self._record_all()
