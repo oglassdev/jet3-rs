@@ -1,24 +1,24 @@
 //! Checked, budgeted reads over an immutable byte slice.
 
-use crate::{ByteCount, ByteOffset, Error, ResourceLimits, WorkBudget};
+use crate::limits::ReadBudget;
+use crate::{ByteCount, ByteOffset, Error};
 
 /// A cursor that reads little-endian primitives from a borrowed slice.
 ///
 /// Every read checks its range before slicing and charges the requested bytes
-/// against both the single-read and cumulative budgets in [`ResourceLimits`].
+/// against both the single-read and cumulative limits in [`ReadBudget`].
 /// Seeking does not reset the cumulative budget.
-#[derive(Debug, PartialEq, Eq)]
-pub struct BinaryCursor<'a> {
-    input: &'a [u8],
+#[derive(Debug)]
+pub struct BinaryCursor<'input, 'budget> {
+    input: &'input [u8],
     position: ByteOffset,
-    budget: WorkBudget,
+    budget: &'budget mut ReadBudget,
 }
 
-impl<'a> BinaryCursor<'a> {
+impl<'input, 'budget> BinaryCursor<'input, 'budget> {
     /// Creates a cursor after enforcing the configured input-length ceiling.
-    pub fn new(input: &'a [u8], limits: ResourceLimits) -> Result<Self, Error> {
+    pub fn new(input: &'input [u8], budget: &'budget mut ReadBudget) -> Result<Self, Error> {
         let input_len = ByteCount::from_usize(input.len())?;
-        let budget = WorkBudget::new(limits);
         budget.check_input(input_len)?;
         Ok(Self {
             input,
@@ -66,9 +66,8 @@ impl<'a> BinaryCursor<'a> {
     }
 
     /// Returns exactly `count` bytes after all range and budget checks.
-    pub fn read_exact(&mut self, count: ByteCount) -> Result<&'a [u8], Error> {
-        let mut charged_budget = self.budget;
-        charged_budget.charge_read(count)?;
+    pub fn read_exact(&mut self, count: ByteCount) -> Result<&'input [u8], Error> {
+        self.budget.check_read(count)?;
         let end = self.position.checked_add(count)?;
         let input_len = ByteCount::from_usize(self.input.len())?;
         if end.get() > input_len.get() {
@@ -79,6 +78,7 @@ impl<'a> BinaryCursor<'a> {
             });
         }
 
+        self.budget.charge_read_attempt(count)?;
         let start_index = self.position.to_usize()?;
         let end_index = end.to_usize()?;
         let bytes = self
@@ -90,7 +90,6 @@ impl<'a> BinaryCursor<'a> {
                 available: self.remaining()?,
             })?;
         self.position = end;
-        self.budget = charged_budget;
         Ok(bytes)
     }
 
@@ -159,22 +158,25 @@ impl<'a> BinaryCursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::BinaryCursor;
-    use crate::{ByteCount, ByteOffset, Error, LimitKind, ResourceLimits};
+    use crate::limits::{ReadBudget, ReadLimits};
+    use crate::{ByteCount, ByteOffset, Error, LimitKind};
 
-    fn limits(input: u64, single: u64, total: u64) -> ResourceLimits {
-        ResourceLimits::new(
+    fn budget(input: u64, single: u64, total: u64) -> ReadBudget {
+        ReadBudget::new(ReadLimits::new(
             ByteCount::new(input),
             ByteCount::new(single),
             ByteCount::new(total),
-        )
+        ))
     }
 
     #[test]
     fn constructor_accepts_input_at_limit_and_rejects_one_above() {
-        assert!(BinaryCursor::new(&[0; 3], limits(3, 3, 3)).is_ok());
+        let mut exact_budget = budget(3, 3, 3);
+        assert!(BinaryCursor::new(&[0; 3], &mut exact_budget).is_ok());
+        let mut small_budget = budget(3, 4, 4);
         assert_eq!(
-            BinaryCursor::new(&[0; 4], limits(3, 4, 4)),
-            Err(Error::LimitExceeded {
+            BinaryCursor::new(&[0; 4], &mut small_budget).err(),
+            Some(Error::LimitExceeded {
                 kind: LimitKind::InputBytes,
                 requested: ByteCount::new(4),
                 maximum: ByteCount::new(3),
@@ -184,7 +186,8 @@ mod tests {
 
     #[test]
     fn seek_accepts_start_and_end_but_rejects_past_end() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[1, 2], limits(2, 2, 2))?;
+        let mut read_budget = budget(2, 2, 2);
+        let mut cursor = BinaryCursor::new(&[1, 2], &mut read_budget)?;
         assert_eq!(cursor.seek(ByteOffset::new(2)), Ok(()));
         assert_eq!(cursor.position(), ByteOffset::new(2));
         assert_eq!(cursor.remaining(), Ok(ByteCount::new(0)));
@@ -202,7 +205,8 @@ mod tests {
 
     #[test]
     fn empty_read_at_end_succeeds_without_work() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[], limits(0, 0, 0))?;
+        let mut read_budget = budget(0, 0, 0);
+        let mut cursor = BinaryCursor::new(&[], &mut read_budget)?;
         assert_eq!(cursor.read_exact(ByteCount::new(0)), Ok(&[][..]));
         assert_eq!(cursor.position(), ByteOffset::new(0));
         assert_eq!(cursor.total_read(), ByteCount::new(0));
@@ -212,7 +216,8 @@ mod tests {
     #[test]
     fn exact_read_advances_position_and_work() -> Result<(), Error> {
         let input = [1, 2, 3];
-        let mut cursor = BinaryCursor::new(&input, limits(3, 3, 3))?;
+        let mut read_budget = budget(3, 3, 3);
+        let mut cursor = BinaryCursor::new(&input, &mut read_budget)?;
         assert_eq!(cursor.read_exact(ByteCount::new(2)), Ok(&input[..2]));
         assert_eq!(cursor.position(), ByteOffset::new(2));
         assert_eq!(cursor.total_read(), ByteCount::new(2));
@@ -225,7 +230,8 @@ mod tests {
 
     #[test]
     fn one_read_limit_rejects_one_above_without_advancing() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[0; 3], limits(3, 2, 3))?;
+        let mut read_budget = budget(3, 2, 3);
+        let mut cursor = BinaryCursor::new(&[0; 3], &mut read_budget)?;
         assert_eq!(
             cursor.read_exact(ByteCount::new(3)),
             Err(Error::LimitExceeded {
@@ -241,7 +247,8 @@ mod tests {
 
     #[test]
     fn cumulative_limit_counts_rereads_and_preserves_state_on_failure() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[0; 2], limits(2, 2, 3))?;
+        let mut read_budget = budget(2, 2, 3);
+        let mut cursor = BinaryCursor::new(&[0; 2], &mut read_budget)?;
         assert!(cursor.read_exact(ByteCount::new(2)).is_ok());
         assert_eq!(cursor.seek(ByteOffset::new(0)), Ok(()));
         assert_eq!(
@@ -259,7 +266,8 @@ mod tests {
 
     #[test]
     fn truncated_read_reports_offset_needed_and_available() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[1, 2, 3], limits(3, 3, 3))?;
+        let mut read_budget = budget(3, 3, 3);
+        let mut cursor = BinaryCursor::new(&[1, 2, 3], &mut read_budget)?;
         assert_eq!(cursor.seek(ByteOffset::new(2)), Ok(()));
         assert_eq!(
             cursor.read_exact(ByteCount::new(2)),
@@ -276,7 +284,8 @@ mod tests {
 
     #[test]
     fn huge_range_reports_truncation_without_allocating() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[], limits(0, u64::MAX, u64::MAX))?;
+        let mut read_budget = budget(0, u64::MAX, u64::MAX);
+        let mut cursor = BinaryCursor::new(&[], &mut read_budget)?;
         assert_eq!(cursor.seek(ByteOffset::new(0)), Ok(()));
         assert_eq!(
             cursor.read_exact(ByteCount::new(u64::MAX)),
@@ -296,7 +305,8 @@ mod tests {
             0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff,
             0xff, 0xff,
         ];
-        let mut cursor = BinaryCursor::new(&input, limits(30, 8, 30))?;
+        let mut read_budget = budget(30, 8, 30);
+        let mut cursor = BinaryCursor::new(&input, &mut read_budget)?;
         assert_eq!(cursor.read_u8(), Ok(0xfe));
         assert_eq!(cursor.read_i8(), Ok(-128));
         assert_eq!(cursor.read_u16_le(), Ok(0x1234));
@@ -313,7 +323,8 @@ mod tests {
         let mut input = [0_u8; 12];
         input[..4].copy_from_slice(&0x7fc0_1234_u32.to_le_bytes());
         input[4..].copy_from_slice(&0x7ff8_0000_0000_1234_u64.to_le_bytes());
-        let mut cursor = BinaryCursor::new(&input, limits(12, 8, 12))?;
+        let mut read_budget = budget(12, 8, 12);
+        let mut cursor = BinaryCursor::new(&input, &mut read_budget)?;
         assert_eq!(cursor.read_f32_le().map(f32::to_bits), Ok(0x7fc0_1234));
         assert_eq!(
             cursor.read_f64_le().map(f64::to_bits),
@@ -324,7 +335,8 @@ mod tests {
 
     #[test]
     fn primitive_read_propagates_truncation_without_advancing() -> Result<(), Error> {
-        let mut cursor = BinaryCursor::new(&[1], limits(1, 8, 8))?;
+        let mut read_budget = budget(1, 8, 8);
+        let mut cursor = BinaryCursor::new(&[1], &mut read_budget)?;
         assert_eq!(
             cursor.read_u16_le(),
             Err(Error::UnexpectedEnd {

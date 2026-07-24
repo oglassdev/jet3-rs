@@ -66,6 +66,34 @@ pub enum Error {
         /// Portable category reported by the standard library.
         kind: std::io::ErrorKind,
     },
+    /// A page size is zero or cannot be used for checked page geometry.
+    InvalidPageSize {
+        /// Rejected page size.
+        page_size: ByteCount,
+    },
+    /// The input contains bytes after its final complete page.
+    PartialPage {
+        /// Total input length.
+        input_len: ByteCount,
+        /// Expected size of every complete page.
+        page_size: ByteCount,
+        /// Bytes present after the final complete page.
+        trailing: ByteCount,
+    },
+    /// A page number is outside the captured page range.
+    PageOutOfBounds {
+        /// Requested zero-based page number.
+        page: u64,
+        /// Number of complete pages in the input.
+        page_count: u64,
+    },
+    /// An offset within a page is at or beyond the page size.
+    PageOffsetOutOfBounds {
+        /// Requested zero-based offset within the page.
+        offset: u64,
+        /// Size of the page.
+        page_size: ByteCount,
+    },
     /// A request exceeded an explicit resource limit.
     LimitExceeded {
         /// Policy limit that rejected the request.
@@ -120,6 +148,29 @@ impl fmt::Display for Error {
             Self::Io { operation, kind } => {
                 write!(formatter, "I/O failure during {operation}: {kind}")
             }
+            Self::InvalidPageSize { page_size } => {
+                write!(formatter, "invalid page size: {} bytes", page_size.get())
+            }
+            Self::PartialPage {
+                input_len,
+                page_size,
+                trailing,
+            } => write!(
+                formatter,
+                "input of {} bytes is not divisible into {}-byte pages: {} trailing bytes",
+                input_len.get(),
+                page_size.get(),
+                trailing.get()
+            ),
+            Self::PageOutOfBounds { page, page_count } => write!(
+                formatter,
+                "page {page} is outside input containing {page_count} pages"
+            ),
+            Self::PageOffsetOutOfBounds { offset, page_size } => write!(
+                formatter,
+                "page offset {offset} is outside a {}-byte page",
+                page_size.get()
+            ),
             Self::LimitExceeded {
                 kind,
                 requested,
@@ -194,6 +245,34 @@ mod tests {
                     kind: std::io::ErrorKind::PermissionDenied,
                 },
                 "permission denied",
+            ),
+            (
+                Error::InvalidPageSize {
+                    page_size: ByteCount::new(0),
+                },
+                "invalid page size",
+            ),
+            (
+                Error::PartialPage {
+                    input_len: ByteCount::new(9),
+                    page_size: ByteCount::new(4),
+                    trailing: ByteCount::new(1),
+                },
+                "1 trailing",
+            ),
+            (
+                Error::PageOutOfBounds {
+                    page: 3,
+                    page_count: 3,
+                },
+                "page 3",
+            ),
+            (
+                Error::PageOffsetOutOfBounds {
+                    offset: 4,
+                    page_size: ByteCount::new(4),
+                },
+                "offset 4",
             ),
         ];
 

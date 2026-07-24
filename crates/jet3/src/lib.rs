@@ -5,12 +5,14 @@ pub mod binary;
 pub mod error;
 pub mod limits;
 pub mod offset;
+pub mod page;
 pub mod source;
 
 pub use binary::BinaryCursor;
 pub use error::{Error, LimitKind};
-pub use limits::{ResourceLimits, WorkBudget};
+pub use limits::{ReadBudget, ReadLimits};
 pub use offset::{ByteCount, ByteOffset};
+pub use page::{PageGeometry, PageNumber, PageOffset};
 pub use source::{FileSource, ReadAt, SliceSource};
 
 /// Human-readable name of the only database format targeted by this crate.
