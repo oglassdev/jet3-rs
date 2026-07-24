@@ -182,7 +182,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: Jet 3.x uses 2 KiB pages and Jet 4.0 uses 4 KiB pages. This
   source establishes neither page-header semantics nor a version byte or other
   byte-level generation discriminator.
-- Usage: `crates/jet3/src/header.rs`; `EXP-0001`;
+- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/jet3_page.rs`; `EXP-0001`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed

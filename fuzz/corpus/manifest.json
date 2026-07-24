@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target": "binary_cursor and jet_header",
+  "target": "binary_cursor, jet_header, and jet3_page",
   "protocol_version": 1,
   "seeds": [
     {
@@ -172,6 +172,108 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "awk 'BEGIN { printf \"222\"; for (line = 0; line < 31; line++) { width = line == 0 ? 61 : 64; for (i = 0; i < width; i++) printf \"A\"; printf \"\\n\" } for (i = 0; i < 36; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet_header/geometry_2049"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-001",
+      "path": "fuzz/corpus/jet3_page/partial_source",
+      "size_bytes": 6,
+      "sha256": "1acd68eb6703033ebdf0d627169bd1cd045865893555e34500d5b76904d9ff4a",
+      "purpose": "Supply a one-byte payload after exact and permissive controls to exercise partial-page constructor rejection; the target also checks empty and one-page synthetic constructors for every input.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '24611' > fuzz/corpus/jet3_page/partial_source"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-002",
+      "path": "fuzz/corpus/jet3_page/one_page_repeat",
+      "size_bytes": 2053,
+      "sha256": "29e83ce588d0663f02498e01b36ae5fd380a44957afc029cff553ba30c7b449d",
+      "purpose": "Select exact one-page input, read, visit, and work limits, then read page zero successfully and repeat it to exercise cumulative-read rejection.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"24A114REPEAT!!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/one_page_repeat"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-003",
+      "path": "fuzz/corpus/jet3_page/two_page_references",
+      "size_bytes": 4101,
+      "sha256": "118abf62dc3340d05d58d06e06b1c5afa5c9036446b687356a58a50408309749",
+      "purpose": "Select a permissive two-page policy and exercise the last page, the page at count, the maximum page number, and a large decoded page operand.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"516442LASTPAGE3PASTEND!5MAXPAGE!0zzzzzzzz\"; for (i = 0; i < 4059; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/two_page_references"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-004",
+      "path": "fuzz/corpus/jet3_page/one_below_reads",
+      "size_bytes": 2053,
+      "sha256": "37f2a40de881c562b0b9fe9954bcd19ea34da474191b93260d1f8f0e9be3109a",
+      "purpose": "Select an exact one-page input with both single and cumulative byte-read limits one below a complete page, then request page zero.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"232111FIRSTPG!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/one_below_reads"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-005",
+      "path": "fuzz/corpus/jet3_page/zero_page_visits",
+      "size_bytes": 2053,
+      "sha256": "a87a148c5ad6b4f5b728d7e15d0686599287a046d777fda56b7897eb2d579094",
+      "purpose": "Select exact input and single-read limits with a permissive cumulative byte budget but zero allowed page visits, then request page zero.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"246011FIRSTPG!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/zero_page_visits"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-006",
+      "path": "fuzz/corpus/jet3_page/zero_total_work",
+      "size_bytes": 2053,
+      "sha256": "8aeb52a93e870e7f224c0d177c495991d415c1d7033ef3c8ce16c66db18e7c99",
+      "purpose": "Select exact input and single-read limits with a permissive cumulative byte budget and one allowed page visit but zero aggregate work, then request page zero.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"246101FIRSTPG!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/zero_total_work"
     }
   ]
 }

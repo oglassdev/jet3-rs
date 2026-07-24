@@ -26,5 +26,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "jet3_page"
+path = "fuzz_targets/jet3_page.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

@@ -8,9 +8,9 @@ use criterion::{
     BatchSize, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
 use jet3::{
-    BinaryCursor, ByteCount, ByteOffset, Error, FileSource, JET3_PAGE_SIZE, PageGeometry,
-    PageNumber, PageOffset, ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits,
-    SliceSource, jet3_page_geometry, read_jet_signature,
+    BinaryCursor, ByteCount, ByteOffset, Error, FileSource, JET3_PAGE_SIZE, Jet3PageReader,
+    PageGeometry, PageNumber, PageOffset, ReadAt, ReadBudget, ReadLimits, ResourceBudget,
+    ResourceLimits, SliceSource, jet3_page_geometry, read_jet_signature,
 };
 
 const DATASET_SIZES: [usize; 4] = [64, 4 * 1024, 64 * 1024, 1024 * 1024];
@@ -53,31 +53,62 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-struct LengthOnlySource {
+struct GeneratedPageSource {
     length: ByteCount,
 }
 
-impl LengthOnlySource {
+impl GeneratedPageSource {
     const fn new(length: ByteCount) -> Self {
         Self { length }
     }
 }
 
-impl ReadAt for LengthOnlySource {
+impl ReadAt for GeneratedPageSource {
     fn len(&self) -> ByteCount {
         self.length
     }
 
     fn read_exact_at(
         &mut self,
-        _offset: ByteOffset,
-        _destination: &mut [u8],
-        _budget: &mut ReadBudget,
+        offset: ByteOffset,
+        destination: &mut [u8],
+        budget: &mut ReadBudget,
     ) -> Result<(), Error> {
-        Err(Error::Io {
-            operation: "read from length-only benchmark source",
-            kind: std::io::ErrorKind::Unsupported,
-        })
+        let count = ByteCount::from_usize(destination.len())?;
+        budget.check_input(self.length)?;
+        budget.check_read(count)?;
+        let end = offset.checked_add(count)?;
+        if offset.get() > self.length.get() {
+            return Err(Error::OffsetOutOfBounds {
+                offset,
+                input_len: self.length,
+            });
+        }
+        if end.get() > self.length.get() {
+            return Err(Error::UnexpectedEnd {
+                offset,
+                needed: count,
+                available: ByteCount::new(self.length.get().saturating_sub(offset.get())),
+            });
+        }
+        budget.charge_read_attempt(count)?;
+        let page_number = offset.get() / JET3_PAGE_SIZE.get();
+        destination.fill(page_number.to_le_bytes()[0]);
+        Ok(())
+    }
+}
+
+fn required_page_rejection(result: Result<(), Error>) {
+    match result {
+        Err(Error::PageOutOfBounds { .. }) => {}
+        Ok(()) => {
+            eprintln!("benchmark invariant failed: page at count was accepted");
+            process::abort();
+        }
+        Err(error) => {
+            eprintln!("benchmark invariant failed: unexpected page rejection: {error}");
+            process::abort();
+        }
     }
 }
 
@@ -125,7 +156,7 @@ fn bench_jet_header(criterion: &mut Criterion) {
 
     for page_count in PAGE_COUNTS {
         let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
-        let source = LengthOnlySource::new(source_len);
+        let source = GeneratedPageSource::new(source_len);
         group.throughput(Throughput::Elements(1));
         group.bench_with_input(
             BenchmarkId::new("jet3_page_geometry", source_len.get()),
@@ -134,6 +165,83 @@ fn bench_jet_header(criterion: &mut Criterion) {
                 bencher.iter(|| {
                     black_box(required(jet3_page_geometry(black_box(source))));
                 });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn page_reader_limits(source_len: ByteCount, page_visits: u64) -> ResourceLimits {
+    ResourceLimits::new(ReadLimits::new(source_len, JET3_PAGE_SIZE, JET3_PAGE_SIZE))
+        .with_max_allocation_bytes(ByteCount::new(0))
+        .with_max_decoded_value_bytes(ByteCount::new(0))
+        .with_max_total_decoded_bytes(ByteCount::new(0))
+        .with_max_item_work(0)
+        .with_max_page_visits(page_visits)
+        .with_max_chain_depth(0)
+        .with_max_total_work_units(page_visits)
+}
+
+fn bench_jet3_page_reader(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("jet3_page_reader");
+
+    for page_count in PAGE_COUNTS {
+        let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
+        let last_page = PageNumber::new(page_count.saturating_sub(1));
+        let mut success_reader =
+            required(Jet3PageReader::new(GeneratedPageSource::new(source_len)));
+        let success_limits = page_reader_limits(source_len, 1);
+        group.throughput(Throughput::Bytes(JET3_PAGE_SIZE.get()));
+        group.bench_with_input(
+            BenchmarkId::new("read_last_page", page_count),
+            &last_page,
+            |bencher, page| {
+                bencher.iter_batched(
+                    || {
+                        (
+                            ResourceBudget::new(success_limits),
+                            [0_u8; JET3_PAGE_SIZE.get() as usize],
+                        )
+                    },
+                    |(mut budget, mut destination)| {
+                        required(success_reader.read_page(
+                            black_box(*page),
+                            &mut destination,
+                            &mut budget,
+                        ));
+                        black_box(destination);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+
+        let invalid_page = PageNumber::new(page_count);
+        let mut rejection_reader =
+            required(Jet3PageReader::new(GeneratedPageSource::new(source_len)));
+        let rejection_limits = page_reader_limits(source_len, 0);
+        group.throughput(Throughput::Elements(1));
+        group.bench_with_input(
+            BenchmarkId::new("reject_page_at_count", page_count),
+            &invalid_page,
+            |bencher, page| {
+                bencher.iter_batched(
+                    || {
+                        (
+                            ResourceBudget::new(rejection_limits),
+                            [0_u8; JET3_PAGE_SIZE.get() as usize],
+                        )
+                    },
+                    |(mut budget, mut destination)| {
+                        required_page_rejection(rejection_reader.read_page(
+                            black_box(*page),
+                            &mut destination,
+                            &mut budget,
+                        ));
+                        black_box(destination);
+                    },
+                    BatchSize::SmallInput,
+                );
             },
         );
     }
@@ -469,6 +577,7 @@ fn bench_resource_budget(criterion: &mut Criterion) {
 criterion_group!(
     benches,
     bench_jet_header,
+    bench_jet3_page_reader,
     bench_binary_cursor,
     bench_slice_source,
     bench_file_source,
