@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import math
 import re
 import sys
 from collections import Counter
@@ -25,6 +26,7 @@ SCHEMAS = {
     "dao_scenario": "scenario.schema.json",
     "canonical_snapshot": "canonical-snapshot.schema.json",
     "dao_environment": "environment.schema.json",
+    "dao_operation_log": "operation-log.schema.json",
     "dao_evidence_report": "evidence-report.schema.json",
     "dao_bundle_manifest": "bundle-manifest.schema.json",
 }
@@ -249,13 +251,34 @@ def _validate_environment(document: dict[str, Any]) -> None:
             raise ValidationError(
                 "$.accepted_provider: ready environment requires an accepted provider"
             )
-        matching = [
-            candidate
-            for candidate in document["provider_candidates"]
-            if candidate["prog_id"] == accepted["prog_id"]
-            and candidate["registry_view"] == accepted["registry_view"]
-            and candidate["dbversion30_test"]["status"] == "pass"
-        ]
+        if not document["host"]["is_windows"]:
+            raise ValidationError("$.host.is_windows: ready environment requires Windows")
+        if document["host"]["process_architecture"] != accepted["registry_view"]:
+            raise ValidationError(
+                "$.accepted_provider.registry_view: does not match process architecture"
+            )
+        identity_fields = (
+            "prog_id",
+            "clsid",
+            "registry_view",
+            "registration_scope",
+            "provider_version",
+            "server_path",
+            "server_file_version",
+            "server_sha256",
+        )
+        matching = []
+        for candidate in document["provider_candidates"]:
+            if (
+                candidate["registered"]
+                and candidate["activation"] == "succeeded"
+                and candidate["dbversion30_test"]["status"] == "pass"
+                and all(
+                    candidate[field] == accepted[field]
+                    for field in identity_fields
+                )
+            ):
+                matching.append(candidate)
         if not matching:
             raise ValidationError(
                 "$.accepted_provider: no matching candidate passed dbVersion30"
@@ -264,6 +287,123 @@ def _validate_environment(document: dict[str, Any]) -> None:
         raise ValidationError(
             "$.accepted_provider: only a ready environment may accept a provider"
         )
+
+
+def _validate_typed_value(value: dict[str, Any], location: str) -> None:
+    kind = value["kind"]
+    semantic = value["value"]
+    integer = isinstance(semantic, int) and not isinstance(semantic, bool)
+    if kind == "null" and semantic is not None:
+        raise ValidationError(f"{location}.value: null kind requires JSON null")
+    if kind == "boolean" and not isinstance(semantic, bool):
+        raise ValidationError(f"{location}.value: boolean kind requires boolean")
+    integer_ranges = {
+        "byte": (0, 255),
+        "integer": (-32768, 32767),
+        "long": (-2147483648, 2147483647),
+    }
+    if kind in integer_ranges:
+        lower, upper = integer_ranges[kind]
+        if not integer or semantic < lower or semantic > upper:
+            raise ValidationError(
+                f"{location}.value: {kind} is outside its canonical integer range"
+            )
+    if kind in ("single", "double"):
+        if (
+            not isinstance(semantic, (int, float))
+            or isinstance(semantic, bool)
+            or not math.isfinite(semantic)
+        ):
+            raise ValidationError(
+                f"{location}.value: {kind} requires a finite JSON number"
+            )
+    if kind in ("decimal", "currency"):
+        if not isinstance(semantic, str) or re.fullmatch(
+            r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", semantic
+        ) is None:
+            raise ValidationError(
+                f"{location}.value: {kind} requires an invariant decimal string"
+            )
+    if kind == "datetime":
+        if not isinstance(semantic, str) or re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+            r"[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?",
+            semantic,
+        ) is None:
+            raise ValidationError(
+                f"{location}.value: datetime requires a timezone-free ISO string"
+            )
+    if kind in ("text", "memo") and not isinstance(semantic, str):
+        raise ValidationError(f"{location}.value: {kind} requires a string")
+    if kind in ("binary", "ole"):
+        if not isinstance(semantic, str) or re.fullmatch(
+            r"(?:[0-9a-f]{2})*", semantic
+        ) is None:
+            raise ValidationError(
+                f"{location}.value: {kind} requires lowercase even-length hex"
+            )
+    if kind == "guid":
+        if not isinstance(semantic, str) or re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+            r"[0-9a-f]{4}-[0-9a-f]{12}",
+            semantic,
+        ) is None:
+            raise ValidationError(
+                f"{location}.value: guid requires lowercase hyphenated text"
+            )
+    if "code_page" in value and kind not in ("text", "memo"):
+        raise ValidationError(
+            f"{location}.code_page: only text or memo may declare a code page"
+        )
+
+
+def _validate_snapshot(document: dict[str, Any]) -> None:
+    tables = document["tables"]
+    table_names = [table["name"] for table in tables]
+    if table_names != sorted(table_names) or len(table_names) != len(set(table_names)):
+        raise ValidationError("$.tables: names must be unique and sorted")
+    for table_index, table in enumerate(tables):
+        location = f"$.tables[{table_index}]"
+        columns = table["columns"]
+        ordinals = [column["ordinal"] for column in columns]
+        column_names = [column["name"] for column in columns]
+        if ordinals != sorted(ordinals) or len(ordinals) != len(set(ordinals)):
+            raise ValidationError(
+                f"{location}.columns: ordinals must be unique and sorted"
+            )
+        if len(column_names) != len(set(column_names)):
+            raise ValidationError(f"{location}.columns: names must be unique")
+        index_names = [index["name"] for index in table["indexes"]]
+        if index_names != sorted(index_names) or len(index_names) != len(
+            set(index_names)
+        ):
+            raise ValidationError(
+                f"{location}.indexes: names must be unique and sorted"
+            )
+        row_keys = [row["canonical_key"] for row in table["rows"]]
+        if row_keys != sorted(row_keys) or len(row_keys) != len(set(row_keys)):
+            raise ValidationError(
+                f"{location}.rows: canonical keys must be unique and sorted"
+            )
+    relationship_names = [
+        relationship["name"] for relationship in document["relationships"]
+    ]
+    if relationship_names != sorted(relationship_names) or len(
+        relationship_names
+    ) != len(set(relationship_names)):
+        raise ValidationError("$.relationships: names must be unique and sorted")
+
+    def walk(value: Any, location: str) -> None:
+        if isinstance(value, dict):
+            if "kind" in value and "value" in value:
+                _validate_typed_value(value, location)
+            for key, child in value.items():
+                walk(child, f"{location}.{key}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, f"{location}[{index}]")
+
+    walk(document, "$")
 
 
 def _validate_report(document: dict[str, Any]) -> None:
@@ -286,6 +426,16 @@ def _validate_report(document: dict[str, Any]) -> None:
             raise ValidationError("$.status: pass requires at least one scenario")
 
 
+def _validate_operation_log(document: dict[str, Any]) -> None:
+    sequences = [entry["sequence"] for entry in document["entries"]]
+    if sequences != list(range(1, len(sequences) + 1)):
+        raise ValidationError("$.entries: sequence values must be contiguous from one")
+    if document["entries"][-1]["status"] != document["final_status"]:
+        raise ValidationError(
+            "$.final_status: does not match the final operation entry"
+        )
+
+
 def validate_document(document: Any) -> str:
     if not isinstance(document, dict):
         raise ValidationError("$: protocol document must be an object")
@@ -296,8 +446,12 @@ def validate_document(document: Any) -> str:
         raise ValidationError("$.protocol_version: unsupported protocol version")
     if document_type == "dao_scenario":
         _validate_scenario(document)
+    elif document_type == "canonical_snapshot":
+        _validate_snapshot(document)
     elif document_type == "dao_environment":
         _validate_environment(document)
+    elif document_type == "dao_operation_log":
+        _validate_operation_log(document)
     elif document_type == "dao_evidence_report":
         _validate_report(document)
     return document_type
@@ -427,8 +581,11 @@ def validate_bundle(bundle: Path) -> None:
     if environment_entry["sha256"] != environment_ref["sha256"]:
         raise ValidationError("report and manifest environment hashes differ")
     environment_path = _safe_bundle_path(bundle, environment_ref["path"])
-    if validate_document_path(environment_path) != "dao_environment":
+    environment = _load_json(environment_path)
+    if validate_document(environment) != "dao_environment":
         raise ValidationError(f"{environment_path}: wrong document type")
+    if report["status"] == "pass" and environment["status"] != "ready":
+        raise ValidationError("passing report requires a ready DAO environment")
 
     report_ids = [item["scenario_id"] for item in report["scenarios"]]
     if set(report_ids) != set(manifest["scenario_ids"]):
@@ -443,11 +600,16 @@ def validate_bundle(bundle: Path) -> None:
         "operation_log": "operation_log",
     }
     referenced: list[tuple[str, dict[str, str]]] = []
+    referenced_paths = {
+        manifest["report_path"],
+        environment_ref["path"],
+    }
     for scenario in report["scenarios"]:
         for key in role_for_reference:
             reference = scenario[key]
             if reference is not None:
                 referenced.append((key, reference))
+                referenced_paths.add(reference["path"])
     for key, reference in referenced:
         entry = entry_by_path.get(reference["path"])
         if entry is None:
@@ -462,8 +624,124 @@ def validate_bundle(bundle: Path) -> None:
             raise ValidationError(
                 f"{reference['path']}: report and manifest hashes differ"
             )
-        if key in ("input", "dao_snapshot", "rust_snapshot"):
+        if key in ("input", "dao_snapshot", "rust_snapshot", "operation_log"):
             validate_document_path(_safe_bundle_path(bundle, reference["path"]))
+
+    expected_references = {
+        "dao_generate_fixture": {
+            "source_database": False,
+            "output_database": True,
+            "dao_snapshot": True,
+            "rust_snapshot": False,
+            "operation_log": True,
+        },
+        "rust_read_dao": {
+            "source_database": True,
+            "output_database": False,
+            "dao_snapshot": True,
+            "rust_snapshot": True,
+            "operation_log": True,
+        },
+        "dao_open_rust": {
+            "source_database": True,
+            "output_database": False,
+            "dao_snapshot": True,
+            "rust_snapshot": True,
+            "operation_log": True,
+        },
+        "dao_verify_rust_update": {
+            "source_database": True,
+            "output_database": True,
+            "dao_snapshot": True,
+            "rust_snapshot": True,
+            "operation_log": True,
+        },
+    }
+    database_reference_for_mode = {
+        "dao_generate_fixture": "output_database",
+        "rust_read_dao": "source_database",
+        "dao_open_rust": "source_database",
+        "dao_verify_rust_update": "output_database",
+    }
+    for result in report["scenarios"]:
+        input_path = _safe_bundle_path(bundle, result["input"]["path"])
+        scenario_input = _load_json(input_path)
+        if validate_document(scenario_input) != "dao_scenario":
+            raise ValidationError(f"{input_path}: wrong document type")
+        if scenario_input["scenario_id"] != result["scenario_id"]:
+            raise ValidationError(
+                f"{result['scenario_id']}: result/input scenario IDs differ"
+            )
+        if scenario_input["mode"] != result["mode"]:
+            raise ValidationError(f"{result['scenario_id']}: result/input modes differ")
+        if scenario_input["capabilities"] != result["capabilities"]:
+            raise ValidationError(
+                f"{result['scenario_id']}: result/input capabilities differ"
+            )
+
+        operation_reference = result["operation_log"]
+        if operation_reference is not None:
+            operation_log = _load_json(
+                _safe_bundle_path(bundle, operation_reference["path"])
+            )
+            if operation_log["scenario_id"] != result["scenario_id"]:
+                raise ValidationError(
+                    f"{result['scenario_id']}: operation log scenario differs"
+                )
+            if operation_log["run_id"] != report["run_id"]:
+                raise ValidationError(
+                    f"{result['scenario_id']}: operation log run differs"
+                )
+            if operation_log["git_commit"] != report["git"]["commit"]:
+                raise ValidationError(
+                    f"{result['scenario_id']}: operation log commit differs"
+                )
+            if operation_log["final_status"] != result["status"]:
+                raise ValidationError(
+                    f"{result['scenario_id']}: operation/result statuses differ"
+                )
+
+        if result["status"] != "pass":
+            continue
+        requirements = expected_references[result["mode"]]
+        for key, required in requirements.items():
+            if (result[key] is not None) != required:
+                raise ValidationError(
+                    f"{result['scenario_id']}: {key} violates family artifact contract"
+                )
+        database_key = database_reference_for_mode[result["mode"]]
+        database_hash = result[database_key]["sha256"]
+        for key, producer_kind in (
+            ("dao_snapshot", "dao"),
+            ("rust_snapshot", "rust"),
+        ):
+            reference = result[key]
+            if reference is None:
+                continue
+            snapshot = _load_json(_safe_bundle_path(bundle, reference["path"]))
+            if snapshot["scenario_id"] != result["scenario_id"]:
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot scenario differs"
+                )
+            if snapshot["producer"]["kind"] != producer_kind:
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot producer differs"
+                )
+            if snapshot["producer"]["source_revision"] != report["git"]["commit"]:
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot revision differs"
+                )
+            if snapshot["database_sha256"] != database_hash:
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot/database hashes differ"
+                )
+
+    if report["status"] == "pass" and set(entry_by_path) != referenced_paths:
+        extras = sorted(set(entry_by_path) - referenced_paths)
+        missing = sorted(referenced_paths - set(entry_by_path))
+        raise ValidationError(
+            f"passing bundle payload contract differs; extras={extras}, missing={missing}"
+        )
 
 
 def _parse_args() -> argparse.Namespace:

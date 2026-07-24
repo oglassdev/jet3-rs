@@ -107,6 +107,31 @@ Use `not applicable` explicitly rather than omitting a field.
   is redistributed
 - Review: pending independent review
 
+### SRC-0003 — DAO system-table attribute
+
+- Recorded: 2026-07-23, OpenAI Codex
+- Kind: public source
+- Question: Which DAO `TableDef.Attributes` flag identifies a system table,
+  and what value must a late-bound COM caller use?
+- Origin: Microsoft Learn, “TableDefAttributeEnum enumeration (DAO),” accessed
+  2026-07-23,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/tabledefattributeenum-enumeration-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited page from Microsoft Learn and inspect the
+  enumeration table row named `dbSystemObject`
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft documents `dbSystemObject` as the flag for a system
+  table and gives its numeric value as -2147483646.
+- Interpretation: the DAO oracle may apply this flag to `TableDef.Attributes`
+  when excluding system tables from an empty user-schema snapshot. This does
+  not establish how a system-table attribute is encoded in an MDB file.
+- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 No entries.

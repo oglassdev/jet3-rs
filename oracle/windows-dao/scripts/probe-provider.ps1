@@ -327,7 +327,40 @@ function Write-Record {
     }
     $json = $Record | ConvertTo-Json -Depth 12
     $encoding = New-Object Text.UTF8Encoding($false)
-    [IO.File]::WriteAllText($absolutePath, $json + "`n", $encoding)
+    $bytes = $encoding.GetBytes($json + "`n")
+    $temporaryPath = Join-Path $parent (
+        "." + [IO.Path]::GetFileName($absolutePath) + "." +
+        [Guid]::NewGuid().ToString("N") + ".tmp"
+    )
+    $stream = $null
+    try {
+        $stream = New-Object IO.FileStream(
+            $temporaryPath,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::None,
+            4096,
+            [IO.FileOptions]::WriteThrough
+        )
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+        $stream.Dispose()
+        $stream = $null
+        if ([IO.File]::Exists($absolutePath)) {
+            [IO.File]::Replace($temporaryPath, $absolutePath, $null)
+        }
+        else {
+            [IO.File]::Move($temporaryPath, $absolutePath)
+        }
+    }
+    finally {
+        if ($null -ne $stream) {
+            $stream.Dispose()
+        }
+        if ([IO.File]::Exists($temporaryPath)) {
+            [IO.File]::Delete($temporaryPath)
+        }
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {

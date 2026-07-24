@@ -70,6 +70,54 @@ Probe exit codes:
 `ready` is an environment result only. It is not `dao_opened` or
 `dao_differential` evidence for any product capability.
 
+## Run the checked M0 DAO scenario
+
+The M0 runner supports exactly
+`examples/DAO-GEN-PROBE-001.scenario.json`. It refuses a dirty worktree, a
+commit mismatch, a reused run ID, a non-ready or different-host environment,
+provider drift, and unsupported scenario actions. Keep generated probe and
+evidence output outside the git worktree so the clean-tree check remains
+meaningful:
+
+```powershell
+$commit = git rev-parse HEAD
+$runId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-dao-m0"
+$work = Join-Path $env:TEMP "jet3-rs-dao"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/probe-provider.ps1 `
+  -OutputPath (Join-Path $work "environment.json")
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/run-dao-gen-probe.ps1 `
+  -RepositoryRoot (Get-Location) `
+  -EnvironmentPath (Join-Path $work "environment.json") `
+  -OutputRoot (Join-Path $work "evidence") `
+  -GitCommit $commit `
+  -RunId $runId
+```
+
+The runner late-binds only the exact provider accepted by the probe, verifies
+the provider binary hash and process bitness, calls DAO
+`CreateDatabase(..., dbVersion30)`, closes and reopens the file, and confirms
+through DAO that no user table exists. It then publishes the bundle by a
+same-volume directory move. A partial staging directory is retained if
+publication itself fails.
+
+Runner exit codes:
+
+| Exit | Report status | Meaning |
+| --- | --- | --- |
+| `0` | `pass` | The checked scenario ran and a complete bundle was published. |
+| `1` | `fail` | DAO ran but did not satisfy the scenario. |
+| `2` | none | Invocation or checked scenario input was invalid. |
+| `3` | `blocked`, or no bundle during preflight | Required host/provider/clean-commit state was unavailable. |
+| `4` | `error`, or retained staging during publication | The runner or publication failed unexpectedly. |
+
+A passing M0 bundle proves only the recorded empty-database scenario on its
+exact clean commit and environment. It is not a general reader, writer, CRUD,
+or differential compatibility claim.
+
 ## Cross-platform validation
 
 The validator uses only Python 3's standard library:

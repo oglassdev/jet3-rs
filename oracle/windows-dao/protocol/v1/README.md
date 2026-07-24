@@ -9,6 +9,7 @@ Protocol 1.0.0 is a data contract, not an MDB implementation.
 | `dao_scenario` | `scenario.schema.json` | Declarative database operation sequence and expected semantic outcome. |
 | `canonical_snapshot` | `canonical-snapshot.schema.json` | Deterministic semantic database representation emitted independently by DAO or Rust. |
 | `dao_environment` | `environment.schema.json` | Exact Windows, runtime, locale, code-page, timezone, and COM provider inventory. |
+| `dao_operation_log` | `operation-log.schema.json` | Ordered machine-readable record of one scenario's executed actions. |
 | `dao_evidence_report` | `evidence-report.schema.json` | Commit-bound execution outcome and per-scenario results. |
 | `dao_bundle_manifest` | `bundle-manifest.schema.json` | Immutable file inventory and hashes for one evidence run. |
 
@@ -36,8 +37,11 @@ cross-document commit/run/environment bindings.
 
 `requirements.database_version` must be `dbVersion30`. Steps are declarative:
 the runner maps an action to its own DAO or Rust adapter. Scenario JSON must not
-contain implementation code. A runner closes and reopens the database before
-exporting a final snapshot whenever `reopen_before_snapshot` is true.
+contain implementation code. Protocol 1.0.0 fails closed: its schema currently
+accepts only the M0 runner's typed `create_database` and `close_database`
+actions. A later action requires a discriminated argument schema before it can
+be admitted. A runner closes and reopens the database before exporting a final
+snapshot whenever `reopen_before_snapshot` is true.
 
 The four scenario families preserve the evidence boundary:
 
@@ -60,3 +64,14 @@ be `skipped`, but a skipped required scenario does not satisfy acceptance.
 
 No status in this protocol automatically changes the product support matrix.
 That requires review of retained, clean-tree, exact-commit evidence.
+
+## Executable M0 scenario
+
+`DAO-GEN-PROBE-001` is the only scenario implemented by the M0 runner. It
+requires a `ready` record from the provider probe, creates an unencrypted
+database with DAO `dbVersion30`, closes and reopens it, and verifies through
+DAO that no user table exists. Its canonical snapshot therefore contains an
+empty `tables` array; DAO-owned system objects are not user schema.
+
+The runner is intentionally not a general scenario interpreter. Adding another
+scenario requires a separately reviewed action mapping and evidence tests.

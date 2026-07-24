@@ -104,34 +104,46 @@
       "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
     },
     "step": {
+      "anyOf": [
+        { "$ref": "#/$defs/createDatabaseStep" },
+        { "$ref": "#/$defs/closeDatabaseStep" }
+      ]
+    },
+    "stepId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "createDatabaseStep": {
       "type": "object",
       "additionalProperties": false,
       "required": ["step_id", "action", "arguments"],
       "properties": {
-        "step_id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
-        },
-        "action": {
-          "enum": [
-            "create_database",
-            "open_database",
-            "close_database",
-            "reopen_database",
-            "create_table",
-            "drop_table",
-            "create_index",
-            "drop_index",
-            "create_relationship",
-            "drop_relationship",
-            "insert_row",
-            "read_rows",
-            "update_rows",
-            "delete_rows",
-            "export_snapshot"
-          ]
-        },
-        "arguments": { "type": "object" }
+        "step_id": { "$ref": "#/$defs/stepId" },
+        "action": { "const": "create_database" },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locale", "version"],
+          "properties": {
+            "locale": {
+              "const": ";LANGID=0x0409;CP=1252;COUNTRY=0"
+            },
+            "version": { "const": "dbVersion30" }
+          }
+        }
+      }
+    },
+    "closeDatabaseStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "action", "arguments"],
+      "properties": {
+        "step_id": { "$ref": "#/$defs/stepId" },
+        "action": { "const": "close_database" },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": false
+        }
       }
     }
   }
