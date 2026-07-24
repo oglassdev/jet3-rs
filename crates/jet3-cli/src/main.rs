@@ -18,6 +18,7 @@ const SIGNATURE_READ_BYTES: u64 = 15;
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const FNV1A64_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV1A64_PRIME: u64 = 0x0000_0100_0000_01b3;
+const IO_ERROR_EXIT: u8 = 74;
 
 const HELP: &str = "\
 jet3-cli — bounded diagnostics for local database files
@@ -68,29 +69,19 @@ fn main() -> ExitCode {
     let command = match parse_args(env::args_os().skip(1)) {
         Ok(command) => command,
         Err(code) => {
-            write_stderr(&error_json(code));
-            return ExitCode::from(2);
+            return exit_after_write(write_stderr(&error_json(code)), 2);
         }
     };
 
     match command {
-        Command::Help => {
-            write_stdout(HELP);
-            ExitCode::SUCCESS
-        }
-        Command::Version => {
-            write_stdout(&format!("jet3-cli {}\n", env!("CARGO_PKG_VERSION")));
-            ExitCode::SUCCESS
-        }
+        Command::Help => exit_after_write(write_stdout(HELP), 0),
+        Command::Version => exit_after_write(
+            write_stdout(&format!("jet3-cli {}\n", env!("CARGO_PKG_VERSION"))),
+            0,
+        ),
         Command::Probe(options) => match probe(&options) {
-            Ok(json) => {
-                write_stdout(&json);
-                ExitCode::SUCCESS
-            }
-            Err(code) => {
-                write_stderr(&error_json(code));
-                ExitCode::from(1)
-            }
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
         },
     }
 }
@@ -313,18 +304,43 @@ fn error_json(code: &str) -> String {
     )
 }
 
-fn write_stdout(value: &str) {
-    let _result = io::stdout().lock().write_all(value.as_bytes());
+fn write_output(mut output: impl Write, value: &str) -> io::Result<()> {
+    output.write_all(value.as_bytes())
 }
 
-fn write_stderr(value: &str) {
-    let _result = io::stderr().lock().write_all(value.as_bytes());
+fn write_stdout(value: &str) -> io::Result<()> {
+    write_output(io::stdout().lock(), value)
+}
+
+fn write_stderr(value: &str) -> io::Result<()> {
+    write_output(io::stderr().lock(), value)
+}
+
+fn exit_after_write(result: io::Result<()>, success_or_command_error: u8) -> ExitCode {
+    if result.is_ok() {
+        ExitCode::from(success_or_command_error)
+    } else {
+        ExitCode::from(IO_ERROR_EXIT)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, parse_args};
+    use super::{Command, parse_args, write_output};
     use std::ffi::OsString;
+    use std::io::{self, Write};
+
+    struct RejectWrites;
+
+    impl Write for RejectWrites {
+        fn write(&mut self, _buffer: &[u8]) -> io::Result<usize> {
+            Err(io::Error::other("injected output failure"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
 
     fn args(values: &[&str]) -> impl Iterator<Item = OsString> {
         values
@@ -332,6 +348,11 @@ mod tests {
             .map(OsString::from)
             .collect::<Vec<_>>()
             .into_iter()
+    }
+
+    #[test]
+    fn output_failures_are_not_discarded() {
+        assert!(write_output(RejectWrites, "result").is_err());
     }
 
     #[test]
