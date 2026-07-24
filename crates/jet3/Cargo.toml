@@ -1,0 +1,10 @@
+[package]
+name = "jet3"
+description = "Clean-room Access 97 / Jet 3 database library"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

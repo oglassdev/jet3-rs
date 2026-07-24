@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "product_scope": {
+    "format": "Microsoft Jet 3 / Access 97",
+    "encrypted": false,
+    "runtime_external_mdb_dependency": false
+  },
+  "state_vocabulary": {
+    "implementation": [
+      "not_started",
+      "partial",
+      "implemented",
+      "out_of_scope_v1"
+    ],
+    "verification": [
+      "unverified",
+      "internal_only",
+      "independent_check",
+      "dao_opened",
+      "dao_differential",
+      "not_applicable"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "database.open",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "database.create_empty",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "database.validate",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "independent_check",
+      "evidence": []
+    },
+    {
+      "id": "format.header_and_version",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "format.pages_allocation_usage",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "schema.catalog_and_table_definitions",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "schema.create_drop_tables",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "values.all_dao_jet3_table_types",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "values.null_fixed_variable",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "values.code_pages_lossless_raw",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "values.date_currency_binary_guid_replication",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "values.memo_ole_multi_page",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "rows.streaming_read",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "rows.insert_update_delete",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "indexes.primary_unique_non_unique",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "indexes.composite_ascending_descending",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "indexes.crud_maintenance",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "relationships.create_drop_preserve_metadata",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "dao_differential",
+      "evidence": []
+    },
+    {
+      "id": "transactions.copy_on_write_atomic_publish",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "independent_check",
+      "evidence": []
+    },
+    {
+      "id": "output.deterministic_configuration",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "independent_check",
+      "evidence": []
+    },
+    {
+      "id": "safety.malformed_input_bounds_and_limits",
+      "implementation": "not_started",
+      "verification": "unverified",
+      "required_verification": "independent_check",
+      "evidence": []
+    },
+    {
+      "id": "ui.forms_reports_vba_macros",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Access UI objects are explicitly outside v1.",
+      "evidence": []
+    },
+    {
+      "id": "queries.execute_saved",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Saved-query execution is explicitly outside v1.",
+      "evidence": []
+    },
+    {
+      "id": "security.passwords_encryption",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Passwords and encryption are explicitly outside v1.",
+      "evidence": []
+    },
+    {
+      "id": "replication.active_behavior",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Only lossless preservation of required replication fields is in v1.",
+      "evidence": []
+    },
+    {
+      "id": "locking.concurrent_multi_user",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Concurrent multi-user Jet locking is explicitly outside v1.",
+      "evidence": []
+    },
+    {
+      "id": "format.jet4_accdb",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Jet 4 and ACCDB are explicitly outside v1.",
+      "evidence": []
+    },
+    {
+      "id": "recovery.jet_equivalent_in_place",
+      "implementation": "out_of_scope_v1",
+      "verification": "not_applicable",
+      "required_verification": "not_applicable",
+      "reason": "Jet-equivalent in-place crash recovery is explicitly outside v1.",
+      "evidence": []
+    }
+  ]
+}

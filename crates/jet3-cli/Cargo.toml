@@ -1,0 +1,13 @@
+[package]
+name = "jet3-cli"
+description = "Diagnostics for Access 97 / Jet 3 database files"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+jet3 = { path = "../jet3" }
+
+[lints]
+workspace = true

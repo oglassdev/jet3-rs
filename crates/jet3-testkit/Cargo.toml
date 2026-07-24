@@ -1,0 +1,14 @@
+[package]
+name = "jet3-testkit"
+description = "Fixture and semantic comparison support for jet3-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+jet3 = { path = "../jet3" }
+
+[lints]
+workspace = true
