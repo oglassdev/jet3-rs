@@ -1,7 +1,5 @@
 use std::fmt;
-use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
 use std::process;
 
 use criterion::{
@@ -13,6 +11,7 @@ use jet3::{
     ReadLimits, ResourceBudget, ResourceLimits, SliceSource, jet3_page_geometry,
     read_commit_region, read_jet_signature,
 };
+use tempfile::NamedTempFile;
 
 const DATASET_SIZES: [usize; 4] = [64, 4 * 1024, 64 * 1024, 1024 * 1024];
 const PAGE_COUNTS: [u64; 4] = [1, 16, 1024, 65_536];
@@ -54,63 +53,44 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-struct GeneratedPageSource {
-    length: ByteCount,
-}
-
-impl GeneratedPageSource {
-    const fn new(length: ByteCount) -> Self {
-        Self { length }
-    }
-}
-
-impl ReadAt for GeneratedPageSource {
-    fn len(&self) -> ByteCount {
-        self.length
-    }
-
-    fn read_exact_at(
-        &mut self,
-        offset: ByteOffset,
-        destination: &mut [u8],
-        budget: &mut ReadBudget,
-    ) -> Result<(), Error> {
-        let count = ByteCount::from_usize(destination.len())?;
-        budget.check_input(self.length)?;
-        budget.check_read(count)?;
-        let end = offset.checked_add(count)?;
-        if offset.get() > self.length.get() {
-            return Err(Error::OffsetOutOfBounds {
-                offset,
-                input_len: self.length,
-            });
-        }
-        if end.get() > self.length.get() {
-            return Err(Error::UnexpectedEnd {
-                offset,
-                needed: count,
-                available: ByteCount::new(self.length.get().saturating_sub(offset.get())),
-            });
-        }
-        budget.charge_read_attempt(count)?;
-        let page_number = offset.get() / JET3_PAGE_SIZE.get();
-        destination.fill(page_number.to_le_bytes()[0]);
-        Ok(())
-    }
+enum GeneratedContent {
+    Pages,
+    Candidate,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct SyntheticCandidateSource {
+struct GeneratedSource {
     length: ByteCount,
+    content: GeneratedContent,
 }
 
-impl SyntheticCandidateSource {
-    const fn new(length: ByteCount) -> Self {
-        Self { length }
+impl GeneratedSource {
+    const fn pages(length: ByteCount) -> Self {
+        Self {
+            length,
+            content: GeneratedContent::Pages,
+        }
+    }
+
+    const fn candidate(length: ByteCount) -> Self {
+        Self {
+            length,
+            content: GeneratedContent::Candidate,
+        }
+    }
+
+    fn generated_byte(self, absolute: u64) -> u8 {
+        if matches!(self.content, GeneratedContent::Candidate)
+            && (4..JET_SIGNATURE_LENGTH + 4).contains(&absolute)
+        {
+            STANDARD_JET_HEADER[absolute as usize]
+        } else {
+            (absolute / JET3_PAGE_SIZE.get()).to_le_bytes()[0]
+        }
     }
 }
 
-impl ReadAt for SyntheticCandidateSource {
+impl ReadAt for GeneratedSource {
     fn len(&self) -> ByteCount {
         self.length
     }
@@ -142,11 +122,7 @@ impl ReadAt for SyntheticCandidateSource {
 
         for (index, byte) in destination.iter_mut().enumerate() {
             let absolute = offset.get().saturating_add(index as u64);
-            *byte = if (4..JET_SIGNATURE_LENGTH + 4).contains(&absolute) {
-                STANDARD_JET_HEADER[absolute as usize]
-            } else {
-                (absolute / JET3_PAGE_SIZE.get()).to_le_bytes()[0]
-            };
+            *byte = self.generated_byte(absolute);
         }
         Ok(())
     }
@@ -210,7 +186,7 @@ fn bench_jet_header(criterion: &mut Criterion) {
 
     for page_count in PAGE_COUNTS {
         let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
-        let source = GeneratedPageSource::new(source_len);
+        let source = GeneratedSource::pages(source_len);
         group.throughput(Throughput::Elements(1));
         group.bench_with_input(
             BenchmarkId::new("jet3_page_geometry", source_len.get()),
@@ -242,8 +218,7 @@ fn bench_jet3_page_reader(criterion: &mut Criterion) {
     for page_count in PAGE_COUNTS {
         let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
         let last_page = PageNumber::new(page_count.saturating_sub(1));
-        let mut success_reader =
-            required(Jet3PageReader::new(GeneratedPageSource::new(source_len)));
+        let mut success_reader = required(Jet3PageReader::new(GeneratedSource::pages(source_len)));
         let success_limits = page_reader_limits(source_len, 1);
         group.throughput(Throughput::Bytes(JET3_PAGE_SIZE.get()));
         group.bench_with_input(
@@ -272,7 +247,7 @@ fn bench_jet3_page_reader(criterion: &mut Criterion) {
 
         let invalid_page = PageNumber::new(page_count);
         let mut rejection_reader =
-            required(Jet3PageReader::new(GeneratedPageSource::new(source_len)));
+            required(Jet3PageReader::new(GeneratedSource::pages(source_len)));
         let rejection_limits = page_reader_limits(source_len, 0);
         group.throughput(Throughput::Elements(1));
         group.bench_with_input(
@@ -326,7 +301,7 @@ fn bench_raw_jet3_candidate(criterion: &mut Criterion) {
 
     for page_count in PAGE_COUNTS {
         let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
-        let source = SyntheticCandidateSource::new(source_len);
+        let source = GeneratedSource::candidate(source_len);
         let inspect_limits = candidate_inspect_limits(source_len);
         group.throughput(Throughput::Bytes(JET_SIGNATURE_LENGTH));
         group.bench_with_input(
@@ -385,7 +360,7 @@ fn bench_commit_region(criterion: &mut Criterion) {
 
     for page_count in PAGE_COUNTS {
         let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
-        let mut source = GeneratedPageSource::new(source_len);
+        let mut source = GeneratedSource::pages(source_len);
         let limits = ReadLimits::new(source_len, COMMIT_REGION_LENGTH, COMMIT_REGION_LENGTH);
         group.throughput(Throughput::Bytes(COMMIT_REGION_LENGTH.get()));
         group.bench_with_input(
@@ -499,7 +474,7 @@ fn bench_file_source(criterion: &mut Criterion) {
 
     for size in DATASET_SIZES {
         let data = deterministic_bytes(size);
-        let path = write_dataset_file(&data, size);
+        let dataset = write_dataset_file(&data);
         let limits = limits_for(size, 1);
         let count = ByteCount::new(u64::try_from(size).unwrap_or(u64::MAX));
         group.throughput(Throughput::Bytes(count.get()));
@@ -511,7 +486,7 @@ fn bench_file_source(criterion: &mut Criterion) {
                 bencher.iter_batched(
                     || {
                         let budget = ReadBudget::new(limits);
-                        let source = required(FileSource::open(&path, &budget));
+                        let source = required(FileSource::open(dataset.path(), &budget));
                         (source, budget, vec![0_u8; size])
                     },
                     |(mut source, mut budget, mut destination)| {
@@ -526,56 +501,23 @@ fn bench_file_source(criterion: &mut Criterion) {
                 );
             },
         );
-
-        if let Err(error) = fs::remove_file(&path) {
-            eprintln!(
-                "failed to remove benchmark dataset {}: {error}",
-                path.display()
-            );
-            process::abort();
-        }
     }
     group.finish();
 }
 
-fn write_dataset_file(data: &[u8], size: usize) -> PathBuf {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "jet3-format-benchmark-{}-{size}.bin",
-        process::id()
-    ));
-
-    match fs::remove_file(&path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            eprintln!(
-                "failed to remove stale benchmark dataset {}: {error}",
-                path.display()
-            );
-            process::abort();
-        }
-    }
-
-    let file = OpenOptions::new().create_new(true).write(true).open(&path);
-    let mut file = match file {
-        Ok(file) => file,
-        Err(error) => {
-            eprintln!(
-                "failed to create benchmark dataset {}: {error}",
-                path.display()
-            );
-            process::abort();
-        }
-    };
-    if let Err(error) = file.write_all(data).and_then(|()| file.sync_all()) {
+fn write_dataset_file(data: &[u8]) -> NamedTempFile {
+    let mut file = required(NamedTempFile::new());
+    if let Err(error) = file
+        .write_all(data)
+        .and_then(|()| file.as_file().sync_all())
+    {
         eprintln!(
             "failed to write benchmark dataset {}: {error}",
-            path.display()
+            file.path().display()
         );
         process::abort();
     }
-    path
+    file
 }
 
 fn bench_page_geometry(criterion: &mut Criterion) {

@@ -10,12 +10,19 @@ import math
 import os
 import re
 import sys
+import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from suite_identity import SuiteIdentityError, digest_for_commit, retained_blob
 
 BENCHMARK_ID_PATTERN = re.compile(r"^BENCH-[A-Z0-9][A-Z0-9_-]*$")
+NORMALIZED_ID_PATTERN = re.compile(
+    r"^BENCH-[A-Z0-9][A-Z0-9_-]*--[0-9A-F]{16}$"
+)
+COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 REPOSITORY_PATH_PATTERN = re.compile(
     r"^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*"
     r"(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
@@ -203,16 +210,196 @@ def normalize(
     return sorted(measurements, key=lambda entry: entry["id"])
 
 
-def _write_atomic(path: Path, value: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp.{os.getpid()}")
-    try:
-        temporary.write_text(
-            json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+def _validate_measurements(measurements: Any, label: str) -> None:
+    if not isinstance(measurements, list) or not measurements:
+        raise NormalizationError(f"{label} measurements must be a non-empty array")
+    identifiers: set[str] = set()
+    for measurement in measurements:
+        if not isinstance(measurement, dict) or set(measurement) != {
+            "id",
+            "throughput_unit",
+            "metrics",
+        }:
+            raise NormalizationError(f"{label} contains a malformed measurement")
+        identifier = measurement["id"]
+        if (
+            not isinstance(identifier, str)
+            or NORMALIZED_ID_PATTERN.fullmatch(identifier) is None
+        ):
+            raise NormalizationError(f"{label} contains an invalid measurement id")
+        if identifier in identifiers:
+            raise NormalizationError(f"{label} contains duplicate measurement ids")
+        identifiers.add(identifier)
+        if measurement["throughput_unit"] not in {"bytes", "elements"}:
+            raise NormalizationError(f"{identifier} has an invalid throughput unit")
+        metrics = measurement["metrics"]
+        if not isinstance(metrics, dict) or set(metrics) != {
+            "median_latency_ns",
+            "throughput_per_second",
+            "peak_rss_bytes",
+            "output_size_bytes",
+        }:
+            raise NormalizationError(f"{identifier} does not have four required metrics")
+        for field, value in metrics.items():
+            _positive_number(value, f"{identifier}.{field}")
+    if [entry["id"] for entry in measurements] != sorted(identifiers):
+        raise NormalizationError(f"{label} measurements are not canonically sorted")
+
+
+def _raw_document(measurements: list[dict[str, Any]]) -> dict[str, Any]:
+    document = {"measurements": measurements}
+    _validate_raw_document(document)
+    return document
+
+
+def _validate_raw_document(document: Any) -> None:
+    if not isinstance(document, dict) or set(document) != {"measurements"}:
+        raise NormalizationError(
+            "raw document must contain exactly the measurements field"
         )
-        temporary.replace(path)
+    _validate_measurements(document["measurements"], "raw document")
+
+
+def _validate_timestamp(value: Any) -> None:
+    if not isinstance(value, str):
+        raise NormalizationError("metadata captured_at_utc must be an ISO 8601 string")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise NormalizationError(
+            "metadata captured_at_utc must be an ISO 8601 timestamp"
+        ) from error
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
+        raise NormalizationError("metadata captured_at_utc must use UTC")
+
+
+def _validate_metadata(metadata: Any) -> None:
+    if not isinstance(metadata, dict):
+        raise NormalizationError("bound document metadata must be an object")
+    required = {
+        "git_commit",
+        "dirty",
+        "captured_at_utc",
+        "os",
+        "architecture",
+        "cpu",
+        "logical_cpus",
+        "memory_bytes",
+        "rustc",
+        "cargo",
+        "benchmark_manifest_sha256",
+        "benchmark_lockfile_sha256",
+        "suite_digest_sha256",
+    }
+    missing = sorted(required - set(metadata))
+    if missing:
+        raise NormalizationError(
+            f"bound document metadata omits fields: {', '.join(missing)}"
+        )
+    if metadata["dirty"] is not False:
+        raise NormalizationError("metadata must identify a clean tree")
+    commit = metadata["git_commit"]
+    if not isinstance(commit, str) or COMMIT_PATTERN.fullmatch(commit) is None:
+        raise NormalizationError("metadata git_commit must be 40 lowercase hex digits")
+    _validate_timestamp(metadata["captured_at_utc"])
+    for field in ("os", "architecture", "cpu", "rustc", "cargo"):
+        if not isinstance(metadata[field], str) or not metadata[field].strip():
+            raise NormalizationError(f"metadata {field} must be a non-empty string")
+    for field in ("logical_cpus", "memory_bytes"):
+        value = metadata[field]
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise NormalizationError(f"metadata {field} must be a positive integer")
+    for field in (
+        "benchmark_manifest_sha256",
+        "benchmark_lockfile_sha256",
+        "suite_digest_sha256",
+    ):
+        value = metadata[field]
+        if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
+            raise NormalizationError(f"metadata {field} must be lowercase SHA-256")
+
+
+def _validate_bound_document(
+    document: Any, raw_document: dict[str, Any]
+) -> None:
+    if not isinstance(document, dict) or set(document) != {
+        "schema_version",
+        "suite_id",
+        "metadata",
+        "raw_measurement_artifacts",
+        "measurements",
+    }:
+        raise NormalizationError("bound document has an unexpected field inventory")
+    if type(document["schema_version"]) is not int or document["schema_version"] != 1:
+        raise NormalizationError("bound document must use schema_version 1")
+    if document["suite_id"] != "BENCH-FORMAT-FOUNDATION-V1":
+        raise NormalizationError("bound document has an unexpected suite_id")
+    _validate_metadata(document["metadata"])
+    artifacts = document["raw_measurement_artifacts"]
+    if not isinstance(artifacts, list) or len(artifacts) != 1:
+        raise NormalizationError("bound document must name exactly one raw artifact")
+    artifact = artifacts[0]
+    if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256"}:
+        raise NormalizationError("bound document raw artifact is malformed")
+    if (
+        not isinstance(artifact["path"], str)
+        or REPOSITORY_PATH_PATTERN.fullmatch(artifact["path"]) is None
+    ):
+        raise NormalizationError("bound document raw artifact path is invalid")
+    if (
+        not isinstance(artifact["sha256"], str)
+        or SHA256_PATTERN.fullmatch(artifact["sha256"]) is None
+    ):
+        raise NormalizationError("bound document raw artifact hash is invalid")
+    raw_bytes = (
+        json.dumps(raw_document, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    if artifact["sha256"] != hashlib.sha256(raw_bytes).hexdigest():
+        raise NormalizationError("bound document raw artifact hash differs from raw output")
+    _validate_measurements(document["measurements"], "bound document")
+    if document["measurements"] != raw_document["measurements"]:
+        raise NormalizationError("bound and raw document measurements differ")
+
+
+def _stage_document(path: Path, value: dict[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    staged_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            staged_path = Path(temporary.name)
+            temporary.write(payload)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        return staged_path
+    except OSError as error:
+        if staged_path is not None:
+            staged_path.unlink(missing_ok=True)
+        raise NormalizationError(f"cannot stage output {path}: {error}") from error
+
+
+def _publish_documents(outputs: list[tuple[Path, dict[str, Any]]]) -> None:
+    destinations = [path.absolute() for path, _ in outputs]
+    if len(destinations) != len(set(destinations)):
+        raise NormalizationError("related output destinations must be distinct")
+    staged: list[tuple[Path, Path]] = []
+    try:
+        for path, document in outputs:
+            staged.append((_stage_document(path, document), path))
+        for temporary, path in staged:
+            try:
+                temporary.replace(path)
+            except OSError as error:
+                raise NormalizationError(f"cannot publish output {path}: {error}") from error
     finally:
-        temporary.unlink(missing_ok=True)
+        for temporary, _ in staged:
+            temporary.unlink(missing_ok=True)
 
 
 def _bound_document(
@@ -291,11 +478,11 @@ def main(argv: list[str] | None = None) -> int:
         measurements = normalize(
             arguments.criterion_root, arguments.manifest, arguments.resources
         )
-        raw_document = {"measurements": measurements}
+        raw_document = _raw_document(measurements)
         raw_bytes = (
             json.dumps(raw_document, indent=2, sort_keys=True) + "\n"
         ).encode("utf-8")
-        _write_atomic(arguments.raw_output, raw_document)
+        outputs = [(arguments.raw_output, raw_document)]
         if arguments.output is not None:
             document = _bound_document(
                 arguments.metadata,
@@ -304,7 +491,9 @@ def main(argv: list[str] | None = None) -> int:
                 arguments.repository_root,
                 measurements,
             )
-            _write_atomic(arguments.output, document)
+            _validate_bound_document(document, raw_document)
+            outputs.append((arguments.output, document))
+        _publish_documents(outputs)
     except NormalizationError as error:
         print(f"BLOCKED: {error}", file=sys.stderr)
         return 2

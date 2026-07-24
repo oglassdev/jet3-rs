@@ -8,6 +8,7 @@ rust-version = "1.96"
 [dev-dependencies]
 criterion = { version = "=0.5.1", default-features = false }
 jet3 = { path = "../crates/jet3" }
+tempfile = "=3.27.0"
 
 [[bench]]
 name = "format_primitives"

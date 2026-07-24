@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -132,6 +135,72 @@ class CriterionNormalizationTests(unittest.TestCase):
             NORMALIZER.NormalizationError, "omit manifest groups"
         ):
             NORMALIZER.normalize(self.criterion, self.manifest, self.resources)
+
+    def test_invalid_bound_document_does_not_publish_raw_output(self) -> None:
+        raw_output = self.root / "raw.json"
+        bound_output = self.root / "bound.json"
+        raw_output.write_text("original raw\n", encoding="utf-8")
+        with mock.patch.object(NORMALIZER, "_bound_document", return_value={}):
+            with contextlib.redirect_stderr(io.StringIO()):
+                result = NORMALIZER.main(
+                    [
+                        "--criterion-root",
+                        str(self.criterion),
+                        "--resources",
+                        str(self.resources),
+                        "--manifest",
+                        str(self.manifest),
+                        "--raw-output",
+                        str(raw_output),
+                        "--metadata",
+                        str(self.root / "metadata.json"),
+                        "--output",
+                        str(bound_output),
+                        "--raw-artifact-path",
+                        "artifacts/benchmarks/raw.json",
+                    ]
+                )
+        self.assertEqual(result, 2)
+        self.assertEqual(raw_output.read_text(encoding="utf-8"), "original raw\n")
+        self.assertFalse(bound_output.exists())
+
+    def test_all_related_outputs_are_staged_before_publication(self) -> None:
+        first = self.root / "first.json"
+        second = self.root / "second.json"
+        first.write_text("original first\n", encoding="utf-8")
+        second.write_text("original second\n", encoding="utf-8")
+        stage_document = NORMALIZER._stage_document
+        calls = 0
+
+        def fail_second_stage(path: Path, value: dict) -> Path:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise NORMALIZER.NormalizationError("injected staging failure")
+            return stage_document(path, value)
+
+        with mock.patch.object(
+            NORMALIZER, "_stage_document", side_effect=fail_second_stage
+        ):
+            with self.assertRaisesRegex(
+                NORMALIZER.NormalizationError, "injected staging failure"
+            ):
+                NORMALIZER._publish_documents(
+                    [(first, {"first": 1}), (second, {"second": 2})]
+                )
+        self.assertEqual(first.read_text(encoding="utf-8"), "original first\n")
+        self.assertEqual(second.read_text(encoding="utf-8"), "original second\n")
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
+    def test_raw_document_validation_rejects_noncanonical_measurements(self) -> None:
+        measurements = NORMALIZER.normalize(
+            self.criterion, self.manifest, self.resources
+        )
+        duplicate = [measurements[0], copy.deepcopy(measurements[0])]
+        with self.assertRaisesRegex(
+            NORMALIZER.NormalizationError, "duplicate measurement ids"
+        ):
+            NORMALIZER._raw_document(duplicate)
 
 
 def baseline(artifact_path: str, digest: str) -> dict:
