@@ -14,7 +14,9 @@ Use prefixes that preserve the evidence boundary:
   scenarios;
 - `FUZZ-`, `MUT-`, and `BENCH-` for fuzz, mutation, and benchmark records.
 
-A manifest entry includes its traceability IDs, distinct invariant, fixture
-hashes, expected result, and current execution status. Parameterization counts
-as multiple cases only when the manifest explains the different invariant or
+A checked Rust inventory entry includes its traceability IDs, distinct
+invariant, fixture hashes, and expected result. Runtime discovery and ignored
+state belong to the separate commit/dirty-bound test observation; pass/fail
+execution belongs to acceptance-gate evidence. Parameterization counts as
+multiple cases only when the inventory explains the different invariant or
 boundary exercised.
