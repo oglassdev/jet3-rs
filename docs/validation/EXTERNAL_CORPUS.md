@@ -4,7 +4,7 @@ This document identifies four inspection-authorized MDB candidates that remain
 outside the repository. They are optional exploratory inputs, not distributed
 fixtures and not acceptance evidence. Their fixture, observation, and
 experiment records are `FIX-0001` through `FIX-0004`, `OBS-0001`, and
-`EXP-0001` through `EXP-0002` in `docs/PROVENANCE.md`.
+`EXP-0001` through `EXP-0003` in `docs/PROVENANCE.md`.
 
 ## Handling rules
 
@@ -61,10 +61,16 @@ SHA-256 values, reads the offset-`0x4` signature, and performs the 1,024- and
 including the repository commit and dirty state. The 2,048-byte observation
 also contains a sorted first-byte histogram and content-agnostic counts for
 nonzero first bytes and an available second byte equal to `0x01`. Unexpected
-short reads or a file that changes during inspection block the run. The tool
-does not invoke `file(1)`, reproduce the historical generic file
-classification, identify a Jet generation, assign meanings to boundary bytes,
-or produce DAO evidence.
+short reads or a file that changes during inspection block the run. The
+manifest also declares one exact, directional natural-snapshot comparison:
+`CMP-0001`, from `FIX-0001` to `FIX-0002`, using complete 2,048-byte pages.
+The verifier rechecks both hashes, requires exact equal page-aligned lengths,
+then reports same-index first-byte transitions, equal and changed full-page
+counts, and a 2,048-element vector whose index is the byte offset and whose
+value is the number of same-index pages differing there. The tool does not
+invoke `file(1)`, reproduce the historical generic file classification,
+identify a Jet generation, assign meanings to boundary bytes, or produce DAO
+evidence.
 
 The snippets below explain the commands behind the recorded observations and
 permit focused manual comparison. Prefer the verifier for current corpus
@@ -165,3 +171,36 @@ had `0x01` as their second byte. These are exploratory byte observations only.
 They neither identify the first byte as a page tag nor establish the meaning of
 any value. Controlled DAO-generated single-variable experiments and independent
 evidence are required before any such interpretation can enter production.
+
+## Natural-snapshot same-index comparison
+
+`EXP-0003` applies only the manifest-declared directional comparison
+`CMP-0001` from `FIX-0001` to `FIX-0002`. The two verified candidates have
+equal lengths of 778 complete 2,048-byte pages. The verifier rereads and
+rehashes both files immediately before comparing corresponding page indices;
+it rejects a size, hash, alignment, short-read, or during-read identity change.
+
+Of the 778 same-index page pairs, 345 were byte-identical and 433 differed.
+Their first-byte transition matrix was:
+
+| `FIX-0001` byte | `FIX-0002` byte | Same-index pages |
+| ---: | ---: | ---: |
+| `00` | `00` | 34 |
+| `01` | `01` | 439 |
+| `01` | `09` | 207 |
+| `02` | `02` | 28 |
+| `03` | `03` | 7 |
+| `04` | `04` | 62 |
+| `09` | `09` | 1 |
+
+Across the 433 differing page pairs, there were 89,078 differing byte
+positions in total and 2,043 of the 2,048 byte offsets differed in at least one
+pair. The canonical JSON contains the exact count for every byte offset rather
+than retaining or exposing any source bytes.
+
+This is a positional comparison of two related, uncontrolled donor snapshots.
+Equal file sizes do not establish stable logical page identity across the
+snapshots. The matrix values are candidate byte cohorts only: they do not
+identify page tags, page classes, allocation state, row state, validity, Jet
+generation, or compatibility. Any such interpretation requires repeatable,
+single-variable, DAO-generated fixtures and commit-bound DAO verification.

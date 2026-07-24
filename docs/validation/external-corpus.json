@@ -1,4 +1,12 @@
 {
+  "comparisons": [
+    {
+      "id": "CMP-0001",
+      "left_fixture_id": "FIX-0001",
+      "page_size_bytes": 2048,
+      "right_fixture_id": "FIX-0002"
+    }
+  ],
   "environment_variable": "JET3_EXTERNAL_FIXTURE_ROOT",
   "fixtures": [
     {
@@ -27,5 +35,5 @@
     }
   ],
   "purpose": "nonredistributable-read-only-corpus-verification",
-  "schema_version": 1
+  "schema_version": 2
 }

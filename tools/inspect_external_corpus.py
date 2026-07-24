@@ -10,6 +10,7 @@ import re
 import stat
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence, TextIO
 
@@ -27,9 +28,17 @@ TOP_LEVEL_KEYS = {
     "environment_variable",
     "purpose",
     "fixtures",
+    "comparisons",
 }
 FIXTURE_KEYS = {"id", "path", "size_bytes", "sha256"}
+COMPARISON_KEYS = {
+    "id",
+    "left_fixture_id",
+    "right_fixture_id",
+    "page_size_bytes",
+}
 FIXTURE_ID = re.compile(r"^FIX-[0-9]{4}$")
+COMPARISON_ID = re.compile(r"^CMP-[0-9]{4}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 RELATIVE_PATH = re.compile(
@@ -106,9 +115,9 @@ def _validate_manifest(document: Any) -> None:
         raise ContractError("external corpus manifest has an invalid top-level shape")
     if (
         type(document.get("schema_version")) is not int
-        or document["schema_version"] != 1
+        or document["schema_version"] != 2
     ):
-        raise ContractError("external corpus manifest schema_version must be integer 1")
+        raise ContractError("external corpus manifest schema_version must be integer 2")
     if document.get("environment_variable") != ENVIRONMENT_VARIABLE:
         raise ContractError(
             f"external corpus manifest must name {ENVIRONMENT_VARIABLE}"
@@ -153,6 +162,55 @@ def _validate_manifest(document: Any) -> None:
             raise ContractError(f"{location}.sha256 is invalid")
     if identities != sorted(identities):
         raise ContractError("external corpus manifest fixtures must be sorted by ID")
+
+    fixture_sizes = {
+        fixture["id"]: fixture["size_bytes"] for fixture in fixtures
+    }
+    comparisons = document.get("comparisons")
+    if not isinstance(comparisons, list):
+        raise ContractError("external corpus manifest comparisons must be an array")
+    comparison_ids: list[str] = []
+    fixture_pairs: set[tuple[str, str]] = set()
+    for index, comparison in enumerate(comparisons):
+        location = f"external corpus manifest comparisons[{index}]"
+        if not isinstance(comparison, dict) or set(comparison) != COMPARISON_KEYS:
+            raise ContractError(f"{location} has an invalid shape")
+        comparison_id = comparison.get("id")
+        if (
+            not isinstance(comparison_id, str)
+            or not COMPARISON_ID.fullmatch(comparison_id)
+        ):
+            raise ContractError(f"{location}.id is invalid")
+        if comparison_id in comparison_ids:
+            raise ContractError(f"{location}.id is duplicated")
+        comparison_ids.append(comparison_id)
+        left_id = comparison.get("left_fixture_id")
+        right_id = comparison.get("right_fixture_id")
+        if left_id not in fixture_sizes or right_id not in fixture_sizes:
+            raise ContractError(f"{location} references an unknown fixture")
+        if left_id == right_id:
+            raise ContractError(f"{location} must reference two distinct fixtures")
+        pair = (left_id, right_id)
+        if pair in fixture_pairs:
+            raise ContractError(f"{location} duplicates a fixture pair")
+        fixture_pairs.add(pair)
+        page_size = comparison.get("page_size_bytes")
+        if type(page_size) is not int or page_size != PAGE_BOUNDARY_BYTES:
+            raise ContractError(
+                f"{location}.page_size_bytes must be integer "
+                f"{PAGE_BOUNDARY_BYTES}"
+            )
+        left_size = fixture_sizes[left_id]
+        right_size = fixture_sizes[right_id]
+        if left_size != right_size:
+            raise ContractError(f"{location} fixtures must have equal sizes")
+        if left_size % PAGE_BOUNDARY_BYTES != 0:
+            raise ContractError(
+                f"{location} fixture size must be a multiple of "
+                f"{PAGE_BOUNDARY_BYTES}"
+            )
+    if comparison_ids != sorted(comparison_ids):
+        raise ContractError("external corpus manifest comparisons must be sorted by ID")
 
 
 def _repository_state(repo_root: Path) -> tuple[str, bool]:
@@ -355,6 +413,127 @@ def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, An
     }
 
 
+def _file_identity(file_stat: os.stat_result) -> tuple[int, int, int, int]:
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+    )
+
+
+def _observe_comparison(
+    corpus_root: Path,
+    comparison: dict[str, Any],
+    fixtures_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    comparison_id = comparison["id"]
+    left_fixture = fixtures_by_id[comparison["left_fixture_id"]]
+    right_fixture = fixtures_by_id[comparison["right_fixture_id"]]
+    page_size = comparison["page_size_bytes"]
+    left_relative = _safe_relative_path(
+        left_fixture["path"], f"external corpus comparison {comparison_id} left path"
+    )
+    right_relative = _safe_relative_path(
+        right_fixture["path"], f"external corpus comparison {comparison_id} right path"
+    )
+    left_path = _resolve_fixture(
+        corpus_root, left_relative, left_fixture["id"]
+    )
+    right_path = _resolve_fixture(
+        corpus_root, right_relative, right_fixture["id"]
+    )
+    try:
+        with left_path.open("rb") as left, right_path.open("rb") as right:
+            left_before = os.fstat(left.fileno())
+            right_before = os.fstat(right.fileno())
+            for fixture, relative, file_stat in (
+                (left_fixture, left_relative, left_before),
+                (right_fixture, right_relative, right_before),
+            ):
+                if not stat.S_ISREG(file_stat.st_mode):
+                    raise CorpusBlockedError(
+                        f"{fixture['id']} is not a regular file: "
+                        f"{relative.as_posix()}"
+                    )
+                if file_stat.st_size != fixture["size_bytes"]:
+                    raise CorpusBlockedError(
+                        f"{fixture['id']} size mismatch during {comparison_id}"
+                    )
+
+            left_digest = _sha256_stream(left)
+            right_digest = _sha256_stream(right)
+            if left_digest != left_fixture["sha256"]:
+                raise CorpusBlockedError(
+                    f"{left_fixture['id']} SHA-256 mismatch during {comparison_id}"
+                )
+            if right_digest != right_fixture["sha256"]:
+                raise CorpusBlockedError(
+                    f"{right_fixture['id']} SHA-256 mismatch during {comparison_id}"
+                )
+
+            left.seek(0)
+            right.seek(0)
+            transition_counts: Counter[tuple[int, int]] = Counter()
+            changed_byte_count_by_offset = [0] * page_size
+            equal_page_count = 0
+            page_count = left_before.st_size // page_size
+            for page_index in range(page_count):
+                left_page = left.read(page_size)
+                right_page = right.read(page_size)
+                if len(left_page) != page_size or len(right_page) != page_size:
+                    raise CorpusBlockedError(
+                        f"{comparison_id} changed during page comparison "
+                        f"at page index {page_index}"
+                    )
+                transition_counts[(left_page[0], right_page[0])] += 1
+                if left_page == right_page:
+                    equal_page_count += 1
+                else:
+                    for byte_offset, (left_byte, right_byte) in enumerate(
+                        zip(left_page, right_page, strict=True)
+                    ):
+                        if left_byte != right_byte:
+                            changed_byte_count_by_offset[byte_offset] += 1
+
+            left_after = os.fstat(left.fileno())
+            right_after = os.fstat(right.fileno())
+    except CorpusBlockedError:
+        raise
+    except OSError as error:
+        raise CorpusBlockedError(
+            f"{comparison_id} fixtures cannot be read"
+        ) from error
+
+    if _file_identity(left_before) != _file_identity(left_after):
+        raise CorpusBlockedError(
+            f"{left_fixture['id']} changed during {comparison_id}"
+        )
+    if _file_identity(right_before) != _file_identity(right_after):
+        raise CorpusBlockedError(
+            f"{right_fixture['id']} changed during {comparison_id}"
+        )
+
+    return {
+        "changed_byte_count_by_offset": changed_byte_count_by_offset,
+        "changed_page_count": page_count - equal_page_count,
+        "equal_page_count": equal_page_count,
+        "id": comparison_id,
+        "left_fixture_id": left_fixture["id"],
+        "page_count": page_count,
+        "page_size_bytes": page_size,
+        "right_fixture_id": right_fixture["id"],
+        "same_index_first_byte_transitions": [
+            {
+                "left_first_byte": left_byte,
+                "page_count": count,
+                "right_first_byte": right_byte,
+            }
+            for (left_byte, right_byte), count in sorted(transition_counts.items())
+        ],
+    }
+
+
 def build_observation(repo_root: Path, external_root: Path) -> dict[str, Any]:
     """Validate the manifest and corpus, returning a deterministic observation."""
     try:
@@ -377,12 +556,22 @@ def build_observation(repo_root: Path, external_root: Path) -> dict[str, Any]:
         _observe_fixture(normalized_external_root, fixture)
         for fixture in manifest["fixtures"]
     ]
+    fixtures_by_id = {
+        fixture["id"]: fixture for fixture in manifest["fixtures"]
+    }
+    comparisons = [
+        _observe_comparison(
+            normalized_external_root, comparison, fixtures_by_id
+        )
+        for comparison in manifest["comparisons"]
+    ]
     return {
+        "comparisons": comparisons,
         "dirty": dirty,
         "fixtures": fixtures,
         "git_commit": commit,
         "manifest_sha256": manifest_sha256,
-        "schema_version": 1,
+        "schema_version": 2,
     }
 
 

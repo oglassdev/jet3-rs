@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jet3-rs:validation:external-corpus:1",
+  "$id": "urn:jet3-rs:validation:external-corpus:2",
   "title": "jet3-rs external corpus manifest",
   "type": "object",
   "additionalProperties": false,
@@ -8,12 +8,13 @@
     "schema_version",
     "environment_variable",
     "purpose",
-    "fixtures"
+    "fixtures",
+    "comparisons"
   ],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "environment_variable": {
       "type": "string",
@@ -29,6 +30,13 @@
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/fixture"
+      }
+    },
+    "comparisons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/comparison"
       }
     }
   },
@@ -61,6 +69,34 @@
         "sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "left_fixture_id",
+        "right_fixture_id",
+        "page_size_bytes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^CMP-[0-9]{4}$"
+        },
+        "left_fixture_id": {
+          "type": "string",
+          "pattern": "^FIX-[0-9]{4}$"
+        },
+        "right_fixture_id": {
+          "type": "string",
+          "pattern": "^FIX-[0-9]{4}$"
+        },
+        "page_size_bytes": {
+          "type": "integer",
+          "const": 2048
         }
       }
     }

@@ -60,7 +60,7 @@ class InspectExternalCorpusTests(unittest.TestCase):
     @staticmethod
     def _manifest(path: str, content: bytes, size: int) -> dict[str, object]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "environment_variable": inspect_corpus.ENVIRONMENT_VARIABLE,
             "purpose": inspect_corpus.PURPOSE,
             "fixtures": [
@@ -71,7 +71,45 @@ class InspectExternalCorpusTests(unittest.TestCase):
                     "sha256": hashlib.sha256(content).hexdigest(),
                 }
             ],
+            "comparisons": [],
         }
+
+    def _add_pair_comparison(
+        self, left: bytes, right: bytes
+    ) -> tuple[Path, Path]:
+        left_path = self.corpus / "backups/left.mdb"
+        right_path = self.corpus / "backups/right.mdb"
+        left_path.write_bytes(left)
+        right_path.write_bytes(right)
+        self.manifest = {
+            "schema_version": 2,
+            "environment_variable": inspect_corpus.ENVIRONMENT_VARIABLE,
+            "purpose": inspect_corpus.PURPOSE,
+            "fixtures": [
+                {
+                    "id": "FIX-0001",
+                    "path": "backups/left.mdb",
+                    "size_bytes": len(left),
+                    "sha256": hashlib.sha256(left).hexdigest(),
+                },
+                {
+                    "id": "FIX-0002",
+                    "path": "backups/right.mdb",
+                    "size_bytes": len(right),
+                    "sha256": hashlib.sha256(right).hexdigest(),
+                },
+            ],
+            "comparisons": [
+                {
+                    "id": "CMP-0001",
+                    "left_fixture_id": "FIX-0001",
+                    "right_fixture_id": "FIX-0002",
+                    "page_size_bytes": inspect_corpus.PAGE_BOUNDARY_BYTES,
+                }
+            ],
+        }
+        self._write_manifest()
+        return left_path, right_path
 
     def _write_manifest(self) -> None:
         self.manifest_path.write_text(
@@ -84,7 +122,7 @@ class InspectExternalCorpusTests(unittest.TestCase):
 
     def test_valid_corpus_reports_signature_hash_size_and_stride_sets(self) -> None:
         observation = self._observe()
-        self.assertEqual(observation["schema_version"], 1)
+        self.assertEqual(observation["schema_version"], 2)
         self.assertEqual(observation["git_commit"], self.commit)
         self.assertFalse(observation["dirty"])
         fixture = observation["fixtures"][0]
@@ -146,6 +184,70 @@ class InspectExternalCorpusTests(unittest.TestCase):
                 "stride_bytes": inspect_corpus.PAGE_BOUNDARY_BYTES,
             },
         )
+        self.assertEqual(observation["comparisons"], [])
+
+    def test_declared_pair_reports_exact_same_index_page_comparison(self) -> None:
+        page_size = inspect_corpus.PAGE_BOUNDARY_BYTES
+        left = bytearray(page_size * 3)
+        right = bytearray(left)
+        left[4:19] = b"Standard Jet DB"
+        right[4:19] = b"Standard Jet DB"
+        left[page_size] = 0x01
+        right[page_size] = 0x09
+        left[page_size + 7] = 0x11
+        right[page_size + 7] = 0x22
+        left[page_size * 2] = 0x02
+        right[page_size * 2] = 0x02
+        self._add_pair_comparison(bytes(left), bytes(right))
+
+        comparison = self._observe()["comparisons"][0]
+
+        changed_by_offset = [0] * page_size
+        changed_by_offset[0] = 1
+        changed_by_offset[7] = 1
+        self.assertEqual(
+            comparison,
+            {
+                "changed_byte_count_by_offset": changed_by_offset,
+                "changed_page_count": 1,
+                "equal_page_count": 2,
+                "id": "CMP-0001",
+                "left_fixture_id": "FIX-0001",
+                "page_count": 3,
+                "page_size_bytes": page_size,
+                "right_fixture_id": "FIX-0002",
+                "same_index_first_byte_transitions": [
+                    {
+                        "left_first_byte": 0,
+                        "page_count": 1,
+                        "right_first_byte": 0,
+                    },
+                    {
+                        "left_first_byte": 1,
+                        "page_count": 1,
+                        "right_first_byte": 9,
+                    },
+                    {
+                        "left_first_byte": 2,
+                        "page_count": 1,
+                        "right_first_byte": 2,
+                    },
+                ],
+            },
+        )
+
+    def test_declared_pair_with_unequal_lengths_is_contract_error(self) -> None:
+        page_size = inspect_corpus.PAGE_BOUNDARY_BYTES
+        left = bytearray(page_size)
+        right = bytearray(page_size * 2)
+        left[4:19] = b"Standard Jet DB"
+        right[4:19] = b"Standard Jet DB"
+        self._add_pair_comparison(bytes(left), bytes(right))
+
+        with self.assertRaisesRegex(
+            inspect_corpus.ContractError, "fixtures must have equal sizes"
+        ):
+            self._observe()
 
     def test_page_boundary_metrics_count_short_final_boundary_exactly(self) -> None:
         fixture = bytearray(inspect_corpus.PAGE_BOUNDARY_BYTES * 3 + 1)
@@ -314,6 +416,70 @@ class InspectExternalCorpusTests(unittest.TestCase):
         ):
             inspect_corpus._observe_fixture(
                 self.corpus.resolve(), self.manifest["fixtures"][0]
+            )
+
+    def test_short_declared_pair_page_read_is_blocked(self) -> None:
+        page_size = inspect_corpus.PAGE_BOUNDARY_BYTES
+        left_bytes = bytearray(page_size * 2)
+        right_bytes = bytearray(page_size * 2)
+        left_bytes[4:19] = b"Standard Jet DB"
+        right_bytes[4:19] = b"Standard Jet DB"
+        self._add_pair_comparison(bytes(left_bytes), bytes(right_bytes))
+        fake_stat = os.stat_result(
+            (
+                0o100644,
+                1,
+                1,
+                1,
+                0,
+                0,
+                len(left_bytes),
+                0,
+                0,
+                0,
+            )
+        )
+        left_source = mock.MagicMock()
+        left_source.__enter__.return_value = left_source
+        left_source.__exit__.return_value = False
+        left_source.fileno.return_value = 10
+        left_source.read.side_effect = [
+            bytes(left_bytes),
+            b"",
+            bytes(left_bytes[:page_size]),
+            b"short",
+        ]
+        right_source = mock.MagicMock()
+        right_source.__enter__.return_value = right_source
+        right_source.__exit__.return_value = False
+        right_source.fileno.return_value = 11
+        right_source.read.side_effect = [
+            bytes(right_bytes),
+            b"",
+            bytes(right_bytes[:page_size]),
+            bytes(right_bytes[page_size:]),
+        ]
+        fixtures_by_id = {
+            fixture["id"]: fixture for fixture in self.manifest["fixtures"]
+        }
+        with (
+            mock.patch.object(
+                Path, "open", side_effect=[left_source, right_source]
+            ),
+            mock.patch.object(
+                inspect_corpus.os,
+                "fstat",
+                side_effect=[fake_stat, fake_stat],
+            ),
+            self.assertRaisesRegex(
+                inspect_corpus.CorpusBlockedError,
+                "changed during page comparison at page index 1",
+            ),
+        ):
+            inspect_corpus._observe_comparison(
+                self.corpus.resolve(),
+                self.manifest["comparisons"][0],
+                fixtures_by_id,
             )
 
     def test_canonical_output_is_sorted_and_deterministic(self) -> None:

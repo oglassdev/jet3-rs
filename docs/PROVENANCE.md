@@ -397,6 +397,47 @@ Use `not applicable` explicitly rather than omitting a field.
   redistribution grant; no source files or derived byte corpus are committed
 - Review: pending independent review
 
+### EXP-0003 — Related-snapshot same-index page comparison
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: experiment
+- Question: For the exact equal-length `FIX-0001` and `FIX-0002` donor
+  snapshots, what byte-level differences occur between pages at the same
+  2,048-byte index?
+- Origin: positional comparison of `FIX-0001` and `FIX-0002`, whose identities
+  were checked in `OBS-0001`; the manifest declares the directional comparison
+  as `CMP-0001`
+- Environment: macOS 26.3.1 build 25D771280a on arm64; Python 3.14.3; locale
+  `C.UTF-8`; time zone `America/New_York`; code pages are not applicable
+- Protocol: set `JET3_EXTERNAL_FIXTURE_ROOT` and run
+  `tools/inspect_external_corpus.py`. The verifier independently rechecks both
+  exact files' regular-file status, equal page-aligned size, and SHA-256, then
+  reads corresponding complete 2,048-byte pages. It reports a sorted
+  first-byte transition matrix, full-page equality counts, and an exact
+  2,048-element vector counting differing page pairs at each byte offset. It
+  rejects short reads and either file changing during the comparison.
+- Artifacts: `FIX-0001`, `FIX-0002`, and manifest comparison `CMP-0001`; the
+  deterministic JSON observation is generated on demand and binds itself to
+  the repository commit and dirty state; no source or derived corpus bytes are
+  retained
+- Observation: the 778 same-index page pairs comprised 345 byte-identical and
+  433 differing pairs. The first-byte transitions were `00→00:34`,
+  `01→01:439`, `01→09:207`, `02→02:28`, `03→03:7`, `04→04:62`, and
+  `09→09:1`. The differing pairs contained 89,078 differing byte positions;
+  2,043 of the 2,048 page-relative byte offsets differed in at least one pair.
+- Interpretation: this is an uncontrolled positional comparison of related
+  donor snapshots. Equal length does not establish stable logical page
+  identity. The first-byte values are candidate cohorts only and establish no
+  page tag, page class, allocation state, header field, row meaning, validity,
+  Jet generation, DAO result, or compatibility. Page semantics require
+  replicated single-variable DAO-generated fixtures and commit-bound DAO
+  evidence.
+- Usage: `docs/validation/EXTERNAL_CORPUS.md`; exploratory evidence only; not
+  cited by production code
+- Rights: local inspection only under the donor's authorization; no
+  redistribution grant; no source files or derived byte corpus are committed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
@@ -424,7 +465,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
@@ -455,7 +496,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
