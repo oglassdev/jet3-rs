@@ -1,6 +1,5 @@
 {
   "schema_version": 1,
-  "target": "binary_cursor, jet_header, and jet3_page",
   "protocol_version": 1,
   "seeds": [
     {

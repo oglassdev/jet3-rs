@@ -5,7 +5,11 @@ This directory is a standalone
 from the production workspace so ordinary workspace builds do not compile
 libFuzzer.
 
-The checked targets are:
+`targets.json` is the checked, non-vacuous target registry and the single
+source of truth for target names, sources, corpora, deterministic smoke
+durations, input bounds, corpus byte bounds, and peak-RSS limits. The registry,
+Cargo fuzz bins, target sources, seed files, and seed manifest must agree
+exactly. The checked targets are:
 
 - `binary_cursor`: checked offsets and byte counts, work-budget accounting,
   cursor seeks, exact reads, skips, and little-endian primitive reads; and
@@ -35,16 +39,40 @@ cargo install cargo-fuzz --locked
 cargo fuzz list
 ```
 
-Run a deterministic 60-second developer smoke:
+Validate the registry, every seed's metadata/size/hash/reproduction field, and
+the campaign-report validator:
 
 ```sh
-cargo fuzz run binary_cursor -- \
-  -max_len=4096 -max_total_time=60 -seed=789231
-cargo fuzz run jet_header -- \
-  -max_len=4096 -max_total_time=60 -seed=789231
-cargo fuzz run jet3_page -- \
-  -max_len=8192 -max_total_time=60 -seed=789231
+python3 -m unittest discover -s fuzz/tests -v
+python3 fuzz/tools/fuzz_campaign.py validate
 ```
+
+Run the deterministic developer/CI smoke for every registered target:
+
+```sh
+python3 fuzz/tools/fuzz_campaign.py smoke
+```
+
+The smoke runner copies only manifest-listed seeds into disposable corpora,
+rejects corpora over their registered byte bounds, and runs every target for
+at least 60 seconds with the registered input and peak-RSS limits. Adding a
+target therefore requires its Cargo bin, source, corpus directory, seeds, and
+registry entry together; a missing or seedless target fails validation.
+
+`schema/campaign-report.schema.json` defines the durable campaign evidence
+shape. Validate a report against both that contract and the current checkout:
+
+```sh
+python3 fuzz/tools/fuzz_campaign.py validate-report path/to/report.json
+```
+
+Validation rejects stale commit or dirty-state metadata, target registry,
+target source, corpus, or seed hash drift, malformed timestamps or campaign
+fields, and observed wall-clock or peak-RSS breaches. Reports explicitly
+identify `smoke` or `full` campaigns. Smoke reports must cover at least the
+target's registered duration, and full reports must cover at least 600
+seconds. A campaign report is evidence about one execution only; it does not
+by itself change G5 status.
 
 Compile without starting a fuzzing campaign:
 

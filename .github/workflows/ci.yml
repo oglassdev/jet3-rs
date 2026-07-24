@@ -102,28 +102,10 @@ jobs:
           workspaces: fuzz
       - name: Compile all checked fuzz targets
         run: cargo fuzz build --fuzz-dir fuzz
-      - name: Copy checked seeds to disposable corpora
-        run: |
-          for target in binary_cursor jet_header jet3_page
-          do
-            mkdir -p "$RUNNER_TEMP/fuzz-corpus/$target"
-            cp -R "fuzz/corpus/$target/." "$RUNNER_TEMP/fuzz-corpus/$target/"
-          done
-      - name: Run deterministic binary cursor smoke
-        run: >-
-          cargo fuzz run --fuzz-dir fuzz binary_cursor
-          "$RUNNER_TEMP/fuzz-corpus/binary_cursor" --
-          -runs=1000 -seed=789231 -max_len=4096
-      - name: Run deterministic Jet header smoke
-        run: >-
-          cargo fuzz run --fuzz-dir fuzz jet_header
-          "$RUNNER_TEMP/fuzz-corpus/jet_header" --
-          -runs=1000 -seed=789231 -max_len=4096
-      - name: Run deterministic Jet 3 page smoke
-        run: >-
-          cargo fuzz run --fuzz-dir fuzz jet3_page
-          "$RUNNER_TEMP/fuzz-corpus/jet3_page" --
-          -runs=1000 -seed=789231 -max_len=8192
+      - name: Validate fuzz registry, seed manifest, and campaign reports
+        run: python3 -m unittest discover -s fuzz/tests -v
+      - name: Run every registered deterministic smoke campaign
+        run: python3 fuzz/tools/fuzz_campaign.py smoke
 
   miri:
     name: Miri library tests

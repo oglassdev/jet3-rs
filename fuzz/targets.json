@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "deterministic_seed": 789231,
+  "targets": [
+    {
+      "name": "binary_cursor",
+      "source": "fuzz/fuzz_targets/binary_cursor.rs",
+      "corpus": "fuzz/corpus/binary_cursor",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "jet_header",
+      "source": "fuzz/fuzz_targets/jet_header.rs",
+      "corpus": "fuzz/corpus/jet_header",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "jet3_page",
+      "source": "fuzz/fuzz_targets/jet3_page.rs",
+      "corpus": "fuzz/corpus/jet3_page",
+      "smoke_seconds": 60,
+      "max_len": 8192,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    }
+  ]
+}
