@@ -85,16 +85,38 @@ python3 tools/validate_g6_evidence.py coverage path/to/coverage-evidence.json
 
 ## Mutation normalization and scoring
 
-Mutation producers differ in their native result shapes. Preserve the native
-tool output separately, then normalize each produced core mutant into the
-strict document described by `schema/g6-mutation-report.schema.json`. The
-normalized report's `producer_report` binds that nonempty native machine report
-by format, repository-relative path, and SHA-256; the envelope's `tool`,
-command, and normalized-report hash identify the normalization run.
-Normalization must be mechanical and auditable; it is not permission to
-invent, merge, or omit mutants. This generic validator proves the binding but
-does not understand every producer's native schema, so a campaign-specific
-adapter and its completeness tests remain required before G6 can pass.
+Exactly one native producer format is currently accepted:
+`cargo-mutants-outcomes-v26-json`, the completed `mutants.out/outcomes.json`
+document produced by cargo-mutants 26.x. Its supported shape is recorded in
+`schema/g6-cargo-mutants-outcomes-v26.schema.json`. The format is deliberately
+version-pinned because cargo-mutants documents its output files as subject to
+change. A newer major version requires a separately reviewed parser and
+adversarial tests before its output can count.
+
+Preserve that native output separately, then normalize every produced core
+mutant into the version 2 document described by
+`schema/g6-mutation-report.schema.json`. The normalized report's
+`producer_report` binds the native machine report by the exact format literal,
+repository-relative path, and SHA-256; the envelope's `tool`, command, and
+normalized-report hash identify the normalization run.
+
+The validator parses the native report before scoring. It requires a completed
+26.x run with one successful baseline, consistent native summary counters, a
+unique native mutant name, and one normalized record for every native mutant
+with no extras. Normalized `id`, `path`, `line`, and `producer_status` must
+match the native name, file, span start line, and outcome exactly. Thus a
+nonempty arbitrary file, omitted native mutant, invented normalized mutant,
+rewritten path/line, duplicate identity, forged producer status, or stale
+aggregate counter fails closed.
+
+Native outcomes map mechanically as follows: `CaughtMutant` to `killed`,
+`MissedMutant` to `survived`, `Timeout` to `timeout`, and `Unviable` to
+`unviable`. `producer_status` preserves that exact mapping. Normally `status`
+must equal `producer_status`. A tool-confirmed review may reclassify a
+`survived` mutant as `equivalent` or `unreachable`, or an `unviable` mutant as
+`unreachable`; no other status transformation is accepted. The separately
+hash-bound confirmation requirement below still applies before such a record
+is removed from scoring.
 
 The report must declare all four required campaign scopes:
 `encoding_decoding`, `allocation`, `row_packing`, and `index`. A scope may be
@@ -145,8 +167,10 @@ dirty/commit/toolchain/report bindings, excluded and empty coverage, untrusted
 totals, JSON-region and LCOV-branch threshold boundaries, missing branch data,
 mutation threshold boundaries, vacuous scores, undispositioned survivors,
 timeouts, format/safety survivors, hidden invariant IDs, and
-equivalent/unreachable confirmation hashes. It also rejects empty native
-producer reports, declaration-only scopes, and mostly-unviable campaigns.
+equivalent/unreachable confirmation hashes. It also rejects unsupported or
+malformed native producer reports, incomplete native runs, inconsistent
+producer counters, duplicate/omitted/invented identities, path/line/status
+rewrites, declaration-only scopes, and mostly-unviable campaigns.
 
 Run it with:
 

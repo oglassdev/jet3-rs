@@ -23,6 +23,11 @@ JSON Schema package.
   aggregate consumed by G1. The validator also enforces uniqueness, canonical
   command order and arguments, compiler-host/platform agreement, and
   referenced-file hashes.
+- `g6-core-inventory.schema.json`, `g6-coverage-evidence.schema.json`, and
+  `g6-mutation-evidence.schema.json` describe the commit-bound G6 inputs.
+- `g6-cargo-mutants-outcomes-v26.schema.json` records the one accepted native
+  mutation-producer shape; `g6-mutation-report.schema.json` describes its
+  losslessly reconciled normalized records and review annotations.
 - `repository-contract.schema.json` describes the fail-closed G0 inventory of
   workspace roles, permitted runtime packages, format-knowledge files, and the
   three distinct fixture classes.

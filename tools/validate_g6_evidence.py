@@ -24,6 +24,14 @@ CLASSIFICATIONS = {"format", "safety", "format_safety"}
 MUTATION_SCOPES = {"encoding_decoding", "allocation", "row_packing", "index"}
 SURVIVOR_STATUSES = {"survived", "timeout"}
 DISPOSITION_STATUSES = SURVIVOR_STATUSES | {"equivalent", "unreachable"}
+MUTATION_PRODUCER_FORMAT = "cargo-mutants-outcomes-v26-json"
+NATIVE_MUTATION_SUMMARIES = {
+    "CaughtMutant": "killed",
+    "MissedMutant": "survived",
+    "Timeout": "timeout",
+    "Unviable": "unviable",
+}
+CARGO_MUTANTS_V26 = re.compile(r"^26[.][0-9]+[.][0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 
 
 class EvidenceError(ValueError):
@@ -35,6 +43,14 @@ class CoreModule:
     path: str
     classification: str
     sha256: str
+
+
+@dataclass(frozen=True)
+class NativeMutant:
+    mutant_id: str
+    path: str
+    line: int
+    status: str
 
 
 def _sha256(path: Path) -> str:
@@ -448,6 +464,179 @@ def _disposition(record: dict[str, Any], location: str, root: Path) -> None:
         )
 
 
+def _nonnegative_integer(value: Any, location: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise EvidenceError(f"{location}: expected nonnegative integer")
+    return value
+
+
+def _line_column(value: Any, location: str) -> tuple[int, int]:
+    if not isinstance(value, dict):
+        raise EvidenceError(f"{location}: expected object")
+    _keys(value, {"line", "column"}, location)
+    line = value["line"]
+    column = value["column"]
+    if not isinstance(line, int) or isinstance(line, bool) or line <= 0:
+        raise EvidenceError(f"{location}.line: expected positive integer")
+    if not isinstance(column, int) or isinstance(column, bool) or column <= 0:
+        raise EvidenceError(f"{location}.column: expected positive integer")
+    return line, column
+
+
+def _native_mutant(value: Any, location: str, status: str) -> NativeMutant:
+    if not isinstance(value, dict):
+        raise EvidenceError(f"{location}: expected object")
+    _keys(
+        value,
+        {"name", "package", "file", "function", "span", "replacement", "genre"},
+        location,
+    )
+    mutant_id = _text(value["name"], f"{location}.name")
+    _text(value["package"], f"{location}.package")
+    path = _repo_path(value["file"], f"{location}.file")
+    if value["function"] is not None and not isinstance(value["function"], dict):
+        raise EvidenceError(f"{location}.function: expected object or null")
+    span = value["span"]
+    if not isinstance(span, dict):
+        raise EvidenceError(f"{location}.span: expected object")
+    _keys(span, {"start", "end"}, f"{location}.span")
+    line, column = _line_column(span["start"], f"{location}.span.start")
+    end_line, end_column = _line_column(span["end"], f"{location}.span.end")
+    if (end_line, end_column) <= (line, column):
+        raise EvidenceError(f"{location}.span: end must follow start")
+    if not isinstance(value["replacement"], str):
+        raise EvidenceError(f"{location}.replacement: expected string")
+    _text(value["genre"], f"{location}.genre")
+    return NativeMutant(mutant_id, path, line, status)
+
+
+def _parse_cargo_mutants_v26(path: Path) -> dict[str, NativeMutant]:
+    report = _load(path, "cargo-mutants v26 outcomes report")
+    if not isinstance(report, dict):
+        raise EvidenceError("cargo-mutants outcomes: expected object")
+    _keys(
+        report,
+        {
+            "outcomes",
+            "total_mutants",
+            "missed",
+            "caught",
+            "timeout",
+            "unviable",
+            "success",
+            "start_time",
+            "end_time",
+            "cargo_mutants_version",
+        },
+        "cargo-mutants outcomes",
+    )
+    version = _text(
+        report["cargo_mutants_version"],
+        "cargo-mutants outcomes.cargo_mutants_version",
+    )
+    if CARGO_MUTANTS_V26.fullmatch(version) is None:
+        raise EvidenceError(
+            "cargo-mutants outcomes.cargo_mutants_version: "
+            "expected supported 26.x producer"
+        )
+    _text(report["start_time"], "cargo-mutants outcomes.start_time")
+    _text(report["end_time"], "cargo-mutants outcomes.end_time")
+    counters = {
+        field: _nonnegative_integer(
+            report[field], f"cargo-mutants outcomes.{field}"
+        )
+        for field in (
+            "total_mutants",
+            "missed",
+            "caught",
+            "timeout",
+            "unviable",
+            "success",
+        )
+    }
+    outcomes = report["outcomes"]
+    if not isinstance(outcomes, list) or not outcomes:
+        raise EvidenceError("cargo-mutants outcomes.outcomes: expected non-empty array")
+
+    native: dict[str, NativeMutant] = {}
+    baseline_count = 0
+    observed_counts = {summary: 0 for summary in NATIVE_MUTATION_SUMMARIES}
+    for index, outcome in enumerate(outcomes):
+        location = f"cargo-mutants outcomes.outcomes[{index}]"
+        if not isinstance(outcome, dict):
+            raise EvidenceError(f"{location}: expected object")
+        _keys(
+            outcome,
+            {"scenario", "summary", "log_path", "diff_path", "phase_results"},
+            location,
+        )
+        summary = _text(outcome["summary"], f"{location}.summary")
+        _text(outcome["log_path"], f"{location}.log_path")
+        if (
+            not isinstance(outcome["phase_results"], list)
+            or not outcome["phase_results"]
+        ):
+            raise EvidenceError(f"{location}.phase_results: expected non-empty array")
+        scenario = outcome["scenario"]
+        if scenario == "Baseline":
+            baseline_count += 1
+            if summary != "Success":
+                raise EvidenceError(f"{location}: baseline did not succeed")
+            if outcome["diff_path"] is not None:
+                raise EvidenceError(f"{location}.diff_path: baseline must be null")
+            continue
+        if not isinstance(scenario, dict):
+            raise EvidenceError(f"{location}.scenario: expected Baseline or object")
+        _keys(scenario, {"Mutant"}, f"{location}.scenario")
+        if summary not in NATIVE_MUTATION_SUMMARIES:
+            raise EvidenceError(f"{location}.summary: unsupported mutant outcome")
+        _text(outcome["diff_path"], f"{location}.diff_path")
+        status = NATIVE_MUTATION_SUMMARIES[summary]
+        parsed = _native_mutant(
+            scenario["Mutant"], f"{location}.scenario.Mutant", status
+        )
+        if parsed.mutant_id in native:
+            raise EvidenceError(
+                f"{location}.scenario.Mutant.name: duplicate native mutant identity"
+            )
+        native[parsed.mutant_id] = parsed
+        observed_counts[summary] += 1
+
+    if baseline_count != 1:
+        raise EvidenceError(
+            "cargo-mutants outcomes: expected exactly one successful baseline"
+        )
+    expected_counts = {
+        "CaughtMutant": counters["caught"],
+        "MissedMutant": counters["missed"],
+        "Timeout": counters["timeout"],
+        "Unviable": counters["unviable"],
+    }
+    if observed_counts != expected_counts:
+        raise EvidenceError(
+            "cargo-mutants outcomes: summary counters do not match mutant outcomes"
+        )
+    if counters["total_mutants"] != len(native):
+        raise EvidenceError(
+            "cargo-mutants outcomes.total_mutants: does not match mutant outcomes"
+        )
+    if counters["success"] != 1:
+        raise EvidenceError(
+            "cargo-mutants outcomes.success: expected one successful baseline"
+        )
+    return native
+
+
+def _native_producer_records(
+    producer_format: str, producer_artifact: Path
+) -> dict[str, NativeMutant]:
+    if producer_format != MUTATION_PRODUCER_FORMAT:
+        raise EvidenceError(
+            "mutation report.producer_report.format: unsupported native format"
+        )
+    return _parse_cargo_mutants_v26(producer_artifact)
+
+
 def _validate_mutation_report(
     report_path: Path, modules: list[CoreModule], root: Path
 ) -> tuple[int, int]:
@@ -459,8 +648,8 @@ def _validate_mutation_report(
         {"schema_version", "scopes", "producer_report", "mutants"},
         "mutation report",
     )
-    if report["schema_version"] != 1:
-        raise EvidenceError("mutation report.schema_version: expected integer 1")
+    if report["schema_version"] != 2:
+        raise EvidenceError("mutation report.schema_version: expected integer 2")
     scopes = report["scopes"]
     if (
         not isinstance(scopes, list)
@@ -482,10 +671,6 @@ def _validate_mutation_report(
     producer_format = _text(
         producer["format"], "mutation report.producer_report.format"
     )
-    if producer_format == "g6-mutation-json":
-        raise EvidenceError(
-            "mutation report.producer_report.format: must identify native tool output"
-        )
     producer_artifact = _regular_file(
         root, producer_path, "mutation report.producer_report.path"
     )
@@ -496,8 +681,7 @@ def _validate_mutation_report(
         or _sha256(producer_artifact) != producer_hash
     ):
         raise EvidenceError("mutation report.producer_report: stale artifact hash")
-    if producer_artifact.stat().st_size == 0:
-        raise EvidenceError("mutation report.producer_report: empty producer report")
+    native_mutants = _native_producer_records(producer_format, producer_artifact)
     mutants = report["mutants"]
     if not isinstance(mutants, list) or not mutants:
         raise EvidenceError("mutation report.mutants: expected non-empty array")
@@ -518,6 +702,7 @@ def _validate_mutation_report(
                 "path",
                 "line",
                 "status",
+                "producer_status",
                 "scope",
                 "invariant_kind",
                 "invariant_ids",
@@ -546,6 +731,29 @@ def _validate_mutation_report(
             "unreachable",
         }:
             raise EvidenceError(f"{location}.status: invalid status")
+        producer_status = record["producer_status"]
+        if producer_status not in {"killed", "survived", "timeout", "unviable"}:
+            raise EvidenceError(f"{location}.producer_status: invalid native status")
+        native = native_mutants.get(mutant_id)
+        if native is None:
+            raise EvidenceError(f"{location}.id: not present in native producer report")
+        if path != native.path or line != native.line:
+            raise EvidenceError(
+                f"{location}: identity does not match native producer report"
+            )
+        if producer_status != native.status:
+            raise EvidenceError(
+                f"{location}.producer_status: does not match native producer outcome"
+            )
+        permitted_statuses = {producer_status}
+        if producer_status == "survived":
+            permitted_statuses.update({"equivalent", "unreachable"})
+        elif producer_status == "unviable":
+            permitted_statuses.add("unreachable")
+        if status not in permitted_statuses:
+            raise EvidenceError(
+                f"{location}.status: unsupported native-status reclassification"
+            )
         scope = record["scope"]
         if scope not in MUTATION_SCOPES:
             raise EvidenceError(f"{location}.scope: invalid G6 scope")
@@ -578,6 +786,12 @@ def _validate_mutation_report(
                 raise EvidenceError(
                     f"{location}: survivor affects a format/safety invariant"
                 )
+    if ids != set(native_mutants):
+        raise EvidenceError(
+            "mutation report: normalized/native mutant identity mismatch; "
+            f"missing={sorted(set(native_mutants) - ids)}, "
+            f"extra={sorted(ids - set(native_mutants))}"
+        )
     if covered_paths != set(module_by_path):
         raise EvidenceError(
             "mutation report: excluded core files; "

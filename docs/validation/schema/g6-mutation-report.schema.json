@@ -43,7 +43,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "scopes", "producer_report", "mutants"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "scopes": {
       "type": "array",
       "minItems": 4,
@@ -60,7 +60,7 @@
       "properties": {
         "path": {"type": "string", "minLength": 1},
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "format": {"type": "string", "minLength": 1}
+        "format": {"const": "cargo-mutants-outcomes-v26-json"}
       }
     },
     "mutants": {
@@ -74,6 +74,7 @@
           "path",
           "line",
           "status",
+          "producer_status",
           "scope",
           "invariant_kind",
           "invariant_ids",
@@ -92,6 +93,9 @@
               "equivalent",
               "unreachable"
             ]
+          },
+          "producer_status": {
+            "enum": ["killed", "survived", "timeout", "unviable"]
           },
           "scope": {
             "enum": ["encoding_decoding", "allocation", "row_packing", "index"]

@@ -143,6 +143,7 @@ class G6EvidenceTests(unittest.TestCase):
         status: str = "killed",
         *,
         path: str | None = None,
+        producer_status: str | None = None,
         invariant_kind: str = "none",
         invariant_ids: list[str] | None = None,
     ) -> dict:
@@ -156,28 +157,98 @@ class G6EvidenceTests(unittest.TestCase):
             "path": path or self.paths[index % len(self.paths)],
             "line": index + 1,
             "status": status,
+            "producer_status": (
+                producer_status
+                or (
+                    status
+                    if status in {"killed", "survived", "timeout", "unviable"}
+                    else "survived"
+                )
+            ),
             "scope": sorted(g6.MUTATION_SCOPES)[index % len(g6.MUTATION_SCOPES)],
             "invariant_kind": invariant_kind,
             "invariant_ids": invariant_ids or [],
             "disposition": disposition,
         }
 
-    def validate_mutants(self, mutants: list[dict]) -> tuple[int, int]:
+    @staticmethod
+    def native_outcomes(mutants: list[dict]) -> dict:
+        summaries = {
+            "killed": "CaughtMutant",
+            "survived": "MissedMutant",
+            "timeout": "Timeout",
+            "unviable": "Unviable",
+        }
+        outcomes = [
+            {
+                "scenario": "Baseline",
+                "summary": "Success",
+                "log_path": "logs/baseline.log",
+                "diff_path": None,
+                "phase_results": [{"phase": "Test"}],
+            }
+        ]
+        counts = {summary: 0 for summary in summaries.values()}
+        for item in mutants:
+            summary = summaries[item["producer_status"]]
+            counts[summary] += 1
+            outcomes.append(
+                {
+                    "scenario": {
+                        "Mutant": {
+                            "name": item["id"],
+                            "package": "jet3",
+                            "file": item["path"],
+                            "function": None,
+                            "span": {
+                                "start": {"line": item["line"], "column": 1},
+                                "end": {"line": item["line"], "column": 2},
+                            },
+                            "replacement": "Default::default()",
+                            "genre": "FnValue",
+                        }
+                    },
+                    "summary": summary,
+                    "log_path": f"logs/{item['id']}.log",
+                    "diff_path": f"diff/{item['id']}.diff",
+                    "phase_results": [{"phase": "Test"}],
+                }
+            )
+        return {
+            "outcomes": outcomes,
+            "total_mutants": len(mutants),
+            "missed": counts["MissedMutant"],
+            "caught": counts["CaughtMutant"],
+            "timeout": counts["Timeout"],
+            "unviable": counts["Unviable"],
+            "success": 1,
+            "start_time": "2026-07-24T00:00:00Z",
+            "end_time": "2026-07-24T00:01:00Z",
+            "cargo_mutants_version": "26.2.0",
+        }
+
+    def validate_mutants(
+        self,
+        mutants: list[dict],
+        *,
+        native: dict | None = None,
+        producer_format: str = g6.MUTATION_PRODUCER_FORMAT,
+    ) -> tuple[int, int]:
         report_path = self.root / "reports/mutation.json"
         producer_path = self.root / "reports/native-mutants.json"
         self.write_json(
             producer_path,
-            {"tool": "test-mutator", "results": [item["id"] for item in mutants]},
+            self.native_outcomes(mutants) if native is None else native,
         )
         self.write_json(
             report_path,
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "scopes": sorted(g6.MUTATION_SCOPES),
                 "producer_report": {
                     "path": producer_path.relative_to(self.root).as_posix(),
                     "sha256": digest(producer_path),
-                    "format": "test-mutator-json-v1",
+                    "format": producer_format,
                 },
                 "mutants": mutants,
             },
@@ -479,35 +550,122 @@ class G6EvidenceTests(unittest.TestCase):
         ]
         self.assertEqual(self.validate_mutants(mutants), (4, 4))
 
-    def test_native_producer_report_is_required_nonempty_and_hash_bound(self) -> None:
+    def test_only_version_pinned_cargo_mutants_native_format_is_supported(self) -> None:
         mutants = [
             self.mutant(index, path=self.paths[index % 2]) for index in range(4)
         ]
-        report_path = self.root / "reports/mutation.json"
-        producer_path = self.root / "reports/native-mutants.json"
-        producer_path.parent.mkdir(parents=True, exist_ok=True)
-        producer_path.write_bytes(b"")
-        report = {
-            "schema_version": 1,
-            "scopes": sorted(g6.MUTATION_SCOPES),
-            "producer_report": {
-                "path": producer_path.relative_to(self.root).as_posix(),
-                "sha256": digest(producer_path),
-                "format": "test-mutator-json-v1",
-            },
-            "mutants": mutants,
-        }
-        self.write_json(report_path, report)
-        envelope_path = self.root / "reports/mutation-evidence.json"
-        self.write_json(
-            envelope_path,
-            self.envelope("mutation", report_path, "g6-mutation-json"),
-        )
         self.assert_rejected(
-            "empty producer report",
-            lambda: g6.validate_mutation(
-                self.root, envelope_path, self.inventory_path, self.observed
+            "unsupported native format",
+            lambda: self.validate_mutants(
+                mutants, producer_format="some-nonempty-native-format"
             ),
+        )
+
+    def test_arbitrary_nonempty_native_json_cannot_support_a_score(self) -> None:
+        mutants = [
+            self.mutant(index, path=self.paths[index % 2]) for index in range(4)
+        ]
+        self.assert_rejected(
+            "invalid keys",
+            lambda: self.validate_mutants(
+                mutants,
+                native={
+                    "tool": "cargo-mutants 26.2.0",
+                    "results": [item["id"] for item in mutants],
+                },
+            ),
+        )
+
+    def test_native_and_normalized_mutant_sets_must_match_exactly(self) -> None:
+        mutants = [
+            self.mutant(index, path=self.paths[index % 2]) for index in range(4)
+        ]
+        extra = self.mutant(99, path=self.paths[1])
+        native_with_extra = self.native_outcomes([*mutants, extra])
+        self.assert_rejected(
+            "normalized/native mutant identity mismatch",
+            lambda: self.validate_mutants(mutants, native=native_with_extra),
+        )
+
+        native_without_last = self.native_outcomes(mutants[:-1])
+        self.assert_rejected(
+            "not present in native producer report",
+            lambda: self.validate_mutants(mutants, native=native_without_last),
+        )
+
+    def test_native_identity_and_status_cannot_be_rewritten(self) -> None:
+        mutants = [
+            self.mutant(index, path=self.paths[index % 2]) for index in range(4)
+        ]
+        native = self.native_outcomes(mutants)
+
+        changed_path = copy.deepcopy(mutants)
+        changed_path[0]["path"] = self.paths[1]
+        self.assert_rejected(
+            "identity does not match native producer report",
+            lambda: self.validate_mutants(changed_path, native=native),
+        )
+
+        changed_line = copy.deepcopy(mutants)
+        changed_line[0]["line"] += 1
+        self.assert_rejected(
+            "identity does not match native producer report",
+            lambda: self.validate_mutants(changed_line, native=native),
+        )
+
+        forged_native_status = copy.deepcopy(mutants)
+        forged_native_status[0]["producer_status"] = "survived"
+        forged_native_status[0]["status"] = "survived"
+        forged_native_status[0]["disposition"] = self.disposition()
+        self.assert_rejected(
+            "does not match native producer outcome",
+            lambda: self.validate_mutants(forged_native_status, native=native),
+        )
+
+        rewritten_status = copy.deepcopy(mutants)
+        rewritten_status[0]["status"] = "survived"
+        rewritten_status[0]["disposition"] = self.disposition()
+        self.assert_rejected(
+            "unsupported native-status reclassification",
+            lambda: self.validate_mutants(rewritten_status, native=native),
+        )
+
+    def test_native_duplicate_identity_and_counter_forgery_fail(self) -> None:
+        mutants = [
+            self.mutant(index, path=self.paths[index % 2]) for index in range(4)
+        ]
+        duplicate = self.native_outcomes(mutants)
+        duplicate["outcomes"].append(copy.deepcopy(duplicate["outcomes"][1]))
+        duplicate["total_mutants"] += 1
+        duplicate["caught"] += 1
+        self.assert_rejected(
+            "duplicate native mutant identity",
+            lambda: self.validate_mutants(mutants, native=duplicate),
+        )
+
+        forged_count = self.native_outcomes(mutants)
+        forged_count["caught"] += 1
+        self.assert_rejected(
+            "summary counters do not match",
+            lambda: self.validate_mutants(mutants, native=forged_count),
+        )
+
+    def test_native_run_must_be_complete_and_version_supported(self) -> None:
+        mutants = [
+            self.mutant(index, path=self.paths[index % 2]) for index in range(4)
+        ]
+        incomplete = self.native_outcomes(mutants)
+        incomplete["end_time"] = None
+        self.assert_rejected(
+            "end_time: expected non-empty string",
+            lambda: self.validate_mutants(mutants, native=incomplete),
+        )
+
+        wrong_version = self.native_outcomes(mutants)
+        wrong_version["cargo_mutants_version"] = "27.0.0"
+        self.assert_rejected(
+            "expected supported 26.x producer",
+            lambda: self.validate_mutants(mutants, native=wrong_version),
         )
 
     def test_timeout_is_scored_as_surviving_and_requires_disposition(self) -> None:
