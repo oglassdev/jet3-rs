@@ -52,5 +52,6 @@ object supported.
 7. All compatibility reports identify the provider version, OS, architecture,
    locale, code page, scenario IDs, fixture hashes, and git commit.
 
-At bootstrap, entries are deliberately `not_started` and `unverified`. Statuses
-must be advanced only by a change that also adds the referenced evidence.
+Capabilities begin as `not_started` and `unverified`. Statuses must be advanced
+only by a change that also adds the referenced evidence; partial foundation
+work remains experimental until its declared verification requirement is met.
