@@ -1,6 +1,18 @@
 #![forbid(unsafe_code)]
 #![doc = "Safe, clean-room primitives for Access 97 / Jet 3 databases."]
 
+pub mod binary;
+pub mod error;
+pub mod limits;
+pub mod offset;
+pub mod source;
+
+pub use binary::BinaryCursor;
+pub use error::{Error, LimitKind};
+pub use limits::{ResourceLimits, WorkBudget};
+pub use offset::{ByteCount, ByteOffset};
+pub use source::{FileSource, ReadAt, SliceSource};
+
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";
 

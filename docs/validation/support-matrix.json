@@ -164,10 +164,14 @@
     },
     {
       "id": "safety.malformed_input_bounds_and_limits",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "independent_check",
-      "evidence": []
+      "evidence": [
+        "crates/jet3/src/binary.rs",
+        "crates/jet3/src/limits.rs",
+        "crates/jet3/src/source.rs"
+      ]
     },
     {
       "id": "ui.forms_reports_vba_macros",

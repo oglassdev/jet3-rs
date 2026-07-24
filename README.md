@@ -3,8 +3,10 @@
 An original, clean-room Rust library and toolset for unencrypted Access 97 /
 Jet 3 `.mdb` files.
 
-This repository is in its bootstrap phase. No MDB reading, writing, validation,
-or Microsoft DAO compatibility capability is implemented or claimed yet.
+This repository is in its foundation phase. It contains format-neutral checked
+binary I/O and resource-bound primitives plus a versioned DAO evidence
+protocol. No MDB reading, writing, validation, or Microsoft DAO compatibility
+capability is implemented or claimed yet.
 
 ## Workspace
 
@@ -34,6 +36,7 @@ between currently wired bootstrap checks and the full v1 acceptance contract.
 
 ## Status
 
-All format capabilities are **unimplemented and unverified** until supported by
+Format capabilities remain **unimplemented and unverified** until supported by
 evidence recorded in the validation matrix and accepted by Microsoft DAO where
-applicable.
+applicable. The bounded-input safety foundation is tracked separately as
+partial, internal-only work and is not a format compatibility claim.
