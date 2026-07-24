@@ -15,7 +15,26 @@ pub enum LimitKind {
     TotalReadBytes,
 }
 
-/// An error produced while checking binary input or byte arithmetic.
+/// Identifies an operation-wide resource ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResourceLimitKind {
+    /// Cumulative bytes reserved or allocated.
+    AllocationBytes,
+    /// Size of one decoded value.
+    DecodedValueBytes,
+    /// Cumulative bytes produced by value decoding.
+    TotalDecodedBytes,
+    /// Cumulative count-driven item work.
+    ItemWork,
+    /// Cumulative page visits.
+    PageVisits,
+    /// Depth of one followed chain.
+    ChainDepth,
+    /// Cumulative aggregate non-I/O work.
+    TotalWorkUnits,
+}
+
+/// An error produced while checking input, arithmetic, or resource policy.
 ///
 /// Variants retain the relevant positions and sizes so callers can report
 /// malformed input without parsing error strings.
@@ -103,6 +122,15 @@ pub enum Error {
         /// Configured maximum.
         maximum: ByteCount,
     },
+    /// An operation-wide count or work ceiling was exceeded.
+    ResourceLimitExceeded {
+        /// Policy dimension that rejected the request.
+        kind: ResourceLimitKind,
+        /// Prospective cumulative value or checked magnitude.
+        requested: u64,
+        /// Configured maximum.
+        maximum: u64,
+    },
 }
 
 impl fmt::Display for Error {
@@ -181,6 +209,14 @@ impl fmt::Display for Error {
                 requested.get(),
                 maximum.get()
             ),
+            Self::ResourceLimitExceeded {
+                kind,
+                requested,
+                maximum,
+            } => write!(
+                formatter,
+                "{kind:?} resource limit exceeded: requested {requested}, maximum is {maximum}"
+            ),
         }
     }
 }
@@ -189,7 +225,7 @@ impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, LimitKind};
+    use super::{Error, LimitKind, ResourceLimitKind};
     use crate::{ByteCount, ByteOffset};
 
     #[test]
@@ -273,6 +309,14 @@ mod tests {
                     page_size: ByteCount::new(4),
                 },
                 "offset 4",
+            ),
+            (
+                Error::ResourceLimitExceeded {
+                    kind: ResourceLimitKind::PageVisits,
+                    requested: 5,
+                    maximum: 4,
+                },
+                "PageVisits",
             ),
         ];
 

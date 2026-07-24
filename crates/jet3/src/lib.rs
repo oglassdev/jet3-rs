@@ -1,18 +1,22 @@
 #![forbid(unsafe_code)]
 #![doc = "Safe, clean-room primitives for Access 97 / Jet 3 databases."]
 
+pub mod atomic;
 pub mod binary;
 pub mod error;
 pub mod limits;
 pub mod offset;
 pub mod page;
+pub mod resource;
 pub mod source;
 
+pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
-pub use error::{Error, LimitKind};
+pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use limits::{ReadBudget, ReadLimits};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
+pub use resource::{ResourceBudget, ResourceLimits};
 pub use source::{FileSource, ReadAt, SliceSource};
 
 /// Human-readable name of the only database format targeted by this crate.
