@@ -20,6 +20,7 @@ software manifests do not document Access, DAO, ACE, `dao360.dll`, or
 
 The release remains blocked until an interactive Windows environment runs
 `oracle/windows-dao/scripts/probe-provider.ps1` and reports `status: ready`,
+completes the separately reviewed M1 PowerShell/COM marshalling experiment,
 then runs the required declarative scenarios against the exact clean release
 commit and returns a complete evidence bundle.
 
@@ -97,12 +98,15 @@ Microsoft lists its support as ending on 2025-10-14 and recommends Microsoft
 3. Run `oracle/windows-dao/scripts/probe-provider.ps1`.
 4. Require `status: ready`; retain the provider identity, COM server path and
    hash, architecture, OS, locale, code pages, and probe output.
-5. Check out the exact clean release commit and run the checked declarative DAO
+5. Run and review the controlled M1 marshalling experiment, retaining exact
+   PowerShell/CLR/provider versions, input runtime types, `Variant` and
+   `AppendChunk` behavior, DAO readback, and failures.
+6. Check out the exact clean release commit and run the checked declarative DAO
    scenarios.
-6. Validate and return the complete commit-bound bundle specified by
+7. Validate and return the complete commit-bound bundle specified by
    `docs/validation/EVIDENCE.md`.
 
-Until all six steps are complete, G3 and every release claim that depends on
+Until all seven steps are complete, G3 and every release claim that depends on
 DAO remain `BLOCKED`.
 
 ## Current oracle implementation boundary
@@ -111,7 +115,7 @@ The portable protocol validator, its six JSON schemas, and its 20 deterministic
 tests run on this host. They validate evidence shape and fail closed; they do
 not execute DAO or establish compatibility.
 
-The PowerShell runner currently implements only the M0
+The PowerShell executor currently implements only the M0
 `DAO-GEN-PROBE-001` operation: activate a candidate provider, create an
 unencrypted `dbVersion30` database, close and reopen it, export the empty DAO
 snapshot, and seal a commit-bound bundle. The validator deliberately rejects
@@ -120,3 +124,11 @@ the differential modes `rust_read_dao`, `dao_open_rust`, and
 preservation checks are implemented. Even a successful M0 provider run would
 therefore prove only that exact empty-database probe, not general read, create,
 update, or Access 97 compatibility.
+
+M1 now has a checked, non-executing preflight. It binds the exact clean commit,
+complete controlled inventory, ready protocol 1.1 provider record, Windows
+host, process bitness, and provider binary hash, then exits `BLOCKED` before
+COM activation or output mutation. It cannot publish a bundle. The remaining
+external boundary is deterministic late-bound PowerShell marshalling and DAO
+readback for `dbBinary` and `dbLongBinary` `AppendChunk`; the reviewed
+Microsoft sources do not define that representation.

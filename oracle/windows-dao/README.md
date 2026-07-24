@@ -34,10 +34,13 @@ pair, and `dbMemo`/`dbLongBinary` boundary ladders at lengths 1, 2047, 2048,
 snapshot comparator, multi-scenario/pair reports, immutable bundle bindings,
 and a hash-checked example inventory.
 
-M1 has no COM executor. Execution remains blocked pending a provisioned Windows
-marshalling experiment for deterministic binary values. The M1 plans are
-experiment inputs only and do not change validation evidence or the support
-matrix. Protocol 1.0 and its checked M0 runner remain unchanged.
+M1 has no COM executor. A checked, non-executing M1 preflight binds the exact
+clean commit, complete example inventory, ready provider record, Windows host,
+process bitness, and provider binary hash, then exits `BLOCKED` before COM
+activation or output mutation. Execution remains blocked pending a provisioned
+Windows marshalling experiment for deterministic binary values. The M1 plans
+are experiment inputs only and do not change validation evidence or the
+support matrix. Protocol 1.0 and its checked M0 runner remain unchanged.
 
 ## Provider requirement
 
@@ -84,6 +87,16 @@ Probe exit codes:
 
 `ready` is an environment result only. It is not `dao_opened` or
 `dao_differential` evidence for any product capability.
+
+For an M1 preflight, request a protocol 1.1 environment record explicitly:
+
+```powershell
+$m1Work = Join-Path $env:TEMP "jet3-rs-dao-m1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/probe-provider.ps1 `
+  -ProtocolVersion 1.1.0 `
+  -OutputPath (Join-Path $m1Work "environment-m1.json")
+```
 
 ## Run the checked M0 DAO scenario
 
@@ -132,6 +145,39 @@ Runner exit codes:
 A passing M0 bundle proves only the recorded empty-database scenario on its
 exact clean commit and environment. It is not a general reader, writer, CRUD,
 or differential compatibility claim.
+
+## Run the non-executing M1 preflight
+
+The M1 preflight deliberately selects the complete controlled 1.1 inventory;
+it does not permit a partial suite that avoids the unresolved binary cases. It
+verifies the exact clean commit and checked examples, then binds a ready
+protocol 1.1 environment to the same Windows host, process architecture,
+provider registration record, and provider binary hash:
+
+```powershell
+$commit = git rev-parse HEAD
+$runId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-dao-m1"
+$m1Work = Join-Path $env:TEMP "jet3-rs-dao-m1"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/preflight-m1-controlled.ps1 `
+  -RepositoryRoot (Get-Location) `
+  -EnvironmentPath (Join-Path $m1Work "environment-m1.json") `
+  -OutputRoot (Join-Path $m1Work "evidence") `
+  -GitCommit $commit `
+  -RunId $runId
+```
+
+Even after every precondition succeeds, this command exits `3` with
+`BLOCKED`. It performs no COM activation, creates no database or directory,
+and publishes no evidence bundle. Python 3 is required so the same checked
+standard-library validator can reject malformed inventory and environment
+documents before any provider precondition is accepted. A separately reviewed,
+commit-bound Windows experiment must first establish the exact late-bound
+PowerShell runtime types, DAO `Variant`/`AppendChunk` representation, readback,
+and failure behavior for the deterministic `dbBinary` and `dbLongBinary`
+values. Only then may an executor and atomic protocol-valid publication path
+replace this preflight.
 
 ## Cross-platform validation
 

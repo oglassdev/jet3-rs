@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
     [string]$OutputPath,
+    [ValidateSet("1.0.0", "1.1.0")]
+    [string]$ProtocolVersion = "1.0.0",
     [switch]$SkipDbVersion30Test
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$ProtocolVersion = "1.0.0"
 # Microsoft Learn DatabaseTypeEnum documents dbVersion30 as 32.
 # Clean-room provenance: docs/PROVENANCE.md SRC-0002.
 $DbVersion30 = 32

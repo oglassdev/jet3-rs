@@ -64,14 +64,18 @@ A passing bundle cannot contain unreferenced payloads.
 
 ## Execution is intentionally blocked
 
-There is no M1 PowerShell executor. Microsoft documents DAO object creation,
-field types, `dbText` size, indexes, `AddNew`/`Update`, and
-`AppendChunk`, but the reviewed sources do not define the late-bound PowerShell
-COM representation that a Jet 3 provider must receive for deterministic
-`dbBinary` and `dbLongBinary` values. Before execution code is admitted, a
-provisioned Windows host must run a separately reviewed marshalling experiment
-that records exact PowerShell, CLR, provider, process-bitness, locale, code
-page, input runtime types, DAO readback, and failure behavior.
+There is no M1 PowerShell executor. The checked
+`scripts/preflight-m1-controlled.ps1` command verifies the exact clean commit,
+complete inventory, ready provider record, host, process bitness, and provider
+binary hash, but it always exits `BLOCKED` before COM activation or output
+mutation. Microsoft documents DAO object creation, field types, `dbText` size,
+indexes, `AddNew`/`Update`, and `AppendChunk`, but the reviewed sources do not
+define the late-bound PowerShell COM representation that a Jet 3 provider must
+receive for deterministic `dbBinary` and `dbLongBinary` values. Before
+execution code is admitted, a provisioned Windows host must run a separately
+reviewed marshalling experiment that records exact PowerShell, CLR, provider,
+process-bitness, locale, code page, input runtime types, DAO readback, and
+failure behavior.
 
 Until then these checked documents are experiment inputs only. They are not DAO
 observations or fixtures, cannot be cited as `dao_opened` or
