@@ -15,7 +15,7 @@
     {
       "path": "crates/jet3/src/candidate.rs",
       "classification": "format_safety",
-      "sha256": "f9637fcb2b5d0b2ad8a7a9dc12269e9bfa7d38d37aa97f5141fc70c7ab0243fc"
+      "sha256": "44742bb120464d55128ad69078c672ab9079cb35559a46272afc7e8134765c41"
     },
     {
       "path": "crates/jet3/src/commit_state.rs",
@@ -40,7 +40,7 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "8760fd67d3d54bf2ee6471611412bb8b13ea6071ddc1bbccb7db8a4c5ec43a8b"
+      "sha256": "f84dfc917b03ebeaa5dd1d89b4c24786ce4f1709aa7099d53bebb64afdc1b2c3"
     },
     {
       "path": "crates/jet3/src/limits.rs",
@@ -56,6 +56,11 @@
       "path": "crates/jet3/src/page.rs",
       "classification": "format_safety",
       "sha256": "875e13749f69b70dcbc0ee1bb7bc4cd9ecf3b98db7e0f79be6d102c4d67677c8"
+    },
+    {
+      "path": "crates/jet3/src/raw_page_stream.rs",
+      "classification": "format_safety",
+      "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367"
     },
     {
       "path": "crates/jet3/src/resource.rs",

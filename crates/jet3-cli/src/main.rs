@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use jet3::{
-    ByteCount, CandidateError, FileSource, JET3_PAGE_SIZE, JetFileKind, PageNumber,
-    RawJet3Candidate, ReadLimits, ResourceBudget, ResourceLimits,
+    ByteCount, CandidateError, FileSource, JET3_PAGE_SIZE, JetFileKind, RawJet3Candidate,
+    ReadLimits, ResourceBudget, ResourceLimits,
 };
 
 const DEFAULT_MAX_INPUT_BYTES: u64 = 256 * 1024 * 1024;
@@ -278,28 +278,27 @@ fn scan_pages(
     candidate: &mut RawJet3Candidate<FileSource>,
     budget: &mut ResourceBudget,
 ) -> Result<ScanResult, &'static str> {
-    let mut buffer = [0_u8; PAGE_BYTES];
     let mut checksum = FNV1A64_OFFSET_BASIS;
-    let mut pages_read = 0_u64;
     let mut hashed_bytes = 0_u64;
-    while pages_read < candidate.geometry().page_count() {
-        candidate
-            .read_raw_page(PageNumber::new(pages_read), &mut buffer, budget)
-            .map_err(|_| "scan_read_failed")?;
+    let mut raw_pages = candidate.raw_pages();
+    while let Some(page) = raw_pages
+        .next_page(budget)
+        .map_err(|_| "scan_read_failed")?
+    {
         // One explicit work unit represents each byte processed by the
         // checksum loop, in addition to the raw reader's page-visit charge.
         budget
             .charge_work_units(PAGE_BYTES as u64)
             .map_err(|_| "scan_work_limit_exceeded")?;
-        for byte in buffer {
-            checksum ^= u64::from(byte);
+        for byte in page.bytes() {
+            checksum ^= u64::from(*byte);
             checksum = checksum.wrapping_mul(FNV1A64_PRIME);
         }
         hashed_bytes = hashed_bytes
             .checked_add(PAGE_BYTES as u64)
             .ok_or("scan_count_overflow")?;
-        pages_read = pages_read.checked_add(1).ok_or("scan_count_overflow")?;
     }
+    let pages_read = raw_pages.pages_read();
     Ok(ScanResult {
         pages_read,
         hashed_bytes,

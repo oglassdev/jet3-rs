@@ -11,7 +11,7 @@ use std::fmt;
 
 use crate::{
     Error, HeaderError, JET3_PAGE_SIZE, Jet3PageReader, JetFileKind, PageGeometry, PageNumber,
-    ReadAt, ResourceBudget, read_jet_signature,
+    RawPageCursor, ReadAt, ResourceBudget, read_jet_signature,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -121,6 +121,16 @@ where
         budget: &mut ResourceBudget,
     ) -> Result<(), Error> {
         self.pages.read_page(page, destination, budget)
+    }
+
+    /// Starts allocation-free sequential access at physical page zero.
+    ///
+    /// The returned cursor reuses one fixed 2 KiB buffer and shares the
+    /// caller's operation budget on every read. Page bytes remain completely
+    /// uninterpreted; exhausting the stream does not validate the database or
+    /// establish compatibility.
+    pub fn raw_pages(&mut self) -> RawPageCursor<'_, S> {
+        RawPageCursor::new(&mut self.pages)
     }
 }
 

@@ -67,6 +67,30 @@ fn raw_scan_is_deterministic_and_bounded() -> Result<(), Box<dyn std::error::Err
 }
 
 #[test]
+fn raw_scan_streams_every_candidate_page() -> Result<(), Box<dyn std::error::Error>> {
+    let file = fixture(3)?;
+    let path = file.path().to_str().ok_or("temporary path is not UTF-8")?;
+    let output = run(&[
+        "probe",
+        path,
+        "--scan-pages",
+        "--max-scan-bytes",
+        "6144",
+        "--max-pages",
+        "3",
+    ])?;
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout)?;
+    assert!(stdout.contains(
+        "\"pages_read\":3,\"bytes_read\":6144,\"hash_work_units\":6144,\
+\"total_work_units\":6147"
+    ));
+    Ok(())
+}
+
+#[test]
 fn raw_scan_preflights_byte_and_page_limits() -> Result<(), Box<dyn std::error::Error>> {
     let file = fixture(2)?;
     let path = file.path().to_str().ok_or("temporary path is not UTF-8")?;

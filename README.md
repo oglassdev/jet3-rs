@@ -6,10 +6,11 @@ Jet 3 `.mdb` files.
 This repository is in its foundation phase. It contains format-neutral checked
 binary I/O and resource-bound primitives, generic Microsoft-published Jet
 signature recognition, a typed non-semantic raw-candidate session,
-content-agnostic bounded reads of complete 2-KiB Jet 3 pages, bounded access to
-the documented contextual header commit region, and a versioned DAO evidence
-protocol. It does not yet open, parse, create, update, or validate an MDB, and
-no Microsoft DAO compatibility is claimed.
+content-agnostic bounded reads and allocation-free sequential streaming of
+complete 2-KiB Jet 3 pages, bounded access to the documented contextual header
+commit region, and a versioned DAO evidence protocol. It does not yet open,
+parse, create, update, or validate an MDB, and no Microsoft DAO compatibility
+is claimed.
 
 ## Workspace
 
@@ -39,12 +40,13 @@ between currently wired bootstrap checks and the full v1 acceptance contract.
 
 ## Status
 
-Generic Jet header probing and raw Jet 3 page transfer are **experimental**:
-the support matrix records both as partial and internal-only. Physical version
-and encryption discrimination, page semantics, allocation maps, database
-opening, schema, rows, indexes, long values, creation, updates, and validation
-remain planned. The raw commit-region reader preserves every two-byte value;
-its two documented labels are contextual and cannot diagnose a database
-without contemporaneous `.ldb` lock evidence. The bounded-input safety and
-format-neutral atomic-publication foundations are also partial, internal-only
-work. None of these states is an MDB validity or compatibility claim.
+Generic Jet header probing and raw Jet 3 page transfer or streaming are
+**experimental**: the support matrix records them as partial and internal-only.
+Physical version and encryption discrimination, page semantics, allocation
+maps, database opening, schema, rows, indexes, long values, creation, updates,
+and validation remain planned. The raw commit-region reader preserves every
+two-byte value; its two documented labels are contextual and cannot diagnose a
+database without contemporaneous `.ldb` lock evidence. The bounded-input safety
+and format-neutral atomic-publication foundations are also partial,
+internal-only work. None of these states is an MDB validity or compatibility
+claim.

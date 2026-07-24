@@ -11,6 +11,7 @@ pub mod jet3_page;
 pub mod limits;
 pub mod offset;
 pub mod page;
+pub mod raw_page_stream;
 pub mod resource;
 pub mod source;
 
@@ -30,6 +31,7 @@ pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
+pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use source::{FileSource, ReadAt, SliceSource};
 

@@ -184,7 +184,8 @@ Use `not applicable` explicitly rather than omitting a field.
   source establishes neither page-header semantics nor a version byte or other
   byte-level generation discriminator.
 - Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/jet3_page.rs`;
-  `crates/jet3/src/candidate.rs`; `crates/jet3-cli/src/main.rs`; `EXP-0001`;
+  `crates/jet3/src/candidate.rs`; `crates/jet3/src/raw_page_stream.rs`;
+  `crates/jet3-cli/src/main.rs`; `EXP-0001`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
