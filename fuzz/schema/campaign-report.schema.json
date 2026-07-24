@@ -44,9 +44,10 @@
     "toolchain": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["cargo", "rustc"],
+      "required": ["cargo", "cargo_fuzz", "rustc"],
       "properties": {
         "cargo": { "$ref": "#/$defs/tool" },
+        "cargo_fuzz": { "$ref": "#/$defs/tool" },
         "rustc": { "$ref": "#/$defs/tool" }
       }
     },
@@ -61,14 +62,15 @@
     }
   },
   "properties": {
-    "schema_version": { "const": 2 },
+    "schema_version": { "const": 3 },
     "commit": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sha", "dirty"],
+      "required": ["sha", "tree", "clean"],
       "properties": {
         "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-        "dirty": { "type": "boolean" }
+        "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "clean": { "const": true }
       }
     },
     "target": { "type": "string", "minLength": 1 },
@@ -144,16 +146,47 @@
     "producer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["log", "observer", "command", "toolchain", "executable"],
+      "required": [
+        "log",
+        "observer",
+        "build_manifest",
+        "cargo_metadata",
+        "command",
+        "toolchain",
+        "build_environment",
+        "executable"
+      ],
       "properties": {
         "log": { "$ref": "#/$defs/artifact" },
         "observer": { "$ref": "#/$defs/artifact" },
+        "build_manifest": { "$ref": "#/$defs/artifact" },
+        "cargo_metadata": { "$ref": "#/$defs/artifact" },
         "command": {
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
         },
         "toolchain": { "$ref": "#/$defs/toolchain" },
+        "build_environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "CARGO",
+            "CARGO_HOME",
+            "CARGO_INCREMENTAL",
+            "CARGO_TARGET_DIR",
+            "PATH",
+            "RUSTC"
+          ],
+          "properties": {
+            "CARGO": { "type": "string", "minLength": 1 },
+            "CARGO_HOME": { "type": "string", "minLength": 1 },
+            "CARGO_INCREMENTAL": { "const": "0" },
+            "CARGO_TARGET_DIR": { "type": "string", "minLength": 1 },
+            "PATH": { "type": "string", "minLength": 1 },
+            "RUSTC": { "type": "string", "minLength": 1 }
+          }
+        },
         "executable": { "$ref": "#/$defs/executable" }
       }
     }

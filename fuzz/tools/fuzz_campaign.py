@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime
 import json
 import math
 import os
@@ -16,10 +15,19 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from fuzz_build_identity import (
+    capture_cargo_metadata,
+    copy_seeds,
+    create_build_manifest,
+    require_external_output,
+    require_clean_snapshot,
+    validate_build_manifest,
+)
 from fuzz_evidence import (
     EvidenceError,
     classify_result,
     observe_producer,
+    parse_date_time,
     parse_executable,
     parse_reported_rss,
     parse_runs,
@@ -213,28 +221,6 @@ def validate_repository(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return registry, validate_manifest(root, registry)
 
 
-def _git(root: Path, *args: str) -> str:
-    process = subprocess.run(
-        ["git", *args], cwd=root, check=False, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    if process.returncode:
-        raise ValidationError(f"git {' '.join(args)} failed: {process.stderr.strip()}")
-    return process.stdout.strip()
-
-
-def _date_time(value: Any, context: str) -> datetime.datetime:
-    if not isinstance(value, str):
-        raise ValidationError(f"{context} must be a date-time string")
-    try:
-        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise ValidationError(f"{context} is not an ISO 8601 date-time") from error
-    if parsed.tzinfo is None:
-        raise ValidationError(f"{context} must include a timezone")
-    return parsed
-
-
 def _bundle_file(bundle: Path, raw: Any, context: str) -> Path:
     if not isinstance(raw, str) or not raw or Path(raw).parts != (raw,):
         raise ValidationError(f"{context} must be a single relative file name")
@@ -271,12 +257,12 @@ def _validate_observer(
     report: dict[str, Any],
     target: dict[str, Any],
     deterministic_seed: int,
-) -> None:
+) -> dict[str, Any]:
     observer = _object(_load_json(observer_path), "observer record")
     observer_fields = {
         "schema_version", "producer_log_sha256", "command", "started_at", "finished_at",
         "wall_clock_seconds", "peak_rss_bytes", "runs", "result", "exit_code",
-        "timed_out", "toolchain", "executable",
+        "timed_out", "toolchain", "build_environment", "executable",
     }
     _exact_keys(observer, observer_fields, "observer record")
     if observer["schema_version"] != 1:
@@ -313,8 +299,8 @@ def _validate_observer(
     ) != len(expected_engine_args):
         raise ValidationError("observer command has stale or non-canonical libFuzzer limits")
 
-    started = _date_time(observer["started_at"], "observer.started_at")
-    finished = _date_time(observer["finished_at"], "observer.finished_at")
+    started = parse_date_time(observer["started_at"], "observer.started_at")
+    finished = parse_date_time(observer["finished_at"], "observer.finished_at")
     if finished < started:
         raise ValidationError("observer.finished_at precedes observer.started_at")
     wall = observer["wall_clock_seconds"]
@@ -350,11 +336,36 @@ def _validate_observer(
         raise ValidationError("observer result disagrees with producer output and exit status")
 
     toolchain = _object(observer["toolchain"], "observer.toolchain")
-    _exact_keys(toolchain, {"cargo", "rustc"}, "observer.toolchain")
+    _exact_keys(toolchain, {"cargo", "cargo_fuzz", "rustc"}, "observer.toolchain")
     cargo = _validate_tool(toolchain["cargo"], "observer.toolchain.cargo")
+    cargo_fuzz = _validate_tool(
+        toolchain["cargo_fuzz"], "observer.toolchain.cargo_fuzz"
+    )
     _validate_tool(toolchain["rustc"], "observer.toolchain.rustc")
-    if Path(cargo["path"]).resolve().as_posix() != Path(command[0]).resolve().as_posix():
-        raise ValidationError("observer cargo identity disagrees with producer command")
+    if Path(cargo_fuzz["path"]).resolve().as_posix() != Path(
+        command[0]
+    ).resolve().as_posix():
+        raise ValidationError("observer cargo-fuzz identity disagrees with producer command")
+    build_environment = _object(
+        observer["build_environment"], "observer.build_environment"
+    )
+    _exact_keys(
+        build_environment,
+        {
+            "CARGO", "CARGO_HOME", "CARGO_INCREMENTAL", "CARGO_TARGET_DIR",
+            "PATH", "RUSTC",
+        },
+        "observer.build_environment",
+    )
+    if any(
+        not isinstance(value, str) or not value
+        for value in build_environment.values()
+    ):
+        raise ValidationError("observer build environment values must be non-empty text")
+    if Path(build_environment["CARGO"]).resolve().as_posix() != Path(
+        cargo["path"]
+    ).resolve().as_posix():
+        raise ValidationError("observer cargo identity disagrees with build environment")
     executable = _object(observer["executable"], "observer.executable")
     _exact_keys(executable, {"path", "sha256"}, "observer.executable")
     executable_path = _text(executable["path"], "observer.executable.path")
@@ -368,6 +379,7 @@ def _validate_observer(
     copied_identity = {
         "command": command,
         "toolchain": toolchain,
+        "build_environment": build_environment,
         "executable": executable,
     }
     for field, expected in copied_identity.items():
@@ -386,6 +398,7 @@ def _validate_observer(
         raise ValidationError("campaign report observations disagree with observer record")
     if report["result"] != result:
         raise ValidationError("campaign report result disagrees with observer record")
+    return observer
 
 
 def validate_report(root: Path, report_path: Path) -> None:
@@ -397,21 +410,19 @@ def validate_report(root: Path, report_path: Path) -> None:
         "producer",
     }
     _exact_keys(report, required, "campaign report")
-    if report["schema_version"] != 2:
+    if report["schema_version"] != 3:
         raise ValidationError(
-            "campaign report schema_version must be 2; unbound version-1 wrappers are not evidence"
+            "campaign report schema_version must be 3; dirty or build-unbound wrappers are not evidence"
         )
 
     commit = _object(report["commit"], "commit")
-    _exact_keys(commit, {"sha", "dirty"}, "commit")
+    _exact_keys(commit, {"sha", "tree", "clean"}, "commit")
     if not isinstance(commit["sha"], str) or not COMMIT_RE.fullmatch(commit["sha"]):
         raise ValidationError("commit.sha must be a lowercase 40-character hexadecimal SHA")
-    if not isinstance(commit["dirty"], bool):
-        raise ValidationError("commit.dirty must be boolean")
-    actual_sha = _git(root, "rev-parse", "HEAD")
-    actual_dirty = bool(_git(root, "status", "--porcelain", "--untracked-files=all"))
-    if commit["sha"] != actual_sha or commit["dirty"] != actual_dirty:
-        raise ValidationError("campaign report commit or dirty state is stale")
+    if not isinstance(commit["tree"], str) or not COMMIT_RE.fullmatch(commit["tree"]):
+        raise ValidationError("commit.tree must be a lowercase 40-character hexadecimal SHA")
+    if commit["clean"] is not True or commit != require_clean_snapshot(root):
+        raise ValidationError("campaign report is not bound to the current clean Git tree")
 
     targets = {target["name"]: target for target in registry["targets"]}
     if report["target"] not in targets:
@@ -503,48 +514,53 @@ def validate_report(root: Path, report_path: Path) -> None:
     producer = _object(report["producer"], "producer")
     _exact_keys(
         producer,
-        {"log", "observer", "command", "toolchain", "executable"},
+        {
+            "log", "observer", "build_manifest", "cargo_metadata", "command",
+            "toolchain", "build_environment", "executable",
+        },
         "producer",
     )
     log_ref = _object(producer["log"], "producer.log")
     observer_ref = _object(producer["observer"], "producer.observer")
+    build_ref = _object(producer["build_manifest"], "producer.build_manifest")
+    metadata_ref = _object(producer["cargo_metadata"], "producer.cargo_metadata")
     _exact_keys(log_ref, {"path", "sha256"}, "producer.log")
     _exact_keys(observer_ref, {"path", "sha256"}, "producer.observer")
+    _exact_keys(build_ref, {"path", "sha256"}, "producer.build_manifest")
+    _exact_keys(metadata_ref, {"path", "sha256"}, "producer.cargo_metadata")
     bundle = report_path.resolve().parent
     producer_log = _bundle_file(bundle, log_ref["path"], "producer.log.path")
     observer_path = _bundle_file(bundle, observer_ref["path"], "producer.observer.path")
+    build_path = _bundle_file(
+        bundle, build_ref["path"], "producer.build_manifest.path"
+    )
+    metadata_path = _bundle_file(
+        bundle, metadata_ref["path"], "producer.cargo_metadata.path"
+    )
     if _sha256_text(log_ref["sha256"], "producer.log.sha256") != sha256(producer_log):
         raise ValidationError("campaign report producer-log hash is stale")
     if _sha256_text(
         observer_ref["sha256"], "producer.observer.sha256"
     ) != sha256(observer_path):
         raise ValidationError("campaign report observer-record hash is stale")
-    _validate_observer(
+    if _sha256_text(
+        build_ref["sha256"], "producer.build_manifest.sha256"
+    ) != sha256(build_path):
+        raise ValidationError("campaign report build-manifest hash is stale")
+    if _sha256_text(
+        metadata_ref["sha256"], "producer.cargo_metadata.sha256"
+    ) != sha256(metadata_path):
+        raise ValidationError("campaign report Cargo-metadata hash is stale")
+    observer = _validate_observer(
         observer_path,
         producer_log,
         report,
         target,
         registry["deterministic_seed"],
     )
-
-
-def _copy_seeds(
-    root: Path,
-    corpus: Path,
-    manifest: dict[str, Any],
-    target_name: str,
-) -> list[dict[str, str]]:
-    corpus.mkdir()
-    selected = [
-        seed for seed in manifest["seeds"]
-        if Path(seed["path"]).parts[-2] == target_name
-    ]
-    for seed in selected:
-        shutil.copyfile(root / seed["path"], corpus / Path(seed["path"]).name)
-    return [
-        {"id": seed["id"], "path": seed["path"], "sha256": seed["sha256"]}
-        for seed in selected
-    ]
+    validate_build_manifest(
+        root, build_path, metadata_path, report, observer
+    )
 
 
 def run_campaign(
@@ -553,8 +569,10 @@ def run_campaign(
     kind: str,
     sanitizer: str,
     cargo: str,
+    cargo_fuzz: str,
     output: Path,
 ) -> str:
+    snapshot = require_clean_snapshot(root)
     registry, manifest = validate_repository(root)
     targets = {target["name"]: target for target in registry["targets"]}
     if target_name not in targets:
@@ -565,21 +583,51 @@ def run_campaign(
         raise ValidationError("unsupported sanitizer")
     target = targets[target_name]
     duration = target["smoke_seconds"] if kind == "smoke" else 600
+    output = require_external_output(root, output)
     cargo_identity = tool_identity(cargo, ["--version", "--verbose"])
+    cargo_fuzz_identity = tool_identity(cargo_fuzz, ["--version"])
     rustc_identity = tool_identity(os.environ.get("RUSTC", "rustc"), ["-vV"])
-    toolchain = {"cargo": cargo_identity, "rustc": rustc_identity}
+    toolchain = {
+        "cargo": cargo_identity,
+        "cargo_fuzz": cargo_fuzz_identity,
+        "rustc": rustc_identity,
+    }
 
-    output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists() or output.is_symlink():
         raise ValidationError(f"refusing to replace existing evidence path: {output}")
     temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent))
     try:
+        target_directory = temporary / "build-target"
+        build_environment = {
+            "CARGO": cargo_identity["path"],
+            "CARGO_HOME": str(
+                Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")).resolve()
+            ),
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_TARGET_DIR": str(target_directory),
+            "PATH": os.environ.get("PATH", ""),
+            "RUSTC": rustc_identity["path"],
+        }
+        metadata_path = temporary / "cargo-metadata.json"
+        capture_cargo_metadata(
+            root,
+            metadata_path,
+            cargo_identity["path"],
+            build_environment,
+        )
+        if target_directory.exists():
+            raise ValidationError("Cargo metadata polluted the isolated build target")
+        build_manifest = create_build_manifest(
+            root, snapshot, metadata_path, build_environment, toolchain
+        )
+        build_path = temporary / "build.json"
+        write_json(build_path, build_manifest)
         corpus = temporary / "corpus"
-        seeds = _copy_seeds(root, corpus, manifest, target_name)
+        seeds = copy_seeds(root, corpus, manifest, target_name)
         log_path = temporary / "producer.log"
         command = [
-            cargo_identity["path"], "fuzz", "run", "--fuzz-dir", "fuzz", target_name,
+            cargo_fuzz_identity["path"], "fuzz", "run", "--fuzz-dir", "fuzz", target_name,
             "--sanitizer", sanitizer, str(corpus), "--",
             f"-max_total_time={duration}",
             f"-seed={registry['deterministic_seed']}",
@@ -587,17 +635,22 @@ def run_campaign(
             f"-rss_limit_mb={target['peak_rss_limit_bytes'] // (1024 * 1024)}",
         ]
         observer = observe_producer(
-            root, log_path, command, duration + 90, toolchain
+            root,
+            log_path,
+            command,
+            duration + 90,
+            toolchain,
+            build_environment,
         )
+        if require_clean_snapshot(root) != snapshot:
+            raise ValidationError("clean Git snapshot changed during fuzz campaign")
         shutil.rmtree(corpus)
+        shutil.rmtree(target_directory)
         observer_path = temporary / "observer.json"
         write_json(observer_path, observer)
         report = {
-            "schema_version": 2,
-            "commit": {
-                "sha": _git(root, "rev-parse", "HEAD"),
-                "dirty": bool(_git(root, "status", "--porcelain", "--untracked-files=all")),
-            },
+            "schema_version": 3,
+            "commit": snapshot,
             "target": target_name,
             "target_registry_sha256": sha256(root / "fuzz/targets.json"),
             "target_source_sha256": sha256(_repo_path(root, target["source"], "target.source")),
@@ -627,8 +680,17 @@ def run_campaign(
             "producer": {
                 "log": {"path": "producer.log", "sha256": sha256(log_path)},
                 "observer": {"path": "observer.json", "sha256": sha256(observer_path)},
+                "build_manifest": {
+                    "path": "build.json",
+                    "sha256": sha256(build_path),
+                },
+                "cargo_metadata": {
+                    "path": "cargo-metadata.json",
+                    "sha256": sha256(metadata_path),
+                },
                 "command": observer["command"],
                 "toolchain": observer["toolchain"],
+                "build_environment": observer["build_environment"],
                 "executable": observer["executable"],
             },
         }
@@ -642,9 +704,16 @@ def run_campaign(
         raise
 
 
-def run_smoke(root: Path, cargo: str, sanitizer: str, output: Path) -> list[str]:
+def run_smoke(
+    root: Path,
+    cargo: str,
+    cargo_fuzz: str,
+    sanitizer: str,
+    output: Path,
+) -> list[str]:
+    require_clean_snapshot(root)
     registry, _ = validate_repository(root)
-    output = output.resolve()
+    output = require_external_output(root, output)
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists() or output.is_symlink():
         raise ValidationError(f"refusing to replace existing evidence path: {output}")
@@ -660,6 +729,7 @@ def run_smoke(root: Path, cargo: str, sanitizer: str, output: Path) -> list[str]
                     "smoke",
                     sanitizer,
                     cargo,
+                    cargo_fuzz,
                     suite / target["name"],
                 )
             )
@@ -682,9 +752,11 @@ def main() -> int:
     run_parser.add_argument("--kind", choices=("smoke", "full"), default="smoke")
     run_parser.add_argument("--sanitizer", choices=sorted(SANITIZERS), default="address")
     run_parser.add_argument("--cargo", default="cargo")
+    run_parser.add_argument("--cargo-fuzz", default="cargo-fuzz")
     run_parser.add_argument("--output", type=Path, required=True)
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--cargo", default="cargo")
+    smoke_parser.add_argument("--cargo-fuzz", default="cargo-fuzz")
     smoke_parser.add_argument("--sanitizer", choices=sorted(SANITIZERS), default="address")
     smoke_parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -696,13 +768,21 @@ def main() -> int:
             validate_report(root, args.report.resolve())
         elif args.command == "run":
             result = run_campaign(
-                root, args.target, args.kind, args.sanitizer, args.cargo, args.output
+                root,
+                args.target,
+                args.kind,
+                args.sanitizer,
+                args.cargo,
+                args.cargo_fuzz,
+                args.output,
             )
             if result != "clean":
                 print(f"error: fuzz campaign recorded {result}", file=sys.stderr)
                 return 1
         else:
-            results = run_smoke(root, args.cargo, args.sanitizer, args.output)
+            results = run_smoke(
+                root, args.cargo, args.cargo_fuzz, args.sanitizer, args.output
+            )
             if any(result != "clean" for result in results):
                 print("error: one or more fuzz campaigns recorded a finding", file=sys.stderr)
                 return 1

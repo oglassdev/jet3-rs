@@ -30,6 +30,16 @@ SANITIZER_MARKERS = (
 )
 PANIC_MARKERS = ("panicked at", "thread '", "thread \"")
 LIMIT_MARKERS = ("out-of-memory", "rss limit exceeded", "libFuzzer: timeout")
+BUILD_ENVIRONMENT_PREFIXES = (
+    "CARGO_BUILD_",
+    "CARGO_PROFILE_",
+    "CARGO_TARGET_",
+)
+BUILD_ENVIRONMENT_NAMES = {
+    "AR", "CC", "CFLAGS", "CXX", "CXXFLAGS", "RUSTC", "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
+    "CARGO_INCREMENTAL",
+}
 
 
 class EvidenceError(ValueError):
@@ -54,6 +64,18 @@ def date_time_text(value: datetime.datetime) -> str:
     return value.astimezone(datetime.timezone.utc).isoformat(timespec="microseconds").replace(
         "+00:00", "Z"
     )
+
+
+def parse_date_time(value: Any, context: str) -> datetime.datetime:
+    if not isinstance(value, str):
+        raise EvidenceError(f"{context} must be a date-time string")
+    try:
+        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise EvidenceError(f"{context} is not an ISO 8601 date-time") from error
+    if parsed.tzinfo is None:
+        raise EvidenceError(f"{context} must include a timezone")
+    return parsed
 
 
 def parse_runs(log_text: str) -> int:
@@ -111,6 +133,15 @@ def tool_identity(executable: str, version_args: list[str]) -> dict[str, str]:
     return {"path": str(path), "sha256": sha256(path), "version": process.stdout.strip()}
 
 
+def sanitized_process_environment(overrides: dict[str, str]) -> dict[str, str]:
+    environment = os.environ.copy()
+    for name in list(environment):
+        if name in BUILD_ENVIRONMENT_NAMES or name.startswith(BUILD_ENVIRONMENT_PREFIXES):
+            environment.pop(name)
+    environment.update(overrides)
+    return environment
+
+
 def _process_tree_rss(root_pid: int) -> int:
     process = subprocess.run(
         ["ps", "-axo", "pid=,ppid=,rss="],
@@ -148,8 +179,9 @@ def observe_producer(
     command: list[str],
     timeout_seconds: float,
     toolchain: dict[str, Any],
+    build_environment: dict[str, str],
 ) -> dict[str, Any]:
-    environment = os.environ.copy()
+    environment = sanitized_process_environment(build_environment)
     environment["CARGO_TERM_COLOR"] = "never"
     started_at = datetime.datetime.now(datetime.timezone.utc)
     started_clock = time.monotonic()
@@ -208,6 +240,7 @@ def observe_producer(
         "exit_code": exit_code,
         "timed_out": timed_out,
         "toolchain": toolchain,
+        "build_environment": build_environment,
         "executable": {"path": str(executable_path), "sha256": sha256(executable_path)},
     }
 

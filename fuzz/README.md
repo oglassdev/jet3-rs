@@ -72,9 +72,11 @@ python3 fuzz/tools/fuzz_campaign.py smoke \
 The smoke runner copies only manifest-listed seeds into disposable corpora,
 rejects corpora over their registered byte bounds, and runs every target for
 at least 60 seconds with the registered input and peak-RSS limits. The output
-path must not exist: the complete suite is built beside it and atomically
-renamed only after every target bundle validates. Run one smoke or ten-minute
-campaign with the same retained-evidence path:
+path must not exist and must be outside the Git checkout. Campaigns refuse to
+start unless the checkout is completely clean; the complete suite is built
+beside its destination and atomically renamed only after every target bundle
+validates. Run one smoke or ten-minute campaign with the same retained-evidence
+path:
 
 ```sh
 python3 fuzz/tools/fuzz_campaign.py run binary_cursor --kind smoke \
@@ -88,24 +90,30 @@ seeds, and registry entry together; a missing or seedless target fails
 validation.
 
 `schema/campaign-report.schema.json` defines the durable campaign evidence
-shape. Each version-2 bundle contains `report.json`, the unmodified combined
-cargo-fuzz/libFuzzer `producer.log`, and a hashed `observer.json`. The observer
-records the exact command, cargo and rustc paths/versions/hashes, executed fuzz
-binary path/hash, UTC timestamps, monotonic elapsed time, sampled process-tree
-peak RSS, exit status, classified outcome, and run count. Validate a report
-against its two retained inputs and the current checkout:
+shape. Each version-3 bundle contains `report.json`, the unmodified combined
+cargo-fuzz/libFuzzer `producer.log`, a hashed `observer.json`, `build.json`, and
+the raw locked Cargo metadata result. The observer records the exact command,
+cargo, cargo-fuzz, and rustc paths/versions/hashes, executed fuzz binary
+path/hash, UTC timestamps, monotonic elapsed time, sampled process-tree peak
+RSS, exit status, classified outcome, and run count. Every run uses a fresh,
+isolated target directory with incremental compilation disabled. `build.json`
+binds that binary to the clean commit and tree, complete Git index blob
+inventory, fuzz lockfile, applicable Cargo configuration hashes, dependency
+closure, controlled build environment, and tool identities. Validate a report
+against its retained inputs and the exact clean checkout:
 
 ```sh
 python3 fuzz/tools/fuzz_campaign.py validate-report path/to/bundle/report.json
 ```
 
-Validation rejects stale commit or dirty-state metadata, target registry,
-target source, corpus, or seed hash drift, malformed timestamps or campaign
-fields, mutated or symlinked raw artifacts, non-canonical commands and limits,
-and observed wall-clock or peak-RSS breaches. It reparses the retained producer
-log and requires its run count, executable path, RSS floor, and outcome to
-agree with both the observer and report; a hand-authored version-1 wrapper is
-not accepted as evidence. Reports explicitly identify `smoke` or `full`
+Validation rejects every dirty checkout or dirty wrapper, stale commit/tree,
+target registry, target source, corpus, lockfile, Cargo configuration, Git
+index, dependency, or seed drift, malformed timestamps or campaign fields,
+mutated or symlinked raw artifacts, non-canonical commands and limits, and
+observed wall-clock or peak-RSS breaches. It reparses the retained producer log
+and requires its run count, executable path, RSS floor, and outcome to agree
+with both the observer and report. Older wrappers without the retained build
+closure are not evidence. Reports explicitly identify `smoke` or `full`
 campaigns. Smoke reports must cover at least the target's registered duration,
 and full reports must cover at least 600 seconds. A campaign report is evidence
 about one execution only; it does not by itself change G5 status.
