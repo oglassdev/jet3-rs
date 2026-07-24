@@ -4,7 +4,7 @@ This document identifies four inspection-authorized MDB candidates that remain
 outside the repository. They are optional exploratory inputs, not distributed
 fixtures and not acceptance evidence. Their fixture, observation, and
 experiment records are `FIX-0001` through `FIX-0004`, `OBS-0001`, and
-`EXP-0001` through `EXP-0003` in `docs/PROVENANCE.md`.
+`EXP-0001` through `EXP-0004` in `docs/PROVENANCE.md`.
 
 ## Handling rules
 
@@ -204,3 +204,28 @@ snapshots. The matrix values are candidate byte cohorts only: they do not
 identify page tags, page classes, allocation state, row state, validity, Jet
 generation, or compatibility. Any such interpretation requires repeatable,
 single-variable, DAO-generated fixtures and commit-bound DAO verification.
+
+## Bounded raw-candidate CLI scan
+
+`EXP-0004` exercised the commit-bound CLI after the canonical verifier accepted
+all four exact identities. Each invocation set both byte ceilings to the
+manifest size and the page ceiling to the exact size divided by 2,048:
+
+```sh
+cargo run -q -p jet3-cli -- probe "$candidate" \
+  --max-input-bytes "$verified_size" \
+  --scan-pages \
+  --max-scan-bytes "$verified_size" \
+  --max-pages "$verified_page_count"
+```
+
+| Candidate | Pages | Raw checksum | Total charged work |
+| --- | ---: | --- | ---: |
+| `FIX-0001` | 778 | `a8da368cdc8c57ae` | 1,594,122 |
+| `FIX-0002` | 778 | `fa78882d0bb856f7` | 1,594,122 |
+| `FIX-0003` | 596 | `b4cf9e2ba6d4ea1e` | 1,221,204 |
+| `FIX-0004` | 1,040 | `8472e0756be09d7f` | 2,130,960 |
+
+These checksums are deterministic observations of complete raw reads by the
+current tool. They do not establish MDB validity, Jet generation, encryption
+state, page semantics, or DAO compatibility and are not acceptance evidence.

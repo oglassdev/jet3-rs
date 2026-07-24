@@ -627,6 +627,44 @@ Use `not applicable` explicitly rather than omitting a field.
   redistribution grant; no source files or derived byte corpus are committed
 - Review: pending independent review
 
+### EXP-0004 — Bounded raw-candidate CLI scan
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: experiment
+- Question: Does the commit-bound raw-candidate CLI read each exact donated
+  candidate within explicit byte and page ceilings and produce deterministic,
+  content-agnostic checksums?
+- Origin: `FIX-0001` through `FIX-0004`, whose identities were independently
+  rechecked against the manifest before the CLI run
+- Environment: macOS 26.3.1 build 25D771280a on arm64; Rust 1.96.0; locale
+  `C.UTF-8`; time zone `America/New_York`; code pages are not applicable;
+  clean repository commit `8ef548bd7bfd64cf9a53068aded473adef75de85`
+- Protocol: set `JET3_EXTERNAL_FIXTURE_ROOT`, run
+  `tools/inspect_external_corpus.py`, then invoke `jet3-probe` separately for
+  each exact manifest locator with `--max-input-bytes` and
+  `--max-scan-bytes` equal to its verified size and `--max-pages` equal to its
+  exact 2,048-byte page count. The CLI reads every complete candidate page
+  once, charges every checksum byte as explicit work, and emits JSON containing
+  its non-claim caveats.
+- Artifacts: `FIX-0001` through `FIX-0004`; no corpus bytes or derived content
+  are retained
+- Observation: the four runs respectively reported 778, 778, 596, and 1,040
+  pages; checksums `a8da368cdc8c57ae`, `fa78882d0bb856f7`,
+  `b4cf9e2ba6d4ea1e`, and `8472e0756be09d7f`; and total work counts 1,594,122,
+  1,594,122, 1,221,204, and 2,130,960. All four retained the generic
+  `standard` signature classification and exact 2,048-byte arithmetic
+  geometry.
+- Interpretation: this reproduces bounded raw transfer and checksum accounting
+  over four exact external candidates. A checksum match is a tool regression
+  observation only. It does not identify Jet generation or encryption state,
+  validate structure or semantics, prove safe DAO opening, or establish
+  compatibility.
+- Usage: `docs/validation/EXTERNAL_CORPUS.md`; exploratory tool evidence only;
+  not cited by production code or the support matrix
+- Rights: local inspection only under the donor's authorization; no
+  redistribution grant; no source files or derived byte corpus are committed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
@@ -654,7 +692,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`;
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
@@ -685,7 +723,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`;
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
@@ -715,7 +753,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
@@ -747,7 +785,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
