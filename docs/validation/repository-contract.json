@@ -76,12 +76,12 @@
       {
         "path": "crates/jet3/src/atomic.rs",
         "reason": "Format-neutral atomic file replacement and recovery mechanics only.",
-        "sha256": "4b4e3120c148118fbb036a82711ca0725806f68687c8fca263875e5e1d0c31a2"
+        "sha256": "2cef8676e4e7595574d26fa22fda4a9d3db15f7fb0f23b12446bd9c5a6b82e3e"
       },
       {
         "path": "crates/jet3/src/atomic_tests.rs",
         "reason": "Test-only verification of format-neutral atomic file replacement.",
-        "sha256": "ae3e3c2e2f8cd21acdcbc6e39b045414ab16a1b29b317b5b65a7decb250ab93b"
+        "sha256": "7580866dafc937974eb328eb2fc1c3aec57ae27fdf6ea0a1057b2d8418848785"
       },
       {
         "path": "crates/jet3/src/binary.rs",

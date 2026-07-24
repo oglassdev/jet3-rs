@@ -30,22 +30,25 @@ before and after the rename and rejects missing, partial, or unexpected bytes.
 This test is filesystem evidence for the CI host where it ran; it is not a
 universal guarantee for every filesystem.
 
-A `DirectorySync` failure is different from every earlier failure. It reports
-`replacement_published = true`: the complete validated replacement is visible,
-but the new directory entry may not survive a crash. Permission checks and
-private-file cleanup are exercised at every injectable pre-publication stage
-and after the post-publication directory-sync fault.
+A `DirectorySync` failure is different from every earlier failure. The stage
+itself establishes that the complete validated replacement is visible, but the
+new directory entry may not survive a crash. No separate publication-state
+flag can disagree with that stage. Permission checks and private-file cleanup
+are exercised at every injectable pre-publication stage and after the
+post-publication directory-sync fault.
 
 ## Platform contract
 
-Atomic update currently supports Unix hosts only. Safe standard-library device
-and inode metadata bind the private pathname to the open file that was created,
-mutated, validated, and synchronized. The identity comparison runs immediately
-after the last caller hook and before `rename`. This closes validation-time
-path substitution under the documented requirement that callers exclude
-concurrent writers. It is not a locking primitive and cannot defend against a
-separate process racing the identity check and rename in violation of that
-requirement.
+Atomic update currently supports Unix hosts only. Its platform boundary has
+two separate responsibilities: identify the open private file and perform
+overwrite-replace publication followed by directory synchronization. On Unix,
+safe standard-library device and inode metadata provide identity, while
+`rename` and directory `sync_all` provide the publication operations. The
+identity comparison runs immediately after the last caller hook and before
+replacement. This closes validation-time path substitution under the
+documented requirement that callers exclude concurrent writers. It is not a
+locking primitive and cannot defend against a separate process racing the
+identity check and replacement in violation of that requirement.
 
 Rust documents `std::fs::rename` as replacing an existing destination:
 <https://doc.rust-lang.org/std/fs/fn.rename.html>. Same-directory private-file
@@ -72,9 +75,11 @@ weaker.
 
 On non-Unix platforms, including Windows, the operation returns a structured
 `PrivateCopyCreation` error with `Unsupported` before a private file is
-created. Rust does not expose the stable Windows file identity required by this
-implementation through stable safe standard-library APIs. No Windows atomic
-publication or crash-durability support is claimed.
+created. Windows file identity is obtainable through Windows APIs; identity is
+not the blocker. This implementation does not yet have an audited safe Windows
+provider for overwrite-replacing the target while retaining the private handle
+and establishing the requested post-replacement durability semantics. No
+Windows atomic publication or crash-durability support is claimed.
 
 ## G4 evidence status
 

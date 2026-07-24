@@ -238,10 +238,8 @@ fn every_stage_fault_reports_a_whole_file_and_cleans_private_copy() -> TestResul
 
         assert_eq!(error.stage(), fault);
         let expected_byte = if fault == PublishStage::DirectorySync {
-            assert!(error.replacement_published());
             REPLACEMENT
         } else {
-            assert!(!error.replacement_published());
             ORIGINAL
         };
         assert_eq!(fs::read(&target)?, vec![expected_byte; CONTENT_BYTES]);
@@ -301,7 +299,6 @@ fn validator_path_substitution_is_rejected_without_publishing_or_deleting_it() -
     .ok_or(TestFailure("substituted private path was published"))?;
 
     assert_eq!(error.stage(), PublishStage::Publish);
-    assert!(!error.replacement_published());
     assert_eq!(fs::read(&target)?, original);
     let cleanup_error = error.cleanup_error().ok_or(TestFailure(
         "identity-safe cleanup refusal was not reported",

@@ -3,7 +3,7 @@ use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{PublishStage, atomic_update, atomic_update_with_hook};
+use super::{PrivateCopy, PublishStage, atomic_update, atomic_update_with_hook};
 use crate::{ReadLimits, ResourceBudget, ResourceLimits};
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -143,7 +143,6 @@ fn every_injected_prepublication_failure_preserves_original_and_cleans_private_c
         .err()
         .ok_or(TestFailure("fault injection unexpectedly succeeded"))?;
         assert_eq!(error.stage(), fault);
-        assert!(!error.replacement_published());
         assert_eq!(fs::read(&target)?, original);
         assert_eq!(directory.private_entries()?, 0);
     }
@@ -172,7 +171,6 @@ fn directory_sync_fault_reports_published_validated_replacement() -> TestResult 
     .err()
     .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
     assert_eq!(error.stage(), PublishStage::DirectorySync);
-    assert!(error.replacement_published());
     assert_eq!(fs::read(&target)?, b"replacement");
     assert_eq!(directory.private_entries()?, 0);
     Ok(())
@@ -199,7 +197,6 @@ fn cleanup_failure_is_reported_without_overwriting_primary_error() -> TestResult
     .ok_or(TestFailure("combined fault unexpectedly succeeded"))?;
 
     assert_eq!(error.stage(), PublishStage::Validation);
-    assert!(!error.replacement_published());
     let cleanup = error
         .cleanup_error()
         .ok_or(TestFailure("cleanup fault was not retained"))?;
@@ -284,7 +281,25 @@ fn nonexistent_and_non_regular_targets_are_rejected() -> TestResult {
             .err()
             .ok_or(TestFailure("invalid target unexpectedly succeeded"))?;
         assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
-        assert!(!error.replacement_published());
     }
+    Ok(())
+}
+
+#[test]
+fn identity_capture_failure_removes_exclusively_created_private_file() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    fs::write(&target, b"original")?;
+
+    let error = PrivateCopy::create_with_identity(&target, &directory.path, |_| {
+        Err(std::io::Error::other("injected identity capture failure"))
+    })
+    .err()
+    .ok_or(TestFailure("identity capture unexpectedly succeeded"))?;
+
+    assert_eq!(error.kind(), std::io::ErrorKind::Other);
+    assert_eq!(error.to_string(), "injected identity capture failure");
+    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(fs::read(&target)?, b"original");
     Ok(())
 }

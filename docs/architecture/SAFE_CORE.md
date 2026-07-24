@@ -62,19 +62,19 @@ operation-wide resource dimension before work begins.
 The Unix-only format-neutral atomic publisher excludes concurrent writers and
 requires an existing regular file. It verifies that the private pathname still
 names its retained open file immediately before rename. Failures before rename
-leave the original path in place and explicitly attempt to close and remove the
+leave the original path in place and explicitly attempt to remove the guarded
 private copy. Cleanup refuses to unlink a substituted entry. Other cleanup
 failures retain both the primary update failure and the secondary cleanup
 failure; `Drop` retries removal only while identity still matches but cannot
-guarantee or report success. A failure synchronizing the directory after rename
-is reported with `replacement_published = true`: the fully validated
-replacement is visible, but crash durability of the directory entry is
-uncertain.
+guarantee or report success. The `DirectorySync` stage alone identifies the
+post-publication failure state: the fully validated replacement is visible,
+but crash durability of the directory entry is uncertain.
 
 Same-directory `rename` and `sync_all` inherit the host operating system and
 filesystem guarantees. Network and unusual filesystems may be weaker.
-Non-Unix hosts fail closed because stable safe file identity is not available
-through the standard-library boundary used here. These limits prevent the
+Non-Unix hosts fail closed because an audited overwrite-replace and
+post-replacement durability provider is not implemented. Windows file identity
+is obtainable and is not described as the blocker. These limits prevent the
 foundation from being described as a complete Jet update implementation.
 
 ## Review rule

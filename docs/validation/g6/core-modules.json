@@ -5,7 +5,7 @@
     {
       "path": "crates/jet3/src/atomic.rs",
       "classification": "safety",
-      "sha256": "4b4e3120c148118fbb036a82711ca0725806f68687c8fca263875e5e1d0c31a2"
+      "sha256": "2cef8676e4e7595574d26fa22fda4a9d3db15f7fb0f23b12446bd9c5a6b82e3e"
     },
     {
       "path": "crates/jet3/src/binary.rs",
