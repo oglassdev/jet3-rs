@@ -175,6 +175,13 @@ class AcceptanceRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 127)
         self.assertIn("cannot execute", result.stderr)
 
+    def test_windows_default_invokes_shell_script_through_bash(self) -> None:
+        with mock.patch.object(runner.os, "name", "nt"):
+            self.assertEqual(
+                runner._default_gate_command(),
+                ("bash", "./scripts/run-acceptance-gate.sh"),
+            )
+
     def test_signal_exit_is_normalized_to_nonnegative_shell_status(self) -> None:
         interrupted = subprocess.CompletedProcess(
             ["gate", "G0"],

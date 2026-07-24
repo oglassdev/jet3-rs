@@ -93,21 +93,28 @@ def _execute(command: Sequence[str], root: Path) -> subprocess.CompletedProcess[
     return result
 
 
+def _default_gate_command() -> tuple[str, ...]:
+    if os.name == "nt":
+        return ("bash", "./scripts/run-acceptance-gate.sh")
+    return ("./scripts/run-acceptance-gate.sh",)
+
+
 def run(
     *,
     repo_root: Path,
     run_id: str,
-    gate_command: Sequence[str] = ("./scripts/run-acceptance-gate.sh",),
+    gate_command: Sequence[str] | None = None,
 ) -> int:
     root = acceptance_report.repository_root(repo_root)
     if not RUN_ID.fullmatch(run_id):
         raise acceptance_report.ReportError("invalid acceptance run ID")
     commit, dirty = acceptance_report.git_state(root)
     run_relative = Path("artifacts", "acceptance", commit, run_id)
+    resolved_gate_command = gate_command or _default_gate_command()
 
     statuses: list[str] = []
     for gate in acceptance_report.GATES:
-        command = [*gate_command, gate]
+        command = [*resolved_gate_command, gate]
         started_at = _timestamp()
         result = _execute(command, root)
         if gate == "G8" and dirty and result.returncode == 0:
