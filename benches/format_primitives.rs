@@ -8,9 +8,10 @@ use criterion::{
     BatchSize, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
 use jet3::{
-    BinaryCursor, ByteCount, ByteOffset, Error, FileSource, JET3_PAGE_SIZE, Jet3PageReader,
-    PageGeometry, PageNumber, PageOffset, ReadAt, ReadBudget, ReadLimits, ResourceBudget,
-    ResourceLimits, SliceSource, jet3_page_geometry, read_jet_signature,
+    BinaryCursor, ByteCount, ByteOffset, COMMIT_REGION_LENGTH, Error, FileSource, JET3_PAGE_SIZE,
+    Jet3PageReader, PageGeometry, PageNumber, PageOffset, RawJet3Candidate, ReadAt, ReadBudget,
+    ReadLimits, ResourceBudget, ResourceLimits, SliceSource, jet3_page_geometry,
+    read_commit_region, read_jet_signature,
 };
 
 const DATASET_SIZES: [usize; 4] = [64, 4 * 1024, 64 * 1024, 1024 * 1024];
@@ -94,6 +95,59 @@ impl ReadAt for GeneratedPageSource {
         budget.charge_read_attempt(count)?;
         let page_number = offset.get() / JET3_PAGE_SIZE.get();
         destination.fill(page_number.to_le_bytes()[0]);
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SyntheticCandidateSource {
+    length: ByteCount,
+}
+
+impl SyntheticCandidateSource {
+    const fn new(length: ByteCount) -> Self {
+        Self { length }
+    }
+}
+
+impl ReadAt for SyntheticCandidateSource {
+    fn len(&self) -> ByteCount {
+        self.length
+    }
+
+    fn read_exact_at(
+        &mut self,
+        offset: ByteOffset,
+        destination: &mut [u8],
+        budget: &mut ReadBudget,
+    ) -> Result<(), Error> {
+        let count = ByteCount::from_usize(destination.len())?;
+        budget.check_input(self.length)?;
+        budget.check_read(count)?;
+        let end = offset.checked_add(count)?;
+        if offset.get() > self.length.get() {
+            return Err(Error::OffsetOutOfBounds {
+                offset,
+                input_len: self.length,
+            });
+        }
+        if end.get() > self.length.get() {
+            return Err(Error::UnexpectedEnd {
+                offset,
+                needed: count,
+                available: ByteCount::new(self.length.get().saturating_sub(offset.get())),
+            });
+        }
+        budget.charge_read_attempt(count)?;
+
+        for (index, byte) in destination.iter_mut().enumerate() {
+            let absolute = offset.get().saturating_add(index as u64);
+            *byte = if (4..JET_SIGNATURE_LENGTH + 4).contains(&absolute) {
+                STANDARD_JET_HEADER[absolute as usize]
+            } else {
+                (absolute / JET3_PAGE_SIZE.get()).to_le_bytes()[0]
+            };
+        }
         Ok(())
     }
 }
@@ -239,6 +293,109 @@ fn bench_jet3_page_reader(criterion: &mut Criterion) {
                             &mut budget,
                         ));
                         black_box(destination);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn candidate_inspect_limits(source_len: ByteCount) -> ResourceLimits {
+    ResourceLimits::new(ReadLimits::new(
+        source_len,
+        ByteCount::new(JET_SIGNATURE_LENGTH),
+        ByteCount::new(JET_SIGNATURE_LENGTH),
+    ))
+    .with_max_allocation_bytes(ByteCount::new(0))
+    .with_max_decoded_value_bytes(ByteCount::new(0))
+    .with_max_total_decoded_bytes(ByteCount::new(0))
+    .with_max_item_work(0)
+    .with_max_page_visits(0)
+    .with_max_chain_depth(0)
+    .with_max_total_work_units(0)
+}
+
+fn candidate_page_limits(source_len: ByteCount) -> ResourceLimits {
+    page_reader_limits(source_len, 1)
+}
+
+fn bench_raw_jet3_candidate(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("raw_jet3_candidate");
+
+    for page_count in PAGE_COUNTS {
+        let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
+        let source = SyntheticCandidateSource::new(source_len);
+        let inspect_limits = candidate_inspect_limits(source_len);
+        group.throughput(Throughput::Bytes(JET_SIGNATURE_LENGTH));
+        group.bench_with_input(
+            BenchmarkId::new("inspect_synthetic_candidate", page_count),
+            &source,
+            |bencher, source| {
+                bencher.iter_batched(
+                    || ResourceBudget::new(inspect_limits),
+                    |mut budget| {
+                        black_box(required(RawJet3Candidate::inspect(
+                            black_box(*source),
+                            &mut budget,
+                        )));
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+
+        let mut candidate = required(RawJet3Candidate::inspect(
+            source,
+            &mut ResourceBudget::new(candidate_inspect_limits(source_len)),
+        ));
+        let last_page = PageNumber::new(page_count.saturating_sub(1));
+        let read_limits = candidate_page_limits(source_len);
+        group.throughput(Throughput::Bytes(JET3_PAGE_SIZE.get()));
+        group.bench_with_input(
+            BenchmarkId::new("read_last_raw_page", page_count),
+            &last_page,
+            |bencher, page| {
+                bencher.iter_batched(
+                    || {
+                        (
+                            ResourceBudget::new(read_limits),
+                            [0_u8; JET3_PAGE_SIZE.get() as usize],
+                        )
+                    },
+                    |(mut budget, mut destination)| {
+                        required(candidate.read_raw_page(
+                            black_box(*page),
+                            &mut destination,
+                            &mut budget,
+                        ));
+                        black_box(destination);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn bench_commit_region(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("commit_region");
+
+    for page_count in PAGE_COUNTS {
+        let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
+        let mut source = GeneratedPageSource::new(source_len);
+        let limits = ReadLimits::new(source_len, COMMIT_REGION_LENGTH, COMMIT_REGION_LENGTH);
+        group.throughput(Throughput::Bytes(COMMIT_REGION_LENGTH.get()));
+        group.bench_with_input(
+            BenchmarkId::new("read_fixed_region", page_count),
+            &page_count,
+            |bencher, _| {
+                bencher.iter_batched(
+                    || ReadBudget::new(limits),
+                    |mut budget| {
+                        black_box(required(read_commit_region(&mut source, &mut budget)));
                     },
                     BatchSize::SmallInput,
                 );
@@ -578,6 +735,8 @@ criterion_group!(
     benches,
     bench_jet_header,
     bench_jet3_page_reader,
+    bench_raw_jet3_candidate,
+    bench_commit_region,
     bench_binary_cursor,
     bench_slice_source,
     bench_file_source,

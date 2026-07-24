@@ -42,6 +42,8 @@ class ManifestTests(unittest.TestCase):
         limitations = " ".join(manifest["limitations"])
         self.assertIn("100000-row", limitations)
         self.assertIn("No checked performance baseline", limitations)
+        self.assertIn("does not identify Jet 3", limitations)
+        self.assertIn("contemporaneous .ldb lock evidence", limitations)
 
 
 if __name__ == "__main__":
