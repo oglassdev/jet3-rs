@@ -16,6 +16,12 @@ pub(crate) fn write_snapshot(snapshot: &CanonicalSnapshot) -> Result<Vec<u8>, Sn
     Ok(writer.bytes)
 }
 
+pub(crate) fn write_properties(properties: &PropertyMap) -> Result<Vec<u8>, SnapshotError> {
+    let mut writer = JsonWriter::new();
+    writer.properties(properties)?;
+    Ok(writer.bytes)
+}
+
 struct JsonWriter {
     bytes: Vec<u8>,
 }
@@ -441,9 +447,6 @@ fn canonical_f64(value: FiniteF64) -> Result<String, SnapshotError> {
 }
 
 fn canonical_float(scientific: String, negative_zero: bool) -> Result<String, SnapshotError> {
-    if negative_zero {
-        return Ok("-0.0".to_owned());
-    }
     let (mantissa, exponent) = scientific
         .split_once('e')
         .ok_or(SnapshotError::NumberFormatting)?;
@@ -460,14 +463,19 @@ fn canonical_float(scientific: String, negative_zero: bool) -> Result<String, Sn
     if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(SnapshotError::NumberFormatting);
     }
-    if exponent < -4 {
-        let magnitude = exponent.unsigned_abs();
-        let exponent_text = if magnitude < 10 {
-            format!("0{magnitude}")
+    if digits.bytes().all(|byte| byte == b'0') {
+        return Ok(if negative_zero {
+            "-0.0".to_owned()
         } else {
-            magnitude.to_string()
-        };
-        return Ok(format!("{sign}{unsigned_mantissa}e-{exponent_text}"));
+            "0.0".to_owned()
+        });
+    }
+    if !(-4..16).contains(&exponent) {
+        let exponent_sign = if exponent.is_negative() { '-' } else { '+' };
+        let magnitude = exponent.unsigned_abs();
+        return Ok(format!(
+            "{sign}{unsigned_mantissa}e{exponent_sign}{magnitude:02}"
+        ));
     }
     let decimal_index = i64::from(exponent) + 1;
     let digit_count = i64::try_from(digits.len()).map_err(|_| SnapshotError::NumberFormatting)?;
@@ -495,6 +503,9 @@ fn canonical_float(scientific: String, negative_zero: bool) -> Result<String, Sn
         output.push_str(integer);
         output.push('.');
         output.push_str(fraction);
+    }
+    if !output.contains('.') {
+        output.push_str(".0");
     }
     Ok(output)
 }

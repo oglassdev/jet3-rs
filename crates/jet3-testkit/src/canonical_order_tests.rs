@@ -237,25 +237,6 @@ fn canonicalization_rejects_duplicate_identities() -> Result<(), SnapshotError> 
             if path == "$.tables[0].indexes" && value == "same"
     ));
 
-    let mut duplicate_rows = empty_snapshot()?;
-    let mut value = table("table");
-    value.rows = vec![
-        Row {
-            canonical_key: "same".to_owned(),
-            values: PropertyMap::new(),
-        },
-        Row {
-            canonical_key: "same".to_owned(),
-            values: PropertyMap::new(),
-        },
-    ];
-    duplicate_rows.tables.push(value);
-    assert!(matches!(
-        duplicate_rows.canonicalize(),
-        Err(SnapshotError::Duplicate { path, value })
-            if path == "$.tables[0].rows" && value == "same"
-    ));
-
     let mut duplicate_relationships = empty_snapshot()?;
     duplicate_relationships.relationships = vec![relationship("same"), relationship("same")];
     assert!(matches!(
@@ -263,6 +244,57 @@ fn canonicalization_rejects_duplicate_identities() -> Result<(), SnapshotError> 
         Err(SnapshotError::Duplicate { path, value })
             if path == "$.relationships" && value == "same"
     ));
+    Ok(())
+}
+
+#[test]
+fn duplicate_row_keys_use_values_as_a_tiebreaker() -> Result<(), SnapshotError> {
+    let mut snapshot = empty_snapshot()?;
+    let mut value = table("table");
+    let mut low_values = PropertyMap::new();
+    low_values.insert(
+        "value".to_owned(),
+        TypedValue::Long {
+            value: 1,
+            raw_hex: None,
+        },
+    );
+    let mut high_values = PropertyMap::new();
+    high_values.insert(
+        "value".to_owned(),
+        TypedValue::Long {
+            value: 2,
+            raw_hex: None,
+        },
+    );
+    value.rows = vec![
+        Row {
+            canonical_key: "same".to_owned(),
+            values: high_values,
+        },
+        Row {
+            canonical_key: "same".to_owned(),
+            values: low_values.clone(),
+        },
+        Row {
+            canonical_key: "same".to_owned(),
+            values: low_values,
+        },
+    ];
+    snapshot.tables.push(value);
+
+    assert_eq!(
+        snapshot.to_canonical_json(),
+        Err(SnapshotError::NonCanonicalOrder {
+            path: "$.tables[0].rows".to_owned()
+        })
+    );
+    snapshot.canonicalize()?;
+    let rows = &snapshot.tables[0].rows;
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0], rows[1]);
+    assert_ne!(rows[1], rows[2]);
+    snapshot.to_canonical_json()?;
     Ok(())
 }
 

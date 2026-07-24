@@ -262,9 +262,12 @@ fn finite_numbers_are_normalized_and_nonfinite_values_are_rejected() -> Result<(
     let mut snapshot = empty_snapshot()?;
     for (key, value) in [
         ("negative_zero", -0.0),
+        ("positive_zero", 0.0),
+        ("integral_fixed", 1.0),
         ("small_fixed", 0.0001),
         ("small_scientific", 0.00001),
-        ("large_integral", 1e20),
+        ("large_fixed", 1e15),
+        ("large_scientific", 1e16),
     ] {
         snapshot.database_properties.insert(
             key.to_owned(),
@@ -276,11 +279,12 @@ fn finite_numbers_are_normalized_and_nonfinite_values_are_rejected() -> Result<(
     }
     let actual = emitted(&snapshot)?;
     assert!(actual.contains("\"negative_zero\":{\"kind\":\"double\",\"value\":-0.0}"));
+    assert!(actual.contains("\"positive_zero\":{\"kind\":\"double\",\"value\":0.0}"));
+    assert!(actual.contains("\"integral_fixed\":{\"kind\":\"double\",\"value\":1.0}"));
     assert!(actual.contains("\"small_fixed\":{\"kind\":\"double\",\"value\":0.0001}"));
     assert!(actual.contains("\"small_scientific\":{\"kind\":\"double\",\"value\":1e-05}"));
-    assert!(
-        actual.contains("\"large_integral\":{\"kind\":\"double\",\"value\":100000000000000000000}")
-    );
+    assert!(actual.contains("\"large_fixed\":{\"kind\":\"double\",\"value\":1000000000000000.0}"));
+    assert!(actual.contains("\"large_scientific\":{\"kind\":\"double\",\"value\":1e+16}"));
     assert!(!actual.contains("NaN"));
     assert!(!actual.contains("Infinity"));
     Ok(())

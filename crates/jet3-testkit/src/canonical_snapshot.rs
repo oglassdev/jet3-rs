@@ -414,10 +414,8 @@ pub struct Index {
 
 /// A row keyed by its producer-declared canonical sort key.
 ///
-/// The ordering vocabulary names a canonical-value tiebreaker, but the
-/// protocol 1.0.0 executable validator requires `canonical_key` values to be
-/// unique. This model follows that binding validator, so no secondary
-/// comparison is exercised in protocol 1.0.0.
+/// Rows sharing a key are ordered by their canonical `values` object. Fully
+/// identical rows remain interchangeable and are retained.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
     pub canonical_key: String,
@@ -507,9 +505,7 @@ impl CanonicalSnapshot {
             table
                 .indexes
                 .sort_by(|left, right| left.name.cmp(&right.name));
-            table
-                .rows
-                .sort_by(|left, right| left.canonical_key.cmp(&right.canonical_key));
+            canonicalize_rows(&mut table.rows)?;
         }
         self.relationships
             .sort_by(|left, right| left.name.cmp(&right.name));
@@ -564,10 +560,7 @@ impl CanonicalSnapshot {
                     });
                 }
             }
-            ensure_named_order(
-                table.rows.iter().map(|row| row.canonical_key.as_str()),
-                &format!("{table_path}.rows"),
-            )?;
+            ensure_row_order(&table.rows, &format!("{table_path}.rows"))?;
         }
         ensure_named_order(
             self.relationships
@@ -704,6 +697,42 @@ fn ensure_unique_names<'a>(
                 value: value.to_owned(),
             });
         }
+    }
+    Ok(())
+}
+
+fn canonicalize_rows(rows: &mut Vec<Row>) -> Result<(), SnapshotError> {
+    let mut keyed = rows
+        .drain(..)
+        .map(|row| {
+            let values = crate::canonical_json::write_properties(&row.values)?;
+            Ok((row, values))
+        })
+        .collect::<Result<Vec<_>, SnapshotError>>()?;
+    keyed.sort_by(|(left, left_values), (right, right_values)| {
+        left.canonical_key
+            .cmp(&right.canonical_key)
+            .then_with(|| left_values.cmp(right_values))
+    });
+    rows.extend(keyed.into_iter().map(|(row, _)| row));
+    Ok(())
+}
+
+fn ensure_row_order(rows: &[Row], path: &str) -> Result<(), SnapshotError> {
+    let mut previous: Option<(&str, Vec<u8>)> = None;
+    for row in rows {
+        let values = crate::canonical_json::write_properties(&row.values)?;
+        if let Some((previous_key, previous_values)) = &previous
+            && ((*previous_key)
+                .cmp(row.canonical_key.as_str())
+                .then_with(|| previous_values.cmp(&values)))
+                == std::cmp::Ordering::Greater
+        {
+            return Err(SnapshotError::NonCanonicalOrder {
+                path: path.to_owned(),
+            });
+        }
+        previous = Some((&row.canonical_key, values));
     }
     Ok(())
 }

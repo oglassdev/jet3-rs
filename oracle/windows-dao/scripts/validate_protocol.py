@@ -387,10 +387,22 @@ def _validate_snapshot(document: dict[str, Any]) -> None:
             raise ValidationError(
                 f"{location}.indexes: names must be unique and sorted"
             )
-        row_keys = [row["canonical_key"] for row in table["rows"]]
-        if row_keys != sorted(row_keys) or len(row_keys) != len(set(row_keys)):
+        row_keys = [
+            (
+                row["canonical_key"],
+                json.dumps(
+                    row["values"],
+                    sort_keys=True,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ),
+            )
+            for row in table["rows"]
+        ]
+        if row_keys != sorted(row_keys):
             raise ValidationError(
-                f"{location}.rows: canonical keys must be unique and sorted"
+                f"{location}.rows: canonical keys and values must be sorted"
             )
     relationship_names = [
         relationship["name"] for relationship in document["relationships"]

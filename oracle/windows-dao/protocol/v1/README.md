@@ -29,6 +29,14 @@ exact retained bytes. A canonical snapshot producer must:
 5. distinguish SQL null from empty text and empty binary; and
 6. terminate the file with one LF and emit no insignificant whitespace.
 
+For row ordering, `canonical_key` is the primary key and the compact canonical
+JSON bytes of the row's `values` object are the tiebreaker. Identical duplicate
+rows are retained and require no further ordering distinction. Finite
+single/double values use the same spelling as Python's finite `json.dumps`
+numbers: fixed notation for decimal exponents from -4 through 15, scientific
+notation otherwise, an explicit exponent sign with at least two digits, and
+`.0` for integral values in fixed notation.
+
 The schema validates representation shape. The cross-platform validator also
 checks stable identifiers, hashes, report counts, safe relative paths, and
 cross-document commit/run/environment bindings.

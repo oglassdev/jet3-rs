@@ -539,6 +539,42 @@ class ProtocolValidationTests(unittest.TestCase):
         ):
             VALIDATOR.validate_document(snapshot)
 
+    def test_snapshot_rows_use_canonical_values_as_key_tiebreaker(self):
+        snapshot = empty_snapshot()
+        table = {
+            "name": "table",
+            "kind": "user",
+            "attributes": 0,
+            "columns": [],
+            "indexes": [],
+            "properties": {},
+            "rows": [
+                {
+                    "canonical_key": "same",
+                    "values": {"value": {"kind": "long", "value": 1}},
+                },
+                {
+                    "canonical_key": "same",
+                    "values": {"value": {"kind": "long", "value": 1}},
+                },
+                {
+                    "canonical_key": "same",
+                    "values": {"value": {"kind": "long", "value": 2}},
+                },
+            ],
+        }
+        snapshot["tables"] = [table]
+        self.assertEqual(
+            VALIDATOR.validate_document(snapshot),
+            "canonical_snapshot",
+        )
+        table["rows"].reverse()
+        with self.assertRaisesRegex(
+            VALIDATOR.ValidationError,
+            "canonical keys and values must be sorted",
+        ):
+            VALIDATOR.validate_document(snapshot)
+
     def test_bundle_hashes_and_bindings_are_checked(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / COMMIT / RUN_ID
