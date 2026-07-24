@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from fuzz_build_identity import (
+    BASE_ENVIRONMENT_KEYS,
+    WINDOWS_ENVIRONMENT_KEYS,
+    canonical_build_environment,
     capture_cargo_metadata,
     copy_seeds,
     create_build_manifest,
@@ -26,6 +29,7 @@ from fuzz_build_identity import (
 from fuzz_evidence import (
     EvidenceError,
     classify_result,
+    exact_process_environment,
     observe_producer,
     parse_date_time,
     parse_executable,
@@ -351,10 +355,9 @@ def _validate_observer(
     )
     _exact_keys(
         build_environment,
-        {
-            "CARGO", "CARGO_HOME", "CARGO_INCREMENTAL", "CARGO_TARGET_DIR",
-            "PATH", "RUSTC",
-        },
+        BASE_ENVIRONMENT_KEYS | (
+            WINDOWS_ENVIRONMENT_KEYS if os.name == "nt" else set()
+        ),
         "observer.build_environment",
     )
     if any(
@@ -599,16 +602,14 @@ def run_campaign(
     temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent))
     try:
         target_directory = temporary / "build-target"
-        build_environment = {
-            "CARGO": cargo_identity["path"],
-            "CARGO_HOME": str(
-                Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")).resolve()
-            ),
-            "CARGO_INCREMENTAL": "0",
-            "CARGO_TARGET_DIR": str(target_directory),
-            "PATH": os.environ.get("PATH", ""),
-            "RUSTC": rustc_identity["path"],
-        }
+        build_environment = canonical_build_environment(
+            cargo_identity["path"],
+            cargo_fuzz_identity["path"],
+            rustc_identity["path"],
+            Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")),
+            target_directory,
+            temporary,
+        )
         metadata_path = temporary / "cargo-metadata.json"
         capture_cargo_metadata(
             root,
@@ -646,6 +647,7 @@ def run_campaign(
             raise ValidationError("clean Git snapshot changed during fuzz campaign")
         shutil.rmtree(corpus)
         shutil.rmtree(target_directory)
+        shutil.rmtree(Path(build_environment["TMPDIR"]))
         observer_path = temporary / "observer.json"
         write_json(observer_path, observer)
         report = {

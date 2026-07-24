@@ -30,16 +30,6 @@ SANITIZER_MARKERS = (
 )
 PANIC_MARKERS = ("panicked at", "thread '", "thread \"")
 LIMIT_MARKERS = ("out-of-memory", "rss limit exceeded", "libFuzzer: timeout")
-BUILD_ENVIRONMENT_PREFIXES = (
-    "CARGO_BUILD_",
-    "CARGO_PROFILE_",
-    "CARGO_TARGET_",
-)
-BUILD_ENVIRONMENT_NAMES = {
-    "AR", "CC", "CFLAGS", "CXX", "CXXFLAGS", "RUSTC", "RUSTC_WRAPPER",
-    "RUSTC_WORKSPACE_WRAPPER", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
-    "CARGO_INCREMENTAL",
-}
 
 
 class EvidenceError(ValueError):
@@ -133,13 +123,16 @@ def tool_identity(executable: str, version_args: list[str]) -> dict[str, str]:
     return {"path": str(path), "sha256": sha256(path), "version": process.stdout.strip()}
 
 
-def sanitized_process_environment(overrides: dict[str, str]) -> dict[str, str]:
-    environment = os.environ.copy()
-    for name in list(environment):
-        if name in BUILD_ENVIRONMENT_NAMES or name.startswith(BUILD_ENVIRONMENT_PREFIXES):
-            environment.pop(name)
-    environment.update(overrides)
-    return environment
+def exact_process_environment(environment: dict[str, str]) -> dict[str, str]:
+    if any(
+        not isinstance(name, str)
+        or not name
+        or not isinstance(value, str)
+        or not value
+        for name, value in environment.items()
+    ):
+        raise EvidenceError("process environment must contain only non-empty text")
+    return dict(environment)
 
 
 def _process_tree_rss(root_pid: int) -> int:
@@ -181,8 +174,7 @@ def observe_producer(
     toolchain: dict[str, Any],
     build_environment: dict[str, str],
 ) -> dict[str, Any]:
-    environment = sanitized_process_environment(build_environment)
-    environment["CARGO_TERM_COLOR"] = "never"
+    environment = exact_process_environment(build_environment)
     started_at = datetime.datetime.now(datetime.timezone.utc)
     started_clock = time.monotonic()
     peak_rss = 0

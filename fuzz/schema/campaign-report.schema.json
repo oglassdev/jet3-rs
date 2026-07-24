@@ -175,16 +175,29 @@
             "CARGO_HOME",
             "CARGO_INCREMENTAL",
             "CARGO_TARGET_DIR",
+            "CARGO_TERM_COLOR",
+            "LANG",
+            "LC_ALL",
             "PATH",
-            "RUSTC"
+            "RUSTC",
+            "TMPDIR"
           ],
           "properties": {
             "CARGO": { "type": "string", "minLength": 1 },
             "CARGO_HOME": { "type": "string", "minLength": 1 },
             "CARGO_INCREMENTAL": { "const": "0" },
             "CARGO_TARGET_DIR": { "type": "string", "minLength": 1 },
+            "CARGO_TERM_COLOR": { "const": "never" },
+            "LANG": { "const": "C" },
+            "LC_ALL": { "const": "C" },
             "PATH": { "type": "string", "minLength": 1 },
-            "RUSTC": { "type": "string", "minLength": 1 }
+            "RUSTC": { "type": "string", "minLength": 1 },
+            "TMPDIR": { "type": "string", "minLength": 1 },
+            "COMSPEC": { "type": "string", "minLength": 1 },
+            "PATHEXT": { "type": "string", "minLength": 1 },
+            "SYSTEMROOT": { "type": "string", "minLength": 1 },
+            "TEMP": { "type": "string", "minLength": 1 },
+            "TMP": { "type": "string", "minLength": 1 }
           }
         },
         "executable": { "$ref": "#/$defs/executable" }

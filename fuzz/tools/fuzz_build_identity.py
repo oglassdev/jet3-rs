@@ -11,10 +11,15 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from fuzz_evidence import EvidenceError, sanitized_process_environment, sha256
+from fuzz_evidence import EvidenceError, exact_process_environment, sha256
 
 OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}$")
+BASE_ENVIRONMENT_KEYS = {
+    "CARGO", "CARGO_HOME", "CARGO_INCREMENTAL", "CARGO_TARGET_DIR",
+    "CARGO_TERM_COLOR", "LANG", "LC_ALL", "PATH", "RUSTC", "TMPDIR",
+}
+WINDOWS_ENVIRONMENT_KEYS = {"COMSPEC", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP"}
 
 
 def git_output(root: Path, *args: str) -> str:
@@ -59,6 +64,54 @@ def require_external_output(root: Path, output: Path) -> Path:
     except ValueError:
         return resolved
     raise EvidenceError("fuzz evidence output must be outside the Git checkout")
+
+
+def canonical_build_environment(
+    cargo_path: str,
+    cargo_fuzz_path: str,
+    rustc_path: str,
+    cargo_home: Path,
+    target_directory: Path,
+    temporary_directory: Path,
+) -> dict[str, str]:
+    process_temp = temporary_directory / "process-tmp"
+    process_temp.mkdir()
+    tool_directories = [
+        str(Path(cargo_path).resolve().parent),
+        str(Path(cargo_fuzz_path).resolve().parent),
+        str(Path(rustc_path).resolve().parent),
+    ]
+    if os.name == "nt":
+        system_root = os.environ.get("SYSTEMROOT")
+        comspec = os.environ.get("COMSPEC")
+        pathext = os.environ.get("PATHEXT")
+        if not system_root or not comspec or not pathext:
+            raise EvidenceError("Windows build environment lacks required system paths")
+        tool_directories.extend([str(Path(system_root) / "System32"), system_root])
+    else:
+        tool_directories.extend(["/usr/bin", "/bin", "/usr/sbin", "/sbin"])
+    path = os.pathsep.join(dict.fromkeys(tool_directories))
+    environment = {
+        "CARGO": str(Path(cargo_path).resolve()),
+        "CARGO_HOME": str(cargo_home.resolve()),
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_TARGET_DIR": str(target_directory.resolve()),
+        "CARGO_TERM_COLOR": "never",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": path,
+        "RUSTC": str(Path(rustc_path).resolve()),
+        "TMPDIR": str(process_temp.resolve()),
+    }
+    if os.name == "nt":
+        environment.update({
+            "COMSPEC": comspec,
+            "PATHEXT": pathext,
+            "SYSTEMROOT": system_root,
+            "TEMP": str(process_temp.resolve()),
+            "TMP": str(process_temp.resolve()),
+        })
+    return exact_process_environment(environment)
 
 
 def copy_seeds(
@@ -141,7 +194,7 @@ def capture_cargo_metadata(
     cargo_path: str,
     environment: dict[str, str],
 ) -> None:
-    process_environment = sanitized_process_environment(environment)
+    process_environment = exact_process_environment(environment)
     process = subprocess.run(
         [
             cargo_path,
@@ -291,15 +344,39 @@ def validate_build_manifest(
     if manifest["toolchain"] != observer["toolchain"]:
         raise EvidenceError("build manifest toolchain disagrees with observer")
     environment = manifest["environment"]
-    if not isinstance(environment, dict) or set(environment) != {
-        "CARGO", "CARGO_HOME", "CARGO_INCREMENTAL", "CARGO_TARGET_DIR", "PATH",
-        "RUSTC",
-    }:
+    expected_keys = BASE_ENVIRONMENT_KEYS | (
+        WINDOWS_ENVIRONMENT_KEYS if os.name == "nt" else set()
+    )
+    if not isinstance(environment, dict) or set(environment) != expected_keys:
         raise EvidenceError("build manifest environment is not canonical")
     if any(not isinstance(value, str) or not value for value in environment.values()):
         raise EvidenceError("build manifest environment values must be non-empty text")
-    if environment["CARGO_INCREMENTAL"] != "0":
-        raise EvidenceError("build manifest must disable Cargo incremental compilation")
+    if (
+        environment["CARGO_INCREMENTAL"] != "0"
+        or environment["CARGO_TERM_COLOR"] != "never"
+        or environment["LANG"] != "C"
+        or environment["LC_ALL"] != "C"
+    ):
+        raise EvidenceError("build manifest deterministic environment controls are stale")
+    if Path(environment["CARGO"]).resolve() != Path(
+        manifest["toolchain"]["cargo"]["path"]
+    ).resolve() or Path(environment["RUSTC"]).resolve() != Path(
+        manifest["toolchain"]["rustc"]["path"]
+    ).resolve():
+        raise EvidenceError("build manifest tool paths disagree with the environment")
+    path_directories = [
+        str(Path(manifest["toolchain"][name]["path"]).resolve().parent)
+        for name in ("cargo", "cargo_fuzz", "rustc")
+    ]
+    if os.name == "nt":
+        path_directories.extend([
+            str(Path(environment["SYSTEMROOT"]) / "System32"),
+            environment["SYSTEMROOT"],
+        ])
+    else:
+        path_directories.extend(["/usr/bin", "/bin", "/usr/sbin", "/sbin"])
+    if environment["PATH"] != os.pathsep.join(dict.fromkeys(path_directories)):
+        raise EvidenceError("build manifest PATH is not the controlled tool path")
     if manifest["cargo_configs"] != cargo_configs(
         root, Path(environment["CARGO_HOME"])
     ):
@@ -308,6 +385,8 @@ def validate_build_manifest(
         raise EvidenceError("build manifest environment disagrees with observer")
     executable = Path(observer["executable"]["path"]).resolve()
     target_directory = Path(environment["CARGO_TARGET_DIR"]).resolve()
+    if Path(environment["TMPDIR"]).resolve().parent != target_directory.parent:
+        raise EvidenceError("build temporary directory is outside the isolated build root")
     try:
         executable.relative_to(target_directory)
     except ValueError as error:

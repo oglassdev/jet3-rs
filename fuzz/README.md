@@ -96,7 +96,12 @@ the raw locked Cargo metadata result. The observer records the exact command,
 cargo, cargo-fuzz, and rustc paths/versions/hashes, executed fuzz binary
 path/hash, UTC timestamps, monotonic elapsed time, sampled process-tree peak
 RSS, exit status, classified outcome, and run count. Every run uses a fresh,
-isolated target directory with incremental compilation disabled. `build.json`
+isolated target directory with incremental compilation disabled. Subprocesses
+receive only the fully recorded build environment: exact Cargo and rustc
+paths, Cargo home, isolated target/temp paths, deterministic locale/color
+settings, and a controlled tool/system `PATH`. Ambient SDK, deployment-target,
+compiler, linker, include/library, sanitizer, and pkg-config variables are not
+passed. `build.json`
 binds that binary to the clean commit and tree, complete Git index blob
 inventory, fuzz lockfile, applicable Cargo configuration hashes, dependency
 closure, controlled build environment, and tool identities. Validate a report

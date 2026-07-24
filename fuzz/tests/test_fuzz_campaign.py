@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "tools/fuzz_campaign.py"
 sys.path.insert(0, str(MODULE_PATH.parent))
@@ -137,8 +138,12 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             "CARGO_HOME": "/tmp/cargo-home",
             "CARGO_INCREMENTAL": "0",
             "CARGO_TARGET_DIR": "/tmp/fuzz-build-target",
-            "PATH": "/usr/bin:/bin",
+            "CARGO_TERM_COLOR": "never",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
             "RUSTC": "/usr/bin/rustc",
+            "TMPDIR": "/tmp/process-tmp",
         }
         command = [
             "/usr/bin/cargo-fuzz", "fuzz", "run", "--fuzz-dir", "fuzz", "example",
@@ -276,6 +281,41 @@ class FuzzCampaignValidationTests(unittest.TestCase):
 
     def test_checked_repository_is_accepted(self) -> None:
         fuzz_campaign.validate_repository(self.root)
+
+    def test_ambient_build_controls_are_not_passed_or_recorded(self) -> None:
+        ambient = {
+            "SDKROOT": "/malicious/sdk",
+            "MACOSX_DEPLOYMENT_TARGET": "99.0",
+            "CPATH": "/malicious/include",
+            "LIBRARY_PATH": "/malicious/lib",
+            "LDFLAGS": "-L/malicious",
+            "PKG_CONFIG_PATH": "/malicious/pkgconfig",
+            "PKG_CONFIG_LIBDIR": "/malicious/pkgconfig-lib",
+            "PKG_CONFIG_SYSROOT_DIR": "/malicious/sysroot",
+            "ASAN_OPTIONS": "detect_leaks=0",
+            "RUSTFLAGS": "-C link-arg=-L/malicious",
+        }
+        environment_root = self.bundle / "controlled-environment"
+        environment_root.mkdir()
+        with mock.patch.dict("os.environ", ambient, clear=False):
+            environment = fuzz_campaign.canonical_build_environment(
+                "/usr/bin/cargo",
+                "/usr/bin/cargo-fuzz",
+                "/usr/bin/rustc",
+                Path("/tmp/cargo-home"),
+                environment_root / "build-target",
+                environment_root,
+            )
+        for name in ambient:
+            self.assertNotIn(name, environment)
+        self.assertEqual(
+            environment["PATH"],
+            "/usr/bin:/bin:/usr/sbin:/sbin",
+        )
+        self.assertEqual(
+            fuzz_campaign.exact_process_environment(environment),
+            environment,
+        )
 
     def test_vacuous_registry_is_rejected(self) -> None:
         self.registry["targets"] = []
