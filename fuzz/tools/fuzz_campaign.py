@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import hashlib
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -15,6 +15,19 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+from fuzz_evidence import (
+    EvidenceError,
+    classify_result,
+    observe_producer,
+    parse_executable,
+    parse_reported_rss,
+    parse_runs,
+    publish_directory,
+    sha256,
+    tool_identity,
+    write_json,
+)
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -25,8 +38,7 @@ RESULTS = {"clean", "crash", "panic", "hang", "sanitizer_finding", "limit_exceed
 SANITIZERS = {"address", "memory", "leak", "thread", "undefined", "none"}
 
 
-class ValidationError(ValueError):
-    """A checked fuzz artifact is inconsistent or malformed."""
+ValidationError = EvidenceError
 
 
 def _load_json(path: Path) -> Any:
@@ -66,14 +78,6 @@ def _repo_path(root: Path, raw: Any, context: str) -> Path:
     except ValueError as error:
         raise ValidationError(f"{context} escapes the repository") from error
     return candidate
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(64 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def load_registry(root: Path) -> dict[str, Any]:
@@ -231,16 +235,172 @@ def _date_time(value: Any, context: str) -> datetime.datetime:
     return parsed
 
 
+def _bundle_file(bundle: Path, raw: Any, context: str) -> Path:
+    if not isinstance(raw, str) or not raw or Path(raw).parts != (raw,):
+        raise ValidationError(f"{context} must be a single relative file name")
+    path = bundle / raw
+    if not path.is_file() or path.is_symlink():
+        raise ValidationError(f"{context} is missing, a symlink, or not a regular file")
+    return path
+
+
+def _sha256_text(value: Any, context: str) -> str:
+    if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
+        raise ValidationError(f"{context} must be a lowercase SHA-256")
+    return value
+
+
+def _text(value: Any, context: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{context} must be non-empty text")
+    return value
+
+
+def _validate_tool(tool: Any, context: str) -> dict[str, Any]:
+    value = _object(tool, context)
+    _exact_keys(value, {"path", "sha256", "version"}, context)
+    _text(value["path"], f"{context}.path")
+    _sha256_text(value["sha256"], f"{context}.sha256")
+    _text(value["version"], f"{context}.version")
+    return value
+
+
+def _validate_observer(
+    observer_path: Path,
+    producer_log: Path,
+    report: dict[str, Any],
+    target: dict[str, Any],
+    deterministic_seed: int,
+) -> None:
+    observer = _object(_load_json(observer_path), "observer record")
+    observer_fields = {
+        "schema_version", "producer_log_sha256", "command", "started_at", "finished_at",
+        "wall_clock_seconds", "peak_rss_bytes", "runs", "result", "exit_code",
+        "timed_out", "toolchain", "executable",
+    }
+    _exact_keys(observer, observer_fields, "observer record")
+    if observer["schema_version"] != 1:
+        raise ValidationError("observer record schema_version must be 1")
+    if observer["producer_log_sha256"] != sha256(producer_log):
+        raise ValidationError("observer record producer-log hash is stale")
+    try:
+        log_text = producer_log.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise ValidationError(f"producer log is not valid UTF-8: {error}") from error
+
+    command = observer["command"]
+    if not isinstance(command, list) or not command or any(
+        not isinstance(argument, str) or not argument for argument in command
+    ):
+        raise ValidationError("observer command must be a non-empty string array")
+    expected_prefix = [
+        command[0], "fuzz", "run", "--fuzz-dir", "fuzz", target["name"],
+        "--sanitizer", report["campaign"]["sanitizer"],
+    ]
+    if command[:len(expected_prefix)] != expected_prefix or "--" not in command:
+        raise ValidationError("observer command is not the canonical cargo-fuzz invocation")
+    separator = command.index("--")
+    if separator != len(expected_prefix) + 1:
+        raise ValidationError("observer command must name exactly one disposable corpus")
+    expected_engine_args = {
+        f"-max_total_time={report['campaign']['duration_seconds']}",
+        f"-seed={deterministic_seed}",
+        f"-max_len={target['max_len']}",
+        f"-rss_limit_mb={target['peak_rss_limit_bytes'] // (1024 * 1024)}",
+    }
+    if set(command[separator + 1:]) != expected_engine_args or len(
+        command[separator + 1:]
+    ) != len(expected_engine_args):
+        raise ValidationError("observer command has stale or non-canonical libFuzzer limits")
+
+    started = _date_time(observer["started_at"], "observer.started_at")
+    finished = _date_time(observer["finished_at"], "observer.finished_at")
+    if finished < started:
+        raise ValidationError("observer.finished_at precedes observer.started_at")
+    wall = observer["wall_clock_seconds"]
+    if (
+        isinstance(wall, bool)
+        or not isinstance(wall, (int, float))
+        or not math.isfinite(wall)
+        or wall < 0
+    ):
+        raise ValidationError("observer.wall_clock_seconds must be non-negative")
+    elapsed = (finished - started).total_seconds()
+    if abs(elapsed - wall) > max(1.0, wall * 0.02):
+        raise ValidationError("observer timestamps and monotonic wall clock disagree")
+    rss = _positive_int(observer["peak_rss_bytes"], "observer.peak_rss_bytes")
+    if rss < parse_reported_rss(log_text):
+        raise ValidationError("observer peak RSS is below producer-reported RSS")
+    runs = _positive_int(observer["runs"], "observer.runs")
+    if runs != parse_runs(log_text):
+        raise ValidationError("observer run count disagrees with producer log")
+    if not isinstance(observer["timed_out"], bool):
+        raise ValidationError("observer.timed_out must be boolean")
+    exit_code = observer["exit_code"]
+    if exit_code is not None and (
+        isinstance(exit_code, bool) or not isinstance(exit_code, int)
+    ):
+        raise ValidationError("observer.exit_code must be an integer or null")
+    if observer["timed_out"] != (exit_code is None):
+        raise ValidationError("observer timeout and exit-code fields disagree")
+    result = _text(observer["result"], "observer.result")
+    if result not in RESULTS or result != classify_result(
+        log_text, exit_code, observer["timed_out"]
+    ):
+        raise ValidationError("observer result disagrees with producer output and exit status")
+
+    toolchain = _object(observer["toolchain"], "observer.toolchain")
+    _exact_keys(toolchain, {"cargo", "rustc"}, "observer.toolchain")
+    cargo = _validate_tool(toolchain["cargo"], "observer.toolchain.cargo")
+    _validate_tool(toolchain["rustc"], "observer.toolchain.rustc")
+    if Path(cargo["path"]).resolve().as_posix() != Path(command[0]).resolve().as_posix():
+        raise ValidationError("observer cargo identity disagrees with producer command")
+    executable = _object(observer["executable"], "observer.executable")
+    _exact_keys(executable, {"path", "sha256"}, "observer.executable")
+    executable_path = _text(executable["path"], "observer.executable.path")
+    _sha256_text(executable["sha256"], "observer.executable.sha256")
+    if Path(executable_path).resolve().as_posix() != Path(
+        parse_executable(log_text)
+    ).resolve().as_posix():
+        raise ValidationError("observer executable identity disagrees with producer log")
+
+    producer = _object(report["producer"], "producer")
+    copied_identity = {
+        "command": command,
+        "toolchain": toolchain,
+        "executable": executable,
+    }
+    for field, expected in copied_identity.items():
+        if producer[field] != expected:
+            raise ValidationError(f"campaign report producer.{field} disagrees with observer")
+    observed = report["observed"]
+    expected_observed = {
+        "wall_clock_seconds": wall,
+        "peak_rss_bytes": rss,
+        "runs": runs,
+        "started_at": observer["started_at"],
+        "finished_at": observer["finished_at"],
+        "exit_code": exit_code,
+    }
+    if observed != expected_observed:
+        raise ValidationError("campaign report observations disagree with observer record")
+    if report["result"] != result:
+        raise ValidationError("campaign report result disagrees with observer record")
+
+
 def validate_report(root: Path, report_path: Path) -> None:
     registry, manifest = validate_repository(root)
     report = _object(_load_json(report_path), "campaign report")
     required = {
         "schema_version", "commit", "target", "target_registry_sha256",
         "target_source_sha256", "corpus", "campaign", "result", "limits", "observed",
+        "producer",
     }
     _exact_keys(report, required, "campaign report")
-    if report["schema_version"] != 1:
-        raise ValidationError("campaign report schema_version must be 1")
+    if report["schema_version"] != 2:
+        raise ValidationError(
+            "campaign report schema_version must be 2; unbound version-1 wrappers are not evidence"
+        )
 
     commit = _object(report["commit"], "commit")
     _exact_keys(commit, {"sha", "dirty"}, "commit")
@@ -278,12 +438,10 @@ def validate_report(root: Path, report_path: Path) -> None:
 
     campaign = _object(report["campaign"], "campaign")
     campaign_fields = {
-        "duration_seconds", "runs", "kind", "deterministic_seed", "sanitizer",
-        "started_at", "finished_at",
+        "duration_seconds", "kind", "deterministic_seed", "sanitizer",
     }
     _exact_keys(campaign, campaign_fields, "campaign")
     duration = _positive_int(campaign["duration_seconds"], "campaign.duration_seconds")
-    _positive_int(campaign["runs"], "campaign.runs")
     if campaign["kind"] == "smoke":
         minimum_duration = target["smoke_seconds"]
     elif campaign["kind"] == "full":
@@ -299,17 +457,20 @@ def validate_report(root: Path, report_path: Path) -> None:
         raise ValidationError("campaign deterministic seed differs from target registry")
     if not isinstance(campaign["sanitizer"], str) or campaign["sanitizer"] not in SANITIZERS:
         raise ValidationError("campaign.sanitizer is unsupported")
-    started = _date_time(campaign["started_at"], "campaign.started_at")
-    finished = _date_time(campaign["finished_at"], "campaign.finished_at")
-    if finished < started:
-        raise ValidationError("campaign.finished_at precedes started_at")
     if not isinstance(report["result"], str) or report["result"] not in RESULTS:
         raise ValidationError("campaign result is unsupported")
 
     limits = _object(report["limits"], "limits")
     observed = _object(report["observed"], "observed")
     _exact_keys(limits, {"wall_clock_seconds", "peak_rss_bytes"}, "limits")
-    _exact_keys(observed, {"wall_clock_seconds", "peak_rss_bytes"}, "observed")
+    _exact_keys(
+        observed,
+        {
+            "wall_clock_seconds", "peak_rss_bytes", "runs", "started_at", "finished_at",
+            "exit_code",
+        },
+        "observed",
+    )
     wall_limit = limits["wall_clock_seconds"]
     wall_observed = observed["wall_clock_seconds"]
     if (
@@ -332,37 +493,181 @@ def validate_report(root: Path, report_path: Path) -> None:
         raise ValidationError("campaign report RSS limit differs from target registry")
     if wall_observed > wall_limit:
         raise ValidationError("campaign exceeded its wall-clock limit")
+    if wall_limit != duration + 90:
+        raise ValidationError("campaign report wall-clock limit is not canonical")
     if rss_observed > rss_limit:
         raise ValidationError("campaign exceeded its peak-RSS limit")
     if report["result"] == "clean" and wall_observed < campaign["duration_seconds"]:
         raise ValidationError("clean campaign ended before its recorded duration")
 
+    producer = _object(report["producer"], "producer")
+    _exact_keys(
+        producer,
+        {"log", "observer", "command", "toolchain", "executable"},
+        "producer",
+    )
+    log_ref = _object(producer["log"], "producer.log")
+    observer_ref = _object(producer["observer"], "producer.observer")
+    _exact_keys(log_ref, {"path", "sha256"}, "producer.log")
+    _exact_keys(observer_ref, {"path", "sha256"}, "producer.observer")
+    bundle = report_path.resolve().parent
+    producer_log = _bundle_file(bundle, log_ref["path"], "producer.log.path")
+    observer_path = _bundle_file(bundle, observer_ref["path"], "producer.observer.path")
+    if _sha256_text(log_ref["sha256"], "producer.log.sha256") != sha256(producer_log):
+        raise ValidationError("campaign report producer-log hash is stale")
+    if _sha256_text(
+        observer_ref["sha256"], "producer.observer.sha256"
+    ) != sha256(observer_path):
+        raise ValidationError("campaign report observer-record hash is stale")
+    _validate_observer(
+        observer_path,
+        producer_log,
+        report,
+        target,
+        registry["deterministic_seed"],
+    )
 
-def run_smoke(root: Path, cargo_fuzz: str) -> None:
+
+def _copy_seeds(
+    root: Path,
+    corpus: Path,
+    manifest: dict[str, Any],
+    target_name: str,
+) -> list[dict[str, str]]:
+    corpus.mkdir()
+    selected = [
+        seed for seed in manifest["seeds"]
+        if Path(seed["path"]).parts[-2] == target_name
+    ]
+    for seed in selected:
+        shutil.copyfile(root / seed["path"], corpus / Path(seed["path"]).name)
+    return [
+        {"id": seed["id"], "path": seed["path"], "sha256": seed["sha256"]}
+        for seed in selected
+    ]
+
+
+def run_campaign(
+    root: Path,
+    target_name: str,
+    kind: str,
+    sanitizer: str,
+    cargo: str,
+    output: Path,
+) -> str:
     registry, manifest = validate_repository(root)
-    seeds_by_target = {
-        target["name"]: [
-            seed for seed in manifest["seeds"]
-            if Path(seed["path"]).parts[-2] == target["name"]
+    targets = {target["name"]: target for target in registry["targets"]}
+    if target_name not in targets:
+        raise ValidationError(f"unknown fuzz target: {target_name}")
+    if kind not in {"smoke", "full"}:
+        raise ValidationError("campaign kind must be smoke or full")
+    if sanitizer not in SANITIZERS:
+        raise ValidationError("unsupported sanitizer")
+    target = targets[target_name]
+    duration = target["smoke_seconds"] if kind == "smoke" else 600
+    cargo_identity = tool_identity(cargo, ["--version", "--verbose"])
+    rustc_identity = tool_identity(os.environ.get("RUSTC", "rustc"), ["-vV"])
+    toolchain = {"cargo": cargo_identity, "rustc": rustc_identity}
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() or output.is_symlink():
+        raise ValidationError(f"refusing to replace existing evidence path: {output}")
+    temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent))
+    try:
+        corpus = temporary / "corpus"
+        seeds = _copy_seeds(root, corpus, manifest, target_name)
+        log_path = temporary / "producer.log"
+        command = [
+            cargo_identity["path"], "fuzz", "run", "--fuzz-dir", "fuzz", target_name,
+            "--sanitizer", sanitizer, str(corpus), "--",
+            f"-max_total_time={duration}",
+            f"-seed={registry['deterministic_seed']}",
+            f"-max_len={target['max_len']}",
+            f"-rss_limit_mb={target['peak_rss_limit_bytes'] // (1024 * 1024)}",
         ]
-        for target in registry["targets"]
-    }
-    with tempfile.TemporaryDirectory(prefix="access97-rs-fuzz-") as temporary:
-        temporary_root = Path(temporary)
+        observer = observe_producer(
+            root, log_path, command, duration + 90, toolchain
+        )
+        shutil.rmtree(corpus)
+        observer_path = temporary / "observer.json"
+        write_json(observer_path, observer)
+        report = {
+            "schema_version": 2,
+            "commit": {
+                "sha": _git(root, "rev-parse", "HEAD"),
+                "dirty": bool(_git(root, "status", "--porcelain", "--untracked-files=all")),
+            },
+            "target": target_name,
+            "target_registry_sha256": sha256(root / "fuzz/targets.json"),
+            "target_source_sha256": sha256(_repo_path(root, target["source"], "target.source")),
+            "corpus": {
+                "manifest_sha256": sha256(root / "fuzz/corpus/manifest.json"),
+                "seeds": seeds,
+            },
+            "campaign": {
+                "duration_seconds": duration,
+                "kind": kind,
+                "deterministic_seed": registry["deterministic_seed"],
+                "sanitizer": sanitizer,
+            },
+            "result": observer["result"],
+            "limits": {
+                "wall_clock_seconds": duration + 90,
+                "peak_rss_bytes": target["peak_rss_limit_bytes"],
+            },
+            "observed": {
+                "wall_clock_seconds": observer["wall_clock_seconds"],
+                "peak_rss_bytes": observer["peak_rss_bytes"],
+                "runs": observer["runs"],
+                "started_at": observer["started_at"],
+                "finished_at": observer["finished_at"],
+                "exit_code": observer["exit_code"],
+            },
+            "producer": {
+                "log": {"path": "producer.log", "sha256": sha256(log_path)},
+                "observer": {"path": "observer.json", "sha256": sha256(observer_path)},
+                "command": observer["command"],
+                "toolchain": observer["toolchain"],
+                "executable": observer["executable"],
+            },
+        }
+        report_path = temporary / "report.json"
+        write_json(report_path, report)
+        validate_report(root, report_path)
+        publish_directory(temporary, output)
+        return observer["result"]
+    except BaseException:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+
+
+def run_smoke(root: Path, cargo: str, sanitizer: str, output: Path) -> list[str]:
+    registry, _ = validate_repository(root)
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() or output.is_symlink():
+        raise ValidationError(f"refusing to replace existing evidence path: {output}")
+    suite = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent))
+    results: list[str] = []
+    try:
         for target in registry["targets"]:
-            corpus = temporary_root / target["name"]
-            corpus.mkdir()
-            for seed in seeds_by_target[target["name"]]:
-                shutil.copyfile(root / seed["path"], corpus / Path(seed["path"]).name)
-            command = [
-                cargo_fuzz, "fuzz", "run", "--fuzz-dir", "fuzz", target["name"], str(corpus), "--",
-                f"-max_total_time={target['smoke_seconds']}",
-                f"-seed={registry['deterministic_seed']}",
-                f"-max_len={target['max_len']}",
-                f"-rss_limit_mb={target['peak_rss_limit_bytes'] // (1024 * 1024)}",
-            ]
             print(f"running {target['name']} for {target['smoke_seconds']} seconds", flush=True)
-            subprocess.run(command, cwd=root, check=True, timeout=target["smoke_seconds"] + 90)
+            results.append(
+                run_campaign(
+                    root,
+                    target["name"],
+                    "smoke",
+                    sanitizer,
+                    cargo,
+                    suite / target["name"],
+                )
+            )
+        publish_directory(suite, output)
+        return results
+    except BaseException:
+        shutil.rmtree(suite, ignore_errors=True)
+        raise
 
 
 def main() -> int:
@@ -372,8 +677,16 @@ def main() -> int:
     subparsers.add_parser("validate")
     report_parser = subparsers.add_parser("validate-report")
     report_parser.add_argument("report", type=Path)
+    run_parser = subparsers.add_parser("run")
+    run_parser.add_argument("target")
+    run_parser.add_argument("--kind", choices=("smoke", "full"), default="smoke")
+    run_parser.add_argument("--sanitizer", choices=sorted(SANITIZERS), default="address")
+    run_parser.add_argument("--cargo", default="cargo")
+    run_parser.add_argument("--output", type=Path, required=True)
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--cargo", default="cargo")
+    smoke_parser.add_argument("--sanitizer", choices=sorted(SANITIZERS), default="address")
+    smoke_parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     root = args.root.resolve()
     try:
@@ -381,8 +694,18 @@ def main() -> int:
             validate_repository(root)
         elif args.command == "validate-report":
             validate_report(root, args.report.resolve())
+        elif args.command == "run":
+            result = run_campaign(
+                root, args.target, args.kind, args.sanitizer, args.cargo, args.output
+            )
+            if result != "clean":
+                print(f"error: fuzz campaign recorded {result}", file=sys.stderr)
+                return 1
         else:
-            run_smoke(root, args.cargo)
+            results = run_smoke(root, args.cargo, args.sanitizer, args.output)
+            if any(result != "clean" for result in results):
+                print("error: one or more fuzz campaigns recorded a finding", file=sys.stderr)
+                return 1
     except (ValidationError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

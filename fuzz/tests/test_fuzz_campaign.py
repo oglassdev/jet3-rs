@@ -5,11 +5,13 @@ import hashlib
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "tools/fuzz_campaign.py"
+sys.path.insert(0, str(MODULE_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("fuzz_campaign", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
 fuzz_campaign = importlib.util.module_from_spec(SPEC)
@@ -25,7 +27,9 @@ def write_json(path: Path, value: object) -> None:
 class FuzzCampaignValidationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
+        self.evidence_temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
+        self.bundle = Path(self.evidence_temporary.name)
         (self.root / "fuzz/fuzz_targets").mkdir(parents=True)
         (self.root / "fuzz/corpus/example").mkdir(parents=True)
         (self.root / "fuzz/fuzz_targets/example.rs").write_text("// target\n", encoding="utf-8")
@@ -73,6 +77,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         self._write_artifacts()
 
     def tearDown(self) -> None:
+        self.evidence_temporary.cleanup()
         self.temporary.cleanup()
 
     def _write_artifacts(self) -> None:
@@ -94,8 +99,50 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         ).strip()
 
     def _valid_report(self, commit: str) -> dict[str, object]:
-        return {
+        log_path = self.bundle / "producer.log"
+        log_path.write_text(
+            "Running `/tmp/fuzz-example /tmp/corpus`\n"
+            "#1000 DONE cov: 1 ft: 1 corp: 1/5b lim: 5 exec/s: 16 rss: 1Mb\n",
+            encoding="utf-8",
+        )
+        toolchain = {
+            "cargo": {
+                "path": "/usr/bin/cargo",
+                "sha256": "a" * 64,
+                "version": "cargo 1.96.0",
+            },
+            "rustc": {
+                "path": "/usr/bin/rustc",
+                "sha256": "b" * 64,
+                "version": "rustc 1.96.0",
+            },
+        }
+        executable = {"path": "/tmp/fuzz-example", "sha256": "c" * 64}
+        command = [
+            "/usr/bin/cargo", "fuzz", "run", "--fuzz-dir", "fuzz", "example",
+            "--sanitizer", "address", "/tmp/corpus", "--",
+            "-max_total_time=60", "-seed=789231", "-max_len=4096",
+            "-rss_limit_mb=256",
+        ]
+        observer = {
             "schema_version": 1,
+            "producer_log_sha256": fuzz_campaign.sha256(log_path),
+            "command": command,
+            "started_at": "2026-07-24T12:00:00Z",
+            "finished_at": "2026-07-24T12:01:00.200000Z",
+            "wall_clock_seconds": 60.2,
+            "peak_rss_bytes": 1048576,
+            "runs": 1000,
+            "result": "clean",
+            "exit_code": 0,
+            "timed_out": False,
+            "toolchain": toolchain,
+            "executable": executable,
+        }
+        observer_path = self.bundle / "observer.json"
+        write_json(observer_path, observer)
+        return {
+            "schema_version": 2,
             "commit": {"sha": commit, "dirty": False},
             "target": "example",
             "target_registry_sha256": fuzz_campaign.sha256(
@@ -116,29 +163,51 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             },
             "campaign": {
                 "duration_seconds": 60,
-                "runs": 1000,
                 "kind": "smoke",
                 "deterministic_seed": 789231,
                 "sanitizer": "address",
-                "started_at": "2026-07-24T12:00:00Z",
-                "finished_at": "2026-07-24T12:01:00Z",
             },
             "result": "clean",
             "limits": {
-                "wall_clock_seconds": 65,
+                "wall_clock_seconds": 150,
                 "peak_rss_bytes": 268435456,
             },
             "observed": {
                 "wall_clock_seconds": 60.2,
                 "peak_rss_bytes": 1048576,
+                "runs": 1000,
+                "started_at": "2026-07-24T12:00:00Z",
+                "finished_at": "2026-07-24T12:01:00.200000Z",
+                "exit_code": 0,
+            },
+            "producer": {
+                "log": {
+                    "path": "producer.log",
+                    "sha256": fuzz_campaign.sha256(log_path),
+                },
+                "observer": {
+                    "path": "observer.json",
+                    "sha256": fuzz_campaign.sha256(observer_path),
+                },
+                "command": command,
+                "toolchain": toolchain,
+                "executable": executable,
             },
         }
 
     def _validate_report(self, report: dict[str, object]) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json") as output:
-            json.dump(report, output)
-            output.flush()
-            fuzz_campaign.validate_report(self.root, Path(output.name))
+        report_path = self.bundle / "report.json"
+        write_json(report_path, report)
+        fuzz_campaign.validate_report(self.root, report_path)
+
+    def _rewrite_observer(
+        self,
+        report: dict[str, object],
+        observer: dict[str, object],
+    ) -> None:
+        observer_path = self.bundle / "observer.json"
+        write_json(observer_path, observer)
+        report["producer"]["observer"]["sha256"] = fuzz_campaign.sha256(observer_path)
 
     def test_checked_repository_is_accepted(self) -> None:
         fuzz_campaign.validate_repository(self.root)
@@ -218,7 +287,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
     def test_wall_clock_breach_is_rejected(self) -> None:
         commit = self._initialize_git()
         report = self._valid_report(commit)
-        report["observed"]["wall_clock_seconds"] = 65.1
+        report["observed"]["wall_clock_seconds"] = 150.1
         with self.assertRaisesRegex(ValidationError, "wall-clock"):
             self._validate_report(report)
 
@@ -257,6 +326,94 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "source hash is stale"):
             self._validate_report(report)
 
+    def test_unbound_version_one_wrapper_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        report["schema_version"] = 1
+        with self.assertRaisesRegex(ValidationError, "unbound version-1 wrappers"):
+            self._validate_report(report)
+
+    def test_producer_log_corruption_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        with (self.bundle / "producer.log").open("a", encoding="utf-8") as log:
+            log.write("corrupted\n")
+        with self.assertRaisesRegex(ValidationError, "producer-log hash is stale"):
+            self._validate_report(report)
+
+    def test_rehashed_run_count_forgery_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        log_path = self.bundle / "producer.log"
+        log_path.write_text(
+            log_path.read_text(encoding="utf-8").replace("#1000", "#999"),
+            encoding="utf-8",
+        )
+        observer_path = self.bundle / "observer.json"
+        observer = json.loads(observer_path.read_text(encoding="utf-8"))
+        observer["producer_log_sha256"] = fuzz_campaign.sha256(log_path)
+        self._rewrite_observer(report, observer)
+        report["producer"]["log"]["sha256"] = fuzz_campaign.sha256(log_path)
+        with self.assertRaisesRegex(ValidationError, "run count disagrees"):
+            self._validate_report(report)
+
+    def test_rehashed_executable_forgery_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        log_path = self.bundle / "producer.log"
+        log_path.write_text(
+            log_path.read_text(encoding="utf-8").replace("fuzz-example", "other-fuzzer"),
+            encoding="utf-8",
+        )
+        observer_path = self.bundle / "observer.json"
+        observer = json.loads(observer_path.read_text(encoding="utf-8"))
+        observer["producer_log_sha256"] = fuzz_campaign.sha256(log_path)
+        self._rewrite_observer(report, observer)
+        report["producer"]["log"]["sha256"] = fuzz_campaign.sha256(log_path)
+        with self.assertRaisesRegex(ValidationError, "executable identity disagrees"):
+            self._validate_report(report)
+
+    def test_rehashed_outcome_forgery_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        log_path = self.bundle / "producer.log"
+        with log_path.open("a", encoding="utf-8") as log:
+            log.write("ERROR: AddressSanitizer: heap-use-after-free\n")
+        observer_path = self.bundle / "observer.json"
+        observer = json.loads(observer_path.read_text(encoding="utf-8"))
+        observer["producer_log_sha256"] = fuzz_campaign.sha256(log_path)
+        self._rewrite_observer(report, observer)
+        report["producer"]["log"]["sha256"] = fuzz_campaign.sha256(log_path)
+        with self.assertRaisesRegex(ValidationError, "result disagrees"):
+            self._validate_report(report)
+
+    def test_report_toolchain_forgery_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        report["producer"]["toolchain"]["rustc"]["sha256"] = "d" * 64
+        with self.assertRaisesRegex(ValidationError, "producer.toolchain disagrees"):
+            self._validate_report(report)
+
+    def test_observer_symlink_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        observer_path = self.bundle / "observer.json"
+        observer_copy = self.bundle / "observer-copy.json"
+        observer_path.replace(observer_copy)
+        observer_path.symlink_to(observer_copy)
+        with self.assertRaisesRegex(ValidationError, "symlink"):
+            self._validate_report(report)
+
+    def test_atomic_publication_refuses_existing_destination(self) -> None:
+        temporary = self.bundle / "temporary"
+        output = self.bundle / "existing"
+        temporary.mkdir()
+        output.mkdir()
+        (temporary / "report.json").write_text("{}\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValidationError, "refusing to replace"):
+            fuzz_campaign.publish_directory(temporary, output)
+        self.assertTrue((temporary / "report.json").is_file())
+
     def test_short_smoke_report_is_rejected(self) -> None:
         commit = self._initialize_git()
         report = self._valid_report(commit)
@@ -278,9 +435,17 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         report = self._valid_report(commit)
         report["campaign"]["kind"] = "full"
         report["campaign"]["duration_seconds"] = 600
-        report["campaign"]["finished_at"] = "2026-07-24T12:10:01Z"
-        report["limits"]["wall_clock_seconds"] = 605
+        report["limits"]["wall_clock_seconds"] = 690
         report["observed"]["wall_clock_seconds"] = 600.2
+        report["observed"]["finished_at"] = "2026-07-24T12:10:00.200000Z"
+        observer_path = self.bundle / "observer.json"
+        observer = json.loads(observer_path.read_text(encoding="utf-8"))
+        observer["command"][-4] = "-max_total_time=600"
+        observer["finished_at"] = "2026-07-24T12:10:00.200000Z"
+        observer["wall_clock_seconds"] = 600.2
+        write_json(observer_path, observer)
+        report["producer"]["command"] = observer["command"]
+        report["producer"]["observer"]["sha256"] = fuzz_campaign.sha256(observer_path)
         self._validate_report(report)
 
 

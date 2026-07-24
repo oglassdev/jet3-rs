@@ -65,29 +65,50 @@ python3 fuzz/tools/fuzz_campaign.py validate
 Run the deterministic developer/CI smoke for every registered target:
 
 ```sh
-python3 fuzz/tools/fuzz_campaign.py smoke
+python3 fuzz/tools/fuzz_campaign.py smoke \
+  --output /absolute/path/to/new-fuzz-evidence-suite
 ```
 
 The smoke runner copies only manifest-listed seeds into disposable corpora,
 rejects corpora over their registered byte bounds, and runs every target for
-at least 60 seconds with the registered input and peak-RSS limits. Adding a
-target therefore requires its Cargo bin, source, corpus directory, seeds, and
-registry entry together; a missing or seedless target fails validation.
-
-`schema/campaign-report.schema.json` defines the durable campaign evidence
-shape. Validate a report against both that contract and the current checkout:
+at least 60 seconds with the registered input and peak-RSS limits. The output
+path must not exist: the complete suite is built beside it and atomically
+renamed only after every target bundle validates. Run one smoke or ten-minute
+campaign with the same retained-evidence path:
 
 ```sh
-python3 fuzz/tools/fuzz_campaign.py validate-report path/to/report.json
+python3 fuzz/tools/fuzz_campaign.py run binary_cursor --kind smoke \
+  --output /absolute/path/to/new-binary-cursor-bundle
+python3 fuzz/tools/fuzz_campaign.py run binary_cursor --kind full \
+  --output /absolute/path/to/new-binary-cursor-full-bundle
+```
+
+Adding a target therefore requires its Cargo bin, source, corpus directory,
+seeds, and registry entry together; a missing or seedless target fails
+validation.
+
+`schema/campaign-report.schema.json` defines the durable campaign evidence
+shape. Each version-2 bundle contains `report.json`, the unmodified combined
+cargo-fuzz/libFuzzer `producer.log`, and a hashed `observer.json`. The observer
+records the exact command, cargo and rustc paths/versions/hashes, executed fuzz
+binary path/hash, UTC timestamps, monotonic elapsed time, sampled process-tree
+peak RSS, exit status, classified outcome, and run count. Validate a report
+against its two retained inputs and the current checkout:
+
+```sh
+python3 fuzz/tools/fuzz_campaign.py validate-report path/to/bundle/report.json
 ```
 
 Validation rejects stale commit or dirty-state metadata, target registry,
 target source, corpus, or seed hash drift, malformed timestamps or campaign
-fields, and observed wall-clock or peak-RSS breaches. Reports explicitly
-identify `smoke` or `full` campaigns. Smoke reports must cover at least the
-target's registered duration, and full reports must cover at least 600
-seconds. A campaign report is evidence about one execution only; it does not
-by itself change G5 status.
+fields, mutated or symlinked raw artifacts, non-canonical commands and limits,
+and observed wall-clock or peak-RSS breaches. It reparses the retained producer
+log and requires its run count, executable path, RSS floor, and outcome to
+agree with both the observer and report; a hand-authored version-1 wrapper is
+not accepted as evidence. Reports explicitly identify `smoke` or `full`
+campaigns. Smoke reports must cover at least the target's registered duration,
+and full reports must cover at least 600 seconds. A campaign report is evidence
+about one execution only; it does not by itself change G5 status.
 
 Compile without starting a fuzzing campaign:
 
