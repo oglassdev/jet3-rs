@@ -2,8 +2,8 @@
 
 Status: **BLOCKED**
 
-Audit date: 2026-07-23  
-Audited commit: `39a78f5c12d614728ddec90e206b4b98e77b664f`
+Audit date: 2026-07-24
+Audited commit: `e8b01b2bdd143f5713988560df12092c332e18a1`
 
 This record explains why commit-bound Microsoft DAO evidence cannot currently
 be produced. It is a provider-availability record, not compatibility evidence,
@@ -30,6 +30,10 @@ The audited host is macOS 26.3.1 on arm64. It has no `pwsh`,
 Docker, Colima, and Lima are present only as Linux-container or Linux-VM
 routes; none was running during the audit, and none can provide Windows COM.
 `git remote -v` is empty.
+
+No ready provider environment JSON or DAO evidence bundle exists in this
+checkout. The checked scenario inventory contains only the unexecuted
+`DAO-GEN-PROBE-001` input.
 
 The repository already has a cross-platform workflow at
 `.github/workflows/ci.yml`, but dispatching it requires a remote repository and
@@ -100,3 +104,19 @@ Microsoft lists its support as ending on 2025-10-14 and recommends Microsoft
 
 Until all six steps are complete, G3 and every release claim that depends on
 DAO remain `BLOCKED`.
+
+## Current oracle implementation boundary
+
+The portable protocol validator, its six JSON schemas, and its 20 deterministic
+tests run on this host. They validate evidence shape and fail closed; they do
+not execute DAO or establish compatibility.
+
+The PowerShell runner currently implements only the M0
+`DAO-GEN-PROBE-001` operation: activate a candidate provider, create an
+unencrypted `dbVersion30` database, close and reopen it, export the empty DAO
+snapshot, and seal a commit-bound bundle. The validator deliberately rejects
+the differential modes `rust_read_dao`, `dao_open_rust`, and
+`dao_verify_rust_update` until their canonical semantic comparison and
+preservation checks are implemented. Even a successful M0 provider run would
+therefore prove only that exact empty-database probe, not general read, create,
+update, or Access 97 compatibility.

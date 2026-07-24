@@ -217,6 +217,73 @@ Use `not applicable` explicitly rather than omitting a field.
   is redistributed
 - Review: pending independent review
 
+### SRC-0007 — Jet 3.5 format continuity and physical-design concepts
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: What physical-design facts does Microsoft publish for the Jet 3.5
+  engine used by Access 97, and which of those facts are sufficient for binary
+  implementation?
+- Origin: Microsoft Support, “Rediscovered JET and ODBC white papers,” and the
+  linked Microsoft download archive containing Kevin Collins, “Microsoft Jet
+  3.5 Performance Overview and Optimization Techniques,” dated 1997-03-06;
+  accessed 2026-07-24,
+  https://support.microsoft.com/en-US/Access/rediscovered-jet-and-odbc-white-papers
+- Environment: documentation retrieval; operating system and architecture are
+  not material; provider version, locale, code pages, and time zone are not
+  applicable
+- Protocol: retrieve the Microsoft Support page, follow its Microsoft-hosted
+  white-paper download, verify the archive and `v35perf.doc` hashes below, and
+  inspect only the Microsoft-authored Jet 3.5 performance paper
+- Artifacts: Microsoft download archive SHA-256
+  `fcd3b414dc9c1053a1f7db97a132561924dff2631f14d600805f8f5dab32ffd8`;
+  contained `v35perf.doc` SHA-256
+  `4e5919f144f0b1d9be6481a452ed33c4332f3acc903d42ea78a7d52f07b7104e`;
+  neither artifact is redistributed by this repository
+- Observation: Microsoft states that Jet 3.5 introduces no data-format change
+  from Jet 3.0 and requires no database data conversion. The paper names a
+  database header page, data pages, index B-tree pages, long-value pages for
+  Memo/OLE values, and directory pages. It describes allocation by extents of
+  up to eight 2-KiB pages in Jet 3.0 and up to 32 pages in Jet 3.5 for large
+  tables. It also describes compaction as recopying pages and recreating
+  indexes.
+- Interpretation: Access 97's Jet 3.5 data format may be treated as the Jet 3.x
+  format requested by DAO `dbVersion30`, and the named page/allocation concepts
+  may guide controlled oracle scenarios. The source publishes no binary page
+  tags, header-field offsets, allocation-map encoding, catalog root, row
+  layout, or long-value pointers, so none of those details may be inferred or
+  implemented from this source.
+- Usage: clean-room experiment planning and future DAO scenario design; not
+  currently cited by production code
+- Rights: citation to Microsoft-authored public material; no white-paper
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0008 — ESE/JET Blue is not the Access JET Red format
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: May Microsoft's Extensible Storage Engine physical documentation
+  be used as a format source for Access MDB files?
+- Origin: Microsoft Learn, “Extensible Storage Engine,” accessed 2026-07-24,
+  https://learn.microsoft.com/en-us/windows/win32/extensible-storage-engine/extensible-storage-engine
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited page and inspect the Notes section that
+  distinguishes JET Blue/ESE from the JET Red engine used by Microsoft Access
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft documents JET Blue/ESE and Access JET Red as separate,
+  independently maintained, non-interchangeable implementations.
+- Interpretation: ESE file headers, page layouts, checksums, tags, APIs, and
+  other physical details are inapplicable to this project and are prohibited
+  as Jet 3 MDB format evidence unless Microsoft explicitly labels a fact as
+  JET Red.
+- Usage: clean-room research boundary; not cited by production code
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
