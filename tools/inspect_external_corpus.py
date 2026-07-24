@@ -11,8 +11,9 @@ import stat
 import subprocess
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence, TextIO
+from typing import Any, BinaryIO, Callable, Mapping, Sequence, TextIO, TypeVar
 
 ENVIRONMENT_VARIABLE = "JET3_EXTERNAL_FIXTURE_ROOT"
 PURPOSE = "nonredistributable-read-only-corpus-verification"
@@ -22,6 +23,32 @@ SIGNATURE_LENGTH = 15
 STRIDES = (1024, 2048)
 HASH_CHUNK_BYTES = 1024 * 1024
 PAGE_BOUNDARY_BYTES = 2048
+
+
+@dataclass(frozen=True)
+class _StrideSurvey:
+    """A checked-in observation protocol tied to its provenance record."""
+
+    provenance_id: str
+    stride_bytes: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class _BoundaryPrefixSurvey:
+    """A checked-in observation protocol tied to its provenance record."""
+
+    provenance_id: str
+    stride_bytes: int
+    prefix_bytes: int
+
+
+# Keep experiment mechanics explicit and independent. Adding an observation must
+# name its provenance record instead of piggybacking on a coincidentally equal
+# stride used by another experiment.
+STRIDE_SURVEY = _StrideSurvey("EXP-0001", STRIDES)
+PAGE_BOUNDARY_SURVEY = _BoundaryPrefixSurvey(
+    "EXP-0002", PAGE_BOUNDARY_BYTES, 2
+)
 
 TOP_LEVEL_KEYS = {
     "schema_version",
@@ -53,6 +80,28 @@ class ContractError(ValueError):
 
 class CorpusBlockedError(RuntimeError):
     """The opt-in external corpus is absent, unsafe, or does not match."""
+
+
+@dataclass(frozen=True)
+class _FileIdentity:
+    device: int
+    inode: int
+    mode: int
+    size_bytes: int
+    modified_ns: int
+    changed_ns: int
+
+
+@dataclass(frozen=True)
+class _VerifiedFixture:
+    fixture_id: str
+    relative_path: PurePosixPath
+    resolved_path: Path
+    identity: _FileIdentity
+    sha256: str
+
+
+_Observation = TypeVar("_Observation")
 
 
 def _canonical_json(document: Any) -> str:
@@ -293,7 +342,21 @@ def _ascii_signature(signature: bytes) -> str:
     return "".join(chr(value) if 0x20 <= value <= 0x7E else "." for value in signature)
 
 
-def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, Any]:
+def _file_identity(file_stat: os.stat_result) -> _FileIdentity:
+    return _FileIdentity(
+        device=file_stat.st_dev,
+        inode=file_stat.st_ino,
+        mode=file_stat.st_mode,
+        size_bytes=file_stat.st_size,
+        modified_ns=file_stat.st_mtime_ns,
+        changed_ns=file_stat.st_ctime_ns,
+    )
+
+
+def _verify_fixture_identity(
+    corpus_root: Path, fixture: dict[str, Any]
+) -> _VerifiedFixture:
+    """Verify the manifest-bound immutable identity before observations run."""
     fixture_id = fixture["id"]
     relative = _safe_relative_path(
         fixture["path"], f"external corpus fixture {fixture_id} path"
@@ -311,73 +374,9 @@ def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, An
                     f"{fixture_id} size mismatch: expected {fixture['size_bytes']}, "
                     f"found {before.st_size}"
                 )
-
             digest = _sha256_stream(source)
             if digest != fixture["sha256"]:
                 raise CorpusBlockedError(f"{fixture_id} SHA-256 mismatch")
-
-            source.seek(SIGNATURE_OFFSET)
-            signature = source.read(SIGNATURE_LENGTH)
-            if len(signature) != SIGNATURE_LENGTH:
-                raise CorpusBlockedError(
-                    f"{fixture_id} is too short for the offset-4 signature"
-                )
-
-            stride_observations = []
-            page_boundary_observation = None
-            for stride in STRIDES:
-                unique_values: set[int] = set()
-                first_byte_counts: dict[int, int] = {}
-                nonzero_first_byte_count = 0
-                nonzero_first_byte_with_second_byte_0x01_count = 0
-                sample_count = 0
-                for offset in range(0, before.st_size, stride):
-                    source.seek(offset)
-                    sample_width = 2 if stride == PAGE_BOUNDARY_BYTES else 1
-                    expected_width = min(sample_width, before.st_size - offset)
-                    sample = source.read(sample_width)
-                    if len(sample) != expected_width:
-                        raise CorpusBlockedError(
-                            f"{fixture_id} changed during stride inspection"
-                        )
-                    first_byte = sample[0]
-                    unique_values.add(first_byte)
-                    sample_count += 1
-                    if stride == PAGE_BOUNDARY_BYTES:
-                        first_byte_counts[first_byte] = (
-                            first_byte_counts.get(first_byte, 0) + 1
-                        )
-                        if first_byte != 0:
-                            nonzero_first_byte_count += 1
-                            if len(sample) == 2 and sample[1] == 0x01:
-                                nonzero_first_byte_with_second_byte_0x01_count += 1
-                stride_observations.append(
-                    {
-                        "sample_count": sample_count,
-                        "stride_bytes": stride,
-                        "unique_count": len(unique_values),
-                        "unique_first_bytes": sorted(unique_values),
-                    }
-                )
-                if stride == PAGE_BOUNDARY_BYTES:
-                    page_boundary_observation = {
-                        "first_byte_counts": [
-                            {"count": count, "first_byte": first_byte}
-                            for first_byte, count in sorted(first_byte_counts.items())
-                        ],
-                        "nonzero_first_byte_count": nonzero_first_byte_count,
-                        "nonzero_first_byte_with_second_byte_0x01_count": (
-                            nonzero_first_byte_with_second_byte_0x01_count
-                        ),
-                        "sample_count": sample_count,
-                        "stride_bytes": PAGE_BOUNDARY_BYTES,
-                    }
-
-            if page_boundary_observation is None:
-                raise ContractError(
-                    "external corpus verifier has no 2,048-byte boundary stride"
-                )
-
             after = os.fstat(source.fileno())
     except CorpusBlockedError:
         raise
@@ -386,98 +385,203 @@ def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, An
             f"{fixture_id} cannot be read: {relative.as_posix()}"
         ) from error
 
-    if (
-        before.st_dev,
-        before.st_ino,
-        before.st_size,
-        before.st_mtime_ns,
-    ) != (
-        after.st_dev,
-        after.st_ino,
-        after.st_size,
-        after.st_mtime_ns,
-    ):
-        raise CorpusBlockedError(f"{fixture_id} changed during inspection")
+    identity = _file_identity(before)
+    if identity != _file_identity(after):
+        raise CorpusBlockedError(f"{fixture_id} changed during identity verification")
+    return _VerifiedFixture(
+        fixture_id=fixture_id,
+        relative_path=relative,
+        resolved_path=resolved,
+        identity=identity,
+        sha256=digest,
+    )
 
+
+def _run_fixture_observation(
+    fixture: _VerifiedFixture,
+    observation_name: str,
+    observe: Callable[[BinaryIO], _Observation],
+) -> _Observation:
+    """Run one typed pass only while the verified identity remains unchanged."""
+    try:
+        with fixture.resolved_path.open("rb") as source:
+            before = os.fstat(source.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise CorpusBlockedError(
+                    f"{fixture.fixture_id} is not a regular file: "
+                    f"{fixture.relative_path.as_posix()}"
+                )
+            if _file_identity(before) != fixture.identity:
+                raise CorpusBlockedError(
+                    f"{fixture.fixture_id} changed before {observation_name}"
+                )
+            result = observe(source)
+            after = os.fstat(source.fileno())
+    except CorpusBlockedError:
+        raise
+    except OSError as error:
+        raise CorpusBlockedError(
+            f"{fixture.fixture_id} cannot be read during {observation_name}"
+        ) from error
+    if _file_identity(after) != fixture.identity:
+        raise CorpusBlockedError(
+            f"{fixture.fixture_id} changed during {observation_name}"
+        )
+    return result
+
+
+def _observe_signature(source: BinaryIO, fixture_id: str) -> dict[str, str]:
+    source.seek(SIGNATURE_OFFSET)
+    signature = source.read(SIGNATURE_LENGTH)
+    if len(signature) != SIGNATURE_LENGTH:
+        raise CorpusBlockedError(
+            f"{fixture_id} is too short for the offset-4 signature"
+        )
     return {
-        "id": fixture_id,
-        "offset_4_signature": {
-            "ascii": _ascii_signature(signature),
-            "hex": signature.hex(),
-        },
+        "ascii": _ascii_signature(signature),
+        "hex": signature.hex(),
+    }
+
+
+def _observe_stride_first_bytes(
+    source: BinaryIO, fixture_id: str, size_bytes: int, stride_bytes: int
+) -> dict[str, Any]:
+    unique_values: set[int] = set()
+    sample_count = 0
+    for offset in range(0, size_bytes, stride_bytes):
+        source.seek(offset)
+        sample = source.read(1)
+        if len(sample) != 1:
+            raise CorpusBlockedError(
+                f"{fixture_id} changed during stride inspection"
+            )
+        unique_values.add(sample[0])
+        sample_count += 1
+    return {
+        "sample_count": sample_count,
+        "stride_bytes": stride_bytes,
+        "unique_count": len(unique_values),
+        "unique_first_bytes": sorted(unique_values),
+    }
+
+
+def _observe_boundary_prefixes(
+    source: BinaryIO,
+    fixture_id: str,
+    size_bytes: int,
+    survey: _BoundaryPrefixSurvey,
+) -> dict[str, Any]:
+    first_byte_counts: Counter[int] = Counter()
+    nonzero_first_byte_count = 0
+    nonzero_first_byte_with_second_byte_0x01_count = 0
+    sample_count = 0
+    for offset in range(0, size_bytes, survey.stride_bytes):
+        source.seek(offset)
+        expected_width = min(survey.prefix_bytes, size_bytes - offset)
+        sample = source.read(survey.prefix_bytes)
+        if len(sample) != expected_width:
+            raise CorpusBlockedError(
+                f"{fixture_id} changed during page-boundary inspection"
+            )
+        first_byte = sample[0]
+        first_byte_counts[first_byte] += 1
+        nonzero_first_byte_count += first_byte != 0
+        nonzero_first_byte_with_second_byte_0x01_count += (
+            first_byte != 0 and len(sample) == 2 and sample[1] == 0x01
+        )
+        sample_count += 1
+    return {
+        "first_byte_counts": [
+            {"count": count, "first_byte": first_byte}
+            for first_byte, count in sorted(first_byte_counts.items())
+        ],
+        "nonzero_first_byte_count": nonzero_first_byte_count,
+        "nonzero_first_byte_with_second_byte_0x01_count": (
+            nonzero_first_byte_with_second_byte_0x01_count
+        ),
+        "sample_count": sample_count,
+        "stride_bytes": survey.stride_bytes,
+    }
+
+
+def _observe_verified_fixture(fixture: _VerifiedFixture) -> dict[str, Any]:
+    signature = _run_fixture_observation(
+        fixture,
+        "offset-4 signature observation",
+        lambda source: _observe_signature(source, fixture.fixture_id),
+    )
+    stride_observations = [
+        _run_fixture_observation(
+            fixture,
+            f"{STRIDE_SURVEY.provenance_id} stride {stride_bytes}",
+            lambda source, stride=stride_bytes: _observe_stride_first_bytes(
+                source,
+                fixture.fixture_id,
+                fixture.identity.size_bytes,
+                stride,
+            ),
+        )
+        for stride_bytes in STRIDE_SURVEY.stride_bytes
+    ]
+    page_boundary_observation = _run_fixture_observation(
+        fixture,
+        PAGE_BOUNDARY_SURVEY.provenance_id,
+        lambda source: _observe_boundary_prefixes(
+            source,
+            fixture.fixture_id,
+            fixture.identity.size_bytes,
+            PAGE_BOUNDARY_SURVEY,
+        ),
+    )
+    return {
+        "id": fixture.fixture_id,
+        "offset_4_signature": signature,
         "page_boundary_observation": page_boundary_observation,
-        "path": relative.as_posix(),
-        "sha256": digest,
-        "size_bytes": before.st_size,
+        "path": fixture.relative_path.as_posix(),
+        "sha256": fixture.sha256,
+        "size_bytes": fixture.identity.size_bytes,
         "stride_observations": stride_observations,
     }
 
 
-def _file_identity(file_stat: os.stat_result) -> tuple[int, int, int, int]:
-    return (
-        file_stat.st_dev,
-        file_stat.st_ino,
-        file_stat.st_size,
-        file_stat.st_mtime_ns,
-    )
+def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, Any]:
+    """Compatibility wrapper for one manifest fixture's complete observation."""
+    return _observe_verified_fixture(_verify_fixture_identity(corpus_root, fixture))
 
 
 def _observe_comparison(
-    corpus_root: Path,
     comparison: dict[str, Any],
-    fixtures_by_id: dict[str, dict[str, Any]],
+    fixtures_by_id: dict[str, _VerifiedFixture],
 ) -> dict[str, Any]:
     comparison_id = comparison["id"]
     left_fixture = fixtures_by_id[comparison["left_fixture_id"]]
     right_fixture = fixtures_by_id[comparison["right_fixture_id"]]
     page_size = comparison["page_size_bytes"]
-    left_relative = _safe_relative_path(
-        left_fixture["path"], f"external corpus comparison {comparison_id} left path"
-    )
-    right_relative = _safe_relative_path(
-        right_fixture["path"], f"external corpus comparison {comparison_id} right path"
-    )
-    left_path = _resolve_fixture(
-        corpus_root, left_relative, left_fixture["id"]
-    )
-    right_path = _resolve_fixture(
-        corpus_root, right_relative, right_fixture["id"]
-    )
     try:
-        with left_path.open("rb") as left, right_path.open("rb") as right:
+        with (
+            left_fixture.resolved_path.open("rb") as left,
+            right_fixture.resolved_path.open("rb") as right,
+        ):
             left_before = os.fstat(left.fileno())
             right_before = os.fstat(right.fileno())
-            for fixture, relative, file_stat in (
-                (left_fixture, left_relative, left_before),
-                (right_fixture, right_relative, right_before),
+            for fixture, file_stat in (
+                (left_fixture, left_before),
+                (right_fixture, right_before),
             ):
                 if not stat.S_ISREG(file_stat.st_mode):
                     raise CorpusBlockedError(
-                        f"{fixture['id']} is not a regular file: "
-                        f"{relative.as_posix()}"
+                        f"{fixture.fixture_id} is not a regular file: "
+                        f"{fixture.relative_path.as_posix()}"
                     )
-                if file_stat.st_size != fixture["size_bytes"]:
+                if _file_identity(file_stat) != fixture.identity:
                     raise CorpusBlockedError(
-                        f"{fixture['id']} size mismatch during {comparison_id}"
+                        f"{fixture.fixture_id} changed before {comparison_id}"
                     )
 
-            left_digest = _sha256_stream(left)
-            right_digest = _sha256_stream(right)
-            if left_digest != left_fixture["sha256"]:
-                raise CorpusBlockedError(
-                    f"{left_fixture['id']} SHA-256 mismatch during {comparison_id}"
-                )
-            if right_digest != right_fixture["sha256"]:
-                raise CorpusBlockedError(
-                    f"{right_fixture['id']} SHA-256 mismatch during {comparison_id}"
-                )
-
-            left.seek(0)
-            right.seek(0)
             transition_counts: Counter[tuple[int, int]] = Counter()
             changed_byte_count_by_offset = [0] * page_size
             equal_page_count = 0
-            page_count = left_before.st_size // page_size
+            page_count = left_fixture.identity.size_bytes // page_size
             for page_index in range(page_count):
                 left_page = left.read(page_size)
                 right_page = right.read(page_size)
@@ -505,13 +609,13 @@ def _observe_comparison(
             f"{comparison_id} fixtures cannot be read"
         ) from error
 
-    if _file_identity(left_before) != _file_identity(left_after):
+    if left_fixture.identity != _file_identity(left_after):
         raise CorpusBlockedError(
-            f"{left_fixture['id']} changed during {comparison_id}"
+            f"{left_fixture.fixture_id} changed during {comparison_id}"
         )
-    if _file_identity(right_before) != _file_identity(right_after):
+    if right_fixture.identity != _file_identity(right_after):
         raise CorpusBlockedError(
-            f"{right_fixture['id']} changed during {comparison_id}"
+            f"{right_fixture.fixture_id} changed during {comparison_id}"
         )
 
     return {
@@ -519,10 +623,10 @@ def _observe_comparison(
         "changed_page_count": page_count - equal_page_count,
         "equal_page_count": equal_page_count,
         "id": comparison_id,
-        "left_fixture_id": left_fixture["id"],
+        "left_fixture_id": left_fixture.fixture_id,
         "page_count": page_count,
         "page_size_bytes": page_size,
-        "right_fixture_id": right_fixture["id"],
+        "right_fixture_id": right_fixture.fixture_id,
         "same_index_first_byte_transitions": [
             {
                 "left_first_byte": left_byte,
@@ -552,17 +656,18 @@ def build_observation(repo_root: Path, external_root: Path) -> dict[str, Any]:
     if not normalized_external_root.is_dir():
         raise CorpusBlockedError("external corpus root is not a directory")
 
-    fixtures = [
-        _observe_fixture(normalized_external_root, fixture)
+    verified_fixtures = [
+        _verify_fixture_identity(normalized_external_root, fixture)
         for fixture in manifest["fixtures"]
     ]
     fixtures_by_id = {
-        fixture["id"]: fixture for fixture in manifest["fixtures"]
+        fixture.fixture_id: fixture for fixture in verified_fixtures
     }
+    fixtures = [
+        _observe_verified_fixture(fixture) for fixture in verified_fixtures
+    ]
     comparisons = [
-        _observe_comparison(
-            normalized_external_root, comparison, fixtures_by_id
-        )
+        _observe_comparison(comparison, fixtures_by_id)
         for comparison in manifest["comparisons"]
     ]
     return {

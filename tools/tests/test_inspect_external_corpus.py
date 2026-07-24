@@ -307,6 +307,20 @@ class InspectExternalCorpusTests(unittest.TestCase):
         ):
             self._observe()
 
+    def test_typed_pass_rejects_change_after_identity_verification(self) -> None:
+        verified = inspect_corpus._verify_fixture_identity(
+            self.corpus.resolve(), self.manifest["fixtures"][0]
+        )
+        changed = b"!" + self.fixture_bytes[1:]
+        self.fixture_path.write_bytes(changed)
+        changed_ns = verified.identity.modified_ns + 1_000_000_000
+        os.utime(self.fixture_path, ns=(changed_ns, changed_ns))
+
+        with self.assertRaisesRegex(
+            inspect_corpus.CorpusBlockedError, "changed before"
+        ):
+            inspect_corpus._observe_verified_fixture(verified)
+
     def test_size_mismatch_is_blocked_before_hashing(self) -> None:
         self.fixture_path.write_bytes(self.fixture_bytes + b"x")
         with self.assertRaisesRegex(
@@ -380,43 +394,44 @@ class InspectExternalCorpusTests(unittest.TestCase):
             )
 
     def test_short_page_boundary_read_is_blocked(self) -> None:
-        fake_stat = os.stat_result(
-            (
-                0o100644,
-                1,
-                1,
-                1,
-                0,
-                0,
-                len(self.fixture_bytes),
-                0,
-                0,
-                0,
-            )
-        )
-        stride_1024_samples = len(range(0, len(self.fixture_bytes), 1024))
         source = mock.MagicMock()
-        source.__enter__.return_value = source
-        source.__exit__.return_value = False
-        source.fileno.return_value = 10
-        source.read.side_effect = [
-            self.fixture_bytes,
-            b"",
-            b"Standard Jet DB",
-            *([b"\x00"] * stride_1024_samples),
-            b"\x00",
-        ]
-        with (
-            mock.patch.object(Path, "open", return_value=source),
-            mock.patch.object(inspect_corpus.os, "fstat", return_value=fake_stat),
-            self.assertRaisesRegex(
-                inspect_corpus.CorpusBlockedError,
-                "changed during stride inspection",
-            ),
+        source.read.return_value = b"\x00"
+        with self.assertRaisesRegex(
+            inspect_corpus.CorpusBlockedError,
+            "changed during page-boundary inspection",
         ):
-            inspect_corpus._observe_fixture(
-                self.corpus.resolve(), self.manifest["fixtures"][0]
+            inspect_corpus._observe_boundary_prefixes(
+                source,
+                "FIX-0001",
+                len(self.fixture_bytes),
+                inspect_corpus.PAGE_BOUNDARY_SURVEY,
             )
+
+    def test_boundary_observation_is_independent_of_equal_stride_survey(self) -> None:
+        source = io.BytesIO(b"\x02\x01" + (b"\x00" * 1022) + b"\x03\x00")
+        boundary_survey = inspect_corpus._BoundaryPrefixSurvey(
+            "EXP-TEST", 1024, 2
+        )
+        boundary = inspect_corpus._observe_boundary_prefixes(
+            source, "FIX-0001", 1026, boundary_survey
+        )
+        source.seek(0)
+        stride = inspect_corpus._observe_stride_first_bytes(
+            source, "FIX-0001", 1026, 1024
+        )
+
+        self.assertEqual(
+            boundary["nonzero_first_byte_with_second_byte_0x01_count"], 1
+        )
+        self.assertNotIn(
+            "nonzero_first_byte_with_second_byte_0x01_count", stride
+        )
+
+    def test_observation_protocols_are_provenance_bound(self) -> None:
+        self.assertEqual(inspect_corpus.STRIDE_SURVEY.provenance_id, "EXP-0001")
+        self.assertEqual(
+            inspect_corpus.PAGE_BOUNDARY_SURVEY.provenance_id, "EXP-0002"
+        )
 
     def test_short_declared_pair_page_read_is_blocked(self) -> None:
         page_size = inspect_corpus.PAGE_BOUNDARY_BYTES
@@ -424,28 +439,14 @@ class InspectExternalCorpusTests(unittest.TestCase):
         right_bytes = bytearray(page_size * 2)
         left_bytes[4:19] = b"Standard Jet DB"
         right_bytes[4:19] = b"Standard Jet DB"
-        self._add_pair_comparison(bytes(left_bytes), bytes(right_bytes))
-        fake_stat = os.stat_result(
-            (
-                0o100644,
-                1,
-                1,
-                1,
-                0,
-                0,
-                len(left_bytes),
-                0,
-                0,
-                0,
-            )
+        left_path, right_path = self._add_pair_comparison(
+            bytes(left_bytes), bytes(right_bytes)
         )
         left_source = mock.MagicMock()
         left_source.__enter__.return_value = left_source
         left_source.__exit__.return_value = False
         left_source.fileno.return_value = 10
         left_source.read.side_effect = [
-            bytes(left_bytes),
-            b"",
             bytes(left_bytes[:page_size]),
             b"short",
         ]
@@ -454,14 +455,17 @@ class InspectExternalCorpusTests(unittest.TestCase):
         right_source.__exit__.return_value = False
         right_source.fileno.return_value = 11
         right_source.read.side_effect = [
-            bytes(right_bytes),
-            b"",
             bytes(right_bytes[:page_size]),
             bytes(right_bytes[page_size:]),
         ]
         fixtures_by_id = {
-            fixture["id"]: fixture for fixture in self.manifest["fixtures"]
+            fixture["id"]: inspect_corpus._verify_fixture_identity(
+                self.corpus.resolve(), fixture
+            )
+            for fixture in self.manifest["fixtures"]
         }
+        left_stat = left_path.stat()
+        right_stat = right_path.stat()
         with (
             mock.patch.object(
                 Path, "open", side_effect=[left_source, right_source]
@@ -469,7 +473,7 @@ class InspectExternalCorpusTests(unittest.TestCase):
             mock.patch.object(
                 inspect_corpus.os,
                 "fstat",
-                side_effect=[fake_stat, fake_stat],
+                side_effect=[left_stat, right_stat],
             ),
             self.assertRaisesRegex(
                 inspect_corpus.CorpusBlockedError,
@@ -477,7 +481,6 @@ class InspectExternalCorpusTests(unittest.TestCase):
             ),
         ):
             inspect_corpus._observe_comparison(
-                self.corpus.resolve(),
                 self.manifest["comparisons"][0],
                 fixtures_by_id,
             )
