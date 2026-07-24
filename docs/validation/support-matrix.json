@@ -83,10 +83,43 @@
     },
     {
       "id": "format.pages_allocation_usage",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "Bounded, content-agnostic reads of complete 2 KiB pages are implemented; page headers, page-type meanings, allocation and usage maps, structural validation, and DAO differential evidence are not.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/jet3_page.rs",
+          "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6",
+          "commit": "dafa5b0a7721a69a06ac17d59e682608f1f60b02",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/jet3_page_tests.rs",
+          "sha256": "bff23b9a03e21578052e2bebb5f36eb6cf169cdf4ff737ab46ea05ae98409cb1",
+          "commit": "dafa5b0a7721a69a06ac17d59e682608f1f60b02",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-JET3-PAGE-001",
+            "UT-JET3-PAGE-002",
+            "UT-JET3-PAGE-003",
+            "UT-JET3-PAGE-004",
+            "UT-JET3-PAGE-005",
+            "UT-JET3-PAGE-006",
+            "UT-JET3-PAGE-007",
+            "UT-JET3-PAGE-008",
+            "UT-JET3-PAGE-009",
+            "UT-JET3-PAGE-010",
+            "UT-JET3-PAGE-011",
+            "UT-JET3-PAGE-012",
+            "UT-JET3-PAGE-013",
+            "UT-JET3-PAGE-014",
+            "UT-JET3-PAGE-015"
+          ]
+        }
+      ]
     },
     {
       "id": "schema.catalog_and_table_definitions",
