@@ -19,9 +19,10 @@ format evidence.
    perform I/O or know Jet constants.
 5. `source` provides bounded random access to a captured-length input. It does
    not read an entire input into memory.
-6. `atomic` publishes a caller-mutated file through a same-directory private
-   copy, read-only validation callback, file synchronization, rename, and
-   directory synchronization where supported. Its validator contract is a
+6. On Unix, `atomic` publishes a caller-mutated file through a same-directory
+   private copy only after read-only validation, file synchronization, and a
+   retained-handle/path identity check. Cleanup applies the same identity
+   boundary and never unlinks a substituted entry. Its validator contract is a
    publication safeguard, not independent writer or compatibility evidence.
 7. Future physical-format modules may depend on these layers. They must keep
    constants beside a `SRC-`, `OBS-`, or `EXP-` provenance ID and must not put
@@ -58,20 +59,23 @@ operation-wide resource dimension before work begins.
 
 ## Publication boundary
 
-The format-neutral atomic publisher excludes concurrent writers and requires
-an existing regular file. Failures before rename leave the original path in
-place and explicitly attempt to close and remove the private copy. If removal
-fails, the returned error retains both the primary update failure and the
-secondary cleanup failure; `Drop` retries removal but cannot guarantee or
-report success. A failure synchronizing the directory after rename is reported
-with `replacement_published = true`: the fully validated replacement is
-visible, but crash durability of the directory entry is uncertain.
+The Unix-only format-neutral atomic publisher excludes concurrent writers and
+requires an existing regular file. It verifies that the private pathname still
+names its retained open file immediately before rename. Failures before rename
+leave the original path in place and explicitly attempt to close and remove the
+private copy. Cleanup refuses to unlink a substituted entry. Other cleanup
+failures retain both the primary update failure and the secondary cleanup
+failure; `Drop` retries removal only while identity still matches but cannot
+guarantee or report success. A failure synchronizing the directory after rename
+is reported with `replacement_published = true`: the fully validated
+replacement is visible, but crash durability of the directory entry is
+uncertain.
 
 Same-directory `rename` and `sync_all` inherit the host operating system and
-filesystem guarantees. Network and unusual filesystems may be weaker, and
-portable directory synchronization is not available through Rust's standard
-library on every platform. These limits prevent the foundation from being
-described as a complete Jet update implementation.
+filesystem guarantees. Network and unusual filesystems may be weaker.
+Non-Unix hosts fail closed because stable safe file identity is not available
+through the standard-library boundary used here. These limits prevent the
+foundation from being described as a complete Jet update implementation.
 
 ## Review rule
 

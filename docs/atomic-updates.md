@@ -4,8 +4,8 @@ The `jet3::atomic` module is a format-neutral publication primitive. It copies
 an existing regular file to a private file in the same directory, applies a
 caller mutation, preserves the original standard-library permissions, asks a
 caller-supplied validator to reopen the private path, synchronizes the private
-file, and renames it over the target. On Unix it then synchronizes the
-containing directory.
+file, verifies that the path still names the retained open file, and renames
+it over the target. On Unix it then synchronizes the containing directory.
 
 This is not a Jet writer, transaction manager, or locking implementation.
 Callers must exclude concurrent writers. The validation callback is a
@@ -17,9 +17,11 @@ correctness or Access/DAO compatibility.
 
 The private file is never published before mutation and validation complete.
 Every error through the `Publish` stage leaves the original target path in
-place and attempts to remove the closed private file. A cleanup failure is
-retained as secondary error context, and `Drop` retries removal, but cleanup
-cannot be guaranteed if both attempts fail.
+place and attempts to remove the private file. Cleanup repeats the same file
+identity check before unlinking. If validation substituted a different entry
+at the private path, the publisher reports the cleanup refusal as secondary
+error context and deliberately leaves that unowned entry untouched. `Drop`
+retries removal only while the path still identifies the publisher's file.
 
 After a successful rename, readers that reopen the target are intended to see
 the complete old file or the complete validated replacement. The
@@ -36,9 +38,16 @@ and after the post-publication directory-sync fault.
 
 ## Platform contract
 
-Rust documents `std::fs::rename` as replacing an existing destination and
-currently maps it to `rename` on Unix and `MoveFileExW` or
-`SetFileInformationByHandle` on Windows:
+Atomic update currently supports Unix hosts only. Safe standard-library device
+and inode metadata bind the private pathname to the open file that was created,
+mutated, validated, and synchronized. The identity comparison runs immediately
+after the last caller hook and before `rename`. This closes validation-time
+path substitution under the documented requirement that callers exclude
+concurrent writers. It is not a locking primitive and cannot defend against a
+separate process racing the identity check and rename in violation of that
+requirement.
+
+Rust documents `std::fs::rename` as replacing an existing destination:
 <https://doc.rust-lang.org/std/fs/fn.rename.html>. Same-directory private-file
 placement prevents the library from deliberately requesting a cross-filesystem
 move.
@@ -61,21 +70,21 @@ failure modes of the mounted filesystem, storage hardware, and operating
 system. Network, FUSE, removable, or otherwise unusual filesystems may be
 weaker.
 
-On Windows, Rust's implementation and filesystem support determine which
-documented rename API is used. Microsoft documents replacement for
-`MOVEFILE_REPLACE_EXISTING`, subject to access-control requirements:
-<https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw>.
-The library synchronizes the replacement file before rename, but Rust exposes
-no portable directory-sync operation used here on Windows, and this library
-does not request the Windows `MOVEFILE_WRITE_THROUGH` flag directly.
-Consequently it claims neither crash-durable directory publication nor
-identical behavior across NTFS, ReFS, FAT, SMB, and other filesystems.
+On non-Unix platforms, including Windows, the operation returns a structured
+`PrivateCopyCreation` error with `Unsupported` before a private file is
+created. Rust does not expose the stable Windows file identity required by this
+implementation through stable safe standard-library APIs. No Windows atomic
+publication or crash-durability support is claimed.
 
 ## G4 evidence status
 
-The deterministic Rust tests cover every exposed stage: private-copy creation,
-copy, mutation, metadata preservation, validation, file synchronization,
-pre-publication barrier, publication, directory synchronization, and cleanup.
+The deterministic Unix Rust tests cover every exposed stage: private-copy
+creation, copy, mutation, metadata preservation, validation, file
+synchronization, pre-publication barrier, publication, directory
+synchronization, and cleanup. An adversarial test replaces the validated
+private pathname with different bytes and proves that publication is rejected,
+the original remains unchanged, and cleanup does not delete the substituted
+entry.
 The checked test manifest binds these cases to stable IDs; CI observations bind
 the inventory and results to a commit and platform.
 

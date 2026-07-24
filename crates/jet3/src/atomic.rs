@@ -1,21 +1,22 @@
 //! Copy-on-write publication for updates to an existing file.
 //!
 //! A private copy is created in the target's directory, mutated, independently
-//! validated, synchronized, and then published with [`std::fs::rename`].
+//! validated, synchronized, identity-checked against its retained file handle,
+//! and then published with [`std::fs::rename`].
 //! Same-directory placement avoids cross-filesystem rename. Atomic replacement
 //! and crash durability remain subject to the operating system and filesystem
 //! guarantees documented for `rename` and `sync_all`; network and unusual
-//! filesystems may provide weaker guarantees. Directory synchronization is
-//! attempted on Unix. Rust's standard library does not expose a portable
-//! directory-sync operation on every other platform, so that step is a
-//! documented no-op there.
+//! filesystems may provide weaker guarantees. This implementation currently
+//! supports Unix because safe standard-library device and inode identity is
+//! required to reject private-path substitution. Other platforms fail closed.
 //!
 //! Callers must exclude concurrent writers to the target. This foundation does
 //! not implement database or multi-user locking.
 //! Validation through this API is only a publication prerequisite. A validator
-//! must not modify or replace the private path, and validation by the writer or
+//! must not modify the private path or target, and validation by the writer or
 //! another project component is not independent verification or compatibility
-//! evidence.
+//! evidence. A substituted private path is rejected before publication and is
+//! not removed because it is no longer owned by this operation.
 //! Pre-publication failures explicitly close and remove the private copy. If
 //! removal fails, [`PublishError::cleanup_error`] retains that secondary error.
 //! [`Drop`] retries removal as a last resort, but cannot report its result and
@@ -234,7 +235,6 @@ where
             ),
         ));
     }
-
     call_hook(&mut before_stage, PublishStage::PrivateCopyCreation, false)?;
     let mut private = PrivateCopy::create(target, parent)
         .map_err(|error| PublishError::new(PublishStage::PrivateCopyCreation, false, error))?;
@@ -264,10 +264,12 @@ where
             .file_mut()?
             .sync_all()
             .map_err(|error| PublishError::new(PublishStage::FileSync, false, error))?;
-        private.close();
 
         call_hook(&mut before_stage, PublishStage::PrePublish, false)?;
         call_hook(&mut before_stage, PublishStage::Publish, false)?;
+        private
+            .verify_path_identity()
+            .map_err(|error| PublishError::new(PublishStage::Publish, false, error))?;
         fs::rename(private.path(), target)
             .map_err(|error| PublishError::new(PublishStage::Publish, false, error))?;
         private.mark_published();
@@ -355,13 +357,20 @@ fn normalized_parent(target: &Path) -> &Path {
 
 struct PrivateCopy {
     path: PathBuf,
-    file: Option<File>,
-    published: bool,
-    cleaned: bool,
+    identity: path_identity::FileIdentity,
+    lifecycle: PrivateLifecycle,
+}
+
+enum PrivateLifecycle {
+    Open(File),
+    Closed,
+    Published,
+    Removed,
 }
 
 impl PrivateCopy {
     fn create(target: &Path, parent: &Path) -> io::Result<Self> {
+        path_identity::ensure_supported()?;
         let file_name = target.file_name().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -380,11 +389,11 @@ impl PrivateCopy {
                 .open(&path)
             {
                 Ok(file) => {
+                    let identity = path_identity::from_open_file(&file)?;
                     return Ok(Self {
                         path,
-                        file: Some(file),
-                        published: false,
-                        cleaned: false,
+                        identity,
+                        lifecycle: PrivateLifecycle::Open(file),
                     });
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
@@ -402,21 +411,38 @@ impl PrivateCopy {
     }
 
     fn file_mut(&mut self) -> Result<&mut File, PublishError> {
-        self.file.as_mut().ok_or_else(|| {
-            PublishError::new(
-                PublishStage::PrePublish,
-                false,
-                io::Error::other("private copy is already closed"),
-            )
-        })
+        match &mut self.lifecycle {
+            PrivateLifecycle::Open(file) => Ok(file),
+            PrivateLifecycle::Closed | PrivateLifecycle::Published | PrivateLifecycle::Removed => {
+                Err(PublishError::new(
+                    PublishStage::PrePublish,
+                    false,
+                    io::Error::other("private copy is already closed"),
+                ))
+            }
+        }
     }
 
     fn close(&mut self) {
-        self.file = None;
+        if matches!(self.lifecycle, PrivateLifecycle::Open(_)) {
+            self.lifecycle = PrivateLifecycle::Closed;
+        }
     }
 
     fn mark_published(&mut self) {
-        self.published = true;
+        self.lifecycle = PrivateLifecycle::Published;
+    }
+
+    fn verify_path_identity(&self) -> io::Result<()> {
+        let actual = path_identity::from_path(&self.path)?;
+        if actual == self.identity {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "private path no longer identifies the file created by this operation",
+            ))
+        }
     }
 
     fn cleanup<H, HE>(&mut self, before_stage: &mut H) -> Result<(), BoxError>
@@ -424,16 +450,18 @@ impl PrivateCopy {
         H: FnMut(PublishStage) -> Result<(), HE>,
         HE: StdError + Send + Sync + 'static,
     {
-        self.close();
         before_stage(PublishStage::Cleanup).map_err(|error| Box::new(error) as BoxError)?;
+        self.verify_path_identity()
+            .map_err(|error| Box::new(error) as BoxError)?;
+        self.close();
         prepare_private_for_removal(&self.path).map_err(|error| Box::new(error) as BoxError)?;
         match fs::remove_file(&self.path) {
             Ok(()) => {
-                self.cleaned = true;
+                self.lifecycle = PrivateLifecycle::Removed;
                 Ok(())
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                self.cleaned = true;
+                self.lifecycle = PrivateLifecycle::Removed;
                 Ok(())
             }
             Err(error) => Err(Box::new(error)),
@@ -443,7 +471,11 @@ impl PrivateCopy {
 
 impl Drop for PrivateCopy {
     fn drop(&mut self) {
-        if !self.published && !self.cleaned {
+        if matches!(
+            self.lifecycle,
+            PrivateLifecycle::Open(_) | PrivateLifecycle::Closed
+        ) && self.verify_path_identity().is_ok()
+        {
             self.close();
             let _permission_result = prepare_private_for_removal(&self.path);
             let _cleanup_result = fs::remove_file(&self.path);
@@ -464,15 +496,78 @@ fn prepare_private_for_removal(_path: &Path) -> io::Result<()> {
 }
 
 #[cfg(unix)]
+mod path_identity {
+    use std::fs::{self, File};
+    use std::io;
+    use std::os::unix::fs::MetadataExt;
+    use std::path::Path;
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) struct FileIdentity {
+        device: u64,
+        inode: u64,
+    }
+
+    pub(super) const fn ensure_supported() -> io::Result<()> {
+        Ok(())
+    }
+
+    pub(super) fn from_open_file(file: &File) -> io::Result<FileIdentity> {
+        Ok(from_metadata(&file.metadata()?))
+    }
+
+    pub(super) fn from_path(path: &Path) -> io::Result<FileIdentity> {
+        Ok(from_metadata(&fs::symlink_metadata(path)?))
+    }
+
+    fn from_metadata(metadata: &fs::Metadata) -> FileIdentity {
+        FileIdentity {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        }
+    }
+}
+
+#[cfg(not(unix))]
+mod path_identity {
+    use std::fs::File;
+    use std::io;
+    use std::path::Path;
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) struct FileIdentity;
+
+    pub(super) fn ensure_supported() -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "atomic update requires stable safe file identity and currently supports Unix only",
+        ))
+    }
+
+    pub(super) fn from_open_file(_file: &File) -> io::Result<FileIdentity> {
+        ensure_supported()?;
+        Ok(FileIdentity)
+    }
+
+    pub(super) fn from_path(_path: &Path) -> io::Result<FileIdentity> {
+        ensure_supported()?;
+        Ok(FileIdentity)
+    }
+}
+
+#[cfg(unix)]
 fn sync_directory(parent: &Path) -> io::Result<()> {
     File::open(parent)?.sync_all()
 }
 
 #[cfg(not(unix))]
 fn sync_directory(_parent: &Path) -> io::Result<()> {
-    Ok(())
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "directory synchronization currently supports Unix only",
+    ))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[path = "atomic_tests.rs"]
 mod tests;

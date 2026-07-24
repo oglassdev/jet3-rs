@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -47,17 +49,22 @@ impl TestDirectory {
     }
 
     fn private_entries(&self) -> Result<usize, std::io::Error> {
-        let mut count = 0_usize;
+        Ok(self.private_paths()?.len())
+    }
+
+    fn private_paths(&self) -> Result<Vec<PathBuf>, std::io::Error> {
+        let mut paths = Vec::new();
         for entry in fs::read_dir(&self.path)? {
-            if entry?
+            let entry = entry?;
+            if entry
                 .file_name()
                 .to_string_lossy()
                 .contains(".jet3-private-")
             {
-                count = count.saturating_add(1);
+                paths.push(entry.path());
             }
         }
-        Ok(count)
+        Ok(paths)
     }
 }
 
@@ -266,6 +273,44 @@ fn every_stage_fault_reports_a_whole_file_and_cleans_private_copy() -> TestResul
     assert_eq!(fs::read(&target)?, vec![ORIGINAL; CONTENT_BYTES]);
     assert_permissions_equal(&target, &original_permissions)?;
     assert_eq!(directory.private_entries()?, 0);
+    Ok(())
+}
+
+#[test]
+fn validator_path_substitution_is_rejected_without_publishing_or_deleting_it() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let substitute = directory.path.join("substitute.bin");
+    fs::write(&target, vec![ORIGINAL; CONTENT_BYTES])?;
+    fs::write(&substitute, vec![0x91; CONTENT_BYTES])?;
+    let original = fs::read(&target)?;
+    let mut budget = operation_budget();
+
+    let error = atomic_update_with_hook(
+        &target,
+        &mut budget,
+        write_replacement,
+        |private_path| {
+            validate_replacement(private_path)?;
+            fs::rename(&substitute, private_path)
+                .map_err(|_| TestFailure("private-path substitution failed"))
+        },
+        |_| Ok::<(), TestFailure>(()),
+    )
+    .err()
+    .ok_or(TestFailure("substituted private path was published"))?;
+
+    assert_eq!(error.stage(), PublishStage::Publish);
+    assert!(!error.replacement_published());
+    assert_eq!(fs::read(&target)?, original);
+    let cleanup_error = error.cleanup_error().ok_or(TestFailure(
+        "identity-safe cleanup refusal was not reported",
+    ))?;
+    assert!(cleanup_error.to_string().contains("no longer identifies"));
+
+    let private_paths = directory.private_paths()?;
+    assert_eq!(private_paths.len(), 1);
+    assert_eq!(fs::read(&private_paths[0])?, vec![0x91; CONTENT_BYTES]);
     Ok(())
 }
 
