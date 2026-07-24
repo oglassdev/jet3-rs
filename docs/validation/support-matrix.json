@@ -120,8 +120,8 @@
         {
           "kind": "test",
           "path": "crates/jet3/src/commit_state_tests.rs",
-          "sha256": "b7493c23739a37f0a68bb75fcb3f633576888e3df44f0c7aa2badad61a6b805f",
-          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07",
+          "commit": "9a9457e8c811f4632150c8c0a465687965887c14",
           "capability_id": "format.header_and_version",
           "scenario_ids": [
             "UT-COMMIT-001",
@@ -188,8 +188,8 @@
         {
           "kind": "test",
           "path": "crates/jet3/src/raw_page_stream_tests.rs",
-          "sha256": "1b728b2fff2d53534275b5ade5c30bf65f0e3fe7c49030911b1c5ab2f489f7a1",
-          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
+          "sha256": "ed4649d7ca047d69454c97fdc33b5ea02e92a701b614b0cdee7e5b27c7e29fcf",
+          "commit": "9a9457e8c811f4632150c8c0a465687965887c14",
           "capability_id": "format.pages_allocation_usage",
           "scenario_ids": [
             "UT-RAW-STREAM-001",
