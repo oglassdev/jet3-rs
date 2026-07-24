@@ -9,10 +9,11 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
   test:
-    name: Test (${{ matrix.os }})
+    name: Core (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +32,127 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
+  validation:
+    name: Validation contracts and tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Validate support matrix
+        run: |
+          python3 tools/validate_contract.py
+          python3 tools/validate_contract.py --self-test
+      - name: Test validation and acceptance tooling
+        run: python3 -m unittest discover -s tools/tests -v
+      - name: Validate DAO oracle protocol without claiming provider coverage
+        run: |
+          python3 oracle/windows-dao/scripts/validate_protocol.py schemas
+          python3 -m unittest discover -s oracle/windows-dao/tests -v
+      - name: Reconcile checked test inventory with Rust tests
+        run: python3 tools/reconcile_tests.py --repo-root "$GITHUB_WORKSPACE"
+
+  benchmarks:
+    name: Benchmark harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: benches
+      - name: Compile checked benchmarks
+        run: >-
+          cargo bench --manifest-path benches/Cargo.toml
+          --bench format_primitives --locked --no-run
+      - name: Functionally execute every checked benchmark once
+        run: >-
+          cargo bench --manifest-path benches/Cargo.toml
+          --bench format_primitives --locked -- --test
+      - name: Test benchmark manifests and comparison tooling
+        run: python3 -m unittest discover -s benches/tests -v
+      - name: Test benchmark metadata capture
+        run: benches/tests/test_capture_metadata.sh
+
+  fuzz:
+    name: Fuzz target smoke
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_BOOTSTRAP: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz@0.13.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Compile all checked fuzz targets
+        run: cargo fuzz build --fuzz-dir fuzz
+      - name: Copy checked seeds to disposable corpora
+        run: |
+          for target in binary_cursor jet_header jet3_page
+          do
+            mkdir -p "$RUNNER_TEMP/fuzz-corpus/$target"
+            cp -R "fuzz/corpus/$target/." "$RUNNER_TEMP/fuzz-corpus/$target/"
+          done
+      - name: Run deterministic binary cursor smoke
+        run: >-
+          cargo fuzz run --fuzz-dir fuzz binary_cursor
+          "$RUNNER_TEMP/fuzz-corpus/binary_cursor" --
+          -runs=1000 -seed=789231 -max_len=4096
+      - name: Run deterministic Jet header smoke
+        run: >-
+          cargo fuzz run --fuzz-dir fuzz jet_header
+          "$RUNNER_TEMP/fuzz-corpus/jet_header" --
+          -runs=1000 -seed=789231 -max_len=4096
+      - name: Run deterministic Jet 3 page smoke
+        run: >-
+          cargo fuzz run --fuzz-dir fuzz jet3_page
+          "$RUNNER_TEMP/fuzz-corpus/jet3_page" --
+          -runs=1000 -seed=789231 -max_len=8192
+
+  miri:
+    name: Miri library tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-07-20
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo miri setup
+      - name: Interpret pure jet3 library modules
+        # atomic and source tests exercise host files, permissions, and fsync, so
+        # they remain covered by the three-platform core job instead of Miri.
+        run: |
+          for test_module in \
+            binary::tests \
+            error::tests \
+            header::tests \
+            jet3_page::tests \
+            limits::tests \
+            offset::tests \
+            page::tests \
+            resource::tests
+          do
+            cargo miri test --package jet3 --lib --all-features --locked "$test_module"
+          done
+
   format:
     name: Formatting
     runs-on: ubuntu-latest
@@ -48,5 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@cargo-deny
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
       - run: cargo deny check
