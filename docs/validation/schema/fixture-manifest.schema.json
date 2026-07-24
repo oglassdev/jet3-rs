@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:validation:fixture-manifest:1",
+  "title": "jet3-rs fixture manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixtures"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "fixtures": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/fixture"
+      }
+    }
+  },
+  "$defs": {
+    "repositoryPath": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "scenario_id",
+        "provenance_id",
+        "path",
+        "sha256",
+        "origin",
+        "generator",
+        "environment",
+        "license",
+        "reproduction_command"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^FIX-[0-9]{4}$"
+        },
+        "scenario_id": {
+          "type": "string",
+          "pattern": "^(DAO-(GEN|READ|WRITE|UPDATE)|UT|IT|PROP|GOLD|CORR|REG)-[A-Z0-9][A-Z0-9_-]*$"
+        },
+        "provenance_id": {
+          "type": "string",
+          "pattern": "^(SRC|OBS|EXP|FIX)-[0-9]{4}$"
+        },
+        "path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "origin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reproduction_command": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

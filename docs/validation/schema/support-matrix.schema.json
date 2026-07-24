@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:validation:support-matrix:1",
+  "title": "jet3-rs support matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "product_scope",
+    "state_vocabulary",
+    "capabilities"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "product_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "encrypted",
+        "runtime_external_mdb_dependency"
+      ],
+      "properties": {
+        "format": {
+          "const": "Microsoft Jet 3 / Access 97"
+        },
+        "encrypted": {
+          "const": false
+        },
+        "runtime_external_mdb_dependency": {
+          "const": false
+        }
+      }
+    },
+    "state_vocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "verification"
+      ],
+      "properties": {
+        "implementation": {
+          "const": [
+            "not_started",
+            "partial",
+            "implemented",
+            "out_of_scope_v1"
+          ]
+        },
+        "verification": {
+          "const": [
+            "unverified",
+            "internal_only",
+            "independent_check",
+            "dao_opened",
+            "dao_differential",
+            "not_applicable"
+          ]
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    }
+  },
+  "$defs": {
+    "repositoryPath": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "implementation",
+        "verification",
+        "required_verification",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(?:[.][a-z][a-z0-9_]*)+$"
+        },
+        "implementation": {
+          "enum": [
+            "not_started",
+            "partial",
+            "implemented",
+            "out_of_scope_v1"
+          ]
+        },
+        "verification": {
+          "enum": [
+            "unverified",
+            "internal_only",
+            "independent_check",
+            "dao_opened",
+            "dao_differential",
+            "not_applicable"
+          ]
+        },
+        "required_verification": {
+          "enum": [
+            "internal_only",
+            "independent_check",
+            "dao_opened",
+            "dao_differential",
+            "not_applicable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/repositoryPath"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "implementation": {
+                "const": "out_of_scope_v1"
+              }
+            },
+            "required": [
+              "implementation"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "verification": {
+                "const": "not_applicable"
+              },
+              "required_verification": {
+                "const": "not_applicable"
+              },
+              "evidence": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "verification": {
+                "not": {
+                  "const": "not_applicable"
+                }
+              },
+              "required_verification": {
+                "not": {
+                  "const": "not_applicable"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "implementation": {
+                "const": "not_started"
+              }
+            },
+            "required": [
+              "implementation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verification": {
+                "const": "unverified"
+              },
+              "evidence": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "verification": {
+                "const": "unverified"
+              }
+            },
+            "required": [
+              "verification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "if": {
+              "properties": {
+                "verification": {
+                  "not": {
+                    "const": "not_applicable"
+                  }
+                }
+              },
+              "required": [
+                "verification"
+              ]
+            },
+            "then": {
+              "properties": {
+                "evidence": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
