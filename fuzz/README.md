@@ -14,22 +14,37 @@ exactly. The checked targets are:
 - `binary_cursor`: checked offsets and byte counts, work-budget accounting,
   cursor seeks, exact reads, skips, and little-endian primitive reads; and
 - `jet_header`: generic Jet signature recognition, truncation and read-budget
-  rejection, and Jet 3 page-geometry arithmetic; and
+  rejection, and Jet 3 page-geometry arithmetic;
 - `jet3_page`: fixed-size Jet 3 page construction and reads, page-reference
   boundaries, repeated reads, and byte-read, page-visit, and aggregate-work
-  policies.
+  policies;
+- `raw_jet3_candidate`: bounded composition of generic signature recognition,
+  exact 2 KiB geometry, and raw page access under input, read, page-visit, and
+  aggregate-work policies; and
+- `commit_state`: allocation-free capture of the contextual 512-byte commit
+  region, exact preservation of all two-byte pairs, narrow pair
+  classification, slot-role boundaries, read limits, truncation, and atomic
+  destination replacement.
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
 input-sized allocation. `jet_header` runs four bounded limit scenarios over
 one borrowed payload and performs no payload-sized allocation. `jet3_page`
 borrows at most two 2 KiB pages, executes at most 64 nine-byte commands and
-128 page-read attempts, and uses only fixed-size page buffers. The checked
-corpus covers zero/tight limits, primitive reads, arithmetic boundary-shaped
-values, all documented generic Jet signature kinds, unknown and truncated
-signatures, exact/partial Jet 3 geometry, first/last/out-of-range page
-references, repeated reads, and exact, one-below, page-visit, and aggregate
-work policies. `corpus/manifest.json` records each seed's stable ID, purpose,
+128 page-read attempts, and uses only fixed-size page buffers.
+`raw_jet3_candidate` borrows at most two pages, expands at most one page into a
+fixed stack buffer, and performs eight bounded inspections, each followed by
+at most one page-read attempt. `commit_state` borrows at most one page, expands
+only fixed 512-byte and 2 KiB stack buffers, performs at most sixteen bounded
+region reads, and iterates exactly 256 slots per successful snapshot. The
+checked corpus covers zero/tight limits, primitive reads, arithmetic
+boundary-shaped values, all documented generic Jet signature kinds, unknown
+and truncated signatures, exact/partial Jet 3 geometry,
+first/last/out-of-range page references, repeated reads, exact and one-below
+budgets, page-visit and aggregate-work policies, candidate inspection order,
+contextual commit-state pair preservation and classification, exclusive/shared
+slot boundaries, truncated commit regions, and unchanged destinations after
+failed reads. `corpus/manifest.json` records each seed's stable ID, purpose,
 exact bytes and hash, origin, environment, rights, and reproduction command.
 
 Install the runner and list the target:
@@ -83,6 +98,9 @@ cargo fuzz build
 These remain foundational targets. Generic signature recognition does not
 identify a Jet version or validate a database. Page alignment and content-
 agnostic page reads do not establish that a source is a valid Jet 3 database.
+Commit-region values are volatile and contextual; without contemporaneous
+`.ldb` lock evidence they do not establish validity, corruption, clean
+shutdown, Jet generation, user ownership, or compatibility.
 These targets do not replace the required database-opening, catalog,
 table-definition, row, index, or long-value parsers. Checked malformed-corpus
 execution, ten-minute acceptance runs, resource monitoring, and the other

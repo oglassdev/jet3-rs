@@ -28,6 +28,24 @@
       "max_len": 8192,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "raw_jet3_candidate",
+      "source": "fuzz/fuzz_targets/raw_jet3_candidate.rs",
+      "corpus": "fuzz/corpus/raw_jet3_candidate",
+      "smoke_seconds": 60,
+      "max_len": 8192,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "commit_state",
+      "source": "fuzz/fuzz_targets/commit_state.rs",
+      "corpus": "fuzz/corpus/commit_state",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
     }
   ]
 }

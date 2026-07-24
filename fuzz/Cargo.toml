@@ -33,5 +33,19 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "raw_jet3_candidate"
+path = "fuzz_targets/raw_jet3_candidate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commit_state"
+path = "fuzz_targets/commit_state.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]
