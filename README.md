@@ -36,7 +36,8 @@ between currently wired bootstrap checks and the full v1 acceptance contract.
 
 ## Status
 
-Format capabilities remain **unimplemented and unverified** until supported by
-evidence recorded in the validation matrix and accepted by Microsoft DAO where
-applicable. The bounded-input safety foundation is tracked separately as
-partial, internal-only work and is not a format compatibility claim.
+Jet-specific format capabilities remain **unimplemented and unverified** until
+supported by evidence recorded in the validation matrix and accepted by
+Microsoft DAO where applicable. The bounded-input safety and format-neutral
+atomic-publication foundations are tracked separately as partial,
+internal-only work and are not format compatibility claims.
