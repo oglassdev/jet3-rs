@@ -666,6 +666,55 @@ Use `not applicable` explicitly rather than omitting a field.
   redistribution grant; no source files or derived byte corpus are committed
 - Review: pending independent review
 
+### EXP-0005 — DAO system-table attribute mask on an empty Jet 3 database
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: experiment and black-box result
+- Question: Does the checked M0 runner's equality test correctly recognize the
+  system tables returned by DAO after creating and reopening an empty
+  `dbVersion30` database?
+- Origin: project protocol scenario `DAO-GEN-PROBE-001` executed through
+  Microsoft DAO 3.6; no donated database or third-party MDB implementation was
+  used
+- Environment: Windows 11 Pro 10.0.22631 on x64; 32-bit Windows PowerShell
+  5.1.22621.6133; culture `en-US`; ANSI code page 1252; Eastern Standard Time;
+  `DAO.DBEngine.36` provider version 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  clean repository commit `0804fea6b04a4b3034b2d29cfd627c1e55d9b62b`
+- Protocol: run the checked protocol-1.0 provider probe and require its
+  disposable `dbVersion30` test to pass; run the checked M0 scenario; then, in
+  a separate disposable database created with the same provider and arguments,
+  enumerate `TableDefs` and record each name, signed `Attributes` value, and
+  the result of bitwise AND with the Microsoft-documented `dbSystemObject`
+  value. Delete the separate database after closing all DAO objects.
+- Artifacts: retained outside the repository under
+  `%TEMP%\jet3-rs-dao-m0\evidence\0804fea6b04a4b3034b2d29cfd627c1e55d9b62b\20260724T234224Z-dao-m0`;
+  bundle manifest SHA-256
+  `fa3b4cb700d07cdfbb4eeda53a41ecb80b7e2f8766754736c0ded067fccdb6fb`;
+  operation log SHA-256
+  `0b113956131e917e2812a039cc5698143a499030541e146353a7d441187f7fab`;
+  diagnostic MDB SHA-256
+  `46e4f7a30a6bac11c30eaa825acd4d47d0e5374eef62a1b5368c38b56773c0e0`
+- Observation: the checked M0 run created and closed an unencrypted
+  `dbVersion30` MDB, then failed after reopening because it reported
+  `MSysACEs`, `MSysObjects`, `MSysQueries`, and `MSysRelationships` as user
+  tables. The separate enumeration returned signed `Attributes`
+  `-2147483648` (`0x80000000`) for each table. Bitwise AND with
+  `dbSystemObject` value `-2147483646` returned `-2147483648`, which is
+  nonzero but is not equal to the full enumeration value.
+- Interpretation: `dbSystemObject` must be tested as a bitmask with a nonzero
+  result; requiring equality with the complete enumeration value rejects the
+  system tables observed here. This conclusion is limited to the DAO API
+  filtering behavior of the M0 oracle and establishes no MDB byte layout,
+  general table semantics, or product compatibility.
+- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
+  `oracle/windows-dao/tests/test_dao_runner_contract.py`
+- Rights: generated locally through a licensed Microsoft DAO provider; the
+  diagnostic database and evidence bundle are retained locally and are not
+  redistributed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

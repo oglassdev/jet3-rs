@@ -38,7 +38,7 @@ def write_json(path, value, canonical=False):
         ) + "\n"
     else:
         content = json.dumps(value, indent=2) + "\n"
-    path.write_text(content, encoding="utf-8")
+    path.write_bytes(content.encode("utf-8"))
 
 
 def sha256(path):
@@ -561,7 +561,12 @@ class M1ProtocolTests(unittest.TestCase):
             retained = Path(temporary) / "retained-pair.json"
             retained.write_bytes(payload.read_bytes())
             payload.unlink()
-            payload.symlink_to(retained)
+            try:
+                payload.symlink_to(retained)
+            except OSError as error:
+                if getattr(error, "winerror", None) == 1314:
+                    self.skipTest("Windows symlink privilege is unavailable")
+                raise
             with self.assertRaisesRegex(
                 VALIDATOR.ValidationError, "symlinks are forbidden"
             ):

@@ -448,7 +448,7 @@ try {
     foreach ($tableDefinition in $database.TableDefs) {
         $attributes = [int]$tableDefinition.Attributes
         $isSystem = (
-            ($attributes -band $DbSystemObject) -eq $DbSystemObject
+            ($attributes -band $DbSystemObject) -ne 0
         )
         if (-not $isSystem) {
             $userTableNames += [string]$tableDefinition.Name
