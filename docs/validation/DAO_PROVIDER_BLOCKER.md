@@ -3,7 +3,7 @@
 Status: **BLOCKED**
 
 Audit date: 2026-07-24
-Audited commit: `e8b01b2bdd143f5713988560df12092c332e18a1`
+Audited commit: `0297a5a6d0006b08e7a2ed8fe49daf9b4a2090c6`
 
 This record explains why commit-bound Microsoft DAO evidence cannot currently
 be produced. It is a provider-availability record, not compatibility evidence,
@@ -33,8 +33,9 @@ routes; none was running during the audit, and none can provide Windows COM.
 `git remote -v` is empty.
 
 No ready provider environment JSON or DAO evidence bundle exists in this
-checkout. The checked scenario inventory contains only the unexecuted
-`DAO-GEN-PROBE-001` input.
+checkout. The checked inputs comprise the unexecuted M0
+`DAO-GEN-PROBE-001` scenario plus nine controlled M1 scenario/pair documents;
+none is an executed DAO result.
 
 The repository already has a cross-platform workflow at
 `.github/workflows/ci.yml`, but dispatching it requires a remote repository and
@@ -111,9 +112,9 @@ DAO remain `BLOCKED`.
 
 ## Current oracle implementation boundary
 
-The portable protocol validator, its six JSON schemas, and its 20 deterministic
-tests run on this host. They validate evidence shape and fail closed; they do
-not execute DAO or establish compatibility.
+The shared portable protocol core, the six v1 schemas, the eight v1.1 schemas,
+and 50 deterministic oracle tests run on this host. They validate evidence
+shape and fail closed; they do not execute DAO or establish compatibility.
 
 The PowerShell executor currently implements only the M0
 `DAO-GEN-PROBE-001` operation: activate a candidate provider, create an
