@@ -173,7 +173,7 @@ fn dropping_early_performs_no_future_page_work() -> TestResult {
 }
 
 #[test]
-fn cursor_creation_is_allocation_free_and_performs_no_read() -> TestResult {
+fn cursor_creation_uses_no_charged_or_input_sized_allocation() -> TestResult {
     let bytes = page_bytes(2);
     let mut operation = budget(u64::MAX, u64::MAX, u64::MAX);
     let mut pages = reader(&bytes, &mut operation)?;

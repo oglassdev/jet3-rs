@@ -378,7 +378,7 @@ fn classification_names_only_the_two_documented_pairs() {
 }
 
 #[test]
-fn raw_slot_iteration_is_complete_ordered_and_allocation_free() {
+fn raw_slot_iteration_needs_no_input_sized_collection() {
     let mut raw = [0_u8; REGION_BYTES];
     for (index, byte) in raw.iter_mut().enumerate() {
         *byte = index as u8;

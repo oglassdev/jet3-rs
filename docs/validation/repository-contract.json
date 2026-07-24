@@ -96,7 +96,7 @@
       {
         "path": "crates/jet3/src/commit_state_tests.rs",
         "reason": "Test-only verification of the provenance-bound commit-region assertions in commit_state.rs.",
-        "sha256": "b7493c23739a37f0a68bb75fcb3f633576888e3df44f0c7aa2badad61a6b805f"
+        "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07"
       },
       {
         "path": "crates/jet3/src/error.rs",
@@ -136,7 +136,7 @@
       {
         "path": "crates/jet3/src/raw_page_stream_tests.rs",
         "reason": "Test-only verification of the provenance-bound raw page stream assertions in raw_page_stream.rs.",
-        "sha256": "1b728b2fff2d53534275b5ade5c30bf65f0e3fe7c49030911b1c5ab2f489f7a1"
+        "sha256": "ed4649d7ca047d69454c97fdc33b5ea02e92a701b614b0cdee7e5b27c7e29fcf"
       },
       {
         "path": "crates/jet3/src/resource.rs",
