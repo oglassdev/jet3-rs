@@ -1,0 +1,100 @@
+#!/usr/bin/env sh
+set -eu
+
+repository_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+cd "$repository_root"
+
+blocked() {
+    echo "BLOCKED: $1" >&2
+    exit 3
+}
+
+configure_toolchain() {
+    if ! command -v rustup >/dev/null 2>&1; then
+        blocked "rustup is unavailable, so the pinned Rust 1.96.0 checks cannot run"
+    fi
+    toolchain_rustc=$(rustup which --toolchain 1.96.0 rustc) || {
+        blocked "pinned Rust toolchain 1.96.0 is unavailable"
+    }
+    toolchain_bin=${toolchain_rustc%/rustc}
+    PATH="${toolchain_bin}:${PATH}"
+    export PATH
+}
+
+run_cargo() {
+    rustup run 1.96.0 cargo "$@"
+}
+
+case "${1:-}" in
+    G0)
+        python3 tools/validate_contract.py
+        python3 tools/validate_contract.py --self-test
+        if command -v cargo-deny >/dev/null 2>&1; then
+            configure_toolchain
+            run_cargo deny check
+            blocked "G0 cargo-deny passed, but no checked repository-fixture manifest validator or automated audit ties every production format assertion to provenance"
+        fi
+        blocked "G0 cargo-deny is unavailable, and no checked repository-fixture manifest validator or automated audit ties every production format assertion to provenance"
+        ;;
+    G1)
+        configure_toolchain
+        ./scripts/acceptance.sh quick
+        RUSTDOCFLAGS="-D warnings" \
+            run_cargo doc --workspace --all-features --no-deps --locked
+        python3 -m unittest discover -s tools/tests -v
+        blocked "G1 lacks clean, commit-matched Linux, macOS, and Windows CI result bundles and complete public-API and malformed-input release evidence"
+        ;;
+    G2)
+        configure_toolchain
+        python3 tools/reconcile_tests.py --repo-root "$repository_root"
+        blocked "G2 has fewer than 300 reconciled meaningful tests and lacks the required complete property, golden, capacity, corruption, deterministic-creation, cross-platform, and Miri evidence"
+        ;;
+    G3)
+        python3 oracle/windows-dao/scripts/validate_protocol.py schemas
+        python3 -m unittest discover -s oracle/windows-dao/tests -v
+        blocked "G3 has no provisioned Windows DAO provider, no complete 100-scenario differential inventory, and no clean commit-bound DAO evidence bundle"
+        ;;
+    G4)
+        configure_toolchain
+        run_cargo test --package jet3 atomic::tests --locked
+        blocked "G4 lacks an independent structural verifier for Rust-written MDB files and complete commit-bound atomic-update fault and platform recovery evidence"
+        ;;
+    G5)
+        configure_toolchain
+        if ! command -v cargo-fuzz >/dev/null 2>&1; then
+            blocked "G5 cannot compile the checked fuzz package because cargo-fuzz is unavailable; the required parser targets and full campaigns are also incomplete"
+        fi
+        RUSTC_BOOTSTRAP=1 run_cargo fuzz build --fuzz-dir fuzz
+        blocked "G5 lacks the required open, catalog, table-definition, row, index, and long-value targets, ten-minute campaigns, malformed-corpus resource enforcement, and adversarial complexity evidence"
+        ;;
+    G6)
+        if command -v cargo-llvm-cov >/dev/null 2>&1; then
+            configure_toolchain
+            run_cargo llvm-cov --workspace --all-features --locked --summary-only
+            blocked "G6 produced a local coverage summary, but no commit-bound threshold report or mutation report proves the required core scores and survivor disposition"
+        fi
+        blocked "G6 cargo-llvm-cov is unavailable, and no commit-bound coverage or mutation report proves the required core scores and survivor disposition"
+        ;;
+    G7)
+        configure_toolchain
+        run_cargo bench --manifest-path benches/Cargo.toml \
+            --bench format_primitives --locked --no-run
+        python3 -m unittest discover -s benches/tests -v
+        blocked "G7 lacks the required semantic and CRUD benchmark cases, 100000-row datasets, approved commit-bound baselines, peak-RSS and output-size measurements, and regression comparison"
+        ;;
+    G8)
+        test -f .github/workflows/ci.yml
+        test -f docs/validation/support-matrix.json
+        test -f docs/PROVENANCE.md
+        source_status=$(git status --porcelain=v1 --untracked-files=all -- \
+            . ':(exclude)artifacts/acceptance/**')
+        if [ -n "$source_status" ]; then
+            blocked "G8 source tree is dirty; release evidence requires the exact clean commit, and complete CI, release-artifact, DAO, and consumer-project bundles are also absent"
+        fi
+        blocked "G8 lacks complete clean commit-matched CI evidence, reproducible release artifacts, a Windows DAO bundle, and a clean external-software-free consumer-project report"
+        ;;
+    *)
+        echo "usage: $0 G0|G1|G2|G3|G4|G5|G6|G7|G8" >&2
+        exit 2
+        ;;
+esac
