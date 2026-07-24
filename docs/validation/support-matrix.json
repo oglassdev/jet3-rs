@@ -145,7 +145,7 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Bounded, content-agnostic reads of complete 2 KiB pages are implemented; page headers, page-type meanings, allocation and usage maps, structural validation, and DAO differential evidence are not.",
+      "reason": "Bounded, content-agnostic reads and allocation-free sequential streaming of complete 2 KiB pages are implemented; page headers, page-type meanings, allocation and usage maps, structural validation, and DAO differential evidence are not.",
       "evidence": [
         {
           "kind": "source",
@@ -176,6 +176,41 @@
             "UT-JET3-PAGE-013",
             "UT-JET3-PAGE-014",
             "UT-JET3-PAGE-015"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/raw_page_stream.rs",
+          "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367",
+          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/raw_page_stream_tests.rs",
+          "sha256": "1b728b2fff2d53534275b5ade5c30bf65f0e3fe7c49030911b1c5ab2f489f7a1",
+          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-RAW-STREAM-001",
+            "UT-RAW-STREAM-002",
+            "UT-RAW-STREAM-003",
+            "UT-RAW-STREAM-004",
+            "UT-RAW-STREAM-005",
+            "UT-RAW-STREAM-006",
+            "UT-RAW-STREAM-007",
+            "UT-RAW-STREAM-008"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/raw_page_stream_properties.rs",
+          "sha256": "abc10492db6014d5a46f2a48e061c305bac3c96e471150a662e89d6dc046727d",
+          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "PROP-RAW-STREAM-001",
+            "PROP-RAW-STREAM-002"
           ]
         }
       ]
