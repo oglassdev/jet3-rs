@@ -150,10 +150,18 @@
     },
     {
       "id": "transactions.copy_on_write_atomic_publish",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "independent_check",
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/atomic.rs",
+          "sha256": "d48ecb87af16bd4f584635d6889cd79d710fd112548eb5c37418b17378e0aee5",
+          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
+          "capability_id": "transactions.copy_on_write_atomic_publish"
+        }
+      ]
     },
     {
       "id": "output.deterministic_configuration",
@@ -187,6 +195,20 @@
           "path": "crates/jet3/src/source.rs",
           "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
           "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/resource.rs",
+          "sha256": "3e300c1b6dc31e7aa5114f4600ee2a8a368d8afff1039f2d6de52a5025108085",
+          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/atomic.rs",
+          "sha256": "d48ecb87af16bd4f584635d6889cd79d710fd112548eb5c37418b17378e0aee5",
+          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
           "capability_id": "safety.malformed_input_bounds_and_limits"
         }
       ]

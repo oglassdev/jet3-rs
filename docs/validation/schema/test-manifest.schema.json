@@ -6,12 +6,30 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "cargo_command",
+    "meaningful_case_count",
     "cases"
   ],
   "properties": {
     "schema_version": {
       "type": "integer",
       "const": 1
+    },
+    "cargo_command": {
+      "const": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--locked",
+        "--",
+        "--list"
+      ]
+    },
+    "meaningful_case_count": {
+      "type": "integer",
+      "minimum": 0
     },
     "cases": {
       "type": "array",
@@ -51,17 +69,28 @@
       "additionalProperties": false,
       "required": [
         "id",
+        "target",
+        "runtime_name",
         "traceability_ids",
         "purpose",
         "distinct_invariant",
         "fixtures",
         "expected_result",
+        "ignored",
         "execution_status"
       ],
       "properties": {
         "id": {
           "type": "string",
           "pattern": "^(UT|IT|PROP|GOLD|CORR|REG)-[A-Z0-9][A-Z0-9_-]*$"
+        },
+        "target": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "runtime_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*$"
         },
         "traceability_ids": {
           "type": "array",
@@ -91,9 +120,14 @@
           "type": "string",
           "minLength": 1
         },
+        "ignored": {
+          "type": "boolean"
+        },
         "execution_status": {
           "enum": [
             "not_run",
+            "listed",
+            "ignored",
             "passed",
             "failed",
             "blocked",
