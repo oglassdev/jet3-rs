@@ -13,6 +13,8 @@ The documents are normative for v1:
 - [TRACEABILITY.md](TRACEABILITY.md) maps product requirements to evidence.
 - [support-matrix.json](support-matrix.json) is the machine-readable capability
   ledger.
+- [DAO_PROVIDER_BLOCKER.md](DAO_PROVIDER_BLOCKER.md) records the currently
+  audited external provider boundary. It is not compatibility evidence.
 
 ## Scope of a passing release
 
