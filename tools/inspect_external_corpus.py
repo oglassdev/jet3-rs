@@ -20,6 +20,7 @@ SIGNATURE_OFFSET = 4
 SIGNATURE_LENGTH = 15
 STRIDES = (1024, 2048)
 HASH_CHUNK_BYTES = 1024 * 1024
+PAGE_BOUNDARY_BYTES = 2048
 
 TOP_LEVEL_KEYS = {
     "schema_version",
@@ -265,18 +266,33 @@ def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, An
                 )
 
             stride_observations = []
+            page_boundary_observation = None
             for stride in STRIDES:
                 unique_values: set[int] = set()
+                first_byte_counts: dict[int, int] = {}
+                nonzero_first_byte_count = 0
+                nonzero_first_byte_with_second_byte_0x01_count = 0
                 sample_count = 0
                 for offset in range(0, before.st_size, stride):
                     source.seek(offset)
-                    sample = source.read(1)
-                    if len(sample) != 1:
+                    sample_width = 2 if stride == PAGE_BOUNDARY_BYTES else 1
+                    expected_width = min(sample_width, before.st_size - offset)
+                    sample = source.read(sample_width)
+                    if len(sample) != expected_width:
                         raise CorpusBlockedError(
                             f"{fixture_id} changed during stride inspection"
                         )
-                    unique_values.add(sample[0])
+                    first_byte = sample[0]
+                    unique_values.add(first_byte)
                     sample_count += 1
+                    if stride == PAGE_BOUNDARY_BYTES:
+                        first_byte_counts[first_byte] = (
+                            first_byte_counts.get(first_byte, 0) + 1
+                        )
+                        if first_byte != 0:
+                            nonzero_first_byte_count += 1
+                            if len(sample) == 2 and sample[1] == 0x01:
+                                nonzero_first_byte_with_second_byte_0x01_count += 1
                 stride_observations.append(
                     {
                         "sample_count": sample_count,
@@ -284,6 +300,24 @@ def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, An
                         "unique_count": len(unique_values),
                         "unique_first_bytes": sorted(unique_values),
                     }
+                )
+                if stride == PAGE_BOUNDARY_BYTES:
+                    page_boundary_observation = {
+                        "first_byte_counts": [
+                            {"count": count, "first_byte": first_byte}
+                            for first_byte, count in sorted(first_byte_counts.items())
+                        ],
+                        "nonzero_first_byte_count": nonzero_first_byte_count,
+                        "nonzero_first_byte_with_second_byte_0x01_count": (
+                            nonzero_first_byte_with_second_byte_0x01_count
+                        ),
+                        "sample_count": sample_count,
+                        "stride_bytes": PAGE_BOUNDARY_BYTES,
+                    }
+
+            if page_boundary_observation is None:
+                raise ContractError(
+                    "external corpus verifier has no 2,048-byte boundary stride"
                 )
 
             after = os.fstat(source.fileno())
@@ -313,6 +347,7 @@ def _observe_fixture(corpus_root: Path, fixture: dict[str, Any]) -> dict[str, An
             "ascii": _ascii_signature(signature),
             "hex": signature.hex(),
         },
+        "page_boundary_observation": page_boundary_observation,
         "path": relative.as_posix(),
         "sha256": digest,
         "size_bytes": before.st_size,

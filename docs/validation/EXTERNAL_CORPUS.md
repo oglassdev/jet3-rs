@@ -4,7 +4,7 @@ This document identifies four inspection-authorized MDB candidates that remain
 outside the repository. They are optional exploratory inputs, not distributed
 fixtures and not acceptance evidence. Their fixture, observation, and
 experiment records are `FIX-0001` through `FIX-0004`, `OBS-0001`, and
-`EXP-0001` in `docs/PROVENANCE.md`.
+`EXP-0001` through `EXP-0002` in `docs/PROVENANCE.md`.
 
 ## Handling rules
 
@@ -58,9 +58,13 @@ export JET3_EXTERNAL_FIXTURE_ROOT=/absolute/path/to/corpus
 locators beneath the configured root, checks regular-file status, sizes, and
 SHA-256 values, reads the offset-`0x4` signature, and performs the 1,024- and
 2,048-byte stride sampling. It emits a deterministic JSON observation,
-including the repository commit and dirty state, or reports the corpus as
-blocked. It does not invoke `file(1)`, reproduce the historical generic file
-classification, identify a Jet generation, or produce DAO evidence.
+including the repository commit and dirty state. The 2,048-byte observation
+also contains a sorted first-byte histogram and content-agnostic counts for
+nonzero first bytes and an available second byte equal to `0x01`. Unexpected
+short reads or a file that changes during inspection block the run. The tool
+does not invoke `file(1)`, reproduce the historical generic file
+classification, identify a Jet generation, assign meanings to boundary bytes,
+or produce DAO evidence.
 
 The snippets below explain the commands behind the recorded observations and
 permit focused manual comparison. Prefer the verifier for current corpus
@@ -142,3 +146,22 @@ is consistent with the 2 KiB Jet 3.x page size documented by Microsoft in
 `SRC-0005` for these donor-declared Jet 3 candidates, but it does not itself
 identify a Jet generation or page types and is not universal proof of validity
 or compatibility.
+
+## Boundary-prefix frequency experiment
+
+`EXP-0002` extended the same verified 2,048-byte sampling to exact first-byte
+frequencies and, only when the first byte was nonzero, whether an available
+second byte was `0x01`.
+
+| Candidate | Boundaries | First-byte histogram | Nonzero first byte followed by `01` |
+| --- | ---: | --- | ---: |
+| `FIX-0001` | 778 | `00:34, 01:646, 02:28, 03:7, 04:62, 09:1` | 744 / 744 |
+| `FIX-0002` | 778 | `00:34, 01:439, 02:28, 03:7, 04:62, 09:208` | 744 / 744 |
+| `FIX-0003` | 596 | `00:1, 01:437, 02:79, 04:37, 09:42` | 595 / 595 |
+| `FIX-0004` | 1,040 | `00:1, 01:778, 02:190, 04:37, 09:34` | 1,039 / 1,039 |
+
+All 3,122 nonzero-leading boundaries in this related four-file corpus therefore
+had `0x01` as their second byte. These are exploratory byte observations only.
+They neither identify the first byte as a page tag nor establish the meaning of
+any value. Controlled DAO-generated single-variable experiments and independent
+evidence are required before any such interpretation can enter production.

@@ -7,7 +7,7 @@ its stable ID is cited by the relevant format note, test, or source-code
 constant.
 
 This register begins with public Microsoft documentation, independently
-observed donated files, and a bounded stride experiment. Donor descriptions
+observed donated files, and bounded page-stride experiments. Donor descriptions
 are metadata, not proof of format or DAO compatibility.
 
 ## Rules
@@ -357,6 +357,46 @@ Use `not applicable` explicitly rather than omitting a field.
   redistribution grant; no source files or derived byte corpus are committed
 - Review: pending independent review
 
+### EXP-0002 — Candidate 2-KiB boundary-prefix frequencies
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: experiment
+- Question: How often does each first-byte value occur at 2,048-byte
+  boundaries in the four donated candidates, and what second byte follows
+  nonzero first bytes?
+- Origin: boundary-prefix measurements on `FIX-0001` through `FIX-0004`, whose
+  identities were checked in `OBS-0001`
+- Environment: macOS 26.3.1 build 25D771280a on arm64; Python 3.14.3; locale
+  `C.UTF-8`; time zone `America/New_York`; code pages are not applicable
+- Protocol: set `JET3_EXTERNAL_FIXTURE_ROOT` and run
+  `tools/inspect_external_corpus.py`. After verifying each exact fixture's
+  regular-file status, size, and SHA-256, the tool reads up to two bytes at
+  offset zero and every successive 2,048-byte boundary, reports a sorted
+  first-byte histogram, counts nonzero first bytes, and counts those whose
+  available second byte is `0x01`. It rejects unexpected short reads and a file
+  that changes during inspection.
+- Artifacts: `FIX-0001` through `FIX-0004`; the deterministic JSON observation
+  is generated on demand and binds itself to the repository commit and dirty
+  state; no corpus bytes are retained
+- Observation: `FIX-0001` and `FIX-0002` each had 778 boundaries with
+  histograms `{00:34, 01:646, 02:28, 03:7, 04:62, 09:1}` and
+  `{00:34, 01:439, 02:28, 03:7, 04:62, 09:208}`, respectively. `FIX-0003`
+  had 596 boundaries with `{00:1, 01:437, 02:79, 04:37, 09:42}`.
+  `FIX-0004` had 1,040 boundaries with
+  `{00:1, 01:778, 02:190, 04:37, 09:34}`. Across all four candidates, every
+  one of the 3,122 boundaries with a nonzero first byte had second byte
+  `0x01`.
+- Interpretation: the restricted first-byte family and stable second byte are
+  candidate invariants for future controlled DAO-generated differential
+  experiments. Related controller files are not an independent or sufficiently
+  varied population, so these values do not establish page-type tags, header
+  semantics, validity, Jet generation, or compatibility and are not used by
+  production code.
+- Usage: `docs/validation/EXTERNAL_CORPUS.md`; exploratory evidence only
+- Rights: local inspection only under the donor's authorization; no
+  redistribution grant; no source files or derived byte corpus are committed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
@@ -384,7 +424,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `docs/validation/EXTERNAL_CORPUS.md`
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+  `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
@@ -414,7 +455,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `docs/validation/EXTERNAL_CORPUS.md`
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+  `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
@@ -443,7 +485,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `docs/validation/EXTERNAL_CORPUS.md`
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+  `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
@@ -474,7 +517,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: useful only as an external, opt-in inspection candidate. Its
   origin statement and filename do not establish format generation,
   correctness, or compatibility.
-- Usage: `OBS-0001`; `EXP-0001`; `docs/validation/EXTERNAL_CORPUS.md`
+- Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`;
+  `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review

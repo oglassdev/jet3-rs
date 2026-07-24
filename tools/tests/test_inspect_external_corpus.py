@@ -118,6 +118,68 @@ class InspectExternalCorpusTests(unittest.TestCase):
                 len(range(0, len(self.fixture_bytes), stride)),
             )
 
+        boundary_samples = [
+            self.fixture_bytes[offset : offset + 2]
+            for offset in range(
+                0, len(self.fixture_bytes), inspect_corpus.PAGE_BOUNDARY_BYTES
+            )
+        ]
+        first_byte_counts = {
+            first_byte: sum(sample[0] == first_byte for sample in boundary_samples)
+            for first_byte in sorted({sample[0] for sample in boundary_samples})
+        }
+        self.assertEqual(
+            fixture["page_boundary_observation"],
+            {
+                "first_byte_counts": [
+                    {"count": count, "first_byte": first_byte}
+                    for first_byte, count in first_byte_counts.items()
+                ],
+                "nonzero_first_byte_count": sum(
+                    sample[0] != 0 for sample in boundary_samples
+                ),
+                "nonzero_first_byte_with_second_byte_0x01_count": sum(
+                    sample[0] != 0 and len(sample) == 2 and sample[1] == 0x01
+                    for sample in boundary_samples
+                ),
+                "sample_count": len(boundary_samples),
+                "stride_bytes": inspect_corpus.PAGE_BOUNDARY_BYTES,
+            },
+        )
+
+    def test_page_boundary_metrics_count_short_final_boundary_exactly(self) -> None:
+        fixture = bytearray(inspect_corpus.PAGE_BOUNDARY_BYTES * 3 + 1)
+        fixture[4:19] = b"Standard Jet DB"
+        fixture[0:2] = b"\x02\x01"
+        first_boundary = inspect_corpus.PAGE_BOUNDARY_BYTES
+        fixture[first_boundary : first_boundary + 2] = b"\x02\x00"
+        second_boundary = inspect_corpus.PAGE_BOUNDARY_BYTES * 2
+        fixture[second_boundary : second_boundary + 2] = b"\x00\x01"
+        fixture[-1] = 0x03
+        self.fixture_bytes = bytes(fixture)
+        self.fixture_path.write_bytes(self.fixture_bytes)
+        self.manifest = self._manifest(
+            "backups/example.mdb", self.fixture_bytes, len(self.fixture_bytes)
+        )
+        self._write_manifest()
+
+        metrics = self._observe()["fixtures"][0]["page_boundary_observation"]
+
+        self.assertEqual(
+            metrics,
+            {
+                "first_byte_counts": [
+                    {"count": 1, "first_byte": 0},
+                    {"count": 2, "first_byte": 2},
+                    {"count": 1, "first_byte": 3},
+                ],
+                "nonzero_first_byte_count": 3,
+                "nonzero_first_byte_with_second_byte_0x01_count": 1,
+                "sample_count": 4,
+                "stride_bytes": 2048,
+            },
+        )
+
     def test_missing_environment_is_blocked(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -209,6 +271,45 @@ class InspectExternalCorpusTests(unittest.TestCase):
             mock.patch.object(inspect_corpus.os, "fstat", return_value=fake_stat),
             self.assertRaisesRegex(
                 inspect_corpus.CorpusBlockedError, "offset-4 signature"
+            ),
+        ):
+            inspect_corpus._observe_fixture(
+                self.corpus.resolve(), self.manifest["fixtures"][0]
+            )
+
+    def test_short_page_boundary_read_is_blocked(self) -> None:
+        fake_stat = os.stat_result(
+            (
+                0o100644,
+                1,
+                1,
+                1,
+                0,
+                0,
+                len(self.fixture_bytes),
+                0,
+                0,
+                0,
+            )
+        )
+        stride_1024_samples = len(range(0, len(self.fixture_bytes), 1024))
+        source = mock.MagicMock()
+        source.__enter__.return_value = source
+        source.__exit__.return_value = False
+        source.fileno.return_value = 10
+        source.read.side_effect = [
+            self.fixture_bytes,
+            b"",
+            b"Standard Jet DB",
+            *([b"\x00"] * stride_1024_samples),
+            b"\x00",
+        ]
+        with (
+            mock.patch.object(Path, "open", return_value=source),
+            mock.patch.object(inspect_corpus.os, "fstat", return_value=fake_stat),
+            self.assertRaisesRegex(
+                inspect_corpus.CorpusBlockedError,
+                "changed during stride inspection",
             ),
         ):
             inspect_corpus._observe_fixture(
