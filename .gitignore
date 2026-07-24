@@ -6,7 +6,7 @@
 *.profraw
 coverage/
 fuzz/artifacts/
-fuzz/corpus/
+fuzz/target/
 
 # Private scratch output is never fixture evidence.
 fixtures/work/

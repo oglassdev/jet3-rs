@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "target": "binary_cursor",
+  "protocol_version": 1,
+  "seeds": [
+    {
+      "id": "FUZZ-SEED-BINARY-CURSOR-001",
+      "path": "fuzz/corpus/binary_cursor/empty_limits",
+      "size_bytes": 5,
+      "sha256": "8982b0e36eb1bacbb400dea0997b13cce756d7a48dbe0b05c560a13c1973afd0",
+      "purpose": "Select zero for all three resource limits and reject a non-empty cursor input without allocation or panic.",
+      "origin": "Project-authored literal bytes.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '0000' > fuzz/corpus/binary_cursor/empty_limits"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-CURSOR-002",
+      "path": "fuzz/corpus/binary_cursor/primitive_reads",
+      "size_bytes": 16,
+      "sha256": "01d9bc4ff72953edc357d53b8e90aeb2b935234282f2b6848019e5798f4c8a7b",
+      "purpose": "Set input-sized resource limits and provide short commands that exercise primitive-read and truncated-read paths.",
+      "origin": "Project-authored literal bytes.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '2225cursor-seed' > fuzz/corpus/binary_cursor/primitive_reads"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-CURSOR-003",
+      "path": "fuzz/corpus/binary_cursor/offset_boundaries",
+      "size_bytes": 36,
+      "sha256": "5593c9f4922441b4cd279123ee1a1bc89da47cf6b9f05d6aaa6a2088895db3ab",
+      "purpose": "Select maximum resource limits and supply large decoded operands for checked offset, byte-count, and budget arithmetic.",
+      "origin": "Project-authored literal bytes.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '4444zzzzzzzz-overflow-boundary-seed' > fuzz/corpus/binary_cursor/offset_boundaries"
+    }
+  ]
+}
