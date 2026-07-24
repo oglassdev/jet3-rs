@@ -420,6 +420,57 @@ Use `not applicable` explicitly rather than omitting a field.
   content is redistributed
 - Review: pending independent review
 
+### SRC-0013 — Jet 3 database-header commit region and `.ldb` locking context
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: Which portion of the Jet 3.0/3.5 database header page stores
+  per-connection commit state, and what contextual limits apply when reading
+  it?
+- Origin: Microsoft Support, “Rediscovered JET and ODBC white papers,” and the
+  linked Microsoft-hosted archive containing Kevin Collins, “Understanding
+  Microsoft Jet Locking,” updated for Jet 3.5 and DAO 3.5; accessed
+  2026-07-24,
+  https://support.microsoft.com/en-US/Access/rediscovered-jet-and-odbc-white-papers
+- Environment: documentation retrieval on macOS 26.3.1 arm64; provider
+  version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the Microsoft-hosted
+  `JetWhitePapers_UPDATE1.zip` from the Support page; verify the archive and
+  contained `Jetlock.docx` hashes below; inspect the “Layout of the .Ldb File,”
+  “Database Header Page,” and lock-description sections of only that
+  Microsoft-authored paper
+- Artifacts: Microsoft download archive SHA-256
+  `fcd3b414dc9c1053a1f7db97a132561924dff2631f14d600805f8f5dab32ffd8`;
+  contained `Jetlock.docx` SHA-256
+  `2a4a9c00ea6e817751b7bb3d3d76f124156da2cafa61ddd4cdd8f44cde3383fe`;
+  neither artifact is redistributed by this repository
+- Observation: Microsoft identifies the first database page as the database
+  header page. For Jet 3.0 and 3.5 it identifies the 512 bytes beginning at
+  hexadecimal offset `0x600` and ending at the 2-KiB page boundary `0x800` as
+  256 two-byte commit-state slots. The first pair is used for an exclusive
+  connection and the remaining 255 pairs for shared users. It assigns
+  `00 00` to a user physically writing to disk and `01 00` to a user that
+  accessed a corrupted page, while warning that many other pair values are
+  valid internal cache-coordination states. The applicable shared-user slot is
+  determined by a corresponding operating-system byte-range lock on the
+  companion `.ldb` file. The paper also documents up to 255 physical `.ldb`
+  entries of 64 bytes—32 bytes for computer name and 32 for security name—and
+  a maximum physical `.ldb` size of 16,320 bytes.
+- Interpretation: production code may expose the complete 256 raw two-byte
+  slots from the documented first-page range and may name the two documented
+  pair values. It must preserve all other pairs without rejecting them and
+  must not infer database validity, corruption, clean shutdown, Jet generation,
+  user ownership, or compatibility from MDB bytes alone. Contextual state
+  diagnosis requires contemporaneous `.ldb` lock evidence from a controlled
+  Windows experiment. The source publishes no page tag, table-header location,
+  catalog root, allocation encoding, row layout, index encoding, or long-value
+  pointer.
+- Usage: clean-room design for a bounded raw commit-region reader and future
+  Windows `.ldb` correlation experiments; not yet cited by production code
+- Rights: citation to Microsoft-authored public material; no white-paper
+  content is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
