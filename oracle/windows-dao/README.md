@@ -5,8 +5,8 @@ and a Windows-only Microsoft DAO test oracle. The oracle is an independent
 fixture generator and semantic verifier. It is never a production dependency,
 and this M0 protocol does not implement or describe the Jet file format.
 
-No DAO compatibility result is checked in here yet. The example scenario is an
-input document, not an executed result.
+No DAO compatibility result is checked in here yet. The examples are input
+documents, not executed results.
 
 ## Protocol v1
 
@@ -23,6 +23,21 @@ Every document carries `protocol_version: "1.0.0"` and a `document_type`.
 Scenario IDs use `DAO-GEN-`, `DAO-READ-`, `DAO-WRITE-`, or `DAO-UPDATE-`.
 Changing the semantics of a scenario requires a new content hash; changing its
 meaning requires a new scenario ID.
+
+## Protocol 1.1 M1 plans
+
+[`protocol/v1_1`](protocol/v1_1/README.md) adds a separate, fail-closed M1 data
+contract for controlled DAO-generated experiments. It covers independent empty
+creation repeats, a fixed `dbBinary` marker row, a `dbText(8)` nonunique-index
+pair, and `dbMemo`/`dbLongBinary` boundary ladders at lengths 1, 2047, 2048,
+2049, 32767, 32768, and 32769. The contract includes an exact deep semantic
+snapshot comparator, multi-scenario/pair reports, immutable bundle bindings,
+and a hash-checked example inventory.
+
+M1 has no COM executor. Execution remains blocked pending a provisioned Windows
+marshalling experiment for deterministic binary values. The M1 plans are
+experiment inputs only and do not change validation evidence or the support
+matrix. Protocol 1.0 and its checked M0 runner remain unchanged.
 
 ## Provider requirement
 
@@ -127,6 +142,15 @@ python3 oracle/windows-dao/scripts/validate_protocol.py schemas
 python3 oracle/windows-dao/scripts/validate_protocol.py document \
   oracle/windows-dao/examples/DAO-GEN-PROBE-001.scenario.json
 python3 -m unittest discover -s oracle/windows-dao/tests -v
+```
+
+Check the separate M1 contract and all inventoried examples:
+
+```sh
+python3 oracle/windows-dao/scripts/build_m1_examples.py --check
+python3 oracle/windows-dao/scripts/validate_m1_protocol.py schemas
+python3 oracle/windows-dao/scripts/validate_m1_protocol.py document \
+  oracle/windows-dao/examples/m1-inventory.json
 ```
 
 Validate a completed bundle and all referenced hashes:

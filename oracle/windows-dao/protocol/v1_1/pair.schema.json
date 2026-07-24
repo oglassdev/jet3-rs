@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_1/pair.schema.json",
+  "title": "DAO M1 controlled snapshot pair",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "pair_id",
+    "title",
+    "purpose",
+    "comparison_kind",
+    "left_scenario_id",
+    "right_scenario_id",
+    "allowed_difference_paths"
+  ],
+  "properties": {
+    "protocol_version": { "const": "1.1.0" },
+    "document_type": { "const": "dao_pair" },
+    "pair_id": { "type": "string", "pattern": "^DAO-PAIR-[A-Z0-9][A-Z0-9_-]{2,63}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "comparison_kind": {
+      "enum": ["repeat_equivalence", "single_nonunique_index"]
+    },
+    "left_scenario_id": { "$ref": "#/$defs/scenarioId" },
+    "right_scenario_id": { "$ref": "#/$defs/scenarioId" },
+    "allowed_difference_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^/(?:[^/~]|~0|~1)+(?:/(?:[^/~]|~0|~1)+)*$"
+      }
+    }
+  },
+  "$defs": {
+    "scenarioId": {
+      "type": "string",
+      "pattern": "^DAO-GEN-[A-Z0-9][A-Z0-9_-]{2,63}$"
+    }
+  }
+}

@@ -284,6 +284,142 @@ Use `not applicable` explicitly rather than omitting a field.
   is redistributed
 - Review: pending independent review
 
+### SRC-0009 — DAO data-type enumeration for controlled M1 fields
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: Which DAO enumeration members and numeric values name the four
+  field types used by the controlled M1 generation plans?
+- Origin: Microsoft Learn, “DataTypeEnum enumeration (DAO),” accessed
+  2026-07-24,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/datatypeenum-enumeration-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited Microsoft Learn page and inspect only the rows
+  for `dbBinary`, `dbText`, `dbLongBinary`, and `dbMemo`
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft identifies `dbBinary` value 9 as binary data,
+  `dbText` value 10 as variable-width text, `dbLongBinary` value 11 as binary
+  data, and `dbMemo` value 12 as extended text.
+- Interpretation: a future late-bound DAO adapter may use these names and
+  numeric values when creating the four controlled field kinds. They are API
+  enumeration values only; they do not identify MDB type bytes, physical
+  layouts, long-value thresholds, page classes, or storage strategies.
+- Usage: `oracle/windows-dao/protocol/v1_1/scenario.schema.json`;
+  `oracle/windows-dao/examples/m1-inventory.json`
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
+### SRC-0010 — DAO field creation and documented text-size bound
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: Which DAO API creates a table field, and is a size of eight a
+  documented-safe value for a Microsoft Access `dbText` field?
+- Origin: Microsoft Learn, “TableDef.CreateField method (DAO)” and “Field.Size
+  property (DAO),” accessed 2026-07-24,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/tabledef-createfield-method-dao
+  and
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/field-size-property-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve both cited pages; inspect the `CreateField(Name, Type,
+  Size)` parameter descriptions and the Microsoft Access text-size remarks
+- Artifacts: not applicable; the project stores citations, not redistributed
+  copies
+- Observation: Microsoft documents `TableDef.CreateField` as creating a field
+  in a Microsoft Access workspace. For Microsoft Access Text fields,
+  `Field.Size` may be an integer up to 255; Long Binary and Memo report size
+  zero, and types other than Text determine their size from the type.
+- Interpretation: `dbText` size 8 is within the documented API range. The M1
+  plans therefore declare `size` only for `dbText`; they do not invent sizes
+  for `dbBinary`, `dbMemo`, or `dbLongBinary`. The source does not specify an
+  on-disk width field, encoding, row layout, or long-value cutoff.
+- Usage: `oracle/windows-dao/protocol/v1_1/scenario.schema.json`;
+  `oracle/windows-dao/examples/DAO-GEN-TEXT8-BASELINE-001.scenario.json`;
+  `oracle/windows-dao/examples/DAO-GEN-TEXT8-INDEXED-001.scenario.json`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0011 — DAO nonunique secondary-index construction
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: Which DAO object operations define an index, and what does the
+  `Unique` property mean?
+- Origin: Microsoft Learn, “Index object (DAO),” “Index.CreateField method
+  (DAO),” and “Index.Unique property (DAO),” accessed 2026-07-24,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/index-object-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/index-createfield-method-dao,
+  and
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/index-unique-property-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the three cited pages and inspect the documented index
+  construction sequence, index-field method, and `Unique` semantics
+- Artifacts: not applicable; the project stores citations, not redistributed
+  copies
+- Observation: Microsoft directs callers to create an Index from a TableDef,
+  create and append its field objects, set index properties, and append the
+  Index. It documents `Unique = False` as a secondary index that does not serve
+  as a unique identifier, and states that indexes affect record access order
+  rather than base-table physical order.
+- Interpretation: the controlled text pair may add one nonprimary index with
+  `Unique = False` over the existing `dbText(8)` field. No physical record
+  order, index page, B-tree encoding, page tag, or allocation effect is
+  predicted from the API documentation.
+- Usage: `oracle/windows-dao/examples/DAO-GEN-TEXT8-INDEXED-001.scenario.json`;
+  `oracle/windows-dao/examples/DAO-PAIR-TEXT8-INDEX-001.pair.json`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0012 — DAO row and long-value APIs; PowerShell marshalling gap
+
+- Recorded: 2026-07-24, OpenAI Codex
+- Kind: public source
+- Question: Which DAO APIs add rows and transfer Memo or Long Binary values,
+  and do the reviewed Microsoft sources define late-bound PowerShell binary
+  marshalling for those calls?
+- Origin: Microsoft Learn, “Recordset.AddNew method (DAO),” “Field.Value
+  property (DAO),” “Field.AppendChunk method (DAO),” and “Field.FieldSize
+  property (DAO),” accessed 2026-07-24,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-addnew-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/field-value-property-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/field-appendchunk-method-dao,
+  and
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/field-fieldsize-property-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited pages; inspect the AddNew/Update lifecycle,
+  `Field.Value` value contract, `AppendChunk` parameter and sequencing remarks,
+  and `FieldSize` scope
+- Artifacts: not applicable; the project stores citations, not redistributed
+  copies
+- Observation: Microsoft documents `AddNew`, field assignment, and `Update` as
+  the row-insertion lifecycle. `Field.Value` accepts a Variant appropriate to
+  the field type. `AppendChunk` appends a Variant of String subtype to Memo or
+  Long Binary fields, with the first call replacing and subsequent calls
+  appending within one AddNew/Edit session. `FieldSize` reports bytes used by a
+  Memo or Long Binary record field. The reviewed pages contain no contract for
+  how PowerShell late-bound COM maps a .NET string or byte array into the exact
+  Variant representation expected by a Jet 3 DAO provider.
+- Interpretation: the M1 plans may name deterministic semantic input values
+  and lengths, but an executor is blocked until a provisioned Windows
+  experiment establishes binary and long-binary marshalling and readback. The
+  planned lengths are experiment points, not documented storage thresholds.
+  Nothing here establishes page, tag, pointer, row, or long-value layout.
+- Usage: `oracle/windows-dao/protocol/v1_1/README.md`;
+  `oracle/windows-dao/examples/DAO-GEN-BINARY-MARKER-001.scenario.json`;
+  `oracle/windows-dao/examples/DAO-GEN-MEMO-LADDER-001.scenario.json`;
+  `oracle/windows-dao/examples/DAO-GEN-LONGBINARY-LADDER-001.scenario.json`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes

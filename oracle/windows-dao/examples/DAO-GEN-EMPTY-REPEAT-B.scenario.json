@@ -1,0 +1,44 @@
+{
+  "protocol_version": "1.1.0",
+  "document_type": "dao_scenario",
+  "scenario_id": "DAO-GEN-EMPTY-REPEAT-B",
+  "title": "Empty database repeat B",
+  "purpose": "Repeat the identical empty dbVersion30 creation recipe independently.",
+  "recipe": "repeat_empty",
+  "capabilities": [
+    "oracle.dao_generate.controlled_recipe"
+  ],
+  "traceability": [
+    "ORACLE-01",
+    "TEST-01"
+  ],
+  "mode": "dao_generate_fixture",
+  "requirements": {
+    "database_version": "dbVersion30",
+    "provider_api": "DAO COM",
+    "provider_bitness": "either"
+  },
+  "database": {
+    "input_role": "none",
+    "output_path": "databases/DAO-GEN-EMPTY-REPEAT-B.mdb"
+  },
+  "steps": [
+    {
+      "step_id": "create",
+      "action": "create_database",
+      "arguments": {
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "version": "dbVersion30"
+      }
+    },
+    {
+      "step_id": "close",
+      "action": "close_database",
+      "arguments": {}
+    }
+  ],
+  "expected": {
+    "outcome": "success",
+    "reopen_before_snapshot": true
+  }
+}

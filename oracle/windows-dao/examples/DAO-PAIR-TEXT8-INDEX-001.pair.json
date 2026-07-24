@@ -1,0 +1,15 @@
+{
+  "protocol_version": "1.1.0",
+  "document_type": "dao_pair",
+  "pair_id": "DAO-PAIR-TEXT8-INDEX-001",
+  "title": "Single nonunique dbText(8) index",
+  "purpose": "Require the indexed snapshot to differ only by the declared index and identity.",
+  "comparison_kind": "single_nonunique_index",
+  "left_scenario_id": "DAO-GEN-TEXT8-BASELINE-001",
+  "right_scenario_id": "DAO-GEN-TEXT8-INDEXED-001",
+  "allowed_difference_paths": [
+    "/database_sha256",
+    "/scenario_id",
+    "/tables/0/indexes"
+  ]
+}
