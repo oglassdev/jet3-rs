@@ -8,8 +8,10 @@ format evidence.
 
 1. `offset` owns typed byte positions and lengths. Arithmetic and integer
    conversions are checked here.
-2. `limits` owns caller-selected resource ceilings and the aggregate work
-   budget charged before reads, allocations, or traversal.
+2. `limits` currently owns caller-selected read ceilings and the non-copy
+   `ReadBudget` shared by every source and cursor in one operation. Future
+   format parsers must add the broader `ResourceLimits` counters required for
+   allocations, traversal, page visits, decoded values, and chain depth.
 3. `binary` decodes primitive values from borrowed byte slices. It does not
    perform I/O or know Jet constants.
 4. `source` provides bounded random access to a captured-length input. It does
@@ -19,8 +21,9 @@ format evidence.
    unchecked binary operations into higher-level database operations.
 
 Jet-specific modules must not duplicate range arithmetic, slice indexing, or
-budget charging. A parser charges aggregate work before acting on an
-input-derived count or length, even if each individual item would fit.
+budget charging. The current read budget is not a substitute for the aggregate
+allocation and traversal budget required before a parser acts on an
+input-derived count or length.
 
 ## Error boundary
 
@@ -44,7 +47,7 @@ short read rather than treating missing bytes as zeroes.
 
 No production parser may use unbounded `read_to_end`, recursive untrusted page
 walking, or an input-derived allocation without checking both the relevant
-specific limit and the aggregate work budget.
+specific limit and the future operation-wide resource budget.
 
 ## Review rule
 
