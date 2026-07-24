@@ -68,7 +68,7 @@ function New-RepeatedBytes {
     for ($index = 0; $index -lt $Length; $index++) {
         $bytes[$index] = $Value
     }
-    return $bytes
+    return ,$bytes
 }
 
 function Get-ComFailure {

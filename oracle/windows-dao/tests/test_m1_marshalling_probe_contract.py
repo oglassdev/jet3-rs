@@ -26,6 +26,7 @@ class M1MarshallingProbeContractTests(unittest.TestCase):
             "@(1, 2047, 2048, 2049, 32767, 32768, 32769)",
             self.source,
         )
+        self.assertIn("return ,$bytes", self.source)
         self.assertIn("$target.AppendChunk($bytes)", self.source)
 
     def test_probe_cannot_publish_protocol_evidence(self) -> None:
