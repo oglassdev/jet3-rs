@@ -57,16 +57,22 @@ case "${1:-}" in
         ;;
     G3)
         python3 oracle/windows-dao/scripts/validate_protocol.py schemas
+        python3 oracle/windows-dao/scripts/build_m1_examples.py --check
+        python3 oracle/windows-dao/scripts/validate_m1_protocol.py schemas
+        python3 oracle/windows-dao/scripts/validate_m1_protocol.py document \
+            oracle/windows-dao/examples/m1-inventory.json
         python3 -m unittest discover -s oracle/windows-dao/tests -v
         blocked "G3 has no provisioned Windows DAO provider, no complete 100-scenario differential inventory, and no clean commit-bound DAO evidence bundle"
         ;;
     G4)
         configure_toolchain
         run_cargo test --package jet3 atomic::tests --locked
+        run_cargo test --package jet3 --test atomic_publication --locked
         blocked "G4 lacks an independent structural verifier for Rust-written MDB files and complete commit-bound atomic-update fault and platform recovery evidence"
         ;;
     G5)
         configure_toolchain
+        python3 fuzz/tools/fuzz_campaign.py validate
         if ! command -v cargo-fuzz >/dev/null 2>&1; then
             blocked "G5 cannot compile the checked fuzz package because cargo-fuzz is unavailable; the required parser targets and full campaigns are also incomplete"
         fi
@@ -74,12 +80,15 @@ case "${1:-}" in
         blocked "G5 lacks the required open, catalog, table-definition, row, index, and long-value targets, ten-minute campaigns, malformed-corpus resource enforcement, and adversarial complexity evidence"
         ;;
     G6)
-        if command -v cargo-llvm-cov >/dev/null 2>&1; then
-            configure_toolchain
-            run_cargo llvm-cov --workspace --all-features --locked --summary-only
-            blocked "G6 produced a local coverage summary, but no commit-bound threshold report or mutation report proves the required core scores and survivor disposition"
+        python3 tools/validate_g6_evidence.py inventory
+        if [ -z "${JET3_G6_COVERAGE_EVIDENCE:-}" ] ||
+            [ -z "${JET3_G6_MUTATION_EVIDENCE:-}" ]; then
+            blocked "G6 requires explicit commit-bound JET3_G6_COVERAGE_EVIDENCE and JET3_G6_MUTATION_EVIDENCE reports"
         fi
-        blocked "G6 cargo-llvm-cov is unavailable, and no commit-bound coverage or mutation report proves the required core scores and survivor disposition"
+        python3 tools/validate_g6_evidence.py coverage \
+            "$JET3_G6_COVERAGE_EVIDENCE"
+        python3 tools/validate_g6_evidence.py mutation \
+            "$JET3_G6_MUTATION_EVIDENCE"
         ;;
     G7)
         configure_toolchain
