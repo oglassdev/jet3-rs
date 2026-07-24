@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "target": "binary_cursor",
+  "target": "binary_cursor and jet_header",
   "protocol_version": 1,
   "seeds": [
     {
@@ -53,6 +53,125 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '4444zzzzzzzz-overflow-boundary-seed' > fuzz/corpus/binary_cursor/offset_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-001",
+      "path": "fuzz/corpus/jet_header/standard",
+      "size_bytes": 23,
+      "sha256": "712b473ebc00eea554986eee98ecf73fc30f83be141d85bd9c0dcdc453031968",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise the Standard signature scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADStandard Jet DB' > fuzz/corpus/jet_header/standard"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-002",
+      "path": "fuzz/corpus/jet_header/system",
+      "size_bytes": 23,
+      "sha256": "6107358f1c12cf69bf5ea38821d20fe4cdb5356f39d9e73d939683a7aa3ef88c",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise the System signature-prefix scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADJet System DB x' > fuzz/corpus/jet_header/system"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-003",
+      "path": "fuzz/corpus/jet_header/temporary",
+      "size_bytes": 23,
+      "sha256": "1217d66fab4fac34c309798f4ebc1a6b00d3bda0b1afc16097de7212299a6b00",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise the Temporary signature-prefix scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADTemp Jet DB xyz' > fuzz/corpus/jet_header/temporary"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-004",
+      "path": "fuzz/corpus/jet_header/unknown",
+      "size_bytes": 23,
+      "sha256": "1a5ed9b09c0e05a08f4a81b779edf155a59f0b877dde77b3ba0234ebfce47230",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise a complete unknown-signature scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADNot a Jet file!' > fuzz/corpus/jet_header/unknown"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-005",
+      "path": "fuzz/corpus/jet_header/truncated_one_below",
+      "size_bytes": 13,
+      "sha256": "1313909dd10ec6d5714dbf8066e4e7a748cfb85f7e8be9b4fbe0e1dbc73d5b67",
+      "purpose": "Select an exact input limit with both read budgets one below the 15-byte signature request while also supplying a truncated signature window.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '211HEADStand' > fuzz/corpus/jet_header/truncated_one_below"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-006",
+      "path": "fuzz/corpus/jet_header/geometry_2048",
+      "size_bytes": 2051,
+      "sha256": "e8b2fe85b98151f400200264fa1b1cc7e66561b9dcf15f574cae028f95f04483",
+      "purpose": "Select exact limits for a synthetic 2,048-byte payload and exercise accepted one-page Jet 3 geometry plus an arbitrary unknown signature.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"222\"; for (line = 0; line < 31; line++) { width = line == 0 ? 61 : 64; for (i = 0; i < width; i++) printf \"A\"; printf \"\\n\" } for (i = 0; i < 35; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet_header/geometry_2048"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-007",
+      "path": "fuzz/corpus/jet_header/geometry_2049",
+      "size_bytes": 2052,
+      "sha256": "32dd579967409e99b9c71eb8e5888f443d2a2770500c098d706d0171d0652936",
+      "purpose": "Select exact limits for a synthetic 2,049-byte payload and exercise rejected partial-page Jet 3 geometry plus an arbitrary unknown signature.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"222\"; for (line = 0; line < 31; line++) { width = line == 0 ? 61 : 64; for (i = 0; i < width; i++) printf \"A\"; printf \"\\n\" } for (i = 0; i < 36; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet_header/geometry_2049"
     }
   ]
 }

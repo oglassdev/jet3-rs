@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
@@ -7,13 +8,18 @@ use criterion::{
     BatchSize, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
 use jet3::{
-    BinaryCursor, ByteCount, ByteOffset, Error, FileSource, PageGeometry, PageNumber, PageOffset,
-    ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
+    BinaryCursor, ByteCount, ByteOffset, Error, FileSource, JET3_PAGE_SIZE, PageGeometry,
+    PageNumber, PageOffset, ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits,
+    SliceSource, jet3_page_geometry, read_jet_signature,
 };
 
 const DATASET_SIZES: [usize; 4] = [64, 4 * 1024, 64 * 1024, 1024 * 1024];
 const PAGE_COUNTS: [u64; 4] = [1, 16, 1024, 65_536];
 const PAGE_SIZE: u64 = 4096;
+const JET_HEADER_LENGTH: usize = 19;
+const JET_SIGNATURE_LENGTH: u64 = 15;
+const STANDARD_JET_HEADER: [u8; JET_HEADER_LENGTH] = *b"\0\0\0\0Standard Jet DB";
+const UNKNOWN_JET_HEADER: [u8; JET_HEADER_LENGTH] = *b"\0\0\0\0Not a Jet file!";
 
 fn deterministic_bytes(length: usize) -> Vec<u8> {
     (0..length)
@@ -33,7 +39,10 @@ fn limits_for(length: usize, total_multiplier: u64) -> ReadLimits {
     )
 }
 
-fn required<T>(result: Result<T, Error>) -> T {
+fn required<T, E>(result: Result<T, E>) -> T
+where
+    E: fmt::Display,
+{
     match result {
         Ok(value) => value,
         Err(error) => {
@@ -41,6 +50,94 @@ fn required<T>(result: Result<T, Error>) -> T {
             process::abort();
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LengthOnlySource {
+    length: ByteCount,
+}
+
+impl LengthOnlySource {
+    const fn new(length: ByteCount) -> Self {
+        Self { length }
+    }
+}
+
+impl ReadAt for LengthOnlySource {
+    fn len(&self) -> ByteCount {
+        self.length
+    }
+
+    fn read_exact_at(
+        &mut self,
+        _offset: ByteOffset,
+        _destination: &mut [u8],
+        _budget: &mut ReadBudget,
+    ) -> Result<(), Error> {
+        Err(Error::Io {
+            operation: "read from length-only benchmark source",
+            kind: std::io::ErrorKind::Unsupported,
+        })
+    }
+}
+
+fn jet_header_limits() -> ReadLimits {
+    ReadLimits::new(
+        ByteCount::new(JET_HEADER_LENGTH as u64),
+        ByteCount::new(JET_SIGNATURE_LENGTH),
+        ByteCount::new(JET_SIGNATURE_LENGTH),
+    )
+}
+
+fn bench_jet_header(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("jet_header");
+    let limits = jet_header_limits();
+
+    group.throughput(Throughput::Bytes(JET_SIGNATURE_LENGTH));
+    group.bench_function("read_standard_signature", |bencher| {
+        bencher.iter_batched(
+            || {
+                let budget = ReadBudget::new(limits);
+                let source = required(SliceSource::new(&STANDARD_JET_HEADER, &budget));
+                (source, budget)
+            },
+            |(mut source, mut budget)| {
+                black_box(required(read_jet_signature(&mut source, &mut budget)));
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.throughput(Throughput::Bytes(JET_SIGNATURE_LENGTH));
+    group.bench_function("reject_unknown_signature", |bencher| {
+        bencher.iter_batched(
+            || {
+                let budget = ReadBudget::new(limits);
+                let source = required(SliceSource::new(&UNKNOWN_JET_HEADER, &budget));
+                (source, budget)
+            },
+            |(mut source, mut budget)| {
+                black_box(read_jet_signature(&mut source, &mut budget).is_err());
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    for page_count in PAGE_COUNTS {
+        let source_len = ByteCount::new(page_count.saturating_mul(JET3_PAGE_SIZE.get()));
+        let source = LengthOnlySource::new(source_len);
+        group.throughput(Throughput::Elements(1));
+        group.bench_with_input(
+            BenchmarkId::new("jet3_page_geometry", source_len.get()),
+            &source,
+            |bencher, source| {
+                bencher.iter(|| {
+                    black_box(required(jet3_page_geometry(black_box(source))));
+                });
+            },
+        );
+    }
+    group.finish();
 }
 
 fn bench_binary_cursor(criterion: &mut Criterion) {
@@ -371,6 +468,7 @@ fn bench_resource_budget(criterion: &mut Criterion) {
 
 criterion_group!(
     benches,
+    bench_jet_header,
     bench_binary_cursor,
     bench_slice_source,
     bench_file_source,

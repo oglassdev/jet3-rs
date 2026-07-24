@@ -19,5 +19,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "jet_header"
+path = "fuzz_targets/jet_header.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

@@ -1,7 +1,8 @@
 # Benchmarks
 
-This standalone Criterion package measures the existing format-neutral binary
-foundations without adding benchmark dependencies to the production workspace.
+This standalone Criterion package measures the checked binary foundations,
+generic Jet signature recognition, and Jet 3 page-geometry arithmetic without
+adding benchmark dependencies to the production workspace.
 
 The checked `manifest.json` defines deterministic datasets and stable benchmark
 IDs for:
@@ -9,11 +10,19 @@ IDs for:
 - `BinaryCursor` exact reads, primitive scans, and truncation rejection;
 - in-memory and file-backed `ReadAt` exact reads;
 - valid and invalid `PageGeometry` mappings;
+- bounded generic Jet Standard-signature recognition and unknown-signature
+  rejection;
+- Jet 3 page-geometry derivation for representative aligned source lengths;
 - cumulative `ReadBudget` charging and limit rejection; and
 - mixed operation-wide `ResourceBudget` accounting and exhaustion.
 
 The byte generator is implemented directly in `format_primitives.rs`. It has no
-random seed, external fixture, network access, or Jet-format constant.
+random seed, external fixture, or network access. The two 19-byte header inputs
+are project-authored synthetic arrays, not bytes copied from an MDB file. Every
+signature iteration constructs a fresh bounded `SliceSource` and `ReadBudget`.
+The Jet 3 geometry cases use a small length-only `ReadAt` source, so their
+2 KiB through 128 MiB representative lengths do not allocate corresponding
+buffers.
 
 ## Commands
 
@@ -61,10 +70,10 @@ python3 benches/scripts/compare_baseline.py \
   --output artifacts/benchmarks/comparison.json
 ```
 
-`manifest.json` is the scenario inventory for this format-neutral Criterion
-suite. It is not an approved-baseline ledger and does not conform to the
-binding `docs/validation/schema/benchmark-manifest.schema.json`. That binding
-schema remains the only contract for checked G7 baseline entries.
+`manifest.json` is the scenario inventory for this checked-foundations
+Criterion suite. It is not an approved-baseline ledger and does not conform to
+the binding `docs/validation/schema/benchmark-manifest.schema.json`. That
+binding schema remains the only contract for checked G7 baseline entries.
 
 `comparison-input.schema.json` documents the comparator's normalized,
 commit-bound input format. It is local tooling structure, not a substitute for
@@ -90,4 +99,7 @@ corresponding retained Git blobs prove it.
 This foundation does not satisfy G7. It has no Jet catalog, row, index, CRUD,
 Memo/OLE, creation, or semantic-verification benchmarks; no 100,000-row
 dataset; no approved baseline; and no integrated peak-RSS or output-size
-collector. Those remain explicit release blockers.
+collector. Synthetic generic Jet signature recognition does not identify a Jet
+version, validate a database, or demonstrate application compatibility. Jet 3
+geometry cases validate arithmetic from aligned lengths only and do not inspect
+page contents. Those remain explicit release blockers.

@@ -4,6 +4,7 @@
 pub mod atomic;
 pub mod binary;
 pub mod error;
+pub mod header;
 pub mod limits;
 pub mod offset;
 pub mod page;
@@ -13,6 +14,9 @@ pub mod source;
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
 pub use error::{Error, LimitKind, ResourceLimitKind};
+pub use header::{
+    HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
+};
 pub use limits::{ReadBudget, ReadLimits};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
