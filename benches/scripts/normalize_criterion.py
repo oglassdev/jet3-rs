@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import shutil
 import sys
 import tempfile
 from datetime import UTC, datetime
@@ -23,6 +24,8 @@ NORMALIZED_ID_PATTERN = re.compile(
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+RAW_MEASUREMENTS_FILE = "raw-measurements.json"
+COMPARISON_INPUT_FILE = "comparison-input.json"
 REPOSITORY_PATH_PATTERN = re.compile(
     r"^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*"
     r"(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$"
@@ -361,45 +364,74 @@ def _validate_bound_document(
         raise NormalizationError("bound and raw document measurements differ")
 
 
-def _stage_document(path: Path, value: dict[str, Any]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _write_bundle_document(path: Path, value: dict[str, Any]) -> None:
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    staged_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as temporary:
-            staged_path = Path(temporary.name)
-            temporary.write(payload)
-            temporary.flush()
-            os.fsync(temporary.fileno())
-        return staged_path
+        with path.open("xb") as destination:
+            destination.write(payload)
+            destination.flush()
+            os.fsync(destination.fileno())
     except OSError as error:
-        if staged_path is not None:
-            staged_path.unlink(missing_ok=True)
-        raise NormalizationError(f"cannot stage output {path}: {error}") from error
+        raise NormalizationError(f"cannot stage bundle document {path.name}: {error}") from error
 
 
-def _publish_documents(outputs: list[tuple[Path, dict[str, Any]]]) -> None:
-    destinations = [path.absolute() for path, _ in outputs]
-    if len(destinations) != len(set(destinations)):
-        raise NormalizationError("related output destinations must be distinct")
-    staged: list[tuple[Path, Path]] = []
+def _sync_directory(path: Path) -> None:
     try:
-        for path, document in outputs:
-            staged.append((_stage_document(path, document), path))
-        for temporary, path in staged:
-            try:
-                temporary.replace(path)
-            except OSError as error:
-                raise NormalizationError(f"cannot publish output {path}: {error}") from error
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError as error:
+        raise NormalizationError(f"cannot open bundle directory for sync: {error}") from error
+    try:
+        os.fsync(descriptor)
+    except OSError as error:
+        raise NormalizationError(f"cannot sync bundle directory: {error}") from error
     finally:
-        for temporary, _ in staged:
-            temporary.unlink(missing_ok=True)
+        os.close(descriptor)
+
+
+def _publish_bundle(output: Path, documents: dict[str, dict[str, Any]]) -> None:
+    requested_output = output.absolute()
+    if requested_output.exists() or requested_output.is_symlink():
+        raise NormalizationError(
+            f"refusing to replace existing evidence bundle: {requested_output}"
+        )
+    output = requested_output.parent.resolve() / requested_output.name
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise NormalizationError(
+            f"cannot create evidence bundle parent {output.parent}: {error}"
+        ) from error
+    if output.exists() or output.is_symlink():
+        raise NormalizationError(f"refusing to replace existing evidence bundle: {output}")
+    expected_names = {RAW_MEASUREMENTS_FILE}
+    if COMPARISON_INPUT_FILE in documents:
+        expected_names.add(COMPARISON_INPUT_FILE)
+    if set(documents) != expected_names:
+        raise NormalizationError("evidence bundle has an unexpected document inventory")
+
+    try:
+        temporary = Path(
+            tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent)
+        )
+    except OSError as error:
+        raise NormalizationError(f"cannot stage evidence bundle: {error}") from error
+    try:
+        for name in sorted(documents):
+            _write_bundle_document(temporary / name, documents[name])
+        _sync_directory(temporary)
+        if output.exists() or output.is_symlink():
+            raise NormalizationError(
+                f"refusing to replace existing evidence bundle: {output}"
+            )
+        try:
+            os.replace(temporary, output)
+        except OSError as error:
+            raise NormalizationError(
+                f"cannot publish evidence bundle {output}: {error}"
+            ) from error
+        _sync_directory(output.parent)
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
 
 
 def _bound_document(
@@ -457,9 +489,8 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=Path(__file__).resolve().parents[1] / "manifest.json",
     )
-    parser.add_argument("--raw-output", type=Path, required=True)
+    parser.add_argument("--bundle-output", type=Path, required=True)
     parser.add_argument("--metadata", type=Path)
-    parser.add_argument("--output", type=Path)
     parser.add_argument("--raw-artifact-path")
     parser.add_argument(
         "--repository-root", type=Path, default=Path(__file__).resolve().parents[2]
@@ -467,13 +498,12 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     binding_values = (
         arguments.metadata,
-        arguments.output,
         arguments.raw_artifact_path,
     )
     if any(value is not None for value in binding_values) and not all(
         value is not None for value in binding_values
     ):
-        parser.error("--metadata, --output, and --raw-artifact-path must be used together")
+        parser.error("--metadata and --raw-artifact-path must be used together")
     try:
         measurements = normalize(
             arguments.criterion_root, arguments.manifest, arguments.resources
@@ -482,8 +512,8 @@ def main(argv: list[str] | None = None) -> int:
         raw_bytes = (
             json.dumps(raw_document, indent=2, sort_keys=True) + "\n"
         ).encode("utf-8")
-        outputs = [(arguments.raw_output, raw_document)]
-        if arguments.output is not None:
+        documents = {RAW_MEASUREMENTS_FILE: raw_document}
+        if arguments.metadata is not None:
             document = _bound_document(
                 arguments.metadata,
                 arguments.raw_artifact_path,
@@ -492,8 +522,8 @@ def main(argv: list[str] | None = None) -> int:
                 measurements,
             )
             _validate_bound_document(document, raw_document)
-            outputs.append((arguments.output, document))
-        _publish_documents(outputs)
+            documents[COMPARISON_INPUT_FILE] = document
+        _publish_bundle(arguments.bundle_output, documents)
     except NormalizationError as error:
         print(f"BLOCKED: {error}", file=sys.stderr)
         return 2

@@ -82,7 +82,7 @@ Run the tested 15% comparison policy:
 python3 -m unittest discover -s benches/tests -v
 python3 benches/scripts/compare_baseline.py \
   benches/baselines/normalized-approved.json \
-  artifacts/benchmarks/normalized-candidate.json \
+  artifacts/benchmarks/candidate-bundle/comparison-input.json \
   --output artifacts/benchmarks/comparison.json
 ```
 
@@ -93,17 +93,30 @@ per-case fields described by `resource-metrics.schema.json`:
 python3 benches/scripts/normalize_criterion.py \
   --criterion-root benches/target/criterion \
   --resources artifacts/benchmarks/resource-metrics.json \
-  --raw-output artifacts/benchmarks/raw-measurements.json
+  --bundle-output artifacts/benchmarks/raw-bundle
 ```
 
-The first pass creates deterministic raw measurements. For a comparison input,
-retain that raw artifact in a clean commit, capture metadata for that commit,
-then rerun with `--metadata`, `--output`, and the repository-relative
-`--raw-artifact-path`. The second pass refuses a dirty metadata record, a stale
-suite hash, or a raw artifact not retained byte-for-byte by the named commit.
-It validates both the raw and commit-bound document before creating any output
-and stages every requested output in a private temporary file before
-atomically replacing either destination.
+The first pass creates a bundle containing deterministic
+`raw-measurements.json`. Retain that file in a clean commit, capture metadata
+for that commit, then rerun to a new bundle path with `--metadata` and the
+repository-relative `--raw-artifact-path`:
+
+```sh
+python3 benches/scripts/normalize_criterion.py \
+  --criterion-root benches/target/criterion \
+  --resources artifacts/benchmarks/resource-metrics.json \
+  --bundle-output artifacts/benchmarks/candidate-bundle \
+  --metadata artifacts/benchmarks/environment.json \
+  --raw-artifact-path artifacts/benchmarks/raw-bundle/raw-measurements.json
+```
+
+The bound bundle contains both `raw-measurements.json` and
+`comparison-input.json`. The second pass refuses a dirty metadata record, a
+stale suite hash, or a raw artifact not retained byte-for-byte by the named
+commit. It validates both documents in a private sibling directory, fsyncs
+them, and publishes the complete directory with one atomic rename. Existing
+bundle paths are never replaced, so there is no partially updated pair of
+related evidence files.
 
 A proposed binding baseline ledger can be checked independently:
 

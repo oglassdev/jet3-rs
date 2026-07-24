@@ -136,10 +136,34 @@ class CriterionNormalizationTests(unittest.TestCase):
         ):
             NORMALIZER.normalize(self.criterion, self.manifest, self.resources)
 
-    def test_invalid_bound_document_does_not_publish_raw_output(self) -> None:
-        raw_output = self.root / "raw.json"
-        bound_output = self.root / "bound.json"
-        raw_output.write_text("original raw\n", encoding="utf-8")
+    def test_raw_mode_publishes_one_complete_bundle(self) -> None:
+        bundle_output = self.root / "bundle"
+        result = NORMALIZER.main(
+            [
+                "--criterion-root",
+                str(self.criterion),
+                "--resources",
+                str(self.resources),
+                "--manifest",
+                str(self.manifest),
+                "--bundle-output",
+                str(bundle_output),
+            ]
+        )
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            {path.name for path in bundle_output.iterdir()},
+            {NORMALIZER.RAW_MEASUREMENTS_FILE},
+        )
+        document = json.loads(
+            (bundle_output / NORMALIZER.RAW_MEASUREMENTS_FILE).read_text(
+                encoding="utf-8"
+            )
+        )
+        NORMALIZER._validate_raw_document(document)
+
+    def test_invalid_bound_document_does_not_publish_bundle(self) -> None:
+        bundle_output = self.root / "bundle"
         with mock.patch.object(NORMALIZER, "_bound_document", return_value={}):
             with contextlib.redirect_stderr(io.StringIO()):
                 result = NORMALIZER.main(
@@ -150,47 +174,96 @@ class CriterionNormalizationTests(unittest.TestCase):
                         str(self.resources),
                         "--manifest",
                         str(self.manifest),
-                        "--raw-output",
-                        str(raw_output),
+                        "--bundle-output",
+                        str(bundle_output),
                         "--metadata",
                         str(self.root / "metadata.json"),
-                        "--output",
-                        str(bound_output),
                         "--raw-artifact-path",
                         "artifacts/benchmarks/raw.json",
                     ]
                 )
         self.assertEqual(result, 2)
-        self.assertEqual(raw_output.read_text(encoding="utf-8"), "original raw\n")
-        self.assertFalse(bound_output.exists())
+        self.assertFalse(bundle_output.exists())
 
-    def test_all_related_outputs_are_staged_before_publication(self) -> None:
-        first = self.root / "first.json"
-        second = self.root / "second.json"
-        first.write_text("original first\n", encoding="utf-8")
-        second.write_text("original second\n", encoding="utf-8")
-        stage_document = NORMALIZER._stage_document
+    def test_bound_bundle_uses_one_publication_rename(self) -> None:
+        output = self.root / "bundle"
+        documents = {
+            NORMALIZER.RAW_MEASUREMENTS_FILE: {"measurements": ["raw"]},
+            NORMALIZER.COMPARISON_INPUT_FILE: {"measurements": ["bound"]},
+        }
+        replace = NORMALIZER.os.replace
+        with mock.patch.object(NORMALIZER.os, "replace", wraps=replace) as publication:
+            NORMALIZER._publish_bundle(output, documents)
+        self.assertEqual(publication.call_count, 1)
+        self.assertEqual(
+            json.loads(
+                (output / NORMALIZER.RAW_MEASUREMENTS_FILE).read_text(
+                    encoding="utf-8"
+                )
+            ),
+            documents[NORMALIZER.RAW_MEASUREMENTS_FILE],
+        )
+        self.assertEqual(
+            json.loads(
+                (output / NORMALIZER.COMPARISON_INPUT_FILE).read_text(
+                    encoding="utf-8"
+                )
+            ),
+            documents[NORMALIZER.COMPARISON_INPUT_FILE],
+        )
+
+    def test_bundle_stage_failure_has_no_publication_point(self) -> None:
+        output = self.root / "bundle"
+        documents = {
+            NORMALIZER.RAW_MEASUREMENTS_FILE: {"measurements": ["raw"]},
+            NORMALIZER.COMPARISON_INPUT_FILE: {"measurements": ["bound"]},
+        }
+        write_document = NORMALIZER._write_bundle_document
         calls = 0
 
-        def fail_second_stage(path: Path, value: dict) -> Path:
+        def fail_second_write(path: Path, value: dict) -> None:
             nonlocal calls
             calls += 1
             if calls == 2:
                 raise NORMALIZER.NormalizationError("injected staging failure")
-            return stage_document(path, value)
+            write_document(path, value)
 
         with mock.patch.object(
-            NORMALIZER, "_stage_document", side_effect=fail_second_stage
+            NORMALIZER, "_write_bundle_document", side_effect=fail_second_write
         ):
             with self.assertRaisesRegex(
                 NORMALIZER.NormalizationError, "injected staging failure"
             ):
-                NORMALIZER._publish_documents(
-                    [(first, {"first": 1}), (second, {"second": 2})]
-                )
-        self.assertEqual(first.read_text(encoding="utf-8"), "original first\n")
-        self.assertEqual(second.read_text(encoding="utf-8"), "original second\n")
-        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+                NORMALIZER._publish_bundle(output, documents)
+        self.assertFalse(output.exists())
+        self.assertEqual(list(self.root.glob(".bundle.tmp-*")), [])
+
+    def test_bundle_refuses_to_replace_existing_evidence(self) -> None:
+        output = self.root / "bundle"
+        output.mkdir()
+        marker = output / "marker"
+        marker.write_text("retained\n", encoding="utf-8")
+        with self.assertRaisesRegex(
+            NORMALIZER.NormalizationError, "refusing to replace"
+        ):
+            NORMALIZER._publish_bundle(
+                output,
+                {NORMALIZER.RAW_MEASUREMENTS_FILE: {"measurements": ["raw"]}},
+            )
+        self.assertEqual(marker.read_text(encoding="utf-8"), "retained\n")
+
+    def test_bundle_refuses_broken_symlink_destination(self) -> None:
+        output = self.root / "bundle"
+        output.symlink_to(self.root / "missing-target")
+        with self.assertRaisesRegex(
+            NORMALIZER.NormalizationError, "refusing to replace"
+        ):
+            NORMALIZER._publish_bundle(
+                output,
+                {NORMALIZER.RAW_MEASUREMENTS_FILE: {"measurements": ["raw"]}},
+            )
+        self.assertTrue(output.is_symlink())
+        self.assertFalse((self.root / "missing-target").exists())
 
     def test_raw_document_validation_rejects_noncanonical_measurements(self) -> None:
         measurements = NORMALIZER.normalize(
