@@ -21,6 +21,7 @@ const TEMPORARY_SIGNATURE_PREFIX: &[u8] = b"Temp Jet DB ";
 /// 2 KiB page size to 4 KiB. This constant alone does not identify a file's
 /// version or validate its contents.
 pub const JET3_PAGE_SIZE: ByteCount = ByteCount::new(2_048);
+pub(crate) const JET3_PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 /// The generic Jet file kind named by a documented header signature.
 ///
@@ -90,7 +91,10 @@ pub fn read_jet_signature(
 ) -> Result<JetFileKind, HeaderError> {
     let mut observed = [0_u8; SIGNATURE_LENGTH];
     source.read_exact_at(SIGNATURE_OFFSET, &mut observed, budget)?;
+    classify_jet_signature(observed)
+}
 
+fn classify_jet_signature(observed: [u8; SIGNATURE_LENGTH]) -> Result<JetFileKind, HeaderError> {
     if observed == *STANDARD_SIGNATURE {
         Ok(JetFileKind::Standard)
     } else if observed.starts_with(SYSTEM_SIGNATURE_PREFIX) {
@@ -100,6 +104,16 @@ pub fn read_jet_signature(
     } else {
         Err(HeaderError::UnknownSignature { observed })
     }
+}
+
+pub(crate) fn classify_database_header_signature(
+    page: &[u8; JET3_PAGE_BYTES],
+) -> Result<JetFileKind, HeaderError> {
+    let start = SIGNATURE_OFFSET.get() as usize;
+    let end = start + SIGNATURE_LENGTH;
+    let mut observed = [0_u8; SIGNATURE_LENGTH];
+    observed.copy_from_slice(&page[start..end]);
+    classify_jet_signature(observed)
 }
 
 /// Derives 2 KiB page geometry from a source's captured length.

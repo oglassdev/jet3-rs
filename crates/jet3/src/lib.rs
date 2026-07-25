@@ -5,6 +5,7 @@ pub mod atomic;
 pub mod binary;
 pub mod candidate;
 pub mod commit_state;
+pub mod database_header;
 pub mod error;
 pub mod header;
 pub mod jet3_page;
@@ -22,6 +23,9 @@ pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
     read_commit_region_into,
+};
+pub use database_header::{
+    DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError,
 };
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{

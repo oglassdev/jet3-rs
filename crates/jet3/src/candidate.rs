@@ -10,8 +10,9 @@
 use std::fmt;
 
 use crate::{
-    Error, HeaderError, JET3_PAGE_SIZE, Jet3PageReader, JetFileKind, PageGeometry, PageNumber,
-    RawPageCursor, ReadAt, ResourceBudget, read_jet_signature,
+    DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError, Error, HeaderError,
+    JET3_PAGE_SIZE, Jet3PageReader, JetFileKind, PageGeometry, PageNumber, RawPageCursor, ReadAt,
+    ResourceBudget, read_jet_signature,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -121,6 +122,23 @@ where
         budget: &mut ResourceBudget,
     ) -> Result<(), Error> {
         self.pages.read_page(page, destination, budget)
+    }
+
+    /// Reads page zero and returns its narrowly documented typed view.
+    ///
+    /// The complete page is read atomically through the bounded page reader.
+    /// Only the generic signature and raw commit region are exposed; success
+    /// does not identify a Jet version, encryption state, page type, valid
+    /// database, or application compatibility.
+    pub fn read_database_header_page(
+        &mut self,
+        budget: &mut ResourceBudget,
+    ) -> Result<DatabaseHeaderPage, DatabaseHeaderPageError> {
+        let mut raw = [0_u8; PAGE_BYTES];
+        self.pages
+            .read_page(DATABASE_HEADER_PAGE_NUMBER, &mut raw, budget)
+            .map_err(DatabaseHeaderPageError::Read)?;
+        DatabaseHeaderPage::from_raw_bytes(raw).map_err(DatabaseHeaderPageError::Signature)
     }
 
     /// Starts allocation-free sequential access at physical page zero.

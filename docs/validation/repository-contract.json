@@ -40,14 +40,23 @@
           "SRC-0004",
           "SRC-0005"
         ],
-        "sha256": "44742bb120464d55128ad69078c672ab9079cb35559a46272afc7e8134765c41"
+        "sha256": "0c5c1b59022efcf9c6032e7176a21786c38cc7b7cf31d88219e127384105b486"
       },
       {
         "path": "crates/jet3/src/commit_state.rs",
         "provenance_ids": [
           "SRC-0013"
         ],
-        "sha256": "73600300cbbf2cce0a7ffcb30716e0c24dea8c22c6ef5a9993830b1d6636495e"
+        "sha256": "d51cdbaef9c49599e36d40595feb596b6c675556821aef25deeba898150f0acd"
+      },
+      {
+        "path": "crates/jet3/src/database_header.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005",
+          "SRC-0013"
+        ],
+        "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38"
       },
       {
         "path": "crates/jet3/src/header.rs",
@@ -55,7 +64,7 @@
           "SRC-0004",
           "SRC-0005"
         ],
-        "sha256": "9e96022f0dacf4b3a8fd7b893ad3dafcdaef6e392e9ab8b140f4ffac3e281c22"
+        "sha256": "d45ca6440966401e8b7a4e852db224404c15702a025034d37b12ecab7a84fb99"
       },
       {
         "path": "crates/jet3/src/jet3_page.rs",
@@ -94,6 +103,11 @@
         "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e"
       },
       {
+        "path": "crates/jet3/src/database_header_tests.rs",
+        "reason": "Test-only verification of the provenance-bound database header page composition in database_header.rs.",
+        "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0"
+      },
+      {
         "path": "crates/jet3/src/commit_state_tests.rs",
         "reason": "Test-only verification of the provenance-bound commit-region assertions in commit_state.rs.",
         "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07"
@@ -116,7 +130,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "f84dfc917b03ebeaa5dd1d89b4c24786ce4f1709aa7099d53bebb64afdc1b2c3"
+        "sha256": "fe62866e72e96e98d12c58ac6925e22711bec77a5a3e5a3a7c49aa3ef096a8b9"
       },
       {
         "path": "crates/jet3/src/limits.rs",
