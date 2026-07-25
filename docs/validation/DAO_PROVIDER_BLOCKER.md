@@ -1,22 +1,25 @@
 # DAO provider blocker
 
-Status: **BLOCKED**
+Status: **BLOCKED — M1 complete; Rust differential evidence remains**
 
-Audit date: 2026-07-24
-Latest experiment commit: `be8e0c9943fdab088a5a08be956435c897a4a1f2`
+Audit date: 2026-07-25
+Latest evidence commit: `c2e5df29bcd5a779d6aa82582513e28b53f76598`
 
 This record tracks the remaining Microsoft DAO execution blocker. A Windows
-host and provider are now available, M0 has produced a validated
-commit-bound bundle, and the controlled M1 marshalling experiment is complete.
-Those results do not advance any untested support-matrix capability.
+host and provider are available, M0 has produced a validated commit-bound
+bundle, the controlled M1 marshalling experiment is complete, and the full M1
+inventory has produced an independently validated commit-bound bundle. Those
+results do not advance any untested Rust support-matrix capability.
 
 ## Exact blocking condition
 
-The checked protocol-1.1 contract now has a reviewed M1 executor and atomic
-bundle publisher. No M1 bundle has yet been produced from the exact clean
-executor commit. Until that run independently validates, the controlled plans
-remain inputs rather than evidence and no support-matrix verification state may
-advance.
+M1 is no longer blocked: all seven scenarios and both pairs passed at clean
+commit `c2e5df29bcd5a779d6aa82582513e28b53f76598`, and the retained bundle
+independently validates. The remaining blocker is a Rust implementation and
+DAO-versus-Rust differential scenario set. The support-matrix validator also
+intentionally rejects `dao_bundle` evidence until semantic bundle integration
+is implemented. Neither condition may be bypassed by citing DAO-only M1
+generation/readback.
 
 ## Local audit
 

@@ -234,6 +234,7 @@
       "implementation": "not_started",
       "verification": "unverified",
       "required_verification": "dao_differential",
+      "reason": "EXP-0007 verifies DAO-only generation/readback for controlled dbBinary, dbText, dbLongBinary, and dbMemo cases; no Rust table-value implementation or differential result exists.",
       "evidence": []
     },
     {
@@ -262,6 +263,7 @@
       "implementation": "not_started",
       "verification": "unverified",
       "required_verification": "dao_differential",
+      "reason": "EXP-0007 verifies only DAO readback of the controlled memo and long-binary boundary ladders through 32769 bytes; Rust long-value support remains unimplemented and unverified.",
       "evidence": []
     },
     {
@@ -283,6 +285,7 @@
       "implementation": "not_started",
       "verification": "unverified",
       "required_verification": "dao_differential",
+      "reason": "EXP-0007 verifies only the controlled DAO single-field nonunique dbText index pair; Rust index support and the broader primary/unique/nonunique capability remain unimplemented.",
       "evidence": []
     },
     {

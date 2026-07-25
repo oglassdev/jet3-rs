@@ -40,10 +40,13 @@ registration, and locked provider binary before COM or output mutation. It
 uses the `System.Byte[]` representations established by `EXP-0006`, reopens
 every project-generated database through DAO, records structured runtime and
 error observations, validates the complete staged bundle, and publishes it
-with one same-volume collision-refusing directory move. This implementation is
-not compatibility evidence until it passes from its exact clean commit. The
-older non-executing preflight remains an explicit diagnostic command.
-Protocol 1.0 and its checked M0 runner remain unchanged.
+with one same-volume collision-refusing directory move. The complete inventory
+passed from clean commit `c2e5df29bcd5a779d6aa82582513e28b53f76598`;
+the retained manifest hash is
+`9bc59d5db419e7283d8013d34e4fea16c3a9add8830c392294b8a8b6b1c32685`.
+That is DAO-only controlled generation/readback evidence, not Rust or general
+compatibility evidence. The older non-executing preflight remains an explicit
+diagnostic command. Protocol 1.0 and its checked M0 runner remain unchanged.
 
 ## Provider requirement
 
@@ -284,6 +287,7 @@ release-satisfying evidence. Reports from another commit are stale.
 This workspace is on x64 Windows with both 64-bit and 32-bit Windows
 PowerShell. The retained protocol-1.1 environment identifies an x86
 `DAO.DBEngine.36` provider that passed disposable `dbVersion30` creation.
-Provider availability alone is not M1 evidence: the complete executor must
-still run from its exact clean pushed commit and publish a bundle that passes
-the independent protocol-1.1 validator.
+Provider availability alone was not M1 evidence. The complete executor has now
+published the independently validated bundle recorded by `EXP-0007`. Rust
+capabilities remain unverified until a commit-bound differential scenario
+compares DAO and Rust canonical results.

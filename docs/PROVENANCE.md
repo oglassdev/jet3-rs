@@ -80,11 +80,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/README.md`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
-- Review: the M1 executor use of this result received an independent
-  adversarial review on 2026-07-24; its actionable binding, boundedness,
-  cleanup, publication, and failure-evidence findings were addressed before
-  the executor commit. This review does not make the experiment a protocol
-  evidence bundle.
+- Review: pending independent review
 
 ### SRC-0002 — DAO `dbVersion30` numeric value
 
@@ -772,7 +768,63 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/scripts/run-m1-controlled.ps1`
 - Rights: generated locally through a licensed Microsoft DAO provider; the
   result JSON is retained locally and the disposable MDB was deleted
-- Review: pending independent review
+- Review: the executor use of this result received an independent adversarial
+  review on 2026-07-24; all actionable binding, cleanup, publication,
+  boundedness, and failure-evidence findings were addressed before the passing
+  M1 run. This review does not itself make the experiment protocol evidence.
+
+### EXP-0007 — Complete controlled M1 DAO generation and readback
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: controlled black-box DAO evidence
+- Question: Does the exact reviewed executor deterministically create, reopen,
+  and semantically read back the complete protocol-1.1 controlled inventory
+  through the recorded x86 DAO provider?
+- Origin: seven project-controlled `dao_scenario` documents and two
+  project-controlled `dao_pair` documents from
+  `oracle/windows-dao/examples/m1-inventory.json`; no donated database,
+  external MDB, or third-party MDB implementation was used
+- Environment: the ready protocol-1.1 environment from `EXP-0006`, SHA-256
+  `870ec9ceaaa6a5b9af0ebf16fbf0ef793b943718b49d9f003ed48cfd65af679f`;
+  x86 Windows PowerShell 5.1.22621.6133; `DAO.DBEngine.36` 3.6;
+  `dao360.dll` 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  exact clean pushed commit
+  `c2e5df29bcd5a779d6aa82582513e28b53f76598`
+- Protocol: require the exact clean Git commit and Git-bound executor,
+  validator, schemas, inventory, and examples; lock and recheck environment
+  and provider identities before output mutation, COM, and publication;
+  create only disposable project-generated `dbVersion30` databases; execute
+  all seven scenarios; close and reopen through DAO; record typed readback,
+  hashes, normalized failures, and both deep pair comparisons; validate the
+  complete private stage; publish with one collision-refusing same-volume
+  directory move; independently rerun the checked bundle validator
+- Artifacts: immutable bundle retained outside the repository at
+  `%TEMP%\jet3-rs-dao-m1-executor\evidence\c2e5df29bcd5a779d6aa82582513e28b53f76598\20260725T010957Z-dao-m1`;
+  `bundle-manifest.json` SHA-256
+  `9bc59d5db419e7283d8013d34e4fea16c3a9add8830c392294b8a8b6b1c32685`;
+  `report.json` SHA-256
+  `628f01ab5d6b238c4a4c1b0cdebd4339a71d6f313b44665970446a65c3356b25`;
+  33 manifest payloads totaling 976,399 bytes
+- Observation: all seven scenarios and both pairs passed. DAO exactly read
+  back the fixed `dbBinary` marker, `dbLongBinary` byte ladders and `dbMemo`
+  text ladders at lengths 1, 2047, 2048, 2049, 32767, 32768, and 32769,
+  the controlled `dbText(8)` rows, the repeated empty-database equivalence
+  pair, and the single nonunique text-index difference pair.
+- Interpretation: this is commit-bound Microsoft DAO evidence for only the
+  controlled DAO-generation/readback inventory and its exact environment. It
+  establishes no Rust reader, writer, update behavior, MDB physical-layout
+  conclusion, donated-fixture compatibility, or general Access 97 support.
+  Consequently no product capability advances to `dao_opened` or
+  `dao_differential`.
+- Usage: `oracle/windows-dao/scripts/run-m1-controlled.ps1`;
+  `oracle/windows-dao/scripts/validate_m1_protocol.py`;
+  `docs/validation/M1_DAO_EVIDENCE.md`
+- Rights: generated locally through the licensed provider; retained outside
+  the repository and not redistributed
+- Review: executor received the independent adversarial review described
+  above; the published bundle passed a separate invocation of the checked
+  protocol-1.1 validator
 
 ## Fixtures and black-box results
 

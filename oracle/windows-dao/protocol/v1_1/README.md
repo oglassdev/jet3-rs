@@ -80,10 +80,13 @@ visibility with one non-overwriting directory move. Managed .NET cannot fsync
 the parent directory, so the contract does not claim power-loss persistence of
 that directory entry.
 
-Implementation alone is not evidence. These documents remain experiment inputs
-until the executor produces a valid bundle from its exact clean commit. M1
-proves only the recorded controlled DAO-generation/readback scenarios; it does
-not establish a Rust reader, writer, update operation, or a general
+Implementation alone is not evidence, and these checked documents remain
+experiment inputs rather than observations. The separately retained bundle
+from clean commit `c2e5df29bcd5a779d6aa82582513e28b53f76598` passed this
+validator with manifest SHA-256
+`9bc59d5db419e7283d8013d34e4fea16c3a9add8830c392294b8a8b6b1c32685`.
+It proves only the recorded controlled DAO-generation/readback scenarios; it
+does not establish a Rust reader, writer, update operation, or a general
 compatibility claim. The older non-executing
 `scripts/preflight-m1-controlled.ps1` remains available and still exits
 `BLOCKED` before COM activation or output mutation. The checked executor is a
