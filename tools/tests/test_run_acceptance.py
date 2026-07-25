@@ -175,6 +175,17 @@ class AcceptanceRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 127)
         self.assertIn("cannot execute", result.stderr)
 
+    def test_subprocess_capture_uses_explicit_utf8_fallback(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["gate", "G0"], 0, stdout="", stderr=""
+        )
+        with mock.patch.object(
+            runner.subprocess, "run", return_value=completed
+        ) as run:
+            runner._execute(["gate", "G0"], self.repo)
+        self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+        self.assertEqual(run.call_args.kwargs["errors"], "backslashreplace")
+
     def test_windows_default_invokes_shell_script_through_bash(self) -> None:
         with mock.patch.object(runner.os, "name", "nt"):
             self.assertEqual(

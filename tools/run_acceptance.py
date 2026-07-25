@@ -70,6 +70,8 @@ def _execute(command: Sequence[str], root: Path) -> subprocess.CompletedProcess[
             check=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="backslashreplace",
         )
     except OSError as error:
         return subprocess.CompletedProcess(
