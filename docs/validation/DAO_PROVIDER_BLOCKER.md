@@ -1,139 +1,112 @@
-# DAO provider blocker
+# DAO provider and differential-evidence boundary
 
-Status: **BLOCKED — M1 complete; Rust differential evidence remains**
+Status: **BLOCKED — provider ready; release differential evidence absent**
 
 Audit date: 2026-07-25
-Latest evidence commit: `c2e5df29bcd5a779d6aa82582513e28b53f76598`
 
-This record tracks the remaining Microsoft DAO execution blocker. A Windows
-host and provider are available, M0 has produced a validated commit-bound
-bundle, the controlled M1 marshalling experiment is complete, and the full M1
-inventory has produced an independently validated commit-bound bundle. Those
-results do not advance any untested Rust support-matrix capability.
+This record separates provider availability, historical controlled evidence,
+and the evidence required on an exact release commit. The local Windows host
+has a usable x86 Microsoft DAO provider. M0 and M1 completed historically, and
+M2 analyzed retained M1 output descriptively. None of those earlier-commit
+results satisfies G3 for a later release commit.
 
-## Exact blocking condition
+## Exact current blocker
 
-M1 is no longer blocked: all seven scenarios and both pairs passed at clean
-commit `c2e5df29bcd5a779d6aa82582513e28b53f76598`, and the retained bundle
-independently validates. The remaining blocker is a Rust implementation and
-DAO-versus-Rust differential scenario set. The support-matrix validator also
-intentionally rejects `dao_bundle` evidence until semantic bundle integration
-is implemented. Neither condition may be bypassed by citing DAO-only M1
-generation/readback.
+The external provider is not the current blocker. G3 remains blocked because
+the project lacks both:
 
-## Local audit
+1. the required Rust implementation and 100-scenario DAO-versus-Rust
+   differential inventory; and
+2. complete evidence generated from the exact clean release commit.
+
+The support-matrix validator also intentionally rejects `dao_bundle` evidence
+until semantic bundle integration is implemented. DAO-only generation,
+readback, or physical observation cannot advance an untested Rust capability.
+
+## Historical controlled evidence
+
+These records remain useful, immutable historical observations:
+
+- Corrected M0: clean commit
+  `416b834b0d786fdf68efa066ab0e38409e443edf`, one passing
+  `DAO-GEN-PROBE-001` bundle retained at
+  `%TEMP%\jet3-rs-dao-m0\evidence\416b834b0d786fdf68efa066ab0e38409e443edf\20260724T234905Z-dao-m0`,
+  manifest SHA-256
+  `4651e07957e1740c07c735ac74f2c1e6e7c9038ae9d9bb362b78860453c4c326`.
+  The checked protocol-1.0 validator independently accepted this retained
+  bundle on 2026-07-25. See `EXP-0009`.
+- M1: clean commit
+  `c2e5df29bcd5a779d6aa82582513e28b53f76598`, all seven controlled
+  scenarios and both semantic pairs passed. See `EXP-0007` and
+  `M1_DAO_EVIDENCE.md`.
+- M2: clean observer commit
+  `550ddc266eddf7e6765cf929ef50fd5aac19c542`, bounded descriptive page and
+  byte observations over the retained M1 bundle. See `EXP-0008` and
+  `M2_PAGE_OBSERVATION.md`.
+
+The phrase “historical evidence” is deliberate: current HEAD is different
+from each producer commit. These artifacts cannot be relabeled as current
+release evidence.
+
+## Local provider identity
 
 Windows 11 Pro build 22631 has an x86 `DAO.DBEngine.36` provider whose
 `dao360.dll` file version is 03.60.9765.0 and whose SHA-256 is
 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
-The checked x86 probe passed disposable `dbVersion30` creation for both
-protocol 1.0 and 1.1 records. The x64 Windows PowerShell and PowerShell 7
-probes remained blocked because this provider is x86-only.
+The checked x86 probes passed disposable `CreateDatabase(..., dbVersion30)`
+for protocol 1.0 and 1.1 records. x64 Windows PowerShell and PowerShell 7
+cannot activate this x86-only provider.
 
-The corrected M0 runner passed at commit
-`416b834b0d786fdf68efa066ab0e38409e443edf`; its retained bundle validated
-independently. This proves only the empty-database scenario. The M1 preflight
-at the same clean commit bound the complete controlled inventory and ready
-provider, then exited `BLOCKED` without creating a database or bundle.
+The retained protocol-1.1 environment record used by M1 has SHA-256
+`870ec9ceaaa6a5b9af0ebf16fbf0ef793b943718b49d9f003ed48cfd65af679f`.
+Every new DAO execution must revalidate the process architecture, COM
+registration, provider path and hash, host/runtime identity, and exact clean
+Git commit before COM activation or output mutation.
 
-The repository already has a cross-platform workflow at
-`.github/workflows/ci.yml`, but dispatching it requires a remote repository and
-credentials. Even if dispatched, its `windows-latest` test job must not be
-treated as a DAO job unless the repository probe independently proves that a
-usable provider is present.
+## Oracle implementation boundary
 
-## Hosted-runner audit
+Protocol 1.0 implements only the M0 empty-database operation. Protocol 1.1
+adds the controlled seven-scenario M1 DAO generator/readback executor, deep
+semantic pair comparison, fail-closed validator, and private same-volume
+atomic publisher. The retained marshalling experiment established direct
+`System.Byte[]` assignment for `dbBinary` and
+`dbLongBinary.AppendChunk(System.Byte[])` on this exact x86 environment.
 
-GitHub states that its hosted runners are Azure virtual machines and links to
-weekly updated installed-software manifests. The Windows Server 2025 and 2022
-manifests inspected on 2026-07-23 do not list Microsoft Access, a DAO or ACE
-provider, `dao360.dll`, or `ACEDAO.DLL`. Entries for Visual Studio Office
-development workloads do not establish an installed Access database provider.
-GitHub also notes that operating-system components are not necessarily listed,
-so absence from a manifest is not proof that every candidate COM class is
-absent. The repository probe remains authoritative.
+M2 is not another DAO executor. It is a bounded observer over immutable M1
+files and assigns no physical format meaning. M3 may create repeated fresh
+controlled samples to distinguish stable physical deltas from run-specific
+variance, but it remains DAO-only descriptive evidence and cannot satisfy G3.
 
-- GitHub-hosted runners:
-  <https://docs.github.com/en/actions/concepts/runners/github-hosted-runners>
-- Windows Server 2025 image:
-  <https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md>
-- Windows Server 2022 image:
-  <https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md>
+The protocol-1.0 differential modes `rust_read_dao`, `dao_open_rust`, and
+`dao_verify_rust_update` remain rejected until their Rust canonical semantic
+comparison and preservation checks are implemented.
 
-## Provisioning constraints
+## Hosted runners and provisioning
 
-The smallest credible primary oracle is an interactive, licensed Windows x64
-desktop or VM with a 32-bit Access/DAO provider and 32-bit Windows PowerShell.
-The probe must test the candidate registrations and accept only one that
-successfully creates and closes a disposable unencrypted database with
-`CreateDatabase(..., dbVersion30)`. Provider name alone is insufficient.
+GitHub-hosted Windows runner manifests inspected on 2026-07-23 did not list
+Microsoft Access, DAO/ACE, `dao360.dll`, or `ACEDAO.DLL`. Absence from those
+manifests is not definitive; the checked disposable-creation probe remains
+authoritative.
 
-Microsoft documents the Microsoft 365 Access Runtime as a free x86/x64
-download that includes interfaces including DAO. The same page says the
-runtime is not intended as a general replacement for Jet, as a general DBMS
-used to create files, or for unattended system-service/server-side use without
-a logged-on user. Consequently, this project does not assume that installing
-the runtime in an unattended hosted CI job is an acceptable oracle route; an
-operator must confirm the intended environment and applicable terms.
+The smallest credible oracle environment is an interactive, licensed Windows
+x64 desktop or VM with a matching x86 DAO provider and 32-bit Windows
+PowerShell. This project does not install or redistribute Access, DAO, or ACE
+without an operator licensing decision. Microsoft 365 Access Runtime terms
+and unattended-use constraints must be evaluated by the operator; provider
+registration alone is never accepted without disposable `dbVersion30`
+creation.
 
-The Access Database Engine 2016 Redistributable is not a preferred route:
-Microsoft lists its support as ending on 2025-10-14 and recommends Microsoft
-365 Access Runtime instead.
+## Requirements for future release evidence
 
-- Microsoft 365 Access Runtime:
-  <https://support.microsoft.com/en-US/Access/download-and-install-microsoft-365-access-runtime>
-- Access Database Engine 2016 Redistributable:
-  <https://www.microsoft.com/en-us/download/details.aspx?id=54920>
-- DAO `dbVersion30` documentation:
-  <https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/databasetypeenum-enumeration-dao>
-- GitHub self-hosted runner registration:
-  <https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners>
+For an exact release commit:
 
-## Unblocking checklist
+1. require a clean checkout and bind every checked input and executed source;
+2. probe and retain the exact provider/environment identity;
+3. execute the complete declarative DAO-versus-Rust scenario inventory;
+4. retain canonical DAO and Rust snapshots plus preservation results;
+5. atomically publish and independently validate the immutable bundle; and
+6. reference that exact-commit bundle from the support matrix and acceptance
+   record.
 
-1. Supply an interactive Windows host or VM whose licensing permits this
-   independent test-oracle use.
-2. Install or identify an in-process DAO provider at the process bitness used
-   by PowerShell.
-3. Run `oracle/windows-dao/scripts/probe-provider.ps1`.
-4. Require `status: ready`; retain the provider identity, COM server path and
-   hash, architecture, OS, locale, code pages, and probe output.
-5. Run and review the controlled M1 marshalling experiment, retaining exact
-   PowerShell/CLR/provider versions, input runtime types, `Variant` and
-   `AppendChunk` behavior, DAO readback, and failures.
-6. Check out the exact clean release commit and run the checked declarative DAO
-   scenarios.
-7. Validate and return the complete commit-bound bundle specified by
-   `docs/validation/EVIDENCE.md`.
-
-Until all seven steps are complete, G3 and every release claim that depends on
-DAO remain `BLOCKED`.
-
-## Current oracle implementation boundary
-
-The shared portable protocol core, the six v1 schemas, the eight v1.1 schemas,
-and deterministic oracle test suite run on this host. They validate evidence
-shape and fail closed; they do not execute DAO or establish compatibility.
-
-The protocol-1.0 PowerShell executor implements the M0
-`DAO-GEN-PROBE-001` operation: activate a candidate provider, create an
-unencrypted `dbVersion30` database, close and reopen it, export the empty DAO
-snapshot, and seal a commit-bound bundle. Its validator deliberately rejects
-the differential modes `rust_read_dao`, `dao_open_rust`, and
-`dao_verify_rust_update` until their canonical semantic comparison and
-preservation checks are implemented. The separate M1 executor below expands
-only controlled DAO generation/readback; neither executor establishes general
-read, create, update, or Access 97 compatibility.
-
-M1 retains the checked, non-executing preflight and adds a modular executor,
-structured DAO adapter, complete-inventory validator, and private same-volume
-publisher. The executor binds the exact clean commit, complete controlled
-inventory, locked ready environment, x86 registry identity, and provider
-binary before COM or output mutation; it rechecks those identities before
-publication. The checked experiment at commit
-`be8e0c9943fdab088a5a08be956435c897a4a1f2` resolved the external marshalling
-boundary: direct `System.Byte[]` assignment is required for `dbBinary`, while
-`dbLongBinary.AppendChunk(System.Byte[])` round-trips the complete boundary
-ladder. The remaining boundary is executing all seven scenarios and both pairs
-from the exact clean pushed executor commit and independently validating the
-resulting immutable bundle.
+Until every applicable step exists and passes, G3 and release claims depending
+on DAO remain `BLOCKED`.

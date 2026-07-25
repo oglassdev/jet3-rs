@@ -875,6 +875,51 @@ Use `not applicable` explicitly rather than omitting a field.
   PowerShell/.NET pass exactly reproduced all seven page-hash sequences and
   both pair byte bounds
 
+### EXP-0009 — Corrected M0 DAO generation and empty readback
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: controlled black-box DAO evidence
+- Question: After correcting the system-table attribute test identified by
+  `EXP-0005`, does the checked M0 executor create, reopen, and read back the
+  empty `dbVersion30` scenario through DAO?
+- Origin: project scenario `DAO-GEN-PROBE-001` executed through Microsoft DAO
+  3.6; no donated database, external MDB, or third-party MDB implementation
+  was used
+- Environment: Windows 11 Pro 10.0.22631 on x64; x86 Windows PowerShell
+  5.1.22621.6133; culture `en-US`; ANSI code page 1252; Eastern Standard Time;
+  `DAO.DBEngine.36` from `dao360.dll` file version 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  exact clean commit `416b834b0d786fdf68efa066ab0e38409e443edf`
+- Protocol: require the checked protocol-1.0 ready environment and exact clean
+  commit; create an unencrypted disposable database with
+  `CreateDatabase(..., dbVersion30)`; close and reopen it; exclude DAO system
+  tables using a nonzero `dbSystemObject` bitmask result; retain the empty
+  canonical DAO snapshot, operation log, database, report, environment, and
+  manifest; independently rerun the checked protocol-1.0 bundle validator
+- Artifacts: immutable bundle retained outside the repository at
+  `%TEMP%\jet3-rs-dao-m0\evidence\416b834b0d786fdf68efa066ab0e38409e443edf\20260724T234905Z-dao-m0`;
+  56,078 total retained bytes; `bundle-manifest.json` SHA-256
+  `4651e07957e1740c07c735ac74f2c1e6e7c9038ae9d9bb362b78860453c4c326`;
+  `report.json` SHA-256
+  `cd38157c1fdeb2b527a9ccad345a001ffe0033106bbc9baaadf0d7e65b84b0b7`;
+  environment SHA-256
+  `23bf2271297a948752c52da2d178e6263e319c646536084bc9c769467566eeaf`;
+  database SHA-256
+  `210a726bec325a991722f6a5b9833cc4736c1c33771c1e39a78bd64199f207ee`
+- Observation: the retained manifest reports `pass` for the single
+  `DAO-GEN-PROBE-001` scenario, and the checked protocol-1.0 validator accepted
+  the complete immutable bundle again on 2026-07-25.
+- Interpretation: the correction establishes only this exact empty
+  DAO-generation/readback scenario and environment. It proves no Rust
+  behavior, general schema support, physical MDB layout, or compatibility on
+  a later release commit.
+- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
+  `docs/validation/DAO_PROVIDER_BLOCKER.md`
+- Rights: generated locally through a licensed Microsoft DAO provider;
+  retained outside the repository and not redistributed
+- Review: retained identity and bundle structure independently revalidated on
+  2026-07-25 before this ledger entry was added
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

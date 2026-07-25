@@ -161,6 +161,47 @@ class ReconcileTests(unittest.TestCase):
             any(".platforms:" in error for error in self._errors(invalid, observation))
         )
 
+    def test_platforms_are_a_sorted_unique_nonempty_known_subset(self) -> None:
+        for platforms in (["unix"], ["windows"], ["unix", "windows"]):
+            with self.subTest(platforms=platforms):
+                document = copy.deepcopy(self.document)
+                document["cases"][0]["platforms"] = platforms
+                self.assertFalse(
+                    any(".platforms:" in error for error in self._errors(document))
+                )
+        for platforms in (
+            [],
+            ["unix", "unix"],
+            ["windows", "unix"],
+            ["plan9"],
+        ):
+            with self.subTest(platforms=platforms):
+                document = copy.deepcopy(self.document)
+                document["cases"][0]["platforms"] = platforms
+                self.assertTrue(
+                    any(".platforms:" in error for error in self._errors(document))
+                )
+
+    def test_normative_schema_declares_the_exact_platform_subsets(self) -> None:
+        schema_path = (
+            TOOLS.parent
+            / "docs"
+            / "validation"
+            / "schema"
+            / "test-manifest.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            schema["$defs"]["case"]["properties"]["platforms"],
+            {
+                "oneOf": [
+                    {"const": ["unix"]},
+                    {"const": ["windows"]},
+                    {"const": ["unix", "windows"]},
+                ]
+            },
+        )
+
     def test_runtime_state_fields_are_rejected_from_inventory(self) -> None:
         document = copy.deepcopy(self.document)
         document["cases"][0]["ignored"] = False

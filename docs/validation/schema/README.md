@@ -7,6 +7,8 @@ JSON Schema package.
 
 - `support-matrix.schema.json` describes the capability ledger.
 - `test-manifest.schema.json` describes deterministic Rust test cases.
+  A case may use `platforms` only as one of the sorted nonempty subsets
+  `["unix"]`, `["windows"]`, or `["unix", "windows"]`; omission means both.
 - `test-observation.schema.json` describes a commit-bound Cargo inventory
   observation (discovery and ignored state only). It is not pass/fail execution
   evidence; executed test results remain a separate acceptance-gate report.
