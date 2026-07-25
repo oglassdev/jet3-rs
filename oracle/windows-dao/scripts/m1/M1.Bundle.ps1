@@ -157,6 +157,23 @@ function Get-M1AggregateStatus {
     return "error"
 }
 
+function ConvertFrom-M1ObservedPaths {
+    param([string]$Text)
+
+    if ($Text.Length -gt 4096) {
+        throw "The checked pair comparator output exceeds its byte bound."
+    }
+    $parsed = $Text | ConvertFrom-Json
+    $observed = New-Object Collections.ArrayList
+    foreach ($item in $parsed) {
+        if ($item -isnot [string]) {
+            throw "The checked pair comparator returned a non-string path."
+        }
+        [void]$observed.Add([string]$item)
+    }
+    return @($observed)
+}
+
 function Invoke-M1PairComparison {
     param(
         [string]$PythonPath,
@@ -179,7 +196,7 @@ function Invoke-M1PairComparison {
         }
     }
     try {
-        $observed = @($detail | ConvertFrom-Json)
+        $observed = @(ConvertFrom-M1ObservedPaths -Text $detail)
     }
     catch {
         return [ordered]@{

@@ -140,6 +140,43 @@ catch {{ $refused = $true }}
         self.assertIn('"duplicate_refused":true', completed.stdout)
 
     @unittest.skipUnless(POWERSHELL, "Windows PowerShell is required")
+    def test_comparator_json_array_is_flat_string_paths(self) -> None:
+        command = f"""
+$ErrorActionPreference = "Stop"
+. {ps_literal(BUNDLE)}
+$paths = @(
+    ConvertFrom-M1ObservedPaths `
+        -Text '["/database_sha256","/scenario_id"]'
+)
+[ordered]@{{
+    count = $paths.Count
+    first_type = $paths[0].GetType().FullName
+    paths = $paths
+}} | ConvertTo-Json -Compress
+"""
+        completed = subprocess.run(
+            [
+                POWERSHELL,
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+            ],
+            cwd=ROOT.parents[1],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertIn('"count":2', completed.stdout)
+        self.assertIn('"first_type":"System.String"', completed.stdout)
+        self.assertIn(
+            '"paths":["/database_sha256","/scenario_id"]',
+            completed.stdout,
+        )
+
+    @unittest.skipUnless(POWERSHELL, "Windows PowerShell is required")
     def test_identical_databases_share_one_content_addressed_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
