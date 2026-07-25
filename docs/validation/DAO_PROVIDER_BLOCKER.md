@@ -1,20 +1,22 @@
 # DAO provider and differential-evidence boundary
 
-Status: **BLOCKED — provider ready; release differential evidence absent**
+Status: **BLOCKED — historical provider capability confirmed; release differential evidence absent**
 
 Audit date: 2026-07-25
 
-This record separates provider availability, historical controlled evidence,
-and the evidence required on an exact release commit. The local Windows host
-has a usable x86 Microsoft DAO provider. M0 and M1 completed historically, M2
-analyzed retained M1 output descriptively, and M3 completed a replicated
-one-variable physical-delta campaign. None of those earlier-commit results
-satisfies G3 for a later release commit.
+This record separates a historically observed provider capability, retained
+controlled evidence, and the evidence required on an exact release commit. A
+local Windows host demonstrated a usable x86 Microsoft DAO provider during the
+audited runs below; the host is offline as of this audit update. M0 and M1
+completed historically, M2 analyzed retained M1 output descriptively, and M3
+completed a replicated one-variable physical-delta campaign. None of those
+earlier-commit results proves future provider availability or satisfies G3 for
+a later release commit.
 
 ## Exact current blocker
 
-The external provider is not the current blocker. G3 remains blocked because
-the project lacks both:
+The offline provider is not blocking current implementation work. G3 remains
+blocked because the project lacks both:
 
 1. the required Rust implementation and 100-scenario DAO-versus-Rust
    differential inventory; and

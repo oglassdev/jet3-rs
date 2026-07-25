@@ -157,7 +157,8 @@ Use `not applicable` explicitly rather than omitting a field.
   literals, so no padding bytes are inferred for them. A signature match does
   not identify a Jet generation, prove that the rest of the file is well
   formed, or establish DAO compatibility.
-- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/candidate.rs`;
+- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/database_header.rs`;
+  `crates/jet3/src/candidate.rs`;
   `crates/jet3-cli/src/main.rs`; `OBS-0001`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: citation to public Microsoft documentation; no documentation content
@@ -183,8 +184,9 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: Jet 3.x uses 2 KiB pages and Jet 4.0 uses 4 KiB pages. This
   source establishes neither page-header semantics nor a version byte or other
   byte-level generation discriminator.
-- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/jet3_page.rs`;
-  `crates/jet3/src/candidate.rs`; `crates/jet3/src/raw_page_stream.rs`;
+- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/database_header.rs`;
+  `crates/jet3/src/jet3_page.rs`; `crates/jet3/src/candidate.rs`;
+  `crates/jet3/src/raw_page_stream.rs`;
   `crates/jet3-cli/src/main.rs`; `EXP-0001`;
   `docs/validation/EXTERNAL_CORPUS.md`
 - Rights: citation to public Microsoft documentation; no documentation content
@@ -468,7 +470,8 @@ Use `not applicable` explicitly rather than omitting a field.
   Windows experiment. The source publishes no page tag, table-header location,
   catalog root, allocation encoding, row layout, index encoding, or long-value
   pointer.
-- Usage: `crates/jet3/src/commit_state.rs`; future Windows `.ldb` correlation
+- Usage: `crates/jet3/src/commit_state.rs`;
+  `crates/jet3/src/database_header.rs`; future Windows `.ldb` correlation
   experiments
 - Rights: citation to Microsoft-authored public material; no white-paper
   content is redistributed

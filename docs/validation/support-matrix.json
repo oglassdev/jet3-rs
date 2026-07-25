@@ -48,8 +48,30 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, and bounded access to the documented contextual header commit region are implemented. Commit-state pairs are not interpreted as standalone validity or corruption evidence; the physical version discriminator, encryption-state validation, remaining header fields, contemporaneous .ldb correlation, and DAO differential evidence are not.",
+      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, and a typed snapshot of the complete first database page are implemented. The typed view exposes only the generic signature and documented raw contextual commit region; it does not assign meaning to any other page-zero bytes. Commit-state pairs are not interpreted as standalone validity or corruption evidence; the physical version discriminator, encryption-state validation, remaining header fields, contemporaneous .ldb correlation, and DAO differential evidence are absent.",
       "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/database_header.rs",
+          "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38",
+          "commit": "8055a11fe14925aabbfca0400eca3eaf3d12fec7",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/database_header_tests.rs",
+          "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0",
+          "commit": "8055a11fe14925aabbfca0400eca3eaf3d12fec7",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-DBHEADER-001",
+            "UT-DBHEADER-002",
+            "UT-DBHEADER-003",
+            "UT-DBHEADER-004",
+            "UT-DBHEADER-005",
+            "UT-DBHEADER-006"
+          ]
+        },
         {
           "kind": "source",
           "path": "crates/jet3/src/header.rs",

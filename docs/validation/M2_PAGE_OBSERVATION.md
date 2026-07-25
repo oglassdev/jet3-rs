@@ -42,6 +42,7 @@ file's additional final page.
 These are exact-file, physical-position observations only. They do not name
 page classes, fields, rows, indexes, allocation structures, or stable format
 offsets. No product capability or verification state changes, and the support
-matrix remains unchanged. The next format experiment must isolate a narrower
-controlled variable and obtain repeated independent DAO samples before any
-physical interpretation is proposed.
+matrix remains unchanged. M3 subsequently isolated a narrower controlled
+variable and obtained three fresh-process DAO samples per cohort, but still
+authorized no physical interpretation; any such proposal requires a separately
+reviewed experiment and provenance update.

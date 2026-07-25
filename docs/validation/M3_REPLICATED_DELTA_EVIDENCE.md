@@ -33,6 +33,12 @@ hash sequences, all 18 pair bitmaps, all three cohort-variance bitmaps, the
 stable-cohort delta bitmap, both aggregate intersections/unions, and both
 occurrence histograms.
 
+The retained bundle was later copied without modification from the offline
+Windows host and revalidated on macOS. The validator preserves and checks the
+recorded absolute Windows path relationships while resolving only the retained
+plan and environment payloads at their local archive paths; it does not rewrite
+the invocation or relax the stricter live-run path checks.
+
 ## Descriptive results
 
 | Cohort | Replicas | Size per replica | Variable absolute bytes |

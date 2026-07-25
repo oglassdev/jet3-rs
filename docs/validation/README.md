@@ -18,6 +18,16 @@ The documents are normative for v1:
 - [DAO_PROVIDER_BLOCKER.md](DAO_PROVIDER_BLOCKER.md) records the currently
   audited external provider boundary. It is not compatibility evidence.
 
+The following are non-normative indexes to immutable historical experiments,
+not evidence for current-commit compatibility:
+
+- [M1_DAO_EVIDENCE.md](M1_DAO_EVIDENCE.md) records controlled DAO generation
+  and readback.
+- [M2_PAGE_OBSERVATION.md](M2_PAGE_OBSERVATION.md) records bounded descriptive
+  observations over M1 files.
+- [M3_REPLICATED_DELTA_EVIDENCE.md](M3_REPLICATED_DELTA_EVIDENCE.md) records
+  replicated descriptive DAO deltas.
+
 ## Scope of a passing release
 
 A v1 release is limited to unencrypted Access 97 / Jet 3 databases. It must
@@ -53,6 +63,11 @@ object supported.
    implicit pass.
 7. All compatibility reports identify the provider version, OS, architecture,
    locale, code page, scenario IDs, fixture hashes, and git commit.
+
+Source and test records may cite immutable historical blobs to establish
+implementation lineage. Release-gate reports, `independent_report` records,
+and `dao_bundle` records must instead bind the exact clean commit being
+released; lineage evidence never substitutes for those current-commit runs.
 
 Capabilities begin as `not_started` and `unverified`. Statuses must be advanced
 only by a change that also adds the referenced evidence; partial foundation

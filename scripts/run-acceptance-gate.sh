@@ -62,7 +62,7 @@ case "${1:-}" in
         python3 oracle/windows-dao/scripts/validate_m1_protocol.py document \
             oracle/windows-dao/examples/m1-inventory.json
         python3 -m unittest discover -s oracle/windows-dao/tests -v
-        blocked "G3 invocation validated checked oracle schemas, examples, and tests; historical M0/M1 evidence is recorded separately, no retained external bundle was loaded here, and the required 100-scenario exact-release-commit DAO-versus-Rust differential evidence is absent"
+        blocked "G3 invocation validated checked oracle schemas, examples, and tests; historical DAO-only M0-M3 evidence is recorded separately, with M2/M3 descriptive only; no retained external bundle was loaded here, and the required 100-scenario exact-release-commit DAO-versus-Rust differential evidence is absent"
         ;;
     G4)
         configure_toolchain
@@ -106,7 +106,7 @@ case "${1:-}" in
         if [ -n "$source_status" ]; then
             blocked "G8 source tree is dirty; release evidence requires the exact clean commit, and complete CI, release-artifact, DAO, and consumer-project bundles are also absent"
         fi
-        blocked "G8 lacks complete clean commit-matched CI evidence, reproducible release artifacts, a Windows DAO bundle, and a clean external-software-free consumer-project report"
+        blocked "G8 lacks complete clean commit-matched CI evidence, reproducible release artifacts, an exact-release-commit DAO-versus-Rust differential bundle, and a clean external-software-free consumer-project report"
         ;;
     *)
         echo "usage: $0 G0|G1|G2|G3|G4|G5|G6|G7|G8" >&2

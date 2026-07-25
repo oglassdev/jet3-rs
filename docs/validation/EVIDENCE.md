@@ -70,6 +70,13 @@ Evidence from a dirty tree may guide development but cannot satisfy a release
 gate. Test reports and fixture manifests must refer to stable scenario IDs; a
 changed scenario receives a new content hash.
 
+The support matrix may retain a source or test artifact from the immutable
+commit where that exact blob entered the implementation. This is lineage
+evidence: the validator resolves the recorded commit and verifies the blob
+hash. It is not release evidence. An `independent_report`, `dao_bundle`, or
+release-gate report must bind the exact clean release commit and cannot be
+satisfied by an earlier lineage record.
+
 ## Clean-room evidence ledger
 
 `docs/PROVENANCE.md` is the required ledger for every technical source,
