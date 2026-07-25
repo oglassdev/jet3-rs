@@ -159,7 +159,9 @@ jobs:
       - name: Validate fuzz registry, seed manifest, and campaign reports
         run: python3 -m unittest discover -s fuzz/tests -v
       - name: Run every registered deterministic smoke campaign
-        run: python3 fuzz/tools/fuzz_campaign.py smoke
+        run: >-
+          python3 fuzz/tools/fuzz_campaign.py smoke
+          --output "$RUNNER_TEMP/jet3-fuzz-smoke-$GITHUB_SHA"
 
   miri:
     name: Miri library tests

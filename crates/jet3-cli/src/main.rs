@@ -1,5 +1,11 @@
 #![forbid(unsafe_code)]
 
+//! Bounded command-line diagnostics for generic Jet database candidates.
+//!
+//! This binary intentionally reports only documented generic signatures and
+//! 2 KiB page geometry. It does not claim a Jet generation, encryption state,
+//! structural validity, or application compatibility.
+
 use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};

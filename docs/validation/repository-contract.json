@@ -32,7 +32,7 @@
           "SRC-0004",
           "SRC-0005"
         ],
-        "sha256": "8e6ae099e98494334e9d30a8bf13aaba7539ce4730afbba5b0a8c748ebc1d143"
+        "sha256": "ff6a2d9b2481feeb5a7fda597d2b3ebdf26b0cfd2e0a3aba5226ee161c0f636c"
       },
       {
         "path": "crates/jet3/src/candidate.rs",

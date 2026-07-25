@@ -67,6 +67,7 @@ LISTED_TEST = re.compile(r"^(.+): test$")
 DOC_TESTS = re.compile(r"^\s*Doc-tests\s+(\S+)\s*$")
 LIST_SUMMARY = re.compile(r"^\s*\d+ tests?, \d+ benchmarks?\s*$")
 HASH_SUFFIX = re.compile(r"^(.+)-[0-9a-f]{7,}$")
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @dataclass(frozen=True, order=True)
@@ -91,6 +92,7 @@ def _parse_merged_cargo_list(output: str) -> set[RuntimeTest]:
     current_target: str | None = None
     in_doc_tests = False
     for raw_line in output.splitlines():
+        raw_line = ANSI_ESCAPE.sub("", raw_line)
         running = RUNNING.match(raw_line)
         if running:
             current_target = _target_name(running.group(1))
@@ -121,6 +123,7 @@ def _cargo_target_sequence(stderr: str) -> list[str | None]:
     """Extract Cargo's ordered executable/doctest sequence from stderr."""
     targets: list[str | None] = []
     for raw_line in stderr.splitlines():
+        raw_line = ANSI_ESCAPE.sub("", raw_line)
         running = RUNNING.match(raw_line)
         if running:
             targets.append(_target_name(running.group(1)))
@@ -134,6 +137,7 @@ def _libtest_list_blocks(stdout: str) -> list[list[str]]:
     blocks: list[list[str]] = []
     current: list[str] = []
     for raw_line in stdout.splitlines():
+        raw_line = ANSI_ESCAPE.sub("", raw_line)
         listed = LISTED_TEST.fullmatch(raw_line)
         if listed:
             current.append(listed.group(1))
@@ -204,6 +208,7 @@ def _cargo_environment(repo_root: Path) -> dict[str, str]:
     if located.returncode != 0:
         raise RuntimeError(f"cannot locate Rust {channel}: {located.stderr.strip()}")
     environment = os.environ.copy()
+    environment["CARGO_TERM_COLOR"] = "never"
     environment["PATH"] = (
         str(Path(located.stdout.strip()).parent)
         + os.pathsep

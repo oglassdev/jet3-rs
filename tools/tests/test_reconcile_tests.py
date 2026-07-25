@@ -313,6 +313,20 @@ tests::fixture_name: test
             },
         )
 
+    def test_cargo_parser_ignores_forced_ansi_color(self) -> None:
+        stdout = (
+            "\x1b[32mbinary::tests::boundary: test\x1b[0m\n"
+            "1 test, 0 benchmarks\n"
+        )
+        stderr = (
+            "\x1b[1m\x1b[92m     Running\x1b[0m unittests src/lib.rs "
+            "(target/debug/deps/jet3-0123456789abcdef)\n"
+        )
+        self.assertEqual(
+            reconcile.parse_cargo_list(stdout, stderr),
+            {reconcile.RuntimeTest("jet3", "binary::tests::boundary")},
+        )
+
     def test_cargo_parser_rejects_separate_stream_count_mismatch(self) -> None:
         stdout = """\
 binary::tests::boundary: test
