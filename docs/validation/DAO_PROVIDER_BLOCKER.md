@@ -6,9 +6,10 @@ Audit date: 2026-07-25
 
 This record separates provider availability, historical controlled evidence,
 and the evidence required on an exact release commit. The local Windows host
-has a usable x86 Microsoft DAO provider. M0 and M1 completed historically, and
-M2 analyzed retained M1 output descriptively. None of those earlier-commit
-results satisfies G3 for a later release commit.
+has a usable x86 Microsoft DAO provider. M0 and M1 completed historically, M2
+analyzed retained M1 output descriptively, and M3 completed a replicated
+one-variable physical-delta campaign. None of those earlier-commit results
+satisfies G3 for a later release commit.
 
 ## Exact current blocker
 
@@ -43,6 +44,13 @@ These records remain useful, immutable historical observations:
   `550ddc266eddf7e6765cf929ef50fd5aac19c542`, bounded descriptive page and
   byte observations over the retained M1 bundle. See `EXP-0008` and
   `M2_PAGE_OBSERVATION.md`.
+- M3: clean producer commit
+  `9977745e6515363cbb179d8d949d34604554b2cd`, nine fresh-process DAO
+  samples and 18 bounded descriptive comparisons retained at
+  `%TEMP%\jet3-rs-dao-m3\evidence\9977745e6515363cbb179d8d949d34604554b2cd\20260725T024333Z-dao-m3`,
+  manifest SHA-256
+  `15a7abb3b768ea94233dc3d525a069fb25e595b0ed649f063d117697a6e3c55e`.
+  See `EXP-0010` and `M3_REPLICATED_DELTA_EVIDENCE.md`.
 
 The phrase “historical evidence” is deliberate: current HEAD is different
 from each producer commit. These artifacts cannot be relabeled as current
@@ -73,9 +81,10 @@ atomic publisher. The retained marshalling experiment established direct
 `dbLongBinary.AppendChunk(System.Byte[])` on this exact x86 environment.
 
 M2 is not another DAO executor. It is a bounded observer over immutable M1
-files and assigns no physical format meaning. M3 may create repeated fresh
+files and assigns no physical format meaning. M3 created repeated fresh
 controlled samples to distinguish stable physical deltas from run-specific
-variance, but it remains DAO-only descriptive evidence and cannot satisfy G3.
+variance. Its results remain DAO-only descriptive evidence and cannot satisfy
+G3 or advance the support matrix.
 
 The protocol-1.0 differential modes `rust_read_dao`, `dao_open_rust`, and
 `dao_verify_rust_update` remain rejected until their Rust canonical semantic

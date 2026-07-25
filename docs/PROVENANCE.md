@@ -920,6 +920,74 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: retained identity and bundle structure independently revalidated on
   2026-07-25 before this ledger entry was added
 
+### EXP-0010 — Replicated DAO physical-delta isolation
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: repeated controlled black-box DAO generation and bounded descriptive
+  physical observation
+- Question: Across fresh independent DAO processes, which absolute byte/page
+  differences are run-specific within repeated empty, text-baseline, and
+  text-plus-index cohorts, and which positions remain stable across the
+  one-variable baseline/index contrast?
+- Origin: three replicas each of the checked project-controlled
+  `DAO-GEN-EMPTY-REPEAT-A`, `DAO-GEN-TEXT8-BASELINE-001`, and
+  `DAO-GEN-TEXT8-INDEXED-001` scenarios; no donated database, external MDB, or
+  third-party MDB implementation was used
+- Environment: ready protocol-1.1 environment SHA-256
+  `870ec9ceaaa6a5b9af0ebf16fbf0ef793b943718b49d9f003ed48cfd65af679f`;
+  x86 Windows PowerShell 5.1.22621.6133; `DAO.DBEngine.36` 3.6;
+  `dao360.dll` 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  exact clean pushed producer commit
+  `9977745e6515363cbb179d8d949d34604554b2cd`
+- Protocol: execute the checked cyclic schedule `E-B-I`, `B-I-E`, `I-E-B`
+  through nine fresh x86 processes; require exact private origin/ref/commit,
+  plan/scenario/environment/provider bindings before COM; create one fresh
+  `dbVersion30` database per process; reopen and semantically read it through
+  DAO; retain all nine databases, page hashes, 18 exact comparison bitmaps,
+  three within-cohort variance bitmaps, paired/full-cross
+  intersections/unions/histograms, and the stable-cohort delta bitmap;
+  validate the complete private stage and publish by one collision-refusing
+  same-volume directory rename
+- Artifacts: immutable bundle retained outside the repository at
+  `%TEMP%\jet3-rs-dao-m3\evidence\9977745e6515363cbb179d8d949d34604554b2cd\20260725T024333Z-dao-m3`;
+  75 manifest payloads totaling 673,887 bytes and 689,640 bytes including the
+  manifest; `bundle-manifest.json` SHA-256
+  `15a7abb3b768ea94233dc3d525a069fb25e595b0ed649f063d117697a6e3c55e`;
+  `report.json` SHA-256
+  `5fb2feebe9480e78ea1cda56077fc15ae4bfcd9a43ca1ff95ab321fed990419d`;
+  `analysis/summary.json` SHA-256
+  `d6d66afbe0500b5daa8d8cd22704c6208d1730d293bf3fa313ef9702b0fff0a8`;
+  plan SHA-256
+  `5943e1a64a0b84916b814c76d87cb81192fb341da800769b1d7dbcb13378d9de`
+- Observation: all nine DAO scenarios and all 18 comparisons passed. Every
+  empty replica was 40,960 bytes, every text-baseline replica was 49,152
+  bytes, and every indexed replica was 51,200 bytes. Within-cohort variance
+  covered 122, 220, and 274 absolute byte positions for empty, baseline, and
+  indexed cohorts respectively. Across the 49,152-byte baseline/index common
+  length, 485 positions were stable within each cohort and different between
+  cohorts; the indexed cohort also had one page present in every indexed
+  replica and no baseline replica. The paired comparison intersection
+  contained 717 positions and union 796; the full nine-way cross intersection
+  contained 717 positions and union 798.
+- Interpretation: these are descriptive absolute-position candidates for this
+  exact nine-sample run only. They do not identify page classes, headers,
+  catalog fields, rows, index nodes, allocation structures, or stable format
+  offsets. They establish no Rust behavior or compatibility, do not satisfy
+  exact-release G3, and do not change the support matrix.
+- Usage: `oracle/windows-dao/experiments/m3/`;
+  `oracle/windows-dao/scripts/run-m3-controlled.ps1`;
+  `oracle/windows-dao/scripts/m3_contract.py`;
+  `docs/validation/M3_REPLICATED_DELTA_EVIDENCE.md`
+- Rights: generated locally through the licensed Microsoft DAO provider;
+  retained outside the repository and not redistributed
+- Review: the executor/publisher received independent experimental-design,
+  adversarial-safety, and thermo-nuclear maintainability reviews before COM;
+  all actionable findings were fixed. The published bundle passed the checked
+  validator and a separate PowerShell/.NET recomputation of every manifest
+  file hash, database/page hash, cohort/comparison/stable bitmap, aggregate
+  intersection/union, and occurrence histogram.
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
