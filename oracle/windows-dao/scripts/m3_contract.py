@@ -396,21 +396,6 @@ def build_analysis(bundle: Path, plan: dict[str, Any]) -> tuple[dict[str, Any], 
 
 def discover_files(root: Path) -> set[str]:
     try:
-        current = root
-        ancestors = []
-        while True:
-            ancestors.append(current)
-            if current.parent == current:
-                break
-            current = current.parent
-        for ancestor in reversed(ancestors):
-            if not ancestor.exists():
-                continue
-            metadata = ancestor.lstat()
-            if ancestor.is_symlink() or getattr(
-                metadata, "st_file_attributes", 0
-            ) & REPARSE:
-                raise ValidationError("M3 bundle path contains a reparse point")
         root_stat = root.lstat()
         if (
             not stat.S_ISDIR(root_stat.st_mode)
@@ -418,8 +403,27 @@ def discover_files(root: Path) -> set[str]:
             or getattr(root_stat, "st_file_attributes", 0) & REPARSE
         ):
             raise ValidationError("M3 bundle root must be a non-reparse directory")
+        if os.name == "nt":
+            current = root.absolute()
+            ancestors = []
+            while True:
+                ancestors.append(current)
+                if current.parent == current:
+                    break
+                current = current.parent
+            for ancestor in reversed(ancestors):
+                if not ancestor.exists():
+                    continue
+                metadata = ancestor.lstat()
+                if ancestor.is_symlink() or getattr(
+                    metadata, "st_file_attributes", 0
+                ) & REPARSE:
+                    raise ValidationError(
+                        "M3 bundle path contains a reparse point"
+                    )
+        canonical_root = root.resolve(strict=True)
         found: set[str] = set()
-        pending = [(root, 0)]
+        pending = [(canonical_root, 0)]
         entries = 0
         while pending:
             directory, depth = pending.pop()
@@ -441,7 +445,7 @@ def discover_files(root: Path) -> set[str]:
                     elif stat.S_ISREG(metadata.st_mode):
                         if metadata.st_nlink > 1:
                             raise ValidationError("M3 bundle hard links are forbidden")
-                        found.add(path.relative_to(root).as_posix())
+                        found.add(path.relative_to(canonical_root).as_posix())
                     else:
                         raise ValidationError("M3 bundle contains a non-regular entry")
         return found

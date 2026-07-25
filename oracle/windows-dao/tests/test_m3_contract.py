@@ -50,6 +50,21 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def symlink_or_skip(
+    case: unittest.TestCase,
+    link: Path,
+    target: Path,
+    *,
+    target_is_directory: bool = False,
+) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            case.skipTest("Windows symlink privilege is unavailable")
+        raise
+
+
 class M3ContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.plan = M3.load_json(M3.M3 / "m3-index-isolation.plan.json")
@@ -389,6 +404,28 @@ class M3ContractTests(unittest.TestCase):
                 write_json(manifest_path, manifest)
                 with self.assertRaises(M3.ValidationError):
                     M3.validate_bundle(bundle)
+
+    def test_bundle_root_and_internal_symlinks_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle = self._build_bundle(root / "real")
+            alias = root / "bundle-alias"
+            symlink_or_skip(
+                self,
+                alias,
+                bundle,
+                target_is_directory=True,
+            )
+            with self.assertRaisesRegex(M3.ValidationError, "root"):
+                M3.discover_files(alias)
+
+            plan = bundle / "plan.json"
+            external = root / "external-plan.json"
+            external.write_bytes(plan.read_bytes())
+            plan.unlink()
+            symlink_or_skip(self, plan, external)
+            with self.assertRaisesRegex(M3.ValidationError, "reparse point"):
+                M3.validate_bundle(bundle)
 
     def test_analysis_work_ceiling_and_symmetric_stable_tails(self) -> None:
         values = {}
