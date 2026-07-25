@@ -79,6 +79,8 @@ class M4CloneSourceContractTests(unittest.TestCase):
     def test_identity_comes_from_windows_handles(self) -> None:
         self.assertIn("GetFileInformationByHandle", self.source)
         self.assertIn("GetFinalPathNameByHandle", self.source)
+        self.assertIn("GetLongPathName", self.source)
+        self.assertIn("-ExpandLeafAlias", self.source)
         self.assertIn("VolumeSerialNumber", self.source)
         self.assertIn("FileIndexHigh", self.source)
         self.assertIn("FileIndexLow", self.source)
@@ -132,6 +134,19 @@ class M4CloneSourceContractTests(unittest.TestCase):
 @unittest.skipUnless(os.name == "nt" and POWERSHELL.is_file(), "Windows required")
 class M4CloneWindowsFunctionalTests(unittest.TestCase):
     maxDiff = None
+
+    def short_path(self, path: Path) -> Path:
+        import ctypes
+        from ctypes import wintypes
+
+        query = ctypes.WinDLL("kernel32", use_last_error=True).GetShortPathNameW
+        query.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        query.restype = wintypes.DWORD
+        buffer = ctypes.create_unicode_buffer(32768)
+        characters = query(str(path), buffer, len(buffer))
+        if characters == 0 or characters >= len(buffer):
+            self.skipTest("Windows did not provide a bounded short path")
+        return Path(buffer.value)
 
     def run_ps(self, body: str) -> subprocess.CompletedProcess[str]:
         command = (
@@ -238,6 +253,47 @@ class M4CloneWindowsFunctionalTests(unittest.TestCase):
             self.assertLessEqual(
                 observation["started_at_utc"], observation["completed_at_utc"]
             )
+
+    def test_platform_provided_short_ancestor_alias_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "controller-root-for-short-alias"
+            root.mkdir()
+            short_root = self.short_path(root)
+            if os.path.normcase(str(short_root)) == os.path.normcase(str(root)):
+                self.skipTest("8.3 aliases are unavailable on this volume")
+            source = root / "creator.mdb"
+            source.write_bytes(b"s" * 2048)
+            aliased_source = short_root / source.name
+            aliased_destination = short_root / "reopen.mdb"
+
+            result = self.run_ps(
+                self.invoke(short_root, aliased_source, aliased_destination)
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((root / "reopen.mdb").read_bytes(), b"s" * 2048)
+
+    def test_platform_short_file_leaf_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "creator-database-with-long-name.mdb"
+            destination = root / "reopen.mdb"
+            source.write_bytes(b"l" * 2048)
+            short_source = self.short_path(source)
+            aliased_leaf = root / short_source.name
+            if os.path.normcase(str(aliased_leaf)) == os.path.normcase(
+                str(source)
+            ):
+                self.skipTest("8.3 file aliases are unavailable on this volume")
+
+            result = self.run_ps(
+                "try{"
+                + self.invoke(root, aliased_leaf, destination)
+                + "exit 9}catch{"
+                "[Console]::Error.WriteLine($_.Exception.Message);exit 7}"
+            )
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertIn("path alias", result.stderr)
+            self.assertFalse(destination.exists())
 
     def test_existing_destination_is_never_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

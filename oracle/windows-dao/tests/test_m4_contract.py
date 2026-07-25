@@ -19,6 +19,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from m4_records import (  # noqa: E402
     CHECKED_PLAN,
     ValidationError,
+    _validate_lexical_windows_root,
     load_bounded_json,
     load_checked_plan,
     resolve_bundle_path,
@@ -31,6 +32,22 @@ from m4_bundle import (  # noqa: E402
 )
 from m4_snapshot import BundleSnapshot  # noqa: E402
 from m4_contract import _write_exclusive  # noqa: E402
+
+
+def windows_short_path(path: Path) -> Path | None:
+    if os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    query = ctypes.WinDLL("kernel32", use_last_error=True).GetShortPathNameW
+    query.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+    query.restype = wintypes.DWORD
+    buffer = ctypes.create_unicode_buffer(32768)
+    characters = query(str(path), buffer, len(buffer))
+    if characters == 0 or characters >= len(buffer):
+        return None
+    return Path(buffer.value)
 
 
 class StrictJsonTests(unittest.TestCase):
@@ -51,6 +68,33 @@ class StrictJsonTests(unittest.TestCase):
     def test_nonfinite_numbers_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValidationError, "non-finite"):
             self._load(b'{"number":NaN}')
+
+    def test_windows_root_lexical_validation_preserves_only_safe_aliases(
+        self,
+    ) -> None:
+        self.assertEqual(
+            _validate_lexical_windows_root(
+                r"C:\Users\RUNNER~1\repository", "$.root"
+            ),
+            ("c:\\", "users", "runner~1", "repository"),
+        )
+        invalid = (
+            "",
+            r"C:\repo\.\child",
+            r"C:\repo\..\child",
+            "C:\\repo\\\\child",
+            "C:\\repo.\\child",
+            "C:\\repo \\child",
+            r"C:\repo:stream",
+            r"\\server\share\repo",
+            r"\\?\C:\repo",
+            r"\\.\C:\repo",
+            "C:/repo",
+        )
+        for value in invalid:
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    _validate_lexical_windows_root(value, "$.root")
 
 
 class AtomicAnalysisWriteTests(unittest.TestCase):
@@ -275,6 +319,28 @@ class InvocationProjectionTests(unittest.TestCase):
             preflight=True,
         )
 
+    def test_live_preflight_accepts_platform_short_ancestor(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows live-root check")
+        long_parent = self.bundle.parent.resolve()
+        short_parent = windows_short_path(long_parent)
+        if short_parent is None or os.path.normcase(
+            str(short_parent)
+        ) == os.path.normcase(str(long_parent)):
+            self.skipTest("8.3 ancestor aliases are unavailable")
+        aliased_bundle = short_parent / self.bundle.name
+        self.invocation["stage_root"] = str(aliased_bundle)
+        self.invocation["repository_root"] = str(
+            short_parent / self.repository.name
+        )
+        validate_invocation_document(
+            self.invocation,
+            self.plan,
+            self.plan_hash,
+            aliased_bundle,
+            preflight=True,
+        )
+
     def test_worker_ordinal_projection_is_enforced(self) -> None:
         self.invocation["worker_ordinal"] = 2
         with self.assertRaisesRegex(ValidationError, "worker_ordinal"):
@@ -356,6 +422,49 @@ class InvocationProjectionTests(unittest.TestCase):
                 preflight=True,
             )
 
+    def test_live_preflight_rejects_alternate_data_stream_root(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows live-root check")
+        self.invocation["repository_root"] += ":stream"
+        with self.assertRaisesRegex(ValidationError, "alternate data streams"):
+            validate_invocation_document(
+                self.invocation,
+                self.plan,
+                self.plan_hash,
+                self.bundle,
+                preflight=True,
+            )
+
+    def test_live_preflight_rejects_trailing_dot_and_space_aliases(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows live-root check")
+        original = self.invocation["repository_root"]
+        for suffix in (".", " "):
+            with self.subTest(suffix=suffix):
+                self.invocation["repository_root"] = original + suffix
+                with self.assertRaisesRegex(ValidationError, "noncanonical"):
+                    validate_invocation_document(
+                        self.invocation,
+                        self.plan,
+                        self.plan_hash,
+                        self.bundle,
+                        preflight=True,
+                    )
+        self.invocation["repository_root"] = original
+
+    def test_live_preflight_rejects_noncanonical_bundle_root(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows live-root check")
+        noncanonical = self.bundle / ".." / self.bundle.name
+        with self.assertRaisesRegex(ValidationError, "noncanonical"):
+            validate_invocation_document(
+                self.invocation,
+                self.plan,
+                self.plan_hash,
+                noncanonical,
+                preflight=True,
+            )
+
     def test_bundle_locator_cannot_escape(self) -> None:
         with self.assertRaisesRegex(ValidationError, "unsafe path"):
             resolve_bundle_path(self.bundle, "evidence/../outside.json")
@@ -384,7 +493,14 @@ class InvocationProjectionTests(unittest.TestCase):
                 preflight=True,
             )
 
+
 class BundleTopologyTests(unittest.TestCase):
+    def test_snapshot_hard_link_identity_is_handle_derived_on_windows(self) -> None:
+        source = (SCRIPT_DIR / "m4_snapshot.py").read_text(encoding="utf-8")
+        self.assertIn("GetFileInformationByHandle", source)
+        self.assertIn("identity.links != 1", source)
+        self.assertNotIn("metadata.st_nlink != 1", source)
+
     def test_snapshot_rejects_symlinked_bundle_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary)

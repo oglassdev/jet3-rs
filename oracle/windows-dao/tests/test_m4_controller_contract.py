@@ -303,6 +303,7 @@ class M4ControllerWindowsNoComTests(unittest.TestCase):
                 "-RunId '20260725T120000Z-m4-analysis-test' "
                 "-MaxFileBytes 16MB -MaxTotalBytes 32MB;"
                 "$entries=New-Object Collections.ArrayList;"
+                "[void]$entries.Add([pscustomobject]@{role='prior_payload'});"
                 "try{Write-M4RetainedAnalysis "
                 "-Context ([pscustomobject]@{}) -Session $session "
                 "-Entries $entries -ContractPath 'unused.py';"
@@ -323,7 +324,7 @@ class M4ControllerWindowsNoComTests(unittest.TestCase):
             observed = json.loads(result.stdout.strip().splitlines()[-1])
             self.assertTrue(observed["retained"])
             self.assertFalse(observed["scratch"])
-            self.assertEqual(observed["entries"], 1)
+            self.assertEqual(observed["entries"], 2)
             self.assertEqual(observed["text"], '{"ok":true}\n')
 
     def test_real_publication_fault_cleans_stage_and_creates_no_final(self) -> None:

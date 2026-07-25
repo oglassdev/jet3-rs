@@ -49,6 +49,7 @@ ROLE_BYTE_CEILINGS = {
     "database": 1048576,
     "prefix": PREFIX_BYTES,
 }
+_WINDOWS_IDENTITY_API: tuple[Any, Any, type[Any]] | None = None
 
 
 def _is_reparse(metadata: os.stat_result) -> bool:
@@ -84,9 +85,19 @@ class FileStamp:
 
 
 @dataclass(frozen=True)
+class FileIdentity:
+    """Filesystem identity and link count from an authoritative file handle."""
+
+    device: int
+    index: int
+    links: int
+
+
+@dataclass(frozen=True)
 class TreeEntry:
     kind: str
     stamp: FileStamp
+    identity: FileIdentity | None
 
 
 @dataclass(frozen=True)
@@ -98,6 +109,83 @@ class CapturedArtifact:
     payload: bytes | None
     prefix: bytes | None
     document: dict[str, Any] | None
+
+
+def _descriptor_identity(
+    descriptor: int, metadata: os.stat_result | None = None
+) -> FileIdentity:
+    """Return a stable file identity without trusting Windows stat emulation."""
+    if os.name != "nt":
+        observed = metadata if metadata is not None else os.fstat(descriptor)
+        return FileIdentity(observed.st_dev, observed.st_ino, observed.st_nlink)
+
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    global _WINDOWS_IDENTITY_API
+    if _WINDOWS_IDENTITY_API is None:
+
+        class FileTime(ctypes.Structure):
+            _fields_ = [("low", wintypes.DWORD), ("high", wintypes.DWORD)]
+
+        class ByHandleFileInformation(ctypes.Structure):
+            _fields_ = [
+                ("attributes", wintypes.DWORD),
+                ("creation_time", FileTime),
+                ("last_access_time", FileTime),
+                ("last_write_time", FileTime),
+                ("volume_serial_number", wintypes.DWORD),
+                ("file_size_high", wintypes.DWORD),
+                ("file_size_low", wintypes.DWORD),
+                ("number_of_links", wintypes.DWORD),
+                ("file_index_high", wintypes.DWORD),
+                ("file_index_low", wintypes.DWORD),
+            ]
+
+        library = ctypes.WinDLL("kernel32", use_last_error=True)
+        query = library.GetFileInformationByHandle
+        query.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(ByHandleFileInformation),
+        ]
+        query.restype = wintypes.BOOL
+        _WINDOWS_IDENTITY_API = (
+            library,
+            query,
+            ByHandleFileInformation,
+        )
+    _, query, information_type = _WINDOWS_IDENTITY_API
+    information = information_type()
+    handle = wintypes.HANDLE(msvcrt.get_osfhandle(descriptor))
+    if not query(handle, ctypes.byref(information)):
+        error = ctypes.get_last_error()
+        raise OSError(error, "GetFileInformationByHandle failed")
+    index = (information.file_index_high << 32) | information.file_index_low
+    return FileIdentity(
+        information.volume_serial_number,
+        index,
+        information.number_of_links,
+    )
+
+
+def _open_flags() -> int:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    return flags
+
+
+def _path_identity(path: Path, metadata: os.stat_result) -> FileIdentity:
+    if os.name != "nt":
+        return _descriptor_identity(-1, metadata)
+    descriptor = os.open(path, _open_flags())
+    try:
+        return _descriptor_identity(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _tree_inventory(root: Path) -> dict[str, TreeEntry]:
@@ -112,7 +200,9 @@ def _tree_inventory(root: Path) -> dict[str, TreeEntry]:
         or _is_reparse(root_meta)
     ):
         raise ValidationError(f"{root}: bundle root must be a regular directory")
-    inventory = {".": TreeEntry("directory", FileStamp.from_stat(root_meta))}
+    inventory = {
+        ".": TreeEntry("directory", FileStamp.from_stat(root_meta), None)
+    }
     pending = [(root, 0)]
     identities: set[tuple[int, int]] = set()
     visited = 0
@@ -139,16 +229,19 @@ def _tree_inventory(root: Path) -> dict[str, TreeEntry]:
                             raise ValidationError(
                                 "bundle exceeds directory-depth limit"
                             )
-                        inventory[locator] = TreeEntry("directory", stamp)
+                        inventory[locator] = TreeEntry("directory", stamp, None)
                         pending.append((candidate, depth + 1))
                     elif stat.S_ISREG(metadata.st_mode):
-                        identity = (metadata.st_dev, metadata.st_ino)
-                        if metadata.st_nlink != 1 or identity in identities:
+                        identity = _path_identity(candidate, metadata)
+                        identity_key = (identity.device, identity.index)
+                        if identity.links != 1 or identity_key in identities:
                             raise ValidationError(
                                 f"{entry.path}: hard links are forbidden"
                             )
-                        identities.add(identity)
-                        inventory[locator] = TreeEntry("file", stamp)
+                        identities.add(identity_key)
+                        inventory[locator] = TreeEntry(
+                            "file", stamp, identity
+                        )
                     else:
                         raise ValidationError(
                             f"{entry.path}: non-regular bundle entry"
@@ -173,12 +266,17 @@ def read_stable_database(path: Path, maximum: int) -> tuple[int, str, bytes]:
     """Read one loose database once with the snapshot identity discipline."""
     try:
         metadata = path.lstat()
+        identity = _path_identity(path, metadata)
     except OSError as exc:
         raise ValidationError(f"{path}: cannot inspect database: {exc}") from exc
     captured = _read_captured(
         path.parent,
         path.name,
-        TreeEntry("file", FileStamp.from_stat(metadata)),
+        TreeEntry(
+            "file",
+            FileStamp.from_stat(metadata),
+            identity,
+        ),
         maximum,
         role="database",
     )
@@ -203,13 +301,16 @@ def _read_captured(
         before = FileStamp.from_stat(path.lstat())
         if before != expected.stamp or expected.kind != "file":
             raise ValidationError(f"{locator}: identity changed before snapshot read")
-        flags = os.O_RDONLY
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        descriptor = os.open(path, flags)
+        descriptor = os.open(path, _open_flags())
         with os.fdopen(descriptor, "rb") as handle:
             opened = FileStamp.from_stat(os.fstat(handle.fileno()))
-            if opened != before:
+            opened_identity = _descriptor_identity(handle.fileno())
+            if (
+                expected.identity is None
+                or opened_identity != expected.identity
+                or opened.size != before.size
+                or not stat.S_ISREG(opened.mode)
+            ):
                 raise ValidationError(
                     f"{locator}: identity changed while opening snapshot"
                 )
@@ -229,12 +330,18 @@ def _read_captured(
                 else:
                     retained.extend(chunk)
             after_descriptor = FileStamp.from_stat(os.fstat(handle.fileno()))
-        after_path = FileStamp.from_stat(path.lstat())
+        after_metadata = path.lstat()
+        after_path = FileStamp.from_stat(after_metadata)
+        after_identity = _path_identity(path, after_metadata)
     except ValidationError:
         raise
     except OSError as exc:
         raise ValidationError(f"{locator}: cannot capture artifact: {exc}") from exc
-    if opened != after_descriptor or after_descriptor != after_path:
+    if (
+        opened != after_descriptor
+        or after_path != before
+        or after_identity != opened_identity
+    ):
         raise ValidationError(f"{locator}: artifact changed during snapshot read")
     if role == "database" and len(retained) != PREFIX_BYTES:
         raise ValidationError(f"{locator}: database is shorter than retained prefix")

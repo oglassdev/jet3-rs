@@ -53,6 +53,17 @@ namespace M4Clone {
             uint pathCharacters,
             uint flags
         );
+
+        [DllImport(
+            "kernel32.dll",
+            CharSet = CharSet.Unicode,
+            SetLastError = true
+        )]
+        public static extern uint GetLongPathName(
+            string shortPath,
+            StringBuilder longPath,
+            uint pathCharacters
+        );
     }
 }
 "@
@@ -68,7 +79,8 @@ function Get-M4CloneUtcTimestamp {
 function Get-M4CloneLocalFullPath {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$Label
+        [Parameter(Mandatory = $true)][string]$Label,
+        [switch]$ExpandLeafAlias
     )
 
     if (
@@ -89,20 +101,56 @@ function Get-M4CloneLocalFullPath {
         throw "$Label alternate data stream paths are forbidden."
     }
 
-    $full = [IO.Path]::GetFullPath($Path)
+    $supplied = $Path.TrimEnd([IO.Path]::DirectorySeparatorChar)
+    $root = [IO.Path]::GetPathRoot($supplied)
+    $relative = $supplied.Substring($root.Length)
+    $parts = $relative.Split([IO.Path]::DirectorySeparatorChar)
+    foreach ($part in $parts) {
+        if (
+            [string]::IsNullOrEmpty($part) -or
+            $part -ceq "." -or
+            $part -ceq ".." -or
+            $part -match "[ .]$"
+        ) {
+            throw "$Label path aliases and non-canonical paths are forbidden."
+        }
+    }
+
+    $full = [IO.Path]::GetFullPath($supplied)
     if ($full.Length -gt $script:M4CloneMaximumPathCharacters) {
         throw "$Label canonical path exceeds its bound."
     }
-    $supplied = $Path.TrimEnd([IO.Path]::DirectorySeparatorChar)
-    $canonical = $full.TrimEnd([IO.Path]::DirectorySeparatorChar)
-    if (-not $supplied.Equals(
-        $canonical,
-        [StringComparison]::OrdinalIgnoreCase
-    )) {
-        throw "$Label path aliases and non-canonical paths are forbidden."
-    }
-    if ($canonical -ceq [IO.Path]::GetPathRoot($canonical)) {
+    if ($relative.Length -eq 0) {
         throw "$Label may not be a drive root."
+    }
+
+    # File leaves remain lexically bound while their ancestors are expanded.
+    # The controller directory is itself an ancestor, so its leaf is expanded.
+    $leaf = [IO.Path]::GetFileName($full)
+    $queryPath = [IO.Path]::GetDirectoryName($full)
+    if ($ExpandLeafAlias) {
+        $leaf = ""
+        $queryPath = $full
+    }
+    $builder = New-Object Text.StringBuilder 4096
+    $characters = [M4Clone.NativeMethods]::GetLongPathName(
+        $queryPath,
+        $builder,
+        [uint32]$builder.Capacity
+    )
+    if (
+        $characters -eq 0 -or
+        $characters -ge [uint32]$builder.Capacity
+    ) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "$Label ancestor query failed with Win32 error $code."
+    }
+    $canonical = $builder.ToString()
+    if (-not [string]::IsNullOrEmpty($leaf)) {
+        $canonical = Join-Path $canonical $leaf
+    }
+    if ($canonical.Length -gt $script:M4CloneMaximumPathCharacters) {
+        throw "$Label canonical path exceeds its bound."
     }
     return $canonical
 }
@@ -216,6 +264,7 @@ function Get-M4CloneHandleFacts {
     if ($finalPath.StartsWith("\\?\", [StringComparison]::Ordinal)) {
         $finalPath = $finalPath.Substring(4)
     }
+
     if (-not $finalPath.Equals(
         $ExpectedPath,
         [StringComparison]::OrdinalIgnoreCase
@@ -388,7 +437,7 @@ function Invoke-M4BoundedClone {
     }
     $startedAt = Get-M4CloneUtcTimestamp
     $root = Get-M4CloneLocalFullPath `
-        -Path $ControllerRoot -Label "Controller root"
+        -Path $ControllerRoot -Label "Controller root" -ExpandLeafAlias
     $source = Get-M4CloneLocalFullPath -Path $SourcePath -Label "Source"
     $destination = Get-M4CloneLocalFullPath `
         -Path $DestinationPath -Label "Destination"

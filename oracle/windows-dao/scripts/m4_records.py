@@ -177,18 +177,58 @@ def resolve_bundle_path(root: Path, locator: str) -> Path:
     return resolved
 
 
+def _validate_lexical_windows_root(
+    value: str, location: str
+) -> tuple[str, ...]:
+    """Validate one local Windows root without normalizing aliases."""
+    if "\x00" in value:
+        raise ValidationError(f"{location}: NUL is forbidden")
+    if (
+        not value
+        or value.startswith(("\\\\", "//"))
+        or "/" in value
+        or len(value) < 3
+        or value[0] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+        or value[1:3] != ":\\"
+    ):
+        raise ValidationError(
+            f"{location}: expected a lexical drive-rooted Windows path, "
+            "not UNC or device syntax"
+        )
+    if ":" in value[2:]:
+        raise ValidationError(f"{location}: alternate data streams are forbidden")
+
+    relative = value[3:]
+    if not relative:
+        return (value[:3].casefold(),)
+    components = relative.split("\\")
+    reserved = {"con", "prn", "aux", "nul"}
+    for component in components:
+        stem = component.split(".", 1)[0].casefold()
+        if (
+            not component
+            or component in (".", "..")
+            or component.endswith((" ", "."))
+            or stem in reserved
+            or (
+                len(stem) == 4
+                and stem[:3] in ("com", "lpt")
+                and stem[3] in "123456789"
+            )
+        ):
+            raise ValidationError(
+                f"{location}: noncanonical Windows path component"
+            )
+    return (value[:3].casefold(), *(part.casefold() for part in components))
+
+
 def _absolute_path_parts(value: str, location: str) -> tuple[str, tuple[str, ...]]:
     if "\x00" in value:
         raise ValidationError(f"{location}: NUL is forbidden")
     windows = PureWindowsPath(value)
     posix = PurePosixPath(value)
     if windows.is_absolute():
-        raw_parts = value.replace("/", "\\").split("\\")
-        if any(part in ("", ".", "..") for part in raw_parts[1:]):
-            raise ValidationError(f"{location}: noncanonical path component")
-        if str(windows) != value:
-            raise ValidationError(f"{location}: Windows path is not canonical")
-        return "windows", tuple(part.casefold() for part in windows.parts)
+        return "windows", _validate_lexical_windows_root(value, location)
     if posix.is_absolute():
         if any(part in ("", ".", "..") for part in value.split("/")[1:]):
             raise ValidationError(f"{location}: noncanonical path component")
@@ -205,46 +245,51 @@ def _is_within(parts: tuple[str, ...], parent: tuple[str, ...]) -> bool:
 def _validate_live_windows_roots(
     invocation: dict[str, Any], bundle_root: Path
 ) -> None:
-    for key in ("repository_root", "stage_root"):
-        value = invocation[key]
-        windows = PureWindowsPath(value)
-        if (
-            not windows.is_absolute()
-            or len(windows.drive) != 2
-            or windows.drive[1] != ":"
-            or windows.root != "\\"
-        ):
-            raise ValidationError(f"$.{key}: live execution requires a drive-rooted Windows path")
     if os.name != "nt":
+        for key in ("repository_root", "stage_root"):
+            _validate_lexical_windows_root(invocation[key], f"$.{key}")
         raise ValidationError("live invocation validation requires Windows")
-    bundle_resolved = bundle_root.resolve(strict=True)
-    if os.path.normcase(str(bundle_resolved)) != os.path.normcase(str(bundle_root)):
-        raise ValidationError("--bundle-root: live stage root is not canonical")
+
+    def checked_live_root(path: Path, location: str) -> Path:
+        _validate_lexical_windows_root(str(path), location)
+        lexical = Path(os.path.abspath(path))
+        current = Path(lexical.anchor)
+        try:
+            for part in lexical.parts[1:]:
+                current /= part
+                metadata = current.lstat()
+                if current.is_symlink() or (
+                    getattr(metadata, "st_file_attributes", 0) & 0x400
+                ):
+                    raise ValidationError(
+                        f"{location}: live root contains a reparse point"
+                    )
+            resolved = lexical.resolve(strict=True)
+        except ValidationError:
+            raise
+        except OSError as exc:
+            raise ValidationError(
+                f"{location}: cannot resolve live root: {exc}"
+            ) from exc
+        if not resolved.is_dir():
+            raise ValidationError(f"{location}: live root is not a directory")
+        return resolved
+
+    bundle_resolved = checked_live_root(bundle_root, "--bundle-root")
     resolved_roots: dict[str, Path] = {}
     for key in ("repository_root", "stage_root"):
         path = Path(invocation[key])
-        try:
-            resolved = path.resolve(strict=True)
-        except OSError as exc:
-            raise ValidationError(f"$.{key}: cannot resolve live root: {exc}") from exc
-        if os.path.normcase(str(resolved)) != os.path.normcase(str(path)):
-            raise ValidationError(f"$.{key}: live root is not canonical")
-        if not resolved.is_dir():
-            raise ValidationError(f"$.{key}: live root is not a directory")
-        for component in (resolved, *resolved.parents):
-            metadata = component.lstat()
-            if component.is_symlink() or (
-                getattr(metadata, "st_file_attributes", 0) & 0x400
-            ):
-                raise ValidationError(f"$.{key}: live root contains a reparse point")
-            if component == Path(resolved.anchor):
-                break
-        resolved_roots[key] = resolved
-    require_equal(
-        resolved_roots["stage_root"],
-        bundle_resolved,
-        "$.stage_root",
-    )
+        resolved_roots[key] = checked_live_root(path, f"$.{key}")
+    if resolved_roots["stage_root"] != bundle_resolved:
+        raise ValidationError("$.stage_root: does not match --bundle-root")
+    repository = resolved_roots["repository_root"]
+    stage = resolved_roots["stage_root"]
+    if (
+        stage == repository
+        or repository in stage.parents
+        or stage in repository.parents
+    ):
+        raise ValidationError("$.stage_root: must not overlap repository_root")
 
 
 def _creator_contract(condition: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
@@ -310,6 +355,8 @@ def validate_invocation_document(
 ) -> dict[str, Any]:
     """Bind an invocation to the exact plan sample and safe bundle locators."""
     SCHEMA_SET.validate(invocation)
+    if preflight and os.name == "nt":
+        _validate_lexical_windows_root(str(bundle_root), "--bundle-root")
     samples, conditions = plan_indexes(plan)
     sample = samples.get(invocation["sample_id"])
     if sample is None:

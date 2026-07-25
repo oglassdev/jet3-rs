@@ -261,8 +261,9 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 "-CallerLabel 'root-exit-probe' "
                 "-TimeoutSeconds 10 -MaximumOutputBytes 1MB|Out-Null;"
                 "Start-Sleep -Seconds 5;"
-                f"[Console]::Write((Test-Path -LiteralPath '{quoted(started)}')"
-                f"+'|'+(Test-Path -LiteralPath '{quoted(completed)}'))"
+                "[Console]::Write(('{0}|{1}' -f "
+                f"(Test-Path -LiteralPath '{quoted(started)}'),"
+                f"(Test-Path -LiteralPath '{quoted(completed)}')))"
             )
             result = self._run(command, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
