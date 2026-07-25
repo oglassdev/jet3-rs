@@ -477,6 +477,111 @@ Use `not applicable` explicitly rather than omitting a field.
   content is redistributed
 - Review: pending independent review
 
+### SRC-0014 — DAO creation version and encryption controls
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: public source
+- Question: Which documented DAO inputs select Jet 2.0, Jet 3.0, or Jet 4.0
+  data formats during database creation, and which input selects or omits
+  encryption?
+- Origin: Microsoft Learn, “DBEngine.CreateDatabase method (DAO)” and
+  “DatabaseTypeEnum enumeration (DAO),” accessed 2026-07-25,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/dbengine-createdatabase-method-dao
+  and
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/databasetypeenum-enumeration-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve both cited Microsoft Learn pages; inspect the
+  `CreateDatabase` `Option` parameter and option table, then inspect only the
+  `dbVersion20`, `dbVersion30`, `dbVersion40`, and `dbEncrypt` enumeration
+  rows
+- Artifacts: not applicable; the project stores citations, not redistributed
+  copies
+- Observation: Microsoft documents `dbVersion20`, `dbVersion30`, and
+  `dbVersion40` as requesting Jet 2.0, Jet 3.0 (compatible with 3.5), and Jet
+  4.0 file formats respectively. The enumeration page assigns them API values
+  16, 32, and 64. Microsoft assigns `dbEncrypt` API value 2, documents it as
+  creating an encrypted database, and states that omitting the encryption
+  constant creates an unencrypted database.
+- Interpretation: the M4 DAO-only experiment may use those named options and
+  late-bound numeric API values as a controlled 3-by-2 creation factorial.
+  These values are COM/DAO inputs only. They do not identify MDB bytes,
+  offsets, bit masks, encryption algorithms, keys, page classes, or any other
+  physical encoding, and a successful call does not establish Rust
+  compatibility.
+- Usage: `oracle/windows-dao/experiments/m4/`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0015 — DAO database-version result labels
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: public source
+- Question: What does DAO `Database.Version` report, and how is its result
+  formatted for the three M4 creation-version conditions?
+- Origin: Microsoft Learn, “Database.Version property (DAO),” accessed
+  2026-07-25,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/database-version-property-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited Microsoft Learn page; inspect the property
+  description, the documented `major.minor` result form, and the rows for
+  Microsoft Jet 2.0, 3.0, 3.5, and 4.0
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft documents the read-only string as the version of the
+  database engine that created the database and gives its result form as
+  `major.minor`, with `3.0` as the example. The product table separately names
+  Jet releases 2.0, 3.0, 3.5, and 4.0.
+- Interpretation: combining this API-result contract with the creation-format
+  options in `SRC-0014`, the checked M4 oracle expects exact labels `2.0`,
+  `3.0`, and `4.0` for its respective `dbVersion20`, `dbVersion30`, and
+  `dbVersion40` files. A different result must fail the experiment rather than
+  be recast as a physical-format fact. The label is application-level oracle
+  evidence only; it is not an MDB version field, byte string, encoding, or
+  Rust compatibility result.
+- Usage: `oracle/windows-dao/experiments/m4/`
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
+### SRC-0016 — DAO compact-copy version and encryption controls
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: public source
+- Question: Which version and encryption changes does Microsoft document for
+  DAO `CompactDatabase`, and should that second creation path participate in
+  the primary M4 factorial?
+- Origin: Microsoft Learn, “DBEngine.CompactDatabase method (DAO),” accessed
+  2026-07-25,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/dbengine-compactdatabase-method-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited Microsoft Learn page; inspect the `Options`
+  parameter, encryption-option table, version-option table, and restrictions
+  immediately following those tables
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft documents `dbEncrypt` and `dbDecrypt` as compact-copy
+  encryption controls, states that omitting an encryption constant preserves
+  source encryption, permits only one version constant, and documents
+  `dbVersion20`, `dbVersion30`, and `dbVersion40` as compact-copy data-format
+  selections. It also states that the destination version may only be the same
+  as or later than the source version.
+- Interpretation: `CompactDatabase` provides a documented future independent
+  conversion control, but the primary M4 creation factorial excludes it so
+  that every sample has one generation path: `CreateDatabase`. None of these
+  API controls specifies how version or encryption is represented on disk,
+  and no compacted file may be treated as compatibility or physical-layout
+  evidence without a separately checked experiment.
+- Usage: explicit exclusion and future-control rationale in
+  `oracle/windows-dao/experiments/m4/README.md` and
+  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
@@ -990,6 +1095,62 @@ Use `not applicable` explicitly rather than omitting a field.
   validator and a separate PowerShell/.NET recomputation of every manifest
   file hash, database/page hash, cohort/comparison/stable bitmap, aggregate
   intersection/union, and occurrence histogram.
+
+### EXP-0011 — Planned DAO version/encryption file-prefix campaign
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: declarative experiment plan; execution blocked pending checked tooling
+- Question: Across six fresh-process replicas of each documented
+  `dbVersion20`/`dbVersion30`/`dbVersion40` and
+  unencrypted/`dbEncrypt` creation combination, which absolute positions in a
+  bounded file prefix covary descriptively with an API factor after
+  accounting for within-condition and no-op reopen variation?
+- Origin: project-authored factorial plan using only the DAO controls and
+  labels in `SRC-0014` and `SRC-0015`; the documented `CompactDatabase`
+  controls in `SRC-0016` are deliberately excluded from the primary campaign
+- Environment: not yet executed; the plan requires distinct fresh x86 creator
+  and reopen workers per sample and leaves the exact Windows, PowerShell, DAO
+  provider, locale, code-page, time-zone, repository, and commit identities to
+  a future commit-bound environment record
+- Protocol: a future checked validator must bind
+  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json` and
+  prove every relational and artifact invariant before any execution may
+  begin. The future runner must execute its 3-by-2 factorial in the complete
+  six-block cyclic schedule;
+  clone each immutable closed creator database through a controller-owned,
+  re-hashed, same-volume, non-hard-linked handoff before launching the separate
+  reopen worker; retain paired closed-file creator/reopen observations; analyze
+  only `[0x000,0x600)` from each 2,048-byte prefix; exclude `[0x600,0x800)`
+  from every comparison; and validate the complete immutable bundle
+- Artifacts:
+  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`
+  SHA-256
+  `73bfa32b962474d729f774d03c8c6e2f2cc1eb51bdee5e9a76f41d006f9d4b9f`;
+  `plan.schema.json` SHA-256
+  `9aeaddd806cff7912b50ed78c2a7205637aaa26b62b2c553d00eacbeefb60ce5`;
+  `sample-record.schema.json` SHA-256
+  `4c07c9e3ad6c93d9d7caad428540aa82a1e19b4bb79e0a8b33c6c4d717d42bd5`;
+  `analysis-report.schema.json` SHA-256
+  `09e01f9afee92c52be13cb1e26537b8d2b27a34a8a022483f1eee2371a0f19db`
+- Observation: no M4 sample has been generated and no M4 byte result exists.
+  The declarative plan contains 36 samples, gives every condition every
+  within-block launch position exactly once, requires 72 independently bound
+  workers, and separately bounds retained bytes, five acquisition reads per
+  pair, each validator pass, prefixes, comparison work, worker count, and time.
+- Interpretation: this entry authorizes only implementation and review of
+  checked M4 tooling. It does not authorize DAO execution. Even a future
+  complete passing run may yield absolute candidate positions only. It may not
+  assign physical meaning, change production code or the support matrix, or
+  establish any Rust or MDB compatibility claim.
+- Usage: `oracle/windows-dao/experiments/m4/`
+- Rights: the plan and schemas are original project material; future generated
+  databases and evidence must receive their own provenance and redistribution
+  review
+- Review: schema lint and manual cyclic-schedule/comparison recomputation passed
+  locally on 2026-07-25. Independent source and adversarial-design review found
+  that schemas alone cannot enforce the cross-document, bundle-tree,
+  comparison, candidate, and outcome relationships. Checked M4 tooling and
+  tests do not yet exist, so execution remains blocked.
 
 ## Fixtures and black-box results
 
