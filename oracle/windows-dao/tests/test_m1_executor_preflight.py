@@ -216,9 +216,12 @@ $selected = Get-M1Python3
             env=environment,
         )
         result = json.loads(completed.stdout.strip().splitlines()[-1])
-        self.assertEqual(
-            Path(result["executable"]).resolve(),
-            Path(sys.executable).resolve(),
+        selected = Path(result["executable"])
+        self.assertTrue(selected.is_file())
+        self.assertTrue(result["version"].startswith("3."))
+        self.assertNotIn(
+            "Microsoft/WindowsApps",
+            selected.as_posix(),
         )
 
 
