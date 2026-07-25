@@ -62,7 +62,7 @@ case "${1:-}" in
         python3 oracle/windows-dao/scripts/validate_m1_protocol.py document \
             oracle/windows-dao/examples/m1-inventory.json
         python3 -m unittest discover -s oracle/windows-dao/tests -v
-        blocked "G3 has no provisioned Windows DAO provider, no complete 100-scenario differential inventory, and no clean commit-bound DAO evidence bundle"
+        blocked "G3 has a ready x86 DAO provider and one validated M0 bundle, but lacks the complete 100-scenario differential inventory, reviewed M1 executor, and exact-release-commit DAO evidence"
         ;;
     G4)
         configure_toolchain
