@@ -12,6 +12,7 @@ from pathlib import Path
 SUITE_PATHS = (
     "benches/Cargo.lock",
     "benches/Cargo.toml",
+    "benches/binary_writer_benchmark.rs",
     "benches/comparison-input.schema.json",
     "benches/format_primitives.rs",
     "benches/manifest.json",

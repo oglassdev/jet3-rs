@@ -9,6 +9,8 @@ pub const DEFAULT_MAX_ALLOCATION_BYTES: ByteCount = ByteCount::new(256 * 1024 * 
 pub const DEFAULT_MAX_DECODED_VALUE_BYTES: ByteCount = ByteCount::new(16 * 1024 * 1024);
 /// Default cumulative decoded-value ceiling: 256 MiB.
 pub const DEFAULT_MAX_TOTAL_DECODED_BYTES: ByteCount = ByteCount::new(256 * 1024 * 1024);
+/// Default cumulative encoded-output ceiling: 256 MiB.
+pub const DEFAULT_MAX_ENCODED_BYTES: ByteCount = ByteCount::new(256 * 1024 * 1024);
 /// Default cumulative item/count work ceiling: ten million.
 pub const DEFAULT_MAX_ITEM_WORK: u64 = 10_000_000;
 /// Default cumulative page-visit ceiling: ten million.
@@ -21,12 +23,14 @@ pub const DEFAULT_MAX_TOTAL_WORK_UNITS: u64 = 1_000_000_000;
 /// Immutable policy for one complete untrusted-input operation.
 ///
 /// [`ReadLimits`] remains the byte-I/O sub-policy. The other ceilings bound
-/// memory reservations, decoded output, count-driven loops, page traversal,
-/// chain following, and aggregate non-I/O work. Defaults are format-neutral:
+/// memory reservations, decoded and encoded output, count-driven loops, page
+/// traversal, chain following, and aggregate non-I/O work. Defaults are
+/// format-neutral:
 ///
 /// - 256 MiB cumulative allocation prevents input from driving process-scale
 ///   memory growth;
-/// - 16 MiB per decoded value and 256 MiB total decoded output bound expansion;
+/// - 16 MiB per decoded value and 256 MiB each for cumulative decoded and
+///   encoded output bound transformation work;
 /// - ten million items and page visits permit large workloads while bounding
 ///   count-controlled loops;
 /// - 4,096 chain links reject pathological or cyclic traversals promptly; and
@@ -42,6 +46,7 @@ pub struct ResourceLimits {
     max_allocation_bytes: ByteCount,
     max_decoded_value_bytes: ByteCount,
     max_total_decoded_bytes: ByteCount,
+    max_encoded_bytes: ByteCount,
     max_item_work: u64,
     max_page_visits: u64,
     max_chain_depth: u64,
@@ -58,6 +63,7 @@ impl ResourceLimits {
             max_allocation_bytes: DEFAULT_MAX_ALLOCATION_BYTES,
             max_decoded_value_bytes: DEFAULT_MAX_DECODED_VALUE_BYTES,
             max_total_decoded_bytes: DEFAULT_MAX_TOTAL_DECODED_BYTES,
+            max_encoded_bytes: DEFAULT_MAX_ENCODED_BYTES,
             max_item_work: DEFAULT_MAX_ITEM_WORK,
             max_page_visits: DEFAULT_MAX_PAGE_VISITS,
             max_chain_depth: DEFAULT_MAX_CHAIN_DEPTH,
@@ -83,6 +89,13 @@ impl ResourceLimits {
     #[must_use]
     pub const fn with_max_total_decoded_bytes(mut self, maximum: ByteCount) -> Self {
         self.max_total_decoded_bytes = maximum;
+        self
+    }
+
+    /// Replaces the cumulative encoded-output ceiling.
+    #[must_use]
+    pub const fn with_max_encoded_bytes(mut self, maximum: ByteCount) -> Self {
+        self.max_encoded_bytes = maximum;
         self
     }
 
@@ -138,6 +151,12 @@ impl ResourceLimits {
         self.max_total_decoded_bytes
     }
 
+    /// Returns the cumulative encoded-output ceiling.
+    #[must_use]
+    pub const fn max_encoded_bytes(self) -> ByteCount {
+        self.max_encoded_bytes
+    }
+
     /// Returns the cumulative item/count work ceiling.
     #[must_use]
     pub const fn max_item_work(self) -> u64 {
@@ -174,14 +193,16 @@ impl Default for ResourceLimits {
 /// Create exactly one budget at the public operation boundary and pass mutable
 /// borrows through all participating parsers, sources, and writers. Successful
 /// dimension-specific charges also consume the same number of aggregate work
-/// units. Read bytes remain governed by the embedded [`ReadBudget`] and are not
-/// charged a second time as aggregate non-I/O work.
+/// units. Encoded bytes include rewrites after seeking. Read bytes remain
+/// governed by the embedded [`ReadBudget`] and are not charged a second time as
+/// aggregate non-I/O work.
 #[derive(Debug)]
 pub struct ResourceBudget {
     limits: ResourceLimits,
     read: ReadBudget,
     allocation_bytes: ByteCount,
     decoded_bytes: ByteCount,
+    encoded_bytes: ByteCount,
     item_work: u64,
     page_visits: u64,
     total_work_units: u64,
@@ -196,6 +217,7 @@ impl ResourceBudget {
             read: ReadBudget::new(limits.read()),
             allocation_bytes: ByteCount::new(0),
             decoded_bytes: ByteCount::new(0),
+            encoded_bytes: ByteCount::new(0),
             item_work: 0,
             page_visits: 0,
             total_work_units: 0,
@@ -223,6 +245,12 @@ impl ResourceBudget {
     #[must_use]
     pub const fn decoded_bytes(&self) -> ByteCount {
         self.decoded_bytes
+    }
+
+    /// Returns cumulative bytes encoded into caller-provided output.
+    #[must_use]
+    pub const fn encoded_bytes(&self) -> ByteCount {
+        self.encoded_bytes
     }
 
     /// Returns cumulative item/count work charged.
@@ -288,6 +316,24 @@ impl ResourceBudget {
         )?;
         let next_work = self.checked_work_add(bytes.get())?;
         self.decoded_bytes = next;
+        self.total_work_units = next_work;
+        Ok(())
+    }
+
+    /// Charges encoded output and aggregate work before modifying output.
+    ///
+    /// Every successful encoding is charged, including a rewrite after
+    /// seeking backward.
+    pub fn charge_encoded_bytes(&mut self, bytes: ByteCount) -> Result<(), Error> {
+        let next = checked_byte_total(
+            self.encoded_bytes,
+            bytes,
+            ResourceLimitKind::EncodedBytes,
+            self.limits.max_encoded_bytes(),
+            "accumulate encoded bytes",
+        )?;
+        let next_work = self.checked_work_add(bytes.get())?;
+        self.encoded_bytes = next;
         self.total_work_units = next_work;
         Ok(())
     }

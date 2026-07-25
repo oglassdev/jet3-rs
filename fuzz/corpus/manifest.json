@@ -54,6 +54,74 @@
       "reproduction_command": "printf '%s\\n' '4444zzzzzzzz-overflow-boundary-seed' > fuzz/corpus/binary_cursor/offset_boundaries"
     },
     {
+      "id": "FUZZ-SEED-BINARY-WRITER-001",
+      "path": "fuzz/corpus/binary_writer/primitive_sequence",
+      "size_bytes": 208,
+      "sha256": "3e89165ec14baa7d997e06ee068a02f7d35e22d873c0c5c6ad00858b7872b693",
+      "purpose": "Use a 256-byte output with unbounded encoding and work ceilings, then execute an exact write, every integer and floating-point primitive writer, and an observation command against the independent state model.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'DEEA0000000000000080B0123456789ABCDEFC0123456789ABCDEFD0123456789ABCDEFE0123456789ABCDEFF0123456789ABCDEFG0123456789ABCDEFH0123456789ABCDEFI0123456789ABCDEFJ0123456789ABCDEFK0123456789ABCDEFM0000000000000000' > fuzz/corpus/binary_writer/primitive_sequence"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-002",
+      "path": "fuzz/corpus/binary_writer/capacity_boundaries",
+      "size_bytes": 191,
+      "sha256": "62e87836263100af45adfc895c2b1984d88da2aa8e4e0397304b05add8ebd870",
+      "purpose": "Use an eight-byte output with unbounded budgets and exercise seek-to-zero, exact-end, one-before-end, past-end, and maximum-offset cases plus empty, fitting-boundary, and oversized exact-write behavior.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'AEEL0000000000000000A0000000000000001L2000000000000000A0000000000000000L3000000000000000L1000000000000000A0000000000000010L1000000000000000A0000000000000080A1111111100000010L4000000000000000' > fuzz/corpus/binary_writer/capacity_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-003",
+      "path": "fuzz/corpus/binary_writer/encoded_budget_failure",
+      "size_bytes": 38,
+      "sha256": "6d86b80d22a49af8bcff7dc478bf21451f933be4dfa00912a3d38b8b0b3db7f3",
+      "purpose": "Use a 64-byte output with zero encoded-byte allowance and an unbounded work ceiling so exact and primitive writes must fail without changing bytes, position, or counters.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'BFEA0000000000000080B0123456789ABCDEF' > fuzz/corpus/binary_writer/encoded_budget_failure"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-004",
+      "path": "fuzz/corpus/binary_writer/work_budget_failure",
+      "size_bytes": 38,
+      "sha256": "5e315ffbfa8fa3c842c38a1a934dca4750df28a0ed575f2cb319514abbfd0ef1",
+      "purpose": "Use a 64-byte output with an unbounded encoded-byte ceiling and zero aggregate-work allowance so exact and primitive writes must fail atomically at the independent work budget.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'BEFA0000000000000080B0123456789ABCDEF' > fuzz/corpus/binary_writer/work_budget_failure"
+    },
+    {
       "id": "FUZZ-SEED-JET-HEADER-001",
       "path": "fuzz/corpus/jet_header/standard",
       "size_bytes": 23,

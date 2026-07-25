@@ -3,6 +3,7 @@
 
 pub mod atomic;
 pub mod binary;
+pub mod binary_writer;
 pub mod candidate;
 pub mod commit_state;
 pub mod database_header;
@@ -18,6 +19,7 @@ pub mod source;
 
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
+pub use binary_writer::BinaryWriter;
 pub use candidate::{CandidateError, RawJet3Candidate};
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,

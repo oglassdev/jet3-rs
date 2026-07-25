@@ -93,7 +93,7 @@ case "${1:-}" in
     G7)
         configure_toolchain
         run_cargo bench --manifest-path benches/Cargo.toml \
-            --bench format_primitives --locked --no-run
+            --benches --locked --no-run
         python3 -m unittest discover -s benches/tests -v
         blocked "G7 lacks the required semantic and CRUD benchmark cases, 100000-row datasets, approved commit-bound baselines, peak-RSS and output-size measurements, and regression comparison"
         ;;

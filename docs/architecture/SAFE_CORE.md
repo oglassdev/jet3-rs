@@ -17,14 +17,17 @@ format evidence.
    non-I/O work.
 4. `binary` decodes primitive values from borrowed byte slices. It does not
    perform I/O or know Jet constants.
-5. `source` provides bounded random access to a captured-length input. It does
+5. `binary_writer` encodes primitive values into a caller-owned fixed slice.
+   It allocates nothing, checks the complete destination before mutation, and
+   charges cumulative encoded bytes including rewrites after seeking.
+6. `source` provides bounded random access to a captured-length input. It does
    not read an entire input into memory.
-6. On Unix, `atomic` publishes a caller-mutated file through a same-directory
+7. On Unix, `atomic` publishes a caller-mutated file through a same-directory
    private copy only after read-only validation, file synchronization, and a
    retained-handle/path identity check. Cleanup applies the same identity
    boundary and never unlinks a substituted entry. Its validator contract is a
    publication safeguard, not independent writer or compatibility evidence.
-7. Future physical-format modules may depend on these layers. They must keep
+8. Future physical-format modules may depend on these layers. They must keep
    constants beside a `SRC-`, `OBS-`, or `EXP-` provenance ID and must not put
    unchecked binary operations into higher-level database operations.
 
@@ -32,6 +35,14 @@ Jet-specific modules must not duplicate range arithmetic, slice indexing, or
 budget charging. They receive a mutable borrow of the operation's existing
 `ResourceBudget`; they must not construct or reset a nested budget to evade a
 ceiling.
+
+The format-neutral writer accepts only borrowed fixed-capacity output. A write
+preflights checked position arithmetic, complete capacity, and both cumulative
+encoded-byte and aggregate-work limits before copying. Capacity, position, and
+limit failures preserve output bytes, writer position, and every budget
+counter. Its integer and floating encoders expose only explicit little-endian
+operations. This foundation is not a database writer, creator, or updater and
+is not evidence that any emitted bytes are valid Jet.
 
 ## Error boundary
 

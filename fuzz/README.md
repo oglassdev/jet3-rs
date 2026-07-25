@@ -12,7 +12,10 @@ Cargo fuzz bins, target sources, seed files, and seed manifest must agree
 exactly. The checked targets are:
 
 - `binary_cursor`: checked offsets and byte counts, work-budget accounting,
-  cursor seeks, exact reads, skips, and little-endian primitive reads; and
+  cursor seeks, exact reads, skips, and little-endian primitive reads;
+- `binary_writer`: arbitrary bounded sequences of fixed-capacity seeks, exact
+  writes, little-endian primitive writes, cumulative encoding/work limits, and
+  failure atomicity;
 - `jet_header`: generic Jet signature recognition, truncation and read-budget
   rejection, and Jet 3 page-geometry arithmetic;
 - `jet3_page`: fixed-size Jet 3 page construction and reads, page-reference
@@ -28,10 +31,15 @@ exactly. The checked targets are:
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
-input-sized allocation. `jet_header` runs four bounded limit scenarios over
-one borrowed payload and performs no payload-sized allocation. `jet3_page`
-borrows at most two 2 KiB pages, executes at most 64 nine-byte commands and
-128 page-read attempts, and uses only fixed-size page buffers.
+input-sized allocation. `binary_writer` executes at most 128 seventeen-byte
+commands against a fixed 256-byte stack buffer, borrows exact-write payloads
+from the input, and checks each operation against an independent model. Every
+failed seek or write must preserve output bytes, position, encoded-byte
+accounting, and aggregate-work accounting. `jet_header` runs four bounded
+limit scenarios over one borrowed payload and performs no payload-sized
+allocation. `jet3_page` borrows at most two 2 KiB pages, executes at most 64
+nine-byte commands and 128 page-read attempts, and uses only fixed-size page
+buffers.
 `raw_jet3_candidate` borrows at most two pages, expands at most one page into a
 fixed stack buffer, and performs eight bounded inspections, each followed by
 at most one page-read attempt. `commit_state` borrows at most one page, expands
@@ -44,8 +52,11 @@ first/last/out-of-range page references, repeated reads, exact and one-below
 budgets, page-visit and aggregate-work policies, candidate inspection order,
 contextual commit-state pair preservation and classification, exclusive/shared
 slot boundaries, truncated commit regions, and unchanged destinations after
-failed reads. `corpus/manifest.json` records each seed's stable ID, purpose,
-exact bytes and hash, origin, environment, rights, and reproduction command.
+failed reads. It also covers writer primitive sequences, zero/exact/past-end
+capacity boundaries, rewrites after seeks, and separate encoded-byte and
+aggregate-work failures. `corpus/manifest.json` records each seed's stable ID,
+purpose, exact bytes and hash, origin, environment, rights, and reproduction
+command.
 
 Install the runner and list the target:
 

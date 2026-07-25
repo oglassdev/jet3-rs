@@ -12,6 +12,15 @@
       "peak_rss_limit_bytes": 268435456
     },
     {
+      "name": "binary_writer",
+      "source": "fuzz/fuzz_targets/binary_writer.rs",
+      "corpus": "fuzz/corpus/binary_writer",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    },
+    {
       "name": "jet_header",
       "source": "fuzz/fuzz_targets/jet_header.rs",
       "corpus": "fuzz/corpus/jet_header",

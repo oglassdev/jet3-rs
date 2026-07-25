@@ -20,6 +20,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "binary_writer"
+path = "fuzz_targets/binary_writer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "jet_header"
 path = "fuzz_targets/jet_header.rs"
 test = false

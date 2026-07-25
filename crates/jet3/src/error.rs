@@ -24,6 +24,8 @@ pub enum ResourceLimitKind {
     DecodedValueBytes,
     /// Cumulative bytes produced by value decoding.
     TotalDecodedBytes,
+    /// Cumulative bytes encoded into caller-provided output.
+    EncodedBytes,
     /// Cumulative count-driven item work.
     ItemWork,
     /// Cumulative page visits.
@@ -59,6 +61,22 @@ pub enum Error {
         offset: ByteOffset,
         /// Total input length.
         input_len: ByteCount,
+    },
+    /// A requested write position is outside the fixed output slice.
+    OutputOffsetOutOfBounds {
+        /// Requested absolute position.
+        offset: ByteOffset,
+        /// Total output capacity.
+        capacity: ByteCount,
+    },
+    /// The fixed output slice cannot hold a complete requested write.
+    OutputCapacityExceeded {
+        /// Position at which the write was attempted.
+        offset: ByteOffset,
+        /// Number of bytes requested.
+        needed: ByteCount,
+        /// Bytes remaining at the attempted position.
+        available: ByteCount,
     },
     /// The input ended before a complete value could be read.
     UnexpectedEnd {
@@ -150,6 +168,23 @@ impl fmt::Display for Error {
                 "byte offset {} is outside input of {} bytes",
                 offset.get(),
                 input_len.get()
+            ),
+            Self::OutputOffsetOutOfBounds { offset, capacity } => write!(
+                formatter,
+                "byte offset {} is outside output capacity of {} bytes",
+                offset.get(),
+                capacity.get()
+            ),
+            Self::OutputCapacityExceeded {
+                offset,
+                needed,
+                available,
+            } => write!(
+                formatter,
+                "output capacity exhausted at byte {}: needed {} bytes, but {} remain",
+                offset.get(),
+                needed.get(),
+                available.get()
             ),
             Self::UnexpectedEnd {
                 offset,
@@ -252,6 +287,21 @@ mod tests {
                 "offset 8",
             ),
             (
+                Error::OutputOffsetOutOfBounds {
+                    offset: ByteOffset::new(8),
+                    capacity: ByteCount::new(7),
+                },
+                "output capacity",
+            ),
+            (
+                Error::OutputCapacityExceeded {
+                    offset: ByteOffset::new(2),
+                    needed: ByteCount::new(4),
+                    available: ByteCount::new(3),
+                },
+                "needed 4",
+            ),
+            (
                 Error::UnexpectedEnd {
                     offset: ByteOffset::new(2),
                     needed: ByteCount::new(4),
@@ -312,11 +362,11 @@ mod tests {
             ),
             (
                 Error::ResourceLimitExceeded {
-                    kind: ResourceLimitKind::PageVisits,
+                    kind: ResourceLimitKind::EncodedBytes,
                     requested: 5,
                     maximum: 4,
                 },
-                "PageVisits",
+                "EncodedBytes",
             ),
         ];
 

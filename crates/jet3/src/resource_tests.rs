@@ -25,6 +25,10 @@ fn limits(
     .with_max_total_work_units(work)
 }
 
+fn encoded_limits(encoded: u64, work: u64) -> ResourceLimits {
+    limits(0, 0, 0, 0, 0, 0, work).with_max_encoded_bytes(ByteCount::new(encoded))
+}
+
 #[test]
 fn defaults_match_documented_policy() {
     let defaults = ResourceLimits::default();
@@ -40,6 +44,10 @@ fn defaults_match_documented_policy() {
     assert_eq!(
         defaults.max_total_decoded_bytes(),
         super::DEFAULT_MAX_TOTAL_DECODED_BYTES
+    );
+    assert_eq!(
+        defaults.max_encoded_bytes(),
+        super::DEFAULT_MAX_ENCODED_BYTES
     );
     assert_eq!(defaults.max_item_work(), super::DEFAULT_MAX_ITEM_WORK);
     assert_eq!(defaults.max_page_visits(), super::DEFAULT_MAX_PAGE_VISITS);
@@ -121,6 +129,30 @@ fn decoded_value_checks_single_and_cumulative_boundaries() -> Result<(), Error> 
     );
     assert_eq!(budget.decoded_bytes(), ByteCount::new(3));
     assert_eq!(budget.total_work_units(), 3);
+    Ok(())
+}
+
+#[test]
+fn encoded_bytes_exact_one_over_and_aggregate_rejection_are_atomic() -> Result<(), Error> {
+    let mut exact = ResourceBudget::new(encoded_limits(3, 3));
+    exact.charge_encoded_bytes(ByteCount::new(1))?;
+    exact.charge_encoded_bytes(ByteCount::new(2))?;
+    assert_eq!(exact.encoded_bytes(), ByteCount::new(3));
+    assert_eq!(exact.total_work_units(), 3);
+    assert_eq!(
+        exact.charge_encoded_bytes(ByteCount::new(1)),
+        resource_error(ResourceLimitKind::EncodedBytes, 4, 3)
+    );
+    assert_eq!(exact.encoded_bytes(), ByteCount::new(3));
+    assert_eq!(exact.total_work_units(), 3);
+
+    let mut aggregate = ResourceBudget::new(encoded_limits(4, 3));
+    assert_eq!(
+        aggregate.charge_encoded_bytes(ByteCount::new(4)),
+        resource_error(ResourceLimitKind::TotalWorkUnits, 4, 3)
+    );
+    assert_eq!(aggregate.encoded_bytes(), ByteCount::new(0));
+    assert_eq!(aggregate.total_work_units(), 0);
     Ok(())
 }
 
@@ -215,6 +247,13 @@ fn aggregate_work_rejection_preserves_each_dimension_counter() {
     );
     assert_eq!(decoded.decoded_bytes(), ByteCount::new(0));
 
+    let mut encoded = ResourceBudget::new(encoded_limits(1, 0));
+    assert_eq!(
+        encoded.charge_encoded_bytes(ByteCount::new(1)),
+        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
+    );
+    assert_eq!(encoded.encoded_bytes(), ByteCount::new(0));
+
     let mut items = ResourceBudget::new(limits(0, 0, 0, 1, 0, 0, 0));
     assert_eq!(
         items.charge_items(1),
@@ -247,6 +286,14 @@ fn every_cumulative_counter_rejects_u64_overflow_without_mutation() -> Result<()
         "accumulate decoded bytes",
     );
     assert_eq!(decoded.decoded_bytes(), ByteCount::new(u64::MAX));
+
+    let mut encoded = ResourceBudget::new(encoded_limits(u64::MAX, u64::MAX));
+    encoded.charge_encoded_bytes(ByteCount::new(u64::MAX))?;
+    assert_arithmetic(
+        encoded.charge_encoded_bytes(ByteCount::new(1)),
+        "accumulate encoded bytes",
+    );
+    assert_eq!(encoded.encoded_bytes(), ByteCount::new(u64::MAX));
 
     let mut items = ResourceBudget::new(limits(0, 0, 0, u64::MAX, 0, 0, u64::MAX));
     items.charge_items(u64::MAX)?;

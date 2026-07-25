@@ -98,6 +98,16 @@
         "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840"
       },
       {
+        "path": "crates/jet3/src/binary_writer.rs",
+        "reason": "Format-neutral checked fixed-slice writer and primitive little-endian encoding.",
+        "sha256": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190"
+      },
+      {
+        "path": "crates/jet3/src/binary_writer_tests.rs",
+        "reason": "Test-only verification of the format-neutral fixed-slice writer.",
+        "sha256": "a2991dfb51911b3a165f655124284149ab96393ee9ee3f56e842e2a6deb053a8"
+      },
+      {
         "path": "crates/jet3/src/candidate_tests.rs",
         "reason": "Test-only verification of the provenance-bound raw candidate composition in candidate.rs.",
         "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e"
@@ -115,7 +125,7 @@
       {
         "path": "crates/jet3/src/error.rs",
         "reason": "Structured error types for format-neutral checked operations.",
-        "sha256": "531e94dcfb6e9aa917de72a385cf5d17d11f396b5f0ac0892bf4186cd86edd50"
+        "sha256": "d6e1e4793128a14201b0d2c2da9200c788b33291fc72b5d45cd0c74e61e9b3e9"
       },
       {
         "path": "crates/jet3/src/header_tests.rs",
@@ -130,7 +140,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "fe62866e72e96e98d12c58ac6925e22711bec77a5a3e5a3a7c49aa3ef096a8b9"
+        "sha256": "2df762181a994f237d18bf2a7df2dddaed737ca2e733ba8f7aeaf373e6918bbb"
       },
       {
         "path": "crates/jet3/src/limits.rs",
@@ -154,13 +164,13 @@
       },
       {
         "path": "crates/jet3/src/resource.rs",
-        "reason": "Format-neutral allocation, read, traversal, and work budgets.",
-        "sha256": "9534b310f73f1ef157a910fe23ba2c6c8f28d5c401af68e20f4244500fdd23f4"
+        "reason": "Format-neutral allocation, read, encode, traversal, and work budgets.",
+        "sha256": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750"
       },
       {
         "path": "crates/jet3/src/resource_tests.rs",
         "reason": "Test-only verification of format-neutral resource budgets.",
-        "sha256": "6acd285e10ca0e2b22c9f83a0368682631e6e71790875e1273cef948cee727d4"
+        "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f"
       },
       {
         "path": "crates/jet3/src/source.rs",

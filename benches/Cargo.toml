@@ -15,6 +15,11 @@ name = "format_primitives"
 path = "format_primitives.rs"
 harness = false
 
+[[bench]]
+name = "binary_writer"
+path = "binary_writer_benchmark.rs"
+harness = false
+
 [lints.rust]
 unsafe_code = "forbid"
 

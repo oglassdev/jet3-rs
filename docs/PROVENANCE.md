@@ -582,6 +582,38 @@ Use `not applicable` explicitly rather than omitting a field.
   is redistributed
 - Review: pending independent review
 
+### SRC-0017 — Rust primitive little-endian byte conversion
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: public source
+- Question: Which standard Rust operations provide explicit little-endian byte
+  representations for the format-neutral checked writer?
+- Origin: official Rust 1.96 standard-library documentation for integer and
+  floating-point `to_le_bytes`, accessed 2026-07-25,
+  https://doc.rust-lang.org/1.96.0/std/primitive.u32.html#method.to_le_bytes and
+  https://doc.rust-lang.org/1.96.0/std/primitive.f32.html#method.to_le_bytes
+- Environment: Rust 1.96.0 standard-library documentation; operating system,
+  architecture, locale, code pages, and time zone are not applicable
+- Protocol: inspect the documented return values for `to_le_bytes` on the
+  signed, unsigned, and floating primitive widths used by
+  `crates/jet3/src/binary_writer.rs`; independently round-trip generated bit
+  patterns through `BinaryCursor`
+- Artifacts: no external artifact is retained; property scenarios
+  `PROP-BINARY-WRITER-001` and `PROP-BINARY-WRITER-002` are tracked in
+  `tests/manifest.json`
+- Observation: Rust documents `to_le_bytes` as returning a primitive's memory
+  representation in little-endian byte order.
+- Interpretation: the format-neutral writer may use the standard primitive
+  conversions rather than implement byte shifts. This establishes language
+  operation semantics only; it supplies no Jet layout fact and does not show
+  that any encoded buffer is an MDB.
+- Usage: `crates/jet3/src/binary_writer.rs`;
+  `crates/jet3/tests/binary_writer_properties.rs`;
+  `docs/architecture/SAFE_CORE.md`
+- Rights: citation to official Rust documentation; no documentation content is
+  redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
