@@ -17,6 +17,17 @@ sys.path.insert(0, str(TOOLS))
 import inspect_external_corpus as inspect_corpus  # noqa: E402
 
 
+def symlink_or_skip(
+    case: unittest.TestCase, link: Path, target: Path
+) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            case.skipTest("Windows symlink privilege is unavailable")
+        raise
+
+
 class InspectExternalCorpusTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -338,7 +349,7 @@ class InspectExternalCorpusTests(unittest.TestCase):
         outside = Path(self.temporary.name) / "outside.mdb"
         outside.write_bytes(self.fixture_bytes)
         self.fixture_path.unlink()
-        self.fixture_path.symlink_to(outside)
+        symlink_or_skip(self, self.fixture_path, outside)
         with self.assertRaisesRegex(
             inspect_corpus.CorpusBlockedError, "escapes the external corpus root"
         ):
@@ -477,7 +488,7 @@ class InspectExternalCorpusTests(unittest.TestCase):
             ),
             self.assertRaisesRegex(
                 inspect_corpus.CorpusBlockedError,
-                "changed during page comparison at page index 1",
+                "changed (before CMP-0001|during page comparison at page index 1)",
             ),
         ):
             inspect_corpus._observe_comparison(

@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,17 @@ def load_module(name: str):
 
 NORMALIZER = load_module("normalize_criterion")
 VALIDATOR = load_module("validate_benchmark_manifest")
+
+
+def symlink_or_skip(
+    case: unittest.TestCase, link: Path, target: Path
+) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            case.skipTest("Windows symlink privilege is unavailable")
+        raise
 
 
 class CriterionNormalizationTests(unittest.TestCase):
@@ -136,6 +148,7 @@ class CriterionNormalizationTests(unittest.TestCase):
         ):
             NORMALIZER.normalize(self.criterion, self.manifest, self.resources)
 
+    @unittest.skipIf(os.name == "nt", "directory fsync is unavailable on Windows")
     def test_raw_mode_publishes_one_complete_bundle(self) -> None:
         bundle_output = self.root / "bundle"
         result = NORMALIZER.main(
@@ -185,6 +198,7 @@ class CriterionNormalizationTests(unittest.TestCase):
         self.assertEqual(result, 2)
         self.assertFalse(bundle_output.exists())
 
+    @unittest.skipIf(os.name == "nt", "directory fsync is unavailable on Windows")
     def test_bound_bundle_uses_one_publication_rename(self) -> None:
         output = self.root / "bundle"
         documents = {
@@ -254,7 +268,7 @@ class CriterionNormalizationTests(unittest.TestCase):
 
     def test_bundle_refuses_broken_symlink_destination(self) -> None:
         output = self.root / "bundle"
-        output.symlink_to(self.root / "missing-target")
+        symlink_or_skip(self, output, self.root / "missing-target")
         with self.assertRaisesRegex(
             NORMALIZER.NormalizationError, "refusing to replace"
         ):
@@ -352,7 +366,7 @@ class BindingManifestValidationTests(unittest.TestCase):
         target.write_text("{}\n", encoding="utf-8")
         artifact = self.root / "evidence.json"
         artifact.unlink()
-        artifact.symlink_to(target)
+        symlink_or_skip(self, artifact, target)
         with self.assertRaisesRegex(VALIDATOR.ManifestError, "not a regular repository file"):
             VALIDATOR.validate(self.document, self.root)
 

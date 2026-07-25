@@ -14,6 +14,17 @@ sys.path.insert(0, str(TOOLS))
 import acceptance_report as report  # noqa: E402
 
 
+def symlink_or_skip(
+    case: unittest.TestCase, link: Path, target: Path
+) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            case.skipTest("Windows symlink privilege is unavailable")
+        raise
+
+
 class AcceptanceReportTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -179,7 +190,7 @@ class AcceptanceReportTests(unittest.TestCase):
         )
         link = self.repo / relative
         link.parent.mkdir(parents=True, exist_ok=True)
-        link.symlink_to(outside)
+        symlink_or_skip(self, link, outside)
         with self.assertRaisesRegex(report.ReportError, "escapes"):
             self._record(stdout=relative.as_posix())
 
@@ -195,7 +206,7 @@ class AcceptanceReportTests(unittest.TestCase):
         )
         link = self.repo / relative
         link.parent.mkdir(parents=True, exist_ok=True)
-        link.symlink_to(target)
+        symlink_or_skip(self, link, target)
         with self.assertRaisesRegex(report.ReportError, "run directory"):
             self._record(stdout=relative.as_posix())
 

@@ -45,6 +45,9 @@ CASE_KEYS = {
     "fixtures",
     "expected_result",
 }
+OPTIONAL_CASE_KEYS = {"platforms"}
+PLATFORMS = {"unix", "windows"}
+CURRENT_PLATFORM = "windows" if os.name == "nt" else "unix"
 FIXTURE_KEYS = {"path", "sha256"}
 OBSERVATION_KEYS = {
     "schema_version",
@@ -295,15 +298,17 @@ def _validate_fixture(fixture: Any, repo_root: Path, location: str) -> list[str]
 
 def _validate_case(
     case: Any, index: int, repo_root: Path, traceability_ids: set[str]
-) -> tuple[list[str], RuntimeTest | None]:
+) -> tuple[list[str], RuntimeTest | None, bool]:
     location = f"$.cases[{index}]"
     if not isinstance(case, dict):
-        return [f"{location}: expected object"], None
+        return [f"{location}: expected object"], None, False
     errors = []
-    if set(case) != CASE_KEYS:
+    if not CASE_KEYS.issubset(case) or not set(case).issubset(
+        CASE_KEYS | OPTIONAL_CASE_KEYS
+    ):
         errors.append(
             f"{location}: invalid keys; missing={sorted(CASE_KEYS - set(case))}, "
-            f"unknown={sorted(set(case) - CASE_KEYS)}"
+            f"unknown={sorted(set(case) - CASE_KEYS - OPTIONAL_CASE_KEYS)}"
         )
     test_id, target, name = case.get("id"), case.get("target"), case.get("runtime_name")
     if not isinstance(test_id, str) or not TEST_ID.fullmatch(test_id):
@@ -313,6 +318,17 @@ def _validate_case(
     if not isinstance(name, str) or not RUNTIME_NAME.fullmatch(name):
         errors.append(f"{location}.runtime_name: invalid libtest name")
     runtime = RuntimeTest(target, name) if isinstance(target, str) and isinstance(name, str) else None
+    platforms = case.get("platforms", sorted(PLATFORMS))
+    if (
+        not isinstance(platforms, list)
+        or not platforms
+        or platforms != sorted(set(platforms))
+        or any(platform not in PLATFORMS for platform in platforms)
+    ):
+        errors.append(
+            f"{location}.platforms: expected sorted unique subset of {sorted(PLATFORMS)}"
+        )
+        platforms = []
     links = case.get("traceability_ids")
     if (
         not isinstance(links, list)
@@ -334,7 +350,7 @@ def _validate_case(
                     fixture, repo_root, f"{location}.fixtures[{fixture_index}]"
                 )
             )
-    return errors, runtime
+    return errors, runtime, CURRENT_PLATFORM in platforms
 
 
 def reconcile_document(
@@ -373,9 +389,10 @@ def reconcile_document(
 
     ids: dict[str, int] = {}
     runtimes: dict[RuntimeTest, int] = {}
+    active_runtimes: set[RuntimeTest] = set()
     invariants: dict[str, int] = {}
     for index, case in enumerate(cases):
-        case_errors, case_runtime = _validate_case(
+        case_errors, case_runtime, active_on_platform = _validate_case(
             case, index, repo_root, registered_ids
         )
         errors.extend(case_errors)
@@ -400,10 +417,12 @@ def reconcile_document(
                 )
             else:
                 runtimes[case_runtime] = index
+            if active_on_platform:
+                active_runtimes.add(case_runtime)
     ordered_ids = [case.get("id") for case in cases if isinstance(case, dict)]
     if ordered_ids != sorted(ordered_ids):
         errors.append("$.cases: entries must be sorted by stable test ID")
-    manifested = set(runtimes)
+    manifested = active_runtimes
     for test in sorted(observed_runtime - manifested):
         errors.append(f"runtime test missing from manifest: {test.display}")
     for test in sorted(manifested - observed_runtime):

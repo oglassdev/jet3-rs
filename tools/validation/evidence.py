@@ -208,7 +208,7 @@ def _validate_test_evidence(
         if case is None:
             errors.append(
                 f"{location}.scenario_ids: {scenario_id!r} is absent from "
-                f"{TEST_MANIFEST_PATH}"
+                f"{TEST_MANIFEST_PATH.as_posix()}"
             )
             continue
         if not _test_path_matches_case(path, case):

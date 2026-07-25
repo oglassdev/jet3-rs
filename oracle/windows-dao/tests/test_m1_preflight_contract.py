@@ -125,7 +125,7 @@ class M1PreflightSourceContractTests(unittest.TestCase):
             self.assertIn("BLOCKED", document)
         self.assertIn("publishes no evidence bundle", readme)
         self.assertIn("before COM activation or output", protocol)
-        self.assertIn("mutation. Microsoft documents", protocol)
+        self.assertIn("mutation. The checked", protocol)
 
 
 if __name__ == "__main__":

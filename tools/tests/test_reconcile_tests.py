@@ -139,6 +139,28 @@ class ReconcileTests(unittest.TestCase):
         self.assertTrue(any("stale manifest test" in error for error in errors))
         self.assertTrue(any("runtime test missing" in error for error in errors))
 
+    def test_platform_specific_case_is_required_only_on_its_platform(self) -> None:
+        document = copy.deepcopy(self.document)
+        other_platform = (
+            "unix" if reconcile.CURRENT_PLATFORM == "windows" else "windows"
+        )
+        document["cases"][0]["platforms"] = [other_platform]
+        runtime = set(self.runtime)
+        runtime.remove(reconcile.RuntimeTest("jet3", "binary::tests::boundary"))
+        observation = reconcile.build_runtime_observation(
+            runtime,
+            self.ignored,
+            git_commit="0" * 40,
+            dirty=False,
+        )
+        self.assertEqual(self._errors(document, observation), [])
+
+        invalid = copy.deepcopy(document)
+        invalid["cases"][0]["platforms"] = ["plan9"]
+        self.assertTrue(
+            any(".platforms:" in error for error in self._errors(invalid, observation))
+        )
+
     def test_runtime_state_fields_are_rejected_from_inventory(self) -> None:
         document = copy.deepcopy(self.document)
         document["cases"][0]["ignored"] = False
