@@ -2,10 +2,12 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "validate_m1_protocol.py"
@@ -14,6 +16,7 @@ SPEC = importlib.util.spec_from_file_location("validate_m1_protocol", SCRIPT)
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(VALIDATOR)
+import m1_bundle_validation as BOUNDS
 
 ROOT = SCRIPT.parents[1]
 EXAMPLES = ROOT / "examples"
@@ -127,105 +130,243 @@ def ready_environment():
     }
 
 
-def write_pair_bundle(bundle):
-    scenarios = [
-        load_example("DAO-GEN-EMPTY-REPEAT-A.scenario.json"),
-        load_example("DAO-GEN-EMPTY-REPEAT-B.scenario.json"),
+def snapshot_for_scenario(scenario, database_hash):
+    snapshot = empty_snapshot(scenario["scenario_id"], database_hash)
+    if scenario["recipe"] == "repeat_empty":
+        return snapshot
+    table_step = scenario["steps"][1]["arguments"]
+    columns = []
+    for ordinal, field in enumerate(table_step["fields"]):
+        size = field.get("size")
+        if field["dao_type"] in ("dbMemo", "dbLongBinary"):
+            size = 0
+        columns.append(
+            {
+                "name": field["name"],
+                "ordinal": ordinal,
+                "dao_type": field["dao_type"],
+                "nullable": not field["required"],
+                "required": field["required"],
+                "auto_increment": False,
+                "size": size,
+                "attributes": 0,
+                "properties": {},
+            }
+        )
+    indexes = [
+        {
+            "name": index["name"],
+            "primary": index["primary"],
+            "unique": index["unique"],
+            "required": index["required"],
+            "ignore_nulls": index["ignore_nulls"],
+            "fields": [
+                {"name": field_name, "descending": False}
+                for field_name in index["fields"]
+            ],
+            "properties": {},
+        }
+        for index in table_step["indexes"]
     ]
-    pair = load_example("DAO-PAIR-EMPTY-REPEAT-001.pair.json")
+    rows = []
+    kind_for_type = {
+        "dbBinary": "binary",
+        "dbText": "text",
+        "dbMemo": "memo",
+        "dbLongBinary": "ole",
+    }
+    for step in scenario["steps"]:
+        if step["action"] != "insert_row":
+            continue
+        values = {}
+        for declared in step["arguments"]["values"]:
+            dao_type = declared["dao_type"]
+            if dao_type in ("dbBinary", "dbText"):
+                value = declared["value"]
+            elif dao_type == "dbMemo":
+                value = declared["ascii_character"] * declared["length"]
+            else:
+                value = f"{declared['byte']:02x}" * declared["length"]
+            values[declared["field"]] = {
+                "kind": kind_for_type[dao_type],
+                "value": value,
+            }
+        rows.append(
+            {
+                "canonical_key": ",".join(sorted(values)),
+                "values": dict(sorted(values.items())),
+            }
+        )
+    snapshot["tables"] = [
+        {
+            "name": table_step["name"],
+            "kind": "user",
+            "attributes": 0,
+            "columns": columns,
+            "indexes": indexes,
+            "properties": {},
+            "rows": rows,
+        }
+    ]
+    return snapshot
+
+
+def operation_log_for_scenario(scenario):
+    actions = (
+        ["activate_provider"]
+        + [step["action"] for step in scenario["steps"]]
+        + ["reopen_database", "snapshot", "finalize"]
+    )
+    entries = []
+    row_ordinal = 0
+    for sequence, action in enumerate(actions, 1):
+        observations = []
+        if action == "insert_row":
+            step = scenario["steps"][sequence - 2]
+            observations = [
+                VALIDATOR._expected_value_observation(value, row_ordinal)
+                for value in step["arguments"]["values"]
+            ]
+            row_ordinal += 1
+        entries.append(
+            {
+                "sequence": sequence,
+                "timestamp_utc": TIMESTAMP,
+                "action": action,
+                "status": "pass",
+                "detail": "Synthetic contract test.",
+                "value_observations": observations,
+                "error": None,
+            }
+        )
+    return {
+        "protocol_version": "1.1.0",
+        "document_type": "dao_operation_log",
+        "run_id": RUN_ID,
+        "scenario_id": scenario["scenario_id"],
+        "git_commit": COMMIT,
+        "final_status": "pass",
+        "entries": entries,
+    }
+
+
+def write_pair_bundle(bundle):
+    inventory = load_example("m1-inventory.json")
+    scenarios = [
+        load_example(entry["path"])
+        for entry in inventory["files"]
+        if entry["document_type"] == "dao_scenario"
+    ]
+    pairs = [
+        load_example(entry["path"])
+        for entry in inventory["files"]
+        if entry["document_type"] == "dao_pair"
+    ]
     environment_path = bundle / "environment.json"
     write_json(environment_path, ready_environment())
     roles = {"environment.json": "environment"}
+    inventory_path = bundle / "inventory.json"
+    inventory_path.write_bytes((EXAMPLES / "m1-inventory.json").read_bytes())
+    roles["inventory.json"] = "inventory"
     results = []
-    for index, scenario in enumerate(scenarios):
+    result_by_id = {}
+    snapshot_by_id = {}
+    for scenario in scenarios:
         scenario_id = scenario["scenario_id"]
         scenario_relative = f"scenarios/{scenario_id}/input.json"
         scenario_path = bundle / scenario_relative
-        write_json(scenario_path, scenario)
+        scenario_path.parent.mkdir(parents=True, exist_ok=True)
+        source_name = next(
+            entry["path"]
+            for entry in inventory["files"]
+            if entry["document_type"] == "dao_scenario"
+            and load_example(entry["path"])["scenario_id"] == scenario_id
+        )
+        scenario_path.write_bytes((EXAMPLES / source_name).read_bytes())
         roles[scenario_relative] = "scenario_input"
 
-        database_relative = f"databases/{scenario_id}.mdb"
+        database_bytes = f"synthetic-{scenario_id}".encode()
+        database_hash = hashlib.sha256(database_bytes).hexdigest()
+        database_relative = f"databases/{database_hash}.mdb"
         database_path = bundle / database_relative
         database_path.parent.mkdir(parents=True, exist_ok=True)
-        database_path.write_bytes(f"synthetic-{index}".encode())
-        database_hash = sha256(database_path)
+        database_path.write_bytes(database_bytes)
         roles[database_relative] = "output_database"
 
         snapshot_relative = f"scenarios/{scenario_id}/dao-snapshot.json"
         snapshot_path = bundle / snapshot_relative
-        write_json(snapshot_path, empty_snapshot(scenario_id, database_hash), True)
+        snapshot = snapshot_for_scenario(scenario, database_hash)
+        write_json(snapshot_path, snapshot, True)
+        snapshot_by_id[scenario_id] = snapshot
         roles[snapshot_relative] = "dao_snapshot"
 
-        actions = [
-            "activate_provider",
-            "create_database",
-            "close_database",
-            "reopen_database",
-            "snapshot",
-            "finalize",
-        ]
-        log = {
-            "protocol_version": "1.1.0",
-            "document_type": "dao_operation_log",
-            "run_id": RUN_ID,
-            "scenario_id": scenario_id,
-            "git_commit": COMMIT,
-            "final_status": "pass",
-            "entries": [
-                {
-                    "sequence": number,
-                    "timestamp_utc": TIMESTAMP,
-                    "action": action,
-                    "status": "pass",
-                    "detail": "Synthetic contract test.",
-                }
-                for number, action in enumerate(actions, 1)
-            ],
-        }
+        log = operation_log_for_scenario(scenario)
         log_relative = f"scenarios/{scenario_id}/operation-log.json"
         log_path = bundle / log_relative
         write_json(log_path, log)
         roles[log_relative] = "operation_log"
-        results.append(
+        result = {
+            "scenario_id": scenario_id,
+            "recipe": scenario["recipe"],
+            "status": "pass",
+            "reason": "Synthetic test.",
+            "input": {"path": scenario_relative, "sha256": sha256(scenario_path)},
+            "output_database": {
+                "path": database_relative,
+                "sha256": database_hash,
+            },
+            "dao_snapshot": {
+                "path": snapshot_relative,
+                "sha256": sha256(snapshot_path),
+            },
+            "operation_log": {"path": log_relative, "sha256": sha256(log_path)},
+        }
+        results.append(result)
+        result_by_id[scenario_id] = result
+
+    pair_results = []
+    for pair in pairs:
+        pair_relative = f"pairs/{pair['pair_id']}/input.json"
+        pair_path = bundle / pair_relative
+        pair_path.parent.mkdir(parents=True, exist_ok=True)
+        source_name = next(
+            entry["path"]
+            for entry in inventory["files"]
+            if entry["document_type"] == "dao_pair"
+            and load_example(entry["path"])["pair_id"] == pair["pair_id"]
+        )
+        pair_path.write_bytes((EXAMPLES / source_name).read_bytes())
+        roles[pair_relative] = "pair_input"
+        left_id = pair["left_scenario_id"]
+        right_id = pair["right_scenario_id"]
+        pair_results.append(
             {
-                "scenario_id": scenario_id,
-                "recipe": "repeat_empty",
+                "pair_id": pair["pair_id"],
                 "status": "pass",
-                "reason": "Synthetic test.",
-                "input": {"path": scenario_relative, "sha256": sha256(scenario_path)},
-                "output_database": {
-                    "path": database_relative,
-                    "sha256": database_hash,
-                },
-                "dao_snapshot": {
-                    "path": snapshot_relative,
-                    "sha256": sha256(snapshot_path),
-                },
-                "operation_log": {"path": log_relative, "sha256": sha256(log_path)},
+                "reason": "Synthetic comparison.",
+                "input": {"path": pair_relative, "sha256": sha256(pair_path)},
+                "left_scenario_id": left_id,
+                "right_scenario_id": right_id,
+                "left_snapshot": result_by_id[left_id]["dao_snapshot"],
+                "right_snapshot": result_by_id[right_id]["dao_snapshot"],
+                "observed_difference_paths": VALIDATOR.compare_snapshots(
+                    snapshot_by_id[left_id],
+                    snapshot_by_id[right_id],
+                    pair["allowed_difference_paths"],
+                ),
             }
         )
-    pair_relative = "pairs/DAO-PAIR-EMPTY-REPEAT-001/input.json"
-    pair_path = bundle / pair_relative
-    write_json(pair_path, pair)
-    roles[pair_relative] = "pair_input"
-    pair_result = {
-        "pair_id": pair["pair_id"],
-        "status": "pass",
-        "reason": "Synthetic comparison.",
-        "input": {"path": pair_relative, "sha256": sha256(pair_path)},
-        "left_scenario_id": pair["left_scenario_id"],
-        "right_scenario_id": pair["right_scenario_id"],
-        "left_snapshot": results[0]["dao_snapshot"],
-        "right_snapshot": results[1]["dao_snapshot"],
-        "observed_difference_paths": ["/database_sha256", "/scenario_id"],
-    }
-    counts = {
-        "selected": 2,
-        "pass": 2,
+    scenario_counts = {
+        "selected": len(results),
+        "pass": len(results),
         "fail": 0,
         "blocked": 0,
         "error": 0,
         "skipped": 0,
+    }
+    pair_counts = scenario_counts | {
+        "selected": len(pair_results),
+        "pass": len(pair_results),
     }
     report = {
         "protocol_version": "1.1.0",
@@ -239,16 +380,17 @@ def write_pair_bundle(bundle):
         "status": "pass",
         "status_reason": "Synthetic validation only.",
         "environment": {"path": "environment.json", "sha256": sha256(environment_path)},
-        "scenario_counts": counts,
-        "pair_counts": counts | {"selected": 1, "pass": 1},
+        "inventory": {"path": "inventory.json", "sha256": sha256(inventory_path)},
+        "scenario_counts": scenario_counts,
+        "pair_counts": pair_counts,
         "scenarios": results,
-        "pairs": [pair_result],
+        "pairs": pair_results,
     }
     report_path = bundle / "report.json"
     write_json(report_path, report)
     roles["report.json"] = "report"
     files = []
-    for relative, role in roles.items():
+    for relative, role in sorted(roles.items()):
         path = bundle / relative
         files.append(
             {
@@ -271,11 +413,27 @@ def write_pair_bundle(bundle):
         "status": "pass",
         "report_path": "report.json",
         "scenario_ids": [scenario["scenario_id"] for scenario in scenarios],
-        "pair_ids": [pair["pair_id"]],
+        "pair_ids": [pair["pair_id"] for pair in pairs],
         "files": files,
     }
     write_json(bundle / "bundle-manifest.json", manifest)
     return report_path
+
+
+def refresh_manifest_entry(bundle, relative):
+    manifest_path = bundle / "bundle-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entry = next(item for item in manifest["files"] if item["path"] == relative)
+    payload = bundle / relative
+    entry["sha256"] = sha256(payload)
+    entry["size_bytes"] = payload.stat().st_size
+    write_json(manifest_path, manifest)
+
+
+def refresh_report(bundle, report):
+    report_path = bundle / "report.json"
+    write_json(report_path, report)
+    refresh_manifest_entry(bundle, "report.json")
 
 
 class M1ProtocolTests(unittest.TestCase):
@@ -285,6 +443,42 @@ class M1ProtocolTests(unittest.TestCase):
             VALIDATOR.validate_document_path(EXAMPLES / "m1-inventory.json"),
             "dao_example_inventory",
         )
+
+    def test_duplicate_json_keys_and_oversized_documents_fail(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            duplicate = Path(temporary) / "duplicate.json"
+            duplicate.write_text('{"document_type":"a","document_type":"b"}', encoding="utf-8")
+            with self.assertRaisesRegex(VALIDATOR.ValidationError, "duplicate JSON"):
+                VALIDATOR.validate_document_path(duplicate)
+            oversized = Path(temporary) / "oversized.json"
+            oversized.write_bytes(b" " * (VALIDATOR.MAX_JSON_BYTES + 1))
+            with self.assertRaisesRegex(VALIDATOR.ValidationError, "exceeds"):
+                VALIDATOR.validate_document_path(oversized)
+
+    def test_bounded_json_reader_rejects_identity_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "drifting.json"
+            path.write_bytes(b"{}\n")
+            real_fstat = os.fstat
+            calls = 0
+
+            def drifting_fstat(fd):
+                nonlocal calls
+                calls += 1
+                observed = real_fstat(fd)
+                if calls != 2:
+                    return observed
+                fields = list(observed)
+                fields[6] += 1
+                return os.stat_result(fields)
+
+            with mock.patch.object(
+                BOUNDS.os, "fstat", side_effect=drifting_fstat
+            ):
+                with self.assertRaisesRegex(
+                    VALIDATOR.ValidationError, "changed while being read"
+                ):
+                    BOUNDS.load_json(path)
 
     def test_all_inventory_documents_validate(self):
         inventory = load_example("m1-inventory.json")
@@ -356,11 +550,15 @@ class M1ProtocolTests(unittest.TestCase):
     def test_pair_allowed_paths_are_exact_ordered_contract(self):
         pair = load_example("DAO-PAIR-TEXT8-INDEX-001.pair.json")
         pair["allowed_difference_paths"].reverse()
-        with self.assertRaisesRegex(VALIDATOR.ValidationError, "controlled recipe"):
+        with self.assertRaisesRegex(
+            VALIDATOR.ValidationError, "controlled recipe|too many items"
+        ):
             VALIDATOR.validate_document(pair)
         pair = load_example("DAO-PAIR-TEXT8-INDEX-001.pair.json")
         pair["allowed_difference_paths"].append("/tables/0/rows")
-        with self.assertRaisesRegex(VALIDATOR.ValidationError, "controlled recipe"):
+        with self.assertRaisesRegex(
+            VALIDATOR.ValidationError, "controlled recipe|too many items"
+        ):
             VALIDATOR.validate_document(pair)
 
     def test_snapshot_rows_are_bound_to_recipe_type_and_value(self):
@@ -406,6 +604,26 @@ class M1ProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(
             VALIDATOR.ValidationError, "type/value differs"
         ):
+            VALIDATOR._validate_snapshot_against_recipe(scenario, snapshot)
+
+    def test_snapshot_requires_controlled_empty_metadata_and_field_semantics(self):
+        scenario = load_example("DAO-GEN-BINARY-MARKER-001.scenario.json")
+        snapshot = snapshot_for_scenario(scenario, "1" * 64)
+        snapshot["relationships"].append(
+            {
+                "name": "unexpected",
+                "table": "BinaryMarker",
+                "foreign_table": "BinaryMarker",
+                "attributes": 0,
+                "fields": [{"field": "marker", "foreign_field": "marker"}],
+                "properties": {},
+            }
+        )
+        with self.assertRaisesRegex(VALIDATOR.ValidationError, "relationships"):
+            VALIDATOR._validate_snapshot_against_recipe(scenario, snapshot)
+        snapshot = snapshot_for_scenario(scenario, "1" * 64)
+        snapshot["tables"][0]["columns"][0]["required"] = False
+        with self.assertRaisesRegex(VALIDATOR.ValidationError, "column semantics"):
             VALIDATOR._validate_snapshot_against_recipe(scenario, snapshot)
 
     def test_deep_comparator_requires_exact_observed_allowances(self):
@@ -492,6 +710,7 @@ class M1ProtocolTests(unittest.TestCase):
             "status": "blocked",
             "status_reason": "Synthetic.",
             "environment": {"path": "environment.json", "sha256": "2" * 64},
+            "inventory": {"path": "inventory.json", "sha256": "5" * 64},
             "scenario_counts": counts,
             "pair_counts": counts,
             "scenarios": [
@@ -530,13 +749,168 @@ class M1ProtocolTests(unittest.TestCase):
             write_pair_bundle(bundle)
             VALIDATOR.validate_bundle(bundle)
 
+    def test_bundle_tree_walk_is_entry_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / COMMIT / RUN_ID
+            bundle.mkdir(parents=True)
+            write_pair_bundle(bundle)
+            for index in range(BOUNDS.MAX_BUNDLE_ENTRIES + 1):
+                (bundle / f"extra-{index:03d}").mkdir()
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError, "directory-entry limit"
+            ):
+                VALIDATOR.validate_bundle(bundle)
+
+    def test_bundle_tree_walk_rejects_directory_links(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / COMMIT / RUN_ID
+            bundle.mkdir(parents=True)
+            write_pair_bundle(bundle)
+            target = Path(temporary) / "linked-target"
+            target.mkdir()
+            link = bundle / "linked-directory"
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"directory-link privilege is unavailable: {exc}")
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError, "symlinks and junctions"
+            ):
+                VALIDATOR.validate_bundle(bundle)
+
+    def test_bundle_requires_complete_checked_inventory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / COMMIT / RUN_ID
+            bundle.mkdir(parents=True)
+            report_path = write_pair_bundle(bundle)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            removed = report["scenarios"].pop(0)
+            report["scenario_counts"]["selected"] -= 1
+            report["scenario_counts"]["pass"] -= 1
+            manifest_path = bundle / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["scenario_ids"].remove(removed["scenario_id"])
+            write_json(manifest_path, manifest)
+            refresh_report(bundle, report)
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError, "every inventoried scenario"
+            ):
+                VALIDATOR.validate_bundle(bundle)
+
+    def test_bundle_rejects_observation_and_media_type_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / COMMIT / RUN_ID
+            bundle.mkdir(parents=True)
+            report_path = write_pair_bundle(bundle)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            binary = report["scenarios"][0]
+            log_path = bundle / binary["operation_log"]["path"]
+            log = json.loads(log_path.read_text(encoding="utf-8"))
+            insert = next(entry for entry in log["entries"] if entry["action"] == "insert_row")
+            insert["value_observations"][0]["readback_length"] = 7
+            write_json(log_path, log)
+            binary["operation_log"]["sha256"] = sha256(log_path)
+            refresh_manifest_entry(bundle, binary["operation_log"]["path"])
+            refresh_report(bundle, report)
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError, "value observation differs"
+            ):
+                VALIDATOR.validate_bundle(bundle)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / COMMIT / RUN_ID
+            bundle.mkdir(parents=True)
+            write_pair_bundle(bundle)
+            manifest_path = bundle / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"][0]["media_type"] = "application/octet-stream"
+            write_json(manifest_path, manifest)
+            with self.assertRaisesRegex(VALIDATOR.ValidationError, "media type"):
+                VALIDATOR.validate_bundle(bundle)
+
+    def test_complete_nonpassing_bundle_binds_structured_error_and_logs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / COMMIT / RUN_ID
+            bundle.mkdir(parents=True)
+            report_path = write_pair_bundle(bundle)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            failed = report["scenarios"][0]
+            failed["status"] = "fail"
+            failed["reason"] = "Synthetic DAO failure."
+            report["scenario_counts"]["pass"] -= 1
+            report["scenario_counts"]["fail"] += 1
+            report["status"] = "fail"
+            report["status_reason"] = "Synthetic DAO failure."
+            log_path = bundle / failed["operation_log"]["path"]
+            log = json.loads(log_path.read_text(encoding="utf-8"))
+            log["final_status"] = "fail"
+            log["entries"][-1]["status"] = "fail"
+            log["entries"][-1]["error"] = {
+                "exception_type": "System.Runtime.InteropServices.COMException",
+                "hresult": "0x800A0CBB",
+                "message": "Synthetic normalized COM failure.",
+                "cleanup_errors": [],
+            }
+            write_json(log_path, log)
+            failed["operation_log"]["sha256"] = sha256(log_path)
+            refresh_manifest_entry(bundle, failed["operation_log"]["path"])
+            refresh_report(bundle, report)
+            manifest_path = bundle / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["status"] = "fail"
+            write_json(manifest_path, manifest)
+            VALIDATOR.validate_bundle(bundle)
+
+    def test_real_runner_shaped_nonpassing_logs_are_protocol_valid(self):
+        scenario = load_example("DAO-GEN-BINARY-MARKER-001.scenario.json")
+        normalized = {
+            "exception_type": "System.Runtime.InteropServices.COMException",
+            "hresult": "0x800A0CBB",
+            "message": "Synthetic normalized COM failure.",
+            "cleanup_errors": [],
+        }
+        passing = operation_log_for_scenario(scenario)
+        cases = (
+            ("blocked", 1, False),
+            ("fail", 2, False),
+            ("error", 2, False),
+            ("error", len(passing["entries"]), True),
+        )
+        for status, attempted_count, cleanup_failure in cases:
+            with self.subTest(status=status, cleanup=cleanup_failure):
+                log = copy.deepcopy(passing)
+                if cleanup_failure:
+                    failed_entries = log["entries"]
+                    failed_entries[-2]["status"] = "error"
+                    failed_entries[-2]["error"] = copy.deepcopy(normalized)
+                    failed_entries[-2]["error"]["cleanup_errors"] = [
+                        "database.Close: synthetic cleanup failure"
+                    ]
+                    failed_entries[-1]["status"] = "error"
+                    failed_entries[-1]["error"] = copy.deepcopy(
+                        failed_entries[-2]["error"]
+                    )
+                else:
+                    failed_entries = log["entries"][:attempted_count]
+                    failed_entries[-1]["status"] = status
+                    failed_entries[-1]["error"] = copy.deepcopy(normalized)
+                    finalize = copy.deepcopy(log["entries"][-1])
+                    finalize["sequence"] = attempted_count + 1
+                    finalize["status"] = status
+                    finalize["error"] = copy.deepcopy(normalized)
+                    failed_entries.append(finalize)
+                    log["entries"] = failed_entries
+                log["final_status"] = status
+                VALIDATOR.validate_document(log)
+                VALIDATOR._validate_log_details(scenario, log, status)
+
     def test_bundle_rejects_pair_snapshot_reference_drift(self):
         with tempfile.TemporaryDirectory() as temporary:
             bundle = Path(temporary) / COMMIT / RUN_ID
             bundle.mkdir(parents=True)
             report_path = write_pair_bundle(bundle)
             report = json.loads(report_path.read_text(encoding="utf-8"))
-            report["pairs"][0]["left_snapshot"] = report["scenarios"][1]["dao_snapshot"]
+            report["pairs"][0]["left_snapshot"] = report["scenarios"][2]["dao_snapshot"]
             write_json(report_path, report)
             manifest_path = bundle / "bundle-manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -544,7 +918,7 @@ class M1ProtocolTests(unittest.TestCase):
             entry["sha256"] = sha256(report_path)
             entry["size_bytes"] = report_path.stat().st_size
             write_json(manifest_path, manifest)
-            with self.assertRaisesRegex(VALIDATOR.ValidationError, "references differ"):
+            with self.assertRaisesRegex(VALIDATOR.ValidationError, "reference differs"):
                 VALIDATOR.validate_bundle(bundle)
 
     def test_bundle_rejects_symlink_payload_even_when_bytes_match(self):

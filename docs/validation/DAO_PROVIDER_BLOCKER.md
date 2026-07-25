@@ -12,10 +12,11 @@ Those results do not advance any untested support-matrix capability.
 
 ## Exact blocking condition
 
-The checked protocol-1.1 contract still has no M1 executor or atomic bundle
-publisher. The completed experiment establishes the required PowerShell/COM
-representations, but execution code must be implemented, reviewed, tested, and
-run against the exact clean release commit before any M1 result exists.
+The checked protocol-1.1 contract now has a reviewed M1 executor and atomic
+bundle publisher. No M1 bundle has yet been produced from the exact clean
+executor commit. Until that run independently validates, the controlled plans
+remain inputs rather than evidence and no support-matrix verification state may
+advance.
 
 ## Local audit
 
@@ -108,25 +109,28 @@ DAO remain `BLOCKED`.
 ## Current oracle implementation boundary
 
 The shared portable protocol core, the six v1 schemas, the eight v1.1 schemas,
-and 50 deterministic oracle tests run on this host. They validate evidence
+and deterministic oracle test suite run on this host. They validate evidence
 shape and fail closed; they do not execute DAO or establish compatibility.
 
-The PowerShell executor currently implements only the M0
+The protocol-1.0 PowerShell executor implements the M0
 `DAO-GEN-PROBE-001` operation: activate a candidate provider, create an
 unencrypted `dbVersion30` database, close and reopen it, export the empty DAO
-snapshot, and seal a commit-bound bundle. The validator deliberately rejects
+snapshot, and seal a commit-bound bundle. Its validator deliberately rejects
 the differential modes `rust_read_dao`, `dao_open_rust`, and
 `dao_verify_rust_update` until their canonical semantic comparison and
-preservation checks are implemented. Even a successful M0 provider run would
-therefore prove only that exact empty-database probe, not general read, create,
-update, or Access 97 compatibility.
+preservation checks are implemented. The separate M1 executor below expands
+only controlled DAO generation/readback; neither executor establishes general
+read, create, update, or Access 97 compatibility.
 
-M1 has a checked, non-executing preflight. It binds the exact clean commit,
-complete controlled inventory, ready protocol 1.1 provider record, Windows
-host, process bitness, and provider binary hash, then exits `BLOCKED` before
-COM activation or output mutation. The checked experiment at commit
+M1 retains the checked, non-executing preflight and adds a modular executor,
+structured DAO adapter, complete-inventory validator, and private same-volume
+publisher. The executor binds the exact clean commit, complete controlled
+inventory, locked ready environment, x86 registry identity, and provider
+binary before COM or output mutation; it rechecks those identities before
+publication. The checked experiment at commit
 `be8e0c9943fdab088a5a08be956435c897a4a1f2` resolved the external marshalling
 boundary: direct `System.Byte[]` assignment is required for `dbBinary`, while
 `dbLongBinary.AppendChunk(System.Byte[])` round-trips the complete boundary
-ladder. The remaining boundary is implementing and reviewing an executor and
-atomic protocol-valid publication path.
+ladder. The remaining boundary is executing all seven scenarios and both pairs
+from the exact clean pushed executor commit and independently validating the
+resulting immutable bundle.

@@ -76,6 +76,7 @@
     },
     "provider_candidates": {
       "type": "array",
+      "maxItems": 64,
       "items": { "$ref": "#/$defs/providerCandidate" }
     },
     "accepted_provider": {

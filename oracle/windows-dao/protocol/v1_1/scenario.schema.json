@@ -70,6 +70,7 @@
     "steps": {
       "type": "array",
       "minItems": 2,
+      "maxItems": 10,
       "items": { "$ref": "#/$defs/step" }
     },
     "expected": {
@@ -246,10 +247,12 @@
             "fields": {
               "type": "array",
               "minItems": 1,
+              "maxItems": 1,
               "items": { "$ref": "#/$defs/field" }
             },
             "indexes": {
               "type": "array",
+              "maxItems": 1,
               "items": { "$ref": "#/$defs/index" }
             }
           }
@@ -272,6 +275,7 @@
             "values": {
               "type": "array",
               "minItems": 1,
+              "maxItems": 1,
               "items": { "$ref": "#/$defs/rowValue" }
             }
           }

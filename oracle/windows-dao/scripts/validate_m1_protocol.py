@@ -8,7 +8,6 @@ canonical snapshots, exact semantic comparisons, and immutable bundle bindings.
 from __future__ import annotations
 
 import copy
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -16,11 +15,23 @@ from protocol_validation import (
     ProtocolSchemaSet,
     ValidationError,
     canonical_json_bytes,
-    load_json,
     sha256,
     validate_environment,
     validate_operation_log,
     validate_snapshot,
+)
+from m1_bundle_validation import (
+    MAX_BUNDLE_BYTES,
+    MAX_DATABASE_BYTES,
+    MAX_JSON_BYTES,
+    MAX_PAYLOAD_FILES,
+    bounded_file_identity,
+    derived_report_status,
+    discover_bundle_files,
+    expected_value_observation as _expected_value_observation,
+    load_json,
+    validate_counts,
+    validate_log_details as _validate_log_details,
 )
 
 HERE = Path(__file__).resolve().parent
@@ -41,6 +52,7 @@ SCHEMAS = {
 }
 ROLES = {
     "environment": "environment",
+    "inventory": "inventory",
     "input": None,
     "output_database": "output_database",
     "dao_snapshot": "dao_snapshot",
@@ -190,6 +202,18 @@ def _validate_snapshot_against_recipe(
     """Bind each passing DAO snapshot to the declared controlled semantics."""
     recipe = scenario["recipe"]
     tables = snapshot["tables"]
+    if snapshot["database_properties"]:
+        raise ValidationError(
+            f"{scenario['scenario_id']}: controlled snapshot has database properties"
+        )
+    if snapshot["relationships"]:
+        raise ValidationError(
+            f"{scenario['scenario_id']}: controlled snapshot has relationships"
+        )
+    if snapshot["raw_preservation"]:
+        raise ValidationError(
+            f"{scenario['scenario_id']}: controlled snapshot has raw preservation data"
+        )
     if recipe == "repeat_empty":
         if tables:
             raise ValidationError(
@@ -206,6 +230,10 @@ def _validate_snapshot_against_recipe(
         raise ValidationError(
             f"{scenario['scenario_id']}: snapshot table identity differs from recipe"
         )
+    if table["properties"]:
+        raise ValidationError(
+            f"{scenario['scenario_id']}: controlled table has properties"
+        )
     columns = table["columns"]
     fields = table_step["fields"]
     observed_columns = [(item["name"], item["dao_type"]) for item in columns]
@@ -218,6 +246,19 @@ def _validate_snapshot_against_recipe(
         if field["dao_type"] == "dbText" and column["size"] != field["size"]:
             raise ValidationError(
                 f"{scenario['scenario_id']}: snapshot dbText size differs from recipe"
+            )
+        if field["dao_type"] in ("dbMemo", "dbLongBinary") and column["size"] != 0:
+            raise ValidationError(
+                f"{scenario['scenario_id']}: long-value snapshot size must be zero"
+            )
+        if (
+            column["required"] is not field["required"]
+            or column["nullable"] is field["required"]
+            or column["auto_increment"]
+            or column["properties"]
+        ):
+            raise ValidationError(
+                f"{scenario['scenario_id']}: snapshot column semantics differ from recipe"
             )
     declared_indexes = table_step["indexes"]
     indexes = table["indexes"]
@@ -241,7 +282,10 @@ def _validate_snapshot_against_recipe(
             observed["required"],
             observed["ignore_nulls"],
             [field["name"] for field in observed["fields"]],
+            [field["descending"] for field in observed["fields"]],
+            observed["properties"],
         )
+        expected_index = expected_index + ([False] * len(declared["fields"]), {})
         if observed_index != expected_index:
             raise ValidationError(
                 f"{scenario['scenario_id']}: snapshot index differs from recipe"
@@ -290,16 +334,6 @@ def _validate_snapshot_against_recipe(
                 )
 
 
-def _validate_counts(document: dict[str, Any], key: str, results: list[dict[str, Any]]) -> None:
-    counts = document[key]
-    observed = Counter(result["status"] for result in results)
-    if counts["selected"] != len(results):
-        raise ValidationError(f"$.{key}.selected: does not match result list")
-    for status in ("pass", "fail", "blocked", "error", "skipped"):
-        if counts[status] != observed[status]:
-            raise ValidationError(f"$.{key}.{status}: does not match result list")
-
-
 def _validate_report(document: dict[str, Any]) -> None:
     scenario_ids = [result["scenario_id"] for result in document["scenarios"]]
     pair_ids = [result["pair_id"] for result in document["pairs"]]
@@ -307,14 +341,16 @@ def _validate_report(document: dict[str, Any]) -> None:
         raise ValidationError("$.scenarios: scenario IDs must be unique")
     if len(pair_ids) != len(set(pair_ids)):
         raise ValidationError("$.pairs: pair IDs must be unique")
-    _validate_counts(document, "scenario_counts", document["scenarios"])
-    _validate_counts(document, "pair_counts", document["pairs"])
+    validate_counts(document, "scenario_counts", document["scenarios"])
+    validate_counts(document, "pair_counts", document["pairs"])
     known = set(scenario_ids)
     for index, pair in enumerate(document["pairs"]):
         if pair["left_scenario_id"] not in known or pair["right_scenario_id"] not in known:
             raise ValidationError(f"$.pairs[{index}]: pair side is absent from scenario results")
         if pair["observed_difference_paths"] != sorted(pair["observed_difference_paths"]):
             raise ValidationError(f"$.pairs[{index}].observed_difference_paths: must be sorted")
+    if document["status"] != derived_report_status(document):
+        raise ValidationError("$.status: does not match scenario and pair outcomes")
     if document["status"] == "pass":
         if document["git"]["dirty"]:
             raise ValidationError("$.git.dirty: a passing report must be clean")
@@ -323,6 +359,12 @@ def _validate_report(document: dict[str, Any]) -> None:
         for key in ("scenario_counts", "pair_counts"):
             if any(document[key][status] for status in ("fail", "blocked", "error", "skipped")):
                 raise ValidationError(f"$.status: pass contains non-passing {key}")
+
+
+def _validate_manifest(document: dict[str, Any]) -> None:
+    paths = [entry["path"] for entry in document["files"]]
+    if paths != sorted(paths) or len(paths) != len(set(paths)):
+        raise ValidationError("$.files: paths must be unique and sorted")
 
 
 def validate_document(document: Any) -> str:
@@ -341,6 +383,8 @@ def validate_document(document: Any) -> str:
         validate_operation_log(document)
     elif document_type == "dao_evidence_report":
         _validate_report(document)
+    elif document_type == "dao_bundle_manifest":
+        _validate_manifest(document)
     return document_type
 
 
@@ -454,24 +498,49 @@ def validate_bundle(bundle: Path) -> None:
     if bundle.name != manifest["run_id"] or bundle.parent.name != manifest["git_commit"]:
         raise ValidationError("bundle directory identity differs from manifest")
     entries_list = manifest["files"]
-    paths = [entry["path"] for entry in entries_list]
-    if len(paths) != len(set(paths)):
-        raise ValidationError("$.files: paths must be unique")
+    if len(entries_list) > MAX_PAYLOAD_FILES:
+        raise ValidationError("bundle contains too many payload files")
     entries = {entry["path"]: entry for entry in entries_list}
-    actual = {path.relative_to(bundle).as_posix() for path in bundle.rglob("*") if path.is_file() and path != manifest_path}
+    paths = list(entries)
+    actual = discover_bundle_files(bundle)
+    actual.discard("bundle-manifest.json")
     if actual != set(paths):
         raise ValidationError("manifest/file payload set differs")
+    total_size = 0
     for entry in entries_list:
         path = _safe_path(bundle, entry["path"])
+        size_limit = (
+            MAX_DATABASE_BYTES
+            if entry["role"] == "output_database"
+            else MAX_JSON_BYTES
+        )
+        expected_media = (
+            "application/vnd.ms-access"
+            if entry["role"] == "output_database"
+            else "application/json"
+        )
+        if entry["media_type"] != expected_media:
+            raise ValidationError(f"{entry['path']}: media type differs from role")
+        if entry["size_bytes"] > size_limit:
+            raise ValidationError(f"{entry['path']}: payload exceeds role size limit")
+        total_size += entry["size_bytes"]
+        actual_size, actual_sha256, _ = bounded_file_identity(
+            path, size_limit
+        )
         if (
-            not path.is_file()
-            or path.stat().st_size != entry["size_bytes"]
-            or sha256(path) != entry["sha256"]
+            actual_size != entry["size_bytes"]
+            or actual_sha256 != entry["sha256"]
         ):
             raise ValidationError(f"{entry['path']}: payload identity differs")
+    if total_size > MAX_BUNDLE_BYTES:
+        raise ValidationError("bundle exceeds total payload size limit")
 
     report_entry = entries.get(manifest["report_path"])
-    if report_entry is None or report_entry["role"] != "report":
+    if (
+        manifest["report_path"] != "report.json"
+        or report_entry is None
+        or report_entry["role"] != "report"
+    ):
         raise ValidationError("$.report_path: missing report-role entry")
     report = load_json(_safe_path(bundle, manifest["report_path"]))
     validate_document(report)
@@ -481,26 +550,80 @@ def validate_bundle(bundle: Path) -> None:
         raise ValidationError("report and manifest run bindings differ")
     if report["oracle_revision"] != manifest["git_commit"]:
         raise ValidationError("oracle revision is not the bundle commit")
-    if [item["scenario_id"] for item in report["scenarios"]] != manifest["scenario_ids"]:
-        raise ValidationError("report and manifest scenario order differs")
-    if [item["pair_id"] for item in report["pairs"]] != manifest["pair_ids"]:
-        raise ValidationError("report and manifest pair order differs")
+    inventory_path = _reference(
+        bundle, entries, report["inventory"], "inventory"
+    )
+    if report["inventory"]["path"] != "inventory.json":
+        raise ValidationError("inventory must use the canonical bundle path")
+    inventory = load_json(inventory_path)
+    if validate_document(inventory) != "dao_example_inventory":
+        raise ValidationError("bundle inventory has wrong document type")
+    checked_inventory_path = EXAMPLES / "m1-inventory.json"
+    checked_inventory = load_json(checked_inventory_path)
+    validate_example_inventory(checked_inventory_path, checked_inventory)
+    if inventory_path.read_bytes() != checked_inventory_path.read_bytes():
+        raise ValidationError("bundle inventory differs from the checked inventory")
+
+    inventory_scenarios = [
+        item for item in inventory["files"] if item["document_type"] == "dao_scenario"
+    ]
+    inventory_pairs = [
+        item for item in inventory["files"] if item["document_type"] == "dao_pair"
+    ]
+    checked_scenarios = [
+        load_json(EXAMPLES / item["path"]) for item in inventory_scenarios
+    ]
+    checked_pairs = [load_json(EXAMPLES / item["path"]) for item in inventory_pairs]
+    expected_scenario_ids = [item["scenario_id"] for item in checked_scenarios]
+    expected_pair_ids = [item["pair_id"] for item in checked_pairs]
+    if (
+        [item["scenario_id"] for item in report["scenarios"]]
+        != expected_scenario_ids
+        or manifest["scenario_ids"] != expected_scenario_ids
+    ):
+        raise ValidationError("bundle does not select every inventoried scenario in order")
+    if (
+        [item["pair_id"] for item in report["pairs"]] != expected_pair_ids
+        or manifest["pair_ids"] != expected_pair_ids
+    ):
+        raise ValidationError("bundle does not select every inventoried pair in order")
+
     environment = load_json(
         _reference(bundle, entries, report["environment"], "environment")
     )
+    if report["environment"]["path"] != "environment.json":
+        raise ValidationError("environment must use the canonical bundle path")
     validate_document(environment)
     if report["status"] == "pass" and environment["status"] != "ready":
         raise ValidationError("passing report requires a ready DAO environment")
 
     scenario_by_id: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
-    referenced = {manifest["report_path"], report["environment"]["path"]}
-    for result in report["scenarios"]:
+    scenario_result_by_id: dict[str, dict[str, Any]] = {}
+    referenced = {
+        manifest["report_path"],
+        report["environment"]["path"],
+        report["inventory"]["path"],
+    }
+    for result, inventory_entry, checked_scenario in zip(
+        report["scenarios"], inventory_scenarios, checked_scenarios
+    ):
         input_path = _reference(bundle, entries, result["input"], "scenario_input")
         referenced.add(result["input"]["path"])
         scenario = load_json(input_path)
         validate_document(scenario)
+        expected_input_path = f"scenarios/{result['scenario_id']}/input.json"
+        if (
+            result["input"]["path"] != expected_input_path
+            or result["input"]["sha256"] != inventory_entry["sha256"]
+            or input_path.read_bytes() != (EXAMPLES / inventory_entry["path"]).read_bytes()
+        ):
+            raise ValidationError(
+                f"{result['scenario_id']}: input differs from checked inventory"
+            )
         if (result["scenario_id"], result["recipe"]) != (scenario["scenario_id"], scenario["recipe"]):
             raise ValidationError(f"{result['scenario_id']}: result/input binding differs")
+        if scenario != checked_scenario:
+            raise ValidationError(f"{result['scenario_id']}: checked scenario differs")
         for key, role in (("output_database", "output_database"), ("dao_snapshot", "dao_snapshot"), ("operation_log", "operation_log")):
             reference = result[key]
             if reference is not None:
@@ -509,34 +632,110 @@ def validate_bundle(bundle: Path) -> None:
         if result["status"] == "pass":
             if any(result[key] is None for key in ("output_database", "dao_snapshot", "operation_log")):
                 raise ValidationError(f"{result['scenario_id']}: passing result lacks artifacts")
-            snapshot_path = _reference(bundle, entries, result["dao_snapshot"], "dao_snapshot")
+        elif result["status"] == "skipped":
+            if any(
+                result[key] is not None
+                for key in ("output_database", "dao_snapshot", "operation_log")
+            ):
+                raise ValidationError(
+                    f"{result['scenario_id']}: skipped result retains execution artifacts"
+                )
+        elif result["operation_log"] is None:
+            raise ValidationError(
+                f"{result['scenario_id']}: attempted result lacks operation log"
+            )
+
+        snapshot = None
+        if result["output_database"] is not None:
+            expected_database_path = (
+                f"databases/{result['output_database']['sha256']}.mdb"
+            )
+            if result["output_database"]["path"] != expected_database_path:
+                raise ValidationError(
+                    f"{result['scenario_id']}: database path is not content addressed"
+                )
+        if result["dao_snapshot"] is not None:
+            if result["output_database"] is None:
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot lacks output database"
+                )
+            expected_snapshot_path = (
+                f"scenarios/{result['scenario_id']}/dao-snapshot.json"
+            )
+            if result["dao_snapshot"]["path"] != expected_snapshot_path:
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot path differs"
+                )
+            snapshot_path = _reference(
+                bundle, entries, result["dao_snapshot"], "dao_snapshot"
+            )
             validate_document_path(snapshot_path)
             snapshot = load_json(snapshot_path)
-            if snapshot["scenario_id"] != result["scenario_id"] or snapshot["producer"]["kind"] != "dao":
-                raise ValidationError(f"{result['scenario_id']}: snapshot identity differs")
+            if (
+                snapshot["scenario_id"] != result["scenario_id"]
+                or snapshot["producer"]["kind"] != "dao"
+            ):
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot identity differs"
+                )
             if snapshot["producer"]["source_revision"] != report["git"]["commit"]:
-                raise ValidationError(f"{result['scenario_id']}: snapshot revision differs")
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot revision differs"
+                )
             if snapshot["database_sha256"] != result["output_database"]["sha256"]:
-                raise ValidationError(f"{result['scenario_id']}: snapshot/database hash differs")
+                raise ValidationError(
+                    f"{result['scenario_id']}: snapshot/database hash differs"
+                )
             _validate_snapshot_against_recipe(scenario, snapshot)
+            if result["status"] == "pass":
+                scenario_by_id[result["scenario_id"]] = (result, snapshot)
+
+        if result["operation_log"] is not None:
+            expected_log_path = (
+                f"scenarios/{result['scenario_id']}/operation-log.json"
+            )
+            if result["operation_log"]["path"] != expected_log_path:
+                raise ValidationError(
+                    f"{result['scenario_id']}: operation log path differs"
+                )
             log = load_json(
-                _reference(bundle, entries, result["operation_log"], "operation_log")
+                _reference(
+                    bundle, entries, result["operation_log"], "operation_log"
+                )
             )
             validate_document(log)
-            if (log["run_id"], log["scenario_id"], log["git_commit"], log["final_status"]) != (
-                report["run_id"], result["scenario_id"], report["git"]["commit"], "pass"
+            if (
+                log["run_id"],
+                log["scenario_id"],
+                log["git_commit"],
+                log["final_status"],
+            ) != (
+                report["run_id"],
+                result["scenario_id"],
+                report["git"]["commit"],
+                result["status"],
             ):
-                raise ValidationError(f"{result['scenario_id']}: operation log binding differs")
-            expected_actions = ["activate_provider"] + [step["action"] for step in scenario["steps"]] + ["reopen_database", "snapshot", "finalize"]
-            if [entry["action"] for entry in log["entries"]] != expected_actions:
-                raise ValidationError(f"{result['scenario_id']}: operation action order differs")
-            scenario_by_id[result["scenario_id"]] = (result, snapshot)
+                raise ValidationError(
+                    f"{result['scenario_id']}: operation log binding differs"
+                )
+            _validate_log_details(scenario, log, result["status"])
+        scenario_result_by_id[result["scenario_id"]] = result
 
-    for result in report["pairs"]:
+    for result, inventory_entry, checked_pair in zip(
+        report["pairs"], inventory_pairs, checked_pairs
+    ):
         pair_path = _reference(bundle, entries, result["input"], "pair_input")
         referenced.add(result["input"]["path"])
         pair = load_json(pair_path)
         validate_document(pair)
+        expected_pair_path = f"pairs/{result['pair_id']}/input.json"
+        if (
+            result["input"]["path"] != expected_pair_path
+            or result["input"]["sha256"] != inventory_entry["sha256"]
+            or pair_path.read_bytes() != (EXAMPLES / inventory_entry["path"]).read_bytes()
+            or pair != checked_pair
+        ):
+            raise ValidationError(f"{result['pair_id']}: input differs from inventory")
         if (result["pair_id"], result["left_scenario_id"], result["right_scenario_id"]) != (
             pair["pair_id"], pair["left_scenario_id"], pair["right_scenario_id"]
         ):
@@ -545,6 +744,14 @@ def validate_bundle(bundle: Path) -> None:
             if result[key] is not None:
                 _reference(bundle, entries, result[key], "dao_snapshot")
                 referenced.add(result[key]["path"])
+                side_key = (
+                    "left_scenario_id" if key == "left_snapshot" else "right_scenario_id"
+                )
+                side_result = scenario_result_by_id[result[side_key]]
+                if result[key] != side_result["dao_snapshot"]:
+                    raise ValidationError(
+                        f"{result['pair_id']}: pair snapshot reference differs from scenario"
+                    )
         if result["status"] == "pass":
             if result["left_snapshot"] is None or result["right_snapshot"] is None:
                 raise ValidationError(f"{result['pair_id']}: passing pair lacks snapshots")
@@ -557,8 +764,16 @@ def validate_bundle(bundle: Path) -> None:
             observed = compare_snapshots(left, right, pair["allowed_difference_paths"])
             if result["observed_difference_paths"] != observed:
                 raise ValidationError(f"{result['pair_id']}: observed difference report differs")
-    if report["status"] == "pass" and set(entries) != referenced:
-        raise ValidationError("passing bundle contains unreferenced payloads")
+        elif result["status"] == "skipped" and (
+            result["left_snapshot"] is not None
+            or result["right_snapshot"] is not None
+            or result["observed_difference_paths"]
+        ):
+            raise ValidationError(
+                f"{result['pair_id']}: skipped pair retains comparison artifacts"
+            )
+    if set(entries) != referenced:
+        raise ValidationError("bundle contains unreferenced payloads")
 
 
 if __name__ == "__main__":

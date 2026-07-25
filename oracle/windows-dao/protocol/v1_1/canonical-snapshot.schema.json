@@ -59,14 +59,17 @@
     },
     "tables": {
       "type": "array",
+      "maxItems": 1,
       "items": { "$ref": "#/$defs/table" }
     },
     "relationships": {
       "type": "array",
+      "maxItems": 0,
       "items": { "$ref": "#/$defs/relationship" }
     },
     "raw_preservation": {
       "type": "array",
+      "maxItems": 0,
       "items": { "$ref": "#/$defs/rawField" }
     }
   },
@@ -201,10 +204,12 @@
         "attributes": { "type": "integer" },
         "columns": {
           "type": "array",
+          "maxItems": 1,
           "items": { "$ref": "#/$defs/column" }
         },
         "indexes": {
           "type": "array",
+          "maxItems": 1,
           "items": { "$ref": "#/$defs/index" }
         },
         "properties": {
@@ -213,6 +218,7 @@
         },
         "rows": {
           "type": "array",
+          "maxItems": 7,
           "items": { "$ref": "#/$defs/row" }
         }
       }

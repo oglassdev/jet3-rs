@@ -23,6 +23,7 @@
     "entries": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 14,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -41,7 +42,18 @@
             "pattern": "^[a-z][a-z0-9_-]{0,63}$"
           },
           "status": { "enum": ["pass", "fail", "blocked", "error"] },
-          "detail": { "type": "string", "minLength": 1, "maxLength": 4000 }
+          "detail": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "value_observations": {
+            "type": "array",
+            "maxItems": 7,
+            "items": { "$ref": "#/$defs/valueObservation" }
+          },
+          "error": {
+            "anyOf": [
+              { "type": "null" },
+              { "$ref": "#/$defs/normalizedError" }
+            ]
+          }
         }
       }
     }
@@ -56,6 +68,106 @@
     "scenarioId": {
       "type": "string",
       "pattern": "^DAO-(GEN|READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$"
+    },
+    "nullableSha256": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      ]
+    },
+    "nullableHex": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^(?:[0-9a-f]{2})*$", "maxLength": 64 }
+      ]
+    },
+    "nullableString": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 1, "maxLength": 200 }
+      ]
+    },
+    "nullableLength": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "integer", "minimum": 0, "maximum": 32769 }
+      ]
+    },
+    "valueObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dao_type",
+        "field",
+        "row_ordinal",
+        "input_runtime_type",
+        "readback_runtime_type",
+        "input_length",
+        "readback_length",
+        "input_sha256",
+        "readback_sha256",
+        "input_hex",
+        "readback_hex"
+      ],
+      "properties": {
+        "dao_type": {
+          "enum": ["dbBinary", "dbText", "dbMemo", "dbLongBinary"]
+        },
+        "field": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+        },
+        "row_ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "input_runtime_type": { "$ref": "#/$defs/nullableString" },
+        "readback_runtime_type": { "$ref": "#/$defs/nullableString" },
+        "input_length": { "$ref": "#/$defs/nullableLength" },
+        "readback_length": { "$ref": "#/$defs/nullableLength" },
+        "input_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "readback_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "input_hex": { "$ref": "#/$defs/nullableHex" },
+        "readback_hex": { "$ref": "#/$defs/nullableHex" }
+      }
+    },
+    "normalizedError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exception_type",
+        "hresult",
+        "message",
+        "cleanup_errors"
+      ],
+      "properties": {
+        "exception_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "hresult": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^0x[0-9A-F]{8}$" }
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "cleanup_errors": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      }
     }
   }
 }

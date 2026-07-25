@@ -62,25 +62,32 @@ the corresponding passing scenario result. The bundle validator also binds:
 
 A passing bundle cannot contain unreferenced payloads.
 
-## Execution is intentionally blocked
+## Controlled execution boundary
 
-There is no M1 PowerShell executor. The checked
-`scripts/preflight-m1-controlled.ps1` command verifies the exact clean commit,
-complete inventory, ready provider record, host, process bitness, and provider
-binary hash, but it always exits `BLOCKED` before COM activation or output
-mutation. The checked
-`experiments/m1-marshalling-probe.ps1` experiment established on the recorded
-x86 DAO 3.6 environment that `dbBinary` accepts direct `System.Byte[]`
-assignment, rejects `AppendChunk`, and that `dbLongBinary.AppendChunk` accepts
-and exactly returns `System.Byte[]` at every controlled boundary. The
-experiment records the clean commit, environment hash, host, runtime, provider
-binary, input and readback types and hashes, and failure HRESULTs. It cannot
-publish protocol evidence. An executor and atomic protocol-valid publication
-path still require separate implementation and review.
+`scripts/run-m1-controlled.ps1` is the reviewed Windows x86 executor for this
+exact inventory. It consumes no source MDB, uses only project-generated
+`dbVersion30` databases, requires the provider identity recorded by the ready
+environment, and applies the `System.Byte[]` marshalling established by
+`EXP-0006`. Operation logs carry structured input/readback runtime types,
+lengths, SHA-256 values, the exact fixed-binary marker, and normalized
+HRESULT/error records.
 
-Until then these checked documents are experiment inputs only. They are not DAO
-observations or fixtures, cannot be cited as `dao_opened` or
-`dao_differential` evidence, and do not change the support matrix.
+Every bundle retains `inventory.json` and must contain all seven scenarios and
+both pairs in checked order with exact input hashes. The publisher writes into
+a private same-volume stage, flushes every payload, independently validates
+the identity-shaped stage, rechecks Git and provider state, and commits
+visibility with one non-overwriting directory move. Managed .NET cannot fsync
+the parent directory, so the contract does not claim power-loss persistence of
+that directory entry.
+
+Implementation alone is not evidence. These documents remain experiment inputs
+until the executor produces a valid bundle from its exact clean commit. M1
+proves only the recorded controlled DAO-generation/readback scenarios; it does
+not establish a Rust reader, writer, update operation, or a general
+compatibility claim. The older non-executing
+`scripts/preflight-m1-controlled.ps1` remains available and still exits
+`BLOCKED` before COM activation or output mutation. The checked executor is a
+separate entry point.
 
 ## Portable commands
 

@@ -29,6 +29,7 @@
     "allowed_difference_paths": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 3,
       "uniqueItems": true,
       "items": {
         "type": "string",

@@ -34,13 +34,16 @@ pair, and `dbMemo`/`dbLongBinary` boundary ladders at lengths 1, 2047, 2048,
 snapshot comparator, multi-scenario/pair reports, immutable bundle bindings,
 and a hash-checked example inventory.
 
-M1 has no COM executor. A checked, non-executing M1 preflight binds the exact
-clean commit, complete example inventory, ready provider record, Windows host,
-process bitness, and provider binary hash, then exits `BLOCKED` before COM
-activation or output mutation. Execution remains blocked pending a provisioned
-Windows marshalling experiment for deterministic binary values. The M1 plans
-are experiment inputs only and do not change validation evidence or the
-support matrix. Protocol 1.0 and its checked M0 runner remain unchanged.
+M1 now has a reviewed COM executor and atomic protocol-1.1 publisher. The
+executor binds the complete inventory, exact clean commit, x86 host/provider
+registration, and locked provider binary before COM or output mutation. It
+uses the `System.Byte[]` representations established by `EXP-0006`, reopens
+every project-generated database through DAO, records structured runtime and
+error observations, validates the complete staged bundle, and publishes it
+with one same-volume collision-refusing directory move. This implementation is
+not compatibility evidence until it passes from its exact clean commit. The
+older non-executing preflight remains an explicit diagnostic command.
+Protocol 1.0 and its checked M0 runner remain unchanged.
 
 ## Provider requirement
 
@@ -172,12 +175,44 @@ Even after every precondition succeeds, this command exits `3` with
 `BLOCKED`. It performs no COM activation, creates no database or directory,
 and publishes no evidence bundle. Python 3 is required so the same checked
 standard-library validator can reject malformed inventory and environment
-documents before any provider precondition is accepted. A separately reviewed,
-commit-bound Windows experiment must first establish the exact late-bound
-PowerShell runtime types, DAO `Variant`/`AppendChunk` representation, readback,
-and failure behavior for the deterministic `dbBinary` and `dbLongBinary`
-values. Only then may an executor and atomic protocol-valid publication path
-replace this preflight.
+documents before any provider precondition is accepted. This diagnostic
+preserves the historical pre-executor boundary. `EXP-0006` subsequently
+established the late-bound runtime types and failure behavior; the separate
+controlled executor below consumes that result.
+
+## Run the controlled M1 executor
+
+The executor accepts only the checked seven-scenario/two-pair inventory and a
+ready protocol-1.1 environment record. Use 32-bit Windows PowerShell for the
+recorded x86 provider and keep output outside the repository:
+
+```powershell
+$commit = git rev-parse HEAD
+$runId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-dao-m1"
+$m1Work = Join-Path $env:TEMP "jet3-rs-dao-m1"
+$winps32 = "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+
+& $winps32 -NoProfile -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/run-m1-controlled.ps1 `
+  -RepositoryRoot (Get-Location) `
+  -EnvironmentPath (Join-Path $m1Work "environment-m1.json") `
+  -OutputRoot (Join-Path $m1Work "evidence") `
+  -GitCommit $commit `
+  -RunId $runId
+```
+
+Every input is size-bounded before parsing. The environment and provider stay
+open through locked read handles; Git and provider identity are rechecked
+immediately before COM and publication. All retained files receive
+`FileStream.Flush(true)` before hashing and publication. Managed .NET exposes
+no safe parent-directory fsync primitive on Windows, so the publisher claims
+atomic visibility from the same-volume directory rename, not guaranteed
+power-loss persistence of the parent-directory entry.
+
+Exit codes retain the M0 meanings: `0` pass, `1` controlled fail, `2` invalid
+invocation, `3` blocked precondition, and `4` executor/publication error. DAO
+scenario failures are preserved in an atomically published non-passing bundle;
+publication failures expose no final bundle.
 
 ## Cross-platform validation
 
@@ -202,7 +237,12 @@ python3 oracle/windows-dao/scripts/validate_m1_protocol.py document \
 Validate a completed bundle and all referenced hashes:
 
 ```sh
+# Protocol 1.0 / M0
 python3 oracle/windows-dao/scripts/validate_protocol.py bundle \
+  artifacts/dao-evidence/<git-commit>/<run-id>
+
+# Protocol 1.1 / M1
+python3 oracle/windows-dao/scripts/validate_m1_protocol.py bundle \
   artifacts/dao-evidence/<git-commit>/<run-id>
 ```
 
@@ -223,11 +263,12 @@ A completed run is immutable and has this layout:
 artifacts/dao-evidence/<40-hex-git-commit>/<run-id>/
   bundle-manifest.json
   environment.json
+  inventory.json                         # M1
   report.json
   scenarios/<scenario-id>/input.json
   scenarios/<scenario-id>/dao-snapshot.json
-  scenarios/<scenario-id>/rust-snapshot.json
   scenarios/<scenario-id>/operation-log.json
+  pairs/<pair-id>/input.json             # M1
   databases/<content-sha256>.mdb
 ```
 
@@ -238,11 +279,11 @@ and explicit pass/fail/blocked/skipped outcome for every selected scenario. A
 dirty worktree may be used diagnostically but cannot produce
 release-satisfying evidence. Reports from another commit are stale.
 
-## Current host limitation
+## Current host status
 
-The workspace host used to implement and cross-platform-test M0 is macOS on
-ARM64, with neither `powershell.exe` nor `pwsh` available in `PATH`. It can
-validate protocol documents and evidence hashes, but it cannot execute the
-Windows COM oracle. A real release run requires a provisioned Windows host and
-a provider that passes the `dbVersion30` test. Until a Windows run records that
-fact, provider availability is `blocked`, not assumed.
+This workspace is on x64 Windows with both 64-bit and 32-bit Windows
+PowerShell. The retained protocol-1.1 environment identifies an x86
+`DAO.DBEngine.36` provider that passed disposable `dbVersion30` creation.
+Provider availability alone is not M1 evidence: the complete executor must
+still run from its exact clean pushed commit and publish a bundle that passes
+the independent protocol-1.1 validator.

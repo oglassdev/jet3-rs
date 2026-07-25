@@ -80,7 +80,11 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/README.md`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
-- Review: pending independent review
+- Review: the M1 executor use of this result received an independent
+  adversarial review on 2026-07-24; its actionable binding, boundedness,
+  cleanup, publication, and failure-evidence findings were addressed before
+  the executor commit. This review does not make the experiment a protocol
+  evidence bundle.
 
 ### SRC-0002 — DAO `dbVersion30` numeric value
 
@@ -763,7 +767,9 @@ Use `not applicable` explicitly rather than omitting a field.
   behavior; it establishes no MDB physical layout, general compatibility, or
   passing protocol scenario.
 - Usage: `oracle/windows-dao/experiments/m1-marshalling-probe.ps1`;
-  future reviewed M1 executor adapter
+  `oracle/windows-dao/scripts/m1/M1.DaoValues.ps1`;
+  `oracle/windows-dao/scripts/m1/M1.Dao.ps1`;
+  `oracle/windows-dao/scripts/run-m1-controlled.ps1`
 - Rights: generated locally through a licensed Microsoft DAO provider; the
   result JSON is retained locally and the disposable MDB was deleted
 - Review: pending independent review

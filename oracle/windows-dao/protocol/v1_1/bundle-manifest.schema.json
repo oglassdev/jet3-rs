@@ -28,17 +28,20 @@
     "report_path": { "$ref": "#/$defs/relativePath" },
     "scenario_ids": {
       "type": "array",
+      "maxItems": 7,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/scenarioId" }
     },
     "pair_ids": {
       "type": "array",
+      "maxItems": 2,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/pairId" }
     },
     "files": {
       "type": "array",
       "minItems": 2,
+      "maxItems": 33,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -48,6 +51,7 @@
           "role": {
             "enum": [
               "environment",
+              "inventory",
               "report",
               "scenario_input",
               "pair_input",
@@ -57,7 +61,7 @@
             ]
           },
           "sha256": { "$ref": "#/$defs/sha256" },
-          "size_bytes": { "type": "integer", "minimum": 0 },
+          "size_bytes": { "type": "integer", "minimum": 0, "maximum": 16777216 },
           "media_type": { "type": "string", "minLength": 1 }
         }
       }
