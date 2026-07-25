@@ -42,6 +42,10 @@ class BoundedProcessSourceContractTests(unittest.TestCase):
         for function in (
             "ConvertTo-BoundedProcessCommandLineArgument",
             "Assert-BoundedProcessLimits",
+            "Initialize-BoundedProcessJobNative",
+            "New-BoundedProcessJob",
+            "Stop-BoundedProcessJob",
+            "Get-BoundedTaskkillPath",
             "Stop-BoundedProcessTree",
             "Read-BoundedProcessOutput",
             "Invoke-BoundedChildProcess",
@@ -50,6 +54,16 @@ class BoundedProcessSourceContractTests(unittest.TestCase):
         self.assertNotIn("M3", self.source)
         self.assertNotIn("M4", self.source)
         self.assertIn("[Diagnostics.Process]::Start", self.source)
+        self.assertIn("JobObjectLimitKillOnJobClose", self.source)
+        self.assertIn("AssignProcessToJobObject", self.source)
+        self.assertIn("TerminateJobObject", self.source)
+        self.assertIn("QueryInformationJobObject", self.source)
+        self.assertIn("$jobHandle = New-BoundedProcessJob", self.source)
+        self.assertIn(
+            "Stop-BoundedProcessJob `\n                    "
+            "-Handle $jobHandle -Process $process",
+            self.source,
+        )
         self.assertIn("$process.ExitCode -ne 0", self.source)
         self.assertIn("$process.Dispose()", self.source)
 
@@ -77,10 +91,25 @@ class BoundedProcessSourceContractTests(unittest.TestCase):
         self.assertIn(
             "$outDone -and $errDone -and $Process.HasExited", self.source
         )
+        self.assertIn(
+            "$Process.HasExited -and\n"
+            "                -not ($outDone -and $errDone)",
+            self.source,
+        )
 
     def test_termination_targets_the_windows_process_tree_with_safe_fallback(self) -> None:
-        self.assertIn('"System32/taskkill.exe"', self.source)
-        self.assertIn("/PID $Process.Id /T /F", self.source)
+        self.assertIn("[Environment]::SystemDirectory", self.source)
+        self.assertNotIn("$env:SystemRoot", self.source)
+        self.assertIn('"taskkill.exe"', self.source)
+        self.assertIn('"Process-tree termination helper identity is unsafe."', self.source)
+        self.assertIn('$start.Arguments = "/PID $($Process.Id) /T /F"', self.source)
+        self.assertIn("$taskkill.WaitForExit(5000)", self.source)
+        self.assertIn("$Process.WaitForExit(5000)", self.source)
+        self.assertNotIn(".WaitForExit()", self.source)
+        self.assertIn(
+            '"Process-tree termination helper could not prove termination."',
+            self.source,
+        )
         self.assertIn("$Process.Kill()", self.source)
         self.assertNotIn("Kill($true)", self.source)
         self.assertNotIn(".ArgumentList", self.source)
@@ -182,6 +211,50 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 result.stdout,
                 "probe worker exceeded its wall-clock ceiling.|True|False",
             )
+
+    def test_successful_root_exit_still_terminates_its_owned_descendant(self) -> None:
+        assert self.powershell is not None
+        with tempfile.TemporaryDirectory(prefix="bounded-job-") as temporary:
+            root = Path(temporary)
+            started = root / "descendant-started.txt"
+            completed = root / "descendant-completed.txt"
+            child_command = (
+                f"Set-Content -LiteralPath '{quoted(started)}' -Value 'started';"
+                "Start-Sleep -Seconds 4;"
+                f"Set-Content -LiteralPath '{quoted(completed)}' -Value 'unexpected'"
+            )
+            encoded_child = base64.b64encode(
+                child_command.encode("utf-16-le")
+            ).decode("ascii")
+            parent = root / "exiting-parent.ps1"
+            parent.write_text(
+                "param([string]$PowerShell,[string]$ChildCommand,"
+                "[string]$Started);"
+                "Start-Process -FilePath $PowerShell -ArgumentList @("
+                "'-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',"
+                "'-EncodedCommand',$ChildCommand);"
+                "$deadline=[DateTime]::UtcNow.AddSeconds(2);"
+                "while(-not (Test-Path -LiteralPath $Started)){"
+                "if([DateTime]::UtcNow -ge $deadline){throw 'child did not start'};"
+                "Start-Sleep -Milliseconds 10}",
+                encoding="utf-8",
+            )
+            command = (
+                f". '{quoted(SHARED)}';"
+                f"Invoke-BoundedChildProcess -Executable '{quoted(self.powershell)}' "
+                "-Arguments @('-NoProfile','-NonInteractive','-ExecutionPolicy',"
+                f"'Bypass','-File','{quoted(parent)}','-PowerShell',"
+                f"'{quoted(self.powershell)}','-ChildCommand','{encoded_child}',"
+                f"'-Started','{quoted(started)}') "
+                "-CallerLabel 'root-exit-probe' "
+                "-TimeoutSeconds 10 -MaximumOutputBytes 1MB|Out-Null;"
+                "Start-Sleep -Seconds 5;"
+                f"[Console]::Write((Test-Path -LiteralPath '{quoted(started)}')"
+                f"+'|'+(Test-Path -LiteralPath '{quoted(completed)}'))"
+            )
+            result = self._run(command, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "True|False")
 
 
 if __name__ == "__main__":
