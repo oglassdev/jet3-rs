@@ -125,6 +125,7 @@ jobs:
       - name: Exercise Windows-only oracle and process contracts
         run: python -m unittest discover -s oracle/windows-dao/tests -v
       - name: Exercise Windows release-evidence contracts
+        if: always()
         run: >-
           python -m unittest
           tools.tests.test_release_evidence
