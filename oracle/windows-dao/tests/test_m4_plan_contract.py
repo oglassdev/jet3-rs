@@ -23,7 +23,7 @@ SHA = "0" * 64
 COMMIT = "1" * 40
 TIME = "2026-07-25T12:00:00+00:00"
 SAMPLE = "M4-V20-U-01"
-PLAN_SHA256 = "28048c300d1a056020d437c635c84a5308260f92c6bc0a61ba404a22415f1321"
+PLAN_SHA256 = "5eb18b6a1d7d25602ea64d5164cc21622a74b31c8100bcebcb20aeeb4639b143"
 
 
 def artifact(name: str) -> dict[str, str]:
@@ -174,7 +174,7 @@ class M4PlanContractTests(unittest.TestCase):
         bounds = self.plan["bounds"]
         self.assertEqual(bounds["max_worker_processes"], 2 * len(samples))
         self.assertEqual(bounds["max_database_artifacts"], 2 * len(samples))
-        self.assertEqual(bounds["max_acquisition_database_reads"], 5 * len(samples))
+        self.assertEqual(bounds["max_acquisition_database_reads"], 6 * len(samples))
         self.assertEqual(
             bounds["max_acquisition_database_read_bytes"],
             bounds["max_acquisition_database_reads"]

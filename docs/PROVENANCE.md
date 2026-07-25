@@ -1125,9 +1125,9 @@ Use `not applicable` explicitly rather than omitting a field.
 - Artifacts:
   `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`
   SHA-256
-  `28048c300d1a056020d437c635c84a5308260f92c6bc0a61ba404a22415f1321`;
+  `5eb18b6a1d7d25602ea64d5164cc21622a74b31c8100bcebcb20aeeb4639b143`;
   `plan.schema.json` SHA-256
-  `a48f1b5f36c3a9f13f38a0b7e352a5990aaaec135043bc4ac7e8ce9bd58c26d3`;
+  `6d3dbc26eced8fd0967b9d00887204b2fc7f42e42409032be398634f0d2f1c03`;
   `sample-record.schema.json` SHA-256
   `02205d3903fb428468d2894159e0ec0bcbdbad5e799e656f4ae78ab4775f2136`;
   `analysis-report.schema.json` SHA-256
@@ -1147,7 +1147,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Observation: no M4 sample has been generated and no M4 byte result exists.
   The declarative plan contains 36 samples, gives every condition every
   within-block launch position exactly once, requires 72 independently bound
-  workers, and separately bounds retained bytes, five acquisition reads per
+  workers, and separately bounds retained bytes, six acquisition reads per
   pair, each validator pass, prefixes, comparison work, worker count, and time.
 - Interpretation: this entry authorizes only implementation and review of
   checked M4 tooling. It does not authorize DAO execution. Even a future

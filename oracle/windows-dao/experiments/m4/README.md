@@ -143,10 +143,11 @@ under study.
 ## Bounds and claims
 
 The plan limits each database to 1 MiB, all 72 retained creator/clone database
-artifacts to 72 MiB, and acquisition to five full-file reads per pair: creator
-clone/hash, destination verification, post-clone source re-hash, reopen
-pre-COM verification, and reopen post-close observation. That is at most 180
-reads and 180 MiB. Each independent bundle-validation pass has its own ceiling
+artifacts to 72 MiB, and acquisition to six full-file reads per pair: creator
+post-close observation, creator clone/hash, destination verification,
+post-clone source re-hash, reopen pre-COM verification, and reopen post-close
+observation. That is at most 216 reads and 216 MiB. Each independent
+bundle-validation pass has its own ceiling
 of 72 reads and 72 MiB; repeated validator invocations do not share a mutable
 budget. The 72 phase prefixes are limited to 144 KiB, analyzed offsets to
 1,536, declared comparisons to 324 and 995,328 byte visits, sample records to
