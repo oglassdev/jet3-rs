@@ -5,6 +5,12 @@ of requirement IDs, requirement text, acceptance gates, and required evidence.
 Validators and manifests must load that file rather than embedding their own
 copies of the ID vocabulary.
 
+The corresponding authoritative v1 capability inventory lives in
+[`schema/support-matrix.schema.json`](schema/support-matrix.schema.json) at
+`properties.capabilities.prefixItems`. Requirement IDs describe what release
+evidence must prove; the capability catalog separately prevents the support
+matrix from contracting, renaming, or reclassifying the promised v1 surface.
+
 ## Test and scenario identifiers
 
 Use prefixes that preserve the evidence boundary:

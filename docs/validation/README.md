@@ -15,6 +15,12 @@ The documents are normative for v1:
 - [TRACEABILITY.md](TRACEABILITY.md) maps product requirements to evidence.
 - [support-matrix.json](support-matrix.json) is the machine-readable capability
   ledger.
+- [schema/support-matrix.schema.json](schema/support-matrix.schema.json), at
+  `properties.capabilities.prefixItems`, is the canonical ordered v1 capability
+  catalog. It fixes every required capability ID, its in-scope or out-of-scope
+  classification, and its required verification level. The mutable states in
+  `support-matrix.json` must cover that catalog exactly; deleting, renaming,
+  inserting, reordering, or reclassifying a capability fails validation.
 - [DAO_PROVIDER_BLOCKER.md](DAO_PROVIDER_BLOCKER.md) records the currently
   audited external provider boundary. It is not compatibility evidence.
 

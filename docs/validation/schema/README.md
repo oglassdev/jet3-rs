@@ -5,7 +5,10 @@ used by the validation contract. They are documentation contracts: the project
 validator implements the support-matrix rules without requiring a third-party
 JSON Schema package.
 
-- `support-matrix.schema.json` describes the capability ledger.
+- `support-matrix.schema.json` describes the capability ledger. Its closed,
+  ordered `properties.capabilities.prefixItems` array is also the canonical v1
+  capability catalog: it fixes the complete ID inventory, scope classification,
+  and required verification policy consumed by the project validator.
 - `test-manifest.schema.json` describes deterministic Rust test cases.
   A case may use `platforms` only as one of the sorted nonempty subsets
   `["unix"]`, `["windows"]`, or `["unix", "windows"]`; omission means both.
