@@ -68,10 +68,42 @@ function Add-M1ManifestPayload {
         [string]$Role
     )
 
+    if (@(
+        $ManifestInputs |
+            Where-Object { [string]$_.path -ceq $RelativePath }
+    ).Count -ne 0) {
+        throw "M1 manifest payload paths must be unique."
+    }
     [void]$ManifestInputs.Add(
         (Get-M1BundleManifestEntry -Session $Session `
             -RelativePath $RelativePath -Role $Role)
     )
+}
+
+function Sort-M1ManifestEntriesOrdinal {
+    param([Collections.ArrayList]$Entries)
+
+    $sorted = New-Object Collections.ArrayList
+    foreach ($entry in $Entries) {
+        $position = 0
+        while (
+            $position -lt $sorted.Count -and
+            [StringComparer]::Ordinal.Compare(
+                [string]$sorted[$position].path,
+                [string]$entry.path
+            ) -lt 0
+        ) {
+            $position++
+        }
+        if (
+            $position -lt $sorted.Count -and
+            [string]$sorted[$position].path -ceq [string]$entry.path
+        ) {
+            throw "M1 manifest payload paths must be unique."
+        }
+        $sorted.Insert($position, $entry)
+    }
+    return @($sorted)
 }
 
 function New-M1Counts {
@@ -317,7 +349,9 @@ function Write-M1ReportAndManifest {
     Add-M1ManifestPayload -ManifestInputs $ManifestInputs -Session $Session `
         -RelativePath $reportRelative -Role "report"
 
-    $sortedFiles = @($ManifestInputs | Sort-Object -Property path)
+    $sortedFiles = @(
+        Sort-M1ManifestEntriesOrdinal -Entries $ManifestInputs
+    )
     $manifest = [ordered]@{
         created_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
         dirty = $false

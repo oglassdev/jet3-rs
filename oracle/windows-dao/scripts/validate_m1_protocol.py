@@ -363,8 +363,20 @@ def _validate_report(document: dict[str, Any]) -> None:
 
 def _validate_manifest(document: dict[str, Any]) -> None:
     paths = [entry["path"] for entry in document["files"]]
-    if paths != sorted(paths) or len(paths) != len(set(paths)):
-        raise ValidationError("$.files: paths must be unique and sorted")
+    if len(paths) != len(set(paths)):
+        duplicate = next(path for path in paths if paths.count(path) > 1)
+        raise ValidationError(f"$.files: duplicate path {duplicate!r}")
+    expected = sorted(paths)
+    if paths != expected:
+        index = next(
+            index
+            for index, (actual, wanted) in enumerate(zip(paths, expected))
+            if actual != wanted
+        )
+        raise ValidationError(
+            f"$.files[{index}].path: got {paths[index]!r}, "
+            f"expected {expected[index]!r}"
+        )
 
 
 def validate_document(document: Any) -> str:

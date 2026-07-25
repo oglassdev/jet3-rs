@@ -96,8 +96,48 @@ class M1RunnerContractTests(unittest.TestCase):
         self.assertIn("scenario_counts", self.bundle)
         self.assertIn("pair_counts", self.bundle)
         self.assertIn("inventory = $inventoryReference", self.bundle)
-        self.assertIn("Sort-Object -Property path", self.bundle)
+        self.assertIn("Sort-M1ManifestEntriesOrdinal", self.bundle)
+        self.assertIn("[StringComparer]::Ordinal.Compare", self.bundle)
         self.assertIn('"bundle-manifest.json"', self.bundle)
+
+    @unittest.skipUnless(POWERSHELL, "Windows PowerShell is required")
+    def test_manifest_sort_is_ordinal_and_duplicate_refusing(self) -> None:
+        command = f"""
+$ErrorActionPreference = "Stop"
+. {ps_literal(BUNDLE)}
+$entries = New-Object Collections.ArrayList
+[void]$entries.Add([ordered]@{{ path = "z-last" }})
+[void]$entries.Add([ordered]@{{ path = "a-first" }})
+$paths = @(
+    Sort-M1ManifestEntriesOrdinal -Entries $entries |
+        ForEach-Object {{ [string]$_.path }}
+)
+$duplicate = New-Object Collections.ArrayList
+[void]$duplicate.Add([ordered]@{{ path = "same" }})
+[void]$duplicate.Add([ordered]@{{ path = "same" }})
+$refused = $false
+try {{ [void](Sort-M1ManifestEntriesOrdinal -Entries $duplicate) }}
+catch {{ $refused = $true }}
+[ordered]@{{ paths = $paths; duplicate_refused = $refused }} |
+    ConvertTo-Json -Compress
+"""
+        completed = subprocess.run(
+            [
+                POWERSHELL,
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+            ],
+            cwd=ROOT.parents[1],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertIn('"paths":["a-first","z-last"]', completed.stdout)
+        self.assertIn('"duplicate_refused":true', completed.stdout)
 
     @unittest.skipUnless(POWERSHELL, "Windows PowerShell is required")
     def test_identical_databases_share_one_content_addressed_payload(self) -> None:
