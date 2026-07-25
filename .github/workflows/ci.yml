@@ -149,11 +149,11 @@ jobs:
       - name: Compile checked benchmarks
         run: >-
           cargo bench --manifest-path benches/Cargo.toml
-          --bench format_primitives --locked --no-run
+          --benches --locked --no-run
       - name: Functionally execute every checked benchmark once
         run: >-
           cargo bench --manifest-path benches/Cargo.toml
-          --bench format_primitives --locked -- --test
+          --benches --locked -- --test
       - name: Test benchmark manifests and comparison tooling
         run: python3 -m unittest discover -s benches/tests -v
       - name: Test benchmark metadata capture

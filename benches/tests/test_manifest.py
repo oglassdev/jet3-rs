@@ -14,6 +14,7 @@ BINARY_WRITER_HARNESS = (
 )
 SUITE_IDENTITY = Path(__file__).parents[1] / "scripts" / "suite_identity.py"
 ACCEPTANCE_GATE = Path(__file__).parents[2] / "scripts" / "run-acceptance-gate.sh"
+CI_WORKFLOW = Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml"
 MASK_U64 = (1 << 64) - 1
 MASK_U32 = (1 << 32) - 1
 MULTIPLIER = 0x9E37_79B9_7F4A_7C15
@@ -168,6 +169,19 @@ class ManifestTests(unittest.TestCase):
         self.assertNotIn("--bench format_primitives", g7_case)
         self.assertLess(compile_position, tests_position)
         self.assertLess(tests_position, blocked_position)
+
+    def test_ci_compiles_and_executes_every_registered_benchmark(self) -> None:
+        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        benchmark_job = workflow.split("  benchmarks:", maxsplit=1)[1].split(
+            "  fuzz:", maxsplit=1
+        )[0]
+        self.assertEqual(
+            benchmark_job.count("--benches --locked"),
+            2,
+        )
+        self.assertNotIn("--bench format_primitives", benchmark_job)
+        self.assertIn("--benches --locked --no-run", benchmark_job)
+        self.assertIn("--benches --locked -- --test", benchmark_job)
 
     def test_scope_limit_remains_explicit(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
