@@ -217,6 +217,35 @@ invocation, `3` blocked precondition, and `4` executor/publication error. DAO
 scenario failures are preserved in an atomically published non-passing bundle;
 publication failures expose no final bundle.
 
+## Observe controlled M1 physical page differences
+
+The bounded M2 observer accepts only the complete passing M1 bundle after its
+protocol validator and exact manifest hash succeed. It requires the observer
+repository at an exact clean commit, reads no external or donated MDB, and
+publishes one collision-refusing JSON document outside the repository:
+
+```powershell
+$commit = git rev-parse HEAD
+$bundle = Join-Path $env:TEMP "jet3-rs-dao-m1-executor\evidence\$m1Commit\$m1RunId"
+$output = Join-Path $env:TEMP "jet3-rs-m2-observation\$commit\m1-pages.json"
+
+python oracle/windows-dao/scripts/observe_m1_pages.py `
+  --bundle $bundle `
+  --manifest-sha256 $m1ManifestSha256 `
+  --repository-root (Get-Location) `
+  --git-commit $commit `
+  --output $output
+```
+
+The output records only ordered 2-KiB page hashes and bounded page/byte
+difference counts for the two controlled semantic pairs. It deliberately
+asserts no field offsets, page classes, row layout, storage structure, or
+compatibility. The M1 source bundle remains the independent Microsoft DAO
+evidence; this observer is a reproducible descriptive analysis of those
+retained files. Publication fsyncs a private same-directory staging file and
+uses a collision-refusing hard-link commit; as with the M1 publisher, Windows
+offers no safe parent-directory fsync claim here.
+
 ## Cross-platform validation
 
 The validator uses only Python 3's standard library:
