@@ -76,10 +76,14 @@ class M3ContractTests(unittest.TestCase):
         value[100 + replica] ^= replica
         return bytes(value)
 
-    def _build_bundle(self, root: Path) -> Path:
+    def _build_bundle(
+        self, root: Path, *, recorded_windows_paths: bool = False
+    ) -> Path:
         bundle = root / COMMIT / RUN_ID
         bundle.mkdir(parents=True)
-        write_json(bundle / "plan.json", self.plan)
+        (bundle / "plan.json").write_bytes(
+            (M3.M3 / "m3-index-isolation.plan.json").read_bytes()
+        )
         write_json(bundle / "environment.json", M1_TEST.ready_environment())
         samples = []
         retained_databases: set[str] = set()
@@ -117,37 +121,61 @@ class M3ContractTests(unittest.TestCase):
                 for item in self.plan["conditions"]
                 if item["condition_id"] == condition
             )
-            working = root / "private-stage" / sample_id / "working"
+            if recorded_windows_paths:
+                repository_root = r"C:\Users\tester\Development\jet3-rs"
+                stage_root = r"C:\Users\tester\AppData\Local\Temp\m3-stage"
+                working_path = stage_root + rf"\working\{sample_id}"
+                environment_path = (
+                    r"C:\Users\tester\AppData\Local\Temp\dao-environment.json"
+                )
+                output_root = stage_root + rf"\worker-preflight\{sample_id}"
+                plan_path = (
+                    repository_root
+                    + r"\oracle\windows-dao\experiments\m3"
+                    + r"\m3-index-isolation.plan.json"
+                )
+                scenario_path = repository_root + "\\" + condition_record[
+                    "scenario_path"
+                ].replace("/", "\\")
+                result_path = working_path + r"\result.json"
+            else:
+                working = root / "private-stage" / sample_id / "working"
+                repository_root = str(M3.REPOSITORY)
+                stage_root = str(root / "private-stage")
+                working_path = str(working)
+                environment_path = str(bundle / "environment.json")
+                output_root = str(root / "private-stage" / "worker-preflight")
+                plan_path = str(M3.M3 / "m3-index-isolation.plan.json")
+                scenario_path = str(
+                    M3.REPOSITORY / condition_record["scenario_path"]
+                )
+                result_path = str(working / "result.json")
             invocation = {
                 "block": sample["block"],
                 "campaign_run_id": RUN_ID,
                 "condition_id": condition,
-                "environment_path": str(bundle / "environment.json"),
+                "environment_path": environment_path,
                 "environment_sha256": sha256(bundle / "environment.json"),
                 "git_commit": COMMIT,
                 "launch_nonce": (
                     f"00000000-0000-0000-0000-{sample['launch_ordinal']:012d}"
                 ),
                 "launch_ordinal": sample["launch_ordinal"],
-                "output_root": str(root / "private-stage" / "worker-preflight"),
-                "plan_path": str(M3.M3 / "m3-index-isolation.plan.json"),
-                "plan_sha256": sha256(
-                    M3.M3 / "m3-index-isolation.plan.json"
-                ),
+                "output_root": output_root,
+                "plan_path": plan_path,
+                "plan_sha256": sha256(bundle / "plan.json"),
                 "remote_ref": self.plan["remote_ref"],
                 "replica": sample["replica"],
-                "repository_root": str(M3.REPOSITORY),
+                "repository_root": repository_root,
                 "repository_url": self.plan["repository_url"],
-                "result_path": str(working / "result.json"),
+                "result_path": result_path,
                 "run_id": operation_log["run_id"],
                 "sample_id": sample_id,
                 "scenario_id": condition_record["scenario_id"],
-                "scenario_path": str(
-                    M3.REPOSITORY / condition_record["scenario_path"]
-                ),
+                "scenario_path": scenario_path,
                 "scenario_sha256": condition_record["scenario_sha256"],
-                "stage_root": str(root / "private-stage"),
-                "working_path": str(working),
+                "stage_root": stage_root,
+                "working_path": working_path,
             }
             write_json(bundle / invocation_relative, invocation)
             accepted = M1_TEST.ready_environment()["accepted_provider"]
@@ -306,6 +334,84 @@ class M3ContractTests(unittest.TestCase):
             mask.write_bytes(mask.read_bytes() + b"x")
             with self.assertRaisesRegex(M3.ValidationError, "manifest identity"):
                 M3.validate_bundle(bundle)
+
+    def test_retained_windows_invocations_validate_on_posix(self) -> None:
+        if os.name == "nt":
+            self.skipTest("cross-platform retained-path case requires POSIX")
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = self._build_bundle(
+                Path(temporary), recorded_windows_paths=True
+            )
+            M3.validate_bundle(bundle)
+
+    def test_retained_invocation_rejects_substitution_escape_and_cross_binding(
+        self,
+    ) -> None:
+        cases = (
+            ("plan_substitution", "plan identity"),
+            ("environment_substitution", "environment hash"),
+            ("result_escape", "escapes recorded parent"),
+            ("plan_cross_binding", "plan path"),
+            ("scenario_cross_binding", "scenario path"),
+        )
+        for case, message in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                bundle = self._build_bundle(root, recorded_windows_paths=True)
+                invocation_path = (
+                    bundle / "samples/M3-SAMPLE-E-01/invocation.json"
+                )
+                invocation = M3.load_json(invocation_path)
+                retained_plan = bundle / "plan.json"
+                retained_environment = bundle / "environment.json"
+                if case == "plan_substitution":
+                    retained_plan = root / "substituted-plan.json"
+                    write_json(retained_plan, self.plan)
+                elif case == "environment_substitution":
+                    retained_environment = root / "substituted-environment.json"
+                    substituted = M3.load_json(bundle / "environment.json")
+                    retained_environment.write_text(
+                        json.dumps(substituted, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                elif case == "result_escape":
+                    invocation["result_path"] = (
+                        r"C:\Users\tester\AppData\Local\Temp\outside\result.json"
+                    )
+                elif case == "plan_cross_binding":
+                    invocation["plan_path"] = (
+                        r"C:\Users\tester\Development\other"
+                        r"\oracle\windows-dao\experiments\m3"
+                        r"\m3-index-isolation.plan.json"
+                    )
+                else:
+                    invocation["scenario_path"] = (
+                        r"C:\Users\tester\Development\jet3-rs"
+                        r"\oracle\windows-dao\examples"
+                        r"\DAO-GEN-TEXT8-INDEXED-001.scenario.json"
+                    )
+                with self.assertRaisesRegex(M3.ValidationError, message):
+                    M3.validate_invocation(
+                        invocation,
+                        invocation_path,
+                        retained_plan,
+                        retained_environment,
+                    )
+
+    def test_live_invocation_keeps_strict_local_path_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle = self._build_bundle(root)
+            retained_invocation = (
+                bundle / "samples/M3-SAMPLE-E-01/invocation.json"
+            )
+            invocation = M3.load_json(retained_invocation)
+            invocation_path = root / "private-stage/invocation.json"
+            write_json(invocation_path, invocation)
+            M3.validate_invocation(invocation, invocation_path)
+            invocation["plan_path"] = str(bundle / "plan.json")
+            with self.assertRaisesRegex(M3.ValidationError, "plan path"):
+                M3.validate_invocation(invocation, invocation_path)
 
     def test_database_alignment_and_size_bounds_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

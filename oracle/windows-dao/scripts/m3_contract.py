@@ -125,10 +125,15 @@ def _resolved_under(bundle: Path, relative: Any, label: str) -> Path:
 def validate_invocation(
     document: Any,
     invocation_path: Path,
+    retained_plan_path: Path | None = None,
     retained_environment_path: Path | None = None,
 ) -> None:
     validate_checked_invocation(
-        document, invocation_path, load_json, retained_environment_path
+        document,
+        invocation_path,
+        load_json,
+        retained_plan_path,
+        retained_environment_path,
     )
 
 
@@ -285,7 +290,10 @@ def _load_samples(bundle: Path, plan: dict[str, Any]) -> tuple[dict[str, bytes],
         )
         invocation = load_json(invocation_path)
         validate_invocation(
-            invocation, invocation_path, bundle / "environment.json"
+            invocation,
+            invocation_path,
+            bundle / "plan.json",
+            bundle / "environment.json",
         )
         _, invocation_hash, _ = bounded_file_identity(
             invocation_path, MAX_JSON_BYTES

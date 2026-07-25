@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any, Callable
 
 from m1_bundle_validation import bounded_file_identity
@@ -40,10 +40,62 @@ EXPECTED_CONDITIONS = {
     ),
 }
 JsonLoader = Callable[[Path], Any]
+RecordedPath = PurePosixPath | PureWindowsPath
+RecordedPathFlavor = type[PurePosixPath] | type[PureWindowsPath]
 
 
 def worker_run_id(launch_ordinal: int, campaign_run_id: str) -> str:
     return campaign_run_id[:16] + f"-m3-w{launch_ordinal:02d}"
+
+
+def _recorded_absolute_path(
+    value: Any,
+    label: str,
+    flavor: RecordedPathFlavor | None = None,
+) -> RecordedPath:
+    if not isinstance(value, str) or not value or "\x00" in value:
+        raise ValidationError(f"{label}: malformed recorded path")
+    if flavor is None:
+        windows = PureWindowsPath(value)
+        if windows.drive and windows.root:
+            flavor = PureWindowsPath
+        elif value.startswith("/") and "\\" not in value:
+            flavor = PurePosixPath
+        else:
+            raise ValidationError(f"{label}: recorded path is not absolute")
+    path = flavor(value)
+    if not path.is_absolute() or any(part in (".", "..") for part in path.parts):
+        raise ValidationError(f"{label}: recorded path is not canonical absolute")
+    return path
+
+
+def _validate_recorded_repository_child(
+    repository_value: Any,
+    child_value: Any,
+    relative: PurePath,
+    label: str,
+) -> RecordedPath:
+    repository = _recorded_absolute_path(
+        repository_value, "M3 invocation repository_root"
+    )
+    flavor = type(repository)
+    child = _recorded_absolute_path(child_value, label, flavor)
+    if child != repository.joinpath(*relative.parts):
+        raise ValidationError(f"{label}: differs")
+    return repository
+
+
+def _require_recorded_child(
+    parent: RecordedPath,
+    child_value: Any,
+    label: str,
+) -> RecordedPath:
+    child = _recorded_absolute_path(child_value, label, type(parent))
+    try:
+        child.relative_to(parent)
+    except ValueError as exc:
+        raise ValidationError(f"{label}: escapes recorded parent") from exc
+    return child
 
 
 def validate_plan(document: dict[str, Any], load_json: JsonLoader) -> None:
@@ -124,6 +176,7 @@ def validate_invocation(
     document: Any,
     invocation_path: Path,
     load_json: JsonLoader,
+    retained_plan_path: Path | None = None,
     retained_environment_path: Path | None = None,
 ) -> None:
     required = {
@@ -147,10 +200,30 @@ def validate_invocation(
         uuid.UUID(document["launch_nonce"])
     except (ValueError, TypeError, AttributeError) as exc:
         raise ValidationError("M3 invocation launch nonce is malformed") from exc
-    repository = Path(document["repository_root"]).resolve()
-    plan_path = Path(document["plan_path"]).resolve()
-    if plan_path != (repository / CHECKED_PLAN.relative_to(REPOSITORY)).resolve():
-        raise ValidationError("M3 invocation plan path differs")
+    retained_mode = (
+        retained_plan_path is not None or retained_environment_path is not None
+    )
+    if retained_plan_path is None and retained_environment_path is not None:
+        raise ValidationError("M3 retained invocation plan is missing")
+    if retained_plan_path is not None and retained_environment_path is None:
+        raise ValidationError("M3 retained invocation environment is missing")
+    if retained_mode:
+        recorded_repository = _validate_recorded_repository_child(
+            document["repository_root"],
+            document["plan_path"],
+            CHECKED_PLAN.relative_to(REPOSITORY),
+            "M3 invocation plan path",
+        )
+        assert retained_plan_path is not None
+        plan_path = retained_plan_path.resolve()
+    else:
+        repository = Path(document["repository_root"]).resolve()
+        plan_path = Path(document["plan_path"]).resolve()
+        checked_plan = (
+            repository / CHECKED_PLAN.relative_to(REPOSITORY)
+        ).resolve()
+        if plan_path != checked_plan:
+            raise ValidationError("M3 invocation plan path differs")
     plan = load_json(plan_path)
     validate_plan(plan, load_json)
     _, plan_hash, _ = bounded_file_identity(plan_path, MAX_JSON_BYTES)
@@ -170,21 +243,36 @@ def validate_invocation(
     condition = next(
         item for item in plan["conditions"] if item["condition_id"] == sample["condition_id"]
     )
-    scenario_path = (repository / condition["scenario_path"]).resolve()
+    if retained_mode:
+        _validate_recorded_repository_child(
+            document["repository_root"],
+            document["scenario_path"],
+            PurePosixPath(condition["scenario_path"]),
+            "M3 invocation scenario path",
+        )
+        scenario_path = REPOSITORY / condition["scenario_path"]
+    else:
+        scenario_path = (repository / condition["scenario_path"]).resolve()
+        if Path(document["scenario_path"]).resolve() != scenario_path:
+            raise ValidationError("M3 invocation scenario binding differs")
     if (
-        Path(document["scenario_path"]).resolve() != scenario_path
-        or document["scenario_id"] != condition["scenario_id"]
+        document["scenario_id"] != condition["scenario_id"]
         or document["scenario_sha256"] != condition["scenario_sha256"]
     ):
         raise ValidationError("M3 invocation scenario binding differs")
     _, scenario_hash, _ = bounded_file_identity(scenario_path, MAX_JSON_BYTES)
     if scenario_hash != document["scenario_sha256"]:
         raise ValidationError("M3 invocation scenario hash differs")
-    environment_path = (
-        retained_environment_path.resolve()
-        if retained_environment_path is not None
-        else Path(document["environment_path"]).resolve()
-    )
+    if retained_mode:
+        _recorded_absolute_path(
+            document["environment_path"],
+            "M3 invocation environment path",
+            type(recorded_repository),
+        )
+        assert retained_environment_path is not None
+        environment_path = retained_environment_path.resolve()
+    else:
+        environment_path = Path(document["environment_path"]).resolve()
     _, environment_hash, _ = bounded_file_identity(environment_path, MAX_JSON_BYTES)
     if environment_hash != document["environment_sha256"]:
         raise ValidationError("M3 invocation environment hash differs")
@@ -195,7 +283,24 @@ def validate_invocation(
         document["launch_ordinal"], document["campaign_run_id"]
     ):
         raise ValidationError("M3 invocation worker run ID differs")
-    if retained_environment_path is None:
+    if retained_mode:
+        stage = _recorded_absolute_path(
+            document["stage_root"],
+            "M3 invocation stage_root",
+            type(recorded_repository),
+        )
+        working = _require_recorded_child(
+            stage, document["working_path"], "M3 invocation working_path"
+        )
+        result = _require_recorded_child(
+            working, document["result_path"], "M3 invocation result_path"
+        )
+        _require_recorded_child(
+            stage, document["output_root"], "M3 invocation output_root"
+        )
+        if result != working / "result.json":
+            raise ValidationError("M3 invocation result path differs")
+    else:
         stage = Path(document["stage_root"]).resolve()
         working = Path(document["working_path"]).resolve()
         result = Path(document["result_path"]).resolve()
