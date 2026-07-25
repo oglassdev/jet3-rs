@@ -14,6 +14,7 @@ $repository = [IO.Path]::GetFullPath($RepositoryRoot)
 $moduleRoot = Join-Path $repository "oracle/windows-dao/scripts/m1"
 . (Join-Path $moduleRoot "M1.Preflight.ps1")
 . (Join-Path $moduleRoot "M1.Publication.ps1")
+. (Join-Path $moduleRoot "M1.DaoValues.ps1")
 . (Join-Path $repository "oracle/windows-dao/scripts/m3/M3.Process.ps1")
 
 $planPath = Join-Path $repository (
