@@ -55,6 +55,26 @@ def run(repo_root: Path, matrix_path: Path) -> int:
         return item
 
     cases: list[tuple[str, Any, str | None]] = [("current matrix", current, None)]
+    omitted = copy.deepcopy(current)
+    omitted["capabilities"].pop(0)
+    cases.append(
+        ("omitted canonical capability", omitted, "capability catalog mismatch")
+    )
+
+    renamed = copy.deepcopy(current)
+    renamed["capabilities"][0]["id"] = "database.renamed"
+    cases.append(
+        ("renamed canonical capability", renamed, "capability catalog mismatch")
+    )
+
+    inserted = copy.deepcopy(current)
+    extra = copy.deepcopy(inserted["capabilities"][0])
+    extra["id"] = "database.inserted"
+    inserted["capabilities"].append(extra)
+    cases.append(
+        ("inserted unknown capability", inserted, "capability catalog mismatch")
+    )
+
     duplicate = copy.deepcopy(current)
     duplicate["capabilities"].append(copy.deepcopy(duplicate["capabilities"][0]))
     cases.append(("duplicate ID", duplicate, "duplicate capability ID"))

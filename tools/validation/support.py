@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +36,106 @@ CAPABILITY_REQUIRED_KEYS = {
     "evidence",
 }
 CAPABILITY_KEYS = CAPABILITY_REQUIRED_KEYS | {"reason"}
+CAPABILITY_SCHEMA_PATH = Path("docs/validation/schema/support-matrix.schema.json")
+IN_SCOPE_POLICY_REF = "#/$defs/inScopeCapability"
+OUT_OF_SCOPE_POLICY_REF = "#/$defs/outOfScopeCapability"
+
+
+@dataclass(frozen=True)
+class CapabilityPolicy:
+    """One canonical v1 capability identity, scope, and evidence requirement."""
+
+    capability_id: str
+    out_of_scope: bool
+    required_verification: str
+
+
+def _load_capability_policies(
+    repo_root: Path,
+) -> tuple[list[CapabilityPolicy], list[str]]:
+    """Load the ordered v1 catalog from the binding support-matrix schema."""
+    path = repo_root / CAPABILITY_SCHEMA_PATH
+    try:
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        capability_schema = schema["properties"]["capabilities"]
+        raw_policies = capability_schema["prefixItems"]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        return [], [
+            f"capability catalog: cannot load {CAPABILITY_SCHEMA_PATH}: {error}"
+        ]
+
+    if (
+        not isinstance(raw_policies, list)
+        or not raw_policies
+        or capability_schema.get("minItems") != len(raw_policies)
+        or capability_schema.get("maxItems") != len(raw_policies)
+        or capability_schema.get("items") is not False
+    ):
+        return [], [
+            "capability catalog: schema must close one nonempty prefixItems "
+            "inventory with matching minItems/maxItems and items=false"
+        ]
+
+    policies: list[CapabilityPolicy] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for index, raw_policy in enumerate(raw_policies):
+        location = f"capability catalog prefixItems[{index}]"
+        if not isinstance(raw_policy, dict) or set(raw_policy) != {
+            "$ref",
+            "properties",
+        }:
+            errors.append(f"{location}: expected only $ref and properties")
+            continue
+        reference = raw_policy["$ref"]
+        properties = raw_policy["properties"]
+        if reference not in {IN_SCOPE_POLICY_REF, OUT_OF_SCOPE_POLICY_REF}:
+            errors.append(f"{location}.$ref: unknown scope policy")
+            continue
+        expected_fields = (
+            {"id"}
+            if reference == OUT_OF_SCOPE_POLICY_REF
+            else {"id", "required_verification"}
+        )
+        if not isinstance(properties, dict) or set(properties) != expected_fields:
+            errors.append(f"{location}.properties: invalid policy fields")
+            continue
+        identifier = properties.get("id")
+        capability_id = (
+            identifier.get("const") if isinstance(identifier, dict) else None
+        )
+        if not isinstance(capability_id, str) or not CAPABILITY_ID.fullmatch(
+            capability_id
+        ):
+            errors.append(f"{location}.id: invalid capability ID")
+            continue
+        if capability_id in seen:
+            errors.append(f"{location}.id: duplicate capability ID {capability_id!r}")
+            continue
+        seen.add(capability_id)
+        if reference == OUT_OF_SCOPE_POLICY_REF:
+            required = "not_applicable"
+        else:
+            requirement = properties.get("required_verification")
+            required = (
+                requirement.get("const") if isinstance(requirement, dict) else None
+            )
+            if (
+                required not in REQUIRED_VERIFICATION_STATES
+                or required == "not_applicable"
+            ):
+                errors.append(
+                    f"{location}.required_verification: invalid in-scope requirement"
+                )
+                continue
+        policies.append(
+            CapabilityPolicy(
+                capability_id=capability_id,
+                out_of_scope=reference == OUT_OF_SCOPE_POLICY_REF,
+                required_verification=str(required),
+            )
+        )
+    return policies, errors
 
 
 def _derived_label(
@@ -139,6 +241,39 @@ def _validate_scope_state(
         errors.append(f"{location}.evidence: {verification} requires evidence")
     return errors
 
+
+def _validate_capability_policy(
+    capability: dict[str, Any],
+    policy: CapabilityPolicy,
+    location: str,
+) -> list[str]:
+    """Require the catalog's immutable scope and verification policy."""
+    errors = []
+    implementation = capability.get("implementation")
+    verification = capability.get("verification")
+    required = capability.get("required_verification")
+    if required != policy.required_verification:
+        errors.append(
+            f"{location}.required_verification: capability catalog requires "
+            f"{policy.required_verification!r}"
+        )
+    if policy.out_of_scope:
+        if implementation != "out_of_scope_v1":
+            errors.append(
+                f"{location}.implementation: capability catalog requires "
+                "out_of_scope_v1"
+            )
+        if verification != "not_applicable":
+            errors.append(
+                f"{location}.verification: capability catalog requires not_applicable"
+            )
+    elif implementation == "out_of_scope_v1":
+        errors.append(
+            f"{location}.implementation: capability catalog requires an in-scope state"
+        )
+    return errors
+
+
 def _validate_capability(
     capability: Any,
     index: int,
@@ -146,6 +281,7 @@ def _validate_capability(
     head_commit: str | None,
     worktree_dirty: bool | None,
     test_manifest: dict[str, dict[str, Any]],
+    policy: CapabilityPolicy | None,
 ) -> tuple[list[str], str | None]:
     location = f"$.capabilities[{index}]"
     if not isinstance(capability, dict):
@@ -185,6 +321,8 @@ def _validate_capability(
             implementation, verification, required, reason, evidence, location
         )
     )
+    if policy is not None:
+        errors.extend(_validate_capability_policy(capability, policy, location))
     for label_key in ("label", "user_facing_label"):
         if capability.get(label_key) == "supported" and _derived_label(
             str(implementation), str(verification), str(required)
@@ -230,8 +368,23 @@ def validate_support_matrix(document: Any, repo_root: Path) -> list[str]:
     if not isinstance(capabilities, list):
         errors.append(f"$.capabilities: expected array, got {typename(capabilities)}")
         return errors
-    if not capabilities:
-        errors.append("$.capabilities: expected at least one capability")
+    policies, policy_errors = _load_capability_policies(repo_root)
+    errors.extend(policy_errors)
+    policy_by_id = {policy.capability_id: policy for policy in policies}
+    expected_ids = [policy.capability_id for policy in policies]
+    observed_ids = [
+        capability.get("id")
+        for capability in capabilities
+        if isinstance(capability, dict) and isinstance(capability.get("id"), str)
+    ]
+    if not policy_errors and observed_ids != expected_ids:
+        missing = sorted(set(expected_ids) - set(observed_ids))
+        unexpected = sorted(set(observed_ids) - set(expected_ids))
+        errors.append(
+            "$.capabilities: capability catalog mismatch; "
+            f"missing={missing}, unexpected={unexpected}, "
+            "and entries must retain canonical order"
+        )
 
     seen_ids: dict[str, int] = {}
     head_commit = git_head(repo_root)
@@ -246,6 +399,9 @@ def validate_support_matrix(document: Any, repo_root: Path) -> list[str]:
             head_commit,
             worktree_dirty,
             test_manifest,
+            policy_by_id.get(capability.get("id"))
+            if isinstance(capability, dict)
+            else None,
         )
         errors.extend(item_errors)
         if capability_id is not None:

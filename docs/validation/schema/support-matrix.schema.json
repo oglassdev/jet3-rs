@@ -65,10 +65,200 @@
     },
     "capabilities": {
       "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/capability"
-      }
+      "minItems": 28,
+      "maxItems": 28,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "database.open"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "database.create_empty"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "database.validate"},
+            "required_verification": {"const": "independent_check"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "format.header_and_version"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "format.pages_allocation_usage"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "schema.catalog_and_table_definitions"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "schema.create_drop_tables"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "values.all_dao_jet3_table_types"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "values.null_fixed_variable"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "values.code_pages_lossless_raw"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "values.date_currency_binary_guid_replication"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "values.memo_ole_multi_page"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "rows.streaming_read"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "rows.insert_update_delete"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "indexes.primary_unique_non_unique"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "indexes.composite_ascending_descending"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "indexes.crud_maintenance"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "relationships.create_drop_preserve_metadata"},
+            "required_verification": {"const": "dao_differential"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "transactions.copy_on_write_atomic_publish"},
+            "required_verification": {"const": "independent_check"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "output.deterministic_configuration"},
+            "required_verification": {"const": "independent_check"}
+          }
+        },
+        {
+          "$ref": "#/$defs/inScopeCapability",
+          "properties": {
+            "id": {"const": "safety.malformed_input_bounds_and_limits"},
+            "required_verification": {"const": "independent_check"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "ui.forms_reports_vba_macros"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "queries.execute_saved"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "security.passwords_encryption"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "replication.active_behavior"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "locking.concurrent_multi_user"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "format.jet4_accdb"}
+          }
+        },
+        {
+          "$ref": "#/$defs/outOfScopeCapability",
+          "properties": {
+            "id": {"const": "recovery.jet_equivalent_in_place"}
+          }
+        }
+      ],
+      "items": false
     }
   },
   "$defs": {
@@ -162,6 +352,42 @@
             "required": [
               "scenario_ids"
             ]
+          }
+        }
+      ]
+    },
+    "inScopeCapability": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/capability"
+        },
+        {
+          "properties": {
+            "implementation": {
+              "not": {
+                "const": "out_of_scope_v1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "outOfScopeCapability": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/capability"
+        },
+        {
+          "properties": {
+            "implementation": {
+              "const": "out_of_scope_v1"
+            },
+            "verification": {
+              "const": "not_applicable"
+            },
+            "required_verification": {
+              "const": "not_applicable"
+            }
           }
         }
       ]
