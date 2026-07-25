@@ -18,13 +18,13 @@ from typing import Any
 from fuzz_build_identity import (
     BASE_ENVIRONMENT_KEYS,
     WINDOWS_ENVIRONMENT_KEYS,
-    canonical_build_environment,
-    capture_cargo_metadata,
+    cargo_fuzz_runtime_command,
     copy_seeds,
-    create_build_manifest,
+    prepare_isolated_fuzz_build,
     require_external_output,
     require_clean_snapshot,
     validate_build_manifest,
+    validate_fuzz_runtime_command,
 )
 from fuzz_evidence import (
     EvidenceError,
@@ -277,31 +277,22 @@ def _validate_observer(
         log_text = producer_log.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
         raise ValidationError(f"producer log is not valid UTF-8: {error}") from error
+    if re.search(r"\bCompiling\b", log_text):
+        raise ValidationError(
+            "runtime producer rebuilt code after the retained isolated prebuild"
+        )
 
     command = observer["command"]
-    if not isinstance(command, list) or not command or any(
-        not isinstance(argument, str) or not argument for argument in command
-    ):
-        raise ValidationError("observer command must be a non-empty string array")
-    expected_prefix = [
-        command[0], "fuzz", "run", "--fuzz-dir", "fuzz", target["name"],
-        "--sanitizer", report["campaign"]["sanitizer"],
-    ]
-    if command[:len(expected_prefix)] != expected_prefix or "--" not in command:
-        raise ValidationError("observer command is not the canonical cargo-fuzz invocation")
-    separator = command.index("--")
-    if separator != len(expected_prefix) + 1:
-        raise ValidationError("observer command must name exactly one disposable corpus")
-    expected_engine_args = {
-        f"-max_total_time={report['campaign']['duration_seconds']}",
-        f"-seed={deterministic_seed}",
-        f"-max_len={target['max_len']}",
-        f"-rss_limit_mb={target['peak_rss_limit_bytes'] // (1024 * 1024)}",
-    }
-    if set(command[separator + 1:]) != expected_engine_args or len(
-        command[separator + 1:]
-    ) != len(expected_engine_args):
-        raise ValidationError("observer command has stale or non-canonical libFuzzer limits")
+    validate_fuzz_runtime_command(
+        command,
+        target["name"],
+        report["campaign"]["sanitizer"],
+        observer["build_environment"]["CARGO_TARGET_DIR"],
+        report["campaign"]["duration_seconds"],
+        deterministic_seed,
+        target["max_len"],
+        target["peak_rss_limit_bytes"],
+    )
 
     started = parse_date_time(observer["started_at"], "observer.started_at")
     finished = parse_date_time(observer["finished_at"], "observer.finished_at")
@@ -510,7 +501,10 @@ def validate_report(root: Path, report_path: Path) -> None:
     if wall_limit != duration + 90:
         raise ValidationError("campaign report wall-clock limit is not canonical")
     if rss_observed > rss_limit:
-        raise ValidationError("campaign exceeded its peak-RSS limit")
+        raise ValidationError(
+            "campaign exceeded its peak-RSS limit: "
+            f"observed {rss_observed} bytes > {rss_limit} bytes"
+        )
     if report["result"] == "clean" and wall_observed < campaign["duration_seconds"]:
         raise ValidationError("clean campaign ended before its recorded duration")
 
@@ -601,40 +595,34 @@ def run_campaign(
         raise ValidationError(f"refusing to replace existing evidence path: {output}")
     temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent))
     try:
-        target_directory = temporary / "build-target"
-        build_environment = canonical_build_environment(
-            cargo_identity["path"],
-            cargo_fuzz_identity["path"],
-            rustc_identity["path"],
-            Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")),
-            target_directory,
-            temporary,
-        )
-        metadata_path = temporary / "cargo-metadata.json"
-        capture_cargo_metadata(
+        build = prepare_isolated_fuzz_build(
             root,
-            metadata_path,
-            cargo_identity["path"],
-            build_environment,
+            temporary,
+            snapshot,
+            toolchain,
+            target_name,
+            sanitizer,
+            Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")),
         )
-        if target_directory.exists():
-            raise ValidationError("Cargo metadata polluted the isolated build target")
-        build_manifest = create_build_manifest(
-            root, snapshot, metadata_path, build_environment, toolchain
-        )
-        build_path = temporary / "build.json"
-        write_json(build_path, build_manifest)
+        build_environment = build.environment
+        prebuild = build.prebuild
+        build_path = build.manifest_path
+        metadata_path = build.metadata_path
+        target_directory = build.target_directory
         corpus = temporary / "corpus"
         seeds = copy_seeds(root, corpus, manifest, target_name)
         log_path = temporary / "producer.log"
-        command = [
-            cargo_fuzz_identity["path"], "fuzz", "run", "--fuzz-dir", "fuzz", target_name,
-            "--sanitizer", sanitizer, str(corpus), "--",
-            f"-max_total_time={duration}",
-            f"-seed={registry['deterministic_seed']}",
-            f"-max_len={target['max_len']}",
-            f"-rss_limit_mb={target['peak_rss_limit_bytes'] // (1024 * 1024)}",
-        ]
+        command = cargo_fuzz_runtime_command(
+            cargo_fuzz_identity["path"],
+            target_name,
+            sanitizer,
+            build_environment["CARGO_TARGET_DIR"],
+            corpus,
+            duration,
+            registry["deterministic_seed"],
+            target["max_len"],
+            target["peak_rss_limit_bytes"],
+        )
         observer = observe_producer(
             root,
             log_path,
@@ -643,6 +631,10 @@ def run_campaign(
             toolchain,
             build_environment,
         )
+        if observer["executable"] != prebuild["executable"]:
+            raise ValidationError(
+                "runtime executable identity disagrees with the isolated prebuild"
+            )
         if require_clean_snapshot(root) != snapshot:
             raise ValidationError("clean Git snapshot changed during fuzz campaign")
         shutil.rmtree(corpus)

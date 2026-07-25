@@ -18,6 +18,8 @@ assert SPEC is not None and SPEC.loader is not None
 fuzz_campaign = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(fuzz_campaign)
 ValidationError = fuzz_campaign.ValidationError
+fuzz_build_identity = sys.modules["fuzz_build_identity"]
+fuzz_evidence = sys.modules["fuzz_evidence"]
 
 
 def write_json(path: Path, value: object) -> None:
@@ -147,7 +149,9 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         }
         command = [
             "/usr/bin/cargo-fuzz", "fuzz", "run", "--fuzz-dir", "fuzz", "example",
-            "--sanitizer", "address", "/tmp/corpus", "--",
+            "--sanitizer", "address",
+            "--target-dir", "/tmp/fuzz-build-target",
+            "/tmp/corpus", "--",
             "-max_total_time=60", "-seed=789231", "-max_len=4096",
             "-rss_limit_mb=256",
         ]
@@ -182,12 +186,31 @@ class FuzzCampaignValidationTests(unittest.TestCase):
                 "nodes": [{"id": "path+file:///example#jet3-fuzz@0.0.0"}]
             },
         })
-        build_manifest = fuzz_campaign.create_build_manifest(
+        prebuild_log_path = self.bundle / "prebuild.log"
+        prebuild_log_path.write_text(
+            "Finished `release` profile [optimized + debuginfo] target(s)\n",
+            encoding="utf-8",
+        )
+        prebuild = {
+            "command": [
+                "/usr/bin/cargo-fuzz", "fuzz", "build", "--fuzz-dir", "fuzz",
+                "example", "--sanitizer", "address",
+                "--target-dir", "/tmp/fuzz-build-target",
+            ],
+            "log": {
+                "path": "prebuild.log",
+                "sha256": fuzz_campaign.sha256(prebuild_log_path),
+            },
+            "exit_code": 0,
+            "executable": executable,
+        }
+        build_manifest = fuzz_build_identity.create_build_manifest(
             self.root,
             commit,
             metadata_path,
             build_environment,
             toolchain,
+            prebuild,
         )
         build_path = self.bundle / "build.json"
         write_json(build_path, build_manifest)
@@ -298,7 +321,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         environment_root = self.bundle / "controlled-environment"
         environment_root.mkdir()
         with mock.patch.dict("os.environ", ambient, clear=False):
-            environment = fuzz_campaign.canonical_build_environment(
+            environment = fuzz_build_identity.canonical_build_environment(
                 "/usr/bin/cargo",
                 "/usr/bin/cargo-fuzz",
                 "/usr/bin/rustc",
@@ -316,6 +339,112 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             fuzz_campaign.exact_process_environment(environment),
             environment,
         )
+
+    def test_isolated_prebuild_does_not_sample_build_rss(self) -> None:
+        log_path = self.bundle / "prebuild.log"
+        command = ["/usr/bin/cargo-fuzz", "fuzz", "build", "example"]
+        environment = {"PATH": "/usr/bin"}
+        completed = subprocess.CompletedProcess(command, 0)
+        with mock.patch.object(
+            fuzz_build_identity.subprocess,
+            "run",
+            return_value=completed,
+        ) as run:
+            with mock.patch.object(fuzz_evidence, "_process_tree_rss") as sample_rss:
+                retained = fuzz_build_identity.run_isolated_prebuild(
+                    self.root,
+                    log_path,
+                    command,
+                    environment,
+                )
+        sample_rss.assert_not_called()
+        run.assert_called_once_with(
+            command,
+            cwd=self.root,
+            env=environment,
+            check=False,
+            stdout=mock.ANY,
+            stderr=subprocess.STDOUT,
+        )
+        self.assertEqual(retained["exit_code"], 0)
+        self.assertEqual(retained["log"]["sha256"], fuzz_campaign.sha256(log_path))
+
+    def test_failed_isolated_prebuild_reports_exit_and_log_tail(self) -> None:
+        log_path = self.bundle / "prebuild.log"
+        command = ["/usr/bin/cargo-fuzz", "fuzz", "build", "example"]
+
+        def fail_prebuild(*_args: object, **kwargs: object) -> subprocess.CompletedProcess:
+            kwargs["stdout"].write(b"compiler diagnostic\n")
+            return subprocess.CompletedProcess(command, 17)
+
+        with mock.patch.object(
+            fuzz_build_identity.subprocess,
+            "run",
+            side_effect=fail_prebuild,
+        ):
+            with self.assertRaisesRegex(
+                ValidationError,
+                "exit code 17: compiler diagnostic",
+            ):
+                fuzz_build_identity.run_isolated_prebuild(
+                    self.root,
+                    log_path,
+                    command,
+                    {"PATH": "/usr/bin"},
+                )
+
+    def test_failed_prebuild_publishes_no_partial_bundle(self) -> None:
+        self._initialize_git()
+        output = self.bundle / "prebuild-failed"
+
+        def identity(path: str, _version_args: list[str]) -> dict[str, object]:
+            return {
+                "path": path,
+                "sha256": "a" * 64,
+                "version": f"{Path(path).name} test",
+            }
+
+        with mock.patch.object(fuzz_campaign, "tool_identity", side_effect=identity):
+            with mock.patch.object(
+                fuzz_campaign,
+                "prepare_isolated_fuzz_build",
+                side_effect=ValidationError("prebuild failed"),
+            ):
+                with self.assertRaisesRegex(ValidationError, "prebuild failed"):
+                    fuzz_campaign.run_campaign(
+                        self.root,
+                        "example",
+                        "smoke",
+                        "address",
+                        "/usr/bin/cargo",
+                        "/usr/bin/cargo-fuzz",
+                        output,
+                    )
+        self.assertFalse(output.exists())
+        self.assertEqual(list(self.bundle.glob(".prebuild-failed.tmp-*")), [])
+
+    def test_runtime_rss_sampler_sums_only_the_process_tree(self) -> None:
+        process_table = "\n".join(
+            (
+                "10 1 100",
+                "11 10 200",
+                "12 11 300",
+                "99 1 999",
+            )
+        )
+        completed = subprocess.CompletedProcess(
+            ["ps"],
+            0,
+            stdout=process_table,
+            stderr="",
+        )
+        with mock.patch.object(
+            fuzz_evidence.subprocess,
+            "run",
+            return_value=completed,
+        ):
+            observed = fuzz_evidence._process_tree_rss(10)
+        self.assertEqual(observed, (100 + 200 + 300) * 1024)
 
     def test_vacuous_registry_is_rejected(self) -> None:
         self.registry["targets"] = []
@@ -438,7 +567,10 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         commit = self._initialize_git()
         report = self._valid_report(commit)
         report["observed"]["peak_rss_bytes"] = 268435457
-        with self.assertRaisesRegex(ValidationError, "peak-RSS"):
+        with self.assertRaisesRegex(
+            ValidationError,
+            "observed 268435457 bytes > 268435456 bytes",
+        ):
             self._validate_report(report)
 
     def test_clean_short_campaign_is_rejected(self) -> None:
@@ -482,6 +614,51 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         with (self.bundle / "producer.log").open("a", encoding="utf-8") as log:
             log.write("corrupted\n")
         with self.assertRaisesRegex(ValidationError, "producer-log hash is stale"):
+            self._validate_report(report)
+
+    def test_runtime_rebuild_after_prebuild_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        log_path = self.bundle / "producer.log"
+        with log_path.open("a", encoding="utf-8") as log:
+            log.write("   Compiling jet3-fuzz v0.0.0\n")
+        observer_path = self.bundle / "observer.json"
+        observer = json.loads(observer_path.read_text(encoding="utf-8"))
+        observer["producer_log_sha256"] = fuzz_campaign.sha256(log_path)
+        self._rewrite_observer(report, observer)
+        report["producer"]["log"]["sha256"] = fuzz_campaign.sha256(log_path)
+        with self.assertRaisesRegex(ValidationError, "rebuilt code"):
+            self._validate_report(report)
+
+    def test_prebuild_log_corruption_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        with (self.bundle / "prebuild.log").open("a", encoding="utf-8") as log:
+            log.write("corrupted\n")
+        with self.assertRaisesRegex(ValidationError, "prebuild log hash is stale"):
+            self._validate_report(report)
+
+    def test_rehashed_noncanonical_prebuild_command_is_rejected(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        build_path = self.bundle / "build.json"
+        build = json.loads(build_path.read_text(encoding="utf-8"))
+        build["prebuild"]["command"].append("--careful")
+        self._rewrite_build(report, build)
+        with self.assertRaisesRegex(ValidationError, "prebuild command is not canonical"):
+            self._validate_report(report)
+
+    def test_runtime_executable_must_match_prebuild_identity(self) -> None:
+        commit = self._initialize_git()
+        report = self._valid_report(commit)
+        build_path = self.bundle / "build.json"
+        build = json.loads(build_path.read_text(encoding="utf-8"))
+        build["prebuild"]["executable"]["sha256"] = "e" * 64
+        self._rewrite_build(report, build)
+        with self.assertRaisesRegex(
+            ValidationError,
+            "runtime executable identity disagrees",
+        ):
             self._validate_report(report)
 
     def test_rehashed_run_count_forgery_is_rejected(self) -> None:
