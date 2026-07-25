@@ -1,6 +1,8 @@
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -182,6 +184,42 @@ catch {{
         result = json.loads(completed.stdout.strip().splitlines()[-1])
         self.assertEqual(result["category"], "Blocked")
         self.assertIn("os_build", result["message"])
+
+    def test_python_discovery_skips_non_runnable_application_shims(self) -> None:
+        command = f"""
+. {ps_literal(MODULE)}
+$selected = Get-M1Python3
+[ordered]@{{
+    executable = $selected.Executable
+    version = $selected.Version
+}} | ConvertTo-Json -Compress
+"""
+        environment = os.environ.copy()
+        environment["PATH"] = (
+            str(Path(sys.executable).parent)
+            + os.pathsep
+            + environment.get("PATH", "")
+        )
+        completed = subprocess.run(
+            [
+                POWERSHELL,
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+            ],
+            cwd=REPOSITORY_ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+            env=environment,
+        )
+        result = json.loads(completed.stdout.strip().splitlines()[-1])
+        self.assertEqual(
+            Path(result["executable"]).resolve(),
+            Path(sys.executable).resolve(),
+        )
 
 
 class M1PreflightSourceContractTests(unittest.TestCase):

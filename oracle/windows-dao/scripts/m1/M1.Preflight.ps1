@@ -291,9 +291,11 @@ function Get-M1PythonRegistryCandidates {
 function Get-M1Python3 {
     $candidates = New-Object Collections.ArrayList
     foreach ($name in @("python3", "python", "py")) {
-        $command = Get-Command $name -CommandType Application -ErrorAction `
-            SilentlyContinue | Select-Object -First 1
-        if ($null -ne $command) {
+        $commands = @(
+            Get-Command $name -CommandType Application -All -ErrorAction `
+                SilentlyContinue
+        )
+        foreach ($command in $commands) {
             [void]$candidates.Add([ordered]@{
                 command = $command.Source
                 prefix = $(if ($name -eq "py") { @("-3") } else { @() })
@@ -318,7 +320,12 @@ function Get-M1Python3 {
         $code = "import json,platform,sys;print(json.dumps({" +
             "'executable':sys.executable,'major':sys.version_info[0]," +
             "'version':platform.python_version()}))"
-        $probe = (& $command @prefix -B -c $code 2>&1 | Out-String).Trim()
+        try {
+            $probe = (& $command @prefix -B -c $code 2>&1 | Out-String).Trim()
+        }
+        catch {
+            continue
+        }
         if ($LASTEXITCODE -ne 0) { continue }
         try { $identity = $probe | ConvertFrom-Json } catch { continue }
         if (
