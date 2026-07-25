@@ -942,7 +942,7 @@ class M1ProtocolTests(unittest.TestCase):
                     self.skipTest("Windows symlink privilege is unavailable")
                 raise
             with self.assertRaisesRegex(
-                VALIDATOR.ValidationError, "symlinks are forbidden"
+                VALIDATOR.ValidationError, r"symlinks.*forbidden"
             ):
                 VALIDATOR.validate_bundle(bundle)
 
