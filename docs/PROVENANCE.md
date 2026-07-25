@@ -826,6 +826,55 @@ Use `not applicable` explicitly rather than omitting a field.
   above; the published bundle passed a separate invocation of the checked
   protocol-1.1 validator
 
+### EXP-0008 — Controlled M1 physical page-difference observation
+
+- Recorded: 2026-07-25, OpenAI Codex
+- Kind: bounded descriptive experiment over controlled DAO output
+- Question: Which complete 2-KiB pages and common-length byte positions differ
+  between the two controlled M1 scenario pairs, without assigning physical
+  format semantics?
+- Origin: only the seven project-generated databases in the passing
+  `EXP-0007` bundle; no donated database, external MDB, or third-party MDB
+  implementation was read
+- Environment: Microsoft Windows 10.0.22631 x64; PowerShell 7.4.17; culture
+  `en-US`; UTF-8 default and output code page 65001; Eastern Standard Time;
+  exact clean pushed observer commit
+  `550ddc266eddf7e6765cf929ef50fd5aac19c542`
+- Protocol: require the exact clean observer commit, exact `EXP-0007` manifest
+  SHA-256, complete passing seven-scenario/two-pair protocol-1.1 validation,
+  the 2,048-byte Jet 3 page size established by `SRC-0005`, and page-aligned
+  databases within the 16-MiB per-file ceiling; hash each complete page in
+  physical order; compare only the two declared pair sides; record differing
+  page indices, common-length byte difference counts and first/last offsets,
+  and length differences; publish one collision-refusing, fsynced JSON file
+  outside the repository; independently rerun the M1 validator and recompute
+  all page-hash sequences and pair byte bounds with PowerShell/.NET SHA-256
+- Artifacts: source bundle from `EXP-0007`, manifest SHA-256
+  `9bc59d5db419e7283d8013d34e4fea16c3a9add8830c392294b8a8b6b1c32685`;
+  observation retained at
+  `%TEMP%\jet3-rs-m2-observation\550ddc266eddf7e6765cf929ef50fd5aac19c542\20260725T012548Z-m1-pages.json`,
+  21,302 bytes, SHA-256
+  `59d38601f5c8214a3eaa85b140461de0b54d83bf8664d314c35cba8e5be6f445`
+- Observation: the two equal-length repeated empty databases each contain 20
+  pages; 151 common-length bytes differ across page indices 2, 3, 4, 5, 18,
+  and 19, from absolute offset 4,206 through 40,691. The text baseline contains
+  24 pages and the indexed variant 25; 740 bytes differ within their
+  49,152-byte common length across page indices 1, 3, 4, 5, and 18 through 23,
+  while page 24 is present only in the indexed file. The first and last
+  common-length differences are at offsets 3,971 and 49,151.
+- Interpretation: these exact-file observations do not identify a page class,
+  header, field, row, index node, allocation record, nondeterministic field, or
+  any other MDB structure. They establish no Rust compatibility and do not
+  advance the support matrix. The repeated-empty differences also show why
+  byte identity must not be assumed from semantic DAO equality.
+- Usage: `oracle/windows-dao/scripts/observe_m1_pages.py`;
+  `docs/validation/M2_PAGE_OBSERVATION.md`
+- Rights: generated locally through the licensed provider in `EXP-0007`;
+  retained outside the repository and not redistributed
+- Review: the source M1 bundle independently revalidated, and an independent
+  PowerShell/.NET pass exactly reproduced all seven page-hash sequences and
+  both pair byte bounds
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
