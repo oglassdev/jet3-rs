@@ -88,6 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -139,20 +141,21 @@ jobs:
     name: Fuzz target smoke
     runs-on: ubuntu-latest
     env:
-      RUSTC_BOOTSTRAP: 1
+      RUSTUP_TOOLCHAIN: nightly-2026-07-20
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: 1.96.0
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-fuzz@0.13.2
+          toolchain: nightly-2026-07-20
+      - name: Install pinned cargo-fuzz for the native host
+        run: >-
+          cargo +nightly-2026-07-20 install cargo-fuzz
+          --version 0.13.2 --locked
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz
       - name: Compile all checked fuzz targets
-        run: cargo fuzz build --fuzz-dir fuzz
+        run: cargo +nightly-2026-07-20 fuzz build --fuzz-dir fuzz
       - name: Validate fuzz registry, seed manifest, and campaign reports
         run: python3 -m unittest discover -s fuzz/tests -v
       - name: Run every registered deterministic smoke campaign
@@ -168,22 +171,27 @@ jobs:
           toolchain: nightly-2026-07-20
           components: miri
       - uses: Swatinem/rust-cache@v2
-      - run: cargo miri setup
+      - run: cargo +nightly-2026-07-20 miri setup
       - name: Interpret pure jet3 library modules
         # atomic and source tests exercise host files, permissions, and fsync, so
         # they remain covered by the three-platform core job instead of Miri.
         run: |
           for test_module in \
             binary::tests \
+            candidate::tests \
+            commit_state::tests \
+            database_header::tests \
             error::tests \
             header::tests \
             jet3_page::tests \
             limits::tests \
             offset::tests \
             page::tests \
+            raw_page_stream::tests \
             resource::tests
           do
-            cargo miri test --package jet3 --lib --all-features --locked "$test_module"
+            cargo +nightly-2026-07-20 miri test \
+              --package jet3 --lib --all-features --locked "$test_module"
           done
 
   format:

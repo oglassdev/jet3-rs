@@ -65,6 +65,7 @@ RUNTIME_NAME = re.compile(r"^[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*$")
 RUNNING = re.compile(r"^\s*Running .+ \((?:.*[/\\])?([^/\\()]+)\)\s*$")
 LISTED_TEST = re.compile(r"^(.+): test$")
 DOC_TESTS = re.compile(r"^\s*Doc-tests\s+(\S+)\s*$")
+LIST_SUMMARY = re.compile(r"^\s*\d+ tests?, \d+ benchmarks?\s*$")
 HASH_SUFFIX = re.compile(r"^(.+)-[0-9a-f]{7,}$")
 
 
@@ -84,8 +85,8 @@ def _target_name(executable: str) -> str:
     return matched.group(1) if matched else name
 
 
-def parse_cargo_list(output: str) -> set[RuntimeTest]:
-    """Parse Cargo/libtest output without misattributing doctests."""
+def _parse_merged_cargo_list(output: str) -> set[RuntimeTest]:
+    """Parse legacy output whose producer has already merged both streams."""
     tests: set[RuntimeTest] = set()
     current_target: str | None = None
     in_doc_tests = False
@@ -113,6 +114,73 @@ def parse_cargo_list(output: str) -> set[RuntimeTest]:
         if test in tests:
             raise ValueError(f"Cargo listed duplicate test {test.display}")
         tests.add(test)
+    return tests
+
+
+def _cargo_target_sequence(stderr: str) -> list[str | None]:
+    """Extract Cargo's ordered executable/doctest sequence from stderr."""
+    targets: list[str | None] = []
+    for raw_line in stderr.splitlines():
+        running = RUNNING.match(raw_line)
+        if running:
+            targets.append(_target_name(running.group(1)))
+        elif DOC_TESTS.match(raw_line):
+            targets.append(None)
+    return targets
+
+
+def _libtest_list_blocks(stdout: str) -> list[list[str]]:
+    """Extract the ordered per-executable test-name blocks from stdout."""
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    for raw_line in stdout.splitlines():
+        listed = LISTED_TEST.fullmatch(raw_line)
+        if listed:
+            current.append(listed.group(1))
+        elif LIST_SUMMARY.fullmatch(raw_line):
+            blocks.append(current)
+            current = []
+    if current:
+        raise ValueError("Cargo test listing ended without a libtest summary")
+    return blocks
+
+
+def parse_cargo_list(stdout: str, stderr: str | None = None) -> set[RuntimeTest]:
+    """Parse Cargo/libtest output without relying on cross-stream ordering.
+
+    Cargo writes target headers to stderr while each libtest executable writes
+    its listing to stdout. When the streams are supplied separately, target
+    headers and complete listing blocks are paired by their stable order within
+    each stream. This prevents buffering or a CI log collector from assigning a
+    test to whichever target header happened to be observed most recently.
+
+    Passing only ``stdout`` retains support for already-merged captured output.
+    """
+    if stderr is None:
+        return _parse_merged_cargo_list(stdout)
+
+    targets = _cargo_target_sequence(stderr)
+    blocks = _libtest_list_blocks(stdout)
+    if len(targets) != len(blocks):
+        raise ValueError(
+            "Cargo target/listing count mismatch: "
+            f"{len(targets)} target headers, {len(blocks)} listing blocks"
+        )
+
+    tests: set[RuntimeTest] = set()
+    for target, names in zip(targets, blocks, strict=True):
+        if target is None:
+            if names:
+                raise ValueError(
+                    "Doc-tests are outside the unit-test inventory and require "
+                    f"separate reconciliation: {names[0]!r}"
+                )
+            continue
+        for name in names:
+            test = RuntimeTest(target, name)
+            if test in tests:
+                raise ValueError(f"Cargo listed duplicate test {test.display}")
+            tests.add(test)
     return tests
 
 
@@ -151,16 +219,15 @@ def _run_list(repo_root: Path, *, ignored_only: bool) -> set[RuntimeTest]:
         cwd=repo_root,
         env=_cargo_environment(repo_root),
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        capture_output=True,
         text=True,
     )
     if completed.returncode != 0:
         raise RuntimeError(
             f"{' '.join(command)} failed with {completed.returncode}:\n"
-            f"{completed.stdout}"
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
-    return parse_cargo_list(completed.stdout)
+    return parse_cargo_list(completed.stdout, completed.stderr)
 
 
 def cargo_inventory(repo_root: Path) -> tuple[set[RuntimeTest], set[RuntimeTest]]:

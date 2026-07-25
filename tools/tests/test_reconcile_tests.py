@@ -293,6 +293,38 @@ tests::fixture_name: test
             },
         )
 
+    def test_cargo_parser_keeps_reordered_streams_attributed_by_block(self) -> None:
+        stdout = """\
+binary::tests::boundary: test
+1 test, 0 benchmarks
+tests::fixture_name: test
+1 test, 0 benchmarks
+"""
+        stderr = """\
+   Compiling jet3 v0.0.0
+    Running unittests src/lib.rs (target/debug/deps/jet3-0123456789abcdef)
+    Running unittests src/lib.rs (target/debug/deps/jet3_testkit-fedcba9876543210)
+"""
+        self.assertEqual(
+            reconcile.parse_cargo_list(stdout, stderr),
+            {
+                reconcile.RuntimeTest("jet3", "binary::tests::boundary"),
+                reconcile.RuntimeTest("jet3_testkit", "tests::fixture_name"),
+            },
+        )
+
+    def test_cargo_parser_rejects_separate_stream_count_mismatch(self) -> None:
+        stdout = """\
+binary::tests::boundary: test
+1 test, 0 benchmarks
+"""
+        stderr = """\
+    Running unittests src/lib.rs (target/debug/deps/jet3-0123456789abcdef)
+    Running unittests src/lib.rs (target/debug/deps/jet3_testkit-fedcba9876543210)
+"""
+        with self.assertRaisesRegex(ValueError, "count mismatch"):
+            reconcile.parse_cargo_list(stdout, stderr)
+
     def test_cargo_parser_rejects_unscoped_duplicate_and_doctests(self) -> None:
         with self.assertRaisesRegex(ValueError, "no preceding Cargo target"):
             reconcile.parse_cargo_list("tests::orphan: test\n")

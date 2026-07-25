@@ -3,9 +3,17 @@
 //! This module models and serializes the protocol document. It does not read
 //! MDB bytes and does not provide compatibility evidence.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
+
+#[path = "canonical_snapshot_validation.rs"]
+mod validation;
+
+use validation::{
+    canonicalize_rows, ensure_named_order, ensure_ordinal_order, ensure_row_order,
+    ensure_unique_names, is_invariant_datetime, is_invariant_decimal, is_lower_hex_digit,
+};
 
 /// A structured canonical snapshot construction or serialization error.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -276,65 +284,111 @@ impl FiniteF64 {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TypedValue {
+    /// A database null with no semantic payload.
     Null {
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A Boolean value.
     Boolean {
+        /// The decoded Boolean.
         value: bool,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// An unsigned 8-bit integer value.
     Byte {
+        /// The decoded integer.
         value: u8,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A signed 16-bit integer value.
     Integer {
+        /// The decoded integer.
         value: i16,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A signed 32-bit integer value.
     Long {
+        /// The decoded integer.
         value: i32,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A finite single-precision floating-point value.
     Single {
+        /// The decoded finite number.
         value: FiniteF32,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A finite double-precision floating-point value.
     Double {
+        /// The decoded finite number.
         value: FiniteF64,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// An exact decimal value in invariant text form.
     Decimal {
+        /// The decoded decimal without locale-dependent formatting.
         value: InvariantDecimal,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// An exact currency value in invariant text form.
     Currency {
+        /// The decoded currency amount without locale-dependent formatting.
         value: InvariantDecimal,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A date/time value in timezone-free invariant text form.
     DateTime {
+        /// The decoded date and time.
         value: InvariantDateTime,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A bounded text value.
     Text {
+        /// The decoded Unicode text.
         value: String,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
+        /// Source code page when it is meaningful and independently known.
         code_page: Option<u32>,
     },
+    /// A bounded binary value.
     Binary {
+        /// The semantic byte sequence encoded as lowercase hexadecimal text.
         value: HexString,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A globally unique identifier.
     Guid {
+        /// The decoded GUID in canonical lowercase hyphenated form.
         value: Guid,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
+    /// A bounded long-text value.
     Memo {
+        /// The decoded Unicode text.
         value: String,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
+        /// Source code page when it is meaningful and independently known.
         code_page: Option<u32>,
     },
+    /// A bounded OLE object value.
     Ole {
+        /// The semantic byte sequence encoded as lowercase hexadecimal text.
         value: HexString,
+        /// Optional source bytes retained for a preservation comparison.
         raw_hex: Option<HexString>,
     },
 }
@@ -345,13 +399,16 @@ pub type PropertyMap = BTreeMap<String, TypedValue>;
 /// Snapshot producer kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProducerKind {
+    /// A snapshot produced by the independent Microsoft DAO oracle.
     Dao,
+    /// A snapshot produced by this Rust implementation.
     Rust,
 }
 
 /// Identity of the independent snapshot producer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Producer {
+    /// The independent implementation that produced the snapshot.
     pub kind: ProducerKind,
     source_revision: String,
 }
@@ -382,33 +439,51 @@ impl Producer {
 /// Column schema and properties.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Column {
+    /// Column name as exposed by the snapshot producer.
     pub name: String,
+    /// Zero-based declared position used for canonical column ordering.
     pub ordinal: u64,
+    /// Producer-reported DAO column type name.
     pub dao_type: String,
+    /// Whether the column accepts null values.
     pub nullable: bool,
+    /// Whether the producer reports the column as required.
     pub required: bool,
+    /// Whether values are automatically generated by the database.
     pub auto_increment: bool,
+    /// Declared maximum size when the type exposes one.
     pub size: Option<u64>,
+    /// Producer-reported column attribute bit field.
     pub attributes: i64,
+    /// Additional canonical column properties keyed by property name.
     pub properties: PropertyMap,
 }
 
 /// One field in an index, retained in declared order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexField {
+    /// Indexed column name.
     pub name: String,
+    /// Whether this field is ordered descending within the index.
     pub descending: bool,
 }
 
 /// Index schema and properties.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Index {
+    /// Index name as exposed by the snapshot producer.
     pub name: String,
+    /// Whether this is the table's primary index.
     pub primary: bool,
+    /// Whether indexed key tuples must be unique.
     pub unique: bool,
+    /// Whether every indexed field is required.
     pub required: bool,
+    /// Whether rows with null indexed values are omitted.
     pub ignore_nulls: bool,
+    /// Indexed fields in their declared key order.
     pub fields: Vec<IndexField>,
+    /// Additional canonical index properties keyed by property name.
     pub properties: PropertyMap,
 }
 
@@ -418,65 +493,95 @@ pub struct Index {
 /// identical rows remain interchangeable and are retained.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
+    /// Producer-declared stable key used as the primary row sort key.
     pub canonical_key: String,
+    /// Row values keyed by column name.
     pub values: PropertyMap,
 }
 
 /// Snapshot table kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TableKind {
+    /// A locally stored user table.
     User,
+    /// A Jet system table.
     System,
+    /// A linked table whose data is owned by another data source.
     Linked,
 }
 
 /// Table schema, properties, and semantic rows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Table {
+    /// Table name as exposed by the snapshot producer.
     pub name: String,
+    /// Semantic table category.
     pub kind: TableKind,
+    /// Producer-reported table attribute bit field.
     pub attributes: i64,
+    /// Columns ordered by their declared ordinal.
     pub columns: Vec<Column>,
+    /// Indexes ordered by name.
     pub indexes: Vec<Index>,
+    /// Additional canonical table properties keyed by property name.
     pub properties: PropertyMap,
+    /// Semantic rows in canonical key/value order.
     pub rows: Vec<Row>,
 }
 
 /// A local/foreign field pair retained in declared order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RelationshipField {
+    /// Column name in the local table.
     pub field: String,
+    /// Referenced column name in the foreign table.
     pub foreign_field: String,
 }
 
 /// Relationship schema and properties.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Relationship {
+    /// Relationship name as exposed by the snapshot producer.
     pub name: String,
+    /// Name of the local table.
     pub table: String,
+    /// Name of the referenced table.
     pub foreign_table: String,
+    /// Producer-reported relationship attribute bit field.
     pub attributes: i64,
+    /// Local/foreign column pairs in declared order.
     pub fields: Vec<RelationshipField>,
+    /// Additional canonical relationship properties keyed by property name.
     pub properties: PropertyMap,
 }
 
 /// Raw bytes intentionally retained for a semantic preservation check.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawPreservation {
+    /// Semantic JSON path identifying what the bytes represent.
     pub semantic_path: String,
+    /// Exact preserved bytes encoded as lowercase hexadecimal text.
     pub raw_hex: HexString,
+    /// Human-readable reason these bytes must be compared.
     pub purpose: String,
 }
 
 /// A protocol 1.0.0 canonical semantic snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanonicalSnapshot {
+    /// Protocol scenario that generated or consumed the database.
     pub scenario_id: ScenarioId,
+    /// Independent implementation that produced this snapshot.
     pub producer: Producer,
+    /// SHA-256 digest of the exact database bytes being described.
     pub database_sha256: Sha256,
+    /// Canonical database-level properties keyed by property name.
     pub database_properties: PropertyMap,
+    /// Tables ordered by name.
     pub tables: Vec<Table>,
+    /// Relationships ordered by name.
     pub relationships: Vec<Relationship>,
+    /// Explicit byte sequences retained for preservation comparisons.
     pub raw_preservation: Vec<RawPreservation>,
 }
 
@@ -589,150 +694,4 @@ impl CanonicalSnapshot {
         }
         Ok(())
     }
-}
-
-fn is_lower_hex_digit(byte: u8) -> bool {
-    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
-}
-
-fn is_invariant_decimal(value: &str) -> bool {
-    let unsigned = value.strip_prefix('-').unwrap_or(value);
-    let (integer, fraction) = match unsigned.split_once('.') {
-        Some((integer, fraction)) => (integer, Some(fraction)),
-        None => (unsigned, None),
-    };
-    let integer_valid = integer == "0"
-        || (!integer.starts_with('0')
-            && !integer.is_empty()
-            && integer.bytes().all(|byte| byte.is_ascii_digit()));
-    integer_valid
-        && fraction.is_none_or(|digits| {
-            !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
-        })
-}
-
-fn is_invariant_datetime(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    if bytes.len() < 19 {
-        return false;
-    }
-    for separator in [(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b':')] {
-        if bytes.get(separator.0) != Some(&separator.1) {
-            return false;
-        }
-    }
-    let fixed_digits = [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18];
-    if !fixed_digits
-        .into_iter()
-        .all(|index| bytes.get(index).is_some_and(u8::is_ascii_digit))
-    {
-        return false;
-    }
-    bytes.len() == 19
-        || (bytes.get(19) == Some(&b'.')
-            && bytes.len() > 20
-            && bytes[20..].iter().all(u8::is_ascii_digit))
-}
-
-fn ensure_named_order<'a>(
-    values: impl Iterator<Item = &'a str>,
-    path: &str,
-) -> Result<(), SnapshotError> {
-    let mut previous: Option<&str> = None;
-    for value in values {
-        if let Some(prior) = previous {
-            match prior.cmp(value) {
-                std::cmp::Ordering::Greater => {
-                    return Err(SnapshotError::NonCanonicalOrder {
-                        path: path.to_owned(),
-                    });
-                }
-                std::cmp::Ordering::Equal => {
-                    return Err(SnapshotError::Duplicate {
-                        path: path.to_owned(),
-                        value: value.to_owned(),
-                    });
-                }
-                std::cmp::Ordering::Less => {}
-            }
-        }
-        previous = Some(value);
-    }
-    Ok(())
-}
-
-fn ensure_ordinal_order(
-    values: impl Iterator<Item = u64>,
-    path: &str,
-) -> Result<(), SnapshotError> {
-    let mut previous = None;
-    for value in values {
-        if let Some(prior) = previous {
-            if prior > value {
-                return Err(SnapshotError::NonCanonicalOrder {
-                    path: path.to_owned(),
-                });
-            }
-            if prior == value {
-                return Err(SnapshotError::Duplicate {
-                    path: path.to_owned(),
-                    value: value.to_string(),
-                });
-            }
-        }
-        previous = Some(value);
-    }
-    Ok(())
-}
-
-fn ensure_unique_names<'a>(
-    values: impl Iterator<Item = &'a str>,
-    path: &str,
-) -> Result<(), SnapshotError> {
-    let mut seen = BTreeSet::new();
-    for value in values {
-        if !seen.insert(value) {
-            return Err(SnapshotError::Duplicate {
-                path: path.to_owned(),
-                value: value.to_owned(),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn canonicalize_rows(rows: &mut Vec<Row>) -> Result<(), SnapshotError> {
-    let mut keyed = rows
-        .drain(..)
-        .map(|row| {
-            let values = crate::canonical_json::write_properties(&row.values)?;
-            Ok((row, values))
-        })
-        .collect::<Result<Vec<_>, SnapshotError>>()?;
-    keyed.sort_by(|(left, left_values), (right, right_values)| {
-        left.canonical_key
-            .cmp(&right.canonical_key)
-            .then_with(|| left_values.cmp(right_values))
-    });
-    rows.extend(keyed.into_iter().map(|(row, _)| row));
-    Ok(())
-}
-
-fn ensure_row_order(rows: &[Row], path: &str) -> Result<(), SnapshotError> {
-    let mut previous: Option<(&str, Vec<u8>)> = None;
-    for row in rows {
-        let values = crate::canonical_json::write_properties(&row.values)?;
-        if let Some((previous_key, previous_values)) = &previous
-            && ((*previous_key)
-                .cmp(row.canonical_key.as_str())
-                .then_with(|| previous_values.cmp(&values)))
-                == std::cmp::Ordering::Greater
-        {
-            return Err(SnapshotError::NonCanonicalOrder {
-                path: path.to_owned(),
-            });
-        }
-        previous = Some((&row.canonical_key, values));
-    }
-    Ok(())
 }
