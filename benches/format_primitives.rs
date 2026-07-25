@@ -13,6 +13,8 @@ use jet3::{
 };
 use tempfile::NamedTempFile;
 
+mod raw_page_stream_benchmark;
+
 const DATASET_SIZES: [usize; 4] = [64, 4 * 1024, 64 * 1024, 1024 * 1024];
 const PAGE_COUNTS: [u64; 4] = [1, 16, 1024, 65_536];
 const PAGE_SIZE: u64 = 4096;
@@ -678,6 +680,7 @@ criterion_group!(
     bench_jet_header,
     bench_jet3_page_reader,
     bench_raw_jet3_candidate,
+    raw_page_stream_benchmark::bench_raw_page_stream,
     bench_commit_region,
     bench_binary_cursor,
     bench_slice_source,

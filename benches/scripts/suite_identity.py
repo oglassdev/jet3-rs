@@ -15,6 +15,7 @@ SUITE_PATHS = (
     "benches/comparison-input.schema.json",
     "benches/format_primitives.rs",
     "benches/manifest.json",
+    "benches/raw_page_stream_benchmark.rs",
     "benches/resource-metrics.schema.json",
     "benches/scripts/capture_metadata.sh",
     "benches/scripts/compare_baseline.py",

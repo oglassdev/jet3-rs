@@ -6,6 +6,9 @@ import unittest
 from pathlib import Path
 
 MANIFEST = Path(__file__).parents[1] / "manifest.json"
+RAW_PAGE_STREAM_HARNESS = (
+    Path(__file__).parents[1] / "raw_page_stream_benchmark.rs"
+)
 MASK_U64 = (1 << 64) - 1
 MULTIPLIER = 0x9E37_79B9_7F4A_7C15
 
@@ -36,6 +39,36 @@ class ManifestTests(unittest.TestCase):
         identifiers = [entry["id"] for entry in manifest["benchmarks"]]
         self.assertEqual(len(identifiers), len(set(identifiers)))
         self.assertTrue(all(identifier.startswith("BENCH-") for identifier in identifiers))
+
+    def test_sequential_raw_page_stream_metadata_is_exact(self) -> None:
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        stream = manifest["sequential_raw_page_stream_inputs"]
+        page_size = stream["page_size_bytes"]
+        page_counts = stream["page_counts"]
+        totals = stream["total_bytes_by_page_count"]
+
+        self.assertEqual(page_size, 2048)
+        self.assertEqual(page_counts, [1, 16, 1024])
+        self.assertEqual(
+            totals,
+            {str(page_count): page_count * page_size for page_count in page_counts},
+        )
+
+        stream_benchmarks = [
+            entry
+            for entry in manifest["benchmarks"]
+            if entry["criterion_group"] == "raw_page_stream"
+        ]
+        self.assertEqual(
+            [entry["id"] for entry in stream_benchmarks],
+            ["BENCH-RAW-PAGE-STREAM-001"],
+        )
+        harness = RAW_PAGE_STREAM_HARNESS.read_text(encoding="utf-8")
+        self.assertIn(
+            "const STREAM_PAGE_COUNTS: [u64; 3] = [1, 16, 1024];",
+            harness,
+        )
+        self.assertIn('benchmark_group("raw_page_stream")', harness)
 
     def test_scope_limit_remains_explicit(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
