@@ -69,6 +69,23 @@ class M4CloneSourceContractTests(unittest.TestCase):
         self.assertIn("[IO.FileOptions]::WriteThrough", self.source)
         self.assertIn("$output.Flush($true)", self.source)
 
+    def test_existing_source_leaf_is_expanded_before_open(self) -> None:
+        regular = self.source.index(
+            "Assert-M4CloneRegularFile -Path $source -Label \"Source\""
+        )
+        expanded = self.source.index(
+            "-Path $source -Label \"Source\" -ExpandLeafAlias"
+        )
+        opened = self.source.index(
+            "$input = New-Object IO.FileStream("
+        )
+        self.assertLess(regular, expanded)
+        self.assertLess(expanded, opened)
+        self.assertIn(
+            "Source path alias resolved to a different canonical path.",
+            self.source[expanded:opened],
+        )
+
     def test_clone_performs_three_bounded_hash_passes(self) -> None:
         self.assertIn("$sourceShaBefore", self.source)
         self.assertIn("$sourceAfter = Get-M4CloneStreamSha256", self.source)

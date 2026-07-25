@@ -33,9 +33,6 @@ from m4_bundle import (  # noqa: E402
 from m4_snapshot import (  # noqa: E402
     BundleSnapshot,
     FileStamp,
-    TreeEntry,
-    _path_identity,
-    _read_captured,
 )
 from m4_contract import _write_exclusive  # noqa: E402
 
@@ -104,41 +101,47 @@ class StrictJsonTests(unittest.TestCase):
 
 
 class SnapshotIdentityTests(unittest.TestCase):
-    def test_snapshot_uses_handle_identity_not_unreliable_stat_identity(
+    def test_windows_stamp_omits_only_unreliable_stat_fields(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            path = root / "payload.bin"
-            payload = b"snapshot payload"
-            path.write_bytes(payload)
+            path = Path(temporary) / "payload.bin"
+            path.write_bytes(b"snapshot payload")
             metadata = path.lstat()
-            unreliable = mock.Mock(
+            original = mock.Mock(
                 st_mode=metadata.st_mode,
                 st_size=metadata.st_size,
                 st_mtime_ns=metadata.st_mtime_ns,
                 st_ctime_ns=metadata.st_ctime_ns,
                 st_file_attributes=getattr(metadata, "st_file_attributes", 0),
+                st_dev=metadata.st_dev,
+                st_ino=metadata.st_ino,
+                st_nlink=metadata.st_nlink,
+            )
+            drifted = mock.Mock(
+                st_mode=metadata.st_mode,
+                st_size=metadata.st_size,
+                st_mtime_ns=metadata.st_mtime_ns,
+                st_ctime_ns=metadata.st_ctime_ns + 1,
+                st_file_attributes=getattr(metadata, "st_file_attributes", 0),
                 st_dev=metadata.st_dev + 1,
                 st_ino=metadata.st_ino + 1,
                 st_nlink=metadata.st_nlink + 1,
             )
-            expected = TreeEntry(
-                "file",
-                FileStamp.from_stat(unreliable),
-                _path_identity(path, metadata),
-            )
 
-            captured = _read_captured(
-                root,
-                path.name,
-                expected,
-                len(payload),
-                role="prefix",
-            )
+            with mock.patch("m4_snapshot.os.name", "nt"):
+                windows_original = FileStamp.from_stat(original)
+                windows_drifted = FileStamp.from_stat(drifted)
+            with mock.patch("m4_snapshot.os.name", "posix"):
+                posix_original = FileStamp.from_stat(original)
+                posix_drifted = FileStamp.from_stat(drifted)
 
-            self.assertEqual(captured.payload, payload)
-            self.assertEqual(captured.size, len(payload))
+            self.assertEqual(windows_original, windows_drifted)
+            self.assertNotEqual(posix_original, posix_drifted)
+            self.assertIsNone(windows_original.changed_ns)
+            self.assertIsNone(windows_original.device)
+            self.assertIsNone(windows_original.inode)
+            self.assertIsNone(windows_original.links)
 
 
 class AtomicAnalysisWriteTests(unittest.TestCase):

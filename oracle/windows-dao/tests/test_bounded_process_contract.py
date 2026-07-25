@@ -184,10 +184,12 @@ class BoundedProcessWindowsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="bounded-tree-") as temporary:
             root = Path(temporary)
             started = root / "descendant-started.txt"
+            release = root / "release-descendant.txt"
             completed = root / "descendant-completed.txt"
             child_command = (
                 f"Set-Content -LiteralPath '{quoted(started)}' -Value 'started';"
-                "Start-Sleep -Seconds 4;"
+                f"while(-not (Test-Path -LiteralPath '{quoted(release)}')){{"
+                "Start-Sleep -Milliseconds 25};"
                 f"Set-Content -LiteralPath '{quoted(completed)}' -Value 'unexpected'"
             )
             encoded_child = base64.b64encode(
@@ -199,6 +201,10 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 "Start-Process -FilePath $PowerShell -ArgumentList @("
                 "'-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',"
                 "'-EncodedCommand',$ChildCommand);"
+                "$deadline=[DateTime]::UtcNow.AddSeconds(15);"
+                f"while(-not (Test-Path -LiteralPath '{quoted(started)}')){{"
+                "if([DateTime]::UtcNow -ge $deadline){throw 'child did not start'};"
+                "Start-Sleep -Milliseconds 25};"
                 "Start-Sleep -Seconds 30",
                 encoding="utf-8",
             )
@@ -210,14 +216,15 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 f"'Bypass','-File','{quoted(parent)}','-PowerShell',"
                 f"'{quoted(self.powershell)}','-ChildCommand','{encoded_child}') "
                 "-CallerLabel 'probe' "
-                "-TimeoutSeconds 1 -MaximumOutputBytes 1MB|Out-Null;exit 9"
+                "-TimeoutSeconds 20 -MaximumOutputBytes 1MB|Out-Null;exit 9"
                 "}catch{$message=$_.Exception.Message};"
-                "Start-Sleep -Seconds 5;"
+                f"Set-Content -LiteralPath '{quoted(release)}' -Value 'release';"
+                "Start-Sleep -Seconds 3;"
                 f"[Console]::Write($message+'|'+"
                 f"(Test-Path -LiteralPath '{quoted(started)}')+'|'+"
                 f"(Test-Path -LiteralPath '{quoted(completed)}'))"
             )
-            result = self._run(command, timeout=15)
+            result = self._run(command, timeout=40)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
                 result.stdout,
@@ -229,10 +236,12 @@ class BoundedProcessWindowsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="bounded-job-") as temporary:
             root = Path(temporary)
             started = root / "descendant-started.txt"
+            release = root / "release-descendant.txt"
             completed = root / "descendant-completed.txt"
             child_command = (
                 f"Set-Content -LiteralPath '{quoted(started)}' -Value 'started';"
-                "Start-Sleep -Seconds 4;"
+                f"while(-not (Test-Path -LiteralPath '{quoted(release)}')){{"
+                "Start-Sleep -Milliseconds 25};"
                 f"Set-Content -LiteralPath '{quoted(completed)}' -Value 'unexpected'"
             )
             encoded_child = base64.b64encode(
@@ -245,10 +254,10 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 "Start-Process -FilePath $PowerShell -ArgumentList @("
                 "'-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',"
                 "'-EncodedCommand',$ChildCommand);"
-                "$deadline=[DateTime]::UtcNow.AddSeconds(2);"
+                "$deadline=[DateTime]::UtcNow.AddSeconds(15);"
                 "while(-not (Test-Path -LiteralPath $Started)){"
                 "if([DateTime]::UtcNow -ge $deadline){throw 'child did not start'};"
-                "Start-Sleep -Milliseconds 10}",
+                "Start-Sleep -Milliseconds 25}",
                 encoding="utf-8",
             )
             command = (
@@ -259,13 +268,14 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 f"'{quoted(self.powershell)}','-ChildCommand','{encoded_child}',"
                 f"'-Started','{quoted(started)}') "
                 "-CallerLabel 'root-exit-probe' "
-                "-TimeoutSeconds 10 -MaximumOutputBytes 1MB|Out-Null;"
-                "Start-Sleep -Seconds 5;"
+                "-TimeoutSeconds 20 -MaximumOutputBytes 1MB|Out-Null;"
+                f"Set-Content -LiteralPath '{quoted(release)}' -Value 'release';"
+                "Start-Sleep -Seconds 3;"
                 "[Console]::Write(('{0}|{1}' -f "
                 f"(Test-Path -LiteralPath '{quoted(started)}'),"
                 f"(Test-Path -LiteralPath '{quoted(completed)}')))"
             )
-            result = self._run(command, timeout=20)
+            result = self._run(command, timeout=40)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "True|False")
 

@@ -461,6 +461,14 @@ function Invoke-M4BoundedClone {
     Assert-M4CloneNoReparseComponents -Path $root -Label "Controller root"
     Assert-M4CloneNoReparseComponents -Path $source -Label "Source"
     Assert-M4CloneRegularFile -Path $source -Label "Source"
+    $expandedSource = Get-M4CloneLocalFullPath `
+        -Path $source -Label "Source" -ExpandLeafAlias
+    if (-not $source.Equals(
+        $expandedSource,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Source path alias resolved to a different canonical path."
+    }
     $destinationParent = [IO.Path]::GetDirectoryName($destination)
     Assert-M4CloneNoReparseComponents `
         -Path $destinationParent -Label "Destination parent"

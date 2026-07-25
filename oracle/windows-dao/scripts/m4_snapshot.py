@@ -61,22 +61,31 @@ def _is_reparse(metadata: os.stat_result) -> bool:
 
 @dataclass(frozen=True)
 class FileStamp:
-    """Mutable file metadata, excluding handle-owned filesystem identity."""
+    """Stable stat corroboration; Windows identity comes only from handles."""
 
     mode: int
     size: int
     modified_ns: int
-    changed_ns: int
     attributes: int
+    changed_ns: int | None
+    device: int | None
+    inode: int | None
+    links: int | None
 
     @classmethod
     def from_stat(cls, value: os.stat_result) -> FileStamp:
+        windows = os.name == "nt"
+        # Windows DirEntry.stat() zeroes identity fields, and st_ctime_ns is
+        # deprecated there. Authoritative identity is captured separately.
         return cls(
             mode=value.st_mode,
             size=value.st_size,
             modified_ns=value.st_mtime_ns,
-            changed_ns=value.st_ctime_ns,
             attributes=getattr(value, "st_file_attributes", 0),
+            changed_ns=None if windows else value.st_ctime_ns,
+            device=None if windows else value.st_dev,
+            inode=None if windows else value.st_ino,
+            links=None if windows else value.st_nlink,
         )
 
 
