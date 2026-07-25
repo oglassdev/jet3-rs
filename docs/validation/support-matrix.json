@@ -385,12 +385,20 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "independent_check",
+      "reason": "Format-neutral checked cursors, fixed-slice encoding, cumulative resource budgets, bounded sources, and atomic publication foundations have internal tests; malformed Jet structure coverage and the required independent verifier remain incomplete.",
       "evidence": [
         {
           "kind": "source",
           "path": "crates/jet3/src/binary.rs",
           "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840",
           "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/binary_writer.rs",
+          "sha256": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
           "capability_id": "safety.malformed_input_bounds_and_limits"
         },
         {
@@ -410,8 +418,8 @@
         {
           "kind": "source",
           "path": "crates/jet3/src/resource.rs",
-          "sha256": "3e300c1b6dc31e7aa5114f4600ee2a8a368d8afff1039f2d6de52a5025108085",
-          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
+          "sha256": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
           "capability_id": "safety.malformed_input_bounds_and_limits"
         },
         {
@@ -423,9 +431,23 @@
         },
         {
           "kind": "test",
+          "path": "crates/jet3/src/binary_writer_tests.rs",
+          "sha256": "a2991dfb51911b3a165f655124284149ab96393ee9ee3f56e842e2a6deb053a8",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "UT-BINARY-WRITER-001",
+            "UT-BINARY-WRITER-002",
+            "UT-BINARY-WRITER-003",
+            "UT-BINARY-WRITER-004",
+            "UT-BINARY-WRITER-005"
+          ]
+        },
+        {
+          "kind": "test",
           "path": "crates/jet3/src/resource_tests.rs",
-          "sha256": "6acd285e10ca0e2b22c9f83a0368682631e6e71790875e1273cef948cee727d4",
-          "commit": "ca5371454a465b0f9c314bed924bec6e193f34fc",
+          "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
           "capability_id": "safety.malformed_input_bounds_and_limits",
           "scenario_ids": [
             "UT-RESOURCE-001",
@@ -437,7 +459,19 @@
             "UT-RESOURCE-007",
             "UT-RESOURCE-008",
             "UT-RESOURCE-009",
-            "UT-RESOURCE-010"
+            "UT-RESOURCE-010",
+            "UT-RESOURCE-011"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/binary_writer_properties.rs",
+          "sha256": "e9a507a44b8e8b3694a5dcab4f0f5871fa3cdc630a161a60966e824ee63596ad",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "PROP-BINARY-WRITER-001",
+            "PROP-BINARY-WRITER-002"
           ]
         },
         {
