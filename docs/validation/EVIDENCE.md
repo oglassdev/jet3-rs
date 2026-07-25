@@ -77,6 +77,32 @@ hash. It is not release evidence. An `independent_report`, `dao_bundle`, or
 release-gate report must bind the exact clean release commit and cannot be
 satisfied by an earlier lineage record.
 
+## Detached release-evidence overlays
+
+A detached overlay is an untrusted inventory presented to the checked
+release-evidence validator. It binds its files, contracts, requested adapter,
+expected output, and exact commit. Adapter artifact kinds and maximum
+verification levels are intrinsic code properties; the checked policy may only
+enable, disable, or forbid the closed adapter catalog and cannot relabel an
+adapter.
+
+`repository.dirty: false` means that the tracked index and worktree exactly
+match the named `HEAD`. The policy permits only untracked acceptance outputs
+under `artifacts/acceptance/**`, because the acceptance process itself retains
+immutable results there. This is a repeated check of a caller-maintained
+quiescent workspace, not a transactional lock against concurrent same-account
+mutation.
+
+Failed publication retains its uniquely created private stage for inspection
+and never recursively deletes a pathname. Publication is presently available
+only under a quiescent, current-account-owned POSIX parent with protected
+ancestor permissions and atomic no-replace support. Windows publication fails
+closed until equivalent trusted-parent handle and ACL enforcement exists.
+
+The production policy currently enables no evidence adapters. Consequently,
+the overlay validator and staging foundation cannot advance any support-matrix
+verification state or substantiate a compatibility claim yet.
+
 ## Clean-room evidence ledger
 
 `docs/PROVENANCE.md` is the required ledger for every technical source,

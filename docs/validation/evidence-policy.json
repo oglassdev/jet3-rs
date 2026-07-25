@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "schema": {
+    "path": "docs/validation/schema/evidence-policy.schema.json",
+    "sha256": "7be4a0e14b46ef70759a86607cc13c696038ea142973e004122f3a113d4c25b0"
+  },
+  "cleanliness": {
+    "tracked": "exact_head_index_and_worktree",
+    "untracked_exceptions": [
+      "artifacts/acceptance/**"
+    ]
+  },
+  "limits": {
+    "max_overlay_bytes": 1048576,
+    "max_file_count": 4096,
+    "max_file_bytes": 536870912,
+    "max_total_file_bytes": 1073741824,
+    "max_evidence_count": 1024,
+    "max_files_per_evidence": 1024,
+    "max_adapter_file_visits": 16384,
+    "max_adapter_input_bytes": 1073741824,
+    "max_json_depth": 32,
+    "max_json_nodes": 100000
+  },
+  "adapters": [
+    {
+      "id": "ci_g1_aggregate_v1",
+      "status": "disabled"
+    },
+    {
+      "id": "dao_differential_v1",
+      "status": "disabled"
+    },
+    {
+      "id": "dao_open_v1",
+      "status": "disabled"
+    },
+    {
+      "id": "independent_writer_v1",
+      "status": "disabled"
+    },
+    {
+      "id": "m1_descriptive_v1",
+      "status": "forbidden"
+    },
+    {
+      "id": "m3_descriptive_v1",
+      "status": "forbidden"
+    },
+    {
+      "id": "m4_descriptive_v1",
+      "status": "forbidden"
+    },
+    {
+      "id": "structural_manifest_v1",
+      "status": "disabled"
+    }
+  ]
+}

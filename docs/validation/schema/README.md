@@ -36,6 +36,14 @@ JSON Schema package.
 - `repository-contract.schema.json` describes the fail-closed G0 inventory of
   workspace roles, permitted runtime packages, format-knowledge files, and the
   three distinct fixture classes.
+- `evidence-policy.schema.json` describes the checked resource, cleanliness,
+  and adapter-status policy for detached release evidence. Adapter meaning and
+  maximum verification level remain code-owned and cannot be relabeled by this
+  policy.
+- `release-evidence-overlay.schema.json` describes one detached, exact-commit
+  file inventory and its requested adapter outputs. The schema shape alone is
+  not evidence, and the checked production policy currently enables no
+  adapters.
 
 The repository fixture manifest may be empty only when the checked
 `fixtures/generated`, `fixtures/malformed`, and `fixtures/regression`

@@ -15,6 +15,11 @@ The documents are normative for v1:
 - [TRACEABILITY.md](TRACEABILITY.md) maps product requirements to evidence.
 - [support-matrix.json](support-matrix.json) is the machine-readable capability
   ledger.
+- [evidence-policy.json](evidence-policy.json) is the commit-bound policy for
+  detached release-evidence overlays. It fixes resource ceilings, the exact
+  clean-worktree interpretation, and the closed adapter inventory. Every
+  adapter is currently disabled or forbidden, so this foundation cannot yet
+  advance a capability's verification state.
 - [schema/support-matrix.schema.json](schema/support-matrix.schema.json), at
   `properties.capabilities.prefixItems`, is the canonical ordered v1 capability
   catalog. It fixes every required capability ID, its in-scope or out-of-scope
@@ -23,6 +28,10 @@ The documents are normative for v1:
   inserting, reordering, or reclassifying a capability fails validation.
 - [DAO_PROVIDER_BLOCKER.md](DAO_PROVIDER_BLOCKER.md) records the currently
   audited external provider boundary. It is not compatibility evidence.
+- [schema/release-evidence-overlay.schema.json](schema/release-evidence-overlay.schema.json)
+  defines the detached exact-commit overlay shape. Validation and staging of an
+  overlay do not make its contents evidence unless a code-owned adapter is
+  enabled and validates the declared artifact kind and verification level.
 
 The following are non-normative indexes to immutable historical experiments,
 not evidence for current-commit compatibility:

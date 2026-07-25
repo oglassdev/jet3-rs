@@ -124,6 +124,13 @@ jobs:
         run: python oracle/windows-dao/scripts/validate_protocol.py schemas
       - name: Exercise Windows-only oracle and process contracts
         run: python -m unittest discover -s oracle/windows-dao/tests -v
+      - name: Exercise Windows release-evidence contracts
+        run: >-
+          python -m unittest
+          tools.tests.test_release_evidence
+          tools.tests.test_release_evidence_primitives
+          tools.tests.test_release_evidence_staging.ReleaseEvidenceStagingTests.test_windows_staging_is_explicitly_unavailable_until_handle_safe
+          -v
 
   benchmarks:
     name: Benchmark harness
@@ -198,6 +205,7 @@ jobs:
         run: |
           for test_module in \
             binary::tests \
+            binary_writer::tests \
             candidate::tests \
             commit_state::tests \
             database_header::tests \
