@@ -11,6 +11,7 @@ from pathlib import Path
 TESTS = Path(__file__).resolve().parent
 SCRIPTS = TESTS.parent / "scripts"
 SHARED = SCRIPTS / "shared/BoundedProcess.ps1"
+NATIVE = SCRIPTS / "shared/BoundedProcess.Native.cs"
 
 
 def windows_powershell() -> Path | None:
@@ -37,35 +38,54 @@ def quoted(path: Path) -> str:
 class BoundedProcessSourceContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.source = SHARED.read_text(encoding="utf-8")
+        self.native = NATIVE.read_text(encoding="utf-8")
 
     def test_module_is_neutral_and_owns_the_complete_process_lifecycle(self) -> None:
         for function in (
             "ConvertTo-BoundedProcessCommandLineArgument",
             "Assert-BoundedProcessLimits",
             "Initialize-BoundedProcessJobNative",
-            "New-BoundedProcessJob",
             "Stop-BoundedProcessJob",
-            "Get-BoundedTaskkillPath",
-            "Stop-BoundedProcessTree",
             "Read-BoundedProcessOutput",
             "Invoke-BoundedChildProcess",
         ):
             self.assertIn(f"function {function}", self.source)
         self.assertNotIn("M3", self.source)
         self.assertNotIn("M4", self.source)
-        self.assertIn("[Diagnostics.Process]::Start", self.source)
-        self.assertIn("JobObjectLimitKillOnJobClose", self.source)
-        self.assertIn("AssignProcessToJobObject", self.source)
-        self.assertIn("TerminateJobObject", self.source)
-        self.assertIn("QueryInformationJobObject", self.source)
-        self.assertIn("$jobHandle = New-BoundedProcessJob", self.source)
-        self.assertIn(
-            "Stop-BoundedProcessJob `\n                    "
-            "-Handle $jobHandle -Process $process",
-            self.source,
+        self.assertNotIn("M3", self.native)
+        self.assertNotIn("M4", self.native)
+        self.assertIn("StartSuspendedInJob", self.native)
+        self.assertIn("CreateSuspended |", self.native)
+        self.assertIn("JobObjectLimitKillOnJobClose", self.native)
+        self.assertIn("AssignProcessToJobObject", self.native)
+        self.assertIn("TerminateJobObject", self.native)
+        self.assertIn("QueryInformationJobObject", self.native)
+        self.assertLess(
+            self.native.index("AssignProcess(job, process);"),
+            self.native.index("ResumeThread(thread);"),
         )
-        self.assertIn("$process.ExitCode -ne 0", self.source)
-        self.assertIn("$process.Dispose()", self.source)
+        self.assertIn("SafeWaitHandle", self.native)
+        self.assertIn("$launch.ExitCode -ne 0", self.source)
+        self.assertIn("$launch.Dispose()", self.source)
+        self.assertIn('Add-Type -Path $nativeSource', self.source)
+
+    def test_native_and_orchestration_files_stay_below_reviewed_limits(self) -> None:
+        self.assertLessEqual(len(self.source.splitlines()), 400)
+        self.assertLessEqual(len(self.native.splitlines()), 800)
+
+    def test_only_the_three_standard_stream_handles_are_inherited(self) -> None:
+        self.assertIn("ProcThreadAttributeHandleList", self.native)
+        self.assertIn("InitializeProcThreadAttributeList", self.native)
+        self.assertIn("UpdateProcThreadAttribute(", self.native)
+        self.assertIn("ExtendedStartupInfoPresent", self.native)
+        self.assertIn(
+            "CreateRestrictedHandleList(\n"
+            "                stdinRead,\n"
+            "                stdoutWrite,\n"
+            "                stderrWrite",
+            self.native,
+        )
+        self.assertEqual(self.native.count("Marshal.WriteIntPtr(handles,"), 3)
 
     def test_limits_are_positive_caller_labeled_and_hard_capped(self) -> None:
         self.assertIn("$TimeoutSeconds -lt 1", self.source)
@@ -82,37 +102,29 @@ class BoundedProcessSourceContractTests(unittest.TestCase):
         self.assertIn('"$CallerLabel worker failed: $stderr"', self.source)
 
     def test_stdout_and_stderr_are_drained_concurrently_under_one_byte_cap(self) -> None:
-        self.assertIn("$Process.StandardOutput.BaseStream.ReadAsync(", self.source)
-        self.assertIn("$Process.StandardError.BaseStream.ReadAsync(", self.source)
+        self.assertIn("$Launch.StandardOutput.ReadAsync(", self.source)
+        self.assertIn("$Launch.StandardError.ReadAsync(", self.source)
         self.assertIn("[Threading.Tasks.Task]::WaitAny(", self.source)
         self.assertGreaterEqual(
             self.source.count("$stdout.Length + $stderr.Length + $read"), 2
         )
         self.assertIn(
-            "$outDone -and $errDone -and $Process.HasExited", self.source
+            "$outDone -and $errDone -and $Launch.HasExited", self.source
         )
         self.assertIn(
-            "$Process.HasExited -and\n"
+            "$Launch.HasExited -and\n"
             "                -not ($outDone -and $errDone)",
             self.source,
         )
 
-    def test_termination_targets_the_windows_process_tree_with_safe_fallback(self) -> None:
-        self.assertIn("[Environment]::SystemDirectory", self.source)
-        self.assertNotIn("$env:SystemRoot", self.source)
-        self.assertIn('"taskkill.exe"', self.source)
-        self.assertIn('"Process-tree termination helper identity is unsafe."', self.source)
-        self.assertIn('$start.Arguments = "/PID $($Process.Id) /T /F"', self.source)
-        self.assertIn("$taskkill.WaitForExit(5000)", self.source)
-        self.assertIn("$Process.WaitForExit(5000)", self.source)
-        self.assertNotIn(".WaitForExit()", self.source)
-        self.assertIn(
-            '"Process-tree termination helper could not prove termination."',
-            self.source,
-        )
-        self.assertIn("$Process.Kill()", self.source)
-        self.assertNotIn("Kill($true)", self.source)
-        self.assertNotIn(".ArgumentList", self.source)
+    def test_launch_has_no_pid_based_or_start_then_assign_fallback(self) -> None:
+        combined = self.source + self.native
+        self.assertNotIn("taskkill.exe", combined)
+        self.assertNotIn("Stop-BoundedProcessTree", combined)
+        self.assertNotIn("[Diagnostics.Process]::Start", combined)
+        self.assertNotIn("$Process.Id", combined)
+        self.assertNotIn(".WaitForExit()", combined)
+        self.assertNotIn(".ArgumentList", combined)
 
 
 class BoundedProcessWindowsTests(unittest.TestCase):
@@ -255,6 +267,55 @@ class BoundedProcessWindowsTests(unittest.TestCase):
             result = self._run(command, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "True|False")
+
+    def test_immediate_native_spawn_and_exit_cannot_escape_assignment(self) -> None:
+        assert self.powershell is not None
+        with tempfile.TemporaryDirectory(prefix="bounded-atomic-") as temporary:
+            root = Path(temporary)
+            source = root / "immediate-spawner.cs"
+            executable = root / "immediate-spawner.exe"
+            completed = root / "escaped-descendant.txt"
+            source.write_text(
+                "using System.Diagnostics;"
+                "public static class ImmediateSpawner {"
+                "public static int Main(string[] args) {"
+                "ProcessStartInfo start = new ProcessStartInfo();"
+                "start.FileName = args[0];"
+                "start.Arguments = \"-NoProfile -NonInteractive "
+                "-ExecutionPolicy Bypass -EncodedCommand \" + args[1];"
+                "start.UseShellExecute = false;"
+                "start.CreateNoWindow = true;"
+                "Process.Start(start);"
+                "return 0;"
+                "}}",
+                encoding="utf-8",
+            )
+            child_command = (
+                "Start-Sleep -Seconds 2;"
+                f"Set-Content -LiteralPath '{quoted(completed)}' "
+                "-Value 'escaped'"
+            )
+            encoded_child = base64.b64encode(
+                child_command.encode("utf-16-le")
+            ).decode("ascii")
+            command = (
+                "$source=[IO.File]::ReadAllText("
+                f"'{quoted(source)}');"
+                "Add-Type -TypeDefinition $source "
+                f"-OutputAssembly '{quoted(executable)}' "
+                "-OutputType ConsoleApplication;"
+                f". '{quoted(SHARED)}';"
+                "1..24|ForEach-Object{"
+                f"Invoke-BoundedChildProcess -Executable '{quoted(executable)}' "
+                f"-Arguments @('{quoted(self.powershell)}','{encoded_child}') "
+                "-CallerLabel 'atomic-spawn-probe' "
+                "-TimeoutSeconds 10 -MaximumOutputBytes 1MB|Out-Null};"
+                "Start-Sleep -Seconds 4;"
+                f"[Console]::Write((Test-Path -LiteralPath '{quoted(completed)}'))"
+            )
+            result = self._run(command, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "False")
 
 
 if __name__ == "__main__":

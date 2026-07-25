@@ -23,7 +23,7 @@ SHA = "0" * 64
 COMMIT = "1" * 40
 TIME = "2026-07-25T12:00:00+00:00"
 SAMPLE = "M4-V20-U-01"
-PLAN_SHA256 = "5eb18b6a1d7d25602ea64d5164cc21622a74b31c8100bcebcb20aeeb4639b143"
+PLAN_SHA256 = "05112b48eed37163921763b126b673f2d3ef575af7396d5e18af5cab22424bed"
 
 
 def artifact(name: str) -> dict[str, str]:
@@ -45,7 +45,7 @@ def validate_invocation_relations(value: dict[str, object]) -> None:
 
 
 def validate_recorded_runtime_roots(value: dict[str, object]) -> None:
-    for key in ("repository_root", "stage_root", "output_root"):
+    for key in ("repository_root", "stage_root"):
         raw = value[key]
         if not isinstance(raw, str) or "\x00" in raw:
             raise ValidationError(f"{key}: malformed recorded path")
@@ -131,7 +131,7 @@ class M4PlanContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.validate(value, schema_name)
 
-    def test_all_schemas_lint_and_plan_is_blocked(self) -> None:
+    def test_all_schemas_lint_and_plan_is_ready(self) -> None:
         for schema in self.schemas.values():
             lint_schema(schema)
         self.validate(self.plan, "plan.schema.json")
@@ -144,8 +144,8 @@ class M4PlanContractTests(unittest.TestCase):
         self.assertEqual(
             self.plan["execution_gate"],
             {
-                "status": "BLOCKED",
-                "reason": "runner_and_analysis_not_implemented",
+                "status": "READY",
+                "reason": "checked_runner_analysis_and_bundle_validator_implemented",
             },
         )
 
@@ -180,6 +180,25 @@ class M4PlanContractTests(unittest.TestCase):
             bounds["max_acquisition_database_reads"]
             * bounds["max_database_bytes"],
         )
+        predicates = self.plan["analysis"]["candidate_predicates"]
+        self.assertEqual(bounds["max_candidate_sets"], len(predicates))
+        self.assertEqual(
+            [item["candidate_set_id"] for item in predicates],
+            [
+                "M4-CANDIDATE-VERSION-PAIRED",
+                "M4-CANDIDATE-V30-ENCRYPTION",
+                "M4-CANDIDATE-ALL-VERSION-ENCRYPTION",
+            ],
+        )
+        self.assertEqual(
+            self.plan["analysis"]["scientific_outcome_rules"][
+                "candidate_offsets_observed_requires_all_nonempty"
+            ],
+            [
+                "M4-CANDIDATE-VERSION-PAIRED",
+                "M4-CANDIDATE-V30-ENCRYPTION",
+            ],
+        )
 
     def invocation(self) -> dict[str, object]:
         return {
@@ -204,7 +223,6 @@ class M4PlanContractTests(unittest.TestCase):
             "environment_sha256": SHA,
             "provider_sha256": SHA,
             "stage_root": r"C:\m4-private-stage",
-            "output_root": r"C:\m4-private-stage\output",
             "database_path": f"evidence/{SAMPLE}/creator.mdb",
             "result_path": f"evidence/{SAMPLE}/creator-result.json",
             "phase_contract": {

@@ -1096,10 +1096,11 @@ Use `not applicable` explicitly rather than omitting a field.
   file hash, database/page hash, cohort/comparison/stable bitmap, aggregate
   intersection/union, and occurrence histogram.
 
-### EXP-0011 — Planned DAO version/encryption file-prefix campaign
+### EXP-0011 — Ready DAO version/encryption file-prefix campaign
 
 - Recorded: 2026-07-25, OpenAI Codex
-- Kind: declarative experiment plan; execution blocked pending checked tooling
+- Kind: declarative experiment plan with checked controller, workers, analysis,
+  and complete-bundle validation; not yet executed
 - Question: Across six fresh-process replicas of each documented
   `dbVersion20`/`dbVersion30`/`dbVersion40` and
   unencrypted/`dbEncrypt` creation combination, which absolute positions in a
@@ -1112,28 +1113,32 @@ Use `not applicable` explicitly rather than omitting a field.
   and reopen workers per sample and leaves the exact Windows, PowerShell, DAO
   provider, locale, code-page, time-zone, repository, and commit identities to
   a future commit-bound environment record
-- Protocol: a future checked validator must bind
-  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json` and
-  prove every relational and artifact invariant before any execution may
-  begin. The future runner must execute its 3-by-2 factorial in the complete
+- Protocol: the checked controller binds
+  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`, the
+  exact clean pushed producer commit, its transitive executed sources, and the
+  Windows/DAO provider environment before any output mutation. It executes the
+  3-by-2 factorial in the complete
   six-block cyclic schedule;
   clone each immutable closed creator database through a controller-owned,
   re-hashed, same-volume, non-hard-linked handoff before launching the separate
   reopen worker; retain paired closed-file creator/reopen observations; analyze
   only `[0x000,0x600)` from each 2,048-byte prefix; exclude `[0x600,0x800)`
-  from every comparison; and validate the complete immutable bundle
+  from every comparison; apply only the three preregistered version,
+  `dbVersion30` encryption, and equal-nonzero-XOR encryption candidate
+  predicates plus their preregistered outcome transition; and validate the
+  complete immutable bundle
 - Artifacts:
   `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`
   SHA-256
-  `5eb18b6a1d7d25602ea64d5164cc21622a74b31c8100bcebcb20aeeb4639b143`;
+  `05112b48eed37163921763b126b673f2d3ef575af7396d5e18af5cab22424bed`;
   `plan.schema.json` SHA-256
-  `6d3dbc26eced8fd0967b9d00887204b2fc7f42e42409032be398634f0d2f1c03`;
+  `feaaf431950407d34c670403b8b4f39ec0df738b55690512335ad2b250ad3d8c`;
   `sample-record.schema.json` SHA-256
   `02205d3903fb428468d2894159e0ec0bcbdbad5e799e656f4ae78ab4775f2136`;
   `analysis-report.schema.json` SHA-256
-  `09e01f9afee92c52be13cb1e26537b8d2b27a34a8a022483f1eee2371a0f19db`;
+  `f589e3c20bbd066c4b66bd314cb5712c4f66c245cc876ee8214b247408e5de25`;
   `invocation.schema.json` SHA-256
-  `7a20990d3012a65eb1fe2d0a01da7915bc2936861712ee8cd2a510a34f3497dd`;
+  `1d4ce392e5b3b405892d22e520d2a9bfe8cf25504b65d59763b5693f8109e053`;
   `worker-result.schema.json` SHA-256
   `29c6cd004955572aa91c149bcda6b1b90686d38ad38e4dbe3597aa1a802e39d5`;
   `operation-log.schema.json` SHA-256
@@ -1149,8 +1154,8 @@ Use `not applicable` explicitly rather than omitting a field.
   within-block launch position exactly once, requires 72 independently bound
   workers, and separately bounds retained bytes, six acquisition reads per
   pair, each validator pass, prefixes, comparison work, worker count, and time.
-- Interpretation: this entry authorizes only implementation and review of
-  checked M4 tooling. It does not authorize DAO execution. Even a future
+- Interpretation: the checked plan authorizes execution only from its exact
+  clean pushed producer commit after all controller preflight checks pass. A
   complete passing run may yield absolute candidate positions only. It may not
   assign physical meaning, change production code or the support matrix, or
   establish any Rust or MDB compatibility claim.
@@ -1159,10 +1164,11 @@ Use `not applicable` explicitly rather than omitting a field.
   databases and evidence must receive their own provenance and redistribution
   review
 - Review: schema lint, checked plan identity/schedule/path/arithmetic tests,
-  valid contract shapes, negative unknown/traversal/phase-drift checks, and
-  provenance-hash tests passed locally on 2026-07-25. Schemas and tests do not
-  implement the runner, analysis, or complete cross-document validator, so
-  execution remains blocked.
+  valid contract shapes, negative unknown/traversal/phase-drift checks,
+  controller and isolated-worker contract tests, complete synthetic-bundle
+  validation, adversarial corruption tests, and provenance-hash tests passed
+  locally on 2026-07-25. Windows-only process and provider checks still require
+  execution on the exact producer commit before any M4 bundle can exist.
 
 ## Fixtures and black-box results
 

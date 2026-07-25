@@ -9,22 +9,19 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import Any, Mapping, Sequence
 
-from protocol_validation import ValidationError
-
-PREFIX_BYTES = 2048
-ANALYZED_BYTES = 1536
-PHASES = ("creator", "reopen")
-CONDITION_IDS = ("V20-U", "V20-E", "V30-U", "V30-E", "V40-U", "V40-E")
-VERSION_OPTIONS = ("dbVersion20", "dbVersion30", "dbVersion40")
-ENCRYPTION_OPTIONS = ("omitted", "dbEncrypt")
-COMPARISON_KINDS = (
-    "paired_phase",
-    "within_condition",
-    "matched_version",
-    "matched_encryption",
+from m4_spec import (
+    ANALYZED_BYTES,
+    COMPARISON_KINDS,
+    CONDITION_IDS,
+    ENCRYPTION_OPTIONS,
+    EXPECTED_BYTE_VISITS,
+    EXPECTED_COMPARISONS,
+    PHASES,
+    PREFIX_BYTES,
+    VERSION_OPTIONS,
+    compile_checked_plan,
 )
-EXPECTED_COMPARISONS = 324
-EXPECTED_BYTE_VISITS = EXPECTED_COMPARISONS * 2 * ANALYZED_BYTES
+from protocol_validation import ValidationError
 
 
 @dataclass(frozen=True)
@@ -47,6 +44,8 @@ class CheckedInputs:
     max_byte_visits: int
     max_candidate_sets: int
     max_report_bytes: int
+    candidate_predicates: tuple[dict[str, Any], ...]
+    scientific_outcome_rules: Mapping[str, Any]
 
 
 def canonical_analysis_bytes(document: dict[str, Any]) -> bytes:
@@ -75,103 +74,8 @@ def _dict(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
-def _list(value: Any, label: str) -> list[Any]:
-    if not isinstance(value, list):
-        raise ValidationError(f"{label}: array required")
-    return value
-
-
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-def _check_analysis_boundary(plan: dict[str, Any]) -> tuple[int, int, int, int]:
-    analysis = _dict(plan.get("analysis"), "$.analysis")
-    retained = _dict(analysis.get("retained_prefix_range"), "$.analysis.retained")
-    analyzed = _list(analysis.get("analyzed_ranges"), "$.analysis.analyzed_ranges")
-    excluded = _list(analysis.get("excluded_ranges"), "$.analysis.excluded_ranges")
-    if (
-        retained != {"start": 0, "end": PREFIX_BYTES}
-        or analyzed != [{"start": 0, "end": ANALYZED_BYTES}]
-        or excluded
-        != [
-            {
-                "start": ANALYZED_BYTES,
-                "end": PREFIX_BYTES,
-                "provenance_id": "SRC-0013",
-            }
-        ]
-        or analysis.get("comparison_kinds") != list(COMPARISON_KINDS)
-        or analysis.get("physical_meaning_may_be_assigned") is not False
-        or analysis.get("compatibility_may_be_claimed") is not False
-    ):
-        raise ValidationError("M4 analysis or excluded-range boundary differs")
-    bounds = _dict(plan.get("bounds"), "$.bounds")
-    expected = {
-        "prefix_bytes_per_phase": PREFIX_BYTES,
-        "max_prefix_artifacts": 72,
-        "max_total_prefix_bytes": 72 * PREFIX_BYTES,
-        "max_analyzed_offsets": ANALYZED_BYTES,
-        "max_comparisons": EXPECTED_COMPARISONS,
-        "max_comparison_byte_visits": EXPECTED_BYTE_VISITS,
-    }
-    for key, value in expected.items():
-        if _integer(bounds.get(key), f"$.bounds.{key}") != value:
-            raise ValidationError(f"$.bounds.{key}: checked M4 ceiling differs")
-    max_candidates = _integer(
-        bounds.get("max_candidate_sets"), "$.bounds.max_candidate_sets"
-    )
-    max_report = _integer(
-        bounds.get("max_analysis_report_bytes"),
-        "$.bounds.max_analysis_report_bytes",
-    )
-    if max_candidates < 3 or max_candidates > 24 or max_report < 1:
-        raise ValidationError("M4 candidate/report ceiling is invalid")
-    return (
-        expected["max_comparisons"],
-        expected["max_comparison_byte_visits"],
-        max_candidates,
-        max_report,
-    )
-
-
-def _check_conditions(plan: dict[str, Any]) -> tuple[
-    dict[str, dict[str, Any]], dict[tuple[str, str], str]
-]:
-    raw_conditions = _list(plan.get("conditions"), "$.conditions")
-    if len(raw_conditions) != len(CONDITION_IDS):
-        raise ValidationError("M4 requires exactly six conditions")
-    conditions: dict[str, dict[str, Any]] = {}
-    by_factor: dict[tuple[str, str], str] = {}
-    for index, raw in enumerate(raw_conditions):
-        condition = _dict(raw, f"$.conditions[{index}]")
-        condition_id = condition.get("condition_id")
-        if condition_id != CONDITION_IDS[index] or condition_id in conditions:
-            raise ValidationError("M4 condition identity/order differs")
-        version = condition.get("version_option")
-        encryption = condition.get("encryption_option")
-        if version not in VERSION_OPTIONS or encryption not in ENCRYPTION_OPTIONS:
-            raise ValidationError(f"{condition_id}: factor projection differs")
-        factor = (version, encryption)
-        if factor in by_factor:
-            raise ValidationError("M4 condition factor projection is duplicated")
-        expected_version = {
-            "dbVersion20": "2.0",
-            "dbVersion30": "3.0",
-            "dbVersion40": "4.0",
-        }[version]
-        if condition.get("expected_dao_version") != expected_version:
-            raise ValidationError(f"{condition_id}: DAO version projection differs")
-        conditions[condition_id] = condition
-        by_factor[factor] = condition_id
-    expected_factors = {
-        (version, encryption)
-        for version in VERSION_OPTIONS
-        for encryption in ENCRYPTION_OPTIONS
-    }
-    if set(by_factor) != expected_factors:
-        raise ValidationError("M4 factorial is incomplete")
-    return conditions, by_factor
 
 
 def _expected_creation(condition: dict[str, Any]) -> dict[str, Any]:
@@ -239,17 +143,10 @@ def _check_inputs(
     sample_records: Sequence[dict[str, Any]],
     prefixes: Mapping[str, bytes],
 ) -> CheckedInputs:
-    if not isinstance(plan, dict):
-        raise ValidationError("M4 plan must be an object")
-    ceilings = _check_analysis_boundary(plan)
-    conditions, by_factor = _check_conditions(plan)
-    raw_samples = _list(plan.get("samples"), "$.samples")
-    if len(raw_samples) != 36:
-        raise ValidationError("M4 plan requires exactly 36 samples")
-    plan_samples = tuple(
-        _dict(sample, f"$.samples[{index}]")
-        for index, sample in enumerate(raw_samples)
-    )
+    checked_plan = compile_checked_plan(plan)
+    conditions = dict(checked_plan.conditions_by_id)
+    by_factor = dict(checked_plan.conditions_by_factor)
+    plan_samples = checked_plan.samples
     if not isinstance(sample_records, Sequence) or isinstance(
         sample_records, (str, bytes, bytearray)
     ):
@@ -341,10 +238,12 @@ def _check_inputs(
         by_factor=by_factor,
         observations=observations,
         samples_by_condition_replica=samples_by_condition_replica,
-        max_comparisons=ceilings[0],
-        max_byte_visits=ceilings[1],
-        max_candidate_sets=ceilings[2],
-        max_report_bytes=ceilings[3],
+        max_comparisons=checked_plan.bounds["max_comparisons"],
+        max_byte_visits=checked_plan.bounds["max_comparison_byte_visits"],
+        max_candidate_sets=checked_plan.bounds["max_candidate_sets"],
+        max_report_bytes=checked_plan.bounds["max_analysis_report_bytes"],
+        candidate_predicates=checked_plan.candidate_predicates,
+        scientific_outcome_rules=checked_plan.scientific_outcome_rules,
     )
 
 
@@ -532,14 +431,13 @@ def _candidate_offsets(
 
 
 def _candidate_set(
-    candidate_set_id: str,
-    factor: str,
+    declaration: dict[str, Any],
     offsets: list[int],
     occurrences: list[int],
 ) -> dict[str, Any]:
     return {
-        "candidate_set_id": candidate_set_id,
-        "factor": factor,
+        "candidate_set_id": declaration["candidate_set_id"],
+        "factor": declaration["factor"],
         "phase_id": "paired",
         "absolute_offsets": offsets,
         "comparison_occurrences": [
@@ -560,37 +458,35 @@ def build_analysis(
         _build_comparisons(checked)
     )
     version, v30_encryption, all_encryption = _candidate_offsets(checked)
+    candidate_results = {
+        (
+            "V30_UNENCRYPTED_DIFFERS_FROM_V20_AND_V40_UNENCRYPTED_"
+            "AND_ENCRYPTION_PAIRS_EQUAL_AT_ALL_VERSIONS"
+        ): (version, version_counts),
+        "V30_UNENCRYPTED_DIFFERS_FROM_V30_ENCRYPTED": (
+            v30_encryption,
+            v30_counts,
+        ),
+        "SAME_NONZERO_XOR_ENCRYPTION_EFFECT_AT_ALL_VERSIONS": (
+            all_encryption,
+            all_encryption_counts,
+        ),
+    }
     candidate_sets = []
-    if version:
-        candidate_sets.append(
-            _candidate_set(
-                "M4-CANDIDATE-VERSION-PAIRED",
-                "version",
-                version,
-                version_counts,
-            )
-        )
-    if v30_encryption:
-        candidate_sets.append(
-            _candidate_set(
-                "M4-CANDIDATE-V30-ENCRYPTION",
-                "encryption",
-                v30_encryption,
-                v30_counts,
-            )
-        )
-    if all_encryption:
-        candidate_sets.append(
-            _candidate_set(
-                "M4-CANDIDATE-ALL-VERSION-ENCRYPTION",
-                "encryption",
-                all_encryption,
-                all_encryption_counts,
-            )
-        )
+    nonempty_ids: set[str] = set()
+    for declaration in checked.candidate_predicates:
+        offsets, occurrences = candidate_results[declaration["predicate"]]
+        if offsets:
+            candidate_sets.append(_candidate_set(declaration, offsets, occurrences))
+            nonempty_ids.add(declaration["candidate_set_id"])
     if len(candidate_sets) > checked.max_candidate_sets:
         raise ValidationError("M4 candidate sets exceeded their ceiling")
-    if version and v30_encryption:
+    required_nonempty = set(
+        checked.scientific_outcome_rules[
+            "candidate_offsets_observed_requires_all_nonempty"
+        ]
+    )
+    if required_nonempty.issubset(nonempty_ids):
         scientific_outcome = "candidate_offsets_observed"
     elif candidate_sets:
         scientific_outcome = "inconclusive"

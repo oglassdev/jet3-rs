@@ -6,10 +6,12 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -27,6 +29,8 @@ from m4_bundle import (  # noqa: E402
     _validate_databases_and_prefixes,
     discover_bundle,
 )
+from m4_snapshot import BundleSnapshot  # noqa: E402
+from m4_contract import _write_exclusive  # noqa: E402
 
 
 class StrictJsonTests(unittest.TestCase):
@@ -49,6 +53,37 @@ class StrictJsonTests(unittest.TestCase):
             self._load(b'{"number":NaN}')
 
 
+class AtomicAnalysisWriteTests(unittest.TestCase):
+    def test_complete_bytes_are_published_without_a_temporary_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "analysis.json"
+            _write_exclusive(output, b'{"complete":true}\n')
+            self.assertEqual(output.read_bytes(), b'{"complete":true}\n')
+            self.assertEqual(list(root.glob(".*.tmp")), [])
+
+    def test_preexisting_output_is_never_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "analysis.json"
+            output.write_bytes(b"original")
+            with self.assertRaisesRegex(ValidationError, "refusing to replace"):
+                _write_exclusive(output, b"replacement")
+            self.assertEqual(output.read_bytes(), b"original")
+
+    def test_failed_flush_leaves_no_partial_output_or_temporary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "analysis.json"
+            with mock.patch(
+                "m4_contract.os.fsync",
+                side_effect=OSError("injected flush failure"),
+            ):
+                with self.assertRaisesRegex(ValidationError, "cannot create"):
+                    _write_exclusive(output, b"partial")
+            self.assertFalse(output.exists())
+            self.assertEqual(list(root.iterdir()), [])
+
+
 class CheckedPlanTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -69,6 +104,15 @@ class CheckedPlanTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             validate_plan_document(altered)
 
+    def test_permuted_launch_schedule_is_rejected(self) -> None:
+        altered = copy.deepcopy(self.plan)
+        altered["samples"][0], altered["samples"][1] = (
+            altered["samples"][1],
+            altered["samples"][0],
+        )
+        with self.assertRaisesRegex(ValidationError, "launch order"):
+            validate_plan_document(altered)
+
     def test_byte_identity_rejects_schema_valid_rewrite(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "plan.json"
@@ -83,8 +127,7 @@ class InvocationProjectionTests(unittest.TestCase):
         base = Path(self.temporary.name)
         self.bundle = base / "stage"
         self.repository = base / "repository"
-        self.output = base / "output"
-        for path in (self.bundle, self.repository, self.output):
+        for path in (self.bundle, self.repository):
             path.mkdir()
         (self.bundle / "plan").mkdir()
         (self.bundle / "bindings").mkdir()
@@ -120,7 +163,6 @@ class InvocationProjectionTests(unittest.TestCase):
             "environment_sha256": env_hash,
             "provider_sha256": "1" * 64,
             "stage_root": str(self.bundle.resolve()),
-            "output_root": str(self.output.resolve()),
             "database_path": "evidence/samples/M4-V20-U-01/creator.mdb",
             "result_path": "evidence/samples/M4-V20-U-01/creator-result.json",
             "phase_contract": {
@@ -213,7 +255,18 @@ class InvocationProjectionTests(unittest.TestCase):
         )
         return invocation
 
-    def test_valid_creator_preflight(self) -> None:
+    def test_valid_creator_retained_projection(self) -> None:
+        validate_invocation_document(
+            self.invocation,
+            self.plan,
+            self.plan_hash,
+            self.bundle,
+            preflight=False,
+        )
+
+    def test_valid_creator_live_preflight_on_windows(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows live-root check")
         validate_invocation_document(
             self.invocation,
             self.plan,
@@ -230,8 +283,8 @@ class InvocationProjectionTests(unittest.TestCase):
                 self.plan,
                 self.plan_hash,
                 self.bundle,
-                preflight=True,
-            )
+            preflight=False,
+        )
 
     def test_reopen_clone_destination_binding_is_enforced(self) -> None:
         invocation = self._reopen_invocation(destination_sha="f" * 64)
@@ -241,7 +294,7 @@ class InvocationProjectionTests(unittest.TestCase):
                 self.plan,
                 self.plan_hash,
                 self.bundle,
-                preflight=True,
+                preflight=False,
             )
 
     def test_reopen_clone_must_precede_invocation_creation(self) -> None:
@@ -252,10 +305,12 @@ class InvocationProjectionTests(unittest.TestCase):
                 self.plan,
                 self.plan_hash,
                 self.bundle,
-                preflight=True,
+                preflight=False,
             )
 
     def test_creator_refuses_preexisting_database(self) -> None:
+        if os.name != "nt":
+            self.skipTest("live preflight requires Windows")
         database = resolve_bundle_path(
             self.bundle, self.invocation["database_path"]
         )
@@ -269,13 +324,10 @@ class InvocationProjectionTests(unittest.TestCase):
                 preflight=True,
             )
 
-    def test_bundle_locator_cannot_escape(self) -> None:
-        with self.assertRaisesRegex(ValidationError, "unsafe path"):
-            resolve_bundle_path(self.bundle, "evidence/../outside.json")
-
-    def test_output_root_cannot_be_inside_stage(self) -> None:
-        self.invocation["output_root"] = str((self.bundle / "publish").resolve())
-        with self.assertRaisesRegex(ValidationError, "overlap"):
+    def test_posix_roots_are_rejected_for_live_preflight(self) -> None:
+        if os.name == "nt":
+            self.skipTest("POSIX live-root rejection is non-Windows coverage")
+        with self.assertRaisesRegex(ValidationError, "drive-rooted Windows"):
             validate_invocation_document(
                 self.invocation,
                 self.plan,
@@ -283,6 +335,30 @@ class InvocationProjectionTests(unittest.TestCase):
                 self.bundle,
                 preflight=True,
             )
+
+    def test_live_preflight_rejects_symlinked_stage_root(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows live-root check")
+        link = self.bundle.parent / "stage-link"
+        try:
+            link.symlink_to(self.bundle, target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege unavailable")
+            raise
+        self.invocation["stage_root"] = str(link)
+        with self.assertRaisesRegex(ValidationError, "canonical|reparse"):
+            validate_invocation_document(
+                self.invocation,
+                self.plan,
+                self.plan_hash,
+                self.bundle,
+                preflight=True,
+            )
+
+    def test_bundle_locator_cannot_escape(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "unsafe path"):
+            resolve_bundle_path(self.bundle, "evidence/../outside.json")
 
     def test_noncanonical_absolute_path_is_rejected(self) -> None:
         self.invocation["repository_root"] = (
@@ -308,19 +384,20 @@ class InvocationProjectionTests(unittest.TestCase):
                 preflight=True,
             )
 
-    def test_output_ancestor_cannot_contain_repository(self) -> None:
-        self.invocation["output_root"] = str(self.bundle.parent.resolve())
-        with self.assertRaisesRegex(ValidationError, "overlap"):
-            validate_invocation_document(
-                self.invocation,
-                self.plan,
-                self.plan_hash,
-                self.bundle,
-                preflight=True,
-            )
-
-
 class BundleTopologyTests(unittest.TestCase):
+    def test_snapshot_rejects_symlinked_bundle_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            real = parent / "real"
+            alias = parent / "alias"
+            real.mkdir()
+            try:
+                alias.symlink_to(real, target_is_directory=True)
+            except OSError:
+                self.skipTest("directory symlinks unavailable")
+            with self.assertRaisesRegex(ValidationError, "aliases|reparses"):
+                BundleSnapshot.capture(alias)
+
     def test_hard_link_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -34,8 +34,8 @@
     "requires_exact_clean_commit": {"const": true},
     "execution_gate": {
       "const": {
-        "status": "BLOCKED",
-        "reason": "runner_and_analysis_not_implemented"
+        "status": "READY",
+        "reason": "checked_runner_analysis_and_bundle_validator_implemented"
       }
     },
     "design": {
@@ -158,7 +158,7 @@
         "max_analyzed_offsets": {"const": 1536},
         "max_comparisons": {"const": 324},
         "max_comparison_byte_visits": {"const": 995328},
-        "max_candidate_sets": {"const": 24},
+        "max_candidate_sets": {"const": 3},
         "max_worker_processes": {"const": 72},
         "worker_timeout_seconds": {"const": 120}
       }
@@ -171,6 +171,8 @@
         "analyzed_ranges",
         "excluded_ranges",
         "comparison_kinds",
+        "candidate_predicates",
+        "scientific_outcome_rules",
         "physical_meaning_may_be_assigned",
         "compatibility_may_be_claimed"
       ],
@@ -193,6 +195,41 @@
             "matched_version",
             "matched_encryption"
           ]
+        },
+        "candidate_predicates": {
+          "const": [
+            {
+              "candidate_set_id": "M4-CANDIDATE-VERSION-PAIRED",
+              "factor": "version",
+              "stability_scope": "all_conditions_all_replicas_both_phases",
+              "predicate": "V30_UNENCRYPTED_DIFFERS_FROM_V20_AND_V40_UNENCRYPTED_AND_ENCRYPTION_PAIRS_EQUAL_AT_ALL_VERSIONS",
+              "comparison_occurrence_kind": "matched_version"
+            },
+            {
+              "candidate_set_id": "M4-CANDIDATE-V30-ENCRYPTION",
+              "factor": "encryption",
+              "stability_scope": "v30_all_replicas_both_phases",
+              "predicate": "V30_UNENCRYPTED_DIFFERS_FROM_V30_ENCRYPTED",
+              "comparison_occurrence_kind": "matched_encryption_v30"
+            },
+            {
+              "candidate_set_id": "M4-CANDIDATE-ALL-VERSION-ENCRYPTION",
+              "factor": "encryption",
+              "stability_scope": "all_conditions_all_replicas_both_phases",
+              "predicate": "SAME_NONZERO_XOR_ENCRYPTION_EFFECT_AT_ALL_VERSIONS",
+              "comparison_occurrence_kind": "matched_encryption_all_versions"
+            }
+          ]
+        },
+        "scientific_outcome_rules": {
+          "const": {
+            "candidate_offsets_observed_requires_all_nonempty": [
+              "M4-CANDIDATE-VERSION-PAIRED",
+              "M4-CANDIDATE-V30-ENCRYPTION"
+            ],
+            "inconclusive_requires_any_nonempty_unless_candidate_offsets_observed": true,
+            "no_candidates_observed_requires_all_empty": true
+          }
         },
         "physical_meaning_may_be_assigned": {"const": false},
         "compatibility_may_be_claimed": {"const": false}

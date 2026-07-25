@@ -63,10 +63,10 @@ class M4PhaseSourceContractTests(unittest.TestCase):
         )
         self.assertNotIn("Get-Location", self.worker)
         self.assertNotIn("Set-Location", self.worker)
+        self.assertNotIn("output_root", self.worker)
         for fragment in (
             "-Path ([string]$Invocation.repository_root)",
             "-Path ([string]$Invocation.stage_root)",
-            "-Path ([string]$Invocation.output_root)",
             "BundleRoot differs from the invocation stage_root binding.",
             "Executing repository differs from the invocation binding.",
             "M4.Worker.ps1",
@@ -117,7 +117,11 @@ class M4PhaseSourceContractTests(unittest.TestCase):
             "scripts/m4_records.py",
             "scripts/m4_bundle.py",
             "scripts/m4_campaign.py",
+            "scripts/m4_spec.py",
+            "scripts/m4_phase.py",
+            "scripts/m4_snapshot.py",
             "scripts/m4_analysis.py",
+            "scripts/shared/BoundedProcess.Native.cs",
             "scripts/m1_bundle_validation.py",
             "scripts/protocol_validation.py",
             "scripts/protocol_cli.py",

@@ -198,8 +198,6 @@ function Get-M4InvocationPaths {
         -Path ([string]$Invocation.repository_root) -Label "repository_root"
     $stage = Get-M4WorkerLocalPath `
         -Path ([string]$Invocation.stage_root) -Label "stage_root"
-    $output = Get-M4WorkerLocalPath `
-        -Path ([string]$Invocation.output_root) -Label "output_root"
     if (-not $repository.Equals(
         $SourceRepository,
         [StringComparison]::OrdinalIgnoreCase
@@ -212,33 +210,17 @@ function Get-M4InvocationPaths {
     )) {
         throw "BundleRoot differs from the invocation stage_root binding."
     }
-    foreach ($root in @($stage, $output)) {
-        if (-not [IO.Directory]::Exists($root)) {
-            throw "A bound M4 private root is absent."
-        }
-        Assert-M4WorkerNoReparseAncestors -Path $root `
-            -Label "M4 private root"
+    if (-not [IO.Directory]::Exists($stage)) {
+        throw "The bound M4 stage root is absent."
     }
-    if (
-        $output.Equals(
-            $repository,
-            [StringComparison]::OrdinalIgnoreCase
-        ) -or
-        (Test-M4WorkerPathWithin -Path $output -Root $repository) -or
-        (Test-M4WorkerPathWithin -Path $repository -Root $output) -or
-        $output.Equals($stage, [StringComparison]::OrdinalIgnoreCase) -or
-        (Test-M4WorkerPathWithin -Path $output -Root $stage)
-    ) {
-        throw "M4 output_root must remain outside repository and stage roots."
-    }
+    Assert-M4WorkerNoReparseAncestors -Path $stage `
+        -Label "M4 stage root"
     if (-not (Test-M4WorkerPathWithin `
         -Path $InvocationFile -Root $stage)) {
         throw "M4 invocation is not inside its declared stage root."
     }
     return [pscustomobject]@{
         Repository = $repository
-        StageRoot = $stage
-        OutputRoot = $output
         Plan = Resolve-M4BundleLocator `
             -Locator ([string]$Invocation.plan_path) `
             -Root $BundleRoot -Label "plan_path"
@@ -415,10 +397,6 @@ function Assert-M4PlanProjection {
         ) {
             throw "M4 creator call contract differs from the plan."
         }
-    }
-    return [pscustomobject]@{
-        Condition = $condition
-        Sample = $sample
     }
 }
 

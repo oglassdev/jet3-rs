@@ -110,6 +110,7 @@ try {
         "oracle/windows-dao/scripts/m3_experiment.py",
         "oracle/windows-dao/scripts/m3/M3.Process.ps1",
         "oracle/windows-dao/scripts/shared/BoundedProcess.ps1",
+        "oracle/windows-dao/scripts/shared/BoundedProcess.Native.cs",
         "oracle/windows-dao/experiments/m3/plan.schema.json",
         "oracle/windows-dao/experiments/m3/m3-index-isolation.plan.json",
         "oracle/windows-dao/scripts/m1/M1.Preflight.ps1",

@@ -3,15 +3,17 @@
 
 from __future__ import annotations
 
-import hashlib
-import os
-import stat
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from m1_bundle_validation import bounded_file_identity
 from m4_analysis import build_analysis, canonical_analysis_bytes
+from m4_campaign import validate_campaign_bindings_and_chronology
+from m4_phase import (
+    PhaseBindings,
+    validate_phase_bindings,
+    validate_sample_record,
+)
 from m4_records import (
     CHECKED_PLAN,
     SCHEMA_SET,
@@ -21,29 +23,15 @@ from m4_records import (
     parse_timestamp,
     require_equal,
     resolve_bundle_path,
-    validate_phase_documents,
-    validate_sample_record,
+)
+from m4_snapshot import (
+    BundleSnapshot,
+    discover_bundle,
+    read_stable_database,
 )
 from protocol_validation import validate_environment
 from validate_m1_protocol import SCHEMA_SET as ENVIRONMENT_SCHEMA_SET
 
-MANIFEST_NAME = "bundle-manifest.json"
-MAX_TREE_ENTRIES = 768
-MAX_TREE_DEPTH = 8
-FILE_ATTRIBUTE_REPARSE_POINT = 0x400
-ROLE_COUNTS = {
-    "plan": 1,
-    "environment": 1,
-    "analysis_report": 1,
-    "sample_record": 36,
-    "phase_invocation": 72,
-    "phase_worker_result": 72,
-    "operation_log": 72,
-    "semantic_snapshot": 72,
-    "clone_log": 36,
-    "database": 72,
-    "prefix": 72,
-}
 ARTIFACT_ROLES = {
     "invocation": "phase_invocation",
     "operation_log": "operation_log",
@@ -75,88 +63,6 @@ def find_checked_plan(root: Path) -> tuple[Path, dict[str, Any], str]:
     return matches[0], plan, digest
 
 
-def _is_reparse(metadata: os.stat_result) -> bool:
-    return bool(
-        getattr(metadata, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
-    )
-
-
-def discover_bundle(root: Path) -> set[str]:
-    """Enumerate a bounded regular-file tree without following links."""
-    try:
-        root_meta = root.lstat()
-    except OSError as exc:
-        raise ValidationError(f"{root}: cannot inspect bundle root: {exc}") from exc
-    if not stat.S_ISDIR(root_meta.st_mode) or root.is_symlink() or _is_reparse(root_meta):
-        raise ValidationError(f"{root}: bundle root must be a regular directory")
-    pending = [(root, 0)]
-    discovered: set[str] = set()
-    identities: set[tuple[int, int]] = set()
-    visited = 0
-    try:
-        while pending:
-            directory, depth = pending.pop()
-            with os.scandir(directory) as entries:
-                for entry in entries:
-                    visited += 1
-                    if visited > MAX_TREE_ENTRIES:
-                        raise ValidationError("bundle exceeds directory-entry limit")
-                    metadata = entry.stat(follow_symlinks=False)
-                    if entry.is_symlink() or _is_reparse(metadata):
-                        raise ValidationError(f"{entry.path}: links and reparses are forbidden")
-                    candidate = Path(entry.path)
-                    if stat.S_ISDIR(metadata.st_mode):
-                        if depth >= MAX_TREE_DEPTH:
-                            raise ValidationError("bundle exceeds directory-depth limit")
-                        pending.append((candidate, depth + 1))
-                    elif stat.S_ISREG(metadata.st_mode):
-                        identity = (metadata.st_dev, metadata.st_ino)
-                        if metadata.st_nlink != 1 or identity in identities:
-                            raise ValidationError(f"{entry.path}: hard links are forbidden")
-                        identities.add(identity)
-                        discovered.add(candidate.relative_to(root).as_posix())
-                    else:
-                        raise ValidationError(f"{entry.path}: non-regular bundle entry")
-    except ValidationError:
-        raise
-    except OSError as exc:
-        raise ValidationError(f"{root}: cannot enumerate bundle: {exc}") from exc
-    return discovered
-
-
-def _manifest_index(
-    root: Path, manifest: dict[str, Any], discovered: set[str]
-) -> dict[str, dict[str, Any]]:
-    files = manifest["files"]
-    paths = [entry["path"] for entry in files]
-    if len(paths) != len(set(paths)):
-        raise ValidationError("$.files: manifest paths must be unique")
-    expected_tree = set(paths) | {MANIFEST_NAME}
-    if discovered != expected_tree:
-        missing = sorted(expected_tree - discovered)
-        extra = sorted(discovered - expected_tree)
-        raise ValidationError(f"bundle tree differs; missing={missing}, extra={extra}")
-    counts = Counter(entry["role"] for entry in files)
-    require_equal(dict(counts), ROLE_COUNTS, "$.files role counts")
-    index = {entry["path"]: entry for entry in files}
-    for entry in files:
-        role = entry["role"]
-        expected_media = (
-            "application/octet-stream" if role in ("database", "prefix") else "application/json"
-        )
-        require_equal(entry["media_type"], expected_media, f"$.files {entry['path']} media_type")
-        path = resolve_bundle_path(root, entry["path"])
-        if role != "database":
-            size, digest, _ = bounded_file_identity(
-                path,
-                16 * 1024 * 1024,
-                retain=False,
-            )
-            require_equal(size, entry["size_bytes"], f"$.files {entry['path']} size")
-            require_equal(digest, entry["sha256"], f"$.files {entry['path']} sha256")
-    return index
-
-
 def _unique_role(
     manifest_index: dict[str, dict[str, Any]], role: str
 ) -> tuple[str, dict[str, Any]]:
@@ -166,17 +72,21 @@ def _unique_role(
     return selected[0]
 
 
-def _validate_environment(path: Path) -> dict[str, Any]:
-    environment, _, _ = load_document_v1_environment(path)
-    return environment
-
-
 def load_document_v1_environment(
     path: Path,
+    source: BundleSnapshot | None = None,
+    locator: str | None = None,
 ) -> tuple[dict[str, Any], int, str]:
-    from m4_records import load_bounded_json
+    if source is None:
+        from m4_records import load_bounded_json
 
-    document, size, digest = load_bounded_json(path, 1024 * 1024)
+        document, size, digest = load_bounded_json(path, 1024 * 1024)
+    else:
+        if locator is None:
+            raise ValidationError("snapshot environment locator is required")
+        document, size, digest = source.json_document(locator)
+        if size > 1024 * 1024:
+            raise ValidationError(f"{locator}: environment exceeds byte ceiling")
     observed = ENVIRONMENT_SCHEMA_SET.validate(document)
     if observed != "dao_environment":
         raise ValidationError(f"{path}: expected dao_environment")
@@ -210,51 +120,12 @@ def _expected_manifest_bindings(
     return expected
 
 
-def _read_database_once(path: Path, maximum: int) -> tuple[int, str, bytes]:
-    """Read and hash one stable DB once while retaining only its bounded prefix."""
-    digest = hashlib.sha256()
-    prefix = bytearray()
-    try:
-        before_path = path.lstat()
-        if not stat.S_ISREG(before_path.st_mode) or path.is_symlink() or _is_reparse(before_path):
-            raise ValidationError(f"{path}: database is not a regular file")
-        identity = (before_path.st_dev, before_path.st_ino, before_path.st_size, before_path.st_mtime_ns)
-        total = 0
-        with path.open("rb") as handle:
-            opened = os.fstat(handle.fileno())
-            opened_identity = (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns)
-            if opened_identity != identity:
-                raise ValidationError(f"{path}: database identity changed before read")
-            while True:
-                chunk = handle.read(min(64 * 1024, maximum + 1 - total))
-                if not chunk:
-                    break
-                total += len(chunk)
-                if total > maximum:
-                    raise ValidationError(f"{path}: database exceeds {maximum} bytes")
-                digest.update(chunk)
-                if len(prefix) < 2048:
-                    prefix.extend(chunk[: 2048 - len(prefix)])
-            after = os.fstat(handle.fileno())
-        after_path = path.lstat()
-        after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
-        path_identity = (after_path.st_dev, after_path.st_ino, after_path.st_size, after_path.st_mtime_ns)
-        if opened_identity != after_identity or after_identity != path_identity:
-            raise ValidationError(f"{path}: database changed while being read")
-    except ValidationError:
-        raise
-    except OSError as exc:
-        raise ValidationError(f"{path}: cannot read database: {exc}") from exc
-    if len(prefix) != 2048:
-        raise ValidationError(f"{path}: database is shorter than the retained prefix")
-    return total, digest.hexdigest(), bytes(prefix)
-
-
 def _validate_databases_and_prefixes(
     root: Path,
     plan: dict[str, Any],
     manifest_index: dict[str, dict[str, Any]],
     records: list[dict[str, Any]],
+    source: BundleSnapshot | None = None,
 ) -> dict[str, bytes]:
     bounds = plan["bounds"]
     observations: dict[
@@ -277,9 +148,13 @@ def _validate_databases_and_prefixes(
         entry = manifest_index.get(database_path)
         if entry is None or entry["role"] != "database":
             raise ValidationError(f"{database_path}: missing database manifest entry")
-        size, digest, prefix = _read_database_once(
-            resolve_bundle_path(root, database_path), bounds["max_database_bytes"]
-        )
+        if source is None:
+            size, digest, prefix = read_stable_database(
+                resolve_bundle_path(root, database_path),
+                bounds["max_database_bytes"],
+            )
+        else:
+            size, digest, prefix = source.database_projection(database_path)
         reads += 1
         total_bytes += size
         require_equal(size, entry["size_bytes"], f"{database_path} manifest size")
@@ -290,9 +165,15 @@ def _validate_databases_and_prefixes(
         prefix_entry = manifest_index.get(prefix_path)
         if prefix_entry is None or prefix_entry["role"] != "prefix":
             raise ValidationError(f"{prefix_path}: missing prefix manifest entry")
-        prefix_file = resolve_bundle_path(root, prefix_path)
-        prefix_size, prefix_hash, retained = bounded_file_identity(prefix_file, 2048, retain=True)
-        assert retained is not None
+        if source is None:
+            prefix_file = resolve_bundle_path(root, prefix_path)
+            prefix_size, prefix_hash, retained = bounded_file_identity(
+                prefix_file, 2048, retain=True
+            )
+            assert retained is not None
+        else:
+            retained = source.binary_payload(prefix_path, "prefix")
+            prefix_size, prefix_hash = source.file_identity(prefix_path)
         require_equal(prefix_size, 2048, f"{prefix_path} size")
         require_equal(retained, prefix, f"{prefix_path} database projection")
         require_equal(prefix_hash, post["prefix_sha256"], f"{prefix_path} record sha256")
@@ -391,6 +272,7 @@ def load_stage_records(
         set(range(1, 73)),
         "global worker ordinals",
     )
+    validate_campaign_bindings_and_chronology(root, plan, records)
     return plan, plan_sha256, records, hashes
 
 
@@ -544,16 +426,23 @@ def validate_worker_result(root: Path, result_path: Path) -> dict[str, Any]:
         if pre is None:
             raise ValidationError("$.pre_com_file_binding: reopen requires a binding")
         phase_row["pre_com_file_binding"] = pre | {"verified_before_com": True}
-    record: dict[str, Any] = {
-        "producer_commit": invocation["producer_commit"],
-        "environment_sha256": invocation["environment_sha256"],
-        "provider_sha256": invocation["provider_sha256"],
-        "phases": {phase: phase_row},
-    }
-    if phase == "reopen":
-        record["controller_clone"] = {"clone_log": invocation["phase_contract"]["clone_log"]}
-    validate_phase_documents(
-        root, record, sample, condition, phase, plan, plan_sha256
+    clone_log = (
+        invocation["phase_contract"]["clone_log"] if phase == "reopen" else None
+    )
+    validate_phase_bindings(
+        root,
+        PhaseBindings(
+            producer_commit=invocation["producer_commit"],
+            environment_sha256=invocation["environment_sha256"],
+            provider_sha256=invocation["provider_sha256"],
+            phase_row=phase_row,
+            clone_log=clone_log,
+        ),
+        sample,
+        condition,
+        phase,
+        plan,
+        plan_sha256,
     )
     environment, _, environment_hash = load_document_v1_environment(
         resolve_bundle_path(root, invocation["environment_path"])
@@ -564,7 +453,7 @@ def validate_worker_result(root: Path, result_path: Path) -> dict[str, Any]:
     require_equal(result["provider"]["server_sha256"], accepted["server_sha256"], "$.provider.server_sha256")
     require_equal(result["provider"]["prog_id"], accepted["prog_id"], "$.provider.prog_id")
     require_equal(result["provider"]["clsid"].upper(), accepted["clsid"].upper(), "$.provider.clsid")
-    size, digest, prefix = _read_database_once(
+    size, digest, prefix = read_stable_database(
         resolve_bundle_path(root, post["database_path"]),
         plan["bounds"]["max_database_bytes"],
     )
@@ -580,18 +469,22 @@ def validate_worker_result(root: Path, result_path: Path) -> dict[str, Any]:
 
 
 def validate_bundle(root: Path) -> dict[str, Any]:
-    """Validate the exact complete M4 retained bundle."""
+    """Validate one exact immutable snapshot of the complete M4 bundle."""
     SCHEMA_SET.lint()
-    discovered = discover_bundle(root)
-    manifest_path = root / MANIFEST_NAME
-    manifest, _, _ = load_document(manifest_path, 16 * 1024 * 1024, "dao_m4_bundle_manifest")
-    manifest_index = _manifest_index(root, manifest, discovered)
+    snapshot = BundleSnapshot.capture(root)
+    manifest = snapshot.manifest
+    manifest_index = snapshot.manifest_index
     plan_path, plan_entry = _unique_role(manifest_index, "plan")
-    plan, plan_sha256 = load_checked_plan(resolve_bundle_path(root, plan_path))
+    checked_plan, checked_hash = load_checked_plan()
+    plan, _, plan_sha256 = snapshot.load_document(
+        plan_path, 1048576, "dao_m4_plan"
+    )
+    require_equal(plan, checked_plan, "$.files checked plan document")
+    require_equal(plan_sha256, checked_hash, "$.files checked plan sha256")
     require_equal(plan_entry["sha256"], plan_sha256, "$.files plan sha256")
     environment_path, environment_entry = _unique_role(manifest_index, "environment")
     environment, _, environment_hash = load_document_v1_environment(
-        resolve_bundle_path(root, environment_path)
+        snapshot.root, snapshot, environment_path
     )
     require_equal(environment_hash, environment_entry["sha256"], "$.files environment sha256")
     accepted = environment["accepted_provider"]
@@ -604,8 +497,8 @@ def validate_bundle(root: Path) -> dict[str, Any]:
         entry = manifest_index.get(path)
         if entry is None or entry["role"] != "sample_record":
             raise ValidationError(f"{path}: missing sample-record manifest entry")
-        record, _, digest = load_document(
-            resolve_bundle_path(root, path),
+        record, _, digest = snapshot.load_document(
+            path,
             plan["bounds"]["max_sample_record_bytes"],
             "dao_m4_sample_record",
         )
@@ -614,10 +507,17 @@ def validate_bundle(root: Path) -> dict[str, Any]:
         record_hashes[path] = digest
     samples_by_id = {sample["sample_id"]: sample for sample in samples}
     conditions = {row["condition_id"]: row for row in plan["conditions"]}
+    validated_phases: dict[str, dict[str, Any]] = {}
     for record in records:
         sample = samples_by_id[record["sample_id"]]
-        validate_sample_record(
-            root, record, sample, conditions[sample["condition_id"]], plan, plan_sha256
+        validated_phases[record["sample_id"]] = validate_sample_record(
+            snapshot.root,
+            record,
+            sample,
+            conditions[sample["condition_id"]],
+            plan,
+            plan_sha256,
+            source=snapshot,
         )
         require_equal(record["producer_commit"], manifest["producer_commit"], f"{record['sample_id']} producer_commit")
         require_equal(record["environment_sha256"], environment_hash, f"{record['sample_id']} environment_sha256")
@@ -628,11 +528,13 @@ def validate_bundle(root: Path) -> dict[str, Any]:
             require_equal(worker["provider"]["prog_id"], accepted["prog_id"], f"{record['sample_id']} provider prog_id")
             require_equal(worker["provider"]["clsid"].upper(), accepted["clsid"].upper(), f"{record['sample_id']} provider clsid")
             require_equal(worker["provider"]["powershell_version"], environment["runtime"]["powershell_version"], f"{record['sample_id']} PowerShell version")
-            invocation_path = record["phases"][phase]["artifacts"]["invocation"]["path"]
-            invocation, _, _ = load_document(resolve_bundle_path(root, invocation_path), 65536, "dao_m4_invocation")
+            invocation = validated_phases[record["sample_id"]][phase].invocation
             require_equal(invocation["campaign_run_id"], manifest["run_id"], f"{record['sample_id']} campaign_run_id")
             require_equal(invocation["environment_path"], environment_path, f"{record['sample_id']} environment_path")
             require_equal(invocation["plan_path"], plan_path, f"{record['sample_id']} plan_path")
+    validate_campaign_bindings_and_chronology(
+        snapshot.root, plan, records, manifest, source=snapshot
+    )
     expected_refs = _expected_manifest_bindings(records, samples)
     structural = {
         path: entry["role"]
@@ -658,21 +560,25 @@ def validate_bundle(root: Path) -> dict[str, Any]:
     if len(identities) != 72 or len(nonces) != 72 or len(run_ids) != 72:
         raise ValidationError("global worker identities, run IDs, or nonces are not unique")
     require_equal(ordinals, set(range(1, 73)), "global worker ordinals")
-    prefixes = _validate_databases_and_prefixes(root, plan, manifest_index, records)
+    prefixes = _validate_databases_and_prefixes(
+        snapshot.root, plan, manifest_index, records, snapshot
+    )
     expected_analysis = build_full_analysis(
         plan, plan_sha256, samples, records, record_hashes, prefixes
     )
     analysis_path, _ = _unique_role(manifest_index, "analysis_report")
-    analysis, _, _ = load_document(
-        resolve_bundle_path(root, analysis_path),
+    _analysis, _, _ = snapshot.load_document(
+        analysis_path,
         plan["bounds"]["max_analysis_report_bytes"],
         "dao_m4_analysis_report",
     )
+    retained_analysis = snapshot.binary_payload(analysis_path, "analysis_report")
     require_equal(
-        canonical_analysis_bytes(analysis),
+        retained_analysis,
         canonical_analysis_bytes(expected_analysis),
-        "$.analysis retained report",
+        "$.analysis canonical retained bytes",
     )
+    snapshot.recheck()
     return {
         "manifest": manifest,
         "plan": plan,

@@ -664,6 +664,9 @@ class M3RunnerSourceContractTests(unittest.TestCase):
         worker = (SCRIPTS / "run-m3-sample.ps1").read_text(encoding="utf-8")
         process = (SCRIPTS / "m3/M3.Process.ps1").read_text(encoding="utf-8")
         shared = (SCRIPTS / "shared/BoundedProcess.ps1").read_text(encoding="utf-8")
+        native = (SCRIPTS / "shared/BoundedProcess.Native.cs").read_text(
+            encoding="utf-8"
+        )
         publisher = (SCRIPTS / "m1/M1.Publication.ps1").read_text(encoding="utf-8")
         self.assertIn("foreach ($sample in $plan.samples)", controller)
         self.assertIn("Invoke-M3ChildProcess", controller)
@@ -673,14 +676,28 @@ class M3RunnerSourceContractTests(unittest.TestCase):
         self.assertIn(
             '"oracle/windows-dao/scripts/shared/BoundedProcess.ps1"', worker
         )
+        self.assertIn(
+            '"oracle/windows-dao/scripts/shared/BoundedProcess.Native.cs"', controller
+        )
+        self.assertIn(
+            '"oracle/windows-dao/scripts/shared/BoundedProcess.Native.cs"', worker
+        )
         self.assertIn("shared/BoundedProcess.ps1", process)
         self.assertIn('CallerLabel "M3"', process)
-        self.assertIn("[Diagnostics.Process]::Start", shared)
+        self.assertIn('"BoundedProcess.Native.cs"', shared)
+        self.assertIn("StartSuspendedInJob", native)
+        self.assertIn("CreateSuspended |", native)
+        self.assertIn("ProcThreadAttributeHandleList", native)
         self.assertNotIn(".ArgumentList", shared)
-        self.assertNotIn("Kill($true)", shared)
+        self.assertNotIn("Stop-BoundedProcessTree", shared)
+        self.assertNotIn("Read-M3BoundedProcessOutput", process)
+        self.assertNotIn("Stop-M3ProcessTree", process)
+        self.assertNotIn("ConvertTo-M3CommandLineArgument", process)
         self.assertIn("Invoke-M1Preflight", worker)
         self.assertIn("Assert-M1RuntimeBinding", worker)
-        self.assertIn("ls-remote --heads $RepositoryUrl", controller)
+        self.assertIn('"ls-remote", "--heads", $RepositoryUrl, $RemoteRef', controller)
+        self.assertIn('"credential.interactive=never"', controller)
+        self.assertIn('"GIT_TERMINAL_PROMPT", "0", "Process"', controller)
         self.assertIn("remote get-url origin", controller)
         self.assertIn("Publish-M1Stage", controller)
         self.assertIn("Assert-M1NoReparseComponents -Path $Session.CommitDirectory", publisher)

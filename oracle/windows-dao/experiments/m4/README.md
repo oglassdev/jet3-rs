@@ -17,20 +17,21 @@ open-database semantic observations use `invocation.schema.json`,
 `snapshot.schema.json`. Controller handoffs and the complete retained tree use
 `clone-log.schema.json` and `bundle-manifest.schema.json`. Schemas reject
 unknown fields. Retained artifact locators are campaign-output-relative and
-traversal-free. Invocation `repository_root`, `stage_root`, and `output_root`
-are bounded recorded absolute paths because those runtime roots are outside
-the private stage. Execution requires canonical drive-rooted Windows paths;
-portable retained validation determines the recorded path flavor and rejects
-relative, dot-segment, noncanonical, NUL-containing, or reparse-bearing roots.
+traversal-free. Invocation `repository_root` and `stage_root` are bounded
+recorded absolute paths. Execution requires canonical drive-rooted Windows
+paths; portable retained validation determines the recorded path flavor and
+rejects relative, dot-segment, noncanonical, NUL-containing, or reparse-bearing
+roots.
 
-This plan is not executable yet and its checked execution gate is `BLOCKED`.
-JSON Schemas cannot enforce its relational invariants, and no checked M4
-validator, runner, or analysis implementation exists. Execution is blocked
-until checked tooling reconstructs and verifies
+The checked execution gate is `READY`. The controller, isolated phase worker,
+analysis implementation, and complete-bundle validator reconstruct and verify
 the exact plan projection, worker and provider identities, immutable
 invocations/logs/snapshots, clone relationships, bundle tree, 324-comparison
-topology, candidate predicates, and scientific-outcome state machine. A
-schema-valid document alone is never M4 evidence.
+topology, candidate predicates, and scientific-outcome state machine. The
+controller may execute only this exact plan from its exact clean, pushed
+producer commit on the bound Windows DAO host. A schema-valid document alone
+is never M4 evidence, and no M4 evidence exists until a complete published
+bundle passes the checked validator.
 
 ## Design
 
@@ -114,6 +115,17 @@ Allowed comparisons are:
 - within-condition replica variation;
 - version contrasts matched on encryption mode, replica, and phase; and
 - encryption contrasts matched on version option, replica, and phase.
+
+The checked plan also preregisters three exact candidate predicates before any
+DAO bytes exist: a version predicate requiring stable values across every
+condition with no paired encryption effect and a distinct `dbVersion30`
+unencrypted value from both other unencrypted versions; a `dbVersion30`
+encryption predicate requiring stable unequal unencrypted/encrypted values;
+and a stronger encryption predicate requiring the same nonzero XOR effect at
+all three versions. The plan fixes the comparison-occurrence source for each
+set and the outcome transition: both the version and `dbVersion30` encryption
+sets must be nonempty for `candidate_offsets_observed`; any other nonempty
+combination is `inconclusive`; all empty sets yield `no_candidates_observed`.
 
 The report may retain only absolute candidate offsets and occurrence counts
 inside `[0x000, 0x600)`. It may not label a candidate as a version field,

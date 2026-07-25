@@ -575,7 +575,6 @@ function Invoke-M4BoundedClone {
 
     $completedAt = Get-M4CloneUtcTimestamp
     return [pscustomobject][ordered]@{
-        owner = "controller"
         started_at_utc = $startedAt
         completed_at_utc = $completedAt
         source_path = Get-M4CloneRelativePath `
@@ -593,9 +592,6 @@ function Invoke-M4BoundedClone {
         destination_file_identity = (
             ConvertTo-M4CloneIdentityObservation -Facts $destinationVerified
         )
-        creator_closed_before_clone = $true
-        source_immutable_during_clone = $true
-        source_unchanged_after_clone = $true
         all_hashes_equal = $true
         exact_byte_clone = $true
         source_reparse_free = $true

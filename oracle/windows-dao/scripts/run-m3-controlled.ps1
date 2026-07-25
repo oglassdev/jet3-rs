@@ -33,6 +33,7 @@ $executedSources = @(
     "oracle/windows-dao/scripts/m3_experiment.py",
     "oracle/windows-dao/scripts/m3/M3.Process.ps1",
     "oracle/windows-dao/scripts/shared/BoundedProcess.ps1",
+    "oracle/windows-dao/scripts/shared/BoundedProcess.Native.cs",
     "oracle/windows-dao/experiments/m3/plan.schema.json",
     "oracle/windows-dao/experiments/m3/m3-index-isolation.plan.json",
     "oracle/windows-dao/scripts/m1/M1.Preflight.ps1",
@@ -120,12 +121,44 @@ function Assert-M3RemoteCommit {
     ) {
         throw "M3 origin differs from the checked private repository."
     }
+    $savedPrompt = [Environment]::GetEnvironmentVariable(
+        "GIT_TERMINAL_PROMPT", "Process"
+    )
+    $savedInteractive = [Environment]::GetEnvironmentVariable(
+        "GCM_INTERACTIVE", "Process"
+    )
+    try {
+        [Environment]::SetEnvironmentVariable(
+            "GIT_TERMINAL_PROMPT", "0", "Process"
+        )
+        [Environment]::SetEnvironmentVariable(
+            "GCM_INTERACTIVE", "Never", "Process"
+        )
+        $captured = Invoke-M3ChildProcess `
+            -Executable $Context.GitExecutable `
+            -Arguments @(
+                "-c", "credential.interactive=never",
+                "-c", "core.askPass=",
+                "-C", $Context.RepositoryRoot,
+                "ls-remote", "--heads", $RepositoryUrl, $RemoteRef
+            ) `
+            -TimeoutSeconds 30 `
+            -MaximumOutputBytes 64KB
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable(
+            "GIT_TERMINAL_PROMPT", $savedPrompt, "Process"
+        )
+        [Environment]::SetEnvironmentVariable(
+            "GCM_INTERACTIVE", $savedInteractive, "Process"
+        )
+    }
     $lines = @(
-        & $Context.GitExecutable -C $Context.RepositoryRoot `
-            ls-remote --heads $RepositoryUrl $RemoteRef 2>&1
+        [string]$captured.stdout -split "\r?\n" |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     )
     if (
-        $LASTEXITCODE -ne 0 -or $lines.Count -ne 1 -or
+        $lines.Count -ne 1 -or
         -not ([string]$lines[0]).StartsWith(
             $Context.GitCommit + "`t", [StringComparison]::Ordinal
         )

@@ -357,6 +357,31 @@ class M4AnalysisTests(unittest.TestCase):
             M4.canonical_analysis_bytes(second),
         )
 
+    def test_candidate_and_outcome_rules_are_plan_registered(self) -> None:
+        changed = copy.deepcopy(self.plan)
+        changed["analysis"]["candidate_predicates"][0][
+            "candidate_set_id"
+        ] = "UNREGISTERED"
+        with self.assertRaises(M4.ValidationError):
+            M4.build_analysis(changed, self.records, self.prefixes)
+        changed = copy.deepcopy(self.plan)
+        predicates = changed["analysis"]["candidate_predicates"]
+        predicates[0], predicates[1] = predicates[1], predicates[0]
+        with self.assertRaises(M4.ValidationError):
+            M4.build_analysis(changed, self.records, self.prefixes)
+        changed = copy.deepcopy(self.plan)
+        changed["analysis"]["candidate_predicates"][1][
+            "stability_scope"
+        ] = "all_conditions_all_replicas_both_phases"
+        with self.assertRaises(M4.ValidationError):
+            M4.build_analysis(changed, self.records, self.prefixes)
+        changed = copy.deepcopy(self.plan)
+        changed["analysis"]["scientific_outcome_rules"][
+            "candidate_offsets_observed_requires_all_nonempty"
+        ] = ["UNREGISTERED"]
+        with self.assertRaises(M4.ValidationError):
+            M4.build_analysis(changed, self.records, self.prefixes)
+
     def test_missing_duplicate_extra_and_mismatched_inputs_reject(self) -> None:
         cases = (
             "missing_record",
@@ -413,10 +438,10 @@ class M4AnalysisTests(unittest.TestCase):
                 with self.assertRaises(M4.ValidationError):
                     M4.build_analysis(plan, self.records, self.prefixes)
 
-    def test_result_byte_ceiling_is_enforced(self) -> None:
+    def test_result_byte_ceiling_is_immutable(self) -> None:
         plan = copy.deepcopy(self.plan)
         plan["bounds"]["max_analysis_report_bytes"] = 1
-        with self.assertRaisesRegex(M4.ValidationError, "byte ceiling"):
+        with self.assertRaisesRegex(M4.ValidationError, r"\$\.bounds"):
             M4.build_analysis(plan, self.records, self.prefixes)
 
 

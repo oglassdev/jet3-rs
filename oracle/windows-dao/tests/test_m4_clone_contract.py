@@ -30,7 +30,6 @@ class M4CloneSourceContractTests(unittest.TestCase):
         cls.source = MODULE.read_text(encoding="utf-8")
 
     def test_clone_is_controller_only_and_has_no_dao_or_publication(self) -> None:
-        self.assertIn('owner = "controller"', self.source)
         for prohibited in (
             "[Activator]::CreateInstance",
             "CreateDatabase",
@@ -122,6 +121,9 @@ class M4CloneSourceContractTests(unittest.TestCase):
             self.assertIn(field, self.source)
         self.assertNotIn("reopen_bindings_verified_before_com", self.source)
         self.assertNotIn("completed_before_reopen_com", self.source)
+        self.assertNotIn("creator_closed_before_clone", self.source)
+        self.assertNotIn("source_immutable_during_clone", self.source)
+        self.assertNotIn("source_unchanged_after_clone", self.source)
 
     def test_module_stays_below_repository_file_limit(self) -> None:
         self.assertLess(len(self.source.splitlines()), 800)
@@ -186,7 +188,6 @@ class M4CloneWindowsFunctionalTests(unittest.TestCase):
             self.assertEqual(
                 set(observation),
                 {
-                    "owner",
                     "started_at_utc",
                     "completed_at_utc",
                     "source_path",
@@ -198,9 +199,6 @@ class M4CloneWindowsFunctionalTests(unittest.TestCase):
                     "destination_sha256",
                     "source_file_identity",
                     "destination_file_identity",
-                    "creator_closed_before_clone",
-                    "source_immutable_during_clone",
-                    "source_unchanged_after_clone",
                     "all_hashes_equal",
                     "exact_byte_clone",
                     "source_reparse_free",

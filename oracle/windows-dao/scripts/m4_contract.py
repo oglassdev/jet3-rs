@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 from m4_analysis import canonical_analysis_bytes
@@ -65,18 +66,47 @@ def parser() -> argparse.ArgumentParser:
 
 
 def _write_exclusive(path: Path, payload: bytes) -> None:
+    """Durably publish complete bytes without ever exposing a partial output."""
     if not path.is_absolute():
         raise ValidationError("--output must be an absolute path")
+    temporary: Path | None = None
+    temporary_identity: tuple[int, int] | None = None
     try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+        )
+        temporary = Path(temporary_name)
         with os.fdopen(descriptor, "wb") as handle:
+            metadata = os.fstat(handle.fileno())
+            temporary_identity = (metadata.st_dev, metadata.st_ino)
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
+        os.link(temporary, path, follow_symlinks=False)
+        temporary.unlink()
+        temporary = None
+        if hasattr(os, "O_DIRECTORY"):
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
     except FileExistsError as exc:
         raise ValidationError(f"{path}: refusing to replace existing output") from exc
     except OSError as exc:
         raise ValidationError(f"{path}: cannot create analysis output: {exc}") from exc
+    finally:
+        if temporary is not None and temporary_identity is not None:
+            try:
+                metadata = temporary.lstat()
+                if (metadata.st_dev, metadata.st_ino) == temporary_identity:
+                    temporary.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
 
 
 def run(arguments: argparse.Namespace) -> str:

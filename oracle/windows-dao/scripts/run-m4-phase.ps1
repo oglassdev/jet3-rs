@@ -14,8 +14,10 @@ $script:M4ExecutedSources = @(
     "oracle/windows-dao/scripts/m4/M4.Worker.ps1", "oracle/windows-dao/scripts/m4/M4.Artifacts.ps1",
     "oracle/windows-dao/scripts/m4_contract.py", "oracle/windows-dao/scripts/m4_records.py",
     "oracle/windows-dao/scripts/m4_bundle.py", "oracle/windows-dao/scripts/m4_analysis.py",
-    "oracle/windows-dao/scripts/m4_campaign.py",
+    "oracle/windows-dao/scripts/m4_campaign.py", "oracle/windows-dao/scripts/m4_spec.py",
+    "oracle/windows-dao/scripts/m4_phase.py", "oracle/windows-dao/scripts/m4_snapshot.py",
     "oracle/windows-dao/scripts/shared/BoundedProcess.ps1",
+    "oracle/windows-dao/scripts/shared/BoundedProcess.Native.cs",
     "oracle/windows-dao/scripts/m1_bundle_validation.py", "oracle/windows-dao/scripts/protocol_validation.py",
     "oracle/windows-dao/scripts/protocol_cli.py", "oracle/windows-dao/scripts/validate_m1_protocol.py",
     "oracle/windows-dao/scripts/m1/M1.Preflight.ps1", "oracle/windows-dao/scripts/m1/M1.Provider.ps1",
@@ -226,7 +228,7 @@ try {
         "worker_ordinal", "nonce", "campaign_run_id", "producer_commit",
         "repository_url", "remote_ref", "repository_root", "plan_path",
         "plan_sha256", "environment_path", "environment_sha256",
-        "provider_sha256", "stage_root", "output_root", "database_path",
+        "provider_sha256", "stage_root", "database_path",
         "result_path", "phase_contract", "created_at_utc",
         "bindings_verified_before_com"
     )
@@ -258,7 +260,7 @@ try {
         -Label "M4 plan"
     $environment = ConvertFrom-M1Utf8Json `
         -Bytes $environmentInput.Bytes -Label "M4 environment"
-    [void](Assert-M4PlanProjection -Invocation $invocation -Plan $plan)
+    Assert-M4PlanProjection -Invocation $invocation -Plan $plan
 
     $git = Get-M1GitExecutable
     if (-not $git.Equals(

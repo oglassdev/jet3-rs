@@ -58,7 +58,7 @@
     "candidate_sets": {
       "type": "array",
       "minItems": 0,
-      "maxItems": 24,
+      "maxItems": 3,
       "uniqueItems": true,
       "items": {"$ref": "#/$defs/candidate_set"}
     },
