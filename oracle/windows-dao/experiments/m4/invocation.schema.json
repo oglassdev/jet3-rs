@@ -28,14 +28,14 @@
     "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "repository_url": {"const": "https://github.com/oglassdev/jet3-rs.git"},
     "remote_ref": {"const": "refs/heads/codex/jet3-v1-foundations"},
-    "repository_root": {"$ref": "#/$defs/path"},
+    "repository_root": {"$ref": "#/$defs/absolute_path"},
     "plan_path": {"$ref": "#/$defs/path"},
     "plan_sha256": {"$ref": "#/$defs/sha"},
     "environment_path": {"$ref": "#/$defs/path"},
     "environment_sha256": {"$ref": "#/$defs/sha"},
     "provider_sha256": {"$ref": "#/$defs/sha"},
-    "stage_root": {"$ref": "#/$defs/path"},
-    "output_root": {"$ref": "#/$defs/path"},
+    "stage_root": {"$ref": "#/$defs/absolute_path"},
+    "output_root": {"$ref": "#/$defs/absolute_path"},
     "database_path": {"$ref": "#/$defs/path"},
     "result_path": {"$ref": "#/$defs/path"},
     "phase_contract": {
@@ -69,6 +69,12 @@
     "sample": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]$"},
     "worker": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]-(?:CREATOR|REOPEN)$"},
     "path": {"type": "string", "minLength": 3, "maxLength": 255, "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}/){1,5}[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+    "absolute_path": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 500,
+      "pattern": "^[^\\u0000]+$"
+    },
     "reopen_contract": {
       "type": "object", "additionalProperties": false,
       "required": ["kind", "expected_dao_version", "pre_com_database_bytes", "pre_com_database_sha256", "clone_log"],

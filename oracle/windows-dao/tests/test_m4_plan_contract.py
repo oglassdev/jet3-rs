@@ -4,7 +4,7 @@ import copy
 import hashlib
 import sys
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 TESTS = Path(__file__).resolve().parent
 ORACLE = TESTS.parent
@@ -42,6 +42,22 @@ def validate_invocation_relations(value: dict[str, object]) -> None:
         or contract.get("kind") != phase
     ):
         raise ValidationError("invocation phase relationship differs")
+
+
+def validate_recorded_runtime_roots(value: dict[str, object]) -> None:
+    for key in ("repository_root", "stage_root", "output_root"):
+        raw = value[key]
+        if not isinstance(raw, str) or "\x00" in raw:
+            raise ValidationError(f"{key}: malformed recorded path")
+        path = PureWindowsPath(raw)
+        if (
+            not path.is_absolute()
+            or not path.drive
+            or not path.root
+            or any(part in (".", "..") for part in path.parts)
+            or str(path) != raw
+        ):
+            raise ValidationError(f"{key}: noncanonical Windows absolute path")
 
 
 def validate_operation_sequence(value: dict[str, object]) -> None:
@@ -181,14 +197,14 @@ class M4PlanContractTests(unittest.TestCase):
             "producer_commit": COMMIT,
             "repository_url": "https://github.com/oglassdev/jet3-rs.git",
             "remote_ref": "refs/heads/codex/jet3-v1-foundations",
-            "repository_root": "control/repository/root",
+            "repository_root": r"C:\jet3-rs",
             "plan_path": "control/contracts/plan.json",
             "plan_sha256": SHA,
             "environment_path": "control/environment/environment.json",
             "environment_sha256": SHA,
             "provider_sha256": SHA,
-            "stage_root": "private/stage/root",
-            "output_root": "private/output/root",
+            "stage_root": r"C:\m4-private-stage",
+            "output_root": r"C:\m4-private-stage\output",
             "database_path": f"evidence/{SAMPLE}/creator.mdb",
             "result_path": f"evidence/{SAMPLE}/creator-result.json",
             "phase_contract": {
@@ -211,6 +227,7 @@ class M4PlanContractTests(unittest.TestCase):
         invocation = self.invocation()
         self.validate(invocation, "invocation.schema.json")
         validate_invocation_relations(invocation)
+        validate_recorded_runtime_roots(invocation)
         log = {
             "protocol_version": "1.0.0",
             "document_type": "dao_m4_operation_log",
@@ -507,6 +524,14 @@ class M4PlanContractTests(unittest.TestCase):
         traversal = copy.deepcopy(value)
         traversal["database_path"] = "../escape.mdb"
         self.assert_rejected(traversal, "invocation.schema.json")
+        relative_root = copy.deepcopy(value)
+        relative_root["repository_root"] = "relative/repository/root"
+        self.validate(relative_root, "invocation.schema.json")
+        with self.assertRaises(ValidationError):
+            validate_recorded_runtime_roots(relative_root)
+        nul_root = copy.deepcopy(value)
+        nul_root["stage_root"] = "C:\\stage\x00tail"
+        self.assert_rejected(nul_root, "invocation.schema.json")
         drift = copy.deepcopy(value)
         drift["phase_id"] = "reopen"
         drift["phase_ordinal"] = 1

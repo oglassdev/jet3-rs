@@ -1133,7 +1133,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `analysis-report.schema.json` SHA-256
   `09e01f9afee92c52be13cb1e26537b8d2b27a34a8a022483f1eee2371a0f19db`;
   `invocation.schema.json` SHA-256
-  `d3f77d71c4af9d5f426588c5720b8b86f39fb41bae43f2b135cdf92a272efd83`;
+  `7a20990d3012a65eb1fe2d0a01da7915bc2936861712ee8cd2a510a34f3497dd`;
   `worker-result.schema.json` SHA-256
   `29c6cd004955572aa91c149bcda6b1b90686d38ad38e4dbe3597aa1a802e39d5`;
   `operation-log.schema.json` SHA-256

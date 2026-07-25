@@ -16,9 +16,12 @@ open-database semantic observations use `invocation.schema.json`,
 `worker-result.schema.json`, `operation-log.schema.json`, and
 `snapshot.schema.json`. Controller handoffs and the complete retained tree use
 `clone-log.schema.json` and `bundle-manifest.schema.json`. Schemas reject
-unknown fields. Paths in
-evidence documents are campaign-output-relative, traversal-free locators
-rather than machine-specific absolute paths.
+unknown fields. Retained artifact locators are campaign-output-relative and
+traversal-free. Invocation `repository_root`, `stage_root`, and `output_root`
+are bounded recorded absolute paths because those runtime roots are outside
+the private stage. Execution requires canonical drive-rooted Windows paths;
+portable retained validation determines the recorded path flavor and rejects
+relative, dot-segment, noncanonical, NUL-containing, or reparse-bearing roots.
 
 This plan is not executable yet and its checked execution gate is `BLOCKED`.
 JSON Schemas cannot enforce its relational invariants, and no checked M4
