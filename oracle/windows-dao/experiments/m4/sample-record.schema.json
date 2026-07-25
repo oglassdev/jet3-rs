@@ -62,6 +62,9 @@
       "additionalProperties": false,
       "required": [
         "owner",
+        "clone_log",
+        "started_at_utc",
+        "completed_at_utc",
         "source_path",
         "destination_path",
         "source_bytes",
@@ -88,6 +91,9 @@
       ],
       "properties": {
         "owner": {"const": "controller"},
+        "clone_log": {"$ref": "#/$defs/artifact_set_member"},
+        "started_at_utc": {"type": "string", "format": "date-time"},
+        "completed_at_utc": {"type": "string", "format": "date-time"},
         "source_path": {"$ref": "#/$defs/safe_relative_path"},
         "destination_path": {"$ref": "#/$defs/safe_relative_path"},
         "source_bytes": {"$ref": "#/$defs/database_bytes"},
@@ -131,6 +137,61 @@
       "type": "integer",
       "minimum": 2048,
       "maximum": 1048576
+    },
+    "artifact_set_member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/safe_relative_path"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "phase_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invocation", "operation_log", "snapshot", "worker_result"],
+      "properties": {
+        "invocation": {"$ref": "#/$defs/artifact_set_member"},
+        "operation_log": {"$ref": "#/$defs/artifact_set_member"},
+        "snapshot": {"$ref": "#/$defs/artifact_set_member"},
+        "worker_result": {"$ref": "#/$defs/artifact_set_member"}
+      }
+    },
+    "dao_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captured_while_database_open",
+        "dao_version",
+        "empty_user_schema",
+        "user_table_count"
+      ],
+      "properties": {
+        "captured_while_database_open": {"const": true},
+        "dao_version": {"enum": ["2.0", "3.0", "4.0"]},
+        "empty_user_schema": {"const": true},
+        "user_table_count": {"const": 0}
+      }
+    },
+    "post_close_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "database_path", "database_bytes", "database_sha256", "prefix_path",
+        "prefix_bytes", "prefix_sha256", "database_closed",
+        "lock_file_absent_after_close"
+      ],
+      "properties": {
+        "database_path": {"$ref": "#/$defs/safe_relative_path"},
+        "database_bytes": {"$ref": "#/$defs/database_bytes"},
+        "database_sha256": {"$ref": "#/$defs/sha256"},
+        "prefix_path": {"$ref": "#/$defs/safe_relative_path"},
+        "prefix_bytes": {"const": 2048},
+        "prefix_sha256": {"$ref": "#/$defs/sha256"},
+        "database_closed": {"const": true},
+        "lock_file_absent_after_close": {"const": true}
+      }
     },
     "worker": {
       "type": "object",
@@ -218,34 +279,18 @@
         "phase_id",
         "phase_ordinal",
         "worker",
-        "database_path",
-        "dao_version",
-        "empty_user_schema",
-        "user_table_count",
-        "database_bytes",
-        "post_close_database_sha256",
-        "prefix_path",
-        "prefix_bytes",
-        "prefix_sha256",
-        "database_closed_before_observation",
-        "lock_file_absent_after_close",
+        "artifacts",
+        "dao_observations_while_open",
+        "post_close_file_observations",
         "status"
       ],
       "properties": {
         "phase_id": {"const": "creator"},
         "phase_ordinal": {"const": 1},
         "worker": {"$ref": "#/$defs/worker"},
-        "database_path": {"$ref": "#/$defs/safe_relative_path"},
-        "dao_version": {"enum": ["2.0", "3.0", "4.0"]},
-        "empty_user_schema": {"const": true},
-        "user_table_count": {"const": 0},
-        "database_bytes": {"$ref": "#/$defs/database_bytes"},
-        "post_close_database_sha256": {"$ref": "#/$defs/sha256"},
-        "prefix_path": {"$ref": "#/$defs/safe_relative_path"},
-        "prefix_bytes": {"const": 2048},
-        "prefix_sha256": {"$ref": "#/$defs/sha256"},
-        "database_closed_before_observation": {"const": true},
-        "lock_file_absent_after_close": {"const": true},
+        "artifacts": {"$ref": "#/$defs/phase_artifacts"},
+        "dao_observations_while_open": {"$ref": "#/$defs/dao_observations"},
+        "post_close_file_observations": {"$ref": "#/$defs/post_close_observations"},
         "status": {"const": "pass"}
       }
     },
@@ -256,38 +301,30 @@
         "phase_id",
         "phase_ordinal",
         "worker",
-        "database_path",
-        "pre_com_database_bytes",
-        "pre_com_database_sha256",
-        "dao_version",
-        "empty_user_schema",
-        "user_table_count",
-        "post_close_database_bytes",
-        "post_close_database_sha256",
-        "prefix_path",
-        "prefix_bytes",
-        "prefix_sha256",
-        "database_closed_before_observation",
-        "lock_file_absent_after_close",
+        "artifacts",
+        "pre_com_file_binding",
+        "dao_observations_while_open",
+        "post_close_file_observations",
         "status"
       ],
       "properties": {
         "phase_id": {"const": "reopen"},
         "phase_ordinal": {"const": 2},
         "worker": {"$ref": "#/$defs/worker"},
-        "database_path": {"$ref": "#/$defs/safe_relative_path"},
-        "pre_com_database_bytes": {"$ref": "#/$defs/database_bytes"},
-        "pre_com_database_sha256": {"$ref": "#/$defs/sha256"},
-        "dao_version": {"enum": ["2.0", "3.0", "4.0"]},
-        "empty_user_schema": {"const": true},
-        "user_table_count": {"const": 0},
-        "post_close_database_bytes": {"$ref": "#/$defs/database_bytes"},
-        "post_close_database_sha256": {"$ref": "#/$defs/sha256"},
-        "prefix_path": {"$ref": "#/$defs/safe_relative_path"},
-        "prefix_bytes": {"const": 2048},
-        "prefix_sha256": {"$ref": "#/$defs/sha256"},
-        "database_closed_before_observation": {"const": true},
-        "lock_file_absent_after_close": {"const": true},
+        "artifacts": {"$ref": "#/$defs/phase_artifacts"},
+        "pre_com_file_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["database_path", "database_bytes", "database_sha256", "verified_before_com"],
+          "properties": {
+            "database_path": {"$ref": "#/$defs/safe_relative_path"},
+            "database_bytes": {"$ref": "#/$defs/database_bytes"},
+            "database_sha256": {"$ref": "#/$defs/sha256"},
+            "verified_before_com": {"const": true}
+          }
+        },
+        "dao_observations_while_open": {"$ref": "#/$defs/dao_observations"},
+        "post_close_file_observations": {"$ref": "#/$defs/post_close_observations"},
         "status": {"const": "pass"}
       }
     }

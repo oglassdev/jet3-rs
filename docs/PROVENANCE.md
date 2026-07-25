@@ -1125,13 +1125,25 @@ Use `not applicable` explicitly rather than omitting a field.
 - Artifacts:
   `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`
   SHA-256
-  `73bfa32b962474d729f774d03c8c6e2f2cc1eb51bdee5e9a76f41d006f9d4b9f`;
+  `28048c300d1a056020d437c635c84a5308260f92c6bc0a61ba404a22415f1321`;
   `plan.schema.json` SHA-256
-  `9aeaddd806cff7912b50ed78c2a7205637aaa26b62b2c553d00eacbeefb60ce5`;
+  `a48f1b5f36c3a9f13f38a0b7e352a5990aaaec135043bc4ac7e8ce9bd58c26d3`;
   `sample-record.schema.json` SHA-256
-  `4c07c9e3ad6c93d9d7caad428540aa82a1e19b4bb79e0a8b33c6c4d717d42bd5`;
+  `02205d3903fb428468d2894159e0ec0bcbdbad5e799e656f4ae78ab4775f2136`;
   `analysis-report.schema.json` SHA-256
-  `09e01f9afee92c52be13cb1e26537b8d2b27a34a8a022483f1eee2371a0f19db`
+  `09e01f9afee92c52be13cb1e26537b8d2b27a34a8a022483f1eee2371a0f19db`;
+  `invocation.schema.json` SHA-256
+  `d3f77d71c4af9d5f426588c5720b8b86f39fb41bae43f2b135cdf92a272efd83`;
+  `worker-result.schema.json` SHA-256
+  `29c6cd004955572aa91c149bcda6b1b90686d38ad38e4dbe3597aa1a802e39d5`;
+  `operation-log.schema.json` SHA-256
+  `c0fc6aa43fdca469b695b0f06ef0fc082b01fb4f1af5e7b3cb953bd268d2a481`;
+  `snapshot.schema.json` SHA-256
+  `9660165a89d3a9cb3640df013e1da711eb4c0dc723475f779c54e66061af0256`;
+  `clone-log.schema.json` SHA-256
+  `38af5fcf2cc1034970fe80239f7bbf7af5f0ccda57a3be3c57a0d8fdfbf66c8a`;
+  `bundle-manifest.schema.json` SHA-256
+  `6309fefdf95f9f725d11a190f4fef8fc8f132543bdc2a2cdd3fbe9f450a28982`
 - Observation: no M4 sample has been generated and no M4 byte result exists.
   The declarative plan contains 36 samples, gives every condition every
   within-block launch position exactly once, requires 72 independently bound
@@ -1146,11 +1158,11 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: the plan and schemas are original project material; future generated
   databases and evidence must receive their own provenance and redistribution
   review
-- Review: schema lint and manual cyclic-schedule/comparison recomputation passed
-  locally on 2026-07-25. Independent source and adversarial-design review found
-  that schemas alone cannot enforce the cross-document, bundle-tree,
-  comparison, candidate, and outcome relationships. Checked M4 tooling and
-  tests do not yet exist, so execution remains blocked.
+- Review: schema lint, checked plan identity/schedule/path/arithmetic tests,
+  valid contract shapes, negative unknown/traversal/phase-drift checks, and
+  provenance-hash tests passed locally on 2026-07-25. Schemas and tests do not
+  implement the runner, analysis, or complete cross-document validator, so
+  execution remains blocked.
 
 ## Fixtures and black-box results
 

@@ -11,6 +11,7 @@
     "repository_url",
     "remote_ref",
     "requires_exact_clean_commit",
+    "execution_gate",
     "design",
     "bounds",
     "analysis",
@@ -31,6 +32,12 @@
       "const": "refs/heads/codex/jet3-v1-foundations"
     },
     "requires_exact_clean_commit": {"const": true},
+    "execution_gate": {
+      "const": {
+        "status": "BLOCKED",
+        "reason": "runner_and_analysis_not_implemented"
+      }
+    },
     "design": {
       "type": "object",
       "additionalProperties": false,

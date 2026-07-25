@@ -6,6 +6,10 @@
   "repository_url": "https://github.com/oglassdev/jet3-rs.git",
   "remote_ref": "refs/heads/codex/jet3-v1-foundations",
   "requires_exact_clean_commit": true,
+  "execution_gate": {
+    "status": "BLOCKED",
+    "reason": "runner_and_analysis_not_implemented"
+  },
   "design": {
     "creation_method": "DBEngine.CreateDatabase",
     "compact_database_used": false,

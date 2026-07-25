@@ -11,13 +11,19 @@ meaning to the retained prefix.
 The declarative plan is `m4-header-discriminator.plan.json`.
 `plan.schema.json` constrains the input, `sample-record.schema.json` constrains
 one paired creator/reopen record, and `analysis-report.schema.json` constrains
-the bounded descriptive output. Schemas reject unknown fields. Paths in
+the bounded descriptive output. Per-phase inputs, results, operation logs, and
+open-database semantic observations use `invocation.schema.json`,
+`worker-result.schema.json`, `operation-log.schema.json`, and
+`snapshot.schema.json`. Controller handoffs and the complete retained tree use
+`clone-log.schema.json` and `bundle-manifest.schema.json`. Schemas reject
+unknown fields. Paths in
 evidence documents are campaign-output-relative, traversal-free locators
 rather than machine-specific absolute paths.
 
-This plan is not executable yet. JSON Schemas cannot enforce its relational
-invariants, and no checked M4 validator, bundle-manifest contract, or runner
-exists. Execution is blocked until checked tooling reconstructs and verifies
+This plan is not executable yet and its checked execution gate is `BLOCKED`.
+JSON Schemas cannot enforce its relational invariants, and no checked M4
+validator, runner, or analysis implementation exists. Execution is blocked
+until checked tooling reconstructs and verifies
 the exact plan projection, worker and provider identities, immutable
 invocations/logs/snapshots, clone relationships, bundle tree, 324-comparison
 topology, candidate predicates, and scientific-outcome state machine. A
@@ -73,6 +79,15 @@ commit/environment/provider bindings before launching the reopen worker or
 permitting its first COM call. The creator MDB is never reopened by the second
 worker. Publication uses a same-volume directory rename so the recorded file
 identities remain meaningful.
+
+Each phase record binds its exact invocation, operation log, semantic snapshot,
+and worker result by safe relative path and SHA-256. DAO version and empty
+user-schema observations are recorded only while the database is open.
+Database size/hash, prefix identity, close completion, and `.ldb` absence are
+separate post-close file observations. The controller clone record likewise
+binds its detailed clone log by path, SHA-256, start time, and completion time.
+The bundle manifest closes the tree over all 507 expected payload files and
+rejects omissions, additions, symlinks, and reparses.
 
 Both labels must equal the condition's documented expectation. Any mismatch,
 open failure, or size drift outside the declared limits fails the sample. The
