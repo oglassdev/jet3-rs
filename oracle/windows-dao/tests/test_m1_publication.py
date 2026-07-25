@@ -231,6 +231,28 @@ class M1PublicationTests(unittest.TestCase):
             )
             self.assert_no_staging(output)
 
+    def test_commit_parent_reparse_replacement_is_rejected_before_move(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository, output = self.make_roots(temporary)
+            target = Path(temporary) / "redirect-target"
+            target.mkdir()
+            fault = (
+                "$fault={param($phase,$s)"
+                "if($phase -ceq 'before_move'){"
+                "[IO.Directory]::Delete($s.CommitDirectory,$false);"
+                f"New-Item -ItemType Junction -Path $s.CommitDirectory "
+                f"-Target {ps_quote(target)}|Out-Null"
+                "}};"
+            )
+            script = self.invocation(repository, output).replace(
+                "$fault=$null;", fault
+            )
+            script = f"try{{{script}exit 9}}catch{{exit 7}}"
+            result = self.run_ps(script)
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertFalse((target / RUN_ID).exists())
+            self.assert_no_staging(output)
+
     def test_per_file_and_total_byte_ceilings_fail_closed(self):
         builds = (
             (

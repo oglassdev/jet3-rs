@@ -518,7 +518,25 @@ function Complete-M1Publication {
         if (Test-Path -LiteralPath $Session.FinalDirectory) {
             throw "The immutable evidence directory appeared before publication."
         }
+        Assert-M1LocalFixedVolume -Path $Session.OutputRoot
+        Assert-M1NoReparseComponents -Path $Session.OutputRoot
+        Assert-M1NoReparseComponents -Path $Session.CommitDirectory
+        $finalParent = [IO.Path]::GetDirectoryName($Session.FinalDirectory)
+        if (
+            -not $finalParent.Equals(
+                $Session.CommitDirectory,
+                [StringComparison]::OrdinalIgnoreCase
+            )
+        ) {
+            throw "The immutable evidence parent changed before publication."
+        }
         Invoke-M1PublicationFault -Session $Session -Phase "before_move"
+        Assert-M1LocalFixedVolume -Path $Session.OutputRoot
+        Assert-M1NoReparseComponents -Path $Session.OutputRoot
+        Assert-M1NoReparseComponents -Path $Session.CommitDirectory
+        if (Test-Path -LiteralPath $Session.FinalDirectory) {
+            throw "The immutable evidence directory appeared at publication."
+        }
 
         # This is the sole publication commit point. Directory.Move refuses a
         # racing destination. Only non-authoritative, best-effort empty-shell
