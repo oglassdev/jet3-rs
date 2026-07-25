@@ -295,7 +295,7 @@ class M4ControllerWindowsNoComTests(unittest.TestCase):
                 "param($Context,$ContractPath,$Arguments,$Label);"
                 "$encoding=New-Object Text.UTF8Encoding($false,$true);"
                 "[IO.File]::WriteAllText("
-                "$Arguments[$Arguments.Count-1],'{\"ok\":true}`n',$encoding)};"
+                '$Arguments[$Arguments.Count-1],"{`"ok`":true}`n",$encoding)};'
                 f"$session=New-M1PublicationSession "
                 f"-RepositoryRoot {ps_quote(repository)} "
                 f"-OutputRoot {ps_quote(output)} "

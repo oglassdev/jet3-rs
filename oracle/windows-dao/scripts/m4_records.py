@@ -192,7 +192,8 @@ def _validate_lexical_windows_root(
         or value[1:3] != ":\\"
     ):
         raise ValidationError(
-            f"{location}: expected a lexical drive-rooted Windows path, "
+            f"{location}: noncanonical Windows path; expected a lexical "
+            "drive-rooted Windows path, "
             "not UNC or device syntax"
         )
     if ":" in value[2:]:

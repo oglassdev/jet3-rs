@@ -30,7 +30,13 @@ from m4_bundle import (  # noqa: E402
     _validate_databases_and_prefixes,
     discover_bundle,
 )
-from m4_snapshot import BundleSnapshot  # noqa: E402
+from m4_snapshot import (  # noqa: E402
+    BundleSnapshot,
+    FileStamp,
+    TreeEntry,
+    _path_identity,
+    _read_captured,
+)
 from m4_contract import _write_exclusive  # noqa: E402
 
 
@@ -95,6 +101,44 @@ class StrictJsonTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValidationError):
                     _validate_lexical_windows_root(value, "$.root")
+
+
+class SnapshotIdentityTests(unittest.TestCase):
+    def test_snapshot_uses_handle_identity_not_unreliable_stat_identity(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "payload.bin"
+            payload = b"snapshot payload"
+            path.write_bytes(payload)
+            metadata = path.lstat()
+            unreliable = mock.Mock(
+                st_mode=metadata.st_mode,
+                st_size=metadata.st_size,
+                st_mtime_ns=metadata.st_mtime_ns,
+                st_ctime_ns=metadata.st_ctime_ns,
+                st_file_attributes=getattr(metadata, "st_file_attributes", 0),
+                st_dev=metadata.st_dev + 1,
+                st_ino=metadata.st_ino + 1,
+                st_nlink=metadata.st_nlink + 1,
+            )
+            expected = TreeEntry(
+                "file",
+                FileStamp.from_stat(unreliable),
+                _path_identity(path, metadata),
+            )
+
+            captured = _read_captured(
+                root,
+                path.name,
+                expected,
+                len(payload),
+                role="prefix",
+            )
+
+            self.assertEqual(captured.payload, payload)
+            self.assertEqual(captured.size, len(payload))
 
 
 class AtomicAnalysisWriteTests(unittest.TestCase):

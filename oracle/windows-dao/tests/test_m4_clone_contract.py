@@ -288,7 +288,7 @@ class M4CloneWindowsFunctionalTests(unittest.TestCase):
             result = self.run_ps(
                 "try{"
                 + self.invoke(root, aliased_leaf, destination)
-                + "exit 9}catch{"
+                + ";exit 9}catch{"
                 "[Console]::Error.WriteLine($_.Exception.Message);exit 7}"
             )
             self.assertEqual(result.returncode, 7, result.stderr)

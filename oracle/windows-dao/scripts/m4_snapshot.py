@@ -61,10 +61,9 @@ def _is_reparse(metadata: os.stat_result) -> bool:
 
 @dataclass(frozen=True)
 class FileStamp:
+    """Mutable file metadata, excluding handle-owned filesystem identity."""
+
     mode: int
-    device: int
-    inode: int
-    links: int
     size: int
     modified_ns: int
     changed_ns: int
@@ -74,9 +73,6 @@ class FileStamp:
     def from_stat(cls, value: os.stat_result) -> FileStamp:
         return cls(
             mode=value.st_mode,
-            device=value.st_dev,
-            inode=value.st_ino,
-            links=value.st_nlink,
             size=value.st_size,
             modified_ns=value.st_mtime_ns,
             changed_ns=value.st_ctime_ns,
