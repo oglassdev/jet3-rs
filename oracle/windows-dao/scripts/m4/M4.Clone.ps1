@@ -115,6 +115,28 @@ function Get-M4CloneUtcTimestamp {
     )
 }
 
+function Get-M4CloneLongPathString {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Failure
+    )
+
+    $builder = New-Object Text.StringBuilder 4096
+    $characters = [M4Clone.NativeMethods]::GetLongPathName(
+        $Path,
+        $builder,
+        [uint32]$builder.Capacity
+    )
+    if (
+        $characters -eq 0 -or
+        $characters -ge [uint32]$builder.Capacity
+    ) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "$Failure with Win32 error $code."
+    }
+    return $builder.ToString()
+}
+
 function Get-M4CloneLocalFullPath {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -171,20 +193,8 @@ function Get-M4CloneLocalFullPath {
         $leaf = ""
         $queryPath = $full
     }
-    $builder = New-Object Text.StringBuilder 4096
-    $characters = [M4Clone.NativeMethods]::GetLongPathName(
-        $queryPath,
-        $builder,
-        [uint32]$builder.Capacity
-    )
-    if (
-        $characters -eq 0 -or
-        $characters -ge [uint32]$builder.Capacity
-    ) {
-        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-        throw "$Label ancestor query failed with Win32 error $code."
-    }
-    $canonical = $builder.ToString()
+    $canonical = Get-M4CloneLongPathString `
+        -Path $queryPath -Failure "$Label ancestor query failed"
     if (-not [string]::IsNullOrEmpty($leaf)) {
         $canonical = Join-Path $canonical $leaf
     }
@@ -271,6 +281,26 @@ function Assert-M4CloneCanonicalExistingLeaf {
         [Parameter(Mandatory = $true)][string]$Label
     )
 
+    $suppliedLeaf = [IO.Path]::GetFileName($Path)
+
+    # GetLongPathNameW's documented purpose is converting a path to its long
+    # form, so it judges the leaf. On hosted Windows we observed that a
+    # FindFirstFileW query whose wildcard-free pattern is itself the 8.3
+    # alias reports that alias back in cFileName with an empty
+    # cAlternateFileName, so the query alone cannot prove a leaf canonical.
+    $expanded = Get-M4CloneLongPathString `
+        -Path $Path -Failure "$Label canonical leaf query failed"
+    $longLeaf = [IO.Path]::GetFileName($expanded)
+    if (
+        [string]::IsNullOrEmpty($longLeaf) -or
+        -not $suppliedLeaf.Equals(
+            $longLeaf,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    ) {
+        throw "$Label path alias resolved to a different canonical leaf."
+    }
+
     $data = New-Object M4Clone.FindData
     $queryPath = "\\?\" + $Path
     $search = [M4Clone.NativeMethods]::FindFirstFile($queryPath, [ref]$data)
@@ -279,9 +309,12 @@ function Assert-M4CloneCanonicalExistingLeaf {
             $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
             throw "$Label canonical leaf query failed with Win32 error $code."
         }
-        $suppliedLeaf = [IO.Path]::GetFileName($Path)
         $canonicalLeaf = [string]$data.FileName
         $alternateLeaf = [string]$data.AlternateFileName
+        if ([string]::IsNullOrEmpty($canonicalLeaf)) {
+            # The query succeeded but yielded no name: nothing to verify.
+            throw "$Label canonical leaf query returned no name."
+        }
         $usesAlternate = (
             -not [string]::IsNullOrEmpty($alternateLeaf) -and
             $suppliedLeaf.Equals(

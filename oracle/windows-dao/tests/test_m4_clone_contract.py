@@ -88,6 +88,18 @@ class M4CloneSourceContractTests(unittest.TestCase):
             "path alias resolved to a different canonical leaf.",
             self.source,
         )
+        # The leaf is judged by GetLongPathNameW, whose documented purpose is
+        # converting a path to its long form. On hosted Windows a
+        # FindFirstFileW query whose pattern is the 8.3 alias was observed to
+        # report that alias in cFileName, so the query corroborates but must
+        # not establish canonicality.
+        assertion = self.source.index("function Assert-M4CloneCanonicalExistingLeaf")
+        expansion = self.source.index(
+            "$expanded = Get-M4CloneLongPathString", assertion
+        )
+        query = self.source.index("FindFirstFile($queryPath", assertion)
+        self.assertLess(expansion, query)
+        self.assertIn("canonical leaf query returned no name.", self.source)
 
     def test_clone_performs_three_bounded_hash_passes(self) -> None:
         self.assertIn("$sourceShaBefore", self.source)

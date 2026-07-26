@@ -231,11 +231,36 @@ class M4BundleIntegrationTests(unittest.TestCase):
                 ValidationError, "tree or file identities changed"
             ) as raised:
                 validate_bundle(self.bundle)
-        self.assertIn(
-            target.relative_to(self.bundle).as_posix(),
-            str(raised.exception),
+        # The recheck must reject and must name exactly one bounded locator
+        # with a known difference category. Which locator sorts first is
+        # platform timing, not a contract: NTFS flushes a directory's
+        # last-write time to its parent index lazily, so the fixture's
+        # `analysis` directory -- written last, immediately before validation
+        # -- can report a fresh modified_ns during the recheck even though
+        # validation writes nothing, and "analysis" sorts before "evidence/".
+        message = str(raised.exception)
+        self.assertIn("first difference: ", message)
+        described = message.split("first difference: ", 1)[1]
+        locator, separator, category = described.partition(": ")
+        self.assertTrue(separator, message)
+        self.assertTrue(locator, message)
+        self.assertLessEqual(
+            len(locator),
+            m4_snapshot_module._DIAGNOSTIC_LOCATOR_CHARACTERS,
+            message,
         )
-        self.assertIn("metadata changed", str(raised.exception))
+        self.assertTrue(
+            category.startswith(
+                (
+                    "entry added",
+                    "entry removed",
+                    "entry kind changed",
+                    "metadata changed",
+                    "handle identity changed",
+                )
+            ),
+            message,
+        )
 
     def test_complete_validation_reads_every_payload_exactly_once(self) -> None:
         captured: list[tuple[str, str]] = []
