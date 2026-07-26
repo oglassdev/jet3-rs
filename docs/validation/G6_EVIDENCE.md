@@ -83,6 +83,52 @@ Validate a retained coverage envelope with:
 python3 tools/validate_g6_evidence.py coverage path/to/coverage-evidence.json
 ```
 
+## Coverage producer
+
+`tools/run_g6_coverage.py` is the checked Linux campaign producer. It requires
+an exact expected commit and a clean checkout, validates the checked inventory
+before and after the run, and refuses to publish if the commit, source
+inventory, toolchain file, or worktree changes during the campaign. Output is
+restricted to the ignored `coverage/` tree so the generated report does not
+make its own exact-commit validation dirty.
+
+The reviewed producer is pinned to Rust 1.96.0 and cargo-llvm-cov 0.8.6. It
+captures the exact `rustup run 1.96.0 cargo llvm-cov --version` output and runs
+this fixed argv-only command shape:
+
+```text
+rustup run 1.96.0 cargo llvm-cov --workspace --all-targets --all-features --locked --json --output-path <private-report>
+```
+
+Cargo network access and Git credential prompts are disabled for the campaign.
+Child processes receive an allowlisted environment, so Git redirection and
+build-affecting variables are never inherited. The producer refuses to run when
+any ambient Cargo configuration could reach the build: a relative `CARGO_HOME`
+or `HOME`, a configuration file in the effective Cargo home or any ancestor
+directory, or an in-repository `.cargo` configuration that is not tracked and
+byte-identical to `HEAD`. The checked inventory must also be tracked and
+byte-identical to `HEAD`, read through a single bounded descriptor.
+The subprocess has finite time, stdout, stderr, and report-size limits, with
+the report bound enforced in the child by a hard file-size resource limit. A raw
+report is checked against every inventoried core module and both coverage
+thresholds before a canonical envelope and its hash-bound report are published
+with create-new semantics. Existing output is never replaced, and failed,
+timed-out, stale, malformed, or below-threshold campaigns publish nothing.
+
+For a locally installed cargo-llvm-cov 0.8.6:
+
+```sh
+commit="$(git rev-parse HEAD)"
+python3 tools/run_g6_coverage.py \
+  --expected-commit "$commit" \
+  --output "coverage/g6/$commit"
+python3 tools/validate_g6_evidence.py coverage \
+  "coverage/g6/$commit/coverage-evidence.json"
+```
+
+This produces coverage evidence only. It does not satisfy the separate G6
+mutation requirement and must not be described as a G6 pass.
+
 ## Mutation normalization and scoring
 
 Exactly one native producer format is currently accepted:
