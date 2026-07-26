@@ -69,21 +69,24 @@ class M4CloneSourceContractTests(unittest.TestCase):
         self.assertIn("[IO.FileOptions]::WriteThrough", self.source)
         self.assertIn("$output.Flush($true)", self.source)
 
-    def test_existing_source_leaf_is_expanded_before_open(self) -> None:
+    def test_existing_source_leaf_is_authoritatively_named_before_open(
+        self,
+    ) -> None:
         regular = self.source.index(
             "Assert-M4CloneRegularFile -Path $source -Label \"Source\""
         )
-        expanded = self.source.index(
-            "-Path $source -Label \"Source\" -ExpandLeafAlias"
+        canonical = self.source.index(
+            "Assert-M4CloneCanonicalExistingLeaf -Path $source "
+            "-Label \"Source\""
         )
         opened = self.source.index(
             "$input = New-Object IO.FileStream("
         )
-        self.assertLess(regular, expanded)
-        self.assertLess(expanded, opened)
+        self.assertLess(regular, canonical)
+        self.assertLess(canonical, opened)
         self.assertIn(
-            "Source path alias resolved to a different canonical path.",
-            self.source[expanded:opened],
+            "path alias resolved to a different canonical leaf.",
+            self.source,
         )
 
     def test_clone_performs_three_bounded_hash_passes(self) -> None:
@@ -97,6 +100,9 @@ class M4CloneSourceContractTests(unittest.TestCase):
         self.assertIn("GetFileInformationByHandle", self.source)
         self.assertIn("GetFinalPathNameByHandle", self.source)
         self.assertIn("GetLongPathName", self.source)
+        self.assertIn("FindFirstFileW", self.source)
+        self.assertIn("FindClose", self.source)
+        self.assertIn("AlternateFileName", self.source)
         self.assertIn("-ExpandLeafAlias", self.source)
         self.assertIn("VolumeSerialNumber", self.source)
         self.assertIn("FileIndexHigh", self.source)

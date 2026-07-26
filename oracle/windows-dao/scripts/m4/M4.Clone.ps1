@@ -34,6 +34,30 @@ namespace M4Clone {
         public uint FileIndexLow;
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct FindData {
+        public uint FileAttributes;
+        public FileTime CreationTime;
+        public FileTime LastAccessTime;
+        public FileTime LastWriteTime;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint Reserved0;
+        public uint Reserved1;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string FileName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)]
+        public string AlternateFileName;
+    }
+
+    public sealed class SafeFindHandle : SafeHandleZeroOrMinusOneIsInvalid {
+        public SafeFindHandle() : base(true) {}
+
+        protected override bool ReleaseHandle() {
+            return NativeMethods.FindClose(handle);
+        }
+    }
+
     public static class NativeMethods {
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -64,6 +88,21 @@ namespace M4Clone {
             StringBuilder longPath,
             uint pathCharacters
         );
+
+        [DllImport(
+            "kernel32.dll",
+            CharSet = CharSet.Unicode,
+            EntryPoint = "FindFirstFileW",
+            SetLastError = true
+        )]
+        public static extern SafeFindHandle FindFirstFile(
+            string fileName,
+            out FindData findData
+        );
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool FindClose(IntPtr findHandle);
     }
 }
 "@
@@ -223,6 +262,47 @@ function Assert-M4CloneRegularFile {
     )
     if (($attributes -band $forbidden) -ne 0) {
         throw "$Label must be an ordinary non-reparse file."
+    }
+}
+
+function Assert-M4CloneCanonicalExistingLeaf {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    $data = New-Object M4Clone.FindData
+    $queryPath = "\\?\" + $Path
+    $search = [M4Clone.NativeMethods]::FindFirstFile($queryPath, [ref]$data)
+    try {
+        if ($null -eq $search -or $search.IsInvalid) {
+            $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw "$Label canonical leaf query failed with Win32 error $code."
+        }
+        $suppliedLeaf = [IO.Path]::GetFileName($Path)
+        $canonicalLeaf = [string]$data.FileName
+        $alternateLeaf = [string]$data.AlternateFileName
+        $usesAlternate = (
+            -not [string]::IsNullOrEmpty($alternateLeaf) -and
+            $suppliedLeaf.Equals(
+                $alternateLeaf,
+                [StringComparison]::OrdinalIgnoreCase
+            )
+        )
+        if (
+            $usesAlternate -or
+            -not $suppliedLeaf.Equals(
+                $canonicalLeaf,
+                [StringComparison]::OrdinalIgnoreCase
+            )
+        ) {
+            throw "$Label path alias resolved to a different canonical leaf."
+        }
+    }
+    finally {
+        if ($null -ne $search) {
+            $search.Dispose()
+        }
     }
 }
 
@@ -461,14 +541,7 @@ function Invoke-M4BoundedClone {
     Assert-M4CloneNoReparseComponents -Path $root -Label "Controller root"
     Assert-M4CloneNoReparseComponents -Path $source -Label "Source"
     Assert-M4CloneRegularFile -Path $source -Label "Source"
-    $expandedSource = Get-M4CloneLocalFullPath `
-        -Path $source -Label "Source" -ExpandLeafAlias
-    if (-not $source.Equals(
-        $expandedSource,
-        [StringComparison]::OrdinalIgnoreCase
-    )) {
-        throw "Source path alias resolved to a different canonical path."
-    }
+    Assert-M4CloneCanonicalExistingLeaf -Path $source -Label "Source"
     $destinationParent = [IO.Path]::GetDirectoryName($destination)
     Assert-M4CloneNoReparseComponents `
         -Path $destinationParent -Label "Destination parent"

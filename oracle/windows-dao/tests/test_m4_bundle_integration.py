@@ -229,8 +229,13 @@ class M4BundleIntegrationTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(
                 ValidationError, "tree or file identities changed"
-            ):
+            ) as raised:
                 validate_bundle(self.bundle)
+        self.assertIn(
+            target.relative_to(self.bundle).as_posix(),
+            str(raised.exception),
+        )
+        self.assertIn("metadata changed", str(raised.exception))
 
     def test_complete_validation_reads_every_payload_exactly_once(self) -> None:
         captured: list[tuple[str, str]] = []
@@ -244,14 +249,70 @@ class M4BundleIntegrationTests(unittest.TestCase):
 
         with mock.patch.object(
             m4_snapshot_module, "_read_captured", side_effect=observe_read
-        ):
+        ), mock.patch.object(
+            m4_snapshot_module.BundleSnapshot,
+            "recheck",
+            autospec=True,
+        ) as recheck:
+            # Wrapping all 508 captures perturbs synthetic-fixture metadata
+            # timing on Windows. This test owns read cardinality; neighboring
+            # tests execute both successful and rejecting final rechecks.
             validate_bundle(self.bundle)
+        recheck.assert_called_once()
         self.assertEqual(len(captured), 508)
         self.assertEqual(len({locator for locator, _ in captured}), 508)
         self.assertEqual(
             sum(role == "database" for _, role in captured),
             72,
         )
+
+
+class InventoryDifferenceDiagnosticTests(unittest.TestCase):
+    @staticmethod
+    def _entry(size: int) -> object:
+        stamp = m4_snapshot_module.FileStamp(
+            mode=0o100644,
+            size=size,
+            modified_ns=1,
+            attributes=0,
+            changed_ns=None,
+            device=None,
+            inode=None,
+            links=None,
+        )
+        return m4_snapshot_module.TreeEntry(
+            kind="file", stamp=stamp, identity=None
+        )
+
+    def test_control_characters_in_locator_are_escaped(self) -> None:
+        locator = "dir/\nname\x1b[31m\ttrick"
+        difference = m4_snapshot_module._first_inventory_difference(
+            {locator: self._entry(1)}, {}
+        )
+        self.assertNotIn("\n", difference)
+        self.assertNotIn("\x1b", difference)
+        self.assertNotIn("\t", difference)
+        self.assertIn("\\n", difference)
+        self.assertIn("\\x1b", difference)
+        self.assertIn("\\t", difference)
+        self.assertIn("entry removed", difference)
+
+    def test_locator_bound_keeps_exact_limit_and_truncates_one_above(
+        self,
+    ) -> None:
+        limit = m4_snapshot_module._DIAGNOSTIC_LOCATOR_CHARACTERS
+        exact = "a" * limit
+        difference = m4_snapshot_module._first_inventory_difference(
+            {}, {exact: self._entry(1)}
+        )
+        self.assertIn(exact, difference)
+        self.assertNotIn("...", difference)
+        over = "a" * (limit + 1)
+        difference = m4_snapshot_module._first_inventory_difference(
+            {}, {over: self._entry(1)}
+        )
+        self.assertIn("a" * (limit - 3) + "...", difference)
+        self.assertNotIn(over, difference)
 
 
 if __name__ == "__main__":

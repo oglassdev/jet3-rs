@@ -7,7 +7,7 @@ import hashlib
 import os
 import stat
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +50,7 @@ ROLE_BYTE_CEILINGS = {
     "prefix": PREFIX_BYTES,
 }
 _WINDOWS_IDENTITY_API: tuple[Any, Any, type[Any]] | None = None
+_DIAGNOSTIC_LOCATOR_CHARACTERS = 160
 
 
 def _is_reparse(metadata: os.stat_result) -> bool:
@@ -114,6 +115,36 @@ class CapturedArtifact:
     payload: bytes | None
     prefix: bytes | None
     document: dict[str, Any] | None
+
+
+def _first_inventory_difference(
+    expected: dict[str, TreeEntry],
+    observed: dict[str, TreeEntry],
+) -> str:
+    """Describe one inventory mismatch without emitting an unbounded path."""
+    for locator in sorted(expected.keys() | observed.keys()):
+        shown = locator.encode("unicode_escape").decode("ascii")
+        if len(shown) > _DIAGNOSTIC_LOCATOR_CHARACTERS:
+            shown = shown[: _DIAGNOSTIC_LOCATOR_CHARACTERS - 3] + "..."
+        before = expected.get(locator)
+        after = observed.get(locator)
+        if before is None:
+            return f"{shown}: entry added"
+        if after is None:
+            return f"{shown}: entry removed"
+        if before.kind != after.kind:
+            return f"{shown}: entry kind changed"
+        if before.stamp != after.stamp:
+            changed = [
+                field.name
+                for field in fields(FileStamp)
+                if getattr(before.stamp, field.name)
+                != getattr(after.stamp, field.name)
+            ]
+            return f"{shown}: metadata changed ({','.join(changed)})"
+        if before.identity != after.identity:
+            return f"{shown}: handle identity changed"
+    return "inventory comparison was unequal without a field difference"
 
 
 def _descriptor_identity(
@@ -532,6 +563,8 @@ class BundleSnapshot:
         """Require the exact tree and every identity to remain unchanged."""
         observed = _tree_inventory(self.root)
         if observed != self._inventory:
+            difference = _first_inventory_difference(self._inventory, observed)
             raise ValidationError(
-                "bundle tree or file identities changed during validation"
+                "bundle tree or file identities changed during validation; "
+                f"first difference: {difference}"
             )
