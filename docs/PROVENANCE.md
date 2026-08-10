@@ -686,6 +686,32 @@ Use `not applicable` explicitly rather than omitting a field.
   is redistributed
 - Review: pending independent review
 
+### SRC-0019 — DAO `dbDecrypt` numeric value
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: public source
+- Question: What numeric value must a late-bound DAO caller pass for the
+  `dbDecrypt` enumeration member used by `DBEngine.CompactDatabase`?
+- Origin: Microsoft Learn, “DatabaseTypeEnum enumeration (DAO),” accessed
+  2026-08-10,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/databasetypeenum-enumeration-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited Microsoft Learn page and inspect only the
+  enumeration row named `dbDecrypt`
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft documents `dbDecrypt` with numeric value 4 and
+  describes it as decrypting a database while compacting.
+- Interpretation: a late-bound DAO M5 worker may pass integer 4 as the
+  `dbDecrypt` API option after all other checked execution gates pass. This is
+  only an API enumeration value; it establishes no MDB byte, encryption
+  representation, key, offset, layout, or successful provider behavior.
+- Usage: revised M5 preregistration and future checked M5 compact worker
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
@@ -1350,6 +1376,157 @@ Use `not applicable` explicitly rather than omitting a field.
   analysis, or bundle validator exists yet, and every Windows and provider
   check still requires execution on the exact producer commit before any M5
   bundle can exist.
+
+### EXP-0013 — M4 companion-file execution blocker observation
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled black-box DAO failure observation and bounded diagnostic
+- Question: Why did the preregistered `EXP-0011` campaign stop during its first
+  `dbVersion20` creator phase after the checked controller reached DAO?
+- Origin: the checked project M4 controller and two disposable follow-up
+  diagnostics using only the licensed Microsoft DAO provider; no donated MDB,
+  external MDB, third-party MDB implementation, or Rust format interpretation
+  was used
+- Environment: Windows 11 Pro 10.0.22631 x64; x86 Windows PowerShell
+  5.1.22621.6133; culture `en-US`; ANSI code page 1252; Eastern Standard Time;
+  `DAO.DBEngine.36` 3.6 from `dao360.dll` 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  exact clean pushed producer commit
+  `bed346737b7f01fd53f2f6ef5505347c9484da31`
+- Protocol: execute `run-m4-controlled.ps1` with run ID
+  `20260810T201948Z-m4-main`; retain its structured first-worker failure;
+  separately create disposable unencrypted databases with documented
+  `dbVersion20` and `dbVersion30` options through the same checked DAO helper;
+  close and final-release the database, workspace collection, workspace, and
+  engine; force managed finalization; observe only whether the canonical
+  sibling `.ldb` path exists; in a second `dbVersion20` diagnostic also close
+  the workspace explicitly; delete only the disposable MDB diagnostic files
+  and retain any provider-left companion files
+- Artifacts: no M4 bundle was published; protocol-1.1 environment record at
+  `%TEMP%\jet3-rs-m4-bootstrap\environment.json`, SHA-256
+  `8664fddb92483831cc300d4e16a8cb755b7fe4100c3f7b14e5c1220bb86c03d5`;
+  retained 64-byte diagnostic companions
+  `%TEMP%\JET3-M4-V20-LOCK-879E69A5D1C44111AE65CE18FFE6AE13.ldb`,
+  SHA-256
+  `6690b84326f011828cbf325c12bf9143c5774603aa9b5525d14e10c8f0d2f7d3`,
+  and
+  `%TEMP%\JET3-M4-V20-WORKSPACE-CLOSE-F6ADD35F5BEB43FD9F96A098338D7B13.ldb`,
+  SHA-256
+  `36b7b15d9d4f8178c037e56831738c2777c39672822978a2a371ea6626e38aba`
+- Observation: the checked M4 worker stopped at the first `V20-U` creator with
+  the structured message “The DAO lock file remains present after database
+  close.” Both bounded `dbVersion20` diagnostics left a 64-byte `.ldb` at the
+  canonical sibling path after close, final COM release, managed finalization,
+  and process exit. The analogous `dbVersion30` helper diagnostic observed no
+  `.ldb` immediately after the same helper returned. No prefix candidate set or
+  scientific M4 output was built or published.
+- Interpretation: for this exact provider, path existence alone is not a valid
+  universal post-close acceptance predicate across the M4 version factorial.
+  `EXP-0011` remains failed and immutable. A later preregistered revision may
+  replace absence with bounded companion-state retention plus exclusive-open
+  and stable-identity quiescence proofs, while keeping companion bytes wholly
+  outside MDB-prefix analysis. This observation assigns no physical meaning to
+  either MDB or `.ldb` bytes and establishes no compatibility.
+- Usage: blocker record for a future M4/M5 revision; no production Rust usage
+- Rights: generated locally through the licensed provider; retained outside
+  the repository and not redistributed
+- Review: pending independent review
+
+### EXP-0014 — Preregistered companion-aware M4 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: declarative experiment-plan revision with checked controller, isolated
+  workers, analysis, and complete-bundle validator; not yet executed
+- Question: Can the original M4 version/encryption prefix campaign execute
+  without treating canonical `.ldb` path absence as a universal post-close
+  predicate, while leaving every scientific input, comparison, predicate, and
+  outcome rule unchanged?
+- Origin: project-authored experiment
+  `DAO-M4-HEADER-DISCRIMINATOR-002`, revised only in response to the bounded
+  operational observation in `EXP-0013`; no failed-run MDB prefix or candidate
+  result was retained or analyzed when designing this revision
+- Environment: not yet executed; the plan requires the same licensed x86 DAO
+  provider class and leaves the exact host, runtime, provider binary, locale,
+  code pages, time zone, repository, and producer commit to a future bound
+  environment record
+- Protocol: preserve the original six-condition factorial, six replicas,
+  cyclic schedule, 2,048-byte prefixes, `[0x000,0x600)` analysis window, 324
+  comparisons, three candidate predicates, and outcome state machine; keep
+  pre-COM companion absence; after each checked worker exits, have the
+  controller exclusively reread and re-identify the MDB and require exact
+  agreement with the worker's size, SHA-256, and prefix hash; derive only the
+  canonical sibling `.ldb` path; record it as absent or, if present, require an
+  ordinary non-reparse single-link file, exclusively read and hash it under a
+  65,536-byte protocol work ceiling, retain it unchanged, and close the bundle
+  over it; never delete, move, truncate, synthesize, or copy a companion; keep
+  every companion byte outside all scientific analysis
+- Artifacts:
+  `oracle/windows-dao/experiments/m4r1/m4-header-discriminator-r1.plan.json`
+  SHA-256
+  `3f0603e88da25a9f8a1cb5cf6860cdd7cba06ef2c21416724109f90f6776b90d`;
+  `oracle/windows-dao/experiments/m4r1/post-worker-quiescence.schema.json`
+  SHA-256
+  `1a4ab0a2ff67873b8b1116fa26f4955630e7970e50952a2e78cef1971a8cc3d2`;
+  `oracle/windows-dao/experiments/m4r1/README.md` SHA-256
+  `c04cb240929230c4c533e2307dcee14a133ff35a6fa3b4df1347c73aa8db3824`
+- Observation: no revised-M4 DAO sample or byte result exists. Schema, exact
+  plan, PowerShell source-contract, synthetic absent/present bundle, and
+  companion-corruption tests pass locally. The normalized scientific
+  projection equals `EXP-0011`; only controller-owned post-worker quiescence,
+  companion retention, associated resource bounds, and bundle closure differ.
+- Interpretation: this is an additive preregistration, not evidence. A future
+  complete bundle may report only the original bounded descriptive M4 outcome.
+  Companion state is an orchestration observation and may not enter candidate
+  sets, acquire physical meaning, or establish compatibility.
+- Usage: `oracle/windows-dao/experiments/m4r1/`;
+  `oracle/windows-dao/scripts/run-m4r1-controlled.ps1`; revised M5 input
+- Rights: plan, schemas, controller, validators, and tests are original project
+  material; future generated evidence requires its own retention and rights
+  record
+- Review: pending independent review and exact-commit execution
+
+### EXP-0015 — Preregistered companion-aware M5 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: declarative experiment-plan revision without a checked M5 controller,
+  workers, analysis, or complete-bundle validator; not yet executed
+- Question: Can the original compact-copy confirmation campaign consume one
+  immutable passing `EXP-0014` bundle and execute with the same post-worker
+  quiescence contract, without changing its scientific design?
+- Origin: project-authored experiment `DAO-M5-COMPACT-CONFIRM-002`, recorded
+  after `EXP-0013` and before any revised-M4 byte result; based on `SRC-0019`
+  for the numeric `dbDecrypt` API value and `EXP-0014` only for the revised M4
+  identity and operational companion contract
+- Environment: not yet executed; the plan requires 324 fresh x86 workers and
+  leaves exact host, runtime, provider, locale, code pages, time zone,
+  repository, producer commit, and M4 bundle-manifest hash to future checked
+  bindings
+- Protocol: preserve the original 36 conditions, 108 samples, three rotated
+  blocks, 648 comparisons, `[0x000,0x600)` analysis range, excluded range,
+  three predicates, and outcome rules; fill only the previously open
+  `dbDecrypt` API value and derived option sums from `SRC-0019`; bind one
+  passing `DAO-M4-HEADER-DISCRIMINATOR-002` bundle read-only; replace universal
+  post-close `.ldb` absence with four fixed controller-owned quiescence records
+  per sample, each requiring worker exit, exclusive stable MDB reread and
+  bounded absent/present companion retention; never analyze companion bytes
+- Artifacts:
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm-r2.plan.json` SHA-256
+  `7fee21985173b1c5fb9758fd98cdf60dd671eae4b98d723a400be8cf8d3ce59b`;
+  `oracle/windows-dao/experiments/m5/README-r2.md` SHA-256
+  `4b0d68a23b2c123e7e9517deb876f5326b8729b952f58cd44a12b247a1cfcd4c`
+- Observation: no revised-M5 sample exists and no `CompactDatabase` call has
+  been made by this project. The execution gate remains `BLOCKED` until the
+  complete checked implementation exists and a passing `EXP-0014` bundle is
+  bound by manifest SHA-256.
+- Interpretation: this revision authorizes no execution in its present state
+  and changes no product support claim. Any future result remains a bounded
+  DAO-only generation-method observation and cannot identify a physical field
+  or establish Rust compatibility.
+- Usage: `oracle/windows-dao/experiments/m5/m5-compact-confirm-r2.plan.json`;
+  future checked M5R1 implementation
+- Rights: plan and README are original project material; future generated
+  evidence requires its own retention and redistribution review
+- Review: pending independent review
 
 ## Fixtures and black-box results
 

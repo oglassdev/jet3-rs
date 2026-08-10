@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:dao:m4r1:operation-log:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version", "document_type", "experiment_id", "sample_id",
+    "phase_id", "phase_ordinal", "worker_run_id", "entries", "final_status"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"},
+    "document_type": {"const": "dao_m4_operation_log"},
+    "experiment_id": {"const": "DAO-M4-HEADER-DISCRIMINATOR-002"},
+    "sample_id": {"$ref": "#/$defs/sample"},
+    "phase_id": {"enum": ["creator", "reopen"]},
+    "phase_ordinal": {"enum": [1, 2]},
+    "worker_run_id": {"$ref": "#/$defs/worker"},
+    "entries": {
+      "type": "array", "minItems": 7, "maxItems": 8, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sequence", "timestamp_utc", "action", "status"],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1, "maximum": 8},
+          "timestamp_utc": {"type": "string", "format": "date-time"},
+          "action": {"enum": [
+            "bindings_verified", "clone_verified", "com_activated",
+            "database_created", "database_opened", "version_read",
+            "empty_schema_read", "database_closed",
+            "prefix_observed"
+          ]},
+          "status": {"const": "pass"}
+        }
+      }
+    },
+    "final_status": {"const": "pass"}
+  },
+  "$defs": {
+    "sample": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]$"},
+    "worker": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]-(?:CREATOR|REOPEN)$"}
+  }
+}

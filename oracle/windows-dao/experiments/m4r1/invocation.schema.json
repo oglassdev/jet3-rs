@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:dao:m4r1:invocation:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version", "document_type", "experiment_id", "sample_id",
+    "condition_id", "phase_id", "phase_ordinal", "worker_run_id",
+    "worker_ordinal", "nonce", "campaign_run_id", "producer_commit",
+    "repository_url", "remote_ref", "repository_root", "plan_path",
+    "plan_sha256", "environment_path", "environment_sha256",
+    "provider_sha256", "stage_root", "database_path",
+    "result_path", "phase_contract", "created_at_utc",
+    "bindings_verified_before_com"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"},
+    "document_type": {"const": "dao_m4_invocation"},
+    "experiment_id": {"const": "DAO-M4-HEADER-DISCRIMINATOR-002"},
+    "sample_id": {"$ref": "#/$defs/sample"},
+    "condition_id": {"enum": ["V20-U","V20-E","V30-U","V30-E","V40-U","V40-E"]},
+    "phase_id": {"enum": ["creator", "reopen"]},
+    "phase_ordinal": {"enum": [1, 2]},
+    "worker_run_id": {"$ref": "#/$defs/worker"},
+    "worker_ordinal": {"type": "integer", "minimum": 1, "maximum": 72},
+    "nonce": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "campaign_run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-m4-[a-z0-9-]{1,24}$"},
+    "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "repository_url": {"const": "https://github.com/oglassdev/jet3-rs.git"},
+    "remote_ref": {"const": "refs/heads/codex/m4r1-companion-aware"},
+    "repository_root": {"$ref": "#/$defs/absolute_path"},
+    "plan_path": {"$ref": "#/$defs/path"},
+    "plan_sha256": {"$ref": "#/$defs/sha"},
+    "environment_path": {"$ref": "#/$defs/path"},
+    "environment_sha256": {"$ref": "#/$defs/sha"},
+    "provider_sha256": {"$ref": "#/$defs/sha"},
+    "stage_root": {"$ref": "#/$defs/absolute_path"},
+    "database_path": {"$ref": "#/$defs/path"},
+    "result_path": {"$ref": "#/$defs/path"},
+    "phase_contract": {
+      "anyOf": [
+        {
+          "const": {
+            "kind":"creator","method":"DBEngine.CreateDatabase","locale":";LANGID=0x0409;CP=1252;COUNTRY=0","version_option":"dbVersion20","version_api_value":16,"encryption_option":"omitted","encryption_api_value":0,"create_option_value":16,"compact_database_used":false,"expected_dao_version":"2.0"
+          }
+        },
+        {
+          "const": {
+            "kind":"creator","method":"DBEngine.CreateDatabase","locale":";LANGID=0x0409;CP=1252;COUNTRY=0","version_option":"dbVersion20","version_api_value":16,"encryption_option":"dbEncrypt","encryption_api_value":2,"create_option_value":18,"compact_database_used":false,"expected_dao_version":"2.0"
+          }
+        },
+        {
+          "const": {
+            "kind":"creator","method":"DBEngine.CreateDatabase","locale":";LANGID=0x0409;CP=1252;COUNTRY=0","version_option":"dbVersion30","version_api_value":32,"encryption_option":"omitted","encryption_api_value":0,"create_option_value":32,"compact_database_used":false,"expected_dao_version":"3.0"
+          }
+        },
+        {"const":{"kind":"creator","method":"DBEngine.CreateDatabase","locale":";LANGID=0x0409;CP=1252;COUNTRY=0","version_option":"dbVersion30","version_api_value":32,"encryption_option":"dbEncrypt","encryption_api_value":2,"create_option_value":34,"compact_database_used":false,"expected_dao_version":"3.0"}},
+        {"const":{"kind":"creator","method":"DBEngine.CreateDatabase","locale":";LANGID=0x0409;CP=1252;COUNTRY=0","version_option":"dbVersion40","version_api_value":64,"encryption_option":"omitted","encryption_api_value":0,"create_option_value":64,"compact_database_used":false,"expected_dao_version":"4.0"}},
+        {"const":{"kind":"creator","method":"DBEngine.CreateDatabase","locale":";LANGID=0x0409;CP=1252;COUNTRY=0","version_option":"dbVersion40","version_api_value":64,"encryption_option":"dbEncrypt","encryption_api_value":2,"create_option_value":66,"compact_database_used":false,"expected_dao_version":"4.0"}},
+        {"$ref": "#/$defs/reopen_contract"}
+      ]
+    },
+    "created_at_utc": {"type": "string", "format": "date-time"},
+    "bindings_verified_before_com": {"const": true}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sample": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]$"},
+    "worker": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]-(?:CREATOR|REOPEN)$"},
+    "path": {"type": "string", "minLength": 3, "maxLength": 255, "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}/){1,5}[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+    "absolute_path": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 500,
+      "pattern": "^[^\\u0000]+$"
+    },
+    "reopen_contract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "expected_dao_version", "pre_com_database_bytes", "pre_com_database_sha256", "clone_log"],
+      "properties": {
+        "kind": {"const": "reopen"},
+        "expected_dao_version": {"enum": ["2.0", "3.0", "4.0"]},
+        "pre_com_database_bytes": {"type": "integer", "minimum": 2048, "maximum": 1048576},
+        "pre_com_database_sha256": {"$ref": "#/$defs/sha"},
+        "clone_log": {
+          "type": "object", "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {"path": {"$ref": "#/$defs/path"}, "sha256": {"$ref": "#/$defs/sha"}}
+        }
+      }
+    }
+  }
+}
