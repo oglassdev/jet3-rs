@@ -6,6 +6,13 @@ function Read-M5EmptyUserSchema {
     return Read-M4EmptyUserSchema -Database $Database
 }
 
+function Complete-M5DaoPhaseResult {
+    param([AllowNull()][object]$Snapshot)
+
+    if ($null -eq $Snapshot) { return }
+    return [pscustomobject]$Snapshot
+}
+
 function Invoke-M5DaoPhase {
     [CmdletBinding()]
     param(
@@ -131,7 +138,5 @@ function Invoke-M5DaoPhase {
     Complete-M1DaoHelper -PrimaryError $primaryError `
         -CleanupErrors $cleanupErrors -Label "M5 DAO phase"
     Add-M4OperationEntry -Entries $OperationEntries -Action "database_closed"
-    return if ($null -eq $snapshot) { $null } else {
-        [pscustomobject]$snapshot
-    }
+    return Complete-M5DaoPhaseResult -Snapshot $snapshot
 }

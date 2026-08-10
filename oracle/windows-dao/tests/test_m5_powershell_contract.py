@@ -25,7 +25,8 @@ M1_PREFLIGHT = M1_ROOT / "M1.Preflight.ps1"
 M1_PUBLICATION_PATHS = M1_ROOT / "M1.PublicationPaths.ps1"
 M1_DAO_VALUES = M1_ROOT / "M1.DaoValues.ps1"
 M4_DAO = SCRIPTS / "m4" / "M4.Dao.ps1"
-PLAN = ROOT / "experiments" / "m5" / "m5-compact-confirm-r5.plan.json"
+M5_DAO = MODULES / "M5.Dao.ps1"
+PLAN = ROOT / "experiments" / "m5" / "m5-compact-confirm-r6.plan.json"
 PRIOR_PLANS = {
     ROOT / "experiments" / "m5" / "m5-compact-confirm.plan.json":
         "beeb6277af6b7224038e5a70ee20238dce907a35f7778b2f2f21f13f1f04d0a4",
@@ -35,6 +36,8 @@ PRIOR_PLANS = {
         "92779d51660569635872f36f3c97769b0cb4043b775751569ecd38978dc06f8a",
     ROOT / "experiments" / "m5" / "m5-compact-confirm-r4.plan.json":
         "7f9b49b18d75824843eb6269fafa25d1b21e4cd82c1bfe289af915ee0783aaed",
+    ROOT / "experiments" / "m5" / "m5-compact-confirm-r5.plan.json":
+        "ca1c46d037edfb7f4df977ba069825c89be5ff66f8aadd5e7f514bb42278315c",
 }
 POWERSHELL = (
     Path(os.environ.get("WINDIR", r"C:\Windows"))
@@ -62,10 +65,10 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
 
     def test_exact_experiment_remote_and_m4_binding(self) -> None:
         combined = "\n".join((self.entry, self.worker, self.bundle, self.runtime))
-        self.assertIn("DAO-M5-COMPACT-CONFIRM-005", combined)
-        self.assertIn("refs/heads/codex/m5r4-worker-preflight-bound", combined)
-        self.assertNotIn("DAO-M5-COMPACT-CONFIRM-004", combined)
-        self.assertNotIn("refs/heads/codex/m5r3-timeout-bounded", combined)
+        self.assertIn("DAO-M5-COMPACT-CONFIRM-006", combined)
+        self.assertIn("refs/heads/codex/m5r5-worker-return-bound", combined)
+        self.assertNotIn("DAO-M5-COMPACT-CONFIRM-005", combined)
+        self.assertNotIn("refs/heads/codex/m5r4-worker-preflight-bound", combined)
         self.assertIn(
             "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d",
             combined,
@@ -83,7 +86,7 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
             "protocol/v1_1/environment.schema.json",
             "experiments/m4r2/m4-header-discriminator-r2.plan.json",
             "experiments/m4r2/bundle-manifest.schema.json",
-            "experiments/m5r4/bundle-manifest.schema.json",
+            "experiments/m5r5/bundle-manifest.schema.json",
         )
         for relative in required:
             with self.subTest(relative=relative):
@@ -110,8 +113,14 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
         for path, expected in PRIOR_PLANS.items():
             with self.subTest(path=path.name):
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
-        self.assertIn("m5-compact-confirm-r5.plan.json", self.controller)
-        self.assertIn("m5-compact-confirm-r5.plan.json", self.entry)
+        self.assertIn("m5-compact-confirm-r6.plan.json", self.controller)
+        self.assertIn("m5-compact-confirm-r6.plan.json", self.entry)
+
+    def test_dao_phase_return_uses_checked_explicit_helper(self) -> None:
+        source = M5_DAO.read_text(encoding="utf-8")
+        self.assertNotIn("return if", source)
+        self.assertIn("function Complete-M5DaoPhaseResult", source)
+        self.assertIn("return Complete-M5DaoPhaseResult -Snapshot $snapshot", source)
 
     def test_worker_loads_publication_paths_before_m5_helpers(self) -> None:
         publication_paths = self.worker.index("M1.PublicationPaths.ps1")
@@ -251,6 +260,34 @@ class M5PowerShellWindowsNoComTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "1|plan.json")
+
+    def test_dao_phase_result_returns_snapshot_or_null_without_command_lookup(self) -> None:
+        command = (
+            "$ErrorActionPreference='Stop';Set-StrictMode -Version Latest;"
+            f". {ps_quote(M5_DAO)};"
+            "$empty=@(Complete-M5DaoPhaseResult -Snapshot $null).Count;"
+            "$value=Complete-M5DaoPhaseResult -Snapshot ([ordered]@{"
+            "dao_version='3.0';empty_user_schema=$true;user_table_count=0});"
+            "[Console]::Write(('{0}|{1}|{2}' -f "
+            "$empty,$value.dao_version,$value.empty_user_schema))"
+        )
+        result = subprocess.run(
+            [
+                str(POWERSHELL),
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "0|3.0|True")
 
     def test_worker_pre_com_helper_topology_defines_path_guard(self) -> None:
         command = (

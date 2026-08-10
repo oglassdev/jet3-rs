@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 
 $script:M5MaximumInputBytes = 16MB
 $script:M5RepositoryUrl = "https://github.com/oglassdev/jet3-rs.git"
-$script:M5RemoteRef = "refs/heads/codex/m5r4-worker-preflight-bound"
+$script:M5RemoteRef = "refs/heads/codex/m5r5-worker-return-bound"
 
 function Resolve-M5LocalPath {
     param(

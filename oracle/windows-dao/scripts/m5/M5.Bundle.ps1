@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $script:M5ProtocolVersion = "1.0.0"
-$script:M5ExperimentId = "DAO-M5-COMPACT-CONFIRM-005"
+$script:M5ExperimentId = "DAO-M5-COMPACT-CONFIRM-006"
 $script:M5ExpectedM4ManifestSha256 = (
     "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d"
 )

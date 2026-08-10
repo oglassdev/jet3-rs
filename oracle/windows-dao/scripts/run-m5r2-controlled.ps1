@@ -112,7 +112,7 @@ function Assert-M5BootstrapRemote {
             "-c", "credential.interactive=never", "-c", "core.askPass=",
             "-C", $Repository, "ls-remote", "--heads",
             "https://github.com/oglassdev/jet3-rs.git",
-            "refs/heads/codex/m5r4-worker-preflight-bound"
+            "refs/heads/codex/m5r5-worker-return-bound"
         ) -CallerLabel "M5 bootstrap remote" `
         -TimeoutSeconds 30 -MaximumOutputBytes 64KB
     $lines = @([string]$result.stdout -split "\r?\n" |
@@ -144,16 +144,16 @@ $sources = @(
     "oracle/windows-dao/scripts/m5_records.py",
     "oracle/windows-dao/scripts/m5_snapshot.py",
     "oracle/windows-dao/scripts/m5_spec.py",
-    "oracle/windows-dao/experiments/m5r4/plan.schema.json",
-    "oracle/windows-dao/experiments/m5r4/invocation.schema.json",
-    "oracle/windows-dao/experiments/m5r4/worker-result.schema.json",
-    "oracle/windows-dao/experiments/m5r4/operation-log.schema.json",
-    "oracle/windows-dao/experiments/m5r4/snapshot.schema.json",
-    "oracle/windows-dao/experiments/m5r4/clone-log.schema.json",
-    "oracle/windows-dao/experiments/m5r4/post-worker-quiescence.schema.json",
-    "oracle/windows-dao/experiments/m5r4/sample-record.schema.json",
-    "oracle/windows-dao/experiments/m5r4/analysis-report.schema.json",
-    "oracle/windows-dao/experiments/m5r4/bundle-manifest.schema.json",
+    "oracle/windows-dao/experiments/m5r5/plan.schema.json",
+    "oracle/windows-dao/experiments/m5r5/invocation.schema.json",
+    "oracle/windows-dao/experiments/m5r5/worker-result.schema.json",
+    "oracle/windows-dao/experiments/m5r5/operation-log.schema.json",
+    "oracle/windows-dao/experiments/m5r5/snapshot.schema.json",
+    "oracle/windows-dao/experiments/m5r5/clone-log.schema.json",
+    "oracle/windows-dao/experiments/m5r5/post-worker-quiescence.schema.json",
+    "oracle/windows-dao/experiments/m5r5/sample-record.schema.json",
+    "oracle/windows-dao/experiments/m5r5/analysis-report.schema.json",
+    "oracle/windows-dao/experiments/m5r5/bundle-manifest.schema.json",
     "oracle/windows-dao/scripts/m4r1_contract.py",
     "oracle/windows-dao/scripts/m4r1_bundle.py",
     "oracle/windows-dao/scripts/m4r1_campaign.py",
@@ -195,7 +195,7 @@ $sources = @(
     "oracle/windows-dao/experiments/m4r2/analysis-report.schema.json",
     "oracle/windows-dao/experiments/m4r2/bundle-manifest.schema.json",
     "oracle/windows-dao/experiments/m4r2/m4-header-discriminator-r2.plan.json",
-    "oracle/windows-dao/experiments/m5/m5-compact-confirm-r5.plan.json"
+    "oracle/windows-dao/experiments/m5/m5-compact-confirm-r6.plan.json"
 )
 $streams = @(Open-M5BootstrapSources -Repository $repository `
     -Commit $GitCommit -Git $git -RelativePaths $sources)

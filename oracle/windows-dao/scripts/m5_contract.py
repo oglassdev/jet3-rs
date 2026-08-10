@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command-line entry point for checked DAO M5R5 evidence validation."""
+"""Command-line entry point for checked DAO M5R6 evidence validation."""
 
 from __future__ import annotations
 
@@ -88,22 +88,22 @@ def run(arguments: argparse.Namespace) -> str:
     SCHEMA_SET.lint()
     if arguments.command == "validate-plan":
         load_checked_plan(arguments.plan)
-        return "PASS: checked M5R5 plan"
+        return "PASS: checked M5R6 plan"
     if arguments.command == "validate-invocation":
         validate_m4_identity(arguments.m4_bundle_root)
         plan, plan_hash = load_checked_plan()
         invocation, _, _ = load_document(arguments.invocation, 65536, "dao_m5_invocation")
         validate_invocation_document(invocation, plan, plan_hash, arguments.bundle_root, preflight=True)
-        return "PASS: checked M5R5 invocation"
+        return "PASS: checked M5R6 invocation"
     if arguments.command == "validate-result":
         result, _, _ = validate_worker_result(arguments.bundle_root, arguments.result)
-        return f"PASS: checked M5R5 worker result {result['sample_id']} {result['phase_id']}"
+        return f"PASS: checked M5R6 worker result {result['sample_id']} {result['phase_id']}"
     if arguments.command == "validate-quiescence":
         document = validate_quiescence_document(arguments.bundle_root, arguments.quiescence, arguments.result)
-        return f"PASS: checked M5R5 quiescence {document['sample_id']} {document['database_role']}"
+        return f"PASS: checked M5R6 quiescence {document['sample_id']} {document['database_role']}"
     if arguments.command == "validate-sample":
         document = validate_sample_record(arguments.bundle_root, arguments.record)
-        return f"PASS: checked M5R5 sample {document['sample_id']}"
+        return f"PASS: checked M5R6 sample {document['sample_id']}"
     if arguments.command == "build-analysis":
         analysis = build_analysis_from_stage(arguments.bundle_root, arguments.m4_bundle_root)
         payload = canonical_analysis_bytes(analysis)
@@ -111,9 +111,9 @@ def run(arguments: argparse.Namespace) -> str:
             sys.stdout.buffer.write(payload)
             return ""
         _write_exclusive(arguments.output, payload)
-        return f"PASS: wrote checked M5R5 analysis to {arguments.output}"
+        return f"PASS: wrote checked M5R6 analysis to {arguments.output}"
     validated = validate_bundle(arguments.bundle_root, arguments.m4_bundle_root)
-    return f"PASS: checked M5R5 bundle {validated['manifest']['run_id']}"
+    return f"PASS: checked M5R6 bundle {validated['manifest']['run_id']}"
 
 
 def main(argv: list[str] | None = None) -> int:
