@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from protocol_validation import ValidationError
 
 PROTOCOL_VERSION = "1.0.0"
-EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-002"
+EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-003"
 PREFIX_BYTES = 2048
 ANALYZED_BYTES = 1536
 PHASES = ("creator", "reopen")
@@ -231,8 +231,8 @@ def compile_checked_plan(plan: dict[str, Any]) -> CheckedPlan:
         )
         base = f"evidence/samples/{expected_id}"
         for key, expected in (
-            ("creator_database_path", f"{base}/creator.mdb"),
-            ("reopen_database_path", f"{base}/reopen.mdb"),
+            ("creator_database_path", f"{base}/CREATOR.MDB"),
+            ("reopen_database_path", f"{base}/REOPEN.MDB"),
             ("record_path", f"{base}/record.json"),
         ):
             _require_equal(row[key], expected, f"{expected_id}.{key}")

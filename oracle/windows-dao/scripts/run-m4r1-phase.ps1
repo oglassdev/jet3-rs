@@ -6,9 +6,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $script:M4MaximumInputBytes = 1MB
-$script:M4ExperimentId = "DAO-M4-HEADER-DISCRIMINATOR-002"
+$script:M4ExperimentId = "DAO-M4-HEADER-DISCRIMINATOR-003"
 $script:M4RepositoryUrl = "https://github.com/oglassdev/jet3-rs.git"
-$script:M4RemoteRef = "refs/heads/codex/m4r1-companion-aware"
+$script:M4RemoteRef = "refs/heads/codex/m4r2-canonical-paths"
 $script:M4ExecutedSources = @(
     "oracle/windows-dao/scripts/run-m4r1-phase.ps1", "oracle/windows-dao/scripts/m4/M4.Dao.ps1",
     "oracle/windows-dao/scripts/m4/M4.Worker.ps1", "oracle/windows-dao/scripts/m4r1/M4R1.Artifacts.ps1",
@@ -21,13 +21,13 @@ $script:M4ExecutedSources = @(
     "oracle/windows-dao/scripts/m1_bundle_validation.py", "oracle/windows-dao/scripts/protocol_validation.py",
     "oracle/windows-dao/scripts/protocol_cli.py", "oracle/windows-dao/scripts/validate_m1_protocol.py",
     "oracle/windows-dao/scripts/m1/M1.Preflight.ps1", "oracle/windows-dao/scripts/m1/M1.Provider.ps1",
-    "oracle/windows-dao/scripts/m1/M1.DaoValues.ps1", "oracle/windows-dao/experiments/m4r1/m4-header-discriminator-r1.plan.json",
-    "oracle/windows-dao/experiments/m4r1/plan.schema.json", "oracle/windows-dao/experiments/m4r1/invocation.schema.json",
-    "oracle/windows-dao/experiments/m4r1/worker-result.schema.json", "oracle/windows-dao/experiments/m4r1/operation-log.schema.json",
-    "oracle/windows-dao/experiments/m4r1/snapshot.schema.json", "oracle/windows-dao/experiments/m4r1/clone-log.schema.json",
-    "oracle/windows-dao/experiments/m4r1/post-worker-quiescence.schema.json",
-    "oracle/windows-dao/experiments/m4r1/sample-record.schema.json", "oracle/windows-dao/experiments/m4r1/analysis-report.schema.json",
-    "oracle/windows-dao/experiments/m4r1/bundle-manifest.schema.json", "oracle/windows-dao/protocol/v1_1/bundle-manifest.schema.json",
+    "oracle/windows-dao/scripts/m1/M1.DaoValues.ps1", "oracle/windows-dao/experiments/m4r2/m4-header-discriminator-r2.plan.json",
+    "oracle/windows-dao/experiments/m4r2/plan.schema.json", "oracle/windows-dao/experiments/m4r2/invocation.schema.json",
+    "oracle/windows-dao/experiments/m4r2/worker-result.schema.json", "oracle/windows-dao/experiments/m4r2/operation-log.schema.json",
+    "oracle/windows-dao/experiments/m4r2/snapshot.schema.json", "oracle/windows-dao/experiments/m4r2/clone-log.schema.json",
+    "oracle/windows-dao/experiments/m4r2/post-worker-quiescence.schema.json",
+    "oracle/windows-dao/experiments/m4r2/sample-record.schema.json", "oracle/windows-dao/experiments/m4r2/analysis-report.schema.json",
+    "oracle/windows-dao/experiments/m4r2/bundle-manifest.schema.json", "oracle/windows-dao/protocol/v1_1/bundle-manifest.schema.json",
     "oracle/windows-dao/protocol/v1_1/canonical-snapshot.schema.json", "oracle/windows-dao/protocol/v1_1/environment.schema.json",
     "oracle/windows-dao/protocol/v1_1/evidence-report.schema.json", "oracle/windows-dao/protocol/v1_1/example-inventory.schema.json",
     "oracle/windows-dao/protocol/v1_1/operation-log.schema.json", "oracle/windows-dao/protocol/v1_1/pair.schema.json",

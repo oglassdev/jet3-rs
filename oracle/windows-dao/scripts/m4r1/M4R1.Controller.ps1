@@ -212,8 +212,8 @@ function Invoke-M4Campaign {
     }
     $repository = [IO.Path]::GetFullPath($RepositoryRoot)
     $planPath = Join-Path $repository (
-        "oracle/windows-dao/experiments/m4r1/" +
-        "m4-header-discriminator-r1.plan.json"
+        "oracle/windows-dao/experiments/m4r2/" +
+        "m4-header-discriminator-r2.plan.json"
     )
     $contractPath = Join-Path $repository (
         "oracle/windows-dao/scripts/m4r1_contract.py"
@@ -242,17 +242,17 @@ function Invoke-M4Campaign {
         "oracle/windows-dao/scripts/m4/M4.Worker.ps1",
         "oracle/windows-dao/scripts/shared/BoundedProcess.ps1",
         "oracle/windows-dao/scripts/shared/BoundedProcess.Native.cs",
-        "oracle/windows-dao/experiments/m4r1/plan.schema.json",
-        "oracle/windows-dao/experiments/m4r1/invocation.schema.json",
-        "oracle/windows-dao/experiments/m4r1/worker-result.schema.json",
-        "oracle/windows-dao/experiments/m4r1/operation-log.schema.json",
-        "oracle/windows-dao/experiments/m4r1/snapshot.schema.json",
-        "oracle/windows-dao/experiments/m4r1/clone-log.schema.json",
-        "oracle/windows-dao/experiments/m4r1/post-worker-quiescence.schema.json",
-        "oracle/windows-dao/experiments/m4r1/sample-record.schema.json",
-        "oracle/windows-dao/experiments/m4r1/analysis-report.schema.json",
-        "oracle/windows-dao/experiments/m4r1/bundle-manifest.schema.json",
-        "oracle/windows-dao/experiments/m4r1/m4-header-discriminator-r1.plan.json",
+        "oracle/windows-dao/experiments/m4r2/plan.schema.json",
+        "oracle/windows-dao/experiments/m4r2/invocation.schema.json",
+        "oracle/windows-dao/experiments/m4r2/worker-result.schema.json",
+        "oracle/windows-dao/experiments/m4r2/operation-log.schema.json",
+        "oracle/windows-dao/experiments/m4r2/snapshot.schema.json",
+        "oracle/windows-dao/experiments/m4r2/clone-log.schema.json",
+        "oracle/windows-dao/experiments/m4r2/post-worker-quiescence.schema.json",
+        "oracle/windows-dao/experiments/m4r2/sample-record.schema.json",
+        "oracle/windows-dao/experiments/m4r2/analysis-report.schema.json",
+        "oracle/windows-dao/experiments/m4r2/bundle-manifest.schema.json",
+        "oracle/windows-dao/experiments/m4r2/m4-header-discriminator-r2.plan.json",
         "oracle/windows-dao/scripts/m1/M1.Preflight.ps1",
         "oracle/windows-dao/scripts/m1/M1.Provider.ps1",
         "oracle/windows-dao/scripts/m1/M1.Publication.ps1",

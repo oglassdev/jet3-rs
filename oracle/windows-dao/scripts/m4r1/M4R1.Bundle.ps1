@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $script:M4ProtocolVersion = "1.0.0"
-$script:M4ExperimentId = "DAO-M4-HEADER-DISCRIMINATOR-002"
+$script:M4ExperimentId = "DAO-M4-HEADER-DISCRIMINATOR-003"
 $script:M4MinimumPayloadFiles = 579
 $script:M4MaximumPayloadFiles = 651
 $script:M4MaximumJsonBytes = 16MB
@@ -198,6 +198,7 @@ function Get-M4PhasePaths {
     )
 
     $root = "evidence/samples/$SampleId"
+    $companionName = $PhaseId.ToUpperInvariant() + ".ldb"
     return [pscustomobject][ordered]@{
         invocation = "$root/$PhaseId-invocation.json"
         result = "$root/$PhaseId-worker-result.json"
@@ -205,7 +206,7 @@ function Get-M4PhasePaths {
         snapshot = "$root/$PhaseId-snapshot.json"
         prefix = "$root/$PhaseId.prefix.bin"
         quiescence = "$root/$PhaseId-quiescence.json"
-        companion = "$root/$PhaseId.ldb"
+        companion = "$root/$companionName"
     }
 }
 

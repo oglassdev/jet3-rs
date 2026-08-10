@@ -16,7 +16,7 @@ from test_validate_m1_protocol import ready_environment
 
 COMMIT = "1" * 40
 RUN_ID = "20260725T000000Z-m4-synthetic"
-EXPERIMENT = "DAO-M4-HEADER-DISCRIMINATOR-002"
+EXPERIMENT = "DAO-M4-HEADER-DISCRIMINATOR-003"
 PROVIDER = "3" * 64
 ROOTS = ("/synthetic/repository", "/synthetic/stage")
 

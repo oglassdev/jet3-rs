@@ -156,7 +156,7 @@ function New-M4R1PostWorkerQuiescence {
     $document = [ordered]@{
         protocol_version = "1.0.0"
         document_type = "dao_m4_post_worker_quiescence"
-        experiment_id = "DAO-M4-HEADER-DISCRIMINATOR-002"
+        experiment_id = "DAO-M4-HEADER-DISCRIMINATOR-003"
         sample_id = [string]$Invocation.sample_id
         phase_id = [string]$Invocation.phase_id
         phase_ordinal = [int]$Invocation.phase_ordinal

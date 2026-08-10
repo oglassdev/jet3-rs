@@ -46,12 +46,20 @@ class M4R1PowerShellSourceContractTests(unittest.TestCase):
         combined = "\n".join(
             (self.entry, self.worker, self.controller, self.bundle, self.artifacts)
         )
-        self.assertIn("DAO-M4-HEADER-DISCRIMINATOR-002", combined)
-        self.assertIn("experiments/m4r1/", combined)
+        self.assertIn("DAO-M4-HEADER-DISCRIMINATOR-003", combined)
+        self.assertIn("experiments/m4r2/", combined)
         self.assertIn("m4r1_contract.py", combined)
-        self.assertIn("refs/heads/codex/m4r1-companion-aware", combined)
+        self.assertIn("refs/heads/codex/m4r2-canonical-paths", combined)
         self.assertNotIn("refs/heads/codex/jet3-v1-foundations", combined)
+        self.assertNotIn("refs/heads/codex/m4r1-companion-aware", combined)
         self.assertIn("run-m4r1-phase.ps1", self.controller)
+
+    def test_companion_locator_preserves_uppercase_database_basename(self) -> None:
+        self.assertIn(
+            '$companionName = $PhaseId.ToUpperInvariant() + ".ldb"',
+            self.bundle,
+        )
+        self.assertIn('companion = "$root/$companionName"', self.bundle)
 
     def test_worker_requires_only_pre_com_companion_absence(self) -> None:
         self.assertEqual(

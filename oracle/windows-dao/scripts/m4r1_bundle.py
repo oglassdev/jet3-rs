@@ -208,7 +208,7 @@ def build_full_analysis(
     result = {
         "protocol_version": "1.0.0",
         "document_type": "dao_m4_analysis_report",
-        "experiment_id": "DAO-M4-HEADER-DISCRIMINATOR-002",
+        "experiment_id": "DAO-M4-HEADER-DISCRIMINATOR-003",
         "plan_sha256": plan_sha256,
         "sample_records": [
             {

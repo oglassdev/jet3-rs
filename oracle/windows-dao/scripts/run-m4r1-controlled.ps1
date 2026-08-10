@@ -83,7 +83,7 @@ function Assert-M4BootstrapSource {
         throw "M4 bootstrap requires an exact clean worktree."
     }
     $repositoryUrl = "https://github.com/oglassdev/jet3-rs.git"
-    $remoteRef = "refs/heads/codex/m4r1-companion-aware"
+    $remoteRef = "refs/heads/codex/m4r2-canonical-paths"
     $origin = @(& $git -C $Repository remote get-url origin 2>&1)
     if (
         $LASTEXITCODE -ne 0 -or $origin.Count -ne 1 -or
@@ -122,7 +122,7 @@ function Assert-M4BootstrapRemote {
                 "-C", $Repository,
                 "ls-remote", "--heads",
                 "https://github.com/oglassdev/jet3-rs.git",
-                "refs/heads/codex/m4r1-companion-aware"
+                "refs/heads/codex/m4r2-canonical-paths"
             ) `
             -CallerLabel "M4 bootstrap remote" `
             -TimeoutSeconds 30 `

@@ -15,10 +15,10 @@ from protocol_validation import ProtocolSchemaSet, ValidationError
 
 HERE = Path(__file__).resolve().parent
 DAO_ROOT = HERE.parent
-SCHEMA_DIR = DAO_ROOT / "experiments" / "m4r1"
-CHECKED_PLAN = SCHEMA_DIR / "m4-header-discriminator-r1.plan.json"
+SCHEMA_DIR = DAO_ROOT / "experiments" / "m4r2"
+CHECKED_PLAN = SCHEMA_DIR / "m4-header-discriminator-r2.plan.json"
 PROTOCOL_VERSION = "1.0.0"
-EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-002"
+EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-003"
 
 SCHEMAS = {
     "dao_m4_plan": "plan.schema.json",
