@@ -48,6 +48,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "database_opening"
+path = "fuzz_targets/database_opening.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "commit_state"
 path = "fuzz_targets/commit_state.rs"
 test = false

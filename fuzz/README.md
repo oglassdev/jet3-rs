@@ -23,7 +23,10 @@ exactly. The checked targets are:
   policies;
 - `raw_jet3_candidate`: bounded composition of generic signature recognition,
   exact 2 KiB geometry, and raw page access under input, read, page-visit, and
-  aggregate-work policies; and
+  aggregate-work policies;
+- `database_opening`: bounded initial database opening, including the generic
+  signature, exact page geometry, complete retained page zero, and input,
+  read, page-visit, and aggregate-work policy boundaries; and
 - `commit_state`: allocation-free capture of the contextual 512-byte commit
   region, exact preservation of all two-byte pairs, narrow pair
   classification, slot-role boundaries, read limits, truncation, and atomic
@@ -42,7 +45,9 @@ nine-byte commands and 128 page-read attempts, and uses only fixed-size page
 buffers.
 `raw_jet3_candidate` borrows at most two pages, expands at most one page into a
 fixed stack buffer, and performs eight bounded inspections, each followed by
-at most one page-read attempt. `commit_state` borrows at most one page, expands
+at most one page-read attempt. `database_opening` borrows at most two pages,
+expands at most one fixed page, and performs nine bounded open attempts without
+input-sized allocation. `commit_state` borrows at most one page, expands
 only fixed 512-byte and 2 KiB stack buffers, performs at most sixteen bounded
 region reads, and iterates exactly 256 slots per successful snapshot. The
 checked corpus covers zero/tight limits, primitive reads, arithmetic
@@ -146,7 +151,8 @@ agnostic page reads do not establish that a source is a valid Jet 3 database.
 Commit-region values are volatile and contextual; without contemporaneous
 `.ldb` lock evidence they do not establish validity, corruption, clean
 shutdown, Jet generation, user ownership, or compatibility.
-These targets do not replace the required database-opening, catalog,
-table-definition, row, index, or long-value parsers. Checked malformed-corpus
+The database-opening target does not establish format correctness or replace
+the required catalog, table-definition, row, index, or long-value parsers.
+Checked malformed-corpus
 execution, ten-minute acceptance runs, resource monitoring, and the other
 requirements of validation gate G5 remain release blockers.

@@ -411,6 +411,74 @@
       "reproduction_command": "printf '%s\\n' '000000HEADStand' > fuzz/corpus/raw_jet3_candidate/truncated_signature"
     },
     {
+      "id": "FUZZ-SEED-DATABASE-OPENING-001",
+      "path": "fuzz/corpus/database_opening/standard_one_page",
+      "size_bytes": 25,
+      "sha256": "bbe801e366e0b8e9f39cf0978bb4d271e63ed57db3e482eb029521629e633f47",
+      "purpose": "Place the documented generic Standard signature in a fixed one-page expansion so the exact successful database-opening boundary is exercised.",
+      "origin": "Project-authored synthetic ASCII bytes based on SRC-0004; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '22211HEADStandard Jet DB' > fuzz/corpus/database_opening/standard_one_page"
+    },
+    {
+      "id": "FUZZ-SEED-DATABASE-OPENING-002",
+      "path": "fuzz/corpus/database_opening/system_one_page",
+      "size_bytes": 25,
+      "sha256": "7e6fab9f6def5948535d119225f49685bf0809c2c2da74ab1d73894a0ce85f59",
+      "purpose": "Place the documented generic System signature prefix in a fixed one-page expansion and exercise a second recognized opening classification.",
+      "origin": "Project-authored synthetic ASCII bytes based on SRC-0004; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '44422HEADJet System DB x' > fuzz/corpus/database_opening/system_one_page"
+    },
+    {
+      "id": "FUZZ-SEED-DATABASE-OPENING-003",
+      "path": "fuzz/corpus/database_opening/unknown_signature",
+      "size_bytes": 25,
+      "sha256": "e44916e41200cbea0f80ecdbeee7ad6dba3e236e8537cd1906798914e076f625",
+      "purpose": "Exercise complete unknown-signature rejection during both the initial bounded window and retained page-zero validation paths.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '55522HEADNot a Jet file!' > fuzz/corpus/database_opening/unknown_signature"
+    },
+    {
+      "id": "FUZZ-SEED-DATABASE-OPENING-004",
+      "path": "fuzz/corpus/database_opening/truncated_signature",
+      "size_bytes": 15,
+      "sha256": "054ed4ce7fe2670eee735d7add6a1b16b6469e04576d9ef22d85fa8f9e20df38",
+      "purpose": "Exercise truncated direct input and zero-selected limits while fixed-page expansion reaches bounded malformed-signature handling.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '00000HEADStand' > fuzz/corpus/database_opening/truncated_signature"
+    },
+    {
       "id": "FUZZ-SEED-COMMIT-STATE-001",
       "path": "fuzz/corpus/commit_state/documented_pairs",
       "size_bytes": 10,
