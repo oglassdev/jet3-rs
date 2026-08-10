@@ -93,6 +93,7 @@ function Get-M4BundleMediaType {
 
 function Add-M4ManifestEntry {
     param(
+        [AllowEmptyCollection()]
         [Parameter(Mandatory = $true)][Collections.ArrayList]$Entries,
         [Parameter(Mandatory = $true)][pscustomobject]$Session,
         [Parameter(Mandatory = $true)][string]$RelativePath,

@@ -282,6 +282,23 @@ class M4ControllerWindowsNoComTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7, result.stderr)
         self.assertIn("byte ceiling", result.stderr)
 
+    def test_first_manifest_entry_accepts_empty_collection_without_com(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="m4-first-entry-") as temporary:
+            payload = Path(temporary) / "payload.json"
+            payload.write_text("{}\n", encoding="utf-8")
+            result = self.run_ps(
+                f"$root={ps_quote(temporary)};"
+                "$session=[pscustomobject]@{StagingBundle=$root};"
+                "$entries=New-Object Collections.ArrayList;"
+                "function Get-M1PayloadPath{param($Session,$RelativePath);"
+                "return (Join-Path $Session.StagingBundle $RelativePath)};"
+                "Add-M4ManifestEntry -Entries $entries -Session $session "
+                "-RelativePath 'payload.json' -Role 'plan';"
+                "[Console]::Write($entries.Count)"
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "1")
+
     def test_analysis_is_retained_only_after_scratch_output_completes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="m4-analysis-retain-") as temporary:
             root = Path(temporary)
