@@ -1860,6 +1860,63 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: preregistration and normalized-design checks complete; exact-commit
   activation and execution pending
 
+### EXP-0023 — Checked M5R4 execution activation
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: exact-source implementation and execution-readiness record; no DAO
+  experiment result
+- Question: Are the sole remaining exact-commit/host requirements in the
+  immutable `EXP-0022` plan satisfied without changing its historical
+  `BLOCKED` gate?
+- Origin: project-authored M5R4 plan, additive schemas, checked controller,
+  isolated workers, analysis, complete-bundle validator, and focused
+  normalization/corruption tests; the independently validated `EXP-0018`
+  bundle is the only M4 input
+- Environment: Windows 11 Pro 10.0.22631 x64; x86 Windows PowerShell
+  5.1.22621.6133; `DAO.DBEngine.36` 3.6 from `dao360.dll`
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  ready environment-record SHA-256
+  `8664fddb92483831cc300d4e16a8cb755b7fe4100c3f7b14e5c1220bb86c03d5`;
+  checked implementation commit
+  `88d119bdcdbebcea77166f1cfcd661acf4e0753f`
+- Protocol: validate plan SHA-256
+  `7f9b49b18d75824843eb6269fafa25d1b21e4cd82c1bfe289af915ee0783aaed`;
+  prove normalized R3/R4 scientific and schema equality with only the declared
+  revision identities, accurate one-blocker execution gate, and timeout
+  reduction; run the focused M5 contract/corruption suite and complete Windows
+  DAO contract suite; parse every PowerShell source; require every bounded
+  child timeout to be at most 120 seconds; require the exact clean
+  implementation commit to be pushed; independently revalidate the complete
+  M4R2 bundle before activation; retain `execution_gate.status = BLOCKED` as
+  preregistration history and use this later provenance record as the
+  activation decision
+- Artifacts: M5R4 implementation commit
+  `88d119bdcdbebcea77166f1cfcd661acf4e0753f`; 35 focused M5 tests passed with
+  three platform-dependent symlink skips; the complete Windows DAO contract
+  suite passed 305 tests with twelve platform-dependent skips; M4R2 bundle
+  root `bundle-manifest.json` independently revalidated at SHA-256
+  `0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d`
+- Observation: the checked implementation binds experiment
+  `DAO-M5-COMPACT-CONFIRM-004`, the exact R4 plan, its ten schemas, all
+  transitive M5/M4 validators and schemas, the immutable M4 manifest, the
+  licensed provider, and the revised evidence ref. The bootstrap and
+  controller exact-source sets match. Every static or plan-derived child
+  timeout is rejected above 120 seconds before launch.
+- Interpretation: the R4 implementation and host requirements are satisfied
+  for a later exact clean pushed execution commit containing this activation
+  record. This does not rewrite the preregistration, report an M5 observation,
+  assign physical meaning, or establish MDB compatibility. Any plan, source,
+  provider, M4, timeout, or evidence-ref drift blocks execution.
+- Usage: authorize one exact-commit execution of
+  `DAO-M5-COMPACT-CONFIRM-004` through
+  `refs/heads/codex/m5r3-timeout-bounded`; future M5R4 execution record only
+- Rights: implementation, schemas, and synthetic tests are original project
+  material; future licensed-provider output requires its own retention and
+  redistribution record
+- Review: implementation and activation contracts verified; experimental
+  result pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
