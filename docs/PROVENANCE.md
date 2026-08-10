@@ -2223,6 +2223,51 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: implementation and activation contracts verified; experimental
   result pending
 
+### EXP-0030 — M5R6 compact-result null-coercion blocker
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled isolated-worker/result-validation failure after bounded DAO
+  activity but before sample retention or scientific analysis
+- Question: Why did the first exact-commit M5R6 compact worker result fail its
+  unchanged checked schema?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-006` controller, isolated
+  workers, artifact builder, and checked validator; no retained MDB, prefix,
+  comparison, candidate, or analysis result was used
+- Environment: the exact licensed x86 environment recorded in `EXP-0029`;
+  exact clean pushed commit
+  `1b2d9178ab4a555d3eefd2fadd23840d6fc02763`; exact remote ref
+  `refs/heads/codex/m5r5-worker-return-bound`
+- Protocol: invoke the checked x86 controller with run ID
+  `20260810T233958Z-m5-r6` and fresh output root
+  `%TEMP%\jet3-rs-dao-m5r6\evidence-1b2d917`; allow bootstrap, exact Git and
+  remote binding, provider preflight, immutable-plan validation, read-only M4
+  validation, staging, the first source phase and handoff clone, and the first
+  compact worker; stop when unchanged compact-result validation rejects the
+  malformed optional prefix without retry or validator modification
+- Artifacts: no published or staged bundle, database, companion, prefix,
+  snapshot, operation log, worker result, sample record, comparison, or
+  analysis remains; failure cleanup left only the empty exact-commit parent;
+  the validator reported that `$.database_observations[0].prefix` was neither
+  JSON null nor a valid artifact reference because its path was an empty string
+- Observation: the compact-input observation intentionally has no retained
+  prefix. The worker passed PowerShell `$null` to a parameter declared
+  `[AllowNull()][string]`; Windows PowerShell coerced that bound null to an
+  empty string. The artifact builder's null test therefore constructed a
+  prefix reference with an empty path, which the checked schema correctly
+  rejected. Reaching compact-result validation implies bounded source and
+  compact DAO phases completed, but all temporary provider output was removed
+  by publication cleanup and no scientific bytes were retained.
+- Interpretation: M5R6 is a failed operational attempt and remains immutable.
+  A later additive revision may preserve the optional prefix sentinel as a
+  true null through a checked object-typed parameter and add fresh-PowerShell
+  null/non-null artifact-shape tests, while leaving the schema and all evidence
+  gates unchanged. This assigns no MDB byte meaning and establishes no
+  compatibility.
+- Usage: blocker source for the next additive M5 preregistration; no production
+  Rust or MDB format usage
+- Rights: no licensed-provider output was retained or published
+- Review: pending additive preregistration and exact-commit re-execution
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
