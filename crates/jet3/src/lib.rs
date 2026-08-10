@@ -6,6 +6,7 @@ pub mod binary;
 pub mod binary_writer;
 pub mod candidate;
 pub mod commit_state;
+pub mod database;
 pub mod database_header;
 pub mod error;
 pub mod header;
@@ -26,6 +27,7 @@ pub use commit_state::{
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
     read_commit_region_into,
 };
+pub use database::{DatabaseOpenError, DatabaseReader};
 pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError,
 };
