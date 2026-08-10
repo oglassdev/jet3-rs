@@ -198,15 +198,15 @@ function Get-M4PhasePaths {
     )
 
     $root = "evidence/samples/$SampleId"
-    $companionName = $PhaseId.ToUpperInvariant() + ".ldb"
+    $artifactBase = $PhaseId.ToUpperInvariant()
     return [pscustomobject][ordered]@{
         invocation = "$root/$PhaseId-invocation.json"
-        result = "$root/$PhaseId-worker-result.json"
-        operation_log = "$root/$PhaseId-operation-log.json"
-        snapshot = "$root/$PhaseId-snapshot.json"
-        prefix = "$root/$PhaseId.prefix.bin"
+        result = "$root/$artifactBase-worker-result.json"
+        operation_log = "$root/$artifactBase-operation-log.json"
+        snapshot = "$root/$artifactBase-snapshot.json"
+        prefix = "$root/$artifactBase.prefix.bin"
         quiescence = "$root/$PhaseId-quiescence.json"
-        companion = "$root/$companionName"
+        companion = "$root/$artifactBase.ldb"
     }
 }
 

@@ -142,12 +142,13 @@ def build_bundle(
         ) * 1024
         database_hash = hashlib.sha256(database_payload).hexdigest()
         for phase in ("creator", "reopen"):
+            artifact_base = phase.upper()
             database_locator = sample[f"{phase}_database_path"]
             database_path = root / database_locator
             database_path.parent.mkdir(parents=True, exist_ok=True)
             database_path.write_bytes(database_payload)
             roles[database_locator] = "database"
-            prefix_locator = f"{sample_base}/{phase}.prefix.bin"
+            prefix_locator = f"{sample_base}/{artifact_base}.prefix.bin"
             prefix_path = root / prefix_locator
             prefix_path.parent.mkdir(parents=True, exist_ok=True)
             prefix_path.write_bytes(database_payload)
@@ -189,15 +190,16 @@ def build_bundle(
         roles[clone_locator] = "clone_log"
         phases = {}
         for phase in ("creator", "reopen"):
+            artifact_base = phase.upper()
             phase_ordinal = 1 if phase == "creator" else 2
             worker_ordinal = 2 * sample["launch_ordinal"] - (1 if phase == "creator" else 0)
             worker_id = f"{sample_id}-{phase.upper()}"
             invocation_locator = f"{sample_base}/{phase}-invocation.json"
-            result_locator = f"{sample_base}/{phase}-worker-result.json"
-            log_locator = f"{sample_base}/{phase}-operation-log.json"
-            snapshot_locator = f"{sample_base}/{phase}-snapshot.json"
+            result_locator = f"{sample_base}/{artifact_base}-worker-result.json"
+            log_locator = f"{sample_base}/{artifact_base}-operation-log.json"
+            snapshot_locator = f"{sample_base}/{artifact_base}-snapshot.json"
             quiescence_locator = f"{sample_base}/{phase}-quiescence.json"
-            prefix_locator = f"{sample_base}/{phase}.prefix.bin"
+            prefix_locator = f"{sample_base}/{artifact_base}.prefix.bin"
             database_locator = sample[f"{phase}_database_path"]
             phase_contract = creator_contract(condition, plan)
             if phase == "reopen":

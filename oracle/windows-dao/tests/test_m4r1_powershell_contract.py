@@ -18,6 +18,8 @@ BUNDLE = MODULES / "M4R1.Bundle.ps1"
 QUIESCENCE = MODULES / "M4R1.Quiescence.ps1"
 ARTIFACTS = MODULES / "M4R1.Artifacts.ps1"
 DAO = SCRIPTS / "m4" / "M4.Dao.ps1"
+WORKER_HELPERS = SCRIPTS / "m4" / "M4.Worker.ps1"
+PLAN = ROOT / "experiments" / "m4r2" / "m4-header-discriminator-r2.plan.json"
 POWERSHELL = (
     Path(os.environ.get("WINDIR", r"C:\Windows"))
     / "System32"
@@ -55,11 +57,15 @@ class M4R1PowerShellSourceContractTests(unittest.TestCase):
         self.assertIn("run-m4r1-phase.ps1", self.controller)
 
     def test_companion_locator_preserves_uppercase_database_basename(self) -> None:
-        self.assertIn(
-            '$companionName = $PhaseId.ToUpperInvariant() + ".ldb"',
-            self.bundle,
-        )
-        self.assertIn('companion = "$root/$companionName"', self.bundle)
+        self.assertIn('$artifactBase = $PhaseId.ToUpperInvariant()', self.bundle)
+        for suffix in (
+            "-worker-result.json",
+            "-operation-log.json",
+            "-snapshot.json",
+            ".prefix.bin",
+            ".ldb",
+        ):
+            self.assertIn(f'$root/$artifactBase{suffix}', self.bundle)
 
     def test_worker_requires_only_pre_com_companion_absence(self) -> None:
         self.assertEqual(
@@ -137,7 +143,11 @@ class M4R1PowerShellWindowsNoComTests(unittest.TestCase):
             "$item=Get-Item -LiteralPath $Path -Force;"
             "if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint)-ne 0)"
             "{throw 'reparse'}};"
-            f". {ps_quote(DAO)};. {ps_quote(QUIESCENCE)};" + body
+            f". {ps_quote(DAO)};. {ps_quote(BUNDLE)};"
+            f". {ps_quote(QUIESCENCE)};. {ps_quote(WORKER_HELPERS)};"
+            "$script:M4RepositoryUrl='https://github.com/oglassdev/jet3-rs.git';"
+            "$script:M4RemoteRef='refs/heads/codex/m4r2-canonical-paths';"
+            + body
         )
         return subprocess.run(
             [
@@ -174,6 +184,29 @@ class M4R1PowerShellWindowsNoComTests(unittest.TestCase):
                 "27ae41e4649b934ca495991b7852b855",
             )
             self.assertEqual(links, "1")
+
+    def test_uppercase_paths_pass_worker_plan_projection(self) -> None:
+        result = self.run_ps(
+            f"$plan=Get-Content -LiteralPath {ps_quote(PLAN)} -Raw|ConvertFrom-Json;"
+            "$sample=$plan.samples[0];$condition=$plan.conditions[0];"
+            "$paths=Get-M4PhasePaths -SampleId $sample.sample_id -PhaseId creator;"
+            "$invocation=[pscustomobject]@{condition_id=$sample.condition_id;"
+            "sample_id=$sample.sample_id;phase_id='creator';worker_ordinal=1;"
+            "database_path=$sample.creator_database_path;result_path=$paths.result;"
+            "phase_contract=[pscustomobject]@{kind='creator';"
+            "method='DBEngine.CreateDatabase';locale=$plan.design.locale;"
+            "version_option=$condition.version_option;"
+            "version_api_value=$condition.version_api_value;"
+            "encryption_option=$condition.encryption_option;"
+            "encryption_api_value=$condition.encryption_api_value;"
+            "create_option_value=$condition.create_option_value;"
+            "expected_dao_version=$condition.expected_dao_version;"
+            "compact_database_used=$false}};"
+            "Assert-M4PlanProjection -Invocation $invocation -Plan $plan;"
+            "[Console]::Write($paths.result)"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.endswith("/CREATOR-worker-result.json"))
 
     def test_exclusive_observation_rejects_oversized_companion(self) -> None:
         with tempfile.TemporaryDirectory(prefix="m4r1-oversize-") as temporary:
