@@ -128,6 +128,17 @@ class M4R1PowerShellSourceContractTests(unittest.TestCase):
     def test_manifest_registrar_accepts_revision_roles(self) -> None:
         self.assertIn('"post_worker_quiescence", "companion"', self.bundle)
 
+    def test_directory_metadata_quiesces_before_bundle_validation(self) -> None:
+        manifest = self.controller.rindex("Write-M4BundleManifest")
+        quiescence = self.controller.index(
+            "Wait-M4DirectoryMetadataQuiescence", manifest
+        )
+        validation = self.controller.index("$validationBlock", quiescence)
+        self.assertLess(manifest, quiescence)
+        self.assertLess(quiescence, validation)
+        self.assertIn("AddSeconds(15)", self.controller)
+        self.assertIn("$stableIntervals -ge 3", self.controller)
+
     def test_new_production_files_remain_below_limit(self) -> None:
         for path in (ENTRY, WORKER, *MODULES.glob("*.ps1")):
             with self.subTest(path=path.name):
@@ -144,7 +155,8 @@ class M4R1PowerShellWindowsNoComTests(unittest.TestCase):
             "if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint)-ne 0)"
             "{throw 'reparse'}};"
             f". {ps_quote(DAO)};. {ps_quote(BUNDLE)};"
-            f". {ps_quote(QUIESCENCE)};. {ps_quote(WORKER_HELPERS)};"
+            f". {ps_quote(QUIESCENCE)};. {ps_quote(CONTROLLER)};"
+            f". {ps_quote(WORKER_HELPERS)};"
             "$script:M4RepositoryUrl='https://github.com/oglassdev/jet3-rs.git';"
             "$script:M4RemoteRef='refs/heads/codex/m4r2-canonical-paths';"
             + body
@@ -207,6 +219,18 @@ class M4R1PowerShellWindowsNoComTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(result.stdout.endswith("/CREATOR-worker-result.json"))
+
+    def test_directory_metadata_quiescence_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="m4r2-directory-quiescence-") as root:
+            nested = Path(root) / "analysis"
+            nested.mkdir()
+            (nested / "report.json").write_text("{}", encoding="utf-8")
+            result = self.run_ps(
+                f"Wait-M4DirectoryMetadataQuiescence -Root {ps_quote(root)};"
+                "[Console]::Write('stable')"
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "stable")
 
     def test_exclusive_observation_rejects_oversized_companion(self) -> None:
         with tempfile.TemporaryDirectory(prefix="m4r1-oversize-") as temporary:

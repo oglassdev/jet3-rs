@@ -98,6 +98,62 @@ function Assert-M4CloneChronology {
     }
 }
 
+function Get-M4DirectoryMetadataProjection {
+    param([Parameter(Mandatory = $true)][string]$Root)
+
+    Assert-M1NoReparseComponents -Path $Root
+    $items = New-Object Collections.ArrayList
+    $pending = New-Object 'Collections.Generic.Queue[string]'
+    $pending.Enqueue([IO.Path]::GetFullPath($Root))
+    while ($pending.Count -gt 0) {
+        $path = $pending.Dequeue()
+        $item = Get-Item -LiteralPath $path -Force
+        if (
+            -not $item.PSIsContainer -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+        ) {
+            throw "M4 staged directory projection contains a replacement."
+        }
+        [void]$items.Add($item)
+        if ($items.Count -gt 256) {
+            throw "M4 staged directory count exceeds its quiescence bound."
+        }
+        foreach ($child in [IO.Directory]::GetDirectories($path)) {
+            $pending.Enqueue([IO.Path]::GetFullPath($child))
+        }
+    }
+    $rows = foreach ($item in ($items | Sort-Object -Property FullName)) {
+        "{0}|{1}|{2}|{3}" -f @(
+            [string]$item.FullName,
+            [long]$item.CreationTimeUtc.Ticks,
+            [long]$item.LastWriteTimeUtc.Ticks,
+            [long]$item.Attributes
+        )
+    }
+    return ($rows -join "`n")
+}
+
+function Wait-M4DirectoryMetadataQuiescence {
+    param([Parameter(Mandatory = $true)][string]$Root)
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+    $previous = Get-M4DirectoryMetadataProjection -Root $Root
+    $stableIntervals = 0
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        Start-Sleep -Milliseconds 1000
+        $current = Get-M4DirectoryMetadataProjection -Root $Root
+        if ([string]$current -ceq [string]$previous) {
+            $stableIntervals += 1
+            if ($stableIntervals -ge 3) { return }
+        }
+        else {
+            $stableIntervals = 0
+        }
+        $previous = $current
+    }
+    throw "M4 staged directory metadata did not quiesce within 15 seconds."
+}
+
 function Move-M4OwnedDirectoryToQuarantine {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -455,6 +511,7 @@ function Invoke-M4Campaign {
         Write-M4RetainedAnalysis -Context $context -Session $session `
             -Entries $entries -ContractPath $contractPath
         Write-M4BundleManifest -Session $session -Entries $entries
+        Wait-M4DirectoryMetadataQuiescence -Root $session.StagingBundle
 
         $validationBlock = {
             param($bundle)
