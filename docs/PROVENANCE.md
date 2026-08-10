@@ -1810,6 +1810,56 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: no licensed-provider output was created or retained
 - Review: pending additive preregistration and exact-commit re-execution
 
+### EXP-0022 — Preregistered bounded-timeout M5 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: additive declarative experiment-plan and checked-executor revision; not
+  yet executed
+- Question: Can the unchanged M5 compact-copy campaign execute while every
+  controller and worker child timeout stays within the existing reviewed
+  120-second bounded-process ceiling?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-004`, revised only from the
+  pre-COM operational failure in `EXP-0021`; no M5 DAO call, MDB, companion,
+  retained prefix, comparison, or candidate result existed before this plan
+  was recorded
+- Environment: not yet executed; the plan requires the licensed x86
+  `DAO.DBEngine.36` host bound to a future exact clean pushed producer commit
+  at `refs/heads/codex/m5r3-timeout-bounded`
+- Protocol: preserve the complete M5R3 factorial, 36 conditions, 108 samples,
+  three-replica rotated schedule, 324 isolated workers, DAO calls, uppercase
+  database locators, clone and four-role quiescence topology, companion rules,
+  retained prefixes, `[0x000,0x600)` analysis range, 648 comparisons,
+  confirmation predicates, scientific outcome rules, immutable M4 binding,
+  schemas, and independent publication validation; change only
+  `worker_timeout_seconds` from 180 to 120, bind all validator child calls to
+  at most 120 seconds, and use the additive experiment/ref/schema identities;
+  do not raise or modify the shared hard ceiling
+- Artifacts:
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm-r4.plan.json` SHA-256
+  `7f9b49b18d75824843eb6269fafa25d1b21e4cd82c1bfe289af915ee0783aaed`;
+  `oracle/windows-dao/experiments/m5/README-r4.md` SHA-256
+  `e3db46890fbc0eb3848045746466bca42eae8c56aac52cde9d60ad8c9d47d107`;
+  ten additive schemas under `oracle/windows-dao/experiments/m5r3/`
+- Observation: no M5R4 DAO call, worker, database, companion, prefix, sample,
+  comparison, analysis, or result exists. Checked normalization found the R3
+  and R4 design, validity rules, analysis, all conditions, all samples,
+  locators, source projections, and every other bound identical. Schema
+  normalization found only additive schema IDs, experiment/ref identities,
+  accurate execution-gate metadata, and the timeout reduction. Thirty-five
+  focused M5 tests passed with three platform-dependent symlink skips.
+- Interpretation: this is a preregistered operational safety correction, not
+  M5 evidence. Its execution gate remains `BLOCKED` only until the exact clean
+  pushed R4 producer commit and licensed host are bound. It assigns no MDB
+  byte meaning, changes no scientific hypothesis, and establishes no
+  compatibility.
+- Usage: checked M5 controller, isolated workers, analysis, and independent
+  bundle validator; future exact-commit M5R4 execution only
+- Rights: plan, README, schemas, controller changes, validators, and synthetic
+  tests are original project material; future provider output requires its own
+  retention and redistribution record
+- Review: preregistration and normalized-design checks complete; exact-commit
+  activation and execution pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
