@@ -677,6 +677,39 @@ class G6EvidenceTests(unittest.TestCase):
             "disposition: required", lambda: self.validate_mutants(mutants)
         )
 
+    def test_public_repo_path_normalises_and_rejects_unsafe_values(self) -> None:
+        self.assertEqual(
+            g6.repo_path("coverage/g6/run", "output"), "coverage/g6/run"
+        )
+        for unsafe in ("/coverage/g6", "coverage/../g6", "coverage//g6", "", 7):
+            self.assert_rejected(
+                "unsafe repository-relative path",
+                lambda value=unsafe: g6.repo_path(value, "output"),
+            )
+
+    def test_public_meets_compares_without_floating_point_rounding(self) -> None:
+        self.assertTrue(g6.meets(9, 10, 90))
+        self.assertTrue(g6.meets(90, 100, 90))
+        self.assertFalse(g6.meets(89, 100, 90))
+        self.assertFalse(g6.meets(8999, 10000, 90))
+
+    def test_public_validate_json_coverage_totals_core_files(self) -> None:
+        report_path = self.root / "reports/coverage.json"
+        self.write_json(report_path, self.json_coverage())
+        self.assertEqual(
+            g6.validate_json_coverage(report_path, self.root, set(self.paths)),
+            {"lines": (20, 18), "regions": (20, 16)},
+        )
+        partial = self.json_coverage()
+        del partial["data"][0]["files"][1]
+        self.write_json(report_path, partial)
+        self.assert_rejected(
+            "coverage report: excluded core files",
+            lambda: g6.validate_json_coverage(
+                report_path, self.root, set(self.paths)
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

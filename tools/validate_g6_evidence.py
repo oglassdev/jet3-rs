@@ -83,7 +83,8 @@ def _text(value: Any, location: str) -> str:
     return value
 
 
-def _repo_path(value: Any, location: str) -> str:
+def repo_path(value: Any, location: str) -> str:
+    """Normalise a repository-relative path, rejecting absolute or escaping values."""
     if not isinstance(value, str) or SAFE_PATH.fullmatch(value) is None:
         raise EvidenceError(f"{location}: unsafe repository-relative path")
     path = PurePosixPath(value)
@@ -114,7 +115,7 @@ def load_inventory(root: Path, inventory_path: Path) -> list[CoreModule]:
     _keys(document, {"schema_version", "source_root", "modules"}, "inventory")
     if document["schema_version"] != 1:
         raise EvidenceError("inventory.schema_version: expected integer 1")
-    source_root = _repo_path(document["source_root"], "inventory.source_root")
+    source_root = repo_path(document["source_root"], "inventory.source_root")
     if source_root != "crates/jet3/src":
         raise EvidenceError("inventory.source_root: must be crates/jet3/src")
     raw_modules = document["modules"]
@@ -128,7 +129,7 @@ def load_inventory(root: Path, inventory_path: Path) -> list[CoreModule]:
         if not isinstance(raw, dict):
             raise EvidenceError(f"{location}: expected object")
         _keys(raw, {"path", "classification", "sha256"}, location)
-        path = _repo_path(raw["path"], f"{location}.path")
+        path = repo_path(raw["path"], f"{location}.path")
         if path in seen:
             raise EvidenceError(f"{location}.path: duplicate {path}")
         seen.add(path)
@@ -249,7 +250,7 @@ def validate_binding(
         if not isinstance(source, dict):
             raise EvidenceError(f"{location}: expected object")
         _keys(source, {"path", "sha256"}, location)
-        path = _repo_path(source["path"], f"{location}.path")
+        path = repo_path(source["path"], f"{location}.path")
         sha256 = source["sha256"]
         if path in actual_sources:
             raise EvidenceError(f"{location}.path: duplicate {path}")
@@ -264,7 +265,7 @@ def validate_binding(
     if not isinstance(report, dict):
         raise EvidenceError("evidence.report: expected object")
     _keys(report, {"path", "sha256", "format"}, "evidence.report")
-    report_path = _repo_path(report["path"], "evidence.report.path")
+    report_path = repo_path(report["path"], "evidence.report.path")
     resolved = _regular_file(root, report_path, "evidence.report.path")
     if report["sha256"] != _sha256(resolved):
         raise EvidenceError("evidence.report.sha256: stale report hash")
@@ -300,9 +301,10 @@ def _coverage_name(filename: Any, root: Path) -> str | None:
         return None
 
 
-def _validate_json_coverage(
+def validate_json_coverage(
     report_path: Path, root: Path, core_paths: set[str]
 ) -> dict[str, tuple[int, int]]:
+    """Total line and region counters for the core files in an llvm-cov JSON export."""
     report = _load(report_path, "LLVM coverage report")
     if not isinstance(report, dict) or report.get("type") != "llvm.coverage.json.export":
         raise EvidenceError("coverage report: expected llvm.coverage.json.export")
@@ -395,7 +397,8 @@ def _validate_lcov(
     return {name: (values[0], values[1]) for name, values in totals.items()}
 
 
-def _meets(covered: int, total: int, percent: int) -> bool:
+def meets(covered: int, total: int, percent: int) -> bool:
+    """Report whether covered/total reaches percent without floating-point rounding."""
     return covered * 100 >= total * percent
 
 
@@ -413,16 +416,16 @@ def validate_coverage(
     report_format = envelope["report"]["format"]
     core_paths = {module.path for module in modules}
     if report_format == "llvm-cov-json":
-        metrics = _validate_json_coverage(report_path, root, core_paths)
+        metrics = validate_json_coverage(report_path, root, core_paths)
         secondary = "regions"
     elif report_format == "lcov":
         metrics = _validate_lcov(report_path, root, core_paths)
         secondary = "branches"
     else:
         raise EvidenceError("coverage evidence.report.format: unsupported format")
-    if not _meets(metrics["lines"][1], metrics["lines"][0], 90):
+    if not meets(metrics["lines"][1], metrics["lines"][0], 90):
         raise EvidenceError("coverage report: line coverage is below 90%")
-    if not _meets(metrics[secondary][1], metrics[secondary][0], 80):
+    if not meets(metrics[secondary][1], metrics[secondary][0], 80):
         raise EvidenceError(f"coverage report: {secondary} coverage is below 80%")
     return metrics
 
@@ -448,7 +451,7 @@ def _disposition(record: dict[str, Any], location: str, root: Path) -> None:
         confirmation_location = f"{location}.disposition.tool_confirmation"
         _keys(confirmation, {"tool", "path", "sha256"}, confirmation_location)
         _text(confirmation["tool"], f"{confirmation_location}.tool")
-        path = _repo_path(confirmation["path"], f"{confirmation_location}.path")
+        path = repo_path(confirmation["path"], f"{confirmation_location}.path")
         expected_hash = confirmation["sha256"]
         if (
             not isinstance(expected_hash, str)
@@ -493,7 +496,7 @@ def _native_mutant(value: Any, location: str, status: str) -> NativeMutant:
     )
     mutant_id = _text(value["name"], f"{location}.name")
     _text(value["package"], f"{location}.package")
-    path = _repo_path(value["file"], f"{location}.file")
+    path = repo_path(value["file"], f"{location}.file")
     if value["function"] is not None and not isinstance(value["function"], dict):
         raise EvidenceError(f"{location}.function: expected object or null")
     span = value["span"]
@@ -665,7 +668,7 @@ def _validate_mutation_report(
         {"path", "sha256", "format"},
         "mutation report.producer_report",
     )
-    producer_path = _repo_path(
+    producer_path = repo_path(
         producer["path"], "mutation report.producer_report.path"
     )
     producer_format = _text(
@@ -714,7 +717,7 @@ def _validate_mutation_report(
         if mutant_id in ids:
             raise EvidenceError(f"{location}.id: duplicate")
         ids.add(mutant_id)
-        path = _repo_path(record["path"], f"{location}.path")
+        path = repo_path(record["path"], f"{location}.path")
         if path not in module_by_path:
             raise EvidenceError(f"{location}.path: not a checked core module")
         covered_paths.add(path)
@@ -804,7 +807,7 @@ def _validate_mutation_report(
         )
     if denominator <= 0:
         raise EvidenceError("mutation report: vacuous scored-mutant denominator")
-    if not _meets(killed, denominator, 85):
+    if not meets(killed, denominator, 85):
         raise EvidenceError("mutation report: core mutation score is below 85%")
     return killed, denominator
 

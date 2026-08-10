@@ -782,6 +782,12 @@ class G6CoverageProducerTests(unittest.TestCase):
         produce_call.assert_not_called()
         self.assertFalse((self.root / "coverage/g6/foreign").exists())
 
+    def test_producer_only_uses_the_public_validator_api(self) -> None:
+        source = Path(producer.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("validator._", source)
+        for name in ("repo_path", "validate_json_coverage", "meets"):
+            self.assertTrue(callable(getattr(producer.validator, name)))
+
 
 if __name__ == "__main__":
     unittest.main()

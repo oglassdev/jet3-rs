@@ -473,7 +473,7 @@ def _snapshot(
 
 def _safe_output(root: Path, value: str) -> tuple[str, Path]:
     try:
-        relative = validator._repo_path(value, "output")
+        relative = validator.repo_path(value, "output")
     except validator.EvidenceError as error:
         raise CoverageProducerError(str(error)) from error
     parts = PurePosixPath(relative).parts
@@ -652,14 +652,14 @@ def produce(
             raise CoverageProducerError("cargo-llvm-cov changed during campaign")
         core_paths = {module.path for module in final.modules}
         try:
-            metrics = validator._validate_json_coverage(
+            metrics = validator.validate_json_coverage(
                 staging_report, root, core_paths
             )
         except validator.EvidenceError as error:
             raise CoverageProducerError(str(error)) from error
-        if not validator._meets(metrics["lines"][1], metrics["lines"][0], 90):
+        if not validator.meets(metrics["lines"][1], metrics["lines"][0], 90):
             raise CoverageProducerError("coverage report: line coverage is below 90%")
-        if not validator._meets(metrics["regions"][1], metrics["regions"][0], 80):
+        if not validator.meets(metrics["regions"][1], metrics["regions"][0], 80):
             raise CoverageProducerError("coverage report: regions coverage is below 80%")
 
         final_report_relative = f"{output_relative}/coverage.json"
