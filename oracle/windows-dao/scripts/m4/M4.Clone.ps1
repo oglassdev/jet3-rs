@@ -177,12 +177,27 @@ function Get-M4CloneLocalFullPath {
         }
     }
 
+    $suppliedLeaf = [IO.Path]::GetFileName($supplied)
     $full = [IO.Path]::GetFullPath($supplied)
     if ($full.Length -gt $script:M4CloneMaximumPathCharacters) {
         throw "$Label canonical path exceeds its bound."
     }
     if ($relative.Length -eq 0) {
         throw "$Label may not be a drive root."
+    }
+
+    # Windows PowerShell runs on .NET Framework, whose GetFullPath expands
+    # 8.3 aliases during legacy normalization. An aliased leaf therefore
+    # becomes its long name here, before any later check can observe the
+    # alias, so the supplied leaf is compared against the normalized one.
+    if (
+        -not $ExpandLeafAlias -and
+        -not $suppliedLeaf.Equals(
+            [IO.Path]::GetFileName($full),
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    ) {
+        throw "$Label path alias was normalized away; supply the long name."
     }
 
     # File leaves remain lexically bound while their ancestors are expanded.
