@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Complete manifest closure and exact analysis validation for M5R6 bundles."""
+"""Complete manifest closure and exact analysis validation for M5R7 bundles."""
 
 from __future__ import annotations
 
@@ -225,7 +225,7 @@ def _validate_snapshot_sample(
 def build_full_analysis(plan: dict[str, Any], plan_hash: str, records: list[dict[str, Any]], record_hashes: dict[str, str], prefixes: dict[str, bytes], validated_m4: dict[str, Any]) -> dict[str, Any]:
     result = {
         "protocol_version": "1.0.0", "document_type": "dao_m5_analysis_report",
-        "experiment_id": "DAO-M5-COMPACT-CONFIRM-006", "plan_sha256": plan_hash,
+        "experiment_id": "DAO-M5-COMPACT-CONFIRM-007", "plan_sha256": plan_hash,
         "m4_binding": {"bundle_manifest_sha256": M4_MANIFEST_SHA256, "producer_commit": "35f5f55f0b7277fc07831db540eab7fa69a41a20", "campaign_run_id": "20260810T220332Z-m4-r2"},
         "sample_records": [{"sample_id": sample["sample_id"], "record_path": sample["record_path"], "record_sha256": record_hashes[sample["record_path"]]} for sample in plan["samples"]],
     }

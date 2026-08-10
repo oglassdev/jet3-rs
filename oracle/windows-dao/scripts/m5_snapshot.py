@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded complete-tree snapshot for immutable M5R6 evidence bundles."""
+"""Bounded complete-tree snapshot for immutable M5R7 evidence bundles."""
 
 from __future__ import annotations
 
@@ -159,7 +159,7 @@ class BundleSnapshot:
         manifest = manifest_artifact.document
         observed = SCHEMA_SET.validate(manifest)
         if observed != "dao_m5_bundle_manifest":
-            raise ValidationError("bundle-manifest.json is not an M5R6 manifest")
+            raise ValidationError("bundle-manifest.json is not an M5R7 manifest")
         paths = [row["path"] for row in manifest["files"]]
         if len(paths) != len(set(paths)):
             raise ValidationError("$.files: duplicate manifest path")

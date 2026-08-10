@@ -45,20 +45,26 @@ function ConvertTo-M5DatabaseObservation {
         [Parameter(Mandatory = $true)][string]$Role,
         [Parameter(Mandatory = $true)][string]$Locator,
         [Parameter(Mandatory = $true)][pscustomobject]$Observation,
-        [AllowNull()][string]$PrefixLocator
+        [AllowNull()][object]$PrefixLocator
     )
+    $prefix = $null
+    if ($null -ne $PrefixLocator) {
+        if ($PrefixLocator -isnot [string] -or
+            [string]::IsNullOrWhiteSpace([string]$PrefixLocator)) {
+            throw "M5 optional prefix locator must be null or a nonempty string."
+        }
+        $prefix = [ordered]@{
+            path = [string]$PrefixLocator
+            sha256 = [string]$Observation.prefix_sha256
+        }
+    }
     return [ordered]@{
         database_role = $Role
         path = $Locator
         bytes = [long]$Observation.bytes
         sha256 = [string]$Observation.sha256
         prefix_sha256 = [string]$Observation.prefix_sha256
-        prefix = if ($null -eq $PrefixLocator) { $null } else {
-            [ordered]@{
-                path = $PrefixLocator
-                sha256 = [string]$Observation.prefix_sha256
-            }
-        }
+        prefix = $prefix
     }
 }
 

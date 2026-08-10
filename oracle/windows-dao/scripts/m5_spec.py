@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Typed, immutable checked-plan contract for the DAO M5R6 campaign."""
+"""Typed, immutable checked-plan contract for the DAO M5R7 campaign."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from typing import Any, Mapping
 from protocol_validation import ValidationError
 
 PROTOCOL_VERSION = "1.0.0"
-EXPERIMENT_ID = "DAO-M5-COMPACT-CONFIRM-006"
-PLAN_SHA256 = "f2d69fb1f5c8ebf421c0e48d383614f427ec15a819bd91fabefd5adc572f4de9"
+EXPERIMENT_ID = "DAO-M5-COMPACT-CONFIRM-007"
+PLAN_SHA256 = "b0e5cb2de39fac78be7519f93328a6e7c85e6fcfd6058d15a834065dd880c0e6"
 M4_EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-003"
 M4_MANIFEST_SHA256 = "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d"
 M4_PRODUCER_COMMIT = "35f5f55f0b7277fc07831db540eab7fa69a41a20"
 M4_RUN_ID = "20260810T220332Z-m4-r2"
-REMOTE_REF = "refs/heads/codex/m5r5-worker-return-bound"
+REMOTE_REF = "refs/heads/codex/m5r6-null-prefix-bound"
 PREFIX_BYTES = 2048
 ANALYZED_BYTES = 1536
 PHASES = ("source", "compact", "verify")
@@ -76,7 +76,7 @@ def compile_checked_plan(plan: dict[str, Any]) -> CheckedPlan:
         plan.get("execution_gate"),
         {
             "status": "BLOCKED",
-            "reason": "exact_m5r6_producer_commit_and_remote_ref_not_yet_established",
+            "reason": "exact_m5r7_producer_commit_and_remote_ref_not_yet_established",
             "blocking_requirements": [
                 "windows_dao_host_bound_to_the_exact_clean_pushed_producer_commit"
             ],

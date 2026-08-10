@@ -1,4 +1,4 @@
-"""Focused immutable-plan, schema, analysis, and bundle tests for M5R6."""
+"""Focused immutable-plan, schema, analysis, and bundle tests for M5R7."""
 
 from __future__ import annotations
 
@@ -39,10 +39,10 @@ class M5PlanContractTests(unittest.TestCase):
         )
         self.assertEqual(checked.bounds["worker_timeout_seconds"], 120)
 
-    def test_r6_normalized_scientific_design_equals_r5(self) -> None:
-        r5_path = CHECKED_PLAN.with_name("m5-compact-confirm-r5.plan.json")
-        r5 = json.loads(r5_path.read_text(encoding="utf-8"))
-        r6 = json.loads(CHECKED_PLAN.read_text(encoding="utf-8"))
+    def test_r7_normalized_scientific_design_equals_r6(self) -> None:
+        r6_path = CHECKED_PLAN.with_name("m5-compact-confirm-r6.plan.json")
+        r6 = json.loads(r6_path.read_text(encoding="utf-8"))
+        r7 = json.loads(CHECKED_PLAN.read_text(encoding="utf-8"))
         for key in (
             "provenance_ids",
             "requires_exact_clean_commit",
@@ -54,9 +54,9 @@ class M5PlanContractTests(unittest.TestCase):
             "samples",
             "resolved_provenance_requirements",
         ):
-            self.assertEqual(r6[key], r5[key], key)
-        self.assertEqual(r6["bounds"], r5["bounds"])
-        self.assertEqual(r6["bounds"]["worker_timeout_seconds"], 120)
+            self.assertEqual(r7[key], r6[key], key)
+        self.assertEqual(r7["bounds"], r6["bounds"])
+        self.assertEqual(r7["bounds"]["worker_timeout_seconds"], 120)
         expected_changes = {
             "$.experiment_id", "$.related_experiments", "$.remote_ref",
             "$.preregistration.provenance_entry",
@@ -78,8 +78,8 @@ class M5PlanContractTests(unittest.TestCase):
                 return changed
             return set() if left == right else {path}
 
-        self.assertEqual(changed_paths(r5, r6), expected_changes)
-        for sample in r6["samples"]:
+        self.assertEqual(changed_paths(r6, r7), expected_changes)
+        for sample in r7["samples"]:
             self.assertEqual(Path(sample["source_database_path"]).name, "SOURCE.MDB")
             self.assertEqual(Path(sample["compact_input_database_path"]).name, "COMPACT-INPUT.MDB")
             self.assertEqual(Path(sample["compacted_database_path"]).name, "COMPACTED.MDB")
@@ -95,9 +95,9 @@ class M5PlanContractTests(unittest.TestCase):
     def test_all_m5_schemas_lint(self) -> None:
         SCHEMA_SET.lint()
 
-    def test_r6_schemas_only_change_revision_bindings(self) -> None:
-        prior = CHECKED_PLAN.parents[1] / "m5r4"
-        revised = CHECKED_PLAN.parents[1] / "m5r5"
+    def test_r7_schemas_only_change_revision_bindings(self) -> None:
+        prior = CHECKED_PLAN.parents[1] / "m5r5"
+        revised = CHECKED_PLAN.parents[1] / "m5r6"
         self.assertEqual(
             {path.name for path in revised.glob("*.json")},
             {path.name for path in prior.glob("*.json")},
@@ -105,9 +105,9 @@ class M5PlanContractTests(unittest.TestCase):
         for path in revised.glob("*.json"):
             current = path.read_text(encoding="utf-8")
             normalized = (
-                current.replace("urn:jet3-rs:dao:m5r6:", "urn:jet3-rs:dao:m5r5:")
-                .replace("DAO-M5-COMPACT-CONFIRM-006", "DAO-M5-COMPACT-CONFIRM-005")
-                .replace("refs/heads/codex/m5r5-worker-return-bound", "refs/heads/codex/m5r4-worker-preflight-bound")
+                current.replace("urn:jet3-rs:dao:m5r7:", "urn:jet3-rs:dao:m5r6:")
+                .replace("DAO-M5-COMPACT-CONFIRM-007", "DAO-M5-COMPACT-CONFIRM-006")
+                .replace("refs/heads/codex/m5r6-null-prefix-bound", "refs/heads/codex/m5r5-worker-return-bound")
             )
             self.assertEqual(
                 json.loads(normalized),
