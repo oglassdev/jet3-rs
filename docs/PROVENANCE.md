@@ -2070,6 +2070,51 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: implementation and activation contracts verified; experimental
   result pending
 
+### EXP-0027 — M5R5 post-DAO worker return blocker
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled isolated-worker failure after bounded DAO activity but
+  before worker-result retention or scientific analysis
+- Question: Why did the first exact-commit M5R5 source worker fail after the
+  checked invocation and DAO phase completed?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-005` controller, isolated
+  worker, and checked PowerShell helper modules; no retained MDB, prefix,
+  comparison, candidate, or analysis result was used
+- Environment: the exact licensed x86 environment recorded in `EXP-0026`;
+  exact clean pushed commit
+  `815f9f08fd129d03a8c37d5ed3fed1b8d1d8c59f`; exact remote ref
+  `refs/heads/codex/m5r4-worker-preflight-bound`
+- Protocol: invoke the checked x86 controller with run ID
+  `20260810T232448Z-m5-r5` and fresh output root
+  `%TEMP%\jet3-rs-dao-m5r5\evidence-815f9f0`; allow bootstrap, exact Git and
+  remote binding, provider preflight, immutable-plan validation, read-only M4
+  validation, staging creation, and the first isolated source worker; stop on
+  the first checked worker error without retrying or changing a validator
+- Artifacts: no published or staged bundle, database, companion, prefix,
+  snapshot, operation log, worker result, sample record, comparison, or
+  analysis remains; failure cleanup left only the empty exact-commit parent
+  under the fresh output root; the structured worker error reported sample
+  `M5-S20U-D20-OMIT-01`, phase `source`, process ID 16196, HRESULT
+  `0x80131501`, and `System.Management.Automation.CommandNotFoundException`
+- Observation: the worker passed invocation and path preflight, activated the
+  bound provider, created the source database, read its documented DAO version
+  and empty user-schema observation, closed and released DAO, and then reached
+  `return if ($null -eq $snapshot) ...` in `Invoke-M5DaoPhase`. Windows
+  PowerShell treated `if` in that return-argument position as a command and
+  failed with “The term 'if' is not recognized”. Completion of the preceding
+  steps is inferred from the checked control-flow location; no MDB bytes or
+  scientific observation survived publication cleanup.
+- Interpretation: M5R5 is a failed operational attempt and remains immutable.
+  A later additive revision may replace only the invalid return-expression
+  form with explicit conditional returns and test both snapshot and null
+  branches in fresh x86 PowerShell, while preserving every scientific and
+  evidence rule. The observed command-parsing failure assigns no MDB byte
+  meaning and establishes no compatibility.
+- Usage: blocker source for the next additive M5 preregistration; no production
+  Rust or MDB format usage
+- Rights: no licensed-provider output was retained or published
+- Review: pending additive preregistration and exact-commit re-execution
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
