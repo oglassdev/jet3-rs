@@ -509,7 +509,8 @@ Use `not applicable` explicitly rather than omitting a field.
   offsets, bit masks, encryption algorithms, keys, page classes, or any other
   physical encoding, and a successful call does not establish Rust
   compatibility.
-- Usage: `oracle/windows-dao/experiments/m4/`
+- Usage: `oracle/windows-dao/experiments/m4/`;
+  `oracle/windows-dao/experiments/m5/`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -541,7 +542,8 @@ Use `not applicable` explicitly rather than omitting a field.
   be recast as a physical-format fact. The label is application-level oracle
   evidence only; it is not an MDB version field, byte string, encoding, or
   Rust compatibility result.
-- Usage: `oracle/windows-dao/experiments/m4/`
+- Usage: `oracle/windows-dao/experiments/m4/`;
+  `oracle/windows-dao/experiments/m5/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -577,7 +579,9 @@ Use `not applicable` explicitly rather than omitting a field.
   evidence without a separately checked experiment.
 - Usage: explicit exclusion and future-control rationale in
   `oracle/windows-dao/experiments/m4/README.md` and
-  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`
+  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`; the
+  separately checked experiment anticipated here is preregistered as
+  `EXP-0012` and `SRC-0018` in `oracle/windows-dao/experiments/m5/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -612,6 +616,74 @@ Use `not applicable` explicitly rather than omitting a field.
   `docs/architecture/SAFE_CORE.md`
 - Rights: citation to official Rust documentation; no documentation content is
   redistributed
+- Review: pending independent review
+
+### SRC-0018 — DAO compact-copy call contract and documented restrictions
+
+- Recorded: 2026-08-10, Claude (Anthropic)
+- Kind: public source
+- Question: Which parameters and documented restrictions govern a
+  `DBEngine.CompactDatabase` call, so that a future M5 controller can bind an
+  exact documented invocation and fail closed before any COM call?
+- Origin: Microsoft Learn, “DBEngine.CompactDatabase method (DAO),” accessed
+  2026-08-10, the same page cited by `SRC-0016`,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/dbengine-compactdatabase-method-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the cited Microsoft Learn page; inspect the applicability
+  line, the syntax line, every row of the parameter table, and the remarks
+  covering the collating-order constants, the encryption constants, the
+  version constants, and the source/destination restrictions
+- Artifacts: not applicable; the project stores a citation, not a redistributed
+  copy
+- Observation: Microsoft describes the method as copying and compacting a
+  closed database with the option of changing its version, collating order, and
+  encryption, and marks the page as applying to Access 2013 and Access 2016.
+  The documented call takes five positional arguments: required string
+  `SrcName` and `DstName`, then optional variant `DstLocale`, `Options`, and
+  `password`. `SrcName` identifies an existing, closed database as a file name
+  or full path; the remarks state that the source must be closed and available
+  for exclusive use and that an error occurs otherwise. `DstName` is the file
+  name and path of the compacted database being created and may not name the
+  same database file as `SrcName`. `DstLocale` selects a collating order,
+  defaults to the source locale when omitted, and may also carry a `";pwd="`
+  password string. `Options` takes one constant or a sum of constants.
+  `password` supplies an encryption key preceded by `";pwd="` and is ignored
+  when `DstLocale` already carries one; Microsoft marks `password`, `dbEncrypt`,
+  and `dbDecrypt` as deprecated and unsupported for `.ACCDB`. For encryption,
+  `dbEncrypt` encrypts and `dbDecrypt` decrypts while compacting, and either
+  omitting both constants or supplying both gives the destination the same
+  encryption as the source. For version, the page lists `dbVersion10`,
+  `dbVersion11`, `dbVersion20`, `dbVersion30`, `dbVersion40`, and
+  `dbVersion120`; states that only one version constant may be specified, that
+  omitting one keeps the source version, and that the destination may be
+  compacted only to a version the same as or later than the source; and states
+  that the constant affects only the data format of the destination. The page
+  further states that the method copies all data and security-permission
+  settings, that disk space for both databases is required, and that it should
+  not be used to convert Microsoft Access objects. No numeric API values appear
+  on this page.
+- Interpretation: this entry supplies the API-call provenance for the
+  preregistered M5 experiment `EXP-0012`. It fixes which arguments an M5
+  compact worker may pass, which option combinations the documentation permits,
+  and which preconditions must hold before the call. It refines rather than
+  replaces `SRC-0016`, which recorded the version and encryption controls and
+  the rule that no compacted file is compatibility or physical-layout evidence
+  without a separately checked experiment. Numeric API values remain governed
+  by `SRC-0014`, which records `dbVersion20` 16, `dbVersion30` 32,
+  `dbVersion40` 64, and `dbEncrypt` 2; no ledger entry records a numeric value
+  for `dbDecrypt`, so an M5 controller may not compute or pass an option sum
+  containing it until a new entry does. The page does not document what happens
+  when the destination file already exists, so a nonexistent destination
+  remains a controller-side precondition rather than a documented behavior.
+  This entry assigns no on-disk meaning: it identifies no byte, offset, field,
+  flag, encryption algorithm, key, page class, or layout; it does not establish
+  that a compacted file is readable by this project; and it does not by itself
+  authorize execution.
+- Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/README.md`;
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm.plan.json`
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
 - Review: pending independent review
 
 ## Observed behavior
@@ -1201,6 +1273,83 @@ Use `not applicable` explicitly rather than omitting a field.
   validation, adversarial corruption tests, and provenance-hash tests passed
   locally on 2026-07-25. Windows-only process and provider checks still require
   execution on the exact producer commit before any M4 bundle can exist.
+
+### EXP-0012 — Preregistered DAO compact-copy confirmation campaign
+
+- Recorded: 2026-08-10, Claude (Anthropic)
+- Kind: declarative experiment plan without a checked controller, workers,
+  analysis, or complete-bundle validator; not yet executed
+- Question: Do databases produced by `CompactDatabase` from `CreateDatabase`
+  sources carry the same bounded-prefix byte values that `EXP-0011` observes
+  for the matched documented destination version and encryption state, and are
+  there positions inside `[0x000,0x600)` that instead covary with the
+  generation method?
+- Origin: project-authored plan `DAO-M5-COMPACT-CONFIRM-001`, using only the
+  DAO creation controls and API values in `SRC-0014`, the `Database.Version`
+  result contract in `SRC-0015`, the compact-copy version/encryption controls
+  in `SRC-0016`, the call contract and restrictions in `SRC-0018`, and the
+  excluded commit region in `SRC-0013`. Recorded on 2026-08-10, before any M4
+  execution, so that no M4 byte result can have influenced the M5 conditions,
+  schedule, analysis window, comparison topology, predicates, or outcome rules;
+  any post-M4 change requires a new plan file and a new provenance entry rather
+  than an edit to this one.
+- Environment: not yet executed; the plan requires three separate fresh x86
+  workers per sample and leaves the exact Windows, PowerShell, DAO provider,
+  locale, code-page, time-zone, repository, and commit identities to a future
+  commit-bound environment record
+- Protocol: the future checked controller must bind
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm.plan.json`, the exact
+  clean pushed producer commit, its transitive executed sources, the
+  Windows/DAO provider environment, and one complete passing M4 bundle by
+  bundle-manifest SHA-256 before any output mutation. It executes the 36
+  documented-legal source-version, source-encryption, destination-version, and
+  compact-encryption conditions in three rotated blocks of the complete
+  factorial; per sample it creates the source through `CreateDatabase`, clones
+  the closed source through a controller-owned, re-hashed, same-volume,
+  non-hard-linked handoff, calls `CompactDatabase` on that closed clone into a
+  destination path that does not yet exist and is never the input path with the
+  locale and password arguments omitted, clones the closed compacted
+  destination through a second identical handoff, and reopens only that second
+  clone; it retains closed-file source, destination, and verify observations;
+  analyzes only `[0x000,0x600)` of each 2,048-byte prefix; excludes
+  `[0x600,0x800)` from every comparison; applies only the three preregistered
+  confirmation predicates and their preregistered outcome rules; and validates
+  the complete immutable bundle. The gate stays `BLOCKED` until a checked
+  controller, workers, analysis, and bundle validator exist, an M4 bundle is
+  bound, a ledger entry records the numeric `dbDecrypt` API value, and the
+  Windows DAO host is bound to the exact producer commit.
+- Artifacts:
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm.plan.json` SHA-256
+  `beeb6277af6b7224038e5a70ee20238dce907a35f7778b2f2f21f13f1f04d0a4`;
+  `oracle/windows-dao/experiments/m5/README.md` SHA-256
+  `7b0287d9c83716dcefbbfb21adf5b4bd49389ef6fed5668fcd3804d1559a4474`
+- Observation: no M5 sample has been generated, no `CompactDatabase` call has
+  been made by this project, and no M5 byte result exists. The declarative plan
+  contains 36 conditions and 108 samples, gives every condition three distinct
+  within-block positions across three complete blocks, requires 324
+  independently bound workers and three per-sample phases, and separately
+  bounds retained databases and bytes, eleven acquisition reads per sample,
+  each validator pass, prefixes, comparison count and byte visits, worker
+  count, and time. The plan records one open provenance requirement: no ledger
+  entry records the numeric API value of `dbDecrypt`.
+- Interpretation: the plan is a preregistration only. It authorizes no
+  execution in its current `BLOCKED` state, and even a complete passing future
+  run yields absolute offset agreement or divergence descriptions inside
+  `[0x000,0x600)` and nothing more. Results are format observations; per
+  `SRC-0016` no compacted file may be treated as compatibility or
+  physical-layout evidence, so M5 may not assign physical meaning, change
+  production code or the support matrix, or establish any Rust or MDB
+  compatibility claim. Agreement with M4 would not confirm that any offset is a
+  version or encryption field; divergence would only show that a position
+  covaries with the generation method.
+- Usage: `oracle/windows-dao/experiments/m5/`
+- Rights: the plan and its README are original project material; future
+  generated databases and evidence must receive their own provenance and
+  redistribution review
+- Review: pending independent review. No checked M5 controller, worker,
+  analysis, or bundle validator exists yet, and every Windows and provider
+  check still requires execution on the exact producer commit before any M5
+  bundle can exist.
 
 ## Fixtures and black-box results
 
