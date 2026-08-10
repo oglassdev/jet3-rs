@@ -50,6 +50,7 @@ class M4R1PowerShellSourceContractTests(unittest.TestCase):
         self.assertIn("experiments/m4r1/", combined)
         self.assertIn("m4r1_contract.py", combined)
         self.assertIn("refs/heads/codex/m4r1-companion-aware", combined)
+        self.assertNotIn("refs/heads/codex/jet3-v1-foundations", combined)
         self.assertIn("run-m4r1-phase.ps1", self.controller)
 
     def test_worker_requires_only_pre_com_companion_absence(self) -> None:

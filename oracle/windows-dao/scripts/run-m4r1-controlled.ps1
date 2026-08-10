@@ -122,7 +122,7 @@ function Assert-M4BootstrapRemote {
                 "-C", $Repository,
                 "ls-remote", "--heads",
                 "https://github.com/oglassdev/jet3-rs.git",
-                "refs/heads/codex/jet3-v1-foundations"
+                "refs/heads/codex/m4r1-companion-aware"
             ) `
             -CallerLabel "M4 bootstrap remote" `
             -TimeoutSeconds 30 `
