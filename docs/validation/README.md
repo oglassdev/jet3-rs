@@ -8,11 +8,40 @@ contract, not synonyms for “our writer produced bytes that our reader accepts.
 The documents are normative for v1:
 
 - [EVIDENCE.md](EVIDENCE.md) defines status and evidence vocabulary.
+- [CI_EVIDENCE.md](CI_EVIDENCE.md) defines commit-bound Linux, macOS, and
+  Windows G1 records and explicit aggregate selection.
 - [ACCEPTANCE.md](ACCEPTANCE.md) defines measurable quality gates and the
   command that runs them.
 - [TRACEABILITY.md](TRACEABILITY.md) maps product requirements to evidence.
 - [support-matrix.json](support-matrix.json) is the machine-readable capability
   ledger.
+- [evidence-policy.json](evidence-policy.json) is the commit-bound policy for
+  detached release-evidence overlays. It fixes resource ceilings, the exact
+  clean-worktree interpretation, and the closed adapter inventory. Every
+  adapter is currently disabled or forbidden, so this foundation cannot yet
+  advance a capability's verification state.
+- [schema/support-matrix.schema.json](schema/support-matrix.schema.json), at
+  `properties.capabilities.prefixItems`, is the canonical ordered v1 capability
+  catalog. It fixes every required capability ID, its in-scope or out-of-scope
+  classification, and its required verification level. The mutable states in
+  `support-matrix.json` must cover that catalog exactly; deleting, renaming,
+  inserting, reordering, or reclassifying a capability fails validation.
+- [DAO_PROVIDER_BLOCKER.md](DAO_PROVIDER_BLOCKER.md) records the currently
+  audited external provider boundary. It is not compatibility evidence.
+- [schema/release-evidence-overlay.schema.json](schema/release-evidence-overlay.schema.json)
+  defines the detached exact-commit overlay shape. Validation and staging of an
+  overlay do not make its contents evidence unless a code-owned adapter is
+  enabled and validates the declared artifact kind and verification level.
+
+The following are non-normative indexes to immutable historical experiments,
+not evidence for current-commit compatibility:
+
+- [M1_DAO_EVIDENCE.md](M1_DAO_EVIDENCE.md) records controlled DAO generation
+  and readback.
+- [M2_PAGE_OBSERVATION.md](M2_PAGE_OBSERVATION.md) records bounded descriptive
+  observations over M1 files.
+- [M3_REPLICATED_DELTA_EVIDENCE.md](M3_REPLICATED_DELTA_EVIDENCE.md) records
+  replicated descriptive DAO deltas.
 
 ## Scope of a passing release
 
@@ -50,5 +79,11 @@ object supported.
 7. All compatibility reports identify the provider version, OS, architecture,
    locale, code page, scenario IDs, fixture hashes, and git commit.
 
-At bootstrap, entries are deliberately `not_started` and `unverified`. Statuses
-must be advanced only by a change that also adds the referenced evidence.
+Source and test records may cite immutable historical blobs to establish
+implementation lineage. Release-gate reports, `independent_report` records,
+and `dao_bundle` records must instead bind the exact clean commit being
+released; lineage evidence never substitutes for those current-commit runs.
+
+Capabilities begin as `not_started` and `unverified`. Statuses must be advanced
+only by a change that also adds the referenced evidence; partial foundation
+work remains experimental until its declared verification requirement is met.

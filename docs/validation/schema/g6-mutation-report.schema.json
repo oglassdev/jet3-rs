@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/access97-rs/g6-mutation-report.schema.json",
+  "title": "G6 normalized mutation report",
+  "$defs": {
+    "disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "rationale",
+        "risk",
+        "action",
+        "tool_confirmation"
+      ],
+      "properties": {
+        "owner": {"type": "string", "minLength": 1},
+        "rationale": {"type": "string", "minLength": 1},
+        "risk": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "tool_confirmation": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tool", "path", "sha256"],
+              "properties": {
+                "tool": {"type": "string", "minLength": 1},
+                "path": {"type": "string", "minLength": 1},
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scopes", "producer_report", "mutants"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "scopes": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["encoding_decoding", "allocation", "row_packing", "index"]
+      }
+    },
+    "producer_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "format"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "format": {"const": "cargo-mutants-outcomes-v26-json"}
+      }
+    },
+    "mutants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "line",
+          "status",
+          "producer_status",
+          "scope",
+          "invariant_kind",
+          "invariant_ids",
+          "disposition"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "line": {"type": "integer", "minimum": 1},
+          "status": {
+            "enum": [
+              "killed",
+              "survived",
+              "timeout",
+              "unviable",
+              "equivalent",
+              "unreachable"
+            ]
+          },
+          "producer_status": {
+            "enum": ["killed", "survived", "timeout", "unviable"]
+          },
+          "scope": {
+            "enum": ["encoding_decoding", "allocation", "row_packing", "index"]
+          },
+          "invariant_kind": {
+            "enum": ["none", "format", "safety", "format_safety"]
+          },
+          "invariant_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "disposition": {
+            "oneOf": [
+              {"type": "null"},
+              {"$ref": "#/$defs/disposition"}
+            ]
+          }
+        }
+      }
+    }
+  }
+}

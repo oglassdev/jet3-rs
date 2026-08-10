@@ -1,13 +1,15 @@
 #!/usr/bin/env sh
 set -eu
 
-toolchain_rustc=$(rustup which --toolchain 1.96.0 rustc)
-toolchain_bin=${toolchain_rustc%/rustc}
-PATH="${toolchain_bin}:${PATH}"
-export PATH
-
 usage() {
     echo "usage: $0 quick|full" >&2
+}
+
+configure_toolchain() {
+    toolchain_rustc=$(rustup which --toolchain 1.96.0 rustc)
+    toolchain_bin=${toolchain_rustc%/rustc}
+    PATH="${toolchain_bin}:${PATH}"
+    export PATH
 }
 
 run_cargo() {
@@ -15,6 +17,7 @@ run_cargo() {
 }
 
 run_quick() {
+    configure_toolchain
     run_cargo fmt --all --check
     run_cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     run_cargo test --workspace --all-targets --all-features --locked
@@ -22,12 +25,7 @@ run_quick() {
 }
 
 run_full() {
-    run_quick
-    RUSTDOCFLAGS="-D warnings" \
-        run_cargo doc --workspace --all-features --no-deps --locked
-
-    echo "BLOCKED: the full v1 gates in docs/validation/ are not wired yet" >&2
-    exit 3
+    python3 tools/run_acceptance.py
 }
 
 case "${1:-}" in

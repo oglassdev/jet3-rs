@@ -1,0 +1,58 @@
+[package]
+name = "jet3-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+rust-version = "1.96"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+jet3 = { path = "../crates/jet3" }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "binary_cursor"
+path = "fuzz_targets/binary_cursor.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "binary_writer"
+path = "fuzz_targets/binary_writer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jet_header"
+path = "fuzz_targets/jet_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jet3_page"
+path = "fuzz_targets/jet3_page.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "raw_jet3_candidate"
+path = "fuzz_targets/raw_jet3_candidate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commit_state"
+path = "fuzz_targets/commit_state.rs"
+test = false
+doc = false
+bench = false
+
+# Keep this cargo-fuzz package independent of the production workspace.
+[workspace]

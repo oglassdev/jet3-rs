@@ -1,0 +1,14 @@
+{
+  "protocol_version": "1.1.0",
+  "document_type": "dao_pair",
+  "pair_id": "DAO-PAIR-EMPTY-REPEAT-001",
+  "title": "Repeated empty creation",
+  "purpose": "Require independent empty snapshots to be identical except for identity fields.",
+  "comparison_kind": "repeat_equivalence",
+  "left_scenario_id": "DAO-GEN-EMPTY-REPEAT-A",
+  "right_scenario_id": "DAO-GEN-EMPTY-REPEAT-B",
+  "allowed_difference_paths": [
+    "/database_sha256",
+    "/scenario_id"
+  ]
+}

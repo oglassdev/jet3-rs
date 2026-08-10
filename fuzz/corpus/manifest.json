@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "seeds": [
+    {
+      "id": "FUZZ-SEED-BINARY-CURSOR-001",
+      "path": "fuzz/corpus/binary_cursor/empty_limits",
+      "size_bytes": 5,
+      "sha256": "8982b0e36eb1bacbb400dea0997b13cce756d7a48dbe0b05c560a13c1973afd0",
+      "purpose": "Select zero for all three resource limits and reject a non-empty cursor input without allocation or panic.",
+      "origin": "Project-authored literal bytes.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '0000' > fuzz/corpus/binary_cursor/empty_limits"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-CURSOR-002",
+      "path": "fuzz/corpus/binary_cursor/primitive_reads",
+      "size_bytes": 16,
+      "sha256": "01d9bc4ff72953edc357d53b8e90aeb2b935234282f2b6848019e5798f4c8a7b",
+      "purpose": "Set input-sized resource limits and provide short commands that exercise primitive-read and truncated-read paths.",
+      "origin": "Project-authored literal bytes.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '2225cursor-seed' > fuzz/corpus/binary_cursor/primitive_reads"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-CURSOR-003",
+      "path": "fuzz/corpus/binary_cursor/offset_boundaries",
+      "size_bytes": 36,
+      "sha256": "5593c9f4922441b4cd279123ee1a1bc89da47cf6b9f05d6aaa6a2088895db3ab",
+      "purpose": "Select maximum resource limits and supply large decoded operands for checked offset, byte-count, and budget arithmetic.",
+      "origin": "Project-authored literal bytes.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '4444zzzzzzzz-overflow-boundary-seed' > fuzz/corpus/binary_cursor/offset_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-001",
+      "path": "fuzz/corpus/binary_writer/primitive_sequence",
+      "size_bytes": 208,
+      "sha256": "3e89165ec14baa7d997e06ee068a02f7d35e22d873c0c5c6ad00858b7872b693",
+      "purpose": "Use a 256-byte output with unbounded encoding and work ceilings, then execute an exact write, every integer and floating-point primitive writer, and an observation command against the independent state model.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'DEEA0000000000000080B0123456789ABCDEFC0123456789ABCDEFD0123456789ABCDEFE0123456789ABCDEFF0123456789ABCDEFG0123456789ABCDEFH0123456789ABCDEFI0123456789ABCDEFJ0123456789ABCDEFK0123456789ABCDEFM0000000000000000' > fuzz/corpus/binary_writer/primitive_sequence"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-002",
+      "path": "fuzz/corpus/binary_writer/capacity_boundaries",
+      "size_bytes": 191,
+      "sha256": "62e87836263100af45adfc895c2b1984d88da2aa8e4e0397304b05add8ebd870",
+      "purpose": "Use an eight-byte output with unbounded budgets and exercise seek-to-zero, exact-end, one-before-end, past-end, and maximum-offset cases plus empty, fitting-boundary, and oversized exact-write behavior.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'AEEL0000000000000000A0000000000000001L2000000000000000A0000000000000000L3000000000000000L1000000000000000A0000000000000010L1000000000000000A0000000000000080A1111111100000010L4000000000000000' > fuzz/corpus/binary_writer/capacity_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-003",
+      "path": "fuzz/corpus/binary_writer/encoded_budget_failure",
+      "size_bytes": 38,
+      "sha256": "6d86b80d22a49af8bcff7dc478bf21451f933be4dfa00912a3d38b8b0b3db7f3",
+      "purpose": "Use a 64-byte output with zero encoded-byte allowance and an unbounded work ceiling so exact and primitive writes must fail without changing bytes, position, or counters.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'BFEA0000000000000080B0123456789ABCDEF' > fuzz/corpus/binary_writer/encoded_budget_failure"
+    },
+    {
+      "id": "FUZZ-SEED-BINARY-WRITER-004",
+      "path": "fuzz/corpus/binary_writer/work_budget_failure",
+      "size_bytes": 38,
+      "sha256": "5e315ffbfa8fa3c842c38a1a934dca4750df28a0ed575f2cb319514abbfd0ef1",
+      "purpose": "Use a 64-byte output with an unbounded encoded-byte ceiling and zero aggregate-work allowance so exact and primitive writes must fail atomically at the independent work budget.",
+      "origin": "Project-authored synthetic ASCII command bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' 'BEFA0000000000000080B0123456789ABCDEF' > fuzz/corpus/binary_writer/work_budget_failure"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-001",
+      "path": "fuzz/corpus/jet_header/standard",
+      "size_bytes": 23,
+      "sha256": "712b473ebc00eea554986eee98ecf73fc30f83be141d85bd9c0dcdc453031968",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise the Standard signature scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADStandard Jet DB' > fuzz/corpus/jet_header/standard"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-002",
+      "path": "fuzz/corpus/jet_header/system",
+      "size_bytes": 23,
+      "sha256": "6107358f1c12cf69bf5ea38821d20fe4cdb5356f39d9e73d939683a7aa3ef88c",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise the System signature-prefix scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADJet System DB x' > fuzz/corpus/jet_header/system"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-003",
+      "path": "fuzz/corpus/jet_header/temporary",
+      "size_bytes": 23,
+      "sha256": "1217d66fab4fac34c309798f4ebc1a6b00d3bda0b1afc16097de7212299a6b00",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise the Temporary signature-prefix scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADTemp Jet DB xyz' > fuzz/corpus/jet_header/temporary"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-004",
+      "path": "fuzz/corpus/jet_header/unknown",
+      "size_bytes": 23,
+      "sha256": "1a5ed9b09c0e05a08f4a81b779edf155a59f0b877dde77b3ba0234ebfce47230",
+      "purpose": "Select exact input, single-read, and total-read limits and exercise a complete unknown-signature scenario.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222HEADNot a Jet file!' > fuzz/corpus/jet_header/unknown"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-005",
+      "path": "fuzz/corpus/jet_header/truncated_one_below",
+      "size_bytes": 13,
+      "sha256": "1313909dd10ec6d5714dbf8066e4e7a748cfb85f7e8be9b4fbe0e1dbc73d5b67",
+      "purpose": "Select an exact input limit with both read budgets one below the 15-byte signature request while also supplying a truncated signature window.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '211HEADStand' > fuzz/corpus/jet_header/truncated_one_below"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-006",
+      "path": "fuzz/corpus/jet_header/geometry_2048",
+      "size_bytes": 2051,
+      "sha256": "e8b2fe85b98151f400200264fa1b1cc7e66561b9dcf15f574cae028f95f04483",
+      "purpose": "Select exact limits for a synthetic 2,048-byte payload and exercise accepted one-page Jet 3 geometry plus an arbitrary unknown signature.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"222\"; for (line = 0; line < 31; line++) { width = line == 0 ? 61 : 64; for (i = 0; i < width; i++) printf \"A\"; printf \"\\n\" } for (i = 0; i < 35; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet_header/geometry_2048"
+    },
+    {
+      "id": "FUZZ-SEED-JET-HEADER-007",
+      "path": "fuzz/corpus/jet_header/geometry_2049",
+      "size_bytes": 2052,
+      "sha256": "32dd579967409e99b9c71eb8e5888f443d2a2770500c098d706d0171d0652936",
+      "purpose": "Select exact limits for a synthetic 2,049-byte payload and exercise rejected partial-page Jet 3 geometry plus an arbitrary unknown signature.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"222\"; for (line = 0; line < 31; line++) { width = line == 0 ? 61 : 64; for (i = 0; i < width; i++) printf \"A\"; printf \"\\n\" } for (i = 0; i < 36; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet_header/geometry_2049"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-001",
+      "path": "fuzz/corpus/jet3_page/partial_source",
+      "size_bytes": 6,
+      "sha256": "1acd68eb6703033ebdf0d627169bd1cd045865893555e34500d5b76904d9ff4a",
+      "purpose": "Supply a one-byte payload after exact and permissive controls to exercise partial-page constructor rejection; the target also checks empty and one-page synthetic constructors for every input.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '24611' > fuzz/corpus/jet3_page/partial_source"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-002",
+      "path": "fuzz/corpus/jet3_page/one_page_repeat",
+      "size_bytes": 2053,
+      "sha256": "29e83ce588d0663f02498e01b36ae5fd380a44957afc029cff553ba30c7b449d",
+      "purpose": "Select exact one-page input, read, visit, and work limits, then read page zero successfully and repeat it to exercise cumulative-read rejection.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"24A114REPEAT!!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/one_page_repeat"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-003",
+      "path": "fuzz/corpus/jet3_page/two_page_references",
+      "size_bytes": 4101,
+      "sha256": "118abf62dc3340d05d58d06e06b1c5afa5c9036446b687356a58a50408309749",
+      "purpose": "Select a permissive two-page policy and exercise the last page, the page at count, the maximum page number, and a large decoded page operand.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"516442LASTPAGE3PASTEND!5MAXPAGE!0zzzzzzzz\"; for (i = 0; i < 4059; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/two_page_references"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-004",
+      "path": "fuzz/corpus/jet3_page/one_below_reads",
+      "size_bytes": 2053,
+      "sha256": "37f2a40de881c562b0b9fe9954bcd19ea34da474191b93260d1f8f0e9be3109a",
+      "purpose": "Select an exact one-page input with both single and cumulative byte-read limits one below a complete page, then request page zero.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"232111FIRSTPG!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/one_below_reads"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-005",
+      "path": "fuzz/corpus/jet3_page/zero_page_visits",
+      "size_bytes": 2053,
+      "sha256": "a87a148c5ad6b4f5b728d7e15d0686599287a046d777fda56b7897eb2d579094",
+      "purpose": "Select exact input and single-read limits with a permissive cumulative byte budget but zero allowed page visits, then request page zero.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"246011FIRSTPG!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/zero_page_visits"
+    },
+    {
+      "id": "FUZZ-SEED-JET3-PAGE-006",
+      "path": "fuzz/corpus/jet3_page/zero_total_work",
+      "size_bytes": 2053,
+      "sha256": "8aeb52a93e870e7f224c0d177c495991d415c1d7033ef3c8ce16c66db18e7c99",
+      "purpose": "Select exact input and single-read limits with a permissive cumulative byte budget and one allowed page visit but zero aggregate work, then request page zero.",
+      "origin": "Project-authored synthetic repeated ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX awk",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "awk 'BEGIN { printf \"246101FIRSTPG!\"; for (i = 0; i < 2038; i++) printf \"A\"; printf \"\\n\" }' > fuzz/corpus/jet3_page/zero_total_work"
+    },
+    {
+      "id": "FUZZ-SEED-RAW-JET3-CANDIDATE-001",
+      "path": "fuzz/corpus/raw_jet3_candidate/standard_one_page",
+      "size_bytes": 26,
+      "sha256": "c259d646002fe0bed532cf6b3ba7e4e8786e866eadbe2a3932998af593b11763",
+      "purpose": "Supply the documented generic Standard signature after controls so the target's fixed one-page expansion exercises successful candidate inspection and bounded raw-page access.",
+      "origin": "Project-authored synthetic ASCII bytes based on SRC-0004; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '222111HEADStandard Jet DB' > fuzz/corpus/raw_jet3_candidate/standard_one_page"
+    },
+    {
+      "id": "FUZZ-SEED-RAW-JET3-CANDIDATE-002",
+      "path": "fuzz/corpus/raw_jet3_candidate/system_one_page",
+      "size_bytes": 26,
+      "sha256": "46177341edb6bf56c849fbf547140ad81072adcecc69831bec2978d1a75073d1",
+      "purpose": "Supply the documented generic System signature prefix after controls and exercise successful fixed-page candidate inspection under a second resource-policy selection.",
+      "origin": "Project-authored synthetic ASCII bytes based on SRC-0004; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '444223HEADJet System DB x' > fuzz/corpus/raw_jet3_candidate/system_one_page"
+    },
+    {
+      "id": "FUZZ-SEED-RAW-JET3-CANDIDATE-003",
+      "path": "fuzz/corpus/raw_jet3_candidate/unknown_signature",
+      "size_bytes": 26,
+      "sha256": "457b3d4e6eac46734275fafd2ae6b97a21912575ba409d1760cbb17d51d3609c",
+      "purpose": "Provide a complete unknown signature window and selectors spanning permissive input and read policies without asserting a Jet generation or database validity.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '555330HEADNot a Jet file!' > fuzz/corpus/raw_jet3_candidate/unknown_signature"
+    },
+    {
+      "id": "FUZZ-SEED-RAW-JET3-CANDIDATE-004",
+      "path": "fuzz/corpus/raw_jet3_candidate/truncated_signature",
+      "size_bytes": 16,
+      "sha256": "cdb05d9dfc020762f30c4d48e0633b73683ff8de06bea0403eabaff01886fbab",
+      "purpose": "Exercise short original input and zero-selected resource policies while the target's fixed page expansion reaches unknown-signature handling without allocation.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000000HEADStand' > fuzz/corpus/raw_jet3_candidate/truncated_signature"
+    },
+    {
+      "id": "FUZZ-SEED-COMMIT-STATE-001",
+      "path": "fuzz/corpus/commit_state/documented_pairs",
+      "size_bytes": 10,
+      "sha256": "454dae17a20fb2f104dd6d5538ffd75ab8c6165c648f058ab46bde7c86e13708",
+      "purpose": "Repeat the two narrowly documented pairs and an arbitrary pair through a fixed one-page buffer to exercise exact preservation and classification without treating the values as a diagnosis.",
+      "origin": "Project-authored synthetic ASCII bytes informed by SRC-0013; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '2220001zz' > fuzz/corpus/commit_state/documented_pairs"
+    },
+    {
+      "id": "FUZZ-SEED-COMMIT-STATE-002",
+      "path": "fuzz/corpus/commit_state/arbitrary_pairs",
+      "size_bytes": 20,
+      "sha256": "44a3ec815b4dd98ddec367f650172226765a101e9f21af94a9efec253bf99056",
+      "purpose": "Populate fixed commit-region snapshots with varied arbitrary pairs and exercise raw round trips plus exclusive/shared slot-role boundaries.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '345CommitStatePairs' > fuzz/corpus/commit_state/arbitrary_pairs"
+    },
+    {
+      "id": "FUZZ-SEED-COMMIT-STATE-003",
+      "path": "fuzz/corpus/commit_state/empty_payload",
+      "size_bytes": 4,
+      "sha256": "945e4893567554e68f6f28d5652917269341a5f3d295a16b7c708c9bfd95dc5d",
+      "purpose": "Select zero resource limits and an empty payload while still exercising the target's fixed zero-filled snapshot and truncation scenarios.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000' > fuzz/corpus/commit_state/empty_payload"
+    },
+    {
+      "id": "FUZZ-SEED-COMMIT-STATE-004",
+      "path": "fuzz/corpus/commit_state/read_boundaries",
+      "size_bytes": 12,
+      "sha256": "b2c42d5bd23ffee2550181e4a724b6e9c26f228f3298cd31e80e0063641d77fd",
+      "purpose": "Select one-below and exact 512-byte read ceilings over a short source while fixed-page scenarios exercise successful reads and unchanged destinations after failures.",
+      "origin": "Project-authored synthetic ASCII bytes; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '122boundary' > fuzz/corpus/commit_state/read_boundaries"
+    }
+  ]
+}

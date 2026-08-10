@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:validation:ci-aggregate-evidence:1",
+  "title": "Commit-bound cross-platform G1 evidence aggregate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "commit", "required_platforms", "records"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "required_platforms": {
+      "const": ["linux", "macos", "windows"]
+    },
+    "records": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "record", "record_sha256"],
+        "properties": {
+          "platform": {"enum": ["linux", "macos", "windows"]},
+          "record": {"type": "string", "pattern": "^(linux|macos|windows)/platform-record\\.json$"},
+          "record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

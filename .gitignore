@@ -3,10 +3,12 @@
 /.vscode/
 *.swp
 *.tmp
+__pycache__/
 *.profraw
 coverage/
 fuzz/artifacts/
-fuzz/corpus/
+fuzz/target/
+benches/target/
 
 # Private scratch output is never fixture evidence.
 fixtures/work/

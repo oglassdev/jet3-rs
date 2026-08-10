@@ -9,27 +9,261 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
   test:
-    name: Test (${{ matrix.os }})
+    name: Core (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.96.0
-          components: clippy
+          components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --workspace --all-targets --all-features --locked
-      - run: cargo doc --workspace --all-features --no-deps --locked
-        env:
-          RUSTDOCFLAGS: -D warnings
+      - name: Run G1 checks and record commit-bound evidence
+        run: >-
+          python tools/ci_evidence.py run-platform
+          --platform "${{ matrix.platform }}"
+          --output "artifacts/ci-evidence/${{ matrix.platform }}"
+      - name: Upload platform evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-${{ matrix.platform }}-${{ github.sha }}
+          path: artifacts/ci-evidence/${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 30
+
+  g1-evidence:
+    name: Aggregate G1 cross-platform evidence
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Download exact-run platform records
+        uses: actions/download-artifact@v4
+        with:
+          pattern: g1-*-${{ github.sha }}
+          path: artifacts/ci-evidence/downloaded
+      - name: Validate and aggregate exact-commit evidence
+        shell: bash
+        run: |
+          commit=$(git rev-parse HEAD)
+          test "$commit" = "$GITHUB_SHA"
+          python tools/ci_evidence.py aggregate \
+            --input-root artifacts/ci-evidence/downloaded \
+            --output artifacts/ci-evidence/g1-aggregate \
+            --expected-commit "$commit"
+          python tools/ci_evidence.py verify-aggregate \
+            artifacts/ci-evidence/g1-aggregate \
+            --expected-commit "$commit"
+      - name: Upload validated aggregate
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-cross-platform-${{ github.sha }}
+          path: artifacts/ci-evidence/g1-aggregate
+          if-no-files-found: error
+          retention-days: 30
+
+  validation:
+    name: Validation contracts and tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Validate support matrix
+        run: |
+          python3 tools/validate_contract.py
+          python3 tools/validate_contract.py --self-test
+      - name: Reject G6 core inventory drift
+        run: python3 tools/validate_g6_evidence.py inventory
+      - name: Test validation and acceptance tooling
+        run: python3 -m unittest discover -s tools/tests -v
+      - name: Validate DAO oracle protocol without claiming provider coverage
+        run: |
+          python3 oracle/windows-dao/scripts/validate_protocol.py schemas
+          python3 -m unittest discover -s oracle/windows-dao/tests -v
+      - name: Reconcile checked test inventory with Rust tests
+        run: python3 tools/reconcile_tests.py --repo-root "$GITHUB_WORKSPACE"
+
+  g6-coverage:
+    name: Exact-commit G6 coverage evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2
+        with:
+          tool: cargo-llvm-cov@0.8.6
+      - uses: Swatinem/rust-cache@v2
+      - name: Vendor locked dependencies before the offline campaign
+        run: cargo fetch --locked
+      - name: Produce and independently validate exact-commit coverage
+        shell: bash
+        run: |
+          commit=$(git rev-parse HEAD)
+          test "$commit" = "$GITHUB_SHA"
+          python3 tools/run_g6_coverage.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --expected-commit "$commit" \
+            --output "coverage/g6/$commit"
+          python3 tools/validate_g6_evidence.py coverage \
+            "coverage/g6/$commit/coverage-evidence.json"
+      - name: Upload validated exact-commit coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: g6-coverage-${{ github.sha }}
+          path: coverage/g6/${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-oracle-contracts:
+    name: Windows oracle and bounded-process contracts
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate DAO oracle schemas
+        run: python oracle/windows-dao/scripts/validate_protocol.py schemas
+      - name: Exercise Windows-only oracle and process contracts
+        run: python -m unittest discover -s oracle/windows-dao/tests -v
+      - name: Exercise Windows release-evidence contracts
+        if: always()
+        run: >-
+          python -m unittest
+          tools.tests.test_release_evidence
+          tools.tests.test_release_evidence_identity
+          tools.tests.test_release_evidence_primitives
+          tools.tests.test_release_evidence_staging.ReleaseEvidenceStagingTests.test_windows_staging_is_explicitly_unavailable_until_handle_safe
+          -v
+
+  benchmarks:
+    name: Benchmark harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: benches
+      - name: Compile checked benchmarks
+        run: >-
+          cargo bench --manifest-path benches/Cargo.toml
+          --benches --locked --no-run
+      - name: Functionally execute every checked benchmark once
+        run: >-
+          cargo bench --manifest-path benches/Cargo.toml
+          --benches --locked -- --test
+      - name: Test benchmark manifests and comparison tooling
+        run: python3 -m unittest discover -s benches/tests -v
+      - name: Test benchmark metadata capture
+        run: benches/tests/test_capture_metadata.sh
+
+  fuzz:
+    name: Fuzz target smoke
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: nightly-2026-07-20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-07-20
+      - name: Install pinned cargo-fuzz for the native host
+        run: >-
+          cargo +nightly-2026-07-20 install cargo-fuzz
+          --version 0.13.2 --locked
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Compile all checked fuzz targets
+        run: cargo +nightly-2026-07-20 fuzz build --fuzz-dir fuzz
+      - name: Validate fuzz registry, seed manifest, and campaign reports
+        run: python3 -m unittest discover -s fuzz/tests -v
+      - name: Run every registered deterministic smoke campaign
+        run: |
+          export RUSTC
+          RUSTC="$(rustup which --toolchain nightly-2026-07-20 rustc)"
+          python3 fuzz/tools/fuzz_campaign.py smoke \
+            --cargo "$(rustup which --toolchain nightly-2026-07-20 cargo)" \
+            --output "$RUNNER_TEMP/jet3-fuzz-smoke-$GITHUB_SHA"
+
+  miri:
+    name: Miri library tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-07-20
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly-2026-07-20 miri setup
+      - name: Interpret pure jet3 library modules
+        # atomic and source tests exercise host files, permissions, and fsync, so
+        # they remain covered by the three-platform core job instead of Miri.
+        run: |
+          for test_module in \
+            binary::tests \
+            binary_writer::tests \
+            candidate::tests \
+            commit_state::tests \
+            database_header::tests \
+            error::tests \
+            header::tests \
+            jet3_page::tests \
+            limits::tests \
+            offset::tests \
+            page::tests \
+            raw_page_stream::tests \
+            resource::tests
+          do
+            cargo +nightly-2026-07-20 miri test \
+              --package jet3 --lib --all-features --locked "$test_module"
+          done
 
   format:
     name: Formatting
@@ -48,5 +282,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@cargo-deny
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
       - run: cargo deny check

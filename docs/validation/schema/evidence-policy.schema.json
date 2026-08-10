@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:validation:evidence-policy:1",
+  "title": "Checked release-evidence adapter policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "schema", "cleanliness", "limits", "adapters"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "const": "docs/validation/schema/evidence-policy.schema.json"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "cleanliness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tracked", "untracked_exceptions"],
+      "properties": {
+        "tracked": {
+          "const": "exact_head_index_and_worktree"
+        },
+        "untracked_exceptions": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "artifacts/acceptance/**"}
+          ],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_overlay_bytes",
+        "max_file_count",
+        "max_file_bytes",
+        "max_total_file_bytes",
+        "max_evidence_count",
+        "max_files_per_evidence",
+        "max_adapter_file_visits",
+        "max_adapter_input_bytes",
+        "max_json_depth",
+        "max_json_nodes"
+      ],
+      "properties": {
+        "max_overlay_bytes": {"type": "integer", "minimum": 1024, "maximum": 16777216},
+        "max_file_count": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "max_file_bytes": {"type": "integer", "minimum": 1, "maximum": 1073741824},
+        "max_total_file_bytes": {"type": "integer", "minimum": 1, "maximum": 4294967296},
+        "max_evidence_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "max_files_per_evidence": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "max_adapter_file_visits": {"type": "integer", "minimum": 1, "maximum": 65536},
+        "max_adapter_input_bytes": {"type": "integer", "minimum": 1, "maximum": 4294967296},
+        "max_json_depth": {"type": "integer", "minimum": 1, "maximum": 64},
+        "max_json_nodes": {"type": "integer", "minimum": 1, "maximum": 1000000}
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+          },
+          "status": {
+            "enum": ["enabled", "disabled", "forbidden"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "workspace_packages": {
+    "production": [
+      {
+        "crate_root": "crates/jet3/src/lib.rs",
+        "manifest": "crates/jet3/Cargo.toml",
+        "name": "jet3"
+      },
+      {
+        "crate_root": "crates/jet3-cli/src/main.rs",
+        "manifest": "crates/jet3-cli/Cargo.toml",
+        "name": "jet3-cli"
+      }
+    ],
+    "support": [
+      {
+        "manifest": "crates/jet3-testkit/Cargo.toml",
+        "name": "jet3-testkit"
+      }
+    ]
+  },
+  "allowed_runtime_packages": [
+    "jet3",
+    "jet3-cli"
+  ],
+  "format_knowledge": {
+    "assertion_files": [
+      {
+        "path": "crates/jet3-cli/src/main.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005"
+        ],
+        "sha256": "ff6a2d9b2481feeb5a7fda597d2b3ebdf26b0cfd2e0a3aba5226ee161c0f636c"
+      },
+      {
+        "path": "crates/jet3/src/candidate.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005"
+        ],
+        "sha256": "0c5c1b59022efcf9c6032e7176a21786c38cc7b7cf31d88219e127384105b486"
+      },
+      {
+        "path": "crates/jet3/src/commit_state.rs",
+        "provenance_ids": [
+          "SRC-0013"
+        ],
+        "sha256": "d51cdbaef9c49599e36d40595feb596b6c675556821aef25deeba898150f0acd"
+      },
+      {
+        "path": "crates/jet3/src/database_header.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005",
+          "SRC-0013"
+        ],
+        "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38"
+      },
+      {
+        "path": "crates/jet3/src/header.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005"
+        ],
+        "sha256": "d45ca6440966401e8b7a4e852db224404c15702a025034d37b12ecab7a84fb99"
+      },
+      {
+        "path": "crates/jet3/src/jet3_page.rs",
+        "provenance_ids": [
+          "SRC-0005"
+        ],
+        "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6"
+      },
+      {
+        "path": "crates/jet3/src/raw_page_stream.rs",
+        "provenance_ids": [
+          "SRC-0005"
+        ],
+        "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367"
+      }
+    ],
+    "reviewed_non_assertion_files": [
+      {
+        "path": "crates/jet3/src/atomic.rs",
+        "reason": "Format-neutral atomic file replacement and recovery mechanics only.",
+        "sha256": "5c1961c2989126038576ccf987e151eb4ecd351659742721989b03425d477ebe"
+      },
+      {
+        "path": "crates/jet3/src/atomic_tests.rs",
+        "reason": "Test-only verification of format-neutral atomic file replacement.",
+        "sha256": "7580866dafc937974eb328eb2fc1c3aec57ae27fdf6ea0a1057b2d8418848785"
+      },
+      {
+        "path": "crates/jet3/src/binary.rs",
+        "reason": "Format-neutral checked binary cursor and primitive little-endian decoding.",
+        "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840"
+      },
+      {
+        "path": "crates/jet3/src/binary_writer.rs",
+        "reason": "Format-neutral checked fixed-slice writer and primitive little-endian encoding.",
+        "sha256": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190"
+      },
+      {
+        "path": "crates/jet3/src/binary_writer_tests.rs",
+        "reason": "Test-only verification of the format-neutral fixed-slice writer.",
+        "sha256": "a2991dfb51911b3a165f655124284149ab96393ee9ee3f56e842e2a6deb053a8"
+      },
+      {
+        "path": "crates/jet3/src/candidate_tests.rs",
+        "reason": "Test-only verification of the provenance-bound raw candidate composition in candidate.rs.",
+        "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e"
+      },
+      {
+        "path": "crates/jet3/src/database_header_tests.rs",
+        "reason": "Test-only verification of the provenance-bound database header page composition in database_header.rs.",
+        "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0"
+      },
+      {
+        "path": "crates/jet3/src/commit_state_tests.rs",
+        "reason": "Test-only verification of the provenance-bound commit-region assertions in commit_state.rs.",
+        "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07"
+      },
+      {
+        "path": "crates/jet3/src/error.rs",
+        "reason": "Structured error types for format-neutral checked operations.",
+        "sha256": "d6e1e4793128a14201b0d2c2da9200c788b33291fc72b5d45cd0c74e61e9b3e9"
+      },
+      {
+        "path": "crates/jet3/src/header_tests.rs",
+        "reason": "Test-only verification of the provenance-bound header assertions in header.rs.",
+        "sha256": "143f512066dc2a698072fd08b26be000876d3ad39684dad61d5fefec640dda26"
+      },
+      {
+        "path": "crates/jet3/src/jet3_page_tests.rs",
+        "reason": "Test-only verification of the provenance-bound page-size use in jet3_page.rs.",
+        "sha256": "bff23b9a03e21578052e2bebb5f36eb6cf169cdf4ff737ab46ea05ae98409cb1"
+      },
+      {
+        "path": "crates/jet3/src/lib.rs",
+        "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
+        "sha256": "2df762181a994f237d18bf2a7df2dddaed737ca2e733ba8f7aeaf373e6918bbb"
+      },
+      {
+        "path": "crates/jet3/src/limits.rs",
+        "reason": "The only Jet reference explicitly states that the security defaults are format-independent.",
+        "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443"
+      },
+      {
+        "path": "crates/jet3/src/offset.rs",
+        "reason": "Format-neutral typed offset and byte-count arithmetic only.",
+        "sha256": "406f03894694b4910973ad05b987de7cd2d139164ace32d5e99c11d7536f8daa"
+      },
+      {
+        "path": "crates/jet3/src/page.rs",
+        "reason": "Format-neutral page geometry parameterized by an explicit caller-provided page size.",
+        "sha256": "875e13749f69b70dcbc0ee1bb7bc4cd9ecf3b98db7e0f79be6d102c4d67677c8"
+      },
+      {
+        "path": "crates/jet3/src/raw_page_stream_tests.rs",
+        "reason": "Test-only verification of the provenance-bound raw page stream assertions in raw_page_stream.rs.",
+        "sha256": "ed4649d7ca047d69454c97fdc33b5ea02e92a701b614b0cdee7e5b27c7e29fcf"
+      },
+      {
+        "path": "crates/jet3/src/resource.rs",
+        "reason": "Format-neutral allocation, read, encode, traversal, and work budgets.",
+        "sha256": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750"
+      },
+      {
+        "path": "crates/jet3/src/resource_tests.rs",
+        "reason": "Test-only verification of format-neutral resource budgets.",
+        "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f"
+      },
+      {
+        "path": "crates/jet3/src/source.rs",
+        "reason": "Format-neutral bounded random-access byte sources.",
+        "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a"
+      }
+    ]
+  },
+  "fixtures": {
+    "repository_manifest": "fixtures/manifest.json",
+    "seed_manifest": "fuzz/corpus/manifest.json",
+    "external_observational": {
+      "acceptance_fixture": false,
+      "documentation": "docs/validation/EXTERNAL_CORPUS.md",
+      "manifest": "docs/validation/external-corpus.json",
+      "provenance": "docs/PROVENANCE.md",
+      "redistributable": false,
+      "regenerable": false
+    }
+  }
+}

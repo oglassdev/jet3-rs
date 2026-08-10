@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1/bundle-manifest.schema.json",
+  "title": "Immutable DAO evidence bundle manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "run_id",
+    "git_commit",
+    "dirty",
+    "created_at_utc",
+    "status",
+    "report_path",
+    "scenario_ids",
+    "files"
+  ],
+  "properties": {
+    "protocol_version": { "const": "1.0.0" },
+    "document_type": { "const": "dao_bundle_manifest" },
+    "run_id": { "$ref": "#/$defs/runId" },
+    "git_commit": { "$ref": "#/$defs/gitCommit" },
+    "dirty": { "type": "boolean" },
+    "created_at_utc": { "$ref": "#/$defs/timestamp" },
+    "status": { "enum": ["pass", "fail", "blocked", "error"] },
+    "report_path": { "$ref": "#/$defs/relativePath" },
+    "scenario_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/scenarioId" }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "role", "sha256", "size_bytes", "media_type"],
+        "properties": {
+          "path": { "$ref": "#/$defs/relativePath" },
+          "role": {
+            "enum": [
+              "environment",
+              "report",
+              "scenario_input",
+              "source_database",
+              "output_database",
+              "dao_snapshot",
+              "rust_snapshot",
+              "operation_log",
+              "other"
+            ]
+          },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "media_type": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "runId": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "scenarioId": {
+      "type": "string",
+      "pattern": "^DAO-(GEN|READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$"
+    }
+  }
+}

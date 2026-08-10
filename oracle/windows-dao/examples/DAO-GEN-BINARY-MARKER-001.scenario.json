@@ -1,0 +1,74 @@
+{
+  "protocol_version": "1.1.0",
+  "document_type": "dao_scenario",
+  "scenario_id": "DAO-GEN-BINARY-MARKER-001",
+  "title": "Fixed binary marker",
+  "purpose": "Create one fixed-size dbBinary field and insert one deterministic marker row.",
+  "recipe": "binary_marker",
+  "capabilities": [
+    "oracle.dao_generate.controlled_recipe"
+  ],
+  "traceability": [
+    "ORACLE-01",
+    "TEST-01"
+  ],
+  "mode": "dao_generate_fixture",
+  "requirements": {
+    "database_version": "dbVersion30",
+    "provider_api": "DAO COM",
+    "provider_bitness": "either"
+  },
+  "database": {
+    "input_role": "none",
+    "output_path": "databases/DAO-GEN-BINARY-MARKER-001.mdb"
+  },
+  "steps": [
+    {
+      "step_id": "create",
+      "action": "create_database",
+      "arguments": {
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "version": "dbVersion30"
+      }
+    },
+    {
+      "step_id": "create_table",
+      "action": "create_table",
+      "arguments": {
+        "name": "BinaryMarker",
+        "fields": [
+          {
+            "name": "marker",
+            "dao_type": "dbBinary",
+            "required": true
+          }
+        ],
+        "indexes": []
+      }
+    },
+    {
+      "step_id": "insert_marker",
+      "action": "insert_row",
+      "arguments": {
+        "table": "BinaryMarker",
+        "values": [
+          {
+            "field": "marker",
+            "dao_type": "dbBinary",
+            "encoding": "lowercase_hex",
+            "value": "0011223344556677"
+          }
+        ]
+      }
+    },
+    {
+      "step_id": "close",
+      "action": "close_database",
+      "arguments": {}
+    }
+  ],
+  "expected": {
+    "outcome": "success",
+    "reopen_before_snapshot": true
+  }
+}

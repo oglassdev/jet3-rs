@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_1/scenario.schema.json",
+  "title": "DAO M1 controlled generation recipe",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "scenario_id",
+    "title",
+    "purpose",
+    "recipe",
+    "capabilities",
+    "traceability",
+    "mode",
+    "requirements",
+    "database",
+    "steps",
+    "expected"
+  ],
+  "properties": {
+    "protocol_version": { "const": "1.1.0" },
+    "document_type": { "const": "dao_scenario" },
+    "scenario_id": { "$ref": "#/$defs/scenarioId" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "recipe": {
+      "enum": [
+        "repeat_empty",
+        "binary_marker",
+        "text_index_baseline",
+        "text_index_nonunique",
+        "memo_ladder",
+        "long_binary_ladder"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" }
+    },
+    "traceability": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z]+-[0-9]{2}$" }
+    },
+    "mode": { "const": "dao_generate_fixture" },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["database_version", "provider_api", "provider_bitness"],
+      "properties": {
+        "database_version": { "const": "dbVersion30" },
+        "provider_api": { "const": "DAO COM" },
+        "provider_bitness": { "enum": ["x86", "x64", "either"] }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_role", "output_path"],
+      "properties": {
+        "input_role": { "const": "none" },
+        "output_path": { "$ref": "#/$defs/relativePath" }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "reopen_before_snapshot"],
+      "properties": {
+        "outcome": { "const": "success" },
+        "reopen_before_snapshot": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "scenarioId": {
+      "type": "string",
+      "pattern": "^DAO-GEN-[A-Z0-9][A-Z0-9_-]{2,63}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "stepId": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+    "field": {
+      "anyOf": [
+        { "$ref": "#/$defs/binaryField" },
+        { "$ref": "#/$defs/textField" },
+        { "$ref": "#/$defs/longField" }
+      ]
+    },
+    "binaryField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "dao_type", "required"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+        "dao_type": { "const": "dbBinary" },
+        "required": { "type": "boolean" }
+      }
+    },
+    "textField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "dao_type", "size", "required"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+        "dao_type": { "const": "dbText" },
+        "size": { "type": "integer", "minimum": 1, "maximum": 255 },
+        "required": { "type": "boolean" }
+      }
+    },
+    "longField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "dao_type", "required"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+        "dao_type": { "enum": ["dbMemo", "dbLongBinary"] },
+        "required": { "type": "boolean" }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "fields", "primary", "unique", "required", "ignore_nulls"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" }
+        },
+        "primary": { "type": "boolean" },
+        "unique": { "type": "boolean" },
+        "required": { "type": "boolean" },
+        "ignore_nulls": { "type": "boolean" }
+      }
+    },
+    "rowValue": {
+      "anyOf": [
+        { "$ref": "#/$defs/binaryValue" },
+        { "$ref": "#/$defs/textValue" },
+        { "$ref": "#/$defs/memoValue" },
+        { "$ref": "#/$defs/longBinaryValue" }
+      ]
+    },
+    "binaryValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "dao_type", "encoding", "value"],
+      "properties": {
+        "field": { "type": "string" },
+        "dao_type": { "const": "dbBinary" },
+        "encoding": { "const": "lowercase_hex" },
+        "value": { "type": "string", "pattern": "^(?:[0-9a-f]{2})+$" }
+      }
+    },
+    "textValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "dao_type", "encoding", "value"],
+      "properties": {
+        "field": { "type": "string" },
+        "dao_type": { "const": "dbText" },
+        "encoding": { "const": "unicode_string" },
+        "value": { "type": "string" }
+      }
+    },
+    "memoValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "dao_type", "encoding", "ascii_character", "length"],
+      "properties": {
+        "field": { "type": "string" },
+        "dao_type": { "const": "dbMemo" },
+        "encoding": { "const": "repeat_ascii" },
+        "ascii_character": { "type": "string", "pattern": "^[\\x20-\\x7e]$" },
+        "length": { "type": "integer", "minimum": 1, "maximum": 32769 }
+      }
+    },
+    "longBinaryValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "dao_type", "encoding", "byte", "length"],
+      "properties": {
+        "field": { "type": "string" },
+        "dao_type": { "const": "dbLongBinary" },
+        "encoding": { "const": "repeat_byte" },
+        "byte": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "length": { "type": "integer", "minimum": 1, "maximum": 32769 }
+      }
+    },
+    "step": {
+      "anyOf": [
+        { "$ref": "#/$defs/createDatabaseStep" },
+        { "$ref": "#/$defs/createTableStep" },
+        { "$ref": "#/$defs/insertRowStep" },
+        { "$ref": "#/$defs/closeDatabaseStep" }
+      ]
+    },
+    "createDatabaseStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "action", "arguments"],
+      "properties": {
+        "step_id": { "$ref": "#/$defs/stepId" },
+        "action": { "const": "create_database" },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locale", "version"],
+          "properties": {
+            "locale": { "const": ";LANGID=0x0409;CP=1252;COUNTRY=0" },
+            "version": { "const": "dbVersion30" }
+          }
+        }
+      }
+    },
+    "createTableStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "action", "arguments"],
+      "properties": {
+        "step_id": { "$ref": "#/$defs/stepId" },
+        "action": { "const": "create_table" },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "fields", "indexes"],
+          "properties": {
+            "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+            "fields": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": { "$ref": "#/$defs/field" }
+            },
+            "indexes": {
+              "type": "array",
+              "maxItems": 1,
+              "items": { "$ref": "#/$defs/index" }
+            }
+          }
+        }
+      }
+    },
+    "insertRowStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "action", "arguments"],
+      "properties": {
+        "step_id": { "$ref": "#/$defs/stepId" },
+        "action": { "const": "insert_row" },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["table", "values"],
+          "properties": {
+            "table": { "type": "string" },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": { "$ref": "#/$defs/rowValue" }
+            }
+          }
+        }
+      }
+    },
+    "closeDatabaseStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "action", "arguments"],
+      "properties": {
+        "step_id": { "$ref": "#/$defs/stepId" },
+        "action": { "const": "close_database" },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

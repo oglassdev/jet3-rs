@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "product_scope": {
     "format": "Microsoft Jet 3 / Access 97",
     "encrypted": false,
@@ -45,17 +45,197 @@
     },
     {
       "id": "format.header_and_version",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, and a typed snapshot of the complete first database page are implemented. The typed view exposes only the generic signature and documented raw contextual commit region; it does not assign meaning to any other page-zero bytes. Commit-state pairs are not interpreted as standalone validity or corruption evidence; the physical version discriminator, encryption-state validation, remaining header fields, contemporaneous .ldb correlation, and DAO differential evidence are absent.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/database_header.rs",
+          "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38",
+          "commit": "8055a11fe14925aabbfca0400eca3eaf3d12fec7",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/database_header_tests.rs",
+          "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0",
+          "commit": "8055a11fe14925aabbfca0400eca3eaf3d12fec7",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-DBHEADER-001",
+            "UT-DBHEADER-002",
+            "UT-DBHEADER-003",
+            "UT-DBHEADER-004",
+            "UT-DBHEADER-005",
+            "UT-DBHEADER-006"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/header.rs",
+          "sha256": "9e96022f0dacf4b3a8fd7b893ad3dafcdaef6e392e9ab8b140f4ffac3e281c22",
+          "commit": "06dc93400f26579a76eceece088d823c44a3a0b7",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/header_tests.rs",
+          "sha256": "143f512066dc2a698072fd08b26be000876d3ad39684dad61d5fefec640dda26",
+          "commit": "06dc93400f26579a76eceece088d823c44a3a0b7",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-HEADER-001",
+            "UT-HEADER-002",
+            "UT-HEADER-003",
+            "UT-HEADER-004",
+            "UT-HEADER-005",
+            "UT-HEADER-006",
+            "UT-HEADER-007",
+            "UT-HEADER-008",
+            "UT-HEADER-009",
+            "UT-HEADER-010",
+            "UT-HEADER-011",
+            "UT-HEADER-012",
+            "UT-HEADER-013"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/candidate.rs",
+          "sha256": "f9637fcb2b5d0b2ad8a7a9dc12269e9bfa7d38d37aa97f5141fc70c7ab0243fc",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/candidate_tests.rs",
+          "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-CANDIDATE-001",
+            "UT-CANDIDATE-002",
+            "UT-CANDIDATE-003",
+            "UT-CANDIDATE-004",
+            "UT-CANDIDATE-005",
+            "UT-CANDIDATE-006",
+            "UT-CANDIDATE-007",
+            "UT-CANDIDATE-008",
+            "UT-CANDIDATE-009",
+            "UT-CANDIDATE-010",
+            "UT-CANDIDATE-011",
+            "UT-CANDIDATE-012",
+            "UT-CANDIDATE-013",
+            "UT-CANDIDATE-014",
+            "UT-CANDIDATE-015"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/commit_state.rs",
+          "sha256": "73600300cbbf2cce0a7ffcb30716e0c24dea8c22c6ef5a9993830b1d6636495e",
+          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
+          "capability_id": "format.header_and_version"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/commit_state_tests.rs",
+          "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07",
+          "commit": "9a9457e8c811f4632150c8c0a465687965887c14",
+          "capability_id": "format.header_and_version",
+          "scenario_ids": [
+            "UT-COMMIT-001",
+            "UT-COMMIT-002",
+            "UT-COMMIT-003",
+            "UT-COMMIT-004",
+            "UT-COMMIT-005",
+            "UT-COMMIT-006",
+            "UT-COMMIT-007",
+            "UT-COMMIT-008",
+            "UT-COMMIT-009",
+            "UT-COMMIT-010",
+            "UT-COMMIT-011",
+            "UT-COMMIT-012"
+          ]
+        }
+      ]
     },
     {
       "id": "format.pages_allocation_usage",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "Bounded, content-agnostic reads and allocation-free sequential streaming of complete 2 KiB pages are implemented; page headers, page-type meanings, allocation and usage maps, structural validation, and DAO differential evidence are not.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/jet3_page.rs",
+          "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6",
+          "commit": "dafa5b0a7721a69a06ac17d59e682608f1f60b02",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/jet3_page_tests.rs",
+          "sha256": "bff23b9a03e21578052e2bebb5f36eb6cf169cdf4ff737ab46ea05ae98409cb1",
+          "commit": "dafa5b0a7721a69a06ac17d59e682608f1f60b02",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-JET3-PAGE-001",
+            "UT-JET3-PAGE-002",
+            "UT-JET3-PAGE-003",
+            "UT-JET3-PAGE-004",
+            "UT-JET3-PAGE-005",
+            "UT-JET3-PAGE-006",
+            "UT-JET3-PAGE-007",
+            "UT-JET3-PAGE-008",
+            "UT-JET3-PAGE-009",
+            "UT-JET3-PAGE-010",
+            "UT-JET3-PAGE-011",
+            "UT-JET3-PAGE-012",
+            "UT-JET3-PAGE-013",
+            "UT-JET3-PAGE-014",
+            "UT-JET3-PAGE-015"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/raw_page_stream.rs",
+          "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367",
+          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/raw_page_stream_tests.rs",
+          "sha256": "ed4649d7ca047d69454c97fdc33b5ea02e92a701b614b0cdee7e5b27c7e29fcf",
+          "commit": "9a9457e8c811f4632150c8c0a465687965887c14",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-RAW-STREAM-001",
+            "UT-RAW-STREAM-002",
+            "UT-RAW-STREAM-003",
+            "UT-RAW-STREAM-004",
+            "UT-RAW-STREAM-005",
+            "UT-RAW-STREAM-006",
+            "UT-RAW-STREAM-007",
+            "UT-RAW-STREAM-008"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/raw_page_stream_properties.rs",
+          "sha256": "abc10492db6014d5a46f2a48e061c305bac3c96e471150a662e89d6dc046727d",
+          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "PROP-RAW-STREAM-001",
+            "PROP-RAW-STREAM-002"
+          ]
+        }
+      ]
     },
     {
       "id": "schema.catalog_and_table_definitions",
@@ -76,6 +256,7 @@
       "implementation": "not_started",
       "verification": "unverified",
       "required_verification": "dao_differential",
+      "reason": "EXP-0007 verifies DAO-only generation/readback for controlled dbBinary, dbText, dbLongBinary, and dbMemo cases; no Rust table-value implementation or differential result exists.",
       "evidence": []
     },
     {
@@ -104,6 +285,7 @@
       "implementation": "not_started",
       "verification": "unverified",
       "required_verification": "dao_differential",
+      "reason": "EXP-0007 verifies only DAO readback of the controlled memo and long-binary boundary ladders through 32769 bytes; Rust long-value support remains unimplemented and unverified.",
       "evidence": []
     },
     {
@@ -125,6 +307,7 @@
       "implementation": "not_started",
       "verification": "unverified",
       "required_verification": "dao_differential",
+      "reason": "EXP-0007 verifies only the controlled DAO single-field nonunique dbText index pair; Rust index support and the broader primary/unique/nonunique capability remain unimplemented.",
       "evidence": []
     },
     {
@@ -150,10 +333,45 @@
     },
     {
       "id": "transactions.copy_on_write_atomic_publish",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "independent_check",
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/atomic.rs",
+          "sha256": "126dc31dbe5bc29eca15246dff399cb3eea464dea8a49dc2109a404806be5725",
+          "commit": "fdd61c6322a5168b454c013ea72bc8c422ea3c36",
+          "capability_id": "transactions.copy_on_write_atomic_publish"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/atomic_tests.rs",
+          "sha256": "ae3e3c2e2f8cd21acdcbc6e39b045414ab16a1b29b317b5b65a7decb250ab93b",
+          "commit": "fdd61c6322a5168b454c013ea72bc8c422ea3c36",
+          "capability_id": "transactions.copy_on_write_atomic_publish",
+          "scenario_ids": [
+            "UT-ATOMIC-001",
+            "UT-ATOMIC-002",
+            "UT-ATOMIC-003",
+            "UT-ATOMIC-004",
+            "UT-ATOMIC-005",
+            "UT-ATOMIC-006",
+            "UT-ATOMIC-007"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/atomic_publication.rs",
+          "sha256": "765dc7b14d5842f044bb235400a0147cf8f0e88910255e01ba3bd7a880c6b3cd",
+          "commit": "fdf206155f06a226421948adef83e6217f7c8256",
+          "capability_id": "transactions.copy_on_write_atomic_publish",
+          "scenario_ids": [
+            "IT-ATOMIC-001",
+            "IT-ATOMIC-002"
+          ]
+        }
+      ]
     },
     {
       "id": "output.deterministic_configuration",
@@ -164,10 +382,114 @@
     },
     {
       "id": "safety.malformed_input_bounds_and_limits",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "independent_check",
-      "evidence": []
+      "reason": "Format-neutral checked cursors, fixed-slice encoding, cumulative resource budgets, bounded sources, and atomic publication foundations have internal tests; malformed Jet structure coverage and the required independent verifier remain incomplete.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/binary.rs",
+          "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840",
+          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/binary_writer.rs",
+          "sha256": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/limits.rs",
+          "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443",
+          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/source.rs",
+          "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/resource.rs",
+          "sha256": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/atomic.rs",
+          "sha256": "d48ecb87af16bd4f584635d6889cd79d710fd112548eb5c37418b17378e0aee5",
+          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
+          "capability_id": "safety.malformed_input_bounds_and_limits"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/binary_writer_tests.rs",
+          "sha256": "a2991dfb51911b3a165f655124284149ab96393ee9ee3f56e842e2a6deb053a8",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "UT-BINARY-WRITER-001",
+            "UT-BINARY-WRITER-002",
+            "UT-BINARY-WRITER-003",
+            "UT-BINARY-WRITER-004",
+            "UT-BINARY-WRITER-005"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/resource_tests.rs",
+          "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "UT-RESOURCE-001",
+            "UT-RESOURCE-002",
+            "UT-RESOURCE-003",
+            "UT-RESOURCE-004",
+            "UT-RESOURCE-005",
+            "UT-RESOURCE-006",
+            "UT-RESOURCE-007",
+            "UT-RESOURCE-008",
+            "UT-RESOURCE-009",
+            "UT-RESOURCE-010",
+            "UT-RESOURCE-011"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/binary_writer_properties.rs",
+          "sha256": "e9a507a44b8e8b3694a5dcab4f0f5871fa3cdc630a161a60966e824ee63596ad",
+          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "PROP-BINARY-WRITER-001",
+            "PROP-BINARY-WRITER-002"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/tests/foundation_properties.rs",
+          "sha256": "29ae0cd91254de9a07a6f673f0940aa9d7af7447637a8236818cd6fb108ce811",
+          "commit": "e761151b39577eee6db207dba371aa983e048a7c",
+          "capability_id": "safety.malformed_input_bounds_and_limits",
+          "scenario_ids": [
+            "PROP-FOUNDATION-001",
+            "PROP-FOUNDATION-002",
+            "PROP-FOUNDATION-003",
+            "PROP-FOUNDATION-004",
+            "PROP-FOUNDATION-005",
+            "PROP-FOUNDATION-006"
+          ]
+        }
+      ]
     },
     {
       "id": "ui.forms_reports_vba_macros",

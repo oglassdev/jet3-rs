@@ -29,7 +29,12 @@ earlier state. The required kind of evidence still depends on the capability.
 | `not_applicable` | External DAO evidence does not apply, normally for an explicitly out-of-scope item or a Rust-only safety property. A reason is required. |
 
 `dao_opened` is deliberately weaker than `dao_differential`. Neither state may
-be inferred from a file being accepted by the Rust reader.
+be inferred from a file being accepted by the Rust reader. `internal_only` and
+every higher state require at least one `test` artifact: it must be a test-only
+Rust file, name stable scenario IDs from `tests/manifest.json`, map those IDs to
+the file's Cargo target or unit-test module, and retain every manifested test
+function in the commit-bound blob. Production modules are `source` evidence
+even when they contain inline `#[cfg(test)]` code.
 
 ## User-facing labels
 
@@ -64,6 +69,39 @@ The bundle contains:
 Evidence from a dirty tree may guide development but cannot satisfy a release
 gate. Test reports and fixture manifests must refer to stable scenario IDs; a
 changed scenario receives a new content hash.
+
+The support matrix may retain a source or test artifact from the immutable
+commit where that exact blob entered the implementation. This is lineage
+evidence: the validator resolves the recorded commit and verifies the blob
+hash. It is not release evidence. An `independent_report`, `dao_bundle`, or
+release-gate report must bind the exact clean release commit and cannot be
+satisfied by an earlier lineage record.
+
+## Detached release-evidence overlays
+
+A detached overlay is an untrusted inventory presented to the checked
+release-evidence validator. It binds its files, contracts, requested adapter,
+expected output, and exact commit. Adapter artifact kinds and maximum
+verification levels are intrinsic code properties; the checked policy may only
+enable, disable, or forbid the closed adapter catalog and cannot relabel an
+adapter.
+
+`repository.dirty: false` means that the tracked index and worktree exactly
+match the named `HEAD`. The policy permits only untracked acceptance outputs
+under `artifacts/acceptance/**`, because the acceptance process itself retains
+immutable results there. This is a repeated check of a caller-maintained
+quiescent workspace, not a transactional lock against concurrent same-account
+mutation.
+
+Failed publication retains its uniquely created private stage for inspection
+and never recursively deletes a pathname. Publication is presently available
+only under a quiescent, current-account-owned POSIX parent with protected
+ancestor permissions and atomic no-replace support. Windows publication fails
+closed until equivalent trusted-parent handle and ACL enforcement exists.
+
+The production policy currently enables no evidence adapters. Consequently,
+the overlay validator and staging foundation cannot advance any support-matrix
+verification state or substantiate a compatibility claim yet.
 
 ## Clean-room evidence ledger
 

@@ -1,6 +1,46 @@
 #![forbid(unsafe_code)]
 #![doc = "Safe, clean-room primitives for Access 97 / Jet 3 databases."]
 
+pub mod atomic;
+pub mod binary;
+pub mod binary_writer;
+pub mod candidate;
+pub mod commit_state;
+pub mod database_header;
+pub mod error;
+pub mod header;
+pub mod jet3_page;
+pub mod limits;
+pub mod offset;
+pub mod page;
+pub mod raw_page_stream;
+pub mod resource;
+pub mod source;
+
+pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
+pub use binary::BinaryCursor;
+pub use binary_writer::BinaryWriter;
+pub use candidate::{CandidateError, RawJet3Candidate};
+pub use commit_state::{
+    COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
+    CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
+    read_commit_region_into,
+};
+pub use database_header::{
+    DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError,
+};
+pub use error::{Error, LimitKind, ResourceLimitKind};
+pub use header::{
+    HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
+};
+pub use jet3_page::Jet3PageReader;
+pub use limits::{ReadBudget, ReadLimits};
+pub use offset::{ByteCount, ByteOffset};
+pub use page::{PageGeometry, PageNumber, PageOffset};
+pub use raw_page_stream::{RawPage, RawPageCursor};
+pub use resource::{ResourceBudget, ResourceLimits};
+pub use source::{FileSource, ReadAt, SliceSource};
+
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";
 

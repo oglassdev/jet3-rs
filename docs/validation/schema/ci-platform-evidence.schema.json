@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:validation:ci-platform-evidence:1",
+  "title": "Commit-bound G1 platform evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "commit", "dirty", "platform", "toolchain", "commands", "success"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "dirty": {"const": false},
+    "platform": {"enum": ["linux", "macos", "windows"]},
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "release", "commit_hash", "host", "llvm_version"],
+      "properties": {
+        "channel": {"const": "1.96.0"},
+        "release": {"const": "1.96.0"},
+        "commit_hash": {"const": "ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96"},
+        "host": {"type": "string", "minLength": 1},
+        "llvm_version": {"type": "string", "minLength": 1}
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "argv", "environment", "exit_code", "log", "log_sha256"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "argv": {"type": "array", "minItems": 2, "items": {"type": "string"}},
+          "environment": {
+            "type": "object",
+            "additionalProperties": {"type": "string"}
+          },
+          "exit_code": {"const": 0},
+          "log": {"type": "string", "pattern": "^logs/[a-z0-9-]+\\.log$"},
+          "log_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "success": {"const": true}
+  }
+}

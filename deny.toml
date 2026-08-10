@@ -19,6 +19,19 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+deny = [
+    { name = "dao" },
+    { name = "j4rs" },
+    { name = "jackcess" },
+    { name = "jdbc" },
+    { name = "jni" },
+    { name = "libmdb" },
+    { name = "mdbtools" },
+    { name = "mdbtools-pure-rs" },
+    { name = "odbc" },
+    { name = "odbc-api" },
+    { name = "ucanaccess" },
+]
 
 [sources]
 unknown-registry = "deny"

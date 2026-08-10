@@ -1,0 +1,39 @@
+{
+  "comparisons": [
+    {
+      "id": "CMP-0001",
+      "left_fixture_id": "FIX-0001",
+      "page_size_bytes": 2048,
+      "right_fixture_id": "FIX-0002"
+    }
+  ],
+  "environment_variable": "JET3_EXTERNAL_FIXTURE_ROOT",
+  "fixtures": [
+    {
+      "id": "FIX-0001",
+      "path": "controller-backups/full-2026-01-26/SN_7213_UnArchived/ETS3000.mdb",
+      "sha256": "5c18e9d85c2c91a1afdd6d2ddc64c990fd1442c01c753a5d76d4b6d15259537b",
+      "size_bytes": 1593344
+    },
+    {
+      "id": "FIX-0002",
+      "path": "controller-backups/full-2026-07-23/SN_7213_UnArchived/ETS3000.mdb",
+      "sha256": "0a68f70d901d4b519b765323c141c794b427f3d4ee25ef2bd390ce2a493378d9",
+      "size_bytes": 1593344
+    },
+    {
+      "id": "FIX-0003",
+      "path": "controller-backups/historical-2019/ETS3000.mdb",
+      "sha256": "d8dba78c0ce51614f0099e9db7b2cd10790935ffb5db989db5fc766b7c5881fa",
+      "size_bytes": 1220608
+    },
+    {
+      "id": "FIX-0004",
+      "path": "controller-transfers/jobs-only-2026-07-23-three-jobs/extracted/ETS3000.MDB",
+      "sha256": "42aa474ee656d3f1249af08424ed92c91be1388b308906cafb54b4e7ff812d61",
+      "size_bytes": 2129920
+    }
+  ],
+  "purpose": "nonredistributable-read-only-corpus-verification",
+  "schema_version": 2
+}
