@@ -111,6 +111,9 @@ class M4R1PowerShellSourceContractTests(unittest.TestCase):
         self.assertIn("$entries.Count -lt 578", self.controller)
         self.assertIn("$entries.Count -gt 650", self.controller)
 
+    def test_manifest_registrar_accepts_revision_roles(self) -> None:
+        self.assertIn('"post_worker_quiescence", "companion"', self.bundle)
+
     def test_new_production_files_remain_below_limit(self) -> None:
         for path in (ENTRY, WORKER, *MODULES.glob("*.ps1")):
             with self.subTest(path=path.name):

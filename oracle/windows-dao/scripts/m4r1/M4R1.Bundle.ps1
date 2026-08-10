@@ -102,7 +102,8 @@ function Add-M4ManifestEntry {
         [ValidateSet(
             "plan", "environment", "analysis_report", "sample_record",
             "phase_invocation", "phase_worker_result", "operation_log",
-            "semantic_snapshot", "clone_log", "database", "prefix"
+            "semantic_snapshot", "clone_log", "database", "prefix",
+            "post_worker_quiescence", "companion"
         )][string]$Role,
         [string]$ExpectedSha256,
         [long]$ExpectedSizeBytes = -1
