@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jet3-rs:dao:m4r2:worker-result:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version", "document_type", "experiment_id", "sample_id",
+    "phase_id", "phase_ordinal", "worker_run_id", "worker_ordinal",
+    "nonce", "process_id", "architecture", "provider", "started_at_utc",
+    "finished_at_utc", "bindings_verified_before_com", "invocation_sha256",
+    "operation_log", "snapshot", "pre_com_file_binding",
+    "post_close_file_observations", "execution_status"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"},
+    "document_type": {"const": "dao_m4_worker_result"},
+    "experiment_id": {"const": "DAO-M4-HEADER-DISCRIMINATOR-003"},
+    "sample_id": {"$ref": "#/$defs/sample"},
+    "phase_id": {"enum": ["creator", "reopen"]},
+    "phase_ordinal": {"enum": [1, 2]},
+    "worker_run_id": {"$ref": "#/$defs/worker"},
+    "worker_ordinal": {"type": "integer", "minimum": 1, "maximum": 72},
+    "nonce": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "process_id": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "architecture": {"const": "x86"},
+    "provider": {
+      "type": "object", "additionalProperties": false,
+      "required": ["powershell_version", "prog_id", "clsid", "server_sha256"],
+      "properties": {
+        "powershell_version": {"type": "string", "minLength": 3, "maxLength": 32},
+        "prog_id": {"const": "DAO.DBEngine.36"},
+        "clsid": {"type": "string", "pattern": "^[{][0-9A-F-]{36}[}]$"},
+        "server_sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "started_at_utc": {"type": "string", "format": "date-time"},
+    "finished_at_utc": {"type": "string", "format": "date-time"},
+    "bindings_verified_before_com": {"const": true},
+    "invocation_sha256": {"$ref": "#/$defs/sha"},
+    "operation_log": {"$ref": "#/$defs/artifact"},
+    "snapshot": {"$ref": "#/$defs/artifact"},
+    "pre_com_file_binding": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["database_path", "database_bytes", "database_sha256"],
+          "properties": {
+            "database_path": {"$ref": "#/$defs/path"},
+            "database_bytes": {"type": "integer", "minimum": 2048, "maximum": 1048576},
+            "database_sha256": {"$ref": "#/$defs/sha"}
+          }
+        }
+      ]
+    },
+    "post_close_file_observations": {
+      "type": "object", "additionalProperties": false,
+      "required": ["database_path", "database_bytes", "database_sha256", "prefix", "prefix_bytes"],
+      "properties": {
+        "database_path": {"$ref": "#/$defs/path"},
+        "database_bytes": {"type": "integer", "minimum": 2048, "maximum": 1048576},
+        "database_sha256": {"$ref": "#/$defs/sha"},
+        "prefix": {"$ref": "#/$defs/artifact"},
+        "prefix_bytes": {"const": 2048}
+      }
+    },
+    "execution_status": {"const": "pass"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sample": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]$"},
+    "worker": {"type": "string", "pattern": "^M4-V(?:20|30|40)-(?:U|E)-0[1-6]-(?:CREATOR|REOPEN)$"},
+    "path": {"type": "string", "minLength": 3, "maxLength": 255, "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}/){1,5}[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {"path": {"$ref": "#/$defs/path"}, "sha256": {"$ref": "#/$defs/sha"}}
+    }
+  }
+}

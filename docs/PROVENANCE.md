@@ -1528,6 +1528,95 @@ Use `not applicable` explicitly rather than omitting a field.
   evidence requires its own retention and redistribution review
 - Review: pending independent review
 
+### EXP-0016 — M4R1 exact-path bundle-closure blocker
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled black-box DAO execution and exact bundle-validation failure
+  observation
+- Question: Why did the complete M4R1 worker campaign fail to publish after
+  its isolated DAO phases finished?
+- Origin: the checked project M4R1 controller, licensed Microsoft DAO provider,
+  and project-authored independent bundle validator only; no third-party MDB
+  implementation, donated MDB, or Rust format interpretation was used
+- Environment: the same Windows, x86 Windows PowerShell, locale, code-page,
+  time-zone, `DAO.DBEngine.36`, and `dao360.dll` identities recorded in
+  `EXP-0013`; exact clean pushed producer commit
+  `79077b9300b741a6f83b1196a963a6a203215ef7`
+- Protocol: execute `run-m4r1-controlled.ps1` with run ID
+  `20260810T212252Z-m4-r1`; allow the checked controller to run all isolated
+  creator and reopen workers, controller quiescence observations, cloning, and
+  analysis generation; before publication, run exact case-sensitive manifest
+  and bundle-tree closure; inspect only the validator's path-mismatch error and
+  do not open any staged MDB, prefix, sample record, or analysis report
+- Artifacts: no M4R1 bundle was published or retained; the controller removed
+  its failed staging bundle and left only its empty commit parent under
+  `%TEMP%\jet3-rs-dao-m4r1\evidence-79077b9`; the provider environment record
+  remains `%TEMP%\jet3-rs-m4-bootstrap\environment.json`, SHA-256
+  `8664fddb92483831cc300d4e16a8cb755b7fe4100c3f7b14e5c1220bb86c03d5`
+- Observation: staged bundle validation reported lowercase declared
+  `creator.mdb` and `creator.ldb` paths missing and uppercase `CREATOR.MDB` and
+  `CREATOR.ldb` paths extra for all twelve `dbVersion20` creator phases. The
+  error reported no prefix byte, candidate set, comparison, or scientific
+  outcome. Exact path closure prevented publication.
+- Interpretation: M4R1 remains failed and immutable. A later blinded
+  operational revision may use uppercase database basenames uniformly across
+  every condition while preserving exact case-sensitive tree closure. The
+  validator must not become case-insensitive, and the controller must not move,
+  copy, delete, or synthesize database or companion evidence to make a path
+  pass. This observation assigns no MDB or companion format meaning and
+  establishes no compatibility.
+- Usage: blocker record for `EXP-0017`; no production Rust usage
+- Rights: generated locally through the licensed provider; no bundle was
+  retained or redistributed
+- Review: pending independent review
+
+### EXP-0017 — Preregistered canonical-path M4 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: declarative experiment-plan revision with checked controller, isolated
+  workers, analysis, and complete-bundle validator; not yet executed
+- Question: Can the unchanged companion-aware M4 campaign close an exact
+  case-sensitive bundle when every condition uses preregistered uppercase
+  database basenames?
+- Origin: project-authored experiment
+  `DAO-M4-HEADER-DISCRIMINATOR-003`, revised only from the filename-casing
+  validation error in `EXP-0016`; no M4R1 prefix, candidate set, comparison, or
+  analysis report was published or inspected before this plan was recorded
+- Environment: not yet executed; the plan requires the licensed x86 DAO
+  provider and leaves the exact host, runtime, provider binary, locale, code
+  pages, time zone, repository, and producer commit to a future bound
+  environment record
+- Protocol: preserve all `EXP-0014` conditions, replicas, cyclic schedule, DAO
+  calls, quiescence, companion retention, resource bounds, 2,048-byte prefixes,
+  `[0x000,0x600)` analysis window, 324 comparisons, three predicates, and
+  scientific outcome rules; change only every sample's database basenames from
+  `creator.mdb` and `reopen.mdb` to `CREATOR.MDB` and `REOPEN.MDB`; derive the
+  lowercase `.ldb` extension from those exact basenames; require exact
+  case-sensitive manifest/tree closure and retain the no-mutation rules
+- Artifacts:
+  `oracle/windows-dao/experiments/m4r2/m4-header-discriminator-r2.plan.json`
+  SHA-256
+  `37c66244ee0021e4e63096ac7b5e0ac27615fa1e82d7afc9fab56fbc7f07ce46`;
+  `oracle/windows-dao/experiments/m4r2/post-worker-quiescence.schema.json`
+  SHA-256
+  `00beb1ba275812cf3dce0da4d85f3f1189e44b0a27ded82e055cd96f2e499438`;
+  `oracle/windows-dao/experiments/m4r2/README.md` SHA-256
+  `67fd685cd582df21b53d55d6c953368ea91e634cf4a886e181b54466a5012dc8`
+- Observation: no M4R2 DAO call, sample, prefix, or result exists. The normalized
+  scientific projection is unchanged from `EXP-0014`; only the experiment
+  identity, evidence ref, provenance binding, and uniformly uppercase database
+  locators differ.
+- Interpretation: this is a blinded operational preregistration, not evidence.
+  It cannot assign physical meaning, change Rust support, or establish MDB
+  compatibility. A result exists only after complete exact-commit execution and
+  independent bundle validation.
+- Usage: `oracle/windows-dao/experiments/m4r2/`; companion-aware M4 executor;
+  future M5 input revision
+- Rights: plan, schemas, controller, validators, and tests are original project
+  material; future generated evidence requires its own retention and rights
+  record
+- Review: pending independent review and exact-commit execution
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

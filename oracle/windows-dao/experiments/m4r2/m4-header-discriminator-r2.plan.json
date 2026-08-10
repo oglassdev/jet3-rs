@@ -1,0 +1,249 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_m4_plan",
+  "experiment_id": "DAO-M4-HEADER-DISCRIMINATOR-003",
+  "provenance_ids": ["SRC-0013", "SRC-0014", "SRC-0015", "SRC-0016"],
+  "revision": {
+    "provenance_entry": "EXP-0017",
+    "supersedes_execution_of": "DAO-M4-HEADER-DISCRIMINATOR-002",
+    "reason": "database basenames are uppercase uniformly for exact case-sensitive bundle closure",
+    "scientific_projection_changed": false
+  },
+  "repository_url": "https://github.com/oglassdev/jet3-rs.git",
+  "remote_ref": "refs/heads/codex/m4r2-canonical-paths",
+  "requires_exact_clean_commit": true,
+  "execution_gate": {
+    "status": "READY",
+    "reason": "checked_runner_analysis_and_bundle_validator_implemented"
+  },
+  "design": {
+    "creation_method": "DBEngine.CreateDatabase",
+    "compact_database_used": false,
+    "database_content": "empty_user_schema",
+    "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+    "worker_architecture": "x86",
+    "version_factor": ["dbVersion20", "dbVersion30", "dbVersion40"],
+    "encryption_factor": ["unencrypted", "dbEncrypt"],
+    "replicas_per_condition": 6,
+    "block_count": 6,
+    "schedule": "complete_cyclic_latin",
+    "workers_per_sample": 2,
+    "worker_ordinal_rule": {
+      "creator": "2*launch_ordinal-1",
+      "reopen": "2*launch_ordinal"
+    },
+    "controller_clone": {
+      "owner": "controller",
+      "source": "closed_creator_database",
+      "destination": "separate_reopen_database",
+      "exact_byte_clone": true,
+      "rehash_source_after_clone": true,
+      "require_three_way_hash_equality": true,
+      "no_hardlinks": true,
+      "reparse_free": true,
+      "completed_before_reopen_com": true
+    },
+    "post_worker_quiescence": {
+      "owner": "controller",
+      "worker_exit_wait_required": true,
+      "database_exclusive_open_required": true,
+      "database_must_match_worker_post_close_observation": true,
+      "companion_path_rule": "replace_database_extension_with_lowercase_ldb",
+      "companion_states": ["absent", "present"],
+      "present_companion_exclusive_open_required": true,
+      "present_companion_retained_in_place": true,
+      "companion_deletion_forbidden": true,
+      "completed_before_next_phase": true
+    },
+    "phases": {
+      "creator": {
+        "phase_id": "creator",
+        "phase_ordinal": 1,
+        "operation": "create_close_observe",
+        "fresh_x86_worker": true
+      },
+      "reopen": {
+        "phase_id": "reopen",
+        "phase_ordinal": 2,
+        "operation": "reopen_clone_close_observe",
+        "fresh_x86_worker": true
+      }
+    }
+  },
+  "bounds": {
+    "max_database_bytes": 1048576,
+    "max_database_artifacts": 72,
+    "max_total_database_bytes": 75497472,
+    "max_acquisition_database_reads": 288,
+    "max_acquisition_database_read_bytes": 301989888,
+    "max_validator_database_reads_per_run": 72,
+    "max_validator_database_read_bytes_per_run": 75497472,
+    "max_plan_bytes": 1048576,
+    "max_sample_record_bytes": 65536,
+    "max_analysis_report_bytes": 16777216,
+    "prefix_bytes_per_phase": 2048,
+    "max_prefix_artifacts": 72,
+    "max_total_prefix_bytes": 147456,
+    "max_companion_artifacts": 72,
+    "max_companion_bytes_per_artifact": 65536,
+    "max_total_companion_bytes": 4718592,
+    "max_acquisition_companion_reads": 72,
+    "max_acquisition_companion_read_bytes": 4718592,
+    "max_validator_companion_reads_per_run": 72,
+    "max_validator_companion_read_bytes_per_run": 4718592,
+    "min_payload_files": 579,
+    "max_payload_files": 651,
+    "max_analyzed_offsets": 1536,
+    "max_comparisons": 324,
+    "max_comparison_byte_visits": 995328,
+    "max_candidate_sets": 3,
+    "max_worker_processes": 72,
+    "worker_timeout_seconds": 120
+  },
+  "analysis": {
+    "retained_prefix_range": {"start": 0, "end": 2048},
+    "analyzed_ranges": [{"start": 0, "end": 1536}],
+    "excluded_ranges": [
+      {"start": 1536, "end": 2048, "provenance_id": "SRC-0013"}
+    ],
+    "comparison_kinds": [
+      "paired_phase",
+      "within_condition",
+      "matched_version",
+      "matched_encryption"
+    ],
+    "candidate_predicates": [
+      {
+        "candidate_set_id": "M4-CANDIDATE-VERSION-PAIRED",
+        "factor": "version",
+        "stability_scope": "all_conditions_all_replicas_both_phases",
+        "predicate": "V30_UNENCRYPTED_DIFFERS_FROM_V20_AND_V40_UNENCRYPTED_AND_ENCRYPTION_PAIRS_EQUAL_AT_ALL_VERSIONS",
+        "comparison_occurrence_kind": "matched_version"
+      },
+      {
+        "candidate_set_id": "M4-CANDIDATE-V30-ENCRYPTION",
+        "factor": "encryption",
+        "stability_scope": "v30_all_replicas_both_phases",
+        "predicate": "V30_UNENCRYPTED_DIFFERS_FROM_V30_ENCRYPTED",
+        "comparison_occurrence_kind": "matched_encryption_v30"
+      },
+      {
+        "candidate_set_id": "M4-CANDIDATE-ALL-VERSION-ENCRYPTION",
+        "factor": "encryption",
+        "stability_scope": "all_conditions_all_replicas_both_phases",
+        "predicate": "SAME_NONZERO_XOR_ENCRYPTION_EFFECT_AT_ALL_VERSIONS",
+        "comparison_occurrence_kind": "matched_encryption_all_versions"
+      }
+    ],
+    "scientific_outcome_rules": {
+      "candidate_offsets_observed_requires_all_nonempty": [
+        "M4-CANDIDATE-VERSION-PAIRED",
+        "M4-CANDIDATE-V30-ENCRYPTION"
+      ],
+      "inconclusive_requires_any_nonempty_unless_candidate_offsets_observed": true,
+      "no_candidates_observed_requires_all_empty": true
+    },
+    "physical_meaning_may_be_assigned": false,
+    "compatibility_may_be_claimed": false,
+    "companion_bytes_analyzed": false
+  },
+  "conditions": [
+    {
+      "condition_id": "V20-U",
+      "version_option": "dbVersion20",
+      "version_api_value": 16,
+      "encryption_option": "omitted",
+      "encryption_api_value": 0,
+      "create_option_value": 16,
+      "expected_dao_version": "2.0"
+    },
+    {
+      "condition_id": "V20-E",
+      "version_option": "dbVersion20",
+      "version_api_value": 16,
+      "encryption_option": "dbEncrypt",
+      "encryption_api_value": 2,
+      "create_option_value": 18,
+      "expected_dao_version": "2.0"
+    },
+    {
+      "condition_id": "V30-U",
+      "version_option": "dbVersion30",
+      "version_api_value": 32,
+      "encryption_option": "omitted",
+      "encryption_api_value": 0,
+      "create_option_value": 32,
+      "expected_dao_version": "3.0"
+    },
+    {
+      "condition_id": "V30-E",
+      "version_option": "dbVersion30",
+      "version_api_value": 32,
+      "encryption_option": "dbEncrypt",
+      "encryption_api_value": 2,
+      "create_option_value": 34,
+      "expected_dao_version": "3.0"
+    },
+    {
+      "condition_id": "V40-U",
+      "version_option": "dbVersion40",
+      "version_api_value": 64,
+      "encryption_option": "omitted",
+      "encryption_api_value": 0,
+      "create_option_value": 64,
+      "expected_dao_version": "4.0"
+    },
+    {
+      "condition_id": "V40-E",
+      "version_option": "dbVersion40",
+      "version_api_value": 64,
+      "encryption_option": "dbEncrypt",
+      "encryption_api_value": 2,
+      "create_option_value": 66,
+      "expected_dao_version": "4.0"
+    }
+  ],
+  "samples": [
+    {"sample_id":"M4-V20-U-01","condition_id":"V20-U","replica":1,"block":1,"position_in_block":1,"launch_ordinal":1,"creator_database_path":"evidence/samples/M4-V20-U-01/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-U-01/REOPEN.MDB","record_path":"evidence/samples/M4-V20-U-01/record.json"},
+    {"sample_id":"M4-V20-E-01","condition_id":"V20-E","replica":1,"block":1,"position_in_block":2,"launch_ordinal":2,"creator_database_path":"evidence/samples/M4-V20-E-01/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-E-01/REOPEN.MDB","record_path":"evidence/samples/M4-V20-E-01/record.json"},
+    {"sample_id":"M4-V30-U-01","condition_id":"V30-U","replica":1,"block":1,"position_in_block":3,"launch_ordinal":3,"creator_database_path":"evidence/samples/M4-V30-U-01/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-U-01/REOPEN.MDB","record_path":"evidence/samples/M4-V30-U-01/record.json"},
+    {"sample_id":"M4-V30-E-01","condition_id":"V30-E","replica":1,"block":1,"position_in_block":4,"launch_ordinal":4,"creator_database_path":"evidence/samples/M4-V30-E-01/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-E-01/REOPEN.MDB","record_path":"evidence/samples/M4-V30-E-01/record.json"},
+    {"sample_id":"M4-V40-U-01","condition_id":"V40-U","replica":1,"block":1,"position_in_block":5,"launch_ordinal":5,"creator_database_path":"evidence/samples/M4-V40-U-01/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-U-01/REOPEN.MDB","record_path":"evidence/samples/M4-V40-U-01/record.json"},
+    {"sample_id":"M4-V40-E-01","condition_id":"V40-E","replica":1,"block":1,"position_in_block":6,"launch_ordinal":6,"creator_database_path":"evidence/samples/M4-V40-E-01/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-E-01/REOPEN.MDB","record_path":"evidence/samples/M4-V40-E-01/record.json"},
+
+    {"sample_id":"M4-V20-E-02","condition_id":"V20-E","replica":2,"block":2,"position_in_block":1,"launch_ordinal":7,"creator_database_path":"evidence/samples/M4-V20-E-02/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-E-02/REOPEN.MDB","record_path":"evidence/samples/M4-V20-E-02/record.json"},
+    {"sample_id":"M4-V30-U-02","condition_id":"V30-U","replica":2,"block":2,"position_in_block":2,"launch_ordinal":8,"creator_database_path":"evidence/samples/M4-V30-U-02/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-U-02/REOPEN.MDB","record_path":"evidence/samples/M4-V30-U-02/record.json"},
+    {"sample_id":"M4-V30-E-02","condition_id":"V30-E","replica":2,"block":2,"position_in_block":3,"launch_ordinal":9,"creator_database_path":"evidence/samples/M4-V30-E-02/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-E-02/REOPEN.MDB","record_path":"evidence/samples/M4-V30-E-02/record.json"},
+    {"sample_id":"M4-V40-U-02","condition_id":"V40-U","replica":2,"block":2,"position_in_block":4,"launch_ordinal":10,"creator_database_path":"evidence/samples/M4-V40-U-02/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-U-02/REOPEN.MDB","record_path":"evidence/samples/M4-V40-U-02/record.json"},
+    {"sample_id":"M4-V40-E-02","condition_id":"V40-E","replica":2,"block":2,"position_in_block":5,"launch_ordinal":11,"creator_database_path":"evidence/samples/M4-V40-E-02/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-E-02/REOPEN.MDB","record_path":"evidence/samples/M4-V40-E-02/record.json"},
+    {"sample_id":"M4-V20-U-02","condition_id":"V20-U","replica":2,"block":2,"position_in_block":6,"launch_ordinal":12,"creator_database_path":"evidence/samples/M4-V20-U-02/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-U-02/REOPEN.MDB","record_path":"evidence/samples/M4-V20-U-02/record.json"},
+
+    {"sample_id":"M4-V30-U-03","condition_id":"V30-U","replica":3,"block":3,"position_in_block":1,"launch_ordinal":13,"creator_database_path":"evidence/samples/M4-V30-U-03/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-U-03/REOPEN.MDB","record_path":"evidence/samples/M4-V30-U-03/record.json"},
+    {"sample_id":"M4-V30-E-03","condition_id":"V30-E","replica":3,"block":3,"position_in_block":2,"launch_ordinal":14,"creator_database_path":"evidence/samples/M4-V30-E-03/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-E-03/REOPEN.MDB","record_path":"evidence/samples/M4-V30-E-03/record.json"},
+    {"sample_id":"M4-V40-U-03","condition_id":"V40-U","replica":3,"block":3,"position_in_block":3,"launch_ordinal":15,"creator_database_path":"evidence/samples/M4-V40-U-03/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-U-03/REOPEN.MDB","record_path":"evidence/samples/M4-V40-U-03/record.json"},
+    {"sample_id":"M4-V40-E-03","condition_id":"V40-E","replica":3,"block":3,"position_in_block":4,"launch_ordinal":16,"creator_database_path":"evidence/samples/M4-V40-E-03/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-E-03/REOPEN.MDB","record_path":"evidence/samples/M4-V40-E-03/record.json"},
+    {"sample_id":"M4-V20-U-03","condition_id":"V20-U","replica":3,"block":3,"position_in_block":5,"launch_ordinal":17,"creator_database_path":"evidence/samples/M4-V20-U-03/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-U-03/REOPEN.MDB","record_path":"evidence/samples/M4-V20-U-03/record.json"},
+    {"sample_id":"M4-V20-E-03","condition_id":"V20-E","replica":3,"block":3,"position_in_block":6,"launch_ordinal":18,"creator_database_path":"evidence/samples/M4-V20-E-03/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-E-03/REOPEN.MDB","record_path":"evidence/samples/M4-V20-E-03/record.json"},
+
+    {"sample_id":"M4-V30-E-04","condition_id":"V30-E","replica":4,"block":4,"position_in_block":1,"launch_ordinal":19,"creator_database_path":"evidence/samples/M4-V30-E-04/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-E-04/REOPEN.MDB","record_path":"evidence/samples/M4-V30-E-04/record.json"},
+    {"sample_id":"M4-V40-U-04","condition_id":"V40-U","replica":4,"block":4,"position_in_block":2,"launch_ordinal":20,"creator_database_path":"evidence/samples/M4-V40-U-04/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-U-04/REOPEN.MDB","record_path":"evidence/samples/M4-V40-U-04/record.json"},
+    {"sample_id":"M4-V40-E-04","condition_id":"V40-E","replica":4,"block":4,"position_in_block":3,"launch_ordinal":21,"creator_database_path":"evidence/samples/M4-V40-E-04/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-E-04/REOPEN.MDB","record_path":"evidence/samples/M4-V40-E-04/record.json"},
+    {"sample_id":"M4-V20-U-04","condition_id":"V20-U","replica":4,"block":4,"position_in_block":4,"launch_ordinal":22,"creator_database_path":"evidence/samples/M4-V20-U-04/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-U-04/REOPEN.MDB","record_path":"evidence/samples/M4-V20-U-04/record.json"},
+    {"sample_id":"M4-V20-E-04","condition_id":"V20-E","replica":4,"block":4,"position_in_block":5,"launch_ordinal":23,"creator_database_path":"evidence/samples/M4-V20-E-04/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-E-04/REOPEN.MDB","record_path":"evidence/samples/M4-V20-E-04/record.json"},
+    {"sample_id":"M4-V30-U-04","condition_id":"V30-U","replica":4,"block":4,"position_in_block":6,"launch_ordinal":24,"creator_database_path":"evidence/samples/M4-V30-U-04/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-U-04/REOPEN.MDB","record_path":"evidence/samples/M4-V30-U-04/record.json"},
+
+    {"sample_id":"M4-V40-U-05","condition_id":"V40-U","replica":5,"block":5,"position_in_block":1,"launch_ordinal":25,"creator_database_path":"evidence/samples/M4-V40-U-05/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-U-05/REOPEN.MDB","record_path":"evidence/samples/M4-V40-U-05/record.json"},
+    {"sample_id":"M4-V40-E-05","condition_id":"V40-E","replica":5,"block":5,"position_in_block":2,"launch_ordinal":26,"creator_database_path":"evidence/samples/M4-V40-E-05/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-E-05/REOPEN.MDB","record_path":"evidence/samples/M4-V40-E-05/record.json"},
+    {"sample_id":"M4-V20-U-05","condition_id":"V20-U","replica":5,"block":5,"position_in_block":3,"launch_ordinal":27,"creator_database_path":"evidence/samples/M4-V20-U-05/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-U-05/REOPEN.MDB","record_path":"evidence/samples/M4-V20-U-05/record.json"},
+    {"sample_id":"M4-V20-E-05","condition_id":"V20-E","replica":5,"block":5,"position_in_block":4,"launch_ordinal":28,"creator_database_path":"evidence/samples/M4-V20-E-05/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-E-05/REOPEN.MDB","record_path":"evidence/samples/M4-V20-E-05/record.json"},
+    {"sample_id":"M4-V30-U-05","condition_id":"V30-U","replica":5,"block":5,"position_in_block":5,"launch_ordinal":29,"creator_database_path":"evidence/samples/M4-V30-U-05/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-U-05/REOPEN.MDB","record_path":"evidence/samples/M4-V30-U-05/record.json"},
+    {"sample_id":"M4-V30-E-05","condition_id":"V30-E","replica":5,"block":5,"position_in_block":6,"launch_ordinal":30,"creator_database_path":"evidence/samples/M4-V30-E-05/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-E-05/REOPEN.MDB","record_path":"evidence/samples/M4-V30-E-05/record.json"},
+
+    {"sample_id":"M4-V40-E-06","condition_id":"V40-E","replica":6,"block":6,"position_in_block":1,"launch_ordinal":31,"creator_database_path":"evidence/samples/M4-V40-E-06/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-E-06/REOPEN.MDB","record_path":"evidence/samples/M4-V40-E-06/record.json"},
+    {"sample_id":"M4-V20-U-06","condition_id":"V20-U","replica":6,"block":6,"position_in_block":2,"launch_ordinal":32,"creator_database_path":"evidence/samples/M4-V20-U-06/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-U-06/REOPEN.MDB","record_path":"evidence/samples/M4-V20-U-06/record.json"},
+    {"sample_id":"M4-V20-E-06","condition_id":"V20-E","replica":6,"block":6,"position_in_block":3,"launch_ordinal":33,"creator_database_path":"evidence/samples/M4-V20-E-06/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V20-E-06/REOPEN.MDB","record_path":"evidence/samples/M4-V20-E-06/record.json"},
+    {"sample_id":"M4-V30-U-06","condition_id":"V30-U","replica":6,"block":6,"position_in_block":4,"launch_ordinal":34,"creator_database_path":"evidence/samples/M4-V30-U-06/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-U-06/REOPEN.MDB","record_path":"evidence/samples/M4-V30-U-06/record.json"},
+    {"sample_id":"M4-V30-E-06","condition_id":"V30-E","replica":6,"block":6,"position_in_block":5,"launch_ordinal":35,"creator_database_path":"evidence/samples/M4-V30-E-06/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V30-E-06/REOPEN.MDB","record_path":"evidence/samples/M4-V30-E-06/record.json"},
+    {"sample_id":"M4-V40-U-06","condition_id":"V40-U","replica":6,"block":6,"position_in_block":6,"launch_ordinal":36,"creator_database_path":"evidence/samples/M4-V40-U-06/CREATOR.MDB","reopen_database_path":"evidence/samples/M4-V40-U-06/REOPEN.MDB","record_path":"evidence/samples/M4-V40-U-06/record.json"}
+  ]
+}
