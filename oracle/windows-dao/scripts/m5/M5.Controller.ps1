@@ -238,7 +238,7 @@ function Invoke-M5Campaign {
     }
     $repository = [IO.Path]::GetFullPath($RepositoryRoot)
     $planPath = Join-Path $repository (
-        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r4.plan.json"
+        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r5.plan.json"
     )
     $contractPath = Join-Path $repository `
         "oracle/windows-dao/scripts/m5_contract.py"
@@ -263,16 +263,16 @@ function Invoke-M5Campaign {
         "oracle/windows-dao/scripts/m5_records.py",
         "oracle/windows-dao/scripts/m5_snapshot.py",
         "oracle/windows-dao/scripts/m5_spec.py",
-        "oracle/windows-dao/experiments/m5r3/plan.schema.json",
-        "oracle/windows-dao/experiments/m5r3/invocation.schema.json",
-        "oracle/windows-dao/experiments/m5r3/worker-result.schema.json",
-        "oracle/windows-dao/experiments/m5r3/operation-log.schema.json",
-        "oracle/windows-dao/experiments/m5r3/snapshot.schema.json",
-        "oracle/windows-dao/experiments/m5r3/clone-log.schema.json",
-        "oracle/windows-dao/experiments/m5r3/post-worker-quiescence.schema.json",
-        "oracle/windows-dao/experiments/m5r3/sample-record.schema.json",
-        "oracle/windows-dao/experiments/m5r3/analysis-report.schema.json",
-        "oracle/windows-dao/experiments/m5r3/bundle-manifest.schema.json",
+        "oracle/windows-dao/experiments/m5r4/plan.schema.json",
+        "oracle/windows-dao/experiments/m5r4/invocation.schema.json",
+        "oracle/windows-dao/experiments/m5r4/worker-result.schema.json",
+        "oracle/windows-dao/experiments/m5r4/operation-log.schema.json",
+        "oracle/windows-dao/experiments/m5r4/snapshot.schema.json",
+        "oracle/windows-dao/experiments/m5r4/clone-log.schema.json",
+        "oracle/windows-dao/experiments/m5r4/post-worker-quiescence.schema.json",
+        "oracle/windows-dao/experiments/m5r4/sample-record.schema.json",
+        "oracle/windows-dao/experiments/m5r4/analysis-report.schema.json",
+        "oracle/windows-dao/experiments/m5r4/bundle-manifest.schema.json",
         "oracle/windows-dao/scripts/m4r1_contract.py",
         "oracle/windows-dao/scripts/m4r1_bundle.py",
         "oracle/windows-dao/scripts/m4r1_campaign.py",
@@ -314,7 +314,7 @@ function Invoke-M5Campaign {
         "oracle/windows-dao/experiments/m4r2/analysis-report.schema.json",
         "oracle/windows-dao/experiments/m4r2/bundle-manifest.schema.json",
         "oracle/windows-dao/experiments/m4r2/m4-header-discriminator-r2.plan.json",
-        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r4.plan.json"
+        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r5.plan.json"
     )
     $context = $null
     $session = $null

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Typed, immutable checked-plan contract for the DAO M5R4 campaign."""
+"""Typed, immutable checked-plan contract for the DAO M5R5 campaign."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from typing import Any, Mapping
 from protocol_validation import ValidationError
 
 PROTOCOL_VERSION = "1.0.0"
-EXPERIMENT_ID = "DAO-M5-COMPACT-CONFIRM-004"
-PLAN_SHA256 = "7f9b49b18d75824843eb6269fafa25d1b21e4cd82c1bfe289af915ee0783aaed"
+EXPERIMENT_ID = "DAO-M5-COMPACT-CONFIRM-005"
+PLAN_SHA256 = "ca1c46d037edfb7f4df977ba069825c89be5ff66f8aadd5e7f514bb42278315c"
 M4_EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-003"
 M4_MANIFEST_SHA256 = "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d"
 M4_PRODUCER_COMMIT = "35f5f55f0b7277fc07831db540eab7fa69a41a20"
 M4_RUN_ID = "20260810T220332Z-m4-r2"
-REMOTE_REF = "refs/heads/codex/m5r3-timeout-bounded"
+REMOTE_REF = "refs/heads/codex/m5r4-worker-preflight-bound"
 PREFIX_BYTES = 2048
 ANALYZED_BYTES = 1536
 PHASES = ("source", "compact", "verify")
@@ -76,7 +76,7 @@ def compile_checked_plan(plan: dict[str, Any]) -> CheckedPlan:
         plan.get("execution_gate"),
         {
             "status": "BLOCKED",
-            "reason": "exact_m5r4_producer_commit_and_remote_ref_not_yet_established",
+            "reason": "exact_m5r5_producer_commit_and_remote_ref_not_yet_established",
             "blocking_requirements": [
                 "windows_dao_host_bound_to_the_exact_clean_pushed_producer_commit"
             ],

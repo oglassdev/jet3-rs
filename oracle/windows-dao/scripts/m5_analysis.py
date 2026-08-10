@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact bounded M5R4 comparison recomputation against validated M4R2."""
+"""Exact bounded M5R5 comparison recomputation against validated M4R2."""
 
 from __future__ import annotations
 

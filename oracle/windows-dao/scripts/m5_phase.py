@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Relational worker, quiescence, clone, and sample checks for M5R4."""
+"""Relational worker, quiescence, clone, and sample checks for M5R5."""
 
 from __future__ import annotations
 

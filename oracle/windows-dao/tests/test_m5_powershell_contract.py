@@ -20,7 +20,12 @@ CONTROLLER = MODULES / "M5.Controller.ps1"
 RUNTIME = MODULES / "M5.ControllerRuntime.ps1"
 QUIESCENCE = MODULES / "M5.Quiescence.ps1"
 WORKER_HELPERS = MODULES / "M5.Worker.ps1"
-PLAN = ROOT / "experiments" / "m5" / "m5-compact-confirm-r4.plan.json"
+M1_ROOT = SCRIPTS / "m1"
+M1_PREFLIGHT = M1_ROOT / "M1.Preflight.ps1"
+M1_PUBLICATION_PATHS = M1_ROOT / "M1.PublicationPaths.ps1"
+M1_DAO_VALUES = M1_ROOT / "M1.DaoValues.ps1"
+M4_DAO = SCRIPTS / "m4" / "M4.Dao.ps1"
+PLAN = ROOT / "experiments" / "m5" / "m5-compact-confirm-r5.plan.json"
 PRIOR_PLANS = {
     ROOT / "experiments" / "m5" / "m5-compact-confirm.plan.json":
         "beeb6277af6b7224038e5a70ee20238dce907a35f7778b2f2f21f13f1f04d0a4",
@@ -28,6 +33,8 @@ PRIOR_PLANS = {
         "7fee21985173b1c5fb9758fd98cdf60dd671eae4b98d723a400be8cf8d3ce59b",
     ROOT / "experiments" / "m5" / "m5-compact-confirm-r3.plan.json":
         "92779d51660569635872f36f3c97769b0cb4043b775751569ecd38978dc06f8a",
+    ROOT / "experiments" / "m5" / "m5-compact-confirm-r4.plan.json":
+        "7f9b49b18d75824843eb6269fafa25d1b21e4cd82c1bfe289af915ee0783aaed",
 }
 POWERSHELL = (
     Path(os.environ.get("WINDIR", r"C:\Windows"))
@@ -55,10 +62,10 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
 
     def test_exact_experiment_remote_and_m4_binding(self) -> None:
         combined = "\n".join((self.entry, self.worker, self.bundle, self.runtime))
-        self.assertIn("DAO-M5-COMPACT-CONFIRM-004", combined)
-        self.assertIn("refs/heads/codex/m5r3-timeout-bounded", combined)
-        self.assertNotIn("DAO-M5-COMPACT-CONFIRM-003", combined)
-        self.assertNotIn("refs/heads/codex/m5r2-m4r2-bound", combined)
+        self.assertIn("DAO-M5-COMPACT-CONFIRM-005", combined)
+        self.assertIn("refs/heads/codex/m5r4-worker-preflight-bound", combined)
+        self.assertNotIn("DAO-M5-COMPACT-CONFIRM-004", combined)
+        self.assertNotIn("refs/heads/codex/m5r3-timeout-bounded", combined)
         self.assertIn(
             "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d",
             combined,
@@ -76,7 +83,7 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
             "protocol/v1_1/environment.schema.json",
             "experiments/m4r2/m4-header-discriminator-r2.plan.json",
             "experiments/m4r2/bundle-manifest.schema.json",
-            "experiments/m5r3/bundle-manifest.schema.json",
+            "experiments/m5r4/bundle-manifest.schema.json",
         )
         for relative in required:
             with self.subTest(relative=relative):
@@ -103,8 +110,14 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
         for path, expected in PRIOR_PLANS.items():
             with self.subTest(path=path.name):
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
-        self.assertIn("m5-compact-confirm-r4.plan.json", self.controller)
-        self.assertIn("m5-compact-confirm-r4.plan.json", self.entry)
+        self.assertIn("m5-compact-confirm-r5.plan.json", self.controller)
+        self.assertIn("m5-compact-confirm-r5.plan.json", self.entry)
+
+    def test_worker_loads_publication_paths_before_m5_helpers(self) -> None:
+        publication_paths = self.worker.index("M1.PublicationPaths.ps1")
+        first_m5_helper = self.worker.index("scripts/m5/M5.Bundle.ps1")
+        self.assertLess(publication_paths, first_m5_helper)
+        self.assertEqual(self.worker.count("M1.PublicationPaths.ps1"), 1)
 
     def test_every_bounded_process_timeout_is_at_most_120_seconds(self) -> None:
         sources = (
@@ -238,6 +251,37 @@ class M5PowerShellWindowsNoComTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "1|plan.json")
+
+    def test_worker_pre_com_helper_topology_defines_path_guard(self) -> None:
+        command = (
+            "$ErrorActionPreference='Stop';Set-StrictMode -Version Latest;"
+            f". {ps_quote(M1_PREFLIGHT)};"
+            f". {ps_quote(M1_PUBLICATION_PATHS)};"
+            f". {ps_quote(M1_DAO_VALUES)};"
+            f". {ps_quote(M4_DAO)};"
+            f". {ps_quote(BUNDLE)};"
+            f". {ps_quote(WORKER_HELPERS)};"
+            "$guard=Get-Command Assert-M1NoReparseComponents "
+            "-CommandType Function -ErrorAction Stop;"
+            "[Console]::Write($guard.Name)"
+        )
+        result = subprocess.run(
+            [
+                str(POWERSHELL),
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "Assert-M1NoReparseComponents")
 
     def test_path_projection_and_companion_case(self) -> None:
         with tempfile.TemporaryDirectory(prefix="m5-paths-") as temporary:

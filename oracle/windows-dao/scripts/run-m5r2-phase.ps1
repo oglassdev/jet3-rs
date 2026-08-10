@@ -26,6 +26,7 @@ try {
 
     $m1 = Join-Path $repository "oracle/windows-dao/scripts/m1"
     . (Join-Path $m1 "M1.Preflight.ps1")
+    . (Join-Path $m1 "M1.PublicationPaths.ps1")
     . (Join-Path $m1 "M1.DaoValues.ps1")
     . (Join-Path $repository "oracle/windows-dao/scripts/m4/M4.Dao.ps1")
     . (Join-Path $repository "oracle/windows-dao/scripts/m5/M5.Bundle.ps1")
