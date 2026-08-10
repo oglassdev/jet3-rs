@@ -1771,6 +1771,45 @@ Use `not applicable` explicitly rather than omitting a field.
   and redistribution record
 - Review: implementation contracts verified; experimental result pending
 
+### EXP-0021 — M5R3 pre-COM timeout-contract blocker
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled execution-gate failure before any DAO activation or
+  scientific observation
+- Question: Why did the first exact-commit M5R3 controller attempt stop before
+  launching an isolated worker?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-003` controller and shared
+  bounded-process contract only; no MDB, companion, prefix, or DAO result was
+  inspected
+- Environment: the exact licensed x86 environment recorded in `EXP-0020`;
+  exact clean pushed commit
+  `56af22e83cbb4a3cfef7c80fbfaf9b21083a7043`; exact remote ref
+  `refs/heads/codex/m5r2-m4r2-bound`
+- Protocol: invoke the checked x86 controller with run ID
+  `20260810T225657Z-m5-r3` and a fresh output root; allow bootstrap, exact Git
+  and remote binding, provider preflight, and immutable-plan validation to run;
+  stop on the first checked error without changing the shared bounded-process
+  policy or starting a worker
+- Artifacts: no staging tree, published bundle, database, companion, prefix,
+  sample record, or analysis report exists; the fresh output root remained
+  empty
+- Observation: the controller requested a 180-second timeout for the checked
+  immutable-plan validation child. `BoundedProcess.ps1` rejected that request
+  because its existing reviewed ceiling is 120 seconds, reporting `M5 checked
+  immutable plan validation child timeout is outside the reviewed ceiling.`
+  The failure occurred before M4 validation completed, before worker launch,
+  and before any COM activation.
+- Interpretation: M5R3 is a failed operational attempt and remains immutable.
+  The safety ceiling must not be raised to make it pass. A later additive plan
+  may reduce both validation-child and worker timeouts uniformly to the
+  existing 120-second ceiling while preserving every scientific condition,
+  sample, schedule, DAO call, locator, comparison, predicate, outcome,
+  artifact, and validation rule.
+- Usage: blocker source for the next additive M5 preregistration; no production
+  Rust or MDB format usage
+- Rights: no licensed-provider output was created or retained
+- Review: pending additive preregistration and exact-commit re-execution
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
