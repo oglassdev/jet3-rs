@@ -1917,6 +1917,46 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: implementation and activation contracts verified; experimental
   result pending
 
+### EXP-0024 — M5R4 isolated-worker preflight blocker
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled isolated-worker failure before any DAO activation or
+  scientific observation
+- Question: Why did the first exact-commit M5R4 worker stop before reading its
+  checked invocation and activating DAO?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-004` controller, isolated
+  worker, and checked PowerShell helper modules only; no MDB, companion,
+  prefix, or DAO result was inspected
+- Environment: the exact licensed x86 environment recorded in `EXP-0023`;
+  exact clean pushed commit
+  `1fff6ba3ccf2307405c582fe9e551438a761fde5`; exact remote ref
+  `refs/heads/codex/m5r3-timeout-bounded`
+- Protocol: invoke the checked x86 controller with run ID
+  `20260810T231145Z-m5-r4` and a fresh output root; allow bootstrap, exact Git
+  and remote binding, provider preflight, immutable-plan validation, read-only
+  M4 validation, staging creation, and the first isolated worker launch; stop
+  on the first checked worker error without retrying or changing a validator
+- Artifacts: no published or staged bundle, database, companion, prefix,
+  sample record, comparison, or analysis exists; failure cleanup left only the
+  empty exact-commit parent under the fresh output root; the structured worker
+  error reported process ID 17156 and null sample/phase identities because
+  invocation parsing had not begun
+- Observation: the worker loaded `M1.Preflight.ps1`, but then a checked helper
+  called `Assert-M1NoReparseComponents`, whose definition is in the separately
+  exact-source-bound `M1.PublicationPaths.ps1`. The worker had not dot-sourced
+  that module and returned `System.Management.Automation.CommandNotFoundException`.
+  The failure occurred before invocation JSON was read, before a sample or
+  phase was accepted, and before any COM activation.
+- Interpretation: M5R4 is a failed operational attempt and remains immutable.
+  A later additive revision may load the already bound publication-path helper
+  in each isolated worker before any path check, while preserving the
+  120-second ceiling and every scientific condition, sample, schedule, DAO
+  call, locator, artifact, comparison, predicate, outcome, and validation rule.
+- Usage: blocker source for the next additive M5 preregistration; no production
+  Rust or MDB format usage
+- Rights: no licensed-provider output was created or retained
+- Review: pending additive preregistration and exact-commit re-execution
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
