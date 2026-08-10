@@ -1715,6 +1715,62 @@ Use `not applicable` explicitly rather than omitting a field.
   evidence requires its own retention and redistribution review
 - Review: pending independent review and implementation
 
+### EXP-0020 — Checked M5R3 execution activation
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: exact-source implementation and execution-readiness record; no DAO
+  experiment result
+- Question: Are the blockers preserved in the immutable `EXP-0019`
+  preregistration satisfied without rewriting its historical `BLOCKED` field?
+- Origin: project-authored M5R3 controller, isolated workers, schemas,
+  analysis, complete-bundle validator, and focused contract/corruption tests;
+  the independently validated `EXP-0018` bundle is the only M4 input
+- Environment: Windows 11 Pro 10.0.22631 x64; x86 Windows PowerShell
+  5.1.22621.6133; `DAO.DBEngine.36` 3.6 from `dao360.dll`
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  ready environment record SHA-256
+  `8664fddb92483831cc300d4e16a8cb755b7fe4100c3f7b14e5c1220bb86c03d5`;
+  checked implementation commit
+  `294f7cf06b8a6666b068530e58eb4ca8b62d4181`
+- Protocol: validate the immutable M5R3 plan at SHA-256
+  `92779d51660569635872f36f3c97769b0cb4043b775751569ecd38978dc06f8a`;
+  lint all ten additive schemas; execute the complete Windows DAO contract
+  suite and focused M5 plan, analysis, manifest-closure, provider-identity,
+  clone-handoff, path-alias, resource-bound, and corruption tests; parse every
+  PowerShell source; require the exact clean implementation commit to be
+  pushed; independently revalidate the complete M4R2 bundle and its root
+  `bundle-manifest.json` SHA-256 before activation; retain the preregistration's
+  `execution_gate.status = BLOCKED` as immutable history and use this later
+  provenance record as the activation decision
+- Artifacts: M5R3 implementation commit
+  `294f7cf06b8a6666b068530e58eb4ca8b62d4181`; 31 focused M5 tests passed with
+  three platform-dependent symlink skips; the complete Windows DAO contract
+  suite passed 298 tests with twelve platform-dependent skips; M4R2 bundle
+  root `bundle-manifest.json` independently revalidated at SHA-256
+  `0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d`
+- Observation: the checked implementation requires 108 samples, 324 fresh x86
+  workers, 432 bounded controller quiescence observations, exact uppercase MDB
+  locators, optional bounded companion retention, 648 preregistered
+  comparisons, canonical analysis recomputation, exact case-sensitive tree
+  closure, and a second complete validation before publication. It validates
+  the immutable M4 bundle read-only before any M5 COM call and again before
+  publication. The implementation and its transitive validators/schemas are
+  held against their exact Git blobs.
+- Interpretation: all three implementation/host requirements named by
+  `EXP-0019` are satisfied for a later exact clean pushed execution commit that
+  contains this activation record. This does not change the preregistration,
+  report an M5 observation, assign physical meaning, or establish MDB
+  compatibility. Any source, plan, provider, M4 binding, or evidence-ref drift
+  blocks execution.
+- Usage: authorize one exact-commit execution of
+  `DAO-M5-COMPACT-CONFIRM-003` through
+  `refs/heads/codex/m5r2-m4r2-bound`; future M5 execution record only
+- Rights: implementation, schemas, and synthetic test bundles are original
+  project material; future licensed-provider output requires its own retention
+  and redistribution record
+- Review: implementation contracts verified; experimental result pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
