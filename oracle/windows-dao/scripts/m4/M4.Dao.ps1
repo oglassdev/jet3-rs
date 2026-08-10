@@ -55,6 +55,7 @@ function Get-M4UtcTimestamp {
 
 function Add-M4OperationEntry {
     param(
+        [AllowEmptyCollection()]
         [Parameter(Mandatory = $true)]
         [Collections.ArrayList]$Entries,
         [Parameter(Mandatory = $true)]

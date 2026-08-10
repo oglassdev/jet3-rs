@@ -314,13 +314,14 @@ function Invoke-M4Campaign {
             -FaultInjector $FaultInjector
         $entries = New-Object Collections.ArrayList
         Write-M1DurableBytes -Session $session `
-            -RelativePath "plan.json" -Bytes $planInput.bytes
+            -RelativePath "plan/checked-plan.json" -Bytes $planInput.bytes
         Add-M4ManifestEntry -Entries $entries -Session $session `
-            -RelativePath "plan.json" -Role "plan"
+            -RelativePath "plan/checked-plan.json" -Role "plan"
         Write-M1DurableBytes -Session $session `
-            -RelativePath "environment.json" -Bytes $context.EnvironmentBytes
+            -RelativePath "bindings/environment.json" `
+            -Bytes $context.EnvironmentBytes
         Add-M4ManifestEntry -Entries $entries -Session $session `
-            -RelativePath "environment.json" -Role "environment"
+            -RelativePath "bindings/environment.json" -Role "environment"
 
         $completedSamples = 0
         foreach ($sample in $plan.samples) {

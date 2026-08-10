@@ -198,6 +198,18 @@ class M4ControllerSourceContractTests(unittest.TestCase):
         # 3 campaign files + 36 * (2 * 6 phase files + clone + record).
         self.assertEqual(3 + 36 * (2 * 6 + 1 + 1), 507)
 
+    def test_retained_control_locators_satisfy_nested_path_contract(self) -> None:
+        self.assertIn('plan_path = "plan/checked-plan.json"', self.bundle)
+        self.assertIn(
+            'environment_path = "bindings/environment.json"', self.bundle
+        )
+        self.assertIn('-RelativePath "plan/checked-plan.json"', self.controller)
+        self.assertIn(
+            '-RelativePath "bindings/environment.json"', self.controller
+        )
+        self.assertNotIn('plan_path = "plan.json"', self.bundle)
+        self.assertNotIn('environment_path = "environment.json"', self.bundle)
+
     def test_publication_is_collision_refusing_and_failure_is_bounded(self) -> None:
         run_id_check = self.entry.index(
             '^[0-9]{8}T[0-9]{6}Z-m4-[a-z0-9-]{1,24}$'

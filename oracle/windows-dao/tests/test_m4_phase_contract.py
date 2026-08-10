@@ -387,6 +387,25 @@ class M4PhaseWindowsHelperTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_first_operation_entry_accepts_empty_collection(self) -> None:
+        result = self.run_ps(
+            "$entries=New-Object Collections.ArrayList;"
+            "Add-M4OperationEntry -Entries $entries -Action 'bindings_verified';"
+            "[ordered]@{count=$entries.Count;sequence=$entries[0].sequence;"
+            "action=$entries[0].action;status=$entries[0].status}|"
+            "ConvertTo-Json -Compress"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout.strip().splitlines()[-1]),
+            {
+                "count": 1,
+                "sequence": 1,
+                "action": "bindings_verified",
+                "status": "pass",
+            },
+        )
+
     def test_closed_file_observation_returns_exact_prefix_and_hash(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Path(temporary) / "closed.mdb"

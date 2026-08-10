@@ -293,9 +293,9 @@ function New-M4PhaseInvocation {
         repository_url = [string]$Plan.repository_url
         remote_ref = [string]$Plan.remote_ref
         repository_root = [string]$Context.RepositoryRoot
-        plan_path = "plan.json"
+        plan_path = "plan/checked-plan.json"
         plan_sha256 = $PlanSha256
-        environment_path = "environment.json"
+        environment_path = "bindings/environment.json"
         environment_sha256 = [string]$Context.EnvironmentSha256
         provider_sha256 = [string]$Context.ProviderSha256
         stage_root = [string]$Session.StagingBundle
