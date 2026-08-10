@@ -1,0 +1,7 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:jet3-rs:dao:m5r5:snapshot:1",
+  "type":"object","additionalProperties":false,
+  "required":["protocol_version","document_type","experiment_id","sample_id","phase_id","captured_at_utc","captured_while_database_open","dao_version","empty_user_schema","user_table_count"],
+  "properties":{"protocol_version":{"const":"1.0.0"},"document_type":{"const":"dao_m5_snapshot"},"experiment_id":{"const":"DAO-M5-COMPACT-CONFIRM-005"},"sample_id":{"$ref":"#/$defs/id"},"phase_id":{"enum":["source","verify"]},"captured_at_utc":{"type":"string","format":"date-time"},"captured_while_database_open":{"const":true},"dao_version":{"enum":["2.0","3.0","4.0"]},"empty_user_schema":{"const":true},"user_table_count":{"const":0}},
+  "$defs":{"id":{"type":"string","pattern":"^[A-Z0-9][A-Z0-9-]{1,63}$"}}
+}

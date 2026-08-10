@@ -1957,6 +1957,59 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: no licensed-provider output was created or retained
 - Review: pending additive preregistration and exact-commit re-execution
 
+### EXP-0025 — Preregistered worker-preflight M5 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: additive declarative experiment-plan and checked-worker revision; not
+  yet executed
+- Question: Can the unchanged M5 compact-copy campaign execute when every
+  isolated worker loads the already exact-source-bound publication-path helper
+  before invoking its path-safety checks?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-005`, revised only from the
+  pre-COM operational failure in `EXP-0024`; that failure occurred before the
+  invocation was read or COM was activated, and produced no MDB, companion,
+  retained prefix, comparison, candidate, or scientific result
+- Environment: not yet executed; the plan requires the licensed x86
+  `DAO.DBEngine.36` host bound to a future exact clean pushed producer commit
+  at `refs/heads/codex/m5r4-worker-preflight-bound`
+- Protocol: preserve the complete M5R4 factorial, 36 conditions, 108 samples,
+  three-replica rotated schedule, 324 isolated workers, DAO calls, uppercase
+  database locators, clone and four-role quiescence topology, companion rules,
+  120-second worker timeout and shared hard ceiling, retained prefixes,
+  `[0x000,0x600)` analysis range, 648 comparisons, confirmation predicates,
+  scientific outcome rules, immutable M4 binding, and independent publication
+  validation; change only worker preflight load order so
+  `M1.PublicationPaths.ps1` is dot-sourced immediately after
+  `M1.Preflight.ps1` and before any helper that calls
+  `Assert-M1NoReparseComponents`, then bind the additive experiment, ref, and
+  schema identities
+- Artifacts:
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm-r5.plan.json` SHA-256
+  `ca1c46d037edfb7f4df977ba069825c89be5ff66f8aadd5e7f514bb42278315c`;
+  `oracle/windows-dao/experiments/m5/README-r5.md` SHA-256
+  `25daf72b40929f8a13dbad99b34e0ae7ab34fe30fb99ffd4d241800d2bdf088e`;
+  ten additive schemas under `oracle/windows-dao/experiments/m5r4/`
+- Observation: no M5R5 DAO call, worker, database, companion, prefix, sample,
+  comparison, analysis, or result exists. Checked normalization found the R4
+  and R5 scientific design, validity rules, analysis, conditions, samples,
+  uppercase locators, resource bounds, and worker timeout identical. Schema
+  normalization found only additive schema IDs and experiment/ref identities.
+  Thirty-seven focused M5 tests passed with three platform-dependent symlink
+  skips, including a fresh-PowerShell no-COM test proving the path-check
+  function is defined before worker use.
+- Interpretation: this is a preregistered dependency-load correction, not M5
+  evidence. Its execution gate remains `BLOCKED` only until the exact clean
+  pushed R5 producer commit and licensed host are bound. It weakens no path,
+  resource, bundle, provider, or evidence validator, assigns no MDB byte
+  meaning, changes no scientific hypothesis, and establishes no compatibility.
+- Usage: checked M5 controller, isolated workers, analysis, and independent
+  bundle validator; future exact-commit M5R5 execution only
+- Rights: plan, README, schemas, worker changes, validators, and synthetic tests
+  are original project material; future licensed-provider output requires its
+  own retention and redistribution record
+- Review: preregistration and normalized-design checks complete; exact-commit
+  activation and execution pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
