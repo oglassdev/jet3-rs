@@ -2115,6 +2115,55 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: no licensed-provider output was retained or published
 - Review: pending additive preregistration and exact-commit re-execution
 
+### EXP-0028 — Preregistered explicit-return M5 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: additive declarative experiment-plan and checked-worker revision; not
+  yet executed
+- Question: Can the unchanged M5 compact-copy campaign complete each isolated
+  DAO helper when its source/verify snapshot and compact null result are
+  returned through valid explicit Windows PowerShell branches?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-006`, revised only from the
+  post-DAO operational failure in `EXP-0027`; no worker result, MDB, companion,
+  prefix, comparison, candidate, or analysis survived that failed attempt
+- Environment: not yet executed; the plan requires the licensed x86
+  `DAO.DBEngine.36` host bound to a future exact clean pushed producer commit
+  at `refs/heads/codex/m5r5-worker-return-bound`
+- Protocol: preserve the complete M5R5 factorial, 36 conditions, 108 samples,
+  three-replica rotated schedule, 324 isolated workers, DAO calls, uppercase
+  database locators, clone and four-role quiescence topology, companion rules,
+  120-second worker timeout and every resource ceiling, retained prefixes,
+  `[0x000,0x600)` analysis range, 648 comparisons, confirmation predicates,
+  scientific outcome rules, immutable M4 binding, helper load order, and
+  independent publication validation; replace only
+  `return if ($null -eq $snapshot) ...` after DAO cleanup with an explicit null
+  branch followed by an explicit snapshot return, then bind the additive
+  experiment, ref, and schema identities
+- Artifacts:
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm-r6.plan.json` SHA-256
+  `f2d69fb1f5c8ebf421c0e48d383614f427ec15a819bd91fabefd5adc572f4de9`;
+  `oracle/windows-dao/experiments/m5/README-r6.md` SHA-256
+  `8ae475182d962e9065544426966107bbec0795268fbfd1cce42813a2b2659122`;
+  ten additive schemas under `oracle/windows-dao/experiments/m5r5/`
+- Observation: no M5R6 DAO call, worker, database, companion, prefix, sample,
+  comparison, analysis, or result exists. Checked normalization found the R5
+  and R6 scientific design, validity rules, analysis, conditions, samples,
+  uppercase locators, resource bounds, helper load requirement, and timeout
+  identical. Schema normalization found only additive schema IDs and
+  experiment/ref identities.
+- Interpretation: this is a preregistered language-level return correction,
+  not M5 evidence. Its execution gate remains `BLOCKED` only until the exact
+  clean pushed R6 producer commit and licensed host are bound. It weakens no
+  path, resource, bundle, provider, or evidence validator, assigns no MDB byte
+  meaning, changes no scientific hypothesis, and establishes no compatibility.
+- Usage: checked M5 controller, isolated workers, analysis, and independent
+  bundle validator; future exact-commit M5R6 execution only
+- Rights: plan, README, schemas, worker changes, validators, and synthetic tests
+  are original project material; future licensed-provider output requires its
+  own retention and redistribution record
+- Review: preregistration and normalized-design checks complete; exact-commit
+  implementation, activation, and execution pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
