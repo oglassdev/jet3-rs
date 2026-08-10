@@ -77,6 +77,25 @@ class ObjectIdentity:
 
 
 @dataclass(frozen=True)
+class ObjectBinding:
+    """Fields used to bind a path-derived stat to a handle-derived stat.
+
+    Identity is the ``(device, inode)`` pair defined by ``os.stat``, and it
+    binds nothing unless ``inode`` is nonzero, so consumers must run it
+    through ``release_evidence_tree.identifying_binding`` before comparing.
+    ``file_type`` and ``size`` are the two further fields this module compares
+    across the two acquisition methods. Timestamps are deliberately absent:
+    Windows does not report them consistently between a path stat and a handle
+    stat for a file that never changed.
+    """
+
+    device: int
+    inode: int
+    file_type: int
+    size: int
+
+
+@dataclass(frozen=True)
 class StableObjectIdentity:
     """Identity fields that remain stable while a directory's contents change."""
 

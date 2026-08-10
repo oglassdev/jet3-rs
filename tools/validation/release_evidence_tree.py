@@ -13,6 +13,7 @@ from pathlib import Path
 from .release_evidence_model import (
     OVERLAY_NAME,
     Limits,
+    ObjectBinding,
     ObjectIdentity,
     ReleaseEvidenceError,
     ResolvedFile,
@@ -61,7 +62,71 @@ def directory_metadata(path: Path, location: str) -> os.stat_result:
 
 
 def _same_identity(left: os.stat_result, right: os.stat_result) -> bool:
+    """Compare two stats acquired the same way (path/path or handle/handle)."""
+
     return object_identity(left) == object_identity(right)
+
+
+def identifying_binding(binding: ObjectBinding, location: str) -> ObjectBinding:
+    """Reject a binding whose inode cannot identify a file.
+
+    ``st_ino`` only names a file when it is nonzero: Windows
+    ``os.DirEntry.stat()`` documents it as always zero, and some remote
+    filesystems report zero as well. Comparing two zero inodes would accept a
+    replacement whose device, type and size happen to match, so a zero inode
+    is a structured refusal rather than an identity. Every binding in this
+    module comes from ``os.lstat``/``os.fstat``, which do report the file
+    index on Linux, macOS and Windows, so the refusal is unreachable on the
+    supported platforms; where it is reachable the filesystem cannot support
+    the evidence guarantee at all, and refusing to certify is the correct
+    outcome for a fail-closed tool.
+    """
+
+    if not binding.inode:
+        fail(f"{location}: filesystem does not report an identifying inode")
+    return binding
+
+
+def _same_object(
+    path_metadata: os.stat_result,
+    handle_metadata: os.stat_result,
+    location: str,
+) -> bool:
+    """Bind a path-derived stat to the handle that was opened from that path.
+
+    Only ``(device, inode)`` identity, file type and size take part, and the
+    inode must identify a file. Windows reports path-derived timestamps from
+    the directory entry, which NTFS flushes lazily, and its ``st_ctime``
+    meaning differs between path and handle stats across Python versions, so
+    timestamps can differ for a file that never changed. Mutation is detected
+    on the handle instead: ``object_identity`` is compared across ``fstat``
+    calls on the same descriptor, and the path is re-``lstat``-ed after the
+    read and compared against the pre-open ``lstat``.
+    """
+
+    return identifying_binding(
+        object_binding(path_metadata), location
+    ) == identifying_binding(object_binding(handle_metadata), location)
+
+
+def object_binding(metadata: os.stat_result) -> ObjectBinding:
+    return ObjectBinding(
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+        file_type=stat.S_IFMT(metadata.st_mode),
+        size=metadata.st_size,
+    )
+
+
+def identity_binding(identity: ObjectIdentity) -> ObjectBinding:
+    """Project a recorded identity onto the acquisition-independent fields."""
+
+    return ObjectBinding(
+        device=identity.device,
+        inode=identity.inode,
+        file_type=stat.S_IFMT(identity.mode),
+        size=identity.size,
+    )
 
 
 def object_identity(metadata: os.stat_result) -> ObjectIdentity:
@@ -108,7 +173,7 @@ def read_regular_snapshot(
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode) or is_reparse(opened):
             fail(f"{location}: opened object is not a regular non-reparse file")
-        if not _same_identity(before, opened):
+        if not _same_object(before, opened, location):
             fail(f"{location}: file changed while it was opened")
         chunks: list[bytes] = []
         consumed = 0
@@ -122,6 +187,9 @@ def read_regular_snapshot(
                 fail(f"{location}: file exceeds {limit} byte limit")
         after = os.fstat(descriptor)
         if not _same_identity(opened, after) or consumed != opened.st_size:
+            fail(f"{location}: file changed while it was read")
+        rechecked = regular_metadata(path, location)
+        if not _same_identity(before, rechecked):
             fail(f"{location}: file changed while it was read")
         return b"".join(chunks), object_identity(opened)
     finally:
@@ -151,7 +219,7 @@ def hash_regular_bounded(
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode) or is_reparse(opened):
             fail(f"{location}: opened object is not a regular non-reparse file")
-        if not _same_identity(before, opened):
+        if not _same_object(before, opened, location):
             fail(f"{location}: file changed while it was opened")
         while True:
             chunk = os.read(descriptor, min(IO_CHUNK_BYTES, limit + 1 - consumed))
@@ -163,6 +231,9 @@ def hash_regular_bounded(
             digest.update(chunk)
         after = os.fstat(descriptor)
         if not _same_identity(opened, after) or consumed != opened.st_size:
+            fail(f"{location}: file changed while it was read")
+        rechecked = regular_metadata(path, location)
+        if not _same_identity(before, rechecked):
             fail(f"{location}: file changed while it was read")
     finally:
         os.close(descriptor)
@@ -281,7 +352,8 @@ def scan_regular_files(root: Path, limits: Limits) -> TreeSnapshot:
 def copy_file_exclusive(source: ResolvedFile, destination: Path) -> None:
     location = f"staging source {source.relative_path!r}"
     before = regular_metadata(source.path, location)
-    if object_identity(before) != source.identity:
+    recorded = identifying_binding(identity_binding(source.identity), location)
+    if identifying_binding(object_binding(before), location) != recorded:
         fail(f"{location}: file changed after inventory resolution")
     source_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
     if hasattr(os, "O_NOFOLLOW"):
@@ -308,8 +380,10 @@ def copy_file_exclusive(source: ResolvedFile, destination: Path) -> None:
         opened = os.fstat(source_descriptor)
         if not stat.S_ISREG(opened.st_mode) or is_reparse(opened):
             fail(f"{location}: opened object is not a regular non-reparse file")
-        if not _same_identity(before, opened):
+        if not _same_object(before, opened, location):
             fail(f"{location}: file changed while it was opened")
+        if object_identity(opened) != source.identity:
+            fail(f"{location}: file changed after inventory resolution")
         while True:
             chunk = os.read(
                 source_descriptor,
@@ -330,8 +404,10 @@ def copy_file_exclusive(source: ResolvedFile, destination: Path) -> None:
                     )
                 view = view[written:]
         after = os.fstat(source_descriptor)
+        rechecked = regular_metadata(source.path, location)
         if (
             not _same_identity(opened, after)
+            or not _same_identity(before, rechecked)
             or consumed != source.size
             or digest.hexdigest() != source.sha256
         ):
