@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict document loading and invocation bindings for DAO M5R3."""
+"""Strict document loading and invocation bindings for DAO M5R4."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ from protocol_validation import ProtocolSchemaSet, ValidationError
 
 HERE = Path(__file__).resolve().parent
 DAO_ROOT = HERE.parent
-SCHEMA_DIR = DAO_ROOT / "experiments" / "m5r2"
-CHECKED_PLAN = DAO_ROOT / "experiments" / "m5" / "m5-compact-confirm-r3.plan.json"
+SCHEMA_DIR = DAO_ROOT / "experiments" / "m5r3"
+CHECKED_PLAN = DAO_ROOT / "experiments" / "m5" / "m5-compact-confirm-r4.plan.json"
 
 SCHEMAS = {
     "dao_m5_plan": "plan.schema.json",
@@ -91,11 +91,11 @@ def load_document(path: Path, maximum_bytes: int, expected_type: str) -> tuple[d
 def load_checked_plan(path: Path = CHECKED_PLAN) -> tuple[dict[str, Any], str]:
     checked_size, checked_hash, checked_bytes = bounded_file_identity(CHECKED_PLAN, 1048576, retain=True)
     if checked_hash != PLAN_SHA256:
-        raise ValidationError("checked M5R3 plan hash differs from the compiled contract")
+        raise ValidationError("checked M5R4 plan hash differs from the compiled contract")
     document, size, digest = load_document(path, 1048576, "dao_m5_plan")
     _, _, supplied = bounded_file_identity(path, 1048576, retain=True)
     if size != checked_size or digest != checked_hash or supplied != checked_bytes:
-        raise ValidationError(f"{path}: bytes differ from the immutable checked M5R3 plan")
+        raise ValidationError(f"{path}: bytes differ from the immutable checked M5R4 plan")
     compile_checked_plan(document)
     return document, digest
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Typed, immutable checked-plan contract for the DAO M5R3 campaign."""
+"""Typed, immutable checked-plan contract for the DAO M5R4 campaign."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from typing import Any, Mapping
 from protocol_validation import ValidationError
 
 PROTOCOL_VERSION = "1.0.0"
-EXPERIMENT_ID = "DAO-M5-COMPACT-CONFIRM-003"
-PLAN_SHA256 = "92779d51660569635872f36f3c97769b0cb4043b775751569ecd38978dc06f8a"
+EXPERIMENT_ID = "DAO-M5-COMPACT-CONFIRM-004"
+PLAN_SHA256 = "7f9b49b18d75824843eb6269fafa25d1b21e4cd82c1bfe289af915ee0783aaed"
 M4_EXPERIMENT_ID = "DAO-M4-HEADER-DISCRIMINATOR-003"
 M4_MANIFEST_SHA256 = "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d"
 M4_PRODUCER_COMMIT = "35f5f55f0b7277fc07831db540eab7fa69a41a20"
 M4_RUN_ID = "20260810T220332Z-m4-r2"
-REMOTE_REF = "refs/heads/codex/m5r2-m4r2-bound"
+REMOTE_REF = "refs/heads/codex/m5r3-timeout-bounded"
 PREFIX_BYTES = 2048
 ANALYZED_BYTES = 1536
 PHASES = ("source", "compact", "verify")
@@ -72,6 +72,17 @@ def compile_checked_plan(plan: dict[str, Any]) -> CheckedPlan:
     require_equal(plan.get("document_type"), "dao_m5_plan", "$.document_type")
     require_equal(plan.get("experiment_id"), EXPERIMENT_ID, "$.experiment_id")
     require_equal(plan.get("remote_ref"), REMOTE_REF, "$.remote_ref")
+    require_equal(
+        plan.get("execution_gate"),
+        {
+            "status": "BLOCKED",
+            "reason": "exact_m5r4_producer_commit_and_remote_ref_not_yet_established",
+            "blocking_requirements": [
+                "windows_dao_host_bound_to_the_exact_clean_pushed_producer_commit"
+            ],
+        },
+        "$.execution_gate",
+    )
     design = plan.get("design")
     analysis = plan.get("analysis")
     bounds = plan.get("bounds")
@@ -102,6 +113,7 @@ def compile_checked_plan(plan: dict[str, Any]) -> CheckedPlan:
         "max_comparison_byte_visits": EXPECTED_BYTE_VISITS,
         "max_candidate_sets": 3,
         "max_worker_processes": 324,
+        "worker_timeout_seconds": 120,
         "max_companion_bytes": 65536,
         "max_companion_artifacts": 432,
         "max_total_companion_bytes": 432 * 65536,

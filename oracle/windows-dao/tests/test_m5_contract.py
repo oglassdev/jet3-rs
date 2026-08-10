@@ -33,6 +33,62 @@ class M5PlanContractTests(unittest.TestCase):
         self.assertEqual(len(checked.samples), 108)
         self.assertEqual(checked.document["analysis"]["m4_binding"]["bundle_manifest_sha256"], M4_MANIFEST_SHA256)
         self.assertEqual(checked.document["execution_gate"]["status"], "BLOCKED")
+        self.assertEqual(
+            checked.document["execution_gate"]["blocking_requirements"],
+            ["windows_dao_host_bound_to_the_exact_clean_pushed_producer_commit"],
+        )
+        self.assertEqual(checked.bounds["worker_timeout_seconds"], 120)
+
+    def test_r4_normalized_scientific_design_equals_r3(self) -> None:
+        r3_path = CHECKED_PLAN.with_name("m5-compact-confirm-r3.plan.json")
+        r3 = json.loads(r3_path.read_text(encoding="utf-8"))
+        r4 = json.loads(CHECKED_PLAN.read_text(encoding="utf-8"))
+        for key in (
+            "provenance_ids",
+            "requires_exact_clean_commit",
+            "open_provenance_requirements",
+            "design",
+            "sample_validity_rules",
+            "analysis",
+            "conditions",
+            "samples",
+            "resolved_provenance_requirements",
+        ):
+            self.assertEqual(r4[key], r3[key], key)
+        r3_bounds = dict(r3["bounds"])
+        r4_bounds = dict(r4["bounds"])
+        self.assertEqual(r3_bounds.pop("worker_timeout_seconds"), 180)
+        self.assertEqual(r4_bounds.pop("worker_timeout_seconds"), 120)
+        self.assertEqual(r4_bounds, r3_bounds)
+        expected_changes = {
+            "$.experiment_id", "$.related_experiments", "$.remote_ref",
+            "$.preregistration.provenance_entry",
+            "$.preregistration.revision_of",
+            "$.preregistration.recorded_after_execution_blocker",
+            "$.preregistration.revision_scope",
+            "$.preregistration.amendment_rule",
+            "$.execution_gate.reason",
+            "$.execution_gate.blocking_requirements",
+            "$.bounds.worker_timeout_seconds",
+        }
+
+        def changed_paths(left: object, right: object, path: str = "$") -> set[str]:
+            if isinstance(left, dict) and isinstance(right, dict):
+                changed: set[str] = set()
+                for key in left.keys() | right.keys():
+                    if key not in left or key not in right:
+                        changed.add(f"{path}.{key}")
+                    else:
+                        changed.update(changed_paths(left[key], right[key], f"{path}.{key}"))
+                return changed
+            return set() if left == right else {path}
+
+        self.assertEqual(changed_paths(r3, r4), expected_changes)
+        for sample in r4["samples"]:
+            self.assertEqual(Path(sample["source_database_path"]).name, "SOURCE.MDB")
+            self.assertEqual(Path(sample["compact_input_database_path"]).name, "COMPACT-INPUT.MDB")
+            self.assertEqual(Path(sample["compacted_database_path"]).name, "COMPACTED.MDB")
+            self.assertEqual(Path(sample["verify_database_path"]).name, "VERIFY.MDB")
 
     def test_plan_byte_change_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -43,6 +99,26 @@ class M5PlanContractTests(unittest.TestCase):
 
     def test_all_m5_schemas_lint(self) -> None:
         SCHEMA_SET.lint()
+
+    def test_r4_schemas_only_change_revision_bindings(self) -> None:
+        prior = CHECKED_PLAN.parents[1] / "m5r2"
+        revised = CHECKED_PLAN.parents[1] / "m5r3"
+        self.assertEqual(
+            {path.name for path in revised.glob("*.json")},
+            {path.name for path in prior.glob("*.json")},
+        )
+        for path in revised.glob("*.json"):
+            current = path.read_text(encoding="utf-8")
+            normalized = (
+                current.replace("urn:jet3-rs:dao:m5r4:", "urn:jet3-rs:dao:m5r3:")
+                .replace("DAO-M5-COMPACT-CONFIRM-004", "DAO-M5-COMPACT-CONFIRM-003")
+                .replace("refs/heads/codex/m5r3-timeout-bounded", "refs/heads/codex/m5r2-m4r2-bound")
+            )
+            self.assertEqual(
+                json.loads(normalized),
+                json.loads((prior / path.name).read_text(encoding="utf-8")),
+                path.name,
+            )
 
 
 class M5AnalysisContractTests(unittest.TestCase):

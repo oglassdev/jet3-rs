@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -17,7 +20,15 @@ CONTROLLER = MODULES / "M5.Controller.ps1"
 RUNTIME = MODULES / "M5.ControllerRuntime.ps1"
 QUIESCENCE = MODULES / "M5.Quiescence.ps1"
 WORKER_HELPERS = MODULES / "M5.Worker.ps1"
-PLAN = ROOT / "experiments" / "m5" / "m5-compact-confirm-r3.plan.json"
+PLAN = ROOT / "experiments" / "m5" / "m5-compact-confirm-r4.plan.json"
+PRIOR_PLANS = {
+    ROOT / "experiments" / "m5" / "m5-compact-confirm.plan.json":
+        "beeb6277af6b7224038e5a70ee20238dce907a35f7778b2f2f21f13f1f04d0a4",
+    ROOT / "experiments" / "m5" / "m5-compact-confirm-r2.plan.json":
+        "7fee21985173b1c5fb9758fd98cdf60dd671eae4b98d723a400be8cf8d3ce59b",
+    ROOT / "experiments" / "m5" / "m5-compact-confirm-r3.plan.json":
+        "92779d51660569635872f36f3c97769b0cb4043b775751569ecd38978dc06f8a",
+}
 POWERSHELL = (
     Path(os.environ.get("WINDIR", r"C:\Windows"))
     / "System32"
@@ -44,8 +55,10 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
 
     def test_exact_experiment_remote_and_m4_binding(self) -> None:
         combined = "\n".join((self.entry, self.worker, self.bundle, self.runtime))
-        self.assertIn("DAO-M5-COMPACT-CONFIRM-003", combined)
-        self.assertIn("refs/heads/codex/m5r2-m4r2-bound", combined)
+        self.assertIn("DAO-M5-COMPACT-CONFIRM-004", combined)
+        self.assertIn("refs/heads/codex/m5r3-timeout-bounded", combined)
+        self.assertNotIn("DAO-M5-COMPACT-CONFIRM-003", combined)
+        self.assertNotIn("refs/heads/codex/m5r2-m4r2-bound", combined)
         self.assertIn(
             "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d",
             combined,
@@ -63,7 +76,7 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
             "protocol/v1_1/environment.schema.json",
             "experiments/m4r2/m4-header-discriminator-r2.plan.json",
             "experiments/m4r2/bundle-manifest.schema.json",
-            "experiments/m5r2/bundle-manifest.schema.json",
+            "experiments/m5r3/bundle-manifest.schema.json",
         )
         for relative in required:
             with self.subTest(relative=relative):
@@ -76,6 +89,49 @@ class M5PowerShellSourceContractTests(unittest.TestCase):
             'Plan.execution_gate.status -cne "BLOCKED"', self.controller
         )
         self.assertNotIn('execution_gate.status = "READY"', self.controller)
+        plan = json.loads(self.plan)
+        self.assertEqual(
+            plan["execution_gate"]["blocking_requirements"],
+            ["windows_dao_host_bound_to_the_exact_clean_pushed_producer_commit"],
+        )
+        self.assertNotIn(
+            "checked_m5_controller_and_isolated_phase_workers",
+            plan["execution_gate"]["blocking_requirements"],
+        )
+
+    def test_prior_preregistration_artifacts_are_immutable(self) -> None:
+        for path, expected in PRIOR_PLANS.items():
+            with self.subTest(path=path.name):
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
+        self.assertIn("m5-compact-confirm-r4.plan.json", self.controller)
+        self.assertIn("m5-compact-confirm-r4.plan.json", self.entry)
+
+    def test_every_bounded_process_timeout_is_at_most_120_seconds(self) -> None:
+        sources = (
+            self.entry,
+            self.worker,
+            self.runtime,
+            self.controller,
+            self.bundle,
+            self.quiescence,
+        )
+        combined = "\n".join(sources)
+        literal_timeouts = [
+            int(value)
+            for value in re.findall(r"-TimeoutSeconds\s+([0-9]+)", combined)
+        ]
+        self.assertTrue(literal_timeouts)
+        self.assertLessEqual(max(literal_timeouts), 120)
+        self.assertIn("$script:M5HardProcessTimeoutSeconds = 120", self.runtime)
+        self.assertIn(
+            "$TimeoutSeconds -gt $script:M5HardProcessTimeoutSeconds",
+            self.runtime,
+        )
+        self.assertIn(
+            "$workerTimeout -gt $script:M5HardProcessTimeoutSeconds",
+            self.runtime,
+        )
+        self.assertNotIn("-TimeoutSeconds 180", combined)
 
     def test_m4_validation_precedes_any_worker_launch(self) -> None:
         validated = self.controller.index("Assert-M5M4BundleReadOnly")

@@ -49,18 +49,12 @@ function Assert-M5RuntimeGate {
     if ([string]$Plan.execution_gate.status -cne "BLOCKED") {
         throw "M5 preregistration gate history was unexpectedly rewritten."
     }
-    $required = @(
-        "checked_m5_controller_and_isolated_phase_workers",
-        "checked_m5_analysis_and_complete_bundle_validator",
+    $required = (
         "windows_dao_host_bound_to_the_exact_clean_pushed_producer_commit"
     )
-    if (@($Plan.execution_gate.blocking_requirements).Count -ne 3) {
+    if (@($Plan.execution_gate.blocking_requirements).Count -ne 1 -or
+        [string]$Plan.execution_gate.blocking_requirements[0] -cne $required) {
         throw "M5 preregistration blocking-requirement set drifted."
-    }
-    foreach ($name in $required) {
-        if (@($Plan.execution_gate.blocking_requirements) -cnotcontains $name) {
-            throw "M5 preregistration blocking requirement is missing."
-        }
     }
     foreach ($relative in @(
         "oracle/windows-dao/scripts/run-m5r2-controlled.ps1",
@@ -244,7 +238,7 @@ function Invoke-M5Campaign {
     }
     $repository = [IO.Path]::GetFullPath($RepositoryRoot)
     $planPath = Join-Path $repository (
-        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r3.plan.json"
+        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r4.plan.json"
     )
     $contractPath = Join-Path $repository `
         "oracle/windows-dao/scripts/m5_contract.py"
@@ -269,16 +263,16 @@ function Invoke-M5Campaign {
         "oracle/windows-dao/scripts/m5_records.py",
         "oracle/windows-dao/scripts/m5_snapshot.py",
         "oracle/windows-dao/scripts/m5_spec.py",
-        "oracle/windows-dao/experiments/m5r2/plan.schema.json",
-        "oracle/windows-dao/experiments/m5r2/invocation.schema.json",
-        "oracle/windows-dao/experiments/m5r2/worker-result.schema.json",
-        "oracle/windows-dao/experiments/m5r2/operation-log.schema.json",
-        "oracle/windows-dao/experiments/m5r2/snapshot.schema.json",
-        "oracle/windows-dao/experiments/m5r2/clone-log.schema.json",
-        "oracle/windows-dao/experiments/m5r2/post-worker-quiescence.schema.json",
-        "oracle/windows-dao/experiments/m5r2/sample-record.schema.json",
-        "oracle/windows-dao/experiments/m5r2/analysis-report.schema.json",
-        "oracle/windows-dao/experiments/m5r2/bundle-manifest.schema.json",
+        "oracle/windows-dao/experiments/m5r3/plan.schema.json",
+        "oracle/windows-dao/experiments/m5r3/invocation.schema.json",
+        "oracle/windows-dao/experiments/m5r3/worker-result.schema.json",
+        "oracle/windows-dao/experiments/m5r3/operation-log.schema.json",
+        "oracle/windows-dao/experiments/m5r3/snapshot.schema.json",
+        "oracle/windows-dao/experiments/m5r3/clone-log.schema.json",
+        "oracle/windows-dao/experiments/m5r3/post-worker-quiescence.schema.json",
+        "oracle/windows-dao/experiments/m5r3/sample-record.schema.json",
+        "oracle/windows-dao/experiments/m5r3/analysis-report.schema.json",
+        "oracle/windows-dao/experiments/m5r3/bundle-manifest.schema.json",
         "oracle/windows-dao/scripts/m4r1_contract.py",
         "oracle/windows-dao/scripts/m4r1_bundle.py",
         "oracle/windows-dao/scripts/m4r1_campaign.py",
@@ -320,7 +314,7 @@ function Invoke-M5Campaign {
         "oracle/windows-dao/experiments/m4r2/analysis-report.schema.json",
         "oracle/windows-dao/experiments/m4r2/bundle-manifest.schema.json",
         "oracle/windows-dao/experiments/m4r2/m4-header-discriminator-r2.plan.json",
-        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r3.plan.json"
+        "oracle/windows-dao/experiments/m5/m5-compact-confirm-r4.plan.json"
     )
     $context = $null
     $session = $null

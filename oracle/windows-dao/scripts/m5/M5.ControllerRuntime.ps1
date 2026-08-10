@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:M5HardProcessTimeoutSeconds = 120
 
 function Invoke-M5Contract {
     param(
@@ -11,7 +12,8 @@ function Invoke-M5Contract {
     [void](Invoke-BoundedChildProcess `
         -Executable $Context.PythonPath `
         -Arguments (@("-B", $ContractPath) + $Arguments) `
-        -CallerLabel $Label -TimeoutSeconds 180 `
+        -CallerLabel $Label `
+        -TimeoutSeconds $script:M5HardProcessTimeoutSeconds `
         -MaximumOutputBytes 1MB)
 }
 
@@ -120,6 +122,10 @@ function Invoke-M5Worker {
         [Parameter(Mandatory = $true)][string]$M4BundleRoot,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
+    if ($TimeoutSeconds -lt 1 -or
+        $TimeoutSeconds -gt $script:M5HardProcessTimeoutSeconds) {
+        throw "M5 worker timeout exceeds the fixed 120-second ceiling."
+    }
     Assert-M5WorkerPowerShell -Binding $Binding
     [void](Invoke-BoundedChildProcess -Executable $Binding.Path `
         -Arguments @(
@@ -209,10 +215,15 @@ function Invoke-M5CheckedPhase {
             "--invocation", $invocationPath,
             "--m4-bundle-root", $M4Binding.Root
         ) -Label "M5 $PhaseId invocation validation"
+    $workerTimeout = [int]$Plan.bounds.worker_timeout_seconds
+    if ($workerTimeout -lt 1 -or
+        $workerTimeout -gt $script:M5HardProcessTimeoutSeconds) {
+        throw "M5 checked plan worker timeout exceeds 120 seconds."
+    }
     Invoke-M5Worker -Binding $PowerShellBinding -WorkerPath $WorkerPath `
         -BundleRoot $Session.StagingBundle -InvocationPath $invocationPath `
         -M4BundleRoot $M4Binding.Root `
-        -TimeoutSeconds ([int]$Plan.bounds.worker_timeout_seconds)
+        -TimeoutSeconds $workerTimeout
     $resultPath = Get-M1PayloadPath -Session $Session `
         -RelativePath $paths.result
     Invoke-M5Contract -Context $Context -ContractPath $ContractPath `
