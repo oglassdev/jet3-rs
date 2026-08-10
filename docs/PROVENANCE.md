@@ -2316,6 +2316,49 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: preregistration and normalized-design checks complete; exact-commit
   implementation, activation, and execution pending
 
+### EXP-0032 — Checked M5R7 execution activation
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: exact-source implementation and execution-readiness record; no DAO
+  experiment result
+- Question: Are the sole remaining exact-commit/host requirements in the
+  immutable `EXP-0031` plan satisfied without rewriting its `BLOCKED` history?
+- Origin: project-authored M5R7 plan, schemas, checked controller/workers,
+  analysis, complete-bundle validator, and normalization/corruption tests; the
+  independently validated `EXP-0018` bundle is the only M4 input
+- Environment: Windows 11 Pro 10.0.22631 x64; x86 Windows PowerShell
+  5.1.22621.6133; `DAO.DBEngine.36` 3.6, CLSID
+  `{00000100-0000-0010-8000-00AA006D2EA4}`, `dao360.dll` 03.60.9765.0,
+  SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  environment-record SHA-256
+  `8664fddb92483831cc300d4e16a8cb755b7fe4100c3f7b14e5c1220bb86c03d5`;
+  checked implementation commit
+  `06ef6480daedc9835e2747c19cd32e2931773ec4`
+- Protocol: validate plan SHA-256
+  `b0e5cb2de39fac78be7519f93328a6e7c85e6fcfd6058d15a834065dd880c0e6`;
+  prove normalized R6/R7 design/resource/schema equality; run focused and full
+  oracle suites; parse PowerShell; execute the production artifact builder in
+  fresh no-COM PowerShell and require null preservation, valid retained-prefix
+  projection, and empty/non-string rejection; require exact clean pushed
+  implementation/activation commits; independently revalidate M4R2
+- Artifacts: implementation commit
+  `06ef6480daedc9835e2747c19cd32e2931773ec4`; 41 focused M5 tests passed with
+  three platform-dependent skips; full suite passed 311 tests with twelve
+  platform-dependent skips; M4R2 manifest independently revalidated at
+  SHA-256 `0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d`
+- Observation: experiment `DAO-M5-COMPACT-CONFIRM-007`, its exact plan and ten
+  schemas, all 68 transitive sources, immutable M4 input, provider, and revised
+  ref are bound. The optional locator preserves null and rejects invalid
+  non-null shapes; prior worker helper/return corrections and all bounds remain.
+- Interpretation: R7 is ready for one later exact clean pushed execution. This
+  records no M5 result, assigns no physical meaning, weakens no validator, and
+  establishes no MDB compatibility.
+- Usage: authorize one exact-commit execution through
+  `refs/heads/codex/m5r6-null-prefix-bound`; future M5R7 execution record only
+- Rights: implementation, schemas, and tests are original project material;
+  future licensed-provider output requires its own retention record
+- Review: implementation and activation contracts verified; result pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
