@@ -170,6 +170,7 @@ jobs:
         run: >-
           python -m unittest
           tools.tests.test_release_evidence
+          tools.tests.test_release_evidence_identity
           tools.tests.test_release_evidence_primitives
           tools.tests.test_release_evidence_staging.ReleaseEvidenceStagingTests.test_windows_staging_is_explicitly_unavailable_until_handle_safe
           -v
