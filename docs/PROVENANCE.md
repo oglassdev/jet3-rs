@@ -1617,6 +1617,104 @@ Use `not applicable` explicitly rather than omitting a field.
   record
 - Review: pending independent review and exact-commit execution
 
+### EXP-0018 — Validated canonical-path M4 execution
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled black-box DAO experiment with independently validated
+  complete evidence bundle
+- Question: Under the preregistered `EXP-0017` design, which absolute offsets
+  in the bounded Jet database prefix satisfy the declared version/encryption
+  predicates?
+- Origin: project-authored `DAO-M4-HEADER-DISCRIMINATOR-003` controller and
+  validators using only the licensed Microsoft DAO provider as the independent
+  generator and semantic oracle; no third-party MDB implementation, donated
+  MDB, or Rust self-read was used
+- Environment: Windows 11 Pro 10.0.22631 x64; x86 Windows PowerShell
+  5.1.22621.6133; culture `en-US`; ANSI code page 1252; Eastern Standard Time;
+  `DAO.DBEngine.36` 3.6 from `dao360.dll` 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  exact clean pushed producer commit
+  `35f5f55f0b7277fc07831db540eab7fa69a41a20`
+- Protocol: execute the checked x86 controller with run ID
+  `20260810T220332Z-m4-r2` against the exact pushed
+  `refs/heads/codex/m4r2-canonical-paths` ref; run 36 samples and 72 isolated
+  creator/reopen workers in the preregistered cyclic order; retain all
+  controller quiescence records and present companions; publish only after the
+  controller's exact bundle validator passes; then invoke
+  `m4r1_contract.py validate-bundle` again in a separate read-only Python
+  process against the published directory
+- Artifacts: retained bundle at
+  `%TEMP%\jet3-rs-dao-m4r2\evidence-35f5f55\35f5f55f0b7277fc07831db540eab7fa69a41a20\20260810T220332Z-m4-r2`;
+  `bundle-manifest.json` SHA-256
+  `0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d`;
+  591 manifest payloads; `analysis/report.json` SHA-256
+  `994d918ffff3cadb6b193c01d868bc7f275d8d1e2b56dbc162b3e53d923fb6ee`;
+  checked plan SHA-256
+  `37c66244ee0021e4e63096ac7b5e0ac27615fa1e82d7afc9fab56fbc7f07ce46`
+- Observation: execution and both complete-bundle validations passed. All 36
+  sample records, 72 database artifacts, 72 prefixes, 72 post-worker
+  quiescence records, and 324 comparisons closed exactly. Twelve companion
+  artifacts were present, all in the `dbVersion20` creator phases; the other 60
+  companion states were absent. Only
+  `M4-CANDIDATE-V30-ENCRYPTION` was nonempty: absolute offset 65 (`0x041`)
+  appeared in 12 declared comparison occurrences. The scientific outcome is
+  `inconclusive`; the other candidate predicates were empty.
+- Interpretation: this is a bounded descriptive DAO generation-method result.
+  Offset 65 has no assigned physical meaning and is not a new format fact.
+  The result does not establish Rust behavior, semantic-reader correctness, or
+  MDB compatibility. It may be consumed only as the immutable, manifest-bound
+  M4 input to a later preregistered M5 revision.
+- Usage: immutable input to the future M5 follow-on revision; no production
+  Rust format constant or support claim
+- Rights: generated locally through the licensed provider; retained outside
+  the repository and not redistributed
+- Review: complete project validator passed twice; independent human review
+  remains pending
+
+### EXP-0019 — Preregistered exact-M4-bound M5 revision
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: additive declarative experiment-plan revision without a checked M5
+  controller, workers, analysis, or complete-bundle validator; not yet executed
+- Question: Can the unchanged M5 compact-copy campaign consume the exact
+  validated `EXP-0018` bundle while preserving case-sensitive evidence closure?
+- Origin: project-authored experiment `DAO-M5-COMPACT-CONFIRM-003`; recorded
+  after the M4R2 result with that timing disclosed, and derived from the
+  immutable M5R2 scientific design plus the operational path correction in
+  `EXP-0016`
+- Environment: not yet executed; future execution requires the licensed x86
+  DAO provider, an exact clean pushed producer commit, and read-only validation
+  of the M4R2 manifest before any M5 COM call
+- Protocol: preserve all 36 M5 conditions, 108 samples, three rotated blocks,
+  648 comparisons, `[0x000,0x600)` analysis range, excluded range, three
+  confirmation predicates, and scientific outcome rules from `EXP-0015`;
+  bind the exact `EXP-0018` manifest SHA-256 as immutable input; change every
+  sample's four database basenames uniformly to `SOURCE.MDB`,
+  `COMPACT-INPUT.MDB`, `COMPACTED.MDB`, and `VERIFY.MDB`; keep controller-owned
+  quiescence, companion retention, bounds, and exact case-sensitive tree
+  closure unchanged
+- Artifacts:
+  `oracle/windows-dao/experiments/m5/m5-compact-confirm-r3.plan.json` SHA-256
+  `92779d51660569635872f36f3c97769b0cb4043b775751569ecd38978dc06f8a`;
+  `oracle/windows-dao/experiments/m5/README-r3.md` SHA-256
+  `3736ff8a795b8dc6c651578401efeac77b0e2c907f44ce3a2f78f30eb902ecb2`;
+  required M4R2 bundle-manifest SHA-256
+  `0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d`
+- Observation: no M5R3 DAO call, sample, compacted database, or result exists.
+  The normalized scientific projection is identical to M5R2. The known M4R2
+  candidate result did not change a factor, condition, sample, schedule,
+  comparison, predicate, or outcome; it supplies only the previously declared
+  immutable M4 input.
+- Interpretation: this is a transparent post-M4 operational revision, not M5
+  evidence. The execution gate remains `BLOCKED` until the complete checked M5
+  implementation and focused corruption/resource tests exist. No compacted
+  file may be called compatibility evidence.
+- Usage: `oracle/windows-dao/experiments/m5/m5-compact-confirm-r3.plan.json`;
+  future checked M5R2 implementation
+- Rights: plan and README are original project material; future generated
+  evidence requires its own retention and redistribution review
+- Review: pending independent review and implementation
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
