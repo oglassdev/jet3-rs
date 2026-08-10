@@ -4,12 +4,20 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+TESTS = Path(__file__).resolve().parent
+ROOT = TESTS.parent
+sys.path.insert(0, str(TESTS))
+
+from m4_alias_diagnostics import (  # noqa: E402
+    alias_rejection_evidence as build_alias_rejection_evidence,
+)
+
 MODULE = ROOT / "scripts" / "m4" / "M4.Clone.ps1"
 POWERSHELL = (
     Path(os.environ.get("WINDIR", r"C:\Windows"))
@@ -183,189 +191,6 @@ class M4CloneWindowsFunctionalTests(unittest.TestCase):
             self.skipTest("Windows did not provide a bounded short path")
         return Path(buffer.value)
 
-    def native_path_probe(self, entry: str, path: object) -> dict:
-        """Round-trip one kernel32 path converter without judging the answer."""
-        import ctypes
-        from ctypes import wintypes
-
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        query = getattr(kernel32, entry)
-        query.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
-        query.restype = wintypes.DWORD
-        buffer = ctypes.create_unicode_buffer(32768)
-        ctypes.set_last_error(0)
-        characters = query(str(path), buffer, len(buffer))
-        error = ctypes.get_last_error()
-        return {
-            "input": str(path),
-            "characters": int(characters),
-            "value": buffer.value if characters else "",
-            "leaf": os.path.basename(buffer.value) if characters else "",
-            "last_error": int(error),
-        }
-
-    def volume_information(self, path: object) -> dict:
-        """Report the filesystem carrying ``path`` so alias support is visible."""
-        import ctypes
-        from ctypes import wintypes
-
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        query = kernel32.GetVolumeInformationW
-        query.argtypes = [
-            wintypes.LPCWSTR,
-            wintypes.LPWSTR,
-            wintypes.DWORD,
-            ctypes.POINTER(wintypes.DWORD),
-            ctypes.POINTER(wintypes.DWORD),
-            ctypes.POINTER(wintypes.DWORD),
-            wintypes.LPWSTR,
-            wintypes.DWORD,
-        ]
-        query.restype = wintypes.BOOL
-        drive = os.path.splitdrive(str(path))[0]
-        root = f"{drive}\\" if drive else str(path)
-        label = ctypes.create_unicode_buffer(261)
-        system = ctypes.create_unicode_buffer(261)
-        serial = wintypes.DWORD()
-        component = wintypes.DWORD()
-        flags = wintypes.DWORD()
-        ctypes.set_last_error(0)
-        accepted = query(
-            root,
-            label,
-            len(label),
-            ctypes.byref(serial),
-            ctypes.byref(component),
-            ctypes.byref(flags),
-            system,
-            len(system),
-        )
-        return {
-            "root": root,
-            "accepted": bool(accepted),
-            "filesystem": system.value,
-            "label": label.value,
-            "serial": serial.value,
-            "maximum_component": component.value,
-            "flags": hex(flags.value),
-            "last_error": int(ctypes.get_last_error()),
-        }
-
-    def short_name_policy(self, path: object) -> dict:
-        """Read the 8.3 creation policy; GetVolumeInformationW omits it.
-
-        ``fsutil 8dot3name query`` is read-only but may require elevation, so
-        every outcome including access denial is returned as evidence text.
-        """
-        drive = os.path.splitdrive(str(path))[0]
-        report: dict = {}
-        targets = [("registry", []), ("volume", [f"{drive}\\"] if drive else [])]
-        targets.append(("directory", [str(path)]))
-        for label, arguments in targets:
-            if not arguments and label != "registry":
-                report[label] = "no drive component"
-                continue
-            try:
-                query = subprocess.run(
-                    ["fsutil.exe", "8dot3name", "query", *arguments],
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-            except Exception as error:  # elevation, absence, anything else
-                report[label] = f"error={error!r}"
-                continue
-            report[label] = {
-                "returncode": query.returncode,
-                "stdout": query.stdout,
-                "stderr": query.stderr,
-            }
-        return report
-
-    def module_alias_probe(self, path: object, long_path: object) -> str:
-        """Print what the module computes for ``path`` without asserting.
-
-        ``long_path`` is the known long-named file the alias stands for. It is
-        queried alongside the alias so the FindFirstFileW answers for an alias
-        pattern and for a long pattern can be compared side by side.
-        """
-        quoted = ps_quote(path)
-        body = (
-            f"$supplied={quoted};"
-            f"$known={ps_quote(long_path)};"
-            "$canonical=$null;"
-            "$expandleaf=$null;"
-            "Write-Output ('psversion=' + $PSVersionTable.PSVersion.ToString());"
-            "Write-Output ('supplied=' + $supplied);"
-            "Write-Output ('supplied_leaf=' + [IO.Path]::GetFileName($supplied));"
-            "try{Write-Output ('getfullpath=' + [IO.Path]::GetFullPath($supplied))}"
-            "catch{Write-Output ('getfullpath_error=' + $_.Exception.Message)};"
-            "try{Write-Output ('file_exists=' + [IO.File]::Exists($supplied))}"
-            "catch{Write-Output ('file_exists_error=' + $_.Exception.Message)};"
-            "try{$canonical=Get-M4CloneLocalFullPath -Path $supplied "
-            "-Label 'Diagnostic';"
-            "Write-Output ('localfullpath=' + $canonical)}"
-            "catch{Write-Output ('localfullpath_error=' + $_.Exception.Message)};"
-            "try{$expandleaf=Get-M4CloneLocalFullPath -Path $supplied "
-            "-Label 'Diagnostic' -ExpandLeafAlias;"
-            "Write-Output ('localfullpath_expandleaf=' + $expandleaf)}"
-            "catch{Write-Output ("
-            "'localfullpath_expandleaf_error=' + $_.Exception.Message)};"
-            "Write-Output ('known_long_path=' + $known);"
-            "try{Write-Output ('longpath_supplied=' + "
-            "(Get-M4CloneLongPathString -Path $supplied "
-            "-Failure 'diagnostic supplied expansion failed'))}"
-            "catch{Write-Output ("
-            "'longpath_supplied_error=' + $_.Exception.Message)};"
-            "if($null -ne $canonical){"
-            "try{Write-Output ('longpath_canonical=' + "
-            "(Get-M4CloneLongPathString -Path $canonical "
-            "-Failure 'diagnostic canonical expansion failed'))}"
-            "catch{Write-Output ("
-            "'longpath_canonical_error=' + $_.Exception.Message)};"
-            "try{Assert-M4CloneCanonicalExistingLeaf -Path $canonical "
-            "-Label 'Diagnostic';"
-            "Write-Output 'assert_canonical_leaf=accepted'}"
-            "catch{Write-Output ("
-            "'assert_canonical_leaf_threw=' + $_.Exception.Message)}};"
-            # The alias pattern, every path the module derived from it, and the
-            # known long pattern are all queried so an alias-pattern answer can
-            # be compared against a long-pattern answer for the same file.
-            "$candidates=@($supplied,$canonical,$expandleaf,$known,"
-            r"('\\?\' + $supplied),('\\?\' + $known));"
-            "$probes=@();"
-            "foreach($candidate in $candidates){"
-            "if([string]::IsNullOrEmpty($candidate)){continue};"
-            "$seen=$false;"
-            "foreach($existing in $probes){"
-            "if($existing.Equals("
-            "$candidate,[StringComparison]::OrdinalIgnoreCase)){$seen=$true}};"
-            "if(-not $seen){$probes+=$candidate}};"
-            "foreach($probe in $probes){"
-            "$data=New-Object M4Clone.FindData;"
-            "$search=$null;"
-            "try{$search=[M4Clone.NativeMethods]::FindFirstFile("
-            "$probe,[ref]$data);"
-            "if($null -eq $search -or $search.IsInvalid){"
-            "Write-Output ('find|' + $probe + '|invalid|' + "
-            "[Runtime.InteropServices.Marshal]::GetLastWin32Error())}"
-            "else{Write-Output ('find|' + $probe + '|cFileName=' + "
-            "[string]$data.FileName + '|cAlternateFileName=' + "
-            "[string]$data.AlternateFileName)}}"
-            "catch{Write-Output ('find|' + $probe + '|error|' + "
-            "$_.Exception.Message)}"
-            "finally{if($null -ne $search){$search.Dispose()}}}"
-        )
-        try:
-            probe = self.run_ps(body)
-        except Exception as error:  # diagnostics must never mask the assertion
-            return f"probe_launch_error={error!r}"
-        return (
-            f"probe_returncode={probe.returncode!r}\n"
-            f"probe_stdout={probe.stdout!r}\n"
-            f"probe_stderr={probe.stderr!r}"
-        )
-
     def alias_rejection_evidence(
         self,
         *,
@@ -375,66 +200,16 @@ class M4CloneWindowsFunctionalTests(unittest.TestCase):
         aliased_leaf: Path,
         result: subprocess.CompletedProcess,
     ) -> str:
-        """Build failure-path-only evidence for a leaf alias that was accepted."""
-        import platform
-        import sys
-
-        lines = ["short 8.3 leaf alias was not rejected; evidence follows"]
-
-        def record(label: str, producer) -> None:
-            try:
-                lines.append(f"{label}={producer()!r}")
-            except Exception as error:  # never let evidence mask the failure
-                lines.append(f"{label}_error={error!r}")
-
-        record("python_version", lambda: sys.version)
-        record("platform", platform.platform)
-        record("root", lambda: str(root))
-        record("source", lambda: str(source))
-        record("short_source", lambda: str(short_source))
-        record("aliased_leaf", lambda: str(aliased_leaf))
-        record("aliased_leaf_exists", lambda: os.path.exists(str(aliased_leaf)))
-        record(
-            "samefile",
-            lambda: os.path.samefile(str(source), str(aliased_leaf)),
+        """Delegate to the failure-diagnosis-only sibling helper module."""
+        return build_alias_rejection_evidence(
+            root=root,
+            source=source,
+            short_source=short_source,
+            aliased_leaf=aliased_leaf,
+            result=result,
+            run_ps=self.run_ps,
+            ps_quote=ps_quote,
         )
-        record("listdir", lambda: sorted(os.listdir(str(root))))
-        record(
-            "long_of_aliased_leaf",
-            lambda: self.native_path_probe("GetLongPathNameW", aliased_leaf),
-        )
-        record(
-            "long_of_source",
-            lambda: self.native_path_probe("GetLongPathNameW", source),
-        )
-        record(
-            "long_of_root",
-            lambda: self.native_path_probe("GetLongPathNameW", root),
-        )
-        record(
-            "short_of_source",
-            lambda: self.native_path_probe("GetShortPathNameW", source),
-        )
-        record(
-            "short_of_aliased_leaf",
-            lambda: self.native_path_probe("GetShortPathNameW", aliased_leaf),
-        )
-        record("volume", lambda: self.volume_information(root))
-        record("short_name_policy", lambda: self.short_name_policy(root))
-        record(
-            "dir_slash_x",
-            lambda: subprocess.run(
-                ["cmd.exe", "/c", "dir", "/x", str(root)],
-                text=True,
-                capture_output=True,
-                check=False,
-            ).stdout,
-        )
-        lines.append(self.module_alias_probe(aliased_leaf, source))
-        lines.append(f"clone_returncode={result.returncode!r}")
-        lines.append(f"clone_stdout={result.stdout!r}")
-        lines.append(f"clone_stderr={result.stderr!r}")
-        return "\n".join(lines)
 
     def run_ps(self, body: str) -> subprocess.CompletedProcess[str]:
         command = (
