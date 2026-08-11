@@ -50,6 +50,15 @@
         "sha256": "d51cdbaef9c49599e36d40595feb596b6c675556821aef25deeba898150f0acd"
       },
       {
+        "path": "crates/jet3/src/database.rs",
+        "provenance_ids": [
+          "SRC-0004",
+          "SRC-0005",
+          "SRC-0013"
+        ],
+        "sha256": "fa8945663df182544e056a7e721e10325b725c8b929804c207f91837a0d1ed5c"
+      },
+      {
         "path": "crates/jet3/src/database_header.rs",
         "provenance_ids": [
           "SRC-0004",
@@ -118,6 +127,11 @@
         "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0"
       },
       {
+        "path": "crates/jet3/src/database_tests.rs",
+        "reason": "Test-only verification of the provenance-bound bounded database opening in database.rs.",
+        "sha256": "c5d8d77853323057bcdd008d30278b67d52a99cadb45a7b94b2ef0931d9900aa"
+      },
+      {
         "path": "crates/jet3/src/commit_state_tests.rs",
         "reason": "Test-only verification of the provenance-bound commit-region assertions in commit_state.rs.",
         "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07"
@@ -140,7 +154,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "2df762181a994f237d18bf2a7df2dddaed737ca2e733ba8f7aeaf373e6918bbb"
+        "sha256": "512c2b104dea2080101f688d5c42877dd9c83d1b29593b76bb8558bff689cd84"
       },
       {
         "path": "crates/jet3/src/limits.rs",

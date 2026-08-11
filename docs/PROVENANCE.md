@@ -158,9 +158,12 @@ Use `not applicable` explicitly rather than omitting a field.
   not identify a Jet generation, prove that the rest of the file is well
   formed, or establish DAO compatibility.
 - Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/database_header.rs`;
-  `crates/jet3/src/candidate.rs`;
+  `crates/jet3/src/candidate.rs`; `crates/jet3/src/database.rs`;
   `crates/jet3-cli/src/main.rs`; `OBS-0001`;
-  `docs/validation/EXTERNAL_CORPUS.md`
+  `docs/architecture/SEMANTIC_READER.md`;
+  `docs/validation/repository-contract.json`;
+  `docs/validation/EXTERNAL_CORPUS.md`; `fuzz/corpus/manifest.json`;
+  `tests/manifest.json`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -186,9 +189,12 @@ Use `not applicable` explicitly rather than omitting a field.
   byte-level generation discriminator.
 - Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/database_header.rs`;
   `crates/jet3/src/jet3_page.rs`; `crates/jet3/src/candidate.rs`;
-  `crates/jet3/src/raw_page_stream.rs`;
+  `crates/jet3/src/raw_page_stream.rs`; `crates/jet3/src/database.rs`;
   `crates/jet3-cli/src/main.rs`; `EXP-0001`;
-  `docs/validation/EXTERNAL_CORPUS.md`
+  `docs/architecture/SEMANTIC_READER.md`;
+  `docs/validation/repository-contract.json`;
+  `docs/validation/EXTERNAL_CORPUS.md`;
+  `oracle/windows-dao/scripts/observe_m1_pages.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -258,8 +264,8 @@ Use `not applicable` explicitly rather than omitting a field.
   tags, header-field offsets, allocation-map encoding, catalog root, row
   layout, or long-value pointers, so none of those details may be inferred or
   implemented from this source.
-- Usage: clean-room experiment planning and future DAO scenario design; not
-  currently cited by production code
+- Usage: `docs/architecture/SEMANTIC_READER.md`; clean-room experiment planning
+  and future DAO scenario design; not currently cited by production code
 - Rights: citation to Microsoft-authored public material; no white-paper
   content is redistributed
 - Review: pending independent review
@@ -471,7 +477,15 @@ Use `not applicable` explicitly rather than omitting a field.
   catalog root, allocation encoding, row layout, index encoding, or long-value
   pointer.
 - Usage: `crates/jet3/src/commit_state.rs`;
-  `crates/jet3/src/database_header.rs`; future Windows `.ldb` correlation
+  `crates/jet3/src/database_header.rs`; `crates/jet3/src/database.rs`;
+  `docs/architecture/SEMANTIC_READER.md`;
+  `docs/validation/repository-contract.json`; `fuzz/corpus/manifest.json`;
+  `oracle/windows-dao/experiments/m4/`;
+  `oracle/windows-dao/experiments/m4r1/`;
+  `oracle/windows-dao/experiments/m4r2/`;
+  `oracle/windows-dao/experiments/m5/`;
+  `oracle/windows-dao/scripts/m4_spec.py`;
+  `oracle/windows-dao/scripts/m4r1_spec.py`; future Windows `.ldb` correlation
   experiments
 - Rights: citation to Microsoft-authored public material; no white-paper
   content is redistributed
