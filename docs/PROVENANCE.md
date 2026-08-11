@@ -2359,6 +2359,52 @@ Use `not applicable` explicitly rather than omitting a field.
   future licensed-provider output requires its own retention record
 - Review: implementation and activation contracts verified; result pending
 
+### EXP-0033 — M5R7 immutable-M4 stability blocker
+
+- Recorded: 2026-08-10, OpenAI Codex
+- Kind: controlled complete-acquisition analysis failure; no published M5
+  bundle or scientific result
+- Question: Can the preregistered M5 comparison topology be constructed when
+  its immutable M4 input has no single stable byte value for a matched
+  condition at an analyzed offset?
+- Origin: project-authored `DAO-M5-COMPACT-CONFIRM-007` checked controller and
+  analysis against the independently validated, immutable `EXP-0018` M4R2
+  bundle; no external implementation or format source was consulted
+- Environment: the exact licensed x86 environment recorded in `EXP-0032`;
+  exact clean pushed commit
+  `3761e165d99d8566bfec189f66afa1c364ae1ccd`; exact remote ref
+  `refs/heads/codex/m5r6-null-prefix-bound`
+- Protocol: execute run `20260810T235119Z-m5-r7` under all checked bounds;
+  complete all 108 samples and 324 isolated DAO workers; then build the exact
+  648 preregistered comparisons using only per-condition M4 values that are
+  stable across all twelve creator/reopen observations; fail before report or
+  publication if such a value does not exist
+- Artifacts: no published or staged M5 bundle remains; publication cleanup
+  left only the empty exact-commit parent under
+  `%TEMP%\jet3-rs-dao-m5r7\evidence-3761e16`; no M5 database, companion,
+  prefix, sample record, comparison, candidate set, or report is retained
+- Observation: acquisition completed all 108 samples without a worker, clone,
+  quiescence, sample, provider, or resource-bound error. Checked analysis then
+  found the immutable M4 condition `V20-E` unstable at absolute offset 1264
+  (`0x4F0`) within `[0x000,0x600)` and stopped. M4R2 itself already reports an
+  inconclusive scientific outcome; this is not a newly inferred format fact.
+- Interpretation: M5R7 is a failed experiment and remains immutable. The
+  `compact_versus_created_matched` comparison requires a single right-hand M4
+  byte vector, which does not exist for every analyzed offset. Selecting a
+  representative M4 observation, deleting the offset, reducing comparisons,
+  or converting the analysis error to a passing outcome after complete M5
+  acquisition would materially redesign the preregistered experiment and is
+  forbidden here. A future M5 successor needs a new, independently reviewed
+  scientific protocol that defines unstable-M4 reference semantics before any
+  new M5 acquisition; this blocker must not be made green by weakening the
+  validator.
+- Usage: terminal blocker for the current M5 campaign family; input to a future
+  separately preregistered experimental design only; no production Rust or MDB
+  format usage
+- Rights: no licensed-provider output was retained or published
+- Review: execution trace and immutable-M4 cause verified; current M5 campaign
+  remains blocked with no scientific or compatibility claim
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
