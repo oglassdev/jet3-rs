@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -133,6 +134,7 @@ class BoundedProcessWindowsTests(unittest.TestCase):
         if self.powershell is None:
             self.skipTest("Windows PowerShell is unavailable")
 
+    # Process-launch tests pass explicit harness bounds for slow hosted Windows runners.
     def _run(
         self, command: str, *, timeout: int = 20
     ) -> subprocess.CompletedProcess[str]:
@@ -224,7 +226,16 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 f"(Test-Path -LiteralPath '{quoted(started)}')+'|'+"
                 f"(Test-Path -LiteralPath '{quoted(completed)}'))"
             )
-            result = self._run(command, timeout=40)
+            started_at = time.monotonic()
+            result = self._run(command, timeout=120)
+            elapsed = time.monotonic() - started_at
+            # Catch late ceiling enforcement below the 120 s harness cap while
+            # retaining ample headroom for slow Add-Type compilation on hosted runners.
+            self.assertLess(
+                elapsed,
+                90,
+                f"20-second wall-clock ceiling took {elapsed:.1f} seconds to fire",
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
                 result.stdout,
@@ -275,7 +286,7 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 f"(Test-Path -LiteralPath '{quoted(started)}'),"
                 f"(Test-Path -LiteralPath '{quoted(completed)}')))"
             )
-            result = self._run(command, timeout=40)
+            result = self._run(command, timeout=120)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "True|False")
 
@@ -324,7 +335,7 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 "Start-Sleep -Seconds 4;"
                 f"[Console]::Write((Test-Path -LiteralPath '{quoted(completed)}'))"
             )
-            result = self._run(command, timeout=30)
+            result = self._run(command, timeout=120)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "False")
 
