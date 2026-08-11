@@ -26,8 +26,8 @@ jobs:
             platform: windows
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
@@ -42,7 +42,7 @@ jobs:
           --output "artifacts/ci-evidence/${{ matrix.platform }}"
       - name: Upload platform evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: g1-${{ matrix.platform }}-${{ github.sha }}
           path: artifacts/ci-evidence/${{ matrix.platform }}
@@ -54,12 +54,12 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Download exact-run platform records
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: g1-*-${{ github.sha }}
           path: artifacts/ci-evidence/downloaded
@@ -76,7 +76,7 @@ jobs:
             artifacts/ci-evidence/g1-aggregate \
             --expected-commit "$commit"
       - name: Upload validated aggregate
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: g1-cross-platform-${{ github.sha }}
           path: artifacts/ci-evidence/g1-aggregate
@@ -87,10 +87,10 @@ jobs:
     name: Validation contracts and tooling
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
@@ -116,10 +116,10 @@ jobs:
     name: Exact-commit G6 coverage evidence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
@@ -144,7 +144,7 @@ jobs:
           python3 tools/validate_g6_evidence.py coverage \
             "coverage/g6/$commit/coverage-evidence.json"
       - name: Upload validated exact-commit coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: g6-coverage-${{ github.sha }}
           path: coverage/g6/${{ github.sha }}
@@ -155,10 +155,10 @@ jobs:
     name: Windows oracle and bounded-process contracts
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Validate DAO oracle schemas
@@ -179,8 +179,8 @@ jobs:
     name: Benchmark harness
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
@@ -208,7 +208,7 @@ jobs:
     env:
       RUSTUP_TOOLCHAIN: nightly-2026-07-20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly-2026-07-20
@@ -235,7 +235,7 @@ jobs:
     name: Miri library tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly-2026-07-20
@@ -269,7 +269,7 @@ jobs:
     name: Formatting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.96.0
@@ -281,7 +281,7 @@ jobs:
     name: Dependency policy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deny@0.20.2
