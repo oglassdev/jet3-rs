@@ -20,6 +20,16 @@ RUN_ID = "20260810T230000Z-m5-synthetic"
 IDENTITY = {"volume_serial_number": "00000001", "file_index": "0000000000000001", "link_count": 1}
 
 
+def unaliased_root(directory: str | Path) -> Path:
+    """Return a bundle root free of symlinked path components.
+
+    Platforms such as macOS hand out temporary directories behind a symlinked
+    prefix, and supplied bundle roots must never traverse an alias, so tests
+    resolve the directory before using it as a root.
+    """
+    return Path(directory).resolve()
+
+
 def write_json(path: Path, document: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes((json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode())
