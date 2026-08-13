@@ -489,6 +489,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/m4r1/`;
   `oracle/windows-dao/experiments/m4r2/`;
   `oracle/windows-dao/experiments/m5/`;
+  `oracle/windows-dao/experiments/m5s1/`;
   `oracle/windows-dao/scripts/m4_spec.py`;
   `oracle/windows-dao/scripts/m4r1_spec.py`; future Windows `.ldb` correlation
   experiments
@@ -531,7 +532,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `oracle/windows-dao/experiments/m4/`;
   `oracle/windows-dao/experiments/m4r1/`;
   `oracle/windows-dao/experiments/m4r2/`;
-  `oracle/windows-dao/experiments/m5/`
+  `oracle/windows-dao/experiments/m5/`;
+  `oracle/windows-dao/experiments/m5s1/`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -566,7 +568,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `oracle/windows-dao/experiments/m4/`;
   `oracle/windows-dao/experiments/m4r1/`;
   `oracle/windows-dao/experiments/m4r2/`;
-  `oracle/windows-dao/experiments/m5/`
+  `oracle/windows-dao/experiments/m5/`;
+  `oracle/windows-dao/experiments/m5s1/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -605,7 +608,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/m4r1/`, and
   `oracle/windows-dao/experiments/m4r2/`; the separately checked experiment
   anticipated here is preregistered as `EXP-0012` and `SRC-0018` in
-  `oracle/windows-dao/experiments/m5/`
+  `oracle/windows-dao/experiments/m5/`; successor experimental controls are
+  preregistered under `oracle/windows-dao/experiments/m5s1/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -704,7 +708,8 @@ Use `not applicable` explicitly rather than omitting a field.
   flag, encryption algorithm, key, page class, or layout; it does not establish
   that a compacted file is readable by this project; and it does not by itself
   authorize execution.
-- Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/`
+- Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/`;
+  `oracle/windows-dao/experiments/m5s1/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -732,6 +737,7 @@ Use `not applicable` explicitly rather than omitting a field.
   representation, key, offset, layout, or successful provider behavior.
 - Usage: `EXP-0015`; revised M5 preregistrations under
   `oracle/windows-dao/experiments/m5/`;
+  successor preregistration under `oracle/windows-dao/experiments/m5s1/`;
   `oracle/windows-dao/scripts/m5/M5.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
@@ -2429,6 +2435,62 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: no licensed-provider output was retained or published
 - Review: execution trace and immutable-M4 cause verified; current M5 campaign
   remains blocked with no scientific or compatibility claim
+
+### EXP-0034 — Preregistered M5 set-reference successor
+
+- Recorded: 2026-08-13, OpenAI Codex
+- Kind: separately preregistered declarative successor with a checked plan
+  projection; no DAO acquisition, bundle, analysis result, or format claim
+- Question: For every fresh compacted-database byte in `[0x000,0x600)`, is the
+  value a member of the complete set observed at the same absolute offset in
+  all twelve validated M4 creator/reopen prefixes for the matched documented
+  destination condition?
+- Origin: project-authored `DAO-M5-SET-REFERENCE-001` plan recorded after the
+  terminal `EXP-0033` failure. The design uses only the immutable `EXP-0018`
+  M4 bundle, the DAO API facts in `SRC-0014` through `SRC-0016`, `SRC-0018`,
+  and `SRC-0019`, and the excluded commit region in `SRC-0013`. No retained
+  M5R7 file or observation exists, and no external MDB implementation or new
+  format source was consulted.
+- Environment: not executed; a future run requires a licensed x86 DAO host,
+  exact provider and Windows identities, and an exact clean pushed successor
+  implementation commit recorded before COM activation
+- Protocol: bind the exact immutable M4R2 manifest; construct each reference
+  set from the sorted distinct unsigned bytes in all six creator and all six
+  reopen prefixes for one M4 condition and offset; require all twelve inputs;
+  run a complete new 36-condition, three-replica, three-phase successor
+  acquisition; perform exactly 165,888 primary membership evaluations over
+  `[0x000,0x600)`; never select a representative M4 value, delete an unstable
+  offset, special-case `0x4F0`, use an M4 candidate set as a prerequisite, or
+  reuse the discarded M5R7 acquisition
+- Artifacts:
+  `oracle/windows-dao/experiments/m5s1/m5-set-reference.plan.json`, SHA-256
+  `3f2863fb51338aa2d6ef54553fcbe5b4826c8d98cce85151958b04d500611261`;
+  `oracle/windows-dao/experiments/m5s1/README.md`, SHA-256
+  `0c1fd6cd8ca8133482c8bdc1ced3f86ff378f319209c61219abaf2e14b7b5851`;
+  `oracle/windows-dao/scripts/m5s1_spec.py`, SHA-256
+  `2e7201d2fb6fe756e155f21976566b3141ab8d2b7acacd77d7b9112d8bec1ca7`;
+  `oracle/windows-dao/tests/test_m5s1_plan_contract.py`, SHA-256
+  `6725f9b679d40129e4aee78bf04463360651bf78de9b26781d274d260e8ba86a`
+- Observation: the exact plan derives 36 unique conditions, 108 samples in
+  three fixed 12-position rotations, 324 future isolated workers, 55,296
+  condition-offset reference units, and 165,888 primary memberships. Its
+  execution gate is `BLOCKED` on independent design review, successor-specific
+  controller/worker/bundle contracts, checked set-reference analysis and an
+  independent validator, and exact clean pushed host binding.
+- Interpretation: this is a new experiment family, not M5R8 and not a repair
+  to M5R7. Set-valued references preserve observed M4 instability without
+  choosing a byte or suppressing an offset. A complete valid future run may
+  report only whether all compact observations belong to their matched sets or
+  whether compact observations extend those sets. Either result remains a
+  bounded provider observation and assigns no physical meaning or compatibility.
+- Usage: scientific and implementation contract for future work under
+  `oracle/windows-dao/experiments/m5s1/` and
+  `oracle/windows-dao/scripts/m5s1_spec.py`; no production Rust usage
+- Rights: plan, documentation, checked projection, and tests are original
+  project material; future licensed-provider output requires a separate
+  retention and rights record
+- Review: focused contract tests pass; independent scientific review and all
+  execution implementation remain explicitly blocked
 
 ## Fixtures and black-box results
 

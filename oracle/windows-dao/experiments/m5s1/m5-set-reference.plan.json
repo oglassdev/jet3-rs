@@ -1,0 +1,230 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_m5_successor_plan",
+  "experiment_id": "DAO-M5-SET-REFERENCE-001",
+  "preregistration": {
+    "provenance_entry": "EXP-0034",
+    "recorded_utc_date": "2026-08-13",
+    "recorded_after_validated_m4_result": "EXP-0018",
+    "recorded_after_terminal_m5r7_blocker": "EXP-0033",
+    "prior_m5_artifacts_available": false,
+    "prior_m5_acquisition_may_be_reused": false,
+    "full_new_acquisition_required": true,
+    "amendment_rule": "any change after the first successor acquisition begins requires a new plan file and provenance entry"
+  },
+  "provenance_ids": [
+    "SRC-0013",
+    "SRC-0014",
+    "SRC-0015",
+    "SRC-0016",
+    "SRC-0018",
+    "SRC-0019"
+  ],
+  "related_experiments": [
+    "EXP-0018",
+    "EXP-0033"
+  ],
+  "execution_gate": {
+    "status": "BLOCKED",
+    "reason": "successor_acquisition_and_analysis_are_not_implemented_or_exact_commit_bound",
+    "blocking_requirements": [
+      "independent_scientific_review",
+      "checked_controller_workers_and_bundle_schemas",
+      "checked_set_reference_analysis_and_independent_validator",
+      "windows_dao_host_bound_to_an_exact_clean_pushed_successor_commit"
+    ]
+  },
+  "m4_binding": {
+    "experiment_id": "DAO-M4-HEADER-DISCRIMINATOR-003",
+    "provenance_entry": "EXP-0018",
+    "bundle_manifest_sha256": "0e6dbba7d5f6bd6933dcc932636b4462487a754f40f2a2f17b48f3c4124baa8d",
+    "producer_commit": "35f5f55f0b7277fc07831db540eab7fa69a41a20",
+    "campaign_run_id": "20260810T220332Z-m4-r2",
+    "scientific_outcome": "inconclusive",
+    "read_only_input": true
+  },
+  "acquisition_design": {
+    "question": "Do fresh compacted-database prefix bytes belong to the complete observed M4 byte set for the matched documented destination condition?",
+    "condition_count": 36,
+    "replicas_per_condition": 3,
+    "sample_count": 108,
+    "workers_per_sample": 3,
+    "worker_count": 324,
+    "phases": [
+      "source",
+      "compact",
+      "verify"
+    ],
+    "source_versions": [
+      {
+        "name": "dbVersion20",
+        "token": "20",
+        "api_value": 16,
+        "dao_version": "2.0"
+      },
+      {
+        "name": "dbVersion30",
+        "token": "30",
+        "api_value": 32,
+        "dao_version": "3.0"
+      },
+      {
+        "name": "dbVersion40",
+        "token": "40",
+        "api_value": 64,
+        "dao_version": "4.0"
+      }
+    ],
+    "source_encryption_options": [
+      {
+        "name": "omitted",
+        "token": "U",
+        "api_value": 0,
+        "encrypted": false
+      },
+      {
+        "name": "dbEncrypt",
+        "token": "E",
+        "api_value": 2,
+        "encrypted": true
+      }
+    ],
+    "destination_version_pairs": [
+      "20-20",
+      "20-30",
+      "20-40",
+      "30-30",
+      "30-40",
+      "40-40"
+    ],
+    "compact_encryption_options": [
+      {
+        "name": "omitted",
+        "token": "OMIT",
+        "api_value": 0,
+        "destination_state": "preserve_source"
+      },
+      {
+        "name": "dbEncrypt",
+        "token": "ENC",
+        "api_value": 2,
+        "destination_state": "encrypted"
+      },
+      {
+        "name": "dbDecrypt",
+        "token": "DEC",
+        "api_value": 4,
+        "destination_state": "unencrypted"
+      }
+    ],
+    "condition_id_rule": "S{source_version_token}{source_encryption_token}-D{destination_version_token}-{compact_encryption_token}",
+    "matched_m4_condition_rule": "V{destination_version_token}-{documented_destination_encryption_token}",
+    "schedule": {
+      "block_count": 3,
+      "conditions_per_block": 36,
+      "canonical_condition_order": "source_version_then_source_encryption_then_destination_version_then_compact_encryption_in_declared_order",
+      "block_rotation": "rotate canonical order left by 12 times the zero-based block index"
+    },
+    "operational_contract": {
+      "fresh_workers": true,
+      "fresh_databases": true,
+      "controller_owned_exact_byte_clones": true,
+      "controller_owned_post_worker_quiescence": true,
+      "companions_excluded_from_analysis": true,
+      "m5r7_databases_or_prefixes_may_be_reused": false
+    }
+  },
+  "reference_semantics": {
+    "reference_unit": "matched_m4_condition_and_absolute_offset",
+    "m4_observations_per_reference_unit": 12,
+    "m4_observation_phases": [
+      "creator",
+      "reopen"
+    ],
+    "m4_replicas_per_condition": 6,
+    "construction": "sorted distinct unsigned byte values from every one of the twelve validated M4 retained prefixes",
+    "empty_reference_set_allowed": false,
+    "representative_value_selection_allowed": false,
+    "unstable_offsets_may_be_deleted": false,
+    "singleton_reference_set_means": "all twelve M4 observations agree",
+    "multiple_value_reference_set_means": "M4 observations vary and every observed value remains admissible reference data",
+    "primary_m5_observation": "compacted_database retained prefix from each of the three successor replicas",
+    "verify_phase_role": "integrity control only and never a substitute primary observation",
+    "membership_rule": "each primary M5 byte is tested for membership in the complete matched M4 reference set at the same absolute offset",
+    "novel_value_rule": "a primary M5 byte is novel only when it is absent from the complete matched M4 reference set"
+  },
+  "analysis": {
+    "retained_prefix_range": {
+      "start": 0,
+      "end": 2048
+    },
+    "analyzed_ranges": [
+      {
+        "start": 0,
+        "end": 1536
+      }
+    ],
+    "excluded_ranges": [
+      {
+        "start": 1536,
+        "end": 2048,
+        "provenance_id": "SRC-0013"
+      }
+    ],
+    "primary_reference_units": 55296,
+    "primary_membership_evaluations": 165888,
+    "required_report_fields": [
+      "reference_set_cardinality_histogram",
+      "novel_value_condition_offsets",
+      "novel_value_occurrence_count",
+      "scientific_outcome"
+    ],
+    "scientific_outcome_rules": {
+      "reference_sets_contain_all_compact_observations": "every primary membership evaluation succeeds",
+      "compact_observations_extend_reference_sets": "at least one primary membership evaluation fails",
+      "no_scientific_outcome": "acquisition bundle, M4 binding, reference construction, or successor validation fails"
+    },
+    "offset_1264_special_casing_allowed": false,
+    "m4_candidate_sets_required": false,
+    "physical_meaning_may_be_assigned": false,
+    "compatibility_may_be_claimed": false
+  },
+  "bounds": {
+    "max_plan_bytes": 262144,
+    "max_database_bytes": 1048576,
+    "max_database_artifacts": 432,
+    "max_total_database_bytes": 452984832,
+    "max_acquisition_database_reads": 1620,
+    "max_acquisition_database_read_bytes": 1698693120,
+    "max_validator_database_reads_per_run": 432,
+    "max_validator_database_read_bytes_per_run": 452984832,
+    "max_prefix_artifacts": 324,
+    "prefix_bytes_per_phase": 2048,
+    "max_total_prefix_bytes": 663552,
+    "max_companion_bytes": 65536,
+    "max_companion_artifacts": 432,
+    "max_total_companion_bytes": 28311552,
+    "max_acquisition_companion_reads": 432,
+    "max_acquisition_companion_read_bytes": 28311552,
+    "max_validator_companion_reads_per_run": 432,
+    "max_validator_companion_read_bytes_per_run": 28311552,
+    "quiescence_records_per_sample": 4,
+    "max_quiescence_records": 432,
+    "max_quiescence_record_bytes": 16384,
+    "max_total_quiescence_record_bytes": 7077888,
+    "max_sample_record_bytes": 65536,
+    "max_reference_units": 55296,
+    "max_reference_set_members": 256,
+    "max_primary_membership_evaluations": 165888,
+    "max_novel_value_records": 165888,
+    "max_worker_processes": 324,
+    "worker_timeout_seconds": 120,
+    "max_analysis_report_bytes": 16777216
+  },
+  "claims": {
+    "descriptive_provider_observations_only": true,
+    "format_field_identification": false,
+    "rust_compatibility": false,
+    "mdb_read_write_or_conversion_support": false
+  }
+}
