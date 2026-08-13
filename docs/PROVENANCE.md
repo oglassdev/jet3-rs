@@ -76,8 +76,7 @@ Use `not applicable` explicitly rather than omitting a field.
   DAO `CreateDatabase` with `dbVersion30` and without `dbEncrypt`. This source
   does not establish any physical file-layout fact or prove that a generated
   file is accepted by Rust.
-- Usage: `docs/validation/ACCEPTANCE.md` G3;
-  `oracle/windows-dao/README.md`
+- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -102,7 +101,9 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: a PowerShell oracle using late-bound DAO COM may pass integer
   32 when the named enumeration constant is unavailable. This establishes only
   the oracle API argument, not a byte value or offset in an MDB file.
-- Usage: `oracle/windows-dao/scripts/probe-provider.ps1`
+- Usage: `oracle/windows-dao/scripts/probe-provider.ps1`;
+  `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
+  `oracle/windows-dao/scripts/m1/M1.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -127,7 +128,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: the DAO oracle may apply this flag to `TableDef.Attributes`
   when excluding system tables from an empty user-schema snapshot. This does
   not establish how a system-table attribute is encoded in an MDB file.
-- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`
+- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
+  `oracle/windows-dao/scripts/m1/M1.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -317,7 +319,8 @@ Use `not applicable` explicitly rather than omitting a field.
   numeric values when creating the four controlled field kinds. They are API
   enumeration values only; they do not identify MDB type bytes, physical
   layouts, long-value thresholds, page classes, or storage strategies.
-- Usage: `oracle/windows-dao/protocol/v1_1/scenario.schema.json`;
+- Usage: `oracle/windows-dao/scripts/m1/M1.Dao.ps1`;
+  `oracle/windows-dao/protocol/v1_1/scenario.schema.json`;
   `oracle/windows-dao/examples/m1-inventory.json`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
@@ -426,7 +429,9 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `oracle/windows-dao/protocol/v1_1/README.md`;
   `oracle/windows-dao/examples/DAO-GEN-BINARY-MARKER-001.scenario.json`;
   `oracle/windows-dao/examples/DAO-GEN-MEMO-LADDER-001.scenario.json`;
-  `oracle/windows-dao/examples/DAO-GEN-LONGBINARY-LADDER-001.scenario.json`
+  `oracle/windows-dao/examples/DAO-GEN-LONGBINARY-LADDER-001.scenario.json`;
+  `oracle/windows-dao/scripts/preflight-m1-controlled.ps1`;
+  `oracle/windows-dao/tests/test_m1_preflight_contract.py`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -524,6 +529,8 @@ Use `not applicable` explicitly rather than omitting a field.
   physical encoding, and a successful call does not establish Rust
   compatibility.
 - Usage: `oracle/windows-dao/experiments/m4/`;
+  `oracle/windows-dao/experiments/m4r1/`;
+  `oracle/windows-dao/experiments/m4r2/`;
   `oracle/windows-dao/experiments/m5/`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
@@ -557,6 +564,8 @@ Use `not applicable` explicitly rather than omitting a field.
   evidence only; it is not an MDB version field, byte string, encoding, or
   Rust compatibility result.
 - Usage: `oracle/windows-dao/experiments/m4/`;
+  `oracle/windows-dao/experiments/m4r1/`;
+  `oracle/windows-dao/experiments/m4r2/`;
   `oracle/windows-dao/experiments/m5/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
@@ -592,10 +601,11 @@ Use `not applicable` explicitly rather than omitting a field.
   and no compacted file may be treated as compatibility or physical-layout
   evidence without a separately checked experiment.
 - Usage: explicit exclusion and future-control rationale in
-  `oracle/windows-dao/experiments/m4/README.md` and
-  `oracle/windows-dao/experiments/m4/m4-header-discriminator.plan.json`; the
-  separately checked experiment anticipated here is preregistered as
-  `EXP-0012` and `SRC-0018` in `oracle/windows-dao/experiments/m5/`
+  `oracle/windows-dao/experiments/m4/`,
+  `oracle/windows-dao/experiments/m4r1/`, and
+  `oracle/windows-dao/experiments/m4r2/`; the separately checked experiment
+  anticipated here is preregistered as `EXP-0012` and `SRC-0018` in
+  `oracle/windows-dao/experiments/m5/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -694,8 +704,7 @@ Use `not applicable` explicitly rather than omitting a field.
   flag, encryption algorithm, key, page class, or layout; it does not establish
   that a compacted file is readable by this project; and it does not by itself
   authorize execution.
-- Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/README.md`;
-  `oracle/windows-dao/experiments/m5/m5-compact-confirm.plan.json`
+- Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -721,7 +730,9 @@ Use `not applicable` explicitly rather than omitting a field.
   `dbDecrypt` API option after all other checked execution gates pass. This is
   only an API enumeration value; it establishes no MDB byte, encryption
   representation, key, offset, layout, or successful provider behavior.
-- Usage: revised M5 preregistration and future checked M5 compact worker
+- Usage: `EXP-0015`; revised M5 preregistrations under
+  `oracle/windows-dao/experiments/m5/`;
+  `oracle/windows-dao/scripts/m5/M5.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review

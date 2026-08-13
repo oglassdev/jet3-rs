@@ -37,6 +37,7 @@ from validation.repository_provenance import (
     provenance_sections as _provenance_sections,
     tracked_files as _tracked_files,
     validate_format_knowledge,
+    validate_source_usage_ledger,
 )
 from validation.repository_shape import validate_contract_shape
 from validation.repository_workspace_dependency import (
@@ -85,6 +86,7 @@ def validate_repository(
     errors.extend(
         validate_format_knowledge(root, contract, source_files, provenance_text)
     )
+    errors.extend(validate_source_usage_ledger(root, tracked, provenance_text))
 
     fixture_path, _ = _resolve_file(
         root,

@@ -12,6 +12,9 @@ from .repository_common import ContractError, resolve_file, sha256
 PROVENANCE_HEADING = re.compile(
     r"^### ((?:SRC|OBS|EXP|FIX)-[0-9]{4})\b", re.MULTILINE
 )
+SOURCE_ID = re.compile(r"\bSRC-[0-9]{4}\b")
+USAGE_FIELD = re.compile(r"^- Usage:(.*?)(?=^- Rights:)", re.MULTILINE | re.DOTALL)
+BACKTICKED_VALUE = re.compile(r"`([^`\n]+)`")
 
 
 def tracked_files(root: Path) -> set[str]:
@@ -42,6 +45,56 @@ def provenance_sections(text: str) -> dict[str, str]:
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         sections[match.group(1)] = text[match.start() : end]
     return sections
+
+
+def validate_source_usage_ledger(
+    root: Path, tracked: set[str], provenance_text: str
+) -> list[str]:
+    """Require every substantive source citation to appear in its Usage field."""
+    errors: list[str] = []
+    sections = provenance_sections(provenance_text)
+    usage_paths: dict[str, set[str]] = {}
+    for identifier, section in sections.items():
+        if not identifier.startswith("SRC-"):
+            continue
+        match = USAGE_FIELD.search(section)
+        if match is None:
+            errors.append(f"{identifier}: missing Usage field")
+            continue
+        usage_paths[identifier] = {
+            value.removeprefix("./")
+            for value in BACKTICKED_VALUE.findall(match.group(1))
+            if "/" in value
+        }
+
+    for relative in sorted(tracked):
+        if relative == "docs/PROVENANCE.md" or relative.startswith("tools/tests/"):
+            continue
+        path = root / relative
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if b"SRC-" not in data:
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            errors.append(f"{relative}: source citation appears in a non-UTF-8 file")
+            continue
+        for identifier in sorted(set(SOURCE_ID.findall(text))):
+            if identifier not in sections:
+                errors.append(f"{relative}: unknown source provenance ID {identifier}")
+                continue
+            declared = usage_paths.get(identifier, set())
+            if not any(
+                relative == candidate
+                or (candidate.endswith("/") and relative.startswith(candidate))
+                for candidate in declared
+            ):
+                errors.append(
+                    f"{identifier}: Usage does not cover citing path {relative}"
+                )
+    return errors
 
 
 def validate_format_knowledge(

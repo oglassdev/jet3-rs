@@ -377,6 +377,51 @@ class FormatKnowledgeTests(unittest.TestCase):
         self.assertTrue(any("is absent from source" in error for error in errors))
 
 
+class SourceUsageLedgerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        (self.root / "src").mkdir()
+
+    def validate(self, provenance: str) -> list[str]:
+        return repository_provenance.validate_source_usage_ledger(
+            self.root, {"src/module.rs"}, provenance
+        )
+
+    def test_exact_file_and_directory_usage_cover_citations(self) -> None:
+        (self.root / "src/module.rs").write_text(
+            "// Evidence: SRC-0001 and SRC-0002.\n", encoding="utf-8"
+        )
+        provenance = (
+            "### SRC-0001 — one\n\n- Usage: `src/module.rs`\n- Rights: test\n\n"
+            "### SRC-0002 — two\n\n- Usage: `src/`\n- Rights: test\n"
+        )
+        self.assertEqual(self.validate(provenance), [])
+
+    def test_missing_usage_path_fails(self) -> None:
+        (self.root / "src/module.rs").write_text(
+            "// Evidence: SRC-0001.\n", encoding="utf-8"
+        )
+        errors = self.validate(
+            "### SRC-0001 — one\n\n- Usage: contextual only\n- Rights: test\n"
+        )
+        self.assertEqual(
+            errors, ["SRC-0001: Usage does not cover citing path src/module.rs"]
+        )
+
+    def test_unknown_source_id_fails(self) -> None:
+        (self.root / "src/module.rs").write_text(
+            "// Evidence: SRC-9999.\n", encoding="utf-8"
+        )
+        errors = self.validate(
+            "### SRC-0001 — one\n\n- Usage: `src/module.rs`\n- Rights: test\n"
+        )
+        self.assertEqual(
+            errors, ["src/module.rs: unknown source provenance ID SRC-9999"]
+        )
+
+
 class FixtureInventoryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
