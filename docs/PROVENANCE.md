@@ -490,6 +490,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/m4r2/`;
   `oracle/windows-dao/experiments/m5/`;
   `oracle/windows-dao/experiments/m5s1/`;
+  `oracle/windows-dao/scripts/m5s1_spec.py`;
   `oracle/windows-dao/scripts/m4_spec.py`;
   `oracle/windows-dao/scripts/m4r1_spec.py`; future Windows `.ldb` correlation
   experiments
@@ -533,7 +534,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/m4r1/`;
   `oracle/windows-dao/experiments/m4r2/`;
   `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`
+  `oracle/windows-dao/experiments/m5s1/`;
+  `oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -569,7 +571,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/m4r1/`;
   `oracle/windows-dao/experiments/m4r2/`;
   `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`
+  `oracle/windows-dao/experiments/m5s1/`;
+  `oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -609,7 +612,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/m4r2/`; the separately checked experiment
   anticipated here is preregistered as `EXP-0012` and `SRC-0018` in
   `oracle/windows-dao/experiments/m5/`; successor experimental controls are
-  preregistered under `oracle/windows-dao/experiments/m5s1/`
+  preregistered under `oracle/windows-dao/experiments/m5s1/` and checked by
+  `oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -709,7 +713,8 @@ Use `not applicable` explicitly rather than omitting a field.
   that a compacted file is readable by this project; and it does not by itself
   authorize execution.
 - Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`
+  `oracle/windows-dao/experiments/m5s1/`;
+  `oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -738,7 +743,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `EXP-0015`; revised M5 preregistrations under
   `oracle/windows-dao/experiments/m5/`;
   successor preregistration under `oracle/windows-dao/experiments/m5s1/`;
-  `oracle/windows-dao/scripts/m5/M5.Dao.ps1`
+  `oracle/windows-dao/scripts/m5/M5.Dao.ps1`;
+  `oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -2491,6 +2497,50 @@ Use `not applicable` explicitly rather than omitting a field.
   retention and rights record
 - Review: focused contract tests pass; independent scientific review and all
   execution implementation remain explicitly blocked
+
+### EXP-0035 — Checked M5 successor set-reference analysis core
+
+- Recorded: 2026-08-13, OpenAI Codex
+- Kind: project-authored bounded analysis implementation and synthetic contract
+  tests; no DAO acquisition, bundle validation, scientific result, or format
+  claim
+- Question: Does the preregistered `EXP-0034` membership algorithm preserve
+  every M4-observed value, evaluate every successor condition/replica/offset,
+  exclude the commit region, and fail closed on incomplete or ambiguous input?
+- Origin: exact `DAO-M5-SET-REFERENCE-001` plan and checked projection from
+  `EXP-0034`; no MDB implementation, new public format source, retained M5R7
+  output, or new DAO observation was consulted
+- Environment: macOS 26.3.1 arm64; Python 3.14.3; no COM activation, Windows
+  provider, external database, or network input
+- Protocol: accept only 72 uniquely identified exact-size M4 prefixes covering
+  six conditions, six replicas, and creator/reopen phases; accept only 108
+  uniquely identified exact-size compact prefixes covering all successor
+  conditions and three replicas; cap iterable consumption before indexing;
+  build all M4 sets for `[0x000,0x600)`; perform the plan's 165,888 primary
+  memberships in canonical order; bound the canonical report bytes; test
+  singleton and unstable references, novel values, excluded bytes, missing,
+  duplicate, short, and permuted inputs
+- Artifacts: `oracle/windows-dao/scripts/m5s1_analysis.py`, SHA-256
+  `d6814ad2de07e506dabb56a4109c2940d6bbd9bb323de9bde51619bc91421c75`;
+  `oracle/windows-dao/tests/test_m5s1_analysis.py`, SHA-256
+  `58f29f705f9479c267f905184b39ddc263b53d0b1c6ff65393e166042503af19`
+- Observation: twelve focused M5S1 plan/analysis tests pass. Synthetic M4
+  variation at `V20-E` offset `0x4F0` admits both observed values without
+  selecting one; an unobserved value produces the exact preregistered extension
+  outcome; changes in `[0x600,0x800)` do not enter the report; reversed complete
+  inputs produce byte-equivalent logical reports.
+- Interpretation: the pure analysis algorithm required by `EXP-0034` now
+  exists and is bounded against its typed complete inputs. This is not an
+  independent bundle validator and does not make successor execution ready.
+  Real input adapters, schemas, retained-tree validation, independent
+  recomputation, Windows acquisition, and exact host/commit bindings remain
+  blocked. Synthetic success establishes robustness only, not an MDB fact.
+- Usage: future M5 successor analysis behind the still-blocked execution gate;
+  no production Rust usage
+- Rights: implementation and tests are original project material; future
+  licensed-provider output requires a separate retention and rights record
+- Review: focused deterministic and corruption-path tests pass; independent
+  analysis and scientific review remain pending
 
 ## Fixtures and black-box results
 
