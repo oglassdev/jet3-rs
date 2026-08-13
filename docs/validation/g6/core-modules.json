@@ -30,7 +30,7 @@
     {
       "path": "crates/jet3/src/database.rs",
       "classification": "format_safety",
-      "sha256": "d5f71d2a292b722939ab4e7d5ba397a14dd57490b5efdb82c7d1bd46b9ec71c8"
+      "sha256": "fa8945663df182544e056a7e721e10325b725c8b929804c207f91837a0d1ed5c"
     },
     {
       "path": "crates/jet3/src/database_header.rs",

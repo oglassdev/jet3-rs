@@ -2,9 +2,10 @@
 //!
 //! This module composes only the generic Jet signature published by Microsoft
 //! (`SRC-0004`), the documented Jet 3 2 KiB page size (`SRC-0005`), and the
-//! documented existence of a database header page (`SRC-0007`). It does not
-//! identify a physical Jet version discriminator, encryption state, page type,
-//! allocation structure, catalog, table, row, or value.
+//! documented identification of the first database page as the database header
+//! page (`SRC-0013`). It does not identify a physical Jet version
+//! discriminator, encryption state, page type, allocation structure, catalog,
+//! table, row, or value.
 
 use std::fmt;
 use std::path::Path;

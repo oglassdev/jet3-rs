@@ -20,7 +20,7 @@ from m5_bundle import validate_bundle
 from m5_phase import validate_worker_result
 from m5_records import CHECKED_PLAN, SCHEMA_SET, load_checked_plan, resolve_bundle_path
 from m5_spec import M4_MANIFEST_SHA256, PLAN_SHA256, compile_checked_plan
-from m5_test_bundle import build_bundle, synthetic_m4, write_json
+from m5_test_bundle import build_bundle, synthetic_m4, unaliased_root, write_json
 from protocol_validation import ValidationError
 
 
@@ -120,7 +120,7 @@ class M5AnalysisContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._temporary = tempfile.TemporaryDirectory()
-        cls.root = Path(cls._temporary.name)
+        cls.root = unaliased_root(cls._temporary.name)
         cls.manifest, cls.m4 = build_bundle(cls.root)
 
     @classmethod
@@ -186,7 +186,7 @@ class M5AnalysisContractTests(unittest.TestCase):
 
     def test_nested_or_wrong_m4_manifest_name_is_not_discovered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = unaliased_root(directory)
             (root / "nested").mkdir()
             (root / "manifest.json").write_text("{}", encoding="utf-8")
             (root / "nested" / "bundle-manifest.json").write_text("{}", encoding="utf-8")
@@ -195,7 +195,7 @@ class M5AnalysisContractTests(unittest.TestCase):
 
     def test_wrong_m4_manifest_hash_is_rejected_before_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = unaliased_root(directory)
             (root / "bundle-manifest.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(ValidationError, "SHA-256 differs"):
                 validate_m4_identity(root)
@@ -214,7 +214,7 @@ class M5AnalysisContractTests(unittest.TestCase):
 
     def test_m4_root_symlink_is_rejected_before_manifest_lookup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = unaliased_root(directory)
             target = root / "target"
             target.mkdir()
             alias = root / "alias"
@@ -230,7 +230,7 @@ class M5BundleIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._template_temporary = tempfile.TemporaryDirectory()
-        cls.template = Path(cls._template_temporary.name) / "template"
+        cls.template = unaliased_root(cls._template_temporary.name) / "template"
         cls.manifest, cls.m4 = build_bundle(cls.template)
 
     @classmethod
@@ -239,7 +239,7 @@ class M5BundleIntegrationTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self._temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self._temporary.name) / "bundle"
+        self.root = unaliased_root(self._temporary.name) / "bundle"
         shutil.copytree(self.template, self.root)
 
     def tearDown(self) -> None:

@@ -13,8 +13,8 @@ captured-length `ReadAt` source and, using one caller-owned `ResourceBudget`:
 1. enforces the configured input-length policy;
 2. recognizes a generic Microsoft-published Jet signature (`SRC-0004`);
 3. requires exact 2 KiB page geometry (`SRC-0005`);
-4. reads one complete database-header page, whose existence is named by
-   `SRC-0007`; and
+4. reads one complete database-header page, which is the first database page
+   (`SRC-0013`); and
 5. rejects a signature classification that changes between the initial window
    and the retained page-zero read.
 
@@ -32,7 +32,7 @@ must not reach around these boundaries to decode numeric offsets directly.
 
 | Stage | Intended output | Evidence gate before implementation | Required safety boundary | Present state |
 | --- | --- | --- | --- | --- |
-| 0. Bounded opening | `DatabaseReader<S>`, captured geometry, retained page zero | Existing `SRC-0004`, `SRC-0005`, and `SRC-0007` | Input, single-read, total-read, page-visit, and total-work limits | Implemented internally; no compatibility claim |
+| 0. Bounded opening | `DatabaseReader<S>`, captured geometry, retained page zero | Existing `SRC-0004`, `SRC-0005`, and `SRC-0013` | Input, single-read, total-read, page-visit, and total-work limits | Implemented internally; no compatibility claim |
 | 1. Page classification | A typed page class plus a borrowed or fixed-size page view | Provenance for every tag, tag offset, header field, and validity rule | One fixed page per decode; checked slice ranges; one page visit per source read | Blocked on physical evidence |
 | 2. Allocation and usage | Bounded iterators over allocated/owned page references | Provenance for map location, bit ordering, ownership rules, and continuation semantics | Checked page references, item charging, cycle detection, chain-depth limit, bounded visited state | Blocked on physical evidence |
 | 3. Catalog bootstrap | Streaming catalog records sufficient to locate user objects | Provenance for catalog root/location, record layout, object kinds, identifiers, and name encoding | Allocation charged before buffers/sets; count and page limits; no recursive traversal | Blocked on physical evidence |
