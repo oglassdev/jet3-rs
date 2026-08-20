@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .repository_common import ContractError, resolve_file, sha256
@@ -15,6 +15,65 @@ PROVENANCE_HEADING = re.compile(
 SOURCE_ID = re.compile(r"\bSRC-[0-9]{4}\b")
 USAGE_FIELD = re.compile(r"^- Usage:(.*?)(?=^- Rights:)", re.MULTILINE | re.DOTALL)
 BACKTICKED_VALUE = re.compile(r"`([^`\n]+)`")
+
+
+def _usage_declarations(
+    identifier: str, usage: str, tracked: set[str]
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Parse and validate explicit file and directory Usage declarations."""
+    declarations: list[tuple[str, str]] = []
+    errors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for value in BACKTICKED_VALUE.findall(usage):
+        kind, separator, relative = value.partition(":")
+        if separator != ":" or kind not in {"file", "dir"}:
+            continue
+        declaration = (kind, relative)
+        if declaration in seen:
+            errors.append(f"{identifier}: duplicate Usage declaration `{value}`")
+            continue
+        seen.add(declaration)
+
+        components = relative.removesuffix("/").split("/")
+        if (
+            not relative
+            or relative.startswith("/")
+            or "\\" in relative
+            or any(component in {"", ".", ".."} for component in components)
+            or str(PurePosixPath(relative.removesuffix("/")))
+            != relative.removesuffix("/")
+        ):
+            errors.append(
+                f"{identifier}: invalid repository-relative Usage declaration "
+                f"`{value}`"
+            )
+            continue
+        if kind == "file":
+            if relative.endswith("/") or relative not in tracked:
+                errors.append(
+                    f"{identifier}: Usage file is not tracked `{relative}`"
+                )
+                continue
+        elif not relative.endswith("/"):
+            errors.append(
+                f"{identifier}: Usage directory must end with `/` `{relative}`"
+            )
+            continue
+        elif not any(path.startswith(relative) for path in tracked):
+            errors.append(
+                f"{identifier}: Usage directory contains no tracked files "
+                f"`{relative}`"
+            )
+            continue
+        declarations.append(declaration)
+    return declarations, errors
+
+
+def _declaration_covers(kind: str, declared_path: str, citing_path: str) -> bool:
+    """Return whether one explicit Usage declaration covers a tracked path."""
+    if kind == "file":
+        return citing_path == declared_path
+    return citing_path.startswith(declared_path)
 
 
 def tracked_files(root: Path) -> set[str]:
@@ -50,10 +109,10 @@ def provenance_sections(text: str) -> dict[str, str]:
 def validate_source_usage_ledger(
     root: Path, tracked: set[str], provenance_text: str
 ) -> list[str]:
-    """Require every substantive source citation to appear in its Usage field."""
+    """Require source citations and explicit Usage paths to agree both ways."""
     errors: list[str] = []
     sections = provenance_sections(provenance_text)
-    usage_paths: dict[str, set[str]] = {}
+    usage_declarations: dict[str, list[tuple[str, str]]] = {}
     for identifier, section in sections.items():
         if not identifier.startswith("SRC-"):
             continue
@@ -61,12 +120,17 @@ def validate_source_usage_ledger(
         if match is None:
             errors.append(f"{identifier}: missing Usage field")
             continue
-        usage_paths[identifier] = {
-            value.removeprefix("./")
-            for value in BACKTICKED_VALUE.findall(match.group(1))
-            if "/" in value
-        }
+        declarations, declaration_errors = _usage_declarations(
+            identifier, match.group(1), tracked
+        )
+        usage_declarations[identifier] = declarations
+        errors.extend(declaration_errors)
 
+    citations: dict[str, set[str]] = {
+        identifier: set()
+        for identifier in sections
+        if identifier.startswith("SRC-")
+    }
     for relative in sorted(tracked):
         if relative == "docs/PROVENANCE.md" or relative.startswith("tools/tests/"):
             continue
@@ -85,14 +149,25 @@ def validate_source_usage_ledger(
             if identifier not in sections:
                 errors.append(f"{relative}: unknown source provenance ID {identifier}")
                 continue
-            declared = usage_paths.get(identifier, set())
+            citations[identifier].add(relative)
+            declared = usage_declarations.get(identifier, [])
             if not any(
-                relative == candidate
-                or (candidate.endswith("/") and relative.startswith(candidate))
-                for candidate in declared
+                _declaration_covers(kind, candidate, relative)
+                for kind, candidate in declared
             ):
                 errors.append(
                     f"{identifier}: Usage does not cover citing path {relative}"
+                )
+
+    for identifier, declarations in usage_declarations.items():
+        for kind, candidate in declarations:
+            if not any(
+                _declaration_covers(kind, candidate, relative)
+                for relative in citations[identifier]
+            ):
+                errors.append(
+                    f"{identifier}: Usage {kind} has no matching citation "
+                    f"`{candidate}`"
                 )
     return errors
 

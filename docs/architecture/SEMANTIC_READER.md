@@ -16,14 +16,26 @@ captured-length `ReadAt` source and, using one caller-owned `ResourceBudget`:
 4. reads one complete database-header page, which is the first database page
    (`SRC-0013`); and
 5. rejects a signature classification that changes between the initial window
-   and the retained page-zero read.
+   and the retained page-zero read; and
+6. can read a complete page into caller-owned fixed storage and classify only
+   its byte-zero tag in page-number context (`SRC-0020`).
 
 Success establishes only this narrow structural envelope. It does not identify
-the Jet generation, prove that the input is unencrypted, assign page types,
-validate allocation, locate a catalog, or establish compatibility. In
+the Jet generation, prove that the input is unencrypted, validate any page
+header or payload beyond the experimental byte-zero tag, validate database
+allocation state, locate a catalog, or establish compatibility. Unknown and
+contextually unsupported tags are retained as successful `Unknown(u8)`
+classifications. In
 particular, `EXP-0018` observed offset `0x041` under one DAO campaign but
 explicitly assigned it no physical meaning and reported an inconclusive
 scientific outcome.
+
+The physical layer also has an internal-only detached usage-map decoder based
+on `SRC-0020`. It accepts only caller-supplied record or page bytes; it is not
+wired into `DatabaseReader` and does not locate, dereference, or traverse a map
+inside a database. Consequently, decoding a detached bitmap does not establish
+that any database page is globally allocated, owned by a table, or available
+for insertion.
 
 ## Planned dependency sequence
 
@@ -33,8 +45,8 @@ must not reach around these boundaries to decode numeric offsets directly.
 | Stage | Intended output | Evidence gate before implementation | Required safety boundary | Present state |
 | --- | --- | --- | --- | --- |
 | 0. Bounded opening | `DatabaseReader<S>`, captured geometry, retained page zero | Existing `SRC-0004`, `SRC-0005`, and `SRC-0013` | Input, single-read, total-read, page-visit, and total-work limits | Implemented internally; no compatibility claim |
-| 1. Page classification | A typed page class plus a borrowed or fixed-size page view | Provenance for every tag, tag offset, header field, and validity rule | One fixed page per decode; checked slice ranges; one page visit per source read | Blocked on physical evidence |
-| 2. Allocation and usage | Bounded iterators over allocated/owned page references | Provenance for map location, bit ordering, ownership rules, and continuation semantics | Checked page references, item charging, cycle detection, chain-depth limit, bounded visited state | Blocked on physical evidence |
+| 1. Page classification | `PageKind` plus a borrowed `ClassifiedPage` over one complete fixed page | `SRC-0020` for byte offset zero and tags `00` through `05`; no other header field or validity rule is claimed | One fixed page per decode; one page visit per source read; one explicit classification work unit | Implemented experimentally/internal-only; unknown tags remain lossless; not DAO-verified |
+| 2. Allocation and usage | Bounded iterators over allocated/owned page references | `SRC-0020` supports detached type-0/type-1 records and complete Jet 3 type-`05` bitmap pages only; map locations, pointer rules, extended bases, and traversal still require physical evidence | Checked arithmetic and item charging for detached decoding; future traversal additionally requires checked page references, cycle detection, chain-depth limits, and bounded visited state | Detached primitives implemented experimentally/internal-only; database traversal remains blocked |
 | 3. Catalog bootstrap | Streaming catalog records sufficient to locate user objects | Provenance for catalog root/location, record layout, object kinds, identifiers, and name encoding | Allocation charged before buffers/sets; count and page limits; no recursive traversal | Blocked on physical evidence |
 | 4. Table definitions | Immutable typed definitions for columns, indexes, and row sources | Provenance for table-definition pages/records, field types, flags, sizes, and referenced roots | Checked counts/offsets, per-value bounds, cumulative allocation and item work | Blocked on physical evidence |
 | 5. Row streaming | A fallible iterator yielding one borrowed or bounded row at a time | Provenance for row directories, deleted/null state, fixed/variable regions, and overflow links | No whole-table collection; row/page/chain limits; cycle rejection; bounded scratch storage | Blocked on physical evidence |
@@ -53,10 +65,12 @@ or speculative modules.
 
 - `database.rs`: public operation boundary and stage composition. It owns no
   physical constants.
-- `page_kind.rs`: future fixed-page classification and page-local header views.
-  Every constant must cite its provenance ID beside its definition.
-- `allocation.rs`: future allocation/usage iterators and checked page-reference
-  validation. It must not interpret catalog or row payloads.
+- `page_kind.rs`: experimental byte-zero page classification and the borrowed
+  complete-page view. Every format constant cites `SRC-0020`; the module may
+  not inspect another header byte without new provenance.
+- `allocation.rs`: detached usage-map record and extended-map-page primitives.
+  It must not locate maps, follow type-1 pointers, derive extended-map page
+  bases, or interpret catalog and row payloads without new provenance.
 - `catalog.rs`: future bootstrap and object-record stream. It consumes only
   pages admitted by the allocation and page-class layers.
 - `table_definition.rs`: future immutable schema definitions. It must preserve
@@ -104,6 +118,7 @@ is:
 
 ```text
 DatabaseOpenError
+DatabasePageError
   -> PageClassificationError
     -> AllocationError
       -> CatalogError
@@ -147,7 +162,8 @@ evidence.
 The current provenance does not establish any of the following:
 
 - a Jet 3 version discriminator or a physical unencrypted-state check;
-- page-type tag values, tag offsets, or page-header layouts;
+- any page-header field or validity rule beyond the experimental byte-zero tags
+  recorded in `SRC-0020`;
 - allocation/usage map locations, encodings, ownership, or continuation rules;
 - the catalog root, catalog record representation, or object-kind encoding;
 - table-definition record fields, physical field-type values, or index roots;
@@ -157,8 +173,11 @@ The current provenance does not establish any of the following:
   or
 - Memo/OLE/long-value pointers, fragments, and chain termination.
 
-`SRC-0007` names several physical concepts but expressly publishes none of
-their binary encodings. M4's validated bundle does not fill those gaps. M5 may
+`SRC-0020` supplies only the narrow Stage 1 byte-zero mapping and is a
+reverse-engineered secondary documentation lineage, not independent
+corroboration. It does not unblock allocation or later stages. `SRC-0007` names
+several physical concepts but expressly publishes none of their binary
+encodings. M4's validated bundle does not fill those gaps. M5 may
 test a preregistered discriminator hypothesis, but until execution and
 independent validation it is not evidence, and even a decisive discriminator
 result would not establish page, allocation, catalog, row, or value layouts.

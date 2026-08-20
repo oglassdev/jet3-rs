@@ -35,6 +35,13 @@
         "sha256": "ff6a2d9b2481feeb5a7fda597d2b3ebdf26b0cfd2e0a3aba5226ee161c0f636c"
       },
       {
+        "path": "crates/jet3/src/allocation.rs",
+        "provenance_ids": [
+          "SRC-0020"
+        ],
+        "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
+      },
+      {
         "path": "crates/jet3/src/candidate.rs",
         "provenance_ids": [
           "SRC-0004",
@@ -54,9 +61,10 @@
         "provenance_ids": [
           "SRC-0004",
           "SRC-0005",
-          "SRC-0013"
+          "SRC-0013",
+          "SRC-0020"
         ],
-        "sha256": "fa8945663df182544e056a7e721e10325b725c8b929804c207f91837a0d1ed5c"
+        "sha256": "0319b38ca7830e80bcad767b72b00797136118b66653b078989349739314a0e5"
       },
       {
         "path": "crates/jet3/src/database_header.rs",
@@ -83,6 +91,13 @@
         "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6"
       },
       {
+        "path": "crates/jet3/src/page_kind.rs",
+        "provenance_ids": [
+          "SRC-0020"
+        ],
+        "sha256": "fb2699d75e5fcbef9c88bafc7583e19340dd0021e60c465ef69f1b5f8955f497"
+      },
+      {
         "path": "crates/jet3/src/raw_page_stream.rs",
         "provenance_ids": [
           "SRC-0005"
@@ -91,6 +106,11 @@
       }
     ],
     "reviewed_non_assertion_files": [
+      {
+        "path": "crates/jet3/src/allocation_tests.rs",
+        "reason": "Test-only verification of the provenance-bound detached allocation-map assertions in allocation.rs.",
+        "sha256": "33d399e3ca3dae5d026cef08900fe2c090d23085cdac60ae6dfde70e83f55a1d"
+      },
       {
         "path": "crates/jet3/src/atomic.rs",
         "reason": "Format-neutral atomic file replacement and recovery mechanics only.",
@@ -128,8 +148,8 @@
       },
       {
         "path": "crates/jet3/src/database_tests.rs",
-        "reason": "Test-only verification of the provenance-bound bounded database opening in database.rs.",
-        "sha256": "7c3af9abc65b26fbba2c066ff6a9707deba48104989f1be46d0375fe44fb3147"
+        "reason": "Test-only verification of provenance-bound bounded database opening and classified-page integration in database.rs.",
+        "sha256": "96de7950153dfff844a09cd02eea5e2786a596927c7cbda26ef68858b426785d"
       },
       {
         "path": "crates/jet3/src/commit_state_tests.rs",
@@ -154,7 +174,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "512c2b104dea2080101f688d5c42877dd9c83d1b29593b76bb8558bff689cd84"
+        "sha256": "cac070c0c620381d91de351c76197a55ae0cf9820cda1298ae2b1646524a2eaf"
       },
       {
         "path": "crates/jet3/src/limits.rs",
@@ -170,6 +190,11 @@
         "path": "crates/jet3/src/page.rs",
         "reason": "Format-neutral page geometry parameterized by an explicit caller-provided page size.",
         "sha256": "875e13749f69b70dcbc0ee1bb7bc4cd9ecf3b98db7e0f79be6d102c4d67677c8"
+      },
+      {
+        "path": "crates/jet3/src/page_kind_tests.rs",
+        "reason": "Test-only verification of the provenance-bound experimental byte-zero page classifier in page_kind.rs.",
+        "sha256": "4a82acfdb6ccd0a303dc73a3f1c355f799209630c7338adb0e6c3018520501bb"
       },
       {
         "path": "crates/jet3/src/raw_page_stream_tests.rs",

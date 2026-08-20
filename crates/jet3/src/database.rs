@@ -3,16 +3,19 @@
 //! This module composes only the generic Jet signature published by Microsoft
 //! (`SRC-0004`), the documented Jet 3 2 KiB page size (`SRC-0005`), and the
 //! documented identification of the first database page as the database header
-//! page (`SRC-0013`). It does not identify a physical Jet version
-//! discriminator, encryption state, page type, allocation structure, catalog,
-//! table, row, or value.
+//! page (`SRC-0013`). Initial validation does not identify a physical Jet
+//! version discriminator, encryption state, page type, allocation structure,
+//! catalog, table, row, or value. The experimental classified-page read
+//! composes the byte-zero tags in `SRC-0020` without validating any other
+//! page-header byte.
 
 use std::fmt;
 use std::path::Path;
 
 use crate::{
-    CandidateError, DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource, JET3_PAGE_SIZE,
-    JetFileKind, PageGeometry, PageNumber, RawJet3Candidate, RawPageCursor, ReadAt, ResourceBudget,
+    CandidateError, ClassifiedPage, DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource,
+    JET3_PAGE_SIZE, JetFileKind, PageClassificationError, PageGeometry, PageNumber,
+    RawJet3Candidate, RawPageCursor, ReadAt, ResourceBudget, classify_page,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -61,6 +64,36 @@ impl std::error::Error for DatabaseOpenError {
             Self::Candidate(source) => Some(source),
             Self::Header(source) => Some(source),
             Self::SignatureChanged { .. } => None,
+        }
+    }
+}
+
+/// A structured failure while reading and experimentally classifying a page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DatabasePageError {
+    /// Reading the complete fixed page failed.
+    Read(Error),
+    /// Charging or performing byte-zero classification failed.
+    Classification(PageClassificationError),
+}
+
+impl fmt::Display for DatabasePageError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Read(source) => write!(formatter, "database page read failed: {source}"),
+            Self::Classification(source) => {
+                write!(formatter, "database page classification failed: {source}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DatabasePageError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Read(source) => Some(source),
+            Self::Classification(source) => Some(source),
         }
     }
 }
@@ -155,6 +188,24 @@ where
         budget: &mut ResourceBudget,
     ) -> Result<(), Error> {
         self.candidate.read_raw_page(page, destination, budget)
+    }
+
+    /// Reads and experimentally classifies one complete page.
+    ///
+    /// The source read retains its existing byte and page-visit charges. After
+    /// a successful read, classification charges exactly one additional
+    /// explicit work unit and inspects only byte zero. A classification-budget
+    /// rejection leaves the complete raw page in `destination` for explicit
+    /// caller handling.
+    pub fn read_classified_page<'a>(
+        &mut self,
+        page: PageNumber,
+        destination: &'a mut [u8; PAGE_BYTES],
+        budget: &mut ResourceBudget,
+    ) -> Result<ClassifiedPage<'a>, DatabasePageError> {
+        self.read_raw_page(page, destination, budget)
+            .map_err(DatabasePageError::Read)?;
+        classify_page(page, destination, budget).map_err(DatabasePageError::Classification)
     }
 
     /// Starts allocation-free sequential access to uninterpreted pages.

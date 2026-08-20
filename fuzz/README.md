@@ -26,11 +26,19 @@ exactly. The checked targets are:
   aggregate-work policies;
 - `database_opening`: bounded initial database opening, including the generic
   signature, exact page geometry, complete retained page zero, and input,
-  read, page-visit, and aggregate-work policy boundaries; and
+  read, page-visit, and aggregate-work policy boundaries;
 - `commit_state`: allocation-free capture of the contextual 512-byte commit
   region, exact preservation of all two-byte pairs, narrow pair
   classification, slot-role boundaries, read limits, truncation, and atomic
-  destination replacement.
+  destination replacement; and
+- `page_classification`: allocation-free, contextual classification of a
+  complete fixed page from byte zero only, including every documented tag,
+  lossless unknown tags, and exact classification-work boundaries
+  (`SRC-0020`); and
+- `allocation`: detached, allocation-free decoding of caller-delimited inline
+  and indirect allocation maps plus already-classified extended bitmap pages,
+  including truncation, unsupported types, bit and reference boundaries, and
+  exact item/work limits (`SRC-0020`).
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
@@ -49,17 +57,30 @@ at most one page-read attempt. `database_opening` borrows at most two pages,
 expands at most one fixed page, and performs nine bounded open attempts without
 input-sized allocation. `commit_state` borrows at most one page, expands
 only fixed 512-byte and 2 KiB stack buffers, performs at most sixteen bounded
-region reads, and iterates exactly 256 slots per successful snapshot. The
-checked corpus covers zero/tight limits, primitive reads, arithmetic
+region reads, and iterates exactly 256 slots per successful snapshot.
+`page_classification` expands one fixed 2 KiB stack page, performs two
+selected-policy classifications, and checks twelve fixed contextual mappings.
+`allocation` borrows at most one 4 KiB input, uses fixed stack records and one
+fixed 2 KiB page, performs at most 65 calls in each input-selected cursor, and
+scans at most 16,352 fixed extended-bitmap bits in its exact boundary check.
+The checked corpus covers zero/tight limits, primitive reads, arithmetic
 boundary-shaped values, all documented generic Jet signature kinds, unknown
 and truncated signatures, exact/partial Jet 3 geometry,
 first/last/out-of-range page references, repeated reads, exact and one-below
 budgets, page-visit and aggregate-work policies, candidate inspection order,
 contextual commit-state pair preservation and classification, exclusive/shared
 slot boundaries, truncated commit regions, and unchanged destinations after
-failed reads. It also covers writer primitive sequences, zero/exact/past-end
+failed reads. It covers page-zero and nonzero tag contexts, all six documented
+byte-zero tag values, explicitly unknown tag eight, arbitrary unknown tags,
+and zero/exact/repeated classification work limits. It also covers writer
+primitive sequences, zero/exact/past-end
 capacity boundaries, rewrites after seeks, and separate encoded-byte and
-aggregate-work failures. `corpus/manifest.json` records each seed's stable ID,
+aggregate-work failures. Detached allocation coverage includes type-0 lengths
+zero through four, unsupported record types, caller-sized inline final bits,
+aligned and misaligned indirect references, preserved zero references,
+extended bits zero, seven, eight, and 16,351, ignored unknown extended-header
+bytes, and retry without advancement after tight resource failures.
+`corpus/manifest.json` records each seed's stable ID,
 purpose, exact bytes and hash, origin, environment, rights, and reproduction
 command.
 
@@ -151,6 +172,12 @@ agnostic page reads do not establish that a source is a valid Jet 3 database.
 Commit-region values are volatile and contextual; without contemporaneous
 `.ldb` lock evidence they do not establish validity, corruption, clean
 shutdown, Jet generation, user ownership, or compatibility.
+Page classification is experimental, inspects only byte zero, does not
+validate any remaining page header or payload, and is not DAO-verified.
+Allocation-map decoding is likewise experimental and detached: it does not
+locate global or per-table records, follow indirect references, infer an
+extended bitmap's database-page base, or establish ownership/free-space
+semantics, and it is not DAO-verified.
 The database-opening target does not establish format correctness or replace
 the required catalog, table-definition, row, index, or long-value parsers.
 Checked malformed-corpus

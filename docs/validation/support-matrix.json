@@ -167,7 +167,7 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Bounded, content-agnostic reads and allocation-free sequential streaming of complete 2 KiB pages are implemented; page headers, page-type meanings, allocation and usage maps, structural validation, and DAO differential evidence are not.",
+      "reason": "Bounded complete-page reads, allocation-free sequential streaming, and experimental SRC-0020 byte-zero and detached usage-map primitives are implemented. The classifier names only page zero tag 00 and nonzero-page tags 01 through 05. The detached decoder handles caller-delimited type-0/type-1 records and relative set-bit positions from already-classified complete Jet 3 type-05 pages. It does not locate maps, follow type-1 references, assign null-pointer semantics, derive an extended-map absolute page base, or establish global or table allocation state. All such support is internal-only secondary-documentation support, not independent corroboration or DAO verification; database traversal, remaining page-header meanings, structural validation, and DAO differential evidence are absent.",
       "evidence": [
         {
           "kind": "source",
