@@ -13,3 +13,7 @@ benches/target/
 # Private scratch output is never fixture evidence.
 fixtures/work/
 *.ldb
+
+# Local evidence/handoff output and OS noise; never committed.
+/artifacts/
+.DS_Store
