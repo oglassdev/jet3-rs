@@ -1,22 +1,25 @@
 # DAO provider and differential-evidence boundary
 
-Status: **BLOCKED — historical provider capability confirmed; release differential evidence absent**
+Status: **BLOCKED — hosted provider capability confirmed; release differential evidence absent**
 
-Audit date: 2026-07-25
+Audit date: 2026-08-20
 
 This record separates a historically observed provider capability, retained
 controlled evidence, and the evidence required on an exact release commit. A
 local Windows host demonstrated a usable x86 Microsoft DAO provider during the
-audited runs below; the host is offline as of this audit update. M0 and M1
-completed historically, M2 analyzed retained M1 output descriptively, and M3
-completed a replicated one-variable physical-delta campaign. None of those
-earlier-commit results proves future provider availability or satisfies G3 for
-a later release commit.
+historical runs below. Actions run `32327232241` subsequently demonstrated a
+matching stock provider on `windows-2022` and a distinct patched provider on
+`windows-2025`; see `EXP-0036`. M0 and M1 completed historically, M2 analyzed
+retained M1 output descriptively, and M3 completed a replicated one-variable
+physical-delta campaign. None of those earlier-commit or provider-only results
+satisfies G3 for a later release commit.
 
 ## Exact current blocker
 
-The offline provider is not blocking current implementation work. G3 remains
-blocked because the project lacks both:
+Provider discovery is no longer blocking current implementation or controlled
+A1 acquisition: `windows-2022` is the pinned campaign lane, subject to an exact
+fresh probe and all A1 execution gates. G3 remains blocked because the project
+lacks both:
 
 1. the required Rust implementation and 100-scenario DAO-versus-Rust
    differential inventory; and
@@ -94,18 +97,48 @@ comparison and preservation checks are implemented.
 
 ## Hosted runners and provisioning
 
-GitHub-hosted Windows runner manifests inspected on 2026-07-23 did not list
-Microsoft Access, DAO/ACE, `dao360.dll`, or `ACEDAO.DLL`. Absence from those
-manifests is not definitive; the checked disposable-creation probe remains
-authoritative.
+The authoritative checked probe in Actions run
+[`32327232241`](https://github.com/oglassdev/jet3-rs/actions/runs/32327232241)
+ran from exact commit `8300196ae8c72b45b8d0af87567ab549fea29567` on 2026-08-20.
+The untouched `windows-2022` image `20260802.262.1` activated the same reviewed
+x86 `DAO.DBEngine.36` identity as the local host: `dao360.dll` file version
+`03.60.9765.0`, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+It passed disposable `CreateDatabase(..., dbVersion30)` and is the pinned
+campaign lane.
 
-The smallest credible oracle environment is an interactive, licensed Windows
-x64 desktop or VM with a matching x86 DAO provider and 32-bit Windows
-PowerShell. This project does not install or redistribute Access, DAO, or ACE
-without an operator licensing decision. Microsoft 365 Access Runtime terms
-and unattended-use constraints must be evaluated by the operator; provider
-registration alone is never accepted without disposable `dbVersion30`
-creation.
+The untouched `windows-2025` image `20260810.198.2` also passed, but with a
+patched `dao360.dll` file version `10.0.26100.5074` and distinct SHA-256
+`c2da31acb8836c976c22843862eec36114d4fd3c42e8642190f4c4629273ad3e`.
+It remains a diagnostic lane rather than an interchangeable campaign host.
+Because both stock probes returned ready, the conditional Microsoft 365 Access
+Runtime installation and post-install probes were skipped. No runtime-installed
+provider contributed to this observation.
+
+Hosted images are mutable. Every future acquisition must bind the exact clean
+producer commit and revalidate image identity, x86 process architecture, COM
+registration, provider path, file version and hash, plus disposable
+`dbVersion30` creation. Any drift blocks execution pending review. This
+provider-capability result is not A1 output, a physical-format result, Rust
+verification, or a compatibility claim. The project still does not install or
+redistribute Access, DAO, or ACE without an operator licensing decision.
+
+## A1 acquisition boundary
+
+`DAO-A1-ALLOCATION-MAPS-001` has checked acquisition, bundle-validation, and
+bounded-analysis code, but it has not been executed. The earlier hosted run did
+not create an A1 database, inspect campaign pages, or publish an A1 bundle.
+Consequently there is no A1 scientific outcome, allocation-map observation,
+Rust verification result, or new compatibility evidence to cite.
+
+The first acquisition remains blocked until one exact pushed commit contains
+the frozen preregistration and a manual hosted workflow pinned to
+`windows-2022`. That workflow must repeat the stock x86 provider probe, reject
+any image or provider-identity drift, run the controlled entry point, validate
+the complete retained bundle independently, and upload that exact bundle. It
+must not fall back to `windows-2025` or install a replacement provider. Even a
+passing campaign would remain descriptive DAO-only physical evidence and would
+not satisfy the release differential gate.
 
 ## Requirements for future release evidence
 

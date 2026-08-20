@@ -94,6 +94,92 @@ Probe exit codes:
 `ready` is an environment result only. It is not `dao_opened` or
 `dao_differential` evidence for any product capability.
 
+## GitHub-hosted campaign lane
+
+Actions run
+[`32327232241`](https://github.com/oglassdev/jet3-rs/actions/runs/32327232241)
+at exact commit `8300196ae8c72b45b8d0af87567ab549fea29567` established
+that both probed stock images already contained an x86 provider capable of the
+disposable `dbVersion30` test. The conditional Microsoft 365 Access Runtime
+installation and post-install probe were therefore skipped in both jobs. See
+`EXP-0036`.
+
+The reviewed campaign lane is `windows-2022`. On image
+`20260802.262.1`, x86 Windows PowerShell activated machine-registered
+`DAO.DBEngine.36` from
+`C:\Program Files (x86)\Common Files\Microsoft Shared\DAO\dao360.dll`.
+The provider reported version 3.6; the file version was `03.60.9765.0` and its
+SHA-256 was
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+That exact identity matches the historically reviewed local provider.
+
+The `windows-2025` diagnostic lane also passed from the untouched image, but
+its patched `dao360.dll` was file version `10.0.26100.5074` with SHA-256
+`c2da31acb8836c976c22843862eec36114d4fd3c42e8642190f4c4629273ad3e`.
+It is not the pinned campaign lane. GitHub image contents can change, so every
+campaign run must repeat the probe and bind the exact image, runtime,
+registration, provider path, version, and hash before acquisition. A mismatch
+blocks the run; it is not repaired by silently selecting the other image or by
+installing a different provider.
+
+This result proves hosted provider capability only. It is not an A1
+acquisition, an MDB-format observation, Rust validation, or DAO compatibility
+evidence.
+
+## A1 allocation-map campaign status
+
+The checked A1 materials under [`experiments/a1`](experiments/a1/README.md)
+define `DAO-A1-ALLOCATION-MAPS-001`, a three-replica, preregistered DAO-only
+physical experiment. The acquisition controller, independent bundle validator,
+bounded analysis, and corruption tests are implemented, but **no A1 acquisition
+has run and no A1 scientific outcome exists**. The hosted run described above
+was only a provider probe; `.github/workflows/windows-dao-hosted.yml` does not
+execute the campaign.
+
+Execution must use a clean, exact pushed commit on the pinned `windows-2022`
+lane. Before any database is created, the x86 protocol-1.1 provider probe must
+again return `ready` for `DAO.DBEngine.36`, and the provider binary must match
+the reviewed file version `03.60.9765.0` and SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+Provider or image drift blocks the run; it must not be repaired by silently
+using `windows-2025` or installing a different provider.
+
+The controlled entry point is invoked only through x86 Windows PowerShell 5:
+
+```powershell
+$commit = git rev-parse HEAD
+$runId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-a1-hosted"
+$work = Join-Path $env:RUNNER_TEMP "jet3-rs-a1"
+$environment = Join-Path $work "environment.json"
+$output = Join-Path $work "evidence"
+$winps32 = "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+
+& $winps32 -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/probe-provider.ps1 `
+  -ProtocolVersion 1.1.0 `
+  -OutputPath $environment
+if ($LASTEXITCODE -ne 0) { throw "The A1 provider probe did not pass." }
+
+& $winps32 -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+  -File oracle/windows-dao/scripts/run-a1-controlled.ps1 `
+  -RepositoryRoot (Get-Location) `
+  -EnvironmentPath $environment `
+  -OutputRoot $output `
+  -GitCommit $commit `
+  -RunId $runId
+if ($LASTEXITCODE -ne 0) { throw "The controlled A1 campaign did not pass." }
+
+$bundle = Join-Path (Join-Path $output $commit) $runId
+python oracle/windows-dao/scripts/a1_contract.py validate-bundle $bundle
+if ($LASTEXITCODE -ne 0) { throw "Independent A1 bundle validation failed." }
+```
+
+The first acquisition must use a checked hosted workflow that performs those
+same gates, retains the complete validated bundle, and never installs provider
+software. A successful bundle would remain a bounded observation of its exact
+campaign. It would not by itself establish general allocation-map behavior,
+Rust correctness, a support-matrix advance, or DAO compatibility.
+
 For an M1 preflight, request a protocol 1.1 environment record explicitly:
 
 ```powershell
@@ -216,6 +302,86 @@ Exit codes retain the M0 meanings: `0` pass, `1` controlled fail, `2` invalid
 invocation, `3` blocked precondition, and `4` executor/publication error. DAO
 scenario failures are preserved in an atomically published non-passing bundle;
 publication failures expose no final bundle.
+
+## Run the allowlisted jobs over Tailscale and Windows OpenSSH
+
+[`scripts/windows-dao-ssh.py`](../../scripts/windows-dao-ssh.py) automates the
+provider probe and controlled M1 executor on a private Windows host. It is an
+OpenSSH client, not a general remote-command runner. The remote account can run
+only `provider-probe` or `m1-controlled` through this interface.
+
+Set up the Windows host once:
+
+1. Install Tailscale, sign in, enable unattended operation, and restrict TCP 22
+   to the operator device or identity in the tailnet policy. Do not forward
+   port 22 from the public internet.
+2. Install the Windows OpenSSH Server capability, start `sshd`, and configure
+   the service to start automatically.
+3. Create a dedicated standard account such as `jet3runner` and put only the
+   automation public key in that account's `authorized_keys` file. Keep the
+   private key outside this repository.
+4. Scope the Windows firewall SSH rule to the Tailscale interface or tailnet
+   addresses.
+5. Record the server's Ed25519 host-key fingerprint on Windows with
+   `ssh-keygen -lf C:\ProgramData\ssh\ssh_host_ed25519_key.pub`. On the client,
+   inspect the key returned by `ssh-keyscan`, compare that fingerprint through
+   a separate trusted channel, and only then add the key to `known_hosts`.
+
+The client sets `BatchMode=yes` and `StrictHostKeyChecking=yes`; it will neither
+prompt for a password nor trust a new host key automatically. Verify a normal
+key-only login before running a DAO job:
+
+```sh
+ssh -i ~/.ssh/jet3-dao jet3runner@dao-host.tailnet-name.ts.net
+```
+
+Run the x86 provider probe from the repository root:
+
+```sh
+./scripts/windows-dao-ssh.py provider-probe \
+  --host dao-host.tailnet-name.ts.net \
+  --user jet3runner \
+  --identity ~/.ssh/jet3-dao
+```
+
+Run the complete controlled M1 job:
+
+```sh
+./scripts/windows-dao-ssh.py m1-controlled \
+  --host dao-host.tailnet-name.ts.net \
+  --user jet3runner \
+  --identity ~/.ssh/jet3-dao \
+  --output artifacts/windows-dao-ssh/m1.zip
+```
+
+By default, remote runs use
+`C:\Users\<ssh-user>\AppData\Local\jet3-rs-ssh`. If the dedicated account has
+a nonstandard profile location, pass an explicit absolute local-drive path with
+`--remote-root`.
+
+Use `--dry-run` to inspect the fixed SSH/SCP command plan without contacting
+Windows. Dry-run still enforces the local source binding: `HEAD` must be
+advertised by a ref on the selected Git remote, with no tracked changes and no
+untracked files outside `artifacts/`. Repository clone URLs are limited to
+credential-free HTTPS. The Windows entrypoint creates a fresh exclusive run
+directory, checks out that exact commit detached, requires a clean checkout,
+and verifies client-computed SHA-256 values for the uploaded entrypoint and
+process module before invoking either file. It also verifies that both files
+hash-match their copies in the detached checkout before running a job.
+
+Both jobs invoke the probe through x86 Windows PowerShell. `m1-controlled`
+runs the same probe first and starts M1 only when the environment is ready.
+Each child has a reviewed 120-second maximum and 1-MiB output maximum;
+bootstrap failures terminate the complete Git process tree. The
+artifact tree and ZIP have a configurable byte ceiling. A ZIP is downloadable
+only for pass (`0`), controlled fail (`1`), or blocked (`3`); invalid or
+unexpected errors do not produce a downloadable archive. The client verifies
+the complete resolved run-root path and SHA-256, monitors the local file during
+transfer, and terminates SCP as soon as it exceeds the declared byte length.
+Before reporting success, it also performs bounded structural validation of the
+ZIP inventory and its request-identity JSON without extracting the archive.
+Remote run directories are intentionally retained as audit material and are
+never reused.
 
 ## Observe controlled M1 physical page differences
 

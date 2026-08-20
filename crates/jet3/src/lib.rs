@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![doc = "Safe, clean-room primitives for Access 97 / Jet 3 databases."]
 
+pub mod allocation;
 pub mod atomic;
 pub mod binary;
 pub mod binary_writer;
@@ -14,10 +15,16 @@ pub mod jet3_page;
 pub mod limits;
 pub mod offset;
 pub mod page;
+pub mod page_kind;
 pub mod raw_page_stream;
 pub mod resource;
 pub mod source;
 
+pub use allocation::{
+    AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
+    InlineAllocatedPages, InlineAllocationMap, MapPageReferences, decode_allocation_map,
+    extended_allocation_bits,
+};
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
@@ -27,7 +34,7 @@ pub use commit_state::{
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
     read_commit_region_into,
 };
-pub use database::{DatabaseOpenError, DatabaseReader};
+pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError,
 };
@@ -39,6 +46,7 @@ pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
+pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use source::{FileSource, ReadAt, SliceSource};

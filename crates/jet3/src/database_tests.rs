@@ -4,11 +4,11 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{DatabaseOpenError, DatabaseReader};
+use super::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 use crate::{
     ByteCount, ByteOffset, CandidateError, DatabaseHeaderPageError, Error, HeaderError,
-    JET3_PAGE_SIZE, JetFileKind, LimitKind, ReadAt, ReadBudget, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource,
+    JET3_PAGE_SIZE, JetFileKind, LimitKind, PageClassificationError, PageKind, PageNumber, ReadAt,
+    ReadBudget, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -636,4 +636,86 @@ fn missing_file_returns_structured_source_error() {
     );
     assert_eq!(operation.read_budget().total_read(), ByteCount::new(0));
     assert_eq!(operation.page_visits(), 0);
+}
+
+#[test]
+fn classified_page_read_preserves_read_visit_and_classification_accounting() -> TestResult {
+    let mut bytes = candidate_bytes(2, b"Standard Jet DB");
+    bytes[PAGE_BYTES] = 0x03;
+    bytes[PAGE_BYTES + 1..].fill(0xA7);
+    let expected_reads = (15 + PAGE_BYTES * 2) as u64;
+    let mut operation = ResourceBudget::new(
+        limits(bytes.len() as u64, PAGE_BYTES as u64, expected_reads)
+            .with_max_page_visits(2)
+            .with_max_total_work_units(3),
+    );
+    let opened_source = source(&bytes, &mut operation)?;
+    let mut database = DatabaseReader::from_source(opened_source, &mut operation)?;
+    let mut page = [0_u8; PAGE_BYTES];
+
+    let classified =
+        database.read_classified_page(PageNumber::new(1), &mut page, &mut operation)?;
+
+    assert_eq!(classified.number(), PageNumber::new(1));
+    assert_eq!(classified.kind(), PageKind::IntermediateIndex);
+    assert_eq!(classified.raw_bytes(), &bytes[PAGE_BYTES..]);
+    assert_eq!(operation.read_budget().total_read().get(), expected_reads);
+    assert_eq!(operation.page_visits(), 2);
+    assert_eq!(operation.total_work_units(), 3);
+    Ok(())
+}
+
+#[test]
+fn classified_page_read_keeps_successful_raw_read_when_classification_is_rejected() -> TestResult {
+    let mut bytes = candidate_bytes(2, b"Standard Jet DB");
+    bytes[PAGE_BYTES] = 0x05;
+    bytes[PAGE_BYTES + 1..].fill(0x3C);
+    let expected_reads = (15 + PAGE_BYTES * 2) as u64;
+    let mut operation = ResourceBudget::new(
+        limits(bytes.len() as u64, PAGE_BYTES as u64, expected_reads)
+            .with_max_page_visits(2)
+            .with_max_total_work_units(2),
+    );
+    let opened_source = source(&bytes, &mut operation)?;
+    let mut database = DatabaseReader::from_source(opened_source, &mut operation)?;
+    let mut page = [0_u8; PAGE_BYTES];
+
+    assert_eq!(
+        database.read_classified_page(PageNumber::new(1), &mut page, &mut operation),
+        Err(DatabasePageError::Classification(
+            PageClassificationError::Resource(Error::ResourceLimitExceeded {
+                kind: ResourceLimitKind::TotalWorkUnits,
+                requested: 3,
+                maximum: 2,
+            })
+        ))
+    );
+    assert_eq!(page.as_slice(), &bytes[PAGE_BYTES..]);
+    assert_eq!(operation.read_budget().total_read().get(), expected_reads);
+    assert_eq!(operation.page_visits(), 2);
+    assert_eq!(operation.total_work_units(), 2);
+    Ok(())
+}
+
+#[test]
+fn classified_page_read_failure_performs_no_classification_work() -> TestResult {
+    let bytes = candidate_bytes(1, b"Standard Jet DB");
+    let mut operation = ResourceBudget::new(
+        limits(bytes.len() as u64, PAGE_BYTES as u64, u64::MAX).with_max_total_work_units(2),
+    );
+    let opened_source = source(&bytes, &mut operation)?;
+    let mut database = DatabaseReader::from_source(opened_source, &mut operation)?;
+    let mut page = [0xA5_u8; PAGE_BYTES];
+
+    assert_eq!(
+        database.read_classified_page(PageNumber::new(1), &mut page, &mut operation),
+        Err(DatabasePageError::Read(Error::PageOutOfBounds {
+            page: 1,
+            page_count: 1,
+        }))
+    );
+    assert_eq!(page, [0xA5_u8; PAGE_BYTES]);
+    assert_eq!(operation.page_visits(), 1);
+    assert_eq!(operation.total_work_units(), 1);
+    Ok(())
 }

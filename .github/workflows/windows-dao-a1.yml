@@ -1,0 +1,519 @@
+name: Windows DAO A1 campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute_a1_campaign:
+        description: Authorize the licensed first A1 acquisition, freezing amendment rules
+        required: true
+        type: boolean
+        default: false
+  push:
+    branches:
+      - codex/windows-dao-a1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-dao-a1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    name: Validate the checked A1 contract
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Parse checked A1 PowerShell sources without execution
+        shell: powershell
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSEdition -cne "Desktop" -or
+              $PSVersionTable.PSVersion.Major -ne 5) {
+            throw "A1 contract parsing requires Windows PowerShell 5 Desktop."
+          }
+          $sourcePaths = @(
+            "oracle/windows-dao/scripts/run-a1-controlled.ps1",
+            "oracle/windows-dao/scripts/a1/A1.Controller.ps1",
+            "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
+            "oracle/windows-dao/scripts/a1/A1.PageStore.ps1"
+          )
+          foreach ($sourcePath in $sourcePaths) {
+            $item = Get-Item -LiteralPath $sourcePath -Force
+            if ($item.PSIsContainer -or $item.Length -lt 1 -or
+                $item.Length -gt 2MB -or
+                ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+              throw "A checked A1 PowerShell source violates its file bound."
+            }
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $item.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -ne 0) {
+              $detail = (@($errors | ForEach-Object {
+                "line $($_.Extent.StartLineNumber): $($_.Message)"
+              }) -join "; ")
+              if ($detail.Length -gt 2000) {
+                $detail = $detail.Substring(0, 2000)
+              }
+              throw "A1 PowerShell parser errors in $sourcePath`: $detail"
+            }
+          }
+
+      - name: Validate the frozen plan and workflow contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          & python -B oracle/windows-dao/scripts/a1_spec.py validate-plan
+          if ($LASTEXITCODE -ne 0) {
+            throw "The frozen A1 plan contract failed."
+          }
+          & python -B -m unittest `
+            oracle/windows-dao/tests/test_windows_dao_a1_workflow.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "The hosted A1 workflow contract failed."
+          }
+
+  a1-campaign:
+    name: Acquire and validate A1 on stock x86 DAO
+    needs: contract
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.execute_a1_campaign
+    runs-on: windows-2022
+    timeout-minutes: 210
+    env:
+      PROVEN_PROVIDER_RUN_ID: "32327232241"
+      EXPECTED_PROVIDER_PROG_ID: DAO.DBEngine.36
+      EXPECTED_PROVIDER_CLSID: "{00000100-0000-0010-8000-00AA006D2EA4}"
+      EXPECTED_PROVIDER_VERSION: "3.6"
+      EXPECTED_PROVIDER_PATH: C:\Program Files (x86)\Common Files\Microsoft Shared\DAO\dao360.dll
+      EXPECTED_PROVIDER_FILE_VERSION: "03.60.9765.0"
+      EXPECTED_PROVIDER_SHA256: 4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac
+      FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "7200"
+      HOSTED_CAMPAIGN_TIMEOUT_SECONDS: "7500"
+      CAMPAIGN_MAXIMUM_OUTPUT_BYTES: "1048576"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Bind the exact clean pushed checkout
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          & git remote set-url origin https://github.com/oglassdev/jet3-rs.git
+          if ($LASTEXITCODE -ne 0) { throw "Could not bind the canonical origin." }
+          $head = (& git rev-parse --verify HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $head -cne $env:GITHUB_SHA) {
+            throw "The checked-out commit differs from GITHUB_SHA."
+          }
+          $origin = (& git remote get-url origin).Trim()
+          if ($LASTEXITCODE -ne 0 -or
+              $origin -cne "https://github.com/oglassdev/jet3-rs.git") {
+            throw "The checkout origin differs from the canonical repository."
+          }
+          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+            throw "The A1 checkout is not exact and clean."
+          }
+
+      - name: Probe and bind the proven stock x86 provider
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a1-diagnostics"
+          New-Item -ItemType Directory -Path $diagnostics | Out-Null
+          $environmentPath = Join-Path $diagnostics "environment.json"
+          $stdoutPath = Join-Path $diagnostics "probe.stdout.log"
+          $stderrPath = Join-Path $diagnostics "probe.stderr.log"
+          $x86PowerShell = Join-Path $env:WINDIR `
+            "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+          if (-not (Test-Path -LiteralPath $x86PowerShell -PathType Leaf)) {
+            throw "x86 Windows PowerShell 5 is unavailable."
+          }
+
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+          $probe = Invoke-Jet3BootstrapProcess `
+            -Executable $x86PowerShell `
+            -Arguments @(
+              "-NoLogo", "-NoProfile", "-NonInteractive",
+              "-ExecutionPolicy", "Bypass",
+              "-File", "oracle/windows-dao/scripts/probe-provider.ps1",
+              "-ProtocolVersion", "1.1.0",
+              "-OutputPath", $environmentPath
+            ) `
+            -Label "A1 stock DAO provider probe" `
+            -TimeoutSeconds 120 -MaximumOutputBytes 1MB
+          [IO.File]::WriteAllText($stdoutPath, [string]$probe.stdout)
+          [IO.File]::WriteAllText($stderrPath, [string]$probe.stderr)
+          if ([int]$probe.exit_code -ne 0) {
+            throw "The stock provider probe did not report ready."
+          }
+
+          $environmentItem = Get-Item -LiteralPath $environmentPath -Force
+          if ($environmentItem.PSIsContainer -or
+              $environmentItem.Length -lt 2 -or
+              $environmentItem.Length -gt 1MB) {
+            throw "The provider environment record violates its file bound."
+          }
+          $environment = Get-Content -LiteralPath $environmentPath -Raw |
+            ConvertFrom-Json
+          $accepted = $environment.accepted_provider
+          $expected = [ordered]@{
+            prog_id = $env:EXPECTED_PROVIDER_PROG_ID
+            clsid = $env:EXPECTED_PROVIDER_CLSID
+            registry_view = "x86"
+            registration_scope = "machine"
+            provider_version = $env:EXPECTED_PROVIDER_VERSION
+            server_path = $env:EXPECTED_PROVIDER_PATH
+            server_file_version = $env:EXPECTED_PROVIDER_FILE_VERSION
+            server_sha256 = $env:EXPECTED_PROVIDER_SHA256
+            database_version = "dbVersion30"
+          }
+          foreach ($field in $expected.Keys) {
+            $actualValue = [string]$accepted.$field
+            $expectedValue = [string]$expected[$field]
+            $comparison = if ($field -in @("clsid", "server_path")) {
+              [StringComparison]::OrdinalIgnoreCase
+            }
+            else {
+              [StringComparison]::Ordinal
+            }
+            if (-not $actualValue.Equals($expectedValue, $comparison)) {
+              throw "The stock provider differs from run $env:PROVEN_PROVIDER_RUN_ID at $field."
+            }
+          }
+          $matching = @($environment.provider_candidates | Where-Object {
+            $_.registered -eq $true -and
+            $_.activation -ceq "succeeded" -and
+            $_.dbversion30_test.status -ceq "pass" -and
+            $_.prog_id -ceq $accepted.prog_id -and
+            $_.server_sha256 -ceq $accepted.server_sha256
+          })
+          if ($matching.Count -ne 1) {
+            throw "The environment lacks one exact successful stock provider candidate."
+          }
+          $providerHash = (Get-FileHash -LiteralPath $accepted.server_path `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($providerHash -cne $env:EXPECTED_PROVIDER_SHA256) {
+            throw "The live stock provider binary hash has drifted."
+          }
+
+          $binding = [ordered]@{
+            document_type = "jet3_windows_dao_a1_host_binding"
+            proof_run_id = $env:PROVEN_PROVIDER_RUN_ID
+            producer_commit = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            github_run_attempt = $env:GITHUB_RUN_ATTEMPT
+            image_os = $env:ImageOS
+            image_version = $env:ImageVersion
+            accepted_provider = $accepted
+          }
+          $bindingJson = $binding | ConvertTo-Json -Depth 8
+          [IO.File]::WriteAllText(
+            (Join-Path $diagnostics "provider-binding.json"),
+            $bindingJson,
+            (New-Object Text.UTF8Encoding($false))
+          )
+
+      - name: Run the bounded checked A1 campaign
+        id: campaign
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+
+          function Get-A1LogBytes {
+            param([Parameter(Mandatory = $true)][string[]]$Paths)
+            $total = [long]0
+            foreach ($path in $Paths) {
+              if (Test-Path -LiteralPath $path -PathType Leaf) {
+                $length = (Get-Item -LiteralPath $path -Force).Length
+                if ($length -gt ([long]::MaxValue - $total)) {
+                  throw "A1 log byte accounting overflowed."
+                }
+                $total += $length
+              }
+            }
+            return $total
+          }
+
+          function Publish-A1BoundedLogs {
+            param(
+              [Parameter(Mandatory = $true)][string[]]$RawPaths,
+              [Parameter(Mandatory = $true)][string[]]$PublishedPaths,
+              [Parameter(Mandatory = $true)][long]$MaximumBytes
+            )
+            try {
+              if ((Get-A1LogBytes -Paths $RawPaths) -gt $MaximumBytes) {
+                throw "A1 process logs exceeded their retained byte ceiling."
+              }
+              for ($index = 0; $index -lt $RawPaths.Count; $index++) {
+                $bytes = if (Test-Path -LiteralPath $RawPaths[$index] `
+                    -PathType Leaf) {
+                  [IO.File]::ReadAllBytes($RawPaths[$index])
+                }
+                else {
+                  New-Object byte[] 0
+                }
+                [IO.File]::WriteAllBytes($PublishedPaths[$index], $bytes)
+              }
+            }
+            catch {
+              [IO.File]::WriteAllText(
+                $PublishedPaths[0],
+                "A1 process logs were not retained within their byte ceiling.`n"
+              )
+              [IO.File]::WriteAllText($PublishedPaths[1], "")
+            }
+          }
+
+          $repository = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a1-diagnostics"
+          $outputRoot = Join-Path $env:RUNNER_TEMP "jet3-a1-output"
+          $processRoot = Join-Path $env:RUNNER_TEMP "jet3-a1-process"
+          New-Item -ItemType Directory -Path $outputRoot, $processRoot |
+            Out-Null
+          $environmentPath = Join-Path $diagnostics "environment.json"
+          $stdoutPath = Join-Path $processRoot "campaign.stdout.log"
+          $stderrPath = Join-Path $processRoot "campaign.stderr.log"
+          $publishedStdout = Join-Path $diagnostics "campaign.stdout.log"
+          $publishedStderr = Join-Path $diagnostics "campaign.stderr.log"
+          $runSuffix = "gh$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
+          if ($runSuffix.Length -gt 24) {
+            throw "The GitHub-derived A1 run suffix exceeds its bound."
+          }
+          $runId = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ") +
+            "-a1-" + $runSuffix
+          $bundlePath = Join-Path (Join-Path $outputRoot $env:GITHUB_SHA) $runId
+          "run_id=$runId" | Out-File -FilePath $env:GITHUB_OUTPUT `
+            -Encoding utf8 -Append
+          "bundle_path=$bundlePath" | Out-File -FilePath $env:GITHUB_OUTPUT `
+            -Encoding utf8 -Append
+
+          $launchRecordPath = Join-Path $diagnostics "campaign.json"
+          $launchRecord = [ordered]@{
+            document_type = "jet3_windows_dao_a1_campaign"
+            status = "started"
+            producer_commit = $env:GITHUB_SHA
+            run_id = $runId
+            github_run_id = $env:GITHUB_RUN_ID
+            github_run_attempt = $env:GITHUB_RUN_ATTEMPT
+            runner_image = "windows-2022"
+            provider_proof_run_id = $env:PROVEN_PROVIDER_RUN_ID
+            controller_timeout_seconds = `
+              [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
+            hosted_timeout_seconds = [int]$env:HOSTED_CAMPAIGN_TIMEOUT_SECONDS
+            maximum_output_bytes = [long]$env:CAMPAIGN_MAXIMUM_OUTPUT_BYTES
+            started_utc = [DateTimeOffset]::UtcNow.ToString("o")
+          }
+          [IO.File]::WriteAllText(
+            $launchRecordPath,
+            ($launchRecord | ConvertTo-Json -Depth 6),
+            (New-Object Text.UTF8Encoding($false))
+          )
+
+          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+            throw "The repository changed before A1 acquisition."
+          }
+          $x86PowerShell = Join-Path $env:WINDIR `
+            "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+          $entrypoint = Join-Path $repository `
+            "oracle/windows-dao/scripts/run-a1-controlled.ps1"
+          $process = $null
+          $clock = $null
+          $campaignError = $null
+          $cleanupErrors = New-Object Collections.ArrayList
+          $elapsedSeconds = 0.0
+          try {
+            $process = Start-Process -FilePath $x86PowerShell -PassThru `
+              -RedirectStandardOutput $stdoutPath `
+              -RedirectStandardError $stderrPath `
+              -ArgumentList @(
+                "-NoLogo", "-NoProfile", "-NonInteractive",
+                "-ExecutionPolicy", "Bypass",
+                "-File", $entrypoint,
+                "-RepositoryRoot", $repository,
+                "-EnvironmentPath", $environmentPath,
+                "-OutputRoot", $outputRoot,
+                "-GitCommit", $env:GITHUB_SHA,
+                "-RunId", $runId
+              )
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            while (-not $process.WaitForExit(1000)) {
+              $logBytes = Get-A1LogBytes -Paths @($stdoutPath, $stderrPath)
+              if ($logBytes -gt [long]$env:CAMPAIGN_MAXIMUM_OUTPUT_BYTES) {
+                throw "A1 campaign output exceeded its byte ceiling."
+              }
+              if ($clock.Elapsed.TotalSeconds -ge
+                  [int]$env:HOSTED_CAMPAIGN_TIMEOUT_SECONDS) {
+                throw "A1 campaign exceeded its hosted wall-clock ceiling."
+              }
+            }
+            $logBytes = Get-A1LogBytes -Paths @($stdoutPath, $stderrPath)
+            if ($logBytes -gt [long]$env:CAMPAIGN_MAXIMUM_OUTPUT_BYTES) {
+              throw "A1 campaign output exceeded its byte ceiling."
+            }
+            $campaignExit = $process.ExitCode
+          }
+          catch {
+            $campaignError = $_
+          }
+          finally {
+            if ($null -ne $process) {
+              try {
+                Stop-Jet3BootstrapProcessTree -Process $process `
+                  -Label "A1 hosted campaign"
+              }
+              catch { [void]$cleanupErrors.Add($_) }
+            }
+            if ($null -ne $clock) {
+              $clock.Stop()
+              $elapsedSeconds = $clock.Elapsed.TotalSeconds
+            }
+            if ($null -ne $process) {
+              try { $process.Dispose() }
+              catch { [void]$cleanupErrors.Add($_) }
+            }
+            try {
+              Publish-A1BoundedLogs `
+                -RawPaths @($stdoutPath, $stderrPath) `
+                -PublishedPaths @($publishedStdout, $publishedStderr) `
+                -MaximumBytes ([long]$env:CAMPAIGN_MAXIMUM_OUTPUT_BYTES)
+            }
+            catch { [void]$cleanupErrors.Add($_) }
+          }
+          if ($null -ne $campaignError) {
+            if ($cleanupErrors.Count -ne 0) {
+              $cleanupDetail = @($cleanupErrors | ForEach-Object {
+                $_.Exception.Message
+              }) -join "; "
+              throw ($campaignError.Exception.Message +
+                " A1 hosted campaign cleanup also failed: " + $cleanupDetail)
+            }
+            throw $campaignError
+          }
+          if ($cleanupErrors.Count -ne 0) {
+            $cleanupDetail = @($cleanupErrors | ForEach-Object {
+              $_.Exception.Message
+            }) -join "; "
+            throw "A1 hosted campaign cleanup failed: $cleanupDetail"
+          }
+          if ($campaignExit -ne 0) {
+            $detail = Get-Content -LiteralPath $publishedStderr -Raw
+            if ($detail.Length -gt 2000) { $detail = $detail.Substring(0, 2000) }
+            throw "The checked A1 campaign failed: $detail"
+          }
+          if (-not (Test-Path -LiteralPath $bundlePath -PathType Container)) {
+            throw "The checked A1 campaign did not publish its exact bundle."
+          }
+          $launchRecord.status = "published"
+          $launchRecord.completed_utc = [DateTimeOffset]::UtcNow.ToString("o")
+          $launchRecord.elapsed_seconds = [Math]::Round($elapsedSeconds, 3)
+          $launchRecord.bundle_path = $bundlePath
+          [IO.File]::WriteAllText(
+            $launchRecordPath,
+            ($launchRecord | ConvertTo-Json -Depth 6),
+            (New-Object Text.UTF8Encoding($false))
+          )
+
+      - name: Independently validate the complete A1 bundle
+        id: bundle_validation
+        shell: powershell
+        env:
+          A1_BUNDLE_PATH: ${{ steps.campaign.outputs.bundle_path }}
+          A1_RUN_ID: ${{ steps.campaign.outputs.run_id }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE `
+            "oracle\windows-dao\scripts"
+          $code = @'
+          import hashlib
+          import json
+          import sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from a1_bundle import validate_bundle
+          bundle = Path(sys.argv[1])
+          result = validate_bundle(bundle)
+          manifest = result["manifest"]
+          if manifest["producer_commit"] != sys.argv[2]:
+              raise RuntimeError("A1 bundle producer commit differs")
+          if manifest["run_id"] != sys.argv[3]:
+              raise RuntimeError("A1 bundle run ID differs")
+          if manifest["provider_sha256"] != sys.argv[4]:
+              raise RuntimeError("A1 bundle provider hash differs")
+          manifest_bytes = (bundle / "bundle-manifest.json").read_bytes()
+          receipt = {
+              "document_type": "jet3_windows_dao_a1_validation_receipt",
+              "status": "independently_validated",
+              "producer_commit": sys.argv[2],
+              "run_id": sys.argv[3],
+              "provider_sha256": sys.argv[4],
+              "bundle_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+              "github_run_id": sys.argv[6],
+              "github_run_attempt": sys.argv[7],
+              "validated_utc": datetime.now(timezone.utc).isoformat(),
+          }
+          receipt_bytes = (json.dumps(
+              receipt, sort_keys=True, separators=(",", ":")
+          ) + "\n").encode("utf-8")
+          if len(receipt_bytes) > 4096:
+              raise RuntimeError("A1 validation receipt exceeds its byte ceiling")
+          with Path(sys.argv[5]).open("xb") as receipt_file:
+              receipt_file.write(receipt_bytes)
+          print("PASS: independently validated complete A1 bundle")
+          '@
+          $receiptPath = Join-Path $env:RUNNER_TEMP `
+            "jet3-a1-diagnostics\validation-receipt.json"
+          & python -B -c $code $env:A1_BUNDLE_PATH $env:GITHUB_SHA `
+            $env:A1_RUN_ID $env:EXPECTED_PROVIDER_SHA256 $receiptPath `
+            $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT
+          if ($LASTEXITCODE -ne 0) {
+            throw "Independent complete A1 bundle validation failed."
+          }
+          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+            throw "Independent validation changed the exact checkout."
+          }
+
+      - name: Upload independently validated A1 evidence
+        if: success() && steps.bundle_validation.outcome == 'success'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-dao-a1-evidence-${{ github.sha }}-${{ steps.campaign.outputs.run_id }}
+          path: ${{ steps.campaign.outputs.bundle_path }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload bounded A1 diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-dao-a1-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\jet3-a1-diagnostics
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

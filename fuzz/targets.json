@@ -64,6 +64,24 @@
       "max_len": 4096,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "page_classification",
+      "source": "fuzz/fuzz_targets/page_classification.rs",
+      "corpus": "fuzz/corpus/page_classification",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "allocation",
+      "source": "fuzz/fuzz_targets/allocation.rs",
+      "corpus": "fuzz/corpus/allocation",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
     }
   ]
 }

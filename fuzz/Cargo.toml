@@ -61,5 +61,19 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "page_classification"
+path = "fuzz_targets/page_classification.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "allocation"
+path = "fuzz_targets/allocation.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

@@ -3,6 +3,11 @@
   "source_root": "crates/jet3/src",
   "modules": [
     {
+      "path": "crates/jet3/src/allocation.rs",
+      "classification": "format_safety",
+      "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
+    },
+    {
       "path": "crates/jet3/src/atomic.rs",
       "classification": "safety",
       "sha256": "5c1961c2989126038576ccf987e151eb4ecd351659742721989b03425d477ebe"
@@ -30,7 +35,7 @@
     {
       "path": "crates/jet3/src/database.rs",
       "classification": "format_safety",
-      "sha256": "fa8945663df182544e056a7e721e10325b725c8b929804c207f91837a0d1ed5c"
+      "sha256": "0319b38ca7830e80bcad767b72b00797136118b66653b078989349739314a0e5"
     },
     {
       "path": "crates/jet3/src/database_header.rs",
@@ -55,7 +60,7 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "512c2b104dea2080101f688d5c42877dd9c83d1b29593b76bb8558bff689cd84"
+      "sha256": "cac070c0c620381d91de351c76197a55ae0cf9820cda1298ae2b1646524a2eaf"
     },
     {
       "path": "crates/jet3/src/limits.rs",
@@ -71,6 +76,11 @@
       "path": "crates/jet3/src/page.rs",
       "classification": "format_safety",
       "sha256": "875e13749f69b70dcbc0ee1bb7bc4cd9ecf3b98db7e0f79be6d102c4d67677c8"
+    },
+    {
+      "path": "crates/jet3/src/page_kind.rs",
+      "classification": "format_safety",
+      "sha256": "fb2699d75e5fcbef9c88bafc7583e19340dd0021e60c465ef69f1b5f8955f497"
     },
     {
       "path": "crates/jet3/src/raw_page_stream.rs",

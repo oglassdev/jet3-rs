@@ -545,6 +545,176 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '122boundary' > fuzz/corpus/commit_state/read_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-PAGE-CLASSIFICATION-001",
+      "path": "fuzz/corpus/page_classification/database_definition",
+      "size_bytes": 23,
+      "sha256": "89a0ab81fe9cadf6bd47f05c86bfc34b7047e5d85dc6d1c66b12bd997981e3c4",
+      "purpose": "Exercise the page-zero tag-zero database-definition classification and an exact one-unit classification budget.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '001database-definition' > fuzz/corpus/page_classification/database_definition"
+    },
+    {
+      "id": "FUZZ-SEED-PAGE-CLASSIFICATION-002",
+      "path": "fuzz/corpus/page_classification/data_page",
+      "size_bytes": 13,
+      "sha256": "67ab823fa4a83a0db35b908a855eb7ce41fdbce6216030574990e1fde13e6567",
+      "purpose": "Exercise the nonzero-page tag-one data classification and permit a repeated classification at an exact two-unit budget.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '112data-page' > fuzz/corpus/page_classification/data_page"
+    },
+    {
+      "id": "FUZZ-SEED-PAGE-CLASSIFICATION-003",
+      "path": "fuzz/corpus/page_classification/contextual_unknown",
+      "size_bytes": 22,
+      "sha256": "a4d2b01ba6975f03fa3413981b09ad550aa66a9742d4109d228a3d5c039fa839",
+      "purpose": "Exercise tag zero on a nonzero page as a successful lossless unknown classification.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '012contextual-unknown' > fuzz/corpus/page_classification/contextual_unknown"
+    },
+    {
+      "id": "FUZZ-SEED-PAGE-CLASSIFICATION-004",
+      "path": "fuzz/corpus/page_classification/tag_eight_unknown",
+      "size_bytes": 21,
+      "sha256": "ced3a10215940a321a3de37e0465ff326cf40ad559dec9bec5ee36567640fef7",
+      "purpose": "Exercise explicitly unknown tag eight on a nonzero page while preserving its numeric value.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '812tag-eight-unknown' > fuzz/corpus/page_classification/tag_eight_unknown"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-001",
+      "path": "fuzz/corpus/allocation/truncated",
+      "size_bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "purpose": "Select the arbitrary-record mode with no payload so the detached decoder receives an empty record while fixed checks cover inline lengths one through four.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '0\\n' > fuzz/corpus/allocation/truncated"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-002",
+      "path": "fuzz/corpus/allocation/unsupported",
+      "size_bytes": 4,
+      "sha256": "8fd3d8496bd4b65055f45ee1fb19386e1e9eaf0af2af98419619c762c42d2e8e",
+      "purpose": "Pass an unsupported first payload byte to the arbitrary detached-record decoder and preserve the original discriminant in its structured error.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '01x' > fuzz/corpus/allocation/unsupported"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-003",
+      "path": "fuzz/corpus/allocation/inline_boundaries",
+      "size_bytes": 9,
+      "sha256": "bbb444d2b79f93758162b037ce54e66c295e47a37cb1d5d7b499a900698b24a1",
+      "purpose": "Select a forced type-0 record while fixed assertions cover little-endian starts and least-significant-first bits zero, seven, eight, and the caller-delimited final bit.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '12inline' > fuzz/corpus/allocation/inline_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-004",
+      "path": "fuzz/corpus/allocation/indirect_references",
+      "size_bytes": 7,
+      "sha256": "4b9a78ed4b5b4655a57ece352bafea9a28ad2c28a7289d72d17f58fb545f20c8",
+      "purpose": "Select a forced aligned type-1 record while fixed assertions cover misalignment, little-endian order, and lossless zero and maximum references.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '22refs' > fuzz/corpus/allocation/indirect_references"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-005",
+      "path": "fuzz/corpus/allocation/extended_boundaries",
+      "size_bytes": 11,
+      "sha256": "5d7ffc45fb54cbb8a979ef37cf6c0c26da1f25a1765fb64bb43efe82ac893278",
+      "purpose": "Select an already-classified synthetic extended bitmap while fixed assertions cover bit indices zero, seven, eight, and 16,351 without validating unknown header bytes.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '32extended' > fuzz/corpus/allocation/extended_boundaries"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-006",
+      "path": "fuzz/corpus/allocation/tight_budget",
+      "size_bytes": 8,
+      "sha256": "fb03b2b38a6b572d6917d27b0d5d65c5239b4840bc7b5ee46b5930ad02998d5b",
+      "purpose": "Select a forced inline record with a zero selected work ceiling while fixed checks verify exact, one-under, failure-atomic, and replacement-budget cursor behavior.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '10tight' > fuzz/corpus/allocation/tight_budget"
     }
   ]
 }

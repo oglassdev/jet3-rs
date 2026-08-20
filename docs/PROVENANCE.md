@@ -46,7 +46,12 @@ Every entry contains:
 - **Artifacts:** repository paths and SHA-256 hashes of inputs and outputs.
 - **Observation:** factual result, separated from inference.
 - **Interpretation:** the limited conclusion used by the project.
-- **Usage:** source constants, tests, and documents that cite this ID.
+- **Usage:** source constants, tests, and documents that cite this ID. Declare
+  exact tracked files as `` `file:path/from/repository/root` `` and tracked
+  directories as `` `dir:path/from/repository/root/` ``. Directory declarations
+  must end in `/`. Untagged code spans are narrative, not path declarations.
+  Every declared path must contain or cover at least one citation, and every
+  tracked citation must be covered by a declaration.
 - **Rights:** license, redistribution status, and any restrictions.
 - **Review:** reviewer and review date.
 
@@ -76,7 +81,7 @@ Use `not applicable` explicitly rather than omitting a field.
   DAO `CreateDatabase` with `dbVersion30` and without `dbEncrypt`. This source
   does not establish any physical file-layout fact or prove that a generated
   file is accepted by Rust.
-- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`
+- Usage: `file:oracle/windows-dao/scripts/run-dao-gen-probe.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -101,9 +106,9 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: a PowerShell oracle using late-bound DAO COM may pass integer
   32 when the named enumeration constant is unavailable. This establishes only
   the oracle API argument, not a byte value or offset in an MDB file.
-- Usage: `oracle/windows-dao/scripts/probe-provider.ps1`;
-  `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
-  `oracle/windows-dao/scripts/m1/M1.Dao.ps1`
+- Usage: `file:oracle/windows-dao/scripts/probe-provider.ps1`;
+  `file:oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
+  `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -128,8 +133,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: the DAO oracle may apply this flag to `TableDef.Attributes`
   when excluding system tables from an empty user-schema snapshot. This does
   not establish how a system-table attribute is encoded in an MDB file.
-- Usage: `oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
-  `oracle/windows-dao/scripts/m1/M1.Dao.ps1`
+- Usage: `file:oracle/windows-dao/scripts/run-dao-gen-probe.ps1`;
+  `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -159,13 +164,14 @@ Use `not applicable` explicitly rather than omitting a field.
   literals, so no padding bytes are inferred for them. A signature match does
   not identify a Jet generation, prove that the rest of the file is well
   formed, or establish DAO compatibility.
-- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/database_header.rs`;
-  `crates/jet3/src/candidate.rs`; `crates/jet3/src/database.rs`;
-  `crates/jet3-cli/src/main.rs`; `OBS-0001`;
-  `docs/architecture/SEMANTIC_READER.md`;
-  `docs/validation/repository-contract.json`;
-  `docs/validation/EXTERNAL_CORPUS.md`; `fuzz/corpus/manifest.json`;
-  `tests/manifest.json`
+- Usage: `file:crates/jet3/src/header.rs`;
+  `file:crates/jet3/src/database_header.rs`;
+  `file:crates/jet3/src/candidate.rs`; `file:crates/jet3/src/database.rs`;
+  `file:crates/jet3-cli/src/main.rs`; `OBS-0001`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/validation/repository-contract.json`;
+  `file:docs/validation/EXTERNAL_CORPUS.md`;
+  `file:fuzz/corpus/manifest.json`; `file:tests/manifest.json`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -189,14 +195,16 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: Jet 3.x uses 2 KiB pages and Jet 4.0 uses 4 KiB pages. This
   source establishes neither page-header semantics nor a version byte or other
   byte-level generation discriminator.
-- Usage: `crates/jet3/src/header.rs`; `crates/jet3/src/database_header.rs`;
-  `crates/jet3/src/jet3_page.rs`; `crates/jet3/src/candidate.rs`;
-  `crates/jet3/src/raw_page_stream.rs`; `crates/jet3/src/database.rs`;
-  `crates/jet3-cli/src/main.rs`; `EXP-0001`;
-  `docs/architecture/SEMANTIC_READER.md`;
-  `docs/validation/repository-contract.json`;
-  `docs/validation/EXTERNAL_CORPUS.md`;
-  `oracle/windows-dao/scripts/observe_m1_pages.py`
+- Usage: `file:crates/jet3/src/header.rs`;
+  `file:crates/jet3/src/database_header.rs`;
+  `file:crates/jet3/src/jet3_page.rs`;
+  `file:crates/jet3/src/candidate.rs`;
+  `file:crates/jet3/src/raw_page_stream.rs`;
+  `file:crates/jet3/src/database.rs`; `file:crates/jet3-cli/src/main.rs`;
+  `EXP-0001`; `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/validation/repository-contract.json`;
+  `file:docs/validation/EXTERNAL_CORPUS.md`;
+  `file:oracle/windows-dao/scripts/observe_m1_pages.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -266,8 +274,9 @@ Use `not applicable` explicitly rather than omitting a field.
   tags, header-field offsets, allocation-map encoding, catalog root, row
   layout, or long-value pointers, so none of those details may be inferred or
   implemented from this source.
-- Usage: `docs/architecture/SEMANTIC_READER.md`; clean-room experiment planning
-  and future DAO scenario design; not currently cited by production code
+- Usage: `file:docs/architecture/SEMANTIC_READER.md`; clean-room experiment
+  planning and future DAO scenario design; not currently cited by production
+  code
 - Rights: citation to Microsoft-authored public material; no white-paper
   content is redistributed
 - Review: pending independent review
@@ -319,9 +328,7 @@ Use `not applicable` explicitly rather than omitting a field.
   numeric values when creating the four controlled field kinds. They are API
   enumeration values only; they do not identify MDB type bytes, physical
   layouts, long-value thresholds, page classes, or storage strategies.
-- Usage: `oracle/windows-dao/scripts/m1/M1.Dao.ps1`;
-  `oracle/windows-dao/protocol/v1_1/scenario.schema.json`;
-  `oracle/windows-dao/examples/m1-inventory.json`
+- Usage: `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -351,9 +358,8 @@ Use `not applicable` explicitly rather than omitting a field.
   plans therefore declare `size` only for `dbText`; they do not invent sizes
   for `dbBinary`, `dbMemo`, or `dbLongBinary`. The source does not specify an
   on-disk width field, encoding, row layout, or long-value cutoff.
-- Usage: `oracle/windows-dao/protocol/v1_1/scenario.schema.json`;
-  `oracle/windows-dao/examples/DAO-GEN-TEXT8-BASELINE-001.scenario.json`;
-  `oracle/windows-dao/examples/DAO-GEN-TEXT8-INDEXED-001.scenario.json`
+- Usage: contextual provenance for controlled DAO schema design; not currently
+  cited outside this ledger
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -385,8 +391,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `Unique = False` over the existing `dbText(8)` field. No physical record
   order, index page, B-tree encoding, page tag, or allocation effect is
   predicted from the API documentation.
-- Usage: `oracle/windows-dao/examples/DAO-GEN-TEXT8-INDEXED-001.scenario.json`;
-  `oracle/windows-dao/examples/DAO-PAIR-TEXT8-INDEX-001.pair.json`
+- Usage: contextual provenance for controlled DAO scenario design; not currently
+  cited outside this ledger
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -426,12 +432,8 @@ Use `not applicable` explicitly rather than omitting a field.
   experiment establishes binary and long-binary marshalling and readback. The
   planned lengths are experiment points, not documented storage thresholds.
   Nothing here establishes page, tag, pointer, row, or long-value layout.
-- Usage: `oracle/windows-dao/protocol/v1_1/README.md`;
-  `oracle/windows-dao/examples/DAO-GEN-BINARY-MARKER-001.scenario.json`;
-  `oracle/windows-dao/examples/DAO-GEN-MEMO-LADDER-001.scenario.json`;
-  `oracle/windows-dao/examples/DAO-GEN-LONGBINARY-LADDER-001.scenario.json`;
-  `oracle/windows-dao/scripts/preflight-m1-controlled.ps1`;
-  `oracle/windows-dao/tests/test_m1_preflight_contract.py`
+- Usage: `file:oracle/windows-dao/scripts/preflight-m1-controlled.ps1`;
+  `file:oracle/windows-dao/tests/test_m1_preflight_contract.py`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -481,19 +483,20 @@ Use `not applicable` explicitly rather than omitting a field.
   Windows experiment. The source publishes no page tag, table-header location,
   catalog root, allocation encoding, row layout, index encoding, or long-value
   pointer.
-- Usage: `crates/jet3/src/commit_state.rs`;
-  `crates/jet3/src/database_header.rs`; `crates/jet3/src/database.rs`;
-  `docs/architecture/SEMANTIC_READER.md`;
-  `docs/validation/repository-contract.json`; `fuzz/corpus/manifest.json`;
-  `oracle/windows-dao/experiments/m4/`;
-  `oracle/windows-dao/experiments/m4r1/`;
-  `oracle/windows-dao/experiments/m4r2/`;
-  `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`;
-  `oracle/windows-dao/scripts/m5s1_spec.py`;
-  `oracle/windows-dao/scripts/m4_spec.py`;
-  `oracle/windows-dao/scripts/m4r1_spec.py`; future Windows `.ldb` correlation
-  experiments
+- Usage: `file:crates/jet3/src/commit_state.rs`;
+  `file:crates/jet3/src/database_header.rs`;
+  `file:crates/jet3/src/database.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/validation/repository-contract.json`;
+  `file:fuzz/corpus/manifest.json`; `dir:oracle/windows-dao/experiments/m4/`;
+  `dir:oracle/windows-dao/experiments/m4r1/`;
+  `dir:oracle/windows-dao/experiments/m4r2/`;
+  `dir:oracle/windows-dao/experiments/m5/`;
+  `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`;
+  `file:oracle/windows-dao/scripts/m4_spec.py`;
+  `file:oracle/windows-dao/scripts/m4r1_spec.py`; future Windows `.ldb`
+  correlation experiments
 - Rights: citation to Microsoft-authored public material; no white-paper
   content is redistributed
 - Review: pending independent review
@@ -530,12 +533,12 @@ Use `not applicable` explicitly rather than omitting a field.
   offsets, bit masks, encryption algorithms, keys, page classes, or any other
   physical encoding, and a successful call does not establish Rust
   compatibility.
-- Usage: `oracle/windows-dao/experiments/m4/`;
-  `oracle/windows-dao/experiments/m4r1/`;
-  `oracle/windows-dao/experiments/m4r2/`;
-  `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`;
-  `oracle/windows-dao/scripts/m5s1_spec.py`
+- Usage: `dir:oracle/windows-dao/experiments/m4/`;
+  `dir:oracle/windows-dao/experiments/m4r1/`;
+  `dir:oracle/windows-dao/experiments/m4r2/`;
+  `dir:oracle/windows-dao/experiments/m5/`;
+  `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -567,12 +570,12 @@ Use `not applicable` explicitly rather than omitting a field.
   be recast as a physical-format fact. The label is application-level oracle
   evidence only; it is not an MDB version field, byte string, encoding, or
   Rust compatibility result.
-- Usage: `oracle/windows-dao/experiments/m4/`;
-  `oracle/windows-dao/experiments/m4r1/`;
-  `oracle/windows-dao/experiments/m4r2/`;
-  `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`;
-  `oracle/windows-dao/scripts/m5s1_spec.py`
+- Usage: `dir:oracle/windows-dao/experiments/m4/`;
+  `dir:oracle/windows-dao/experiments/m4r1/`;
+  `dir:oracle/windows-dao/experiments/m4r2/`;
+  `dir:oracle/windows-dao/experiments/m5/`;
+  `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -607,13 +610,13 @@ Use `not applicable` explicitly rather than omitting a field.
   and no compacted file may be treated as compatibility or physical-layout
   evidence without a separately checked experiment.
 - Usage: explicit exclusion and future-control rationale in
-  `oracle/windows-dao/experiments/m4/`,
-  `oracle/windows-dao/experiments/m4r1/`, and
-  `oracle/windows-dao/experiments/m4r2/`; the separately checked experiment
+  `dir:oracle/windows-dao/experiments/m4/`,
+  `dir:oracle/windows-dao/experiments/m4r1/`, and
+  `dir:oracle/windows-dao/experiments/m4r2/`; the separately checked experiment
   anticipated here is preregistered as `EXP-0012` and `SRC-0018` in
-  `oracle/windows-dao/experiments/m5/`; successor experimental controls are
-  preregistered under `oracle/windows-dao/experiments/m5s1/` and checked by
-  `oracle/windows-dao/scripts/m5s1_spec.py`
+  `dir:oracle/windows-dao/experiments/m5/`; successor experimental controls are
+  preregistered under `dir:oracle/windows-dao/experiments/m5s1/` and checked by
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -643,9 +646,8 @@ Use `not applicable` explicitly rather than omitting a field.
   conversions rather than implement byte shifts. This establishes language
   operation semantics only; it supplies no Jet layout fact and does not show
   that any encoded buffer is an MDB.
-- Usage: `crates/jet3/src/binary_writer.rs`;
-  `crates/jet3/tests/binary_writer_properties.rs`;
-  `docs/architecture/SAFE_CORE.md`
+- Usage: format-neutral language-operation rationale; not currently cited
+  outside this ledger
 - Rights: citation to official Rust documentation; no documentation content is
   redistributed
 - Review: pending independent review
@@ -712,9 +714,9 @@ Use `not applicable` explicitly rather than omitting a field.
   flag, encryption algorithm, key, page class, or layout; it does not establish
   that a compacted file is readable by this project; and it does not by itself
   authorize execution.
-- Usage: `EXP-0012`; `oracle/windows-dao/experiments/m5/`;
-  `oracle/windows-dao/experiments/m5s1/`;
-  `oracle/windows-dao/scripts/m5s1_spec.py`
+- Usage: `EXP-0012`; `dir:oracle/windows-dao/experiments/m5/`;
+  `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -741,12 +743,139 @@ Use `not applicable` explicitly rather than omitting a field.
   only an API enumeration value; it establishes no MDB byte, encryption
   representation, key, offset, layout, or successful provider behavior.
 - Usage: `EXP-0015`; revised M5 preregistrations under
-  `oracle/windows-dao/experiments/m5/`;
-  successor preregistration under `oracle/windows-dao/experiments/m5s1/`;
-  `oracle/windows-dao/scripts/m5/M5.Dao.ps1`;
-  `oracle/windows-dao/scripts/m5s1_spec.py`
+  `dir:oracle/windows-dao/experiments/m5/`; successor preregistration under
+  `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5/M5.Dao.ps1`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
+- Review: pending independent review
+
+### SRC-0020 — Secondary documentation of Jet page, row-slot, and usage-map primitives
+
+- Recorded: 2026-08-19, OpenAI Codex
+- Kind: public source; reverse-engineered secondary documentation with a
+  lineage likely derivative of MDB Tools `HACKING`, not independent
+  corroboration
+- Question: Which meanings may the experimental Stage 1 classifier assign
+  using only a Jet page's number and byte at offset zero, and which detached
+  data-page row-slot and usage-map primitives are sufficiently described for
+  bounded internal-only experiments without claiming database traversal or a
+  general row layout?
+- Origin: `mkopa/ms-mdb` README pinned at commit
+  `0be52d6b972ff38a8ee28c8a702010b1dff3a59f`, accessed 2026-08-19,
+  https://github.com/mkopa/ms-mdb/blob/0be52d6b972ff38a8ee28c8a702010b1dff3a59f/README.md;
+  contextual source: Library of Congress, “Microsoft Access MDB File Format
+  Family,” accessed 2026-08-19,
+  https://www.loc.gov/preservation/digital/formats/fdd/fdd000462.shtml
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: pin the repository commit, hash the raw README and MIT license,
+  and inspect only the README's `General Notes`, `Pages`, `Data Pages`, and
+  `Page Usage Maps` documentation sections. No implementation file or code
+  from this or any other MDB implementation was consulted. Read the Library of
+  Congress page only for source-lineage context: Microsoft has not published a
+  public MDB specification, and public descriptions derive from unofficial
+  documentation including the MDB Tools `HACKING` lineage.
+- Artifacts: raw README SHA-256
+  `67d2ba4eb5046eb01ded9ba2c156a01bc868299dbbd5af716049ee9e631c1090`;
+  MIT `LICENSE` SHA-256
+  `b1ad69508322d20f39dfb374965d9d9bafbde5aa9053d5154d560eced0fc91f1`;
+  neither upstream file is redistributed in this repository
+- Observation: the table labels byte offset zero as the page type and lists
+  `00` as the database definition page at page zero, `01` as a data page, `02`
+  as a table-definition page, `03` as an intermediate index page, `04` as a
+  leaf index page, and `05` as an extended usage-map bitmap page. It explicitly
+  leaves `08` unknown. It provides no supported meaning for any other tag in
+  the scope inspected. The source generally describes multibyte pointers and
+  integers as little-endian, outside an index-specific exception. Its usage-map
+  section describes a type-0 record as byte `00`, a four-byte starting page,
+  and following bitmap bytes whose low-order bit is first and whose set bits
+  mean allocated to the table. It describes a type-1 record as byte `01`
+  followed by four-byte pointers to type-`05` map pages. For Jet 3, a complete
+  type-`05` page has the four-byte header `05 01 00 00` followed by 2,044
+  bitmap bytes in the same low-bit-first, one-bit-per-page scheme. The source
+  states 16,352 mapped bits per such Jet 3 page. Its data-page section describes
+  a ten-byte Jet 3 data-page header, a little-endian 16-bit row count in bytes
+  eight and nine, and two-byte row-offset entries beginning at byte ten. It
+  describes row zero as ending at byte 2,048 and each later row as ending at
+  the preceding row's offset. In the high byte of an offset, bit `0x40` marks
+  an overflow row and bit `0x80` marks a deleted row. A long-value example
+  describes its row identifier as zero-based and projects a raw row offset with
+  `raw_offset & 0x1fff`.
+- Interpretation: an experimental classifier may inspect exactly byte zero.
+  Page zero with tag `00` may be named database definition; a nonzero page with
+  tag `00`, or page zero with any nonzero tag, remains `Unknown` while retaining
+  the byte. On nonzero pages, tags `01` through `05` may receive the listed
+  names. Tag `08` and every other byte remain `Unknown`. Unknown is a successful
+  classification, not proof of malformed input. The source establishes no
+  other page-header field, payload rule, generation discriminator, structural
+  validity, encryption state, catalog location, or DAO compatibility. A
+  detached decoder may recognize exactly type `00` and type `01` records,
+  decode their documented little-endian fields, enumerate low-bit-first bitmap
+  positions, and decode a caller-supplied complete Jet 3 type-`05` page. This
+  does not authorize locating the global map on page 1, locating or
+  dereferencing a table-definition usage-map record, interpreting null or
+  unused type-1 pointers, deriving the absolute page base represented by an
+  extended map, or following any pointer. The source's fixed-size wording and
+  arithmetic for the Jet 3 table map are not sufficiently consistent to impose
+  a 128-byte record-length rule. Those operations remain blocked on physical
+  evidence. The data-page description may define a closed A1 candidate search
+  over row-count and row-offset slots, including the documented flag bits and
+  zero-based long-value example. It does not establish that either candidate
+  offset-mask projection applies generally; both remain preregistered nuisance
+  candidates to be tested without refitting. It also establishes no official
+  row format, field encoding, record payload interpretation, general DAO
+  behavior, or compatibility. Because this is a reverse-engineered secondary
+  lineage, all classifier, detached-map, and row-slot results are internal-only
+  and are not independent or DAO verification.
+- Usage: `file:crates/jet3/src/page_kind.rs`;
+  `file:crates/jet3/src/allocation.rs`;
+  `file:crates/jet3/src/database.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/validation/repository-contract.json`;
+  `file:docs/validation/support-matrix.json`; `file:fuzz/README.md`;
+  `file:fuzz/corpus/manifest.json`;
+  `file:fuzz/fuzz_targets/allocation.rs`;
+  `file:fuzz/fuzz_targets/page_classification.rs`; `file:tests/manifest.json`
+- Rights: citation to public documentation distributed upstream under the MIT
+  license; no upstream documentation content is redistributed
+- Review: pending independent review
+
+### SRC-0021 — DAO field type and fixed-width attribute values for A1
+
+- Recorded: 2026-08-19, OpenAI Codex
+- Kind: public source
+- Question: Which numeric DAO values must the late-bound A1 acquisition worker
+  use for a Long Integer field and the fixed-width field attribute?
+- Origin: Microsoft Learn, “DataTypeEnum enumeration (DAO)” and
+  “Field.Attributes property (DAO),” accessed 2026-08-19; documentation source
+  pinned at MicrosoftDocs `office-developer-client-docs` commit
+  `eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5`,
+  https://github.com/MicrosoftDocs/office-developer-client-docs/blob/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/datatypeenum-enumeration-dao.md
+  and
+  https://github.com/MicrosoftDocs/office-developer-client-docs/blob/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/field-attributes-property-dao.md
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: retrieve the two pinned Microsoft documentation files and inspect
+  only the `dbLong` row in `DataTypeEnum` and the `dbFixedField` row in the
+  `Field.Attributes` constants table
+- Artifacts: pinned `datatypeenum-enumeration-dao.md` SHA-256
+  `51147cb927489b36583de4729355fccc78cc0781032453775f2a011f58535d7b`;
+  pinned `field-attributes-property-dao.md` SHA-256
+  `08c0417611d7f71d786d6fff035c2718046a529c1e25ff07c29bc8c3633f036a`;
+  neither documentation file is redistributed by this repository
+- Observation: Microsoft documents `dbLong` as Long Integer data with numeric
+  value 4. Microsoft documents `dbFixedField` as the field attribute indicating
+  a fixed field size, with numeric value 1.
+- Interpretation: the late-bound DAO A1 acquisition worker may use integer 4
+  when creating its `dbLong` identifier field and integer 1 when setting the
+  `dbFixedField` attribute on its fixed-width text field. These are DAO API
+  values only; they establish no MDB type byte, field-width encoding, row
+  layout, allocation behavior, or Rust compatibility.
+- Usage: `file:oracle/windows-dao/scripts/a1/A1.Worker.ps1`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
 - Review: pending independent review
 
 ## Observed behavior
@@ -2541,6 +2670,115 @@ Use `not applicable` explicitly rather than omitting a field.
   licensed-provider output requires a separate retention and rights record
 - Review: focused deterministic and corruption-path tests pass; independent
   analysis and scientific review remain pending
+
+### EXP-0036 — Stock GitHub-hosted x86 DAO provider observation for A1
+
+- Recorded: 2026-08-20, OpenAI Codex
+- Kind: controlled black-box environment observation; no A1 acquisition,
+  format result, Rust validation, or compatibility claim
+- Question: Do untouched GitHub-hosted `windows-2022` and `windows-2025`
+  images expose an in-process x86 DAO provider that passes disposable
+  `dbVersion30` creation, and which lane matches the reviewed A1 provider?
+- Origin: GitHub Actions run `32327232241`, attempt 1, at exact pushed commit
+  `8300196ae8c72b45b8d0af87567ab549fea29567`,
+  https://github.com/oglassdev/jet3-rs/actions/runs/32327232241
+- Environment: GitHub-hosted `windows-2022` image `20260802.262.1`, Windows
+  Server 2022 build 20348, x86 Windows PowerShell 5.1.20348.5386; and
+  `windows-2025` image `20260810.198.2`, Windows Server 2025 build 26100, x86
+  Windows PowerShell 5.1.26100.33158; both `en-US`, ANSI code page 1252, OEM
+  code page 437, and UTC
+- Protocol: on each untouched image, record runner identity; invoke the checked
+  protocol-1.1 provider probe through SysWOW64 Windows PowerShell with a
+  120-second and 1-MiB output bound; accept only exit 0 or the documented
+  blocked exit 3; conditionally install the pinned Access Runtime only after a
+  blocked stock probe; retain structured environment and runner records; and
+  fail the job unless the selected record passed disposable `dbVersion30`
+  creation. Both stock probes passed, so installation and post-install probing
+  were skipped.
+- Artifacts: `windows-2022` artifact ID `9391786179`, uploaded archive SHA-256
+  `d4b1aa4d0012078eb0678ed3219717acbb0f4877767e07af6254e9b924dc0d20`,
+  `environment.json` SHA-256
+  `8b720b84d85eec0279eb3ad3415ef7189a27a6f0afbcde281827ff51ec117e22`,
+  and `runner.json` SHA-256
+  `434e00fbc7d00f5f530f410f746b4a7f912e8b737fedf98e86c200f195e2db82`;
+  `windows-2025` artifact ID `9391786643`, uploaded archive SHA-256
+  `e54a954b8ac59342a3ed00bdf0b585b8fd758eccc5cace07ad15a63aa67c6673`,
+  `environment.json` SHA-256
+  `f60271b2a99546487b458eb48e0bca35d32ae09d02f43c68fc014a5936e93ecf`,
+  and `runner.json` SHA-256
+  `5a5a38250a87a340f34e741f2a8446b09f5c665d0c73e22679f6fa261643f4e2`;
+  Actions retained the artifacts for 14 days, and this repository does not
+  redistribute them
+- Observation: both stock images returned protocol status `ready` and passed
+  disposable `dbVersion30` creation through machine-registered x86
+  `DAO.DBEngine.36`. On `windows-2022`, `dao360.dll` reported provider version
+  3.6, file version `03.60.9765.0`, and SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  exactly matching the historically reviewed local binary. On `windows-2025`,
+  the provider reported 3.6 but `dao360.dll` was patched to file version
+  `10.0.26100.5074` with SHA-256
+  `c2da31acb8836c976c22843862eec36114d4fd3c42e8642190f4c4629273ad3e`.
+- Interpretation: `windows-2022` is the pinned A1 campaign lane because this
+  exact observation matches the reviewed provider identity. Every future run
+  must still re-probe and bind the exact image, runtime, registration, binary,
+  and producer commit; provider drift blocks acquisition. `windows-2025` is
+  not interchangeable without separate review. This observation authorizes no
+  A1 scientific conclusion, MDB physical fact, Rust support level, or DAO
+  compatibility claim.
+- Usage: `file:oracle/windows-dao/README.md`;
+  `file:docs/validation/DAO_PROVIDER_BLOCKER.md`
+- Rights: project-generated diagnostic metadata from GitHub-hosted runners;
+  no Microsoft provider binary or MDB output is redistributed
+- Review: run conclusion and both jobs passed; independent A1 evidence review
+  remains required
+
+### EXP-0037 — Preregistered A1 allocation-map campaign
+
+- Recorded: 2026-08-19, OpenAI Codex
+- Kind: pre-acquisition experimental design and fail-closed validation contract;
+  no DAO acquisition or physical-format result
+- Question: Can one bounded joint model derived from two fresh Jet 3 databases
+  predict the observed global and per-table allocation-map transitions in a
+  third holdout database without refitting?
+- Origin: project-authored plan `DAO-A1-ALLOCATION-MAPS-001`; no MDB input,
+  donated fixture, third-party implementation, or campaign output was
+  inspected to define the checked plan
+- Environment: acquisition is restricted to x86 Windows PowerShell 5.1,
+  Python 3.13.x, exact clean pushed source, and a freshly probed
+  `DAO.DBEngine.36` provider whose binary identity matches the reviewed
+  `windows-2022` observation in `EXP-0036`
+- Protocol: the checked plan fixes three replicas, replicas 1 and 2 as the
+  derivation set, replica 3 as the holdout, 71 nonadaptive closed-file
+  checkpoints per replica, deterministic table-role rotation and row recipes,
+  content-addressed 2-KiB page capture, explicit work/file/byte/time ceilings,
+  and a rule that any post-acquisition amendment requires a new experiment ID
+- Artifacts: checked plan
+  `oracle/windows-dao/experiments/a1/a1-allocation-maps.plan.json`, SHA-256
+  `a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80`;
+  schemas, validators, bounded acquisition scripts, and a manual-only hosted
+  workflow are checked alongside it
+- Observation: `preregistration.acquisition_started` is `false`. No A1
+  database, page capture, candidate set, bundle, or scientific report exists.
+  The current analyzer can produce only fail-closed no-outcome reports and the
+  independent bundle validator rejects decisive reports until scientific
+  recomputation is implemented.
+- Interpretation: this entry records only the pre-acquisition contract. It
+  authorizes no global-map location, TDEF pointer layout, row-slot layout,
+  inline or indirect allocation formula, Rust behavior, DAO compatibility, or
+  support-matrix advancement. Acquisition remains blocked pending the planned
+  three-layer model amendment, bounded row-slot dereference, derivation-set
+  freeze before holdout access, independent candidate recomputation, and
+  jointly feasible capacity reservations.
+- Usage: `file:oracle/windows-dao/experiments/a1/README.md`;
+  `file:oracle/windows-dao/experiments/a1/a1-allocation-maps.plan.json`;
+  `file:oracle/windows-dao/experiments/a1/plan.schema.json`;
+  `file:oracle/windows-dao/scripts/a1_spec.py`;
+  `file:oracle/windows-dao/tests/test_a1_plan_contract.py`
+- Rights: project-authored plan, schemas, scripts, and synthetic contract-test
+  data; no Microsoft provider binary or generated MDB is redistributed
+- Review: focused plan, analysis, bundle, PowerShell-source, and hosted-workflow
+  contract tests pass; scientific design and capacity audits require the
+  pre-acquisition amendments listed above before any manual dispatch
 
 ## Fixtures and black-box results
 

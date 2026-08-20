@@ -384,9 +384,13 @@ class SourceUsageLedgerTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "src").mkdir()
 
-    def validate(self, provenance: str) -> list[str]:
+    def validate(
+        self, provenance: str, tracked: set[str] | None = None
+    ) -> list[str]:
         return repository_provenance.validate_source_usage_ledger(
-            self.root, {"src/module.rs"}, provenance
+            self.root,
+            {"src/module.rs"} if tracked is None else tracked,
+            provenance,
         )
 
     def test_exact_file_and_directory_usage_cover_citations(self) -> None:
@@ -394,8 +398,10 @@ class SourceUsageLedgerTests(unittest.TestCase):
             "// Evidence: SRC-0001 and SRC-0002.\n", encoding="utf-8"
         )
         provenance = (
-            "### SRC-0001 — one\n\n- Usage: `src/module.rs`\n- Rights: test\n\n"
-            "### SRC-0002 — two\n\n- Usage: `src/`\n- Rights: test\n"
+            "### SRC-0001 — one\n\n"
+            "- Usage: `file:src/module.rs`\n- Rights: test\n\n"
+            "### SRC-0002 — two\n\n"
+            "- Usage: `dir:src/`\n- Rights: test\n"
         )
         self.assertEqual(self.validate(provenance), [])
 
@@ -410,12 +416,74 @@ class SourceUsageLedgerTests(unittest.TestCase):
             errors, ["SRC-0001: Usage does not cover citing path src/module.rs"]
         )
 
+    def test_narrative_backticks_are_not_path_declarations(self) -> None:
+        (self.root / "src/module.rs").write_text(
+            "// Evidence: SRC-0001.\n", encoding="utf-8"
+        )
+        errors = self.validate(
+            "### SRC-0001 — one\n\n"
+            "- Usage: compare `src/module.rs` with `method/option`\n"
+            "- Rights: test\n"
+        )
+        self.assertEqual(
+            errors, ["SRC-0001: Usage does not cover citing path src/module.rs"]
+        )
+
+    def test_declared_file_and_directory_must_cover_a_citation(self) -> None:
+        (self.root / "src/module.rs").write_text(
+            "// Evidence: SRC-0001.\n", encoding="utf-8"
+        )
+        (self.root / "src/other.rs").write_text("// No citation.\n", encoding="utf-8")
+        (self.root / "src/other").mkdir()
+        (self.root / "src/other/note.md").write_text(
+            "No citation.\n", encoding="utf-8"
+        )
+        provenance = (
+            "### SRC-0001 — one\n\n"
+            "- Usage: `file:src/module.rs`; `file:src/other.rs`; `dir:src/other/`\n"
+            "- Rights: test\n"
+        )
+        errors = self.validate(
+            provenance,
+            {"src/module.rs", "src/other.rs", "src/other/note.md"},
+        )
+        self.assertEqual(
+            errors,
+            [
+                "SRC-0001: Usage file has no matching citation `src/other.rs`",
+                "SRC-0001: Usage dir has no matching citation `src/other/`",
+            ],
+        )
+
+    def test_usage_declarations_are_canonical_and_tracked(self) -> None:
+        (self.root / "src/module.rs").write_text(
+            "// Evidence: SRC-0001.\n", encoding="utf-8"
+        )
+        provenance = (
+            "### SRC-0001 — one\n\n"
+            "- Usage: `file:./src/module.rs`; `file:src/missing.rs`; "
+            "`dir:src`; `file:src/module.rs`; `file:src/module.rs`\n"
+            "- Rights: test\n"
+        )
+        errors = self.validate(provenance)
+        self.assertEqual(
+            errors,
+            [
+                "SRC-0001: invalid repository-relative Usage declaration "
+                "`file:./src/module.rs`",
+                "SRC-0001: Usage file is not tracked `src/missing.rs`",
+                "SRC-0001: Usage directory must end with `/` `src`",
+                "SRC-0001: duplicate Usage declaration `file:src/module.rs`",
+            ],
+        )
+
     def test_unknown_source_id_fails(self) -> None:
         (self.root / "src/module.rs").write_text(
             "// Evidence: SRC-9999.\n", encoding="utf-8"
         )
         errors = self.validate(
-            "### SRC-0001 — one\n\n- Usage: `src/module.rs`\n- Rights: test\n"
+            "### SRC-0001 — one\n\n"
+            "- Usage: contextual only\n- Rights: test\n"
         )
         self.assertEqual(
             errors, ["src/module.rs: unknown source provenance ID SRC-9999"]
