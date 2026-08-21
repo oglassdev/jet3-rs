@@ -22,6 +22,9 @@ PLAN_PATH = EXPERIMENT_DIR / "a2-allocation-maps.plan.json"
 PLAN_BYTES = PLAN_PATH.read_bytes()
 PLAN = json.loads(PLAN_BYTES)
 PLAN_SHA256 = hashlib.sha256(PLAN_BYTES).hexdigest()
+EXPECTED_PLAN_SHA256 = "804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2"
+if PLAN_SHA256 != EXPECTED_PLAN_SHA256:
+    raise RuntimeError("A2 analyzer plan hash does not match the preregistration")
 
 PAGE_SIZE = int(PLAN["bounds"]["page_size"])
 MAX_FINAL_PAGES = int(PLAN["bounds"]["max_final_pages_per_replica"])
@@ -42,7 +45,11 @@ PER_PAGE_CANDIDATES = PAGE_SIZE * (PAGE_SIZE + 1) // 2
 _MAPPINGS = PLAN["predicate_registry"]["mappings"]
 PREDICATES = {item["predicate_id"]: (item["reason"], item["layer"]) for item in _MAPPINGS}
 REASONS = {reason: predicate for predicate, (reason, _) in PREDICATES.items()}
-if len(PREDICATES) != len(_MAPPINGS) or len(REASONS) != len(_MAPPINGS):
+if (
+    len(PREDICATES) != len(_MAPPINGS)
+    or len(REASONS) != len(_MAPPINGS)
+    or tuple(PREDICATES) != tuple(PLAN["predicate_registry"]["ids"])
+):
     raise RuntimeError("A2 predicate registry is not bijective")
 
 
@@ -127,7 +134,12 @@ class View:
                 hashes = tuple(source.ordered_page_sha256[checkpoint])
             except (KeyError, TypeError) as exc:
                 raise Abort("A2-SNAPSHOT-RECONSTRUCTION") from exc
-            if not 1 <= count <= MAX_FINAL_PAGES or count != len(hashes):
+            if (
+                isinstance(count, bool)
+                or not isinstance(count, int)
+                or not 1 <= count <= MAX_FINAL_PAGES
+                or count != len(hashes)
+            ):
                 raise Abort("A2-SNAPSHOT-RECONSTRUCTION")
             if any(len(item) != 64 for item in hashes):
                 raise Abort("A2-SNAPSHOT-RECONSTRUCTION")
@@ -276,12 +288,6 @@ class DRelationIndex:
         recreated = records["D_RECREATE_EMPTY"]
         regrown = records["D_REGROW_0128"]
         self.records = records
-        self.drop_mismatch = Prefix.from_flags(
-            [dropped[index] != empty[index] for index in range(PAGE_SIZE)], work
-        )
-        self.recreate_mismatch = Prefix.from_flags(
-            [recreated[index] != empty[index] for index in range(PAGE_SIZE)], work
-        )
         self.growth: dict[str, Prefix] = {}
         self.release_violation: dict[str, Prefix] = {}
         self.recreate_release_violation: dict[str, Prefix] = {}
@@ -340,7 +346,7 @@ class DRelationIndex:
                 work,
             )
 
-    def polarity_relation(self, start: int, polarity: str) -> bool:
+    def polarity_direction(self, start: int, polarity: str) -> bool:
         records = self.records
         if start + 5 >= PAGE_SIZE or any(record[start] != 0 for record in records.values()):
             return False
@@ -349,21 +355,16 @@ class DRelationIndex:
             for record in records.values()
         }
         bitmap_start = start + 5
-        return (
-            len(bases) == 1
-            and self.growth[polarity].count(bitmap_start, PAGE_SIZE) > 0
-            and self.release_violation[polarity].none(bitmap_start, PAGE_SIZE)
-            and self.recreate_release_violation[polarity].none(bitmap_start, PAGE_SIZE)
-            and self.regrowth_violation[polarity].none(bitmap_start, PAGE_SIZE)
-            and self.additional[polarity].count(bitmap_start, PAGE_SIZE) > 0
-        )
+        return len(bases) == 1 and self.growth[polarity].count(bitmap_start, PAGE_SIZE) > 0
 
     def relation(self, start: int, polarity: str) -> bool:
         bitmap_start = start + 5
         return (
-            self.polarity_relation(start, polarity)
-            and self.drop_mismatch.none(bitmap_start, PAGE_SIZE)
-            and self.recreate_mismatch.none(bitmap_start, PAGE_SIZE)
+            self.polarity_direction(start, polarity)
+            and self.release_violation[polarity].none(bitmap_start, PAGE_SIZE)
+            and self.recreate_release_violation[polarity].none(bitmap_start, PAGE_SIZE)
+            and self.regrowth_violation[polarity].none(bitmap_start, PAGE_SIZE)
+            and self.additional[polarity].count(bitmap_start, PAGE_SIZE) > 0
         )
 
     def suffix_slack(self, start: int, polarity: str) -> int:
@@ -385,18 +386,6 @@ def _d_relation(
     """Compatibility wrapper used by pure holdout prediction tests."""
     relation = index or DRelationIndex(records, WorkCounter())
     return relation.relation(start, polarity)
-
-
-def unique_polarity(records: dict[str, bytes], start: int) -> str:
-    index = DRelationIndex(records, WorkCounter())
-    survivors = [
-        polarity for polarity in POLARITIES if index.polarity_relation(start, polarity)
-    ]
-    if not survivors:
-        raise Abort("A2-POLARITY-NONE")
-    if len(survivors) > 1:
-        raise Abort("A2-POLARITY-MULTIPLE")
-    return survivors[0]
 
 
 def _suffix_slack(
@@ -432,7 +421,7 @@ def derive_global_record(
         polarities = [
             polarity
             for polarity in POLARITIES
-            if index.polarity_relation(start, polarity)
+            if index.polarity_direction(start, polarity)
         ]
         if len(polarities) > 1:
             raise Abort("A2-POLARITY-MULTIPLE")
@@ -457,22 +446,10 @@ def derive_global_record(
     return resolved[0]
 
 
-def require_one_page(pages: Sequence[int], none_id: str, multiple_id: str) -> int:
-    if not pages:
-        raise Abort(none_id)
-    if len(pages) > 1:
-        raise Abort(multiple_id)
-    return pages[0]
-
-
 def decode_pointer(raw: bytes, layout: str) -> tuple[int, int]:
-    if len(raw) != 4:
-        raise Abort("A2-POINTER-VALIDITY")
-    if layout == "u24le_page_then_u8_slot":
+    if layout == POINTER_LAYOUTS[0]:
         return int.from_bytes(raw[:3], "little"), raw[3]
-    if layout == "u8_slot_then_u24le_page":
-        return int.from_bytes(raw[1:], "little"), raw[0]
-    raise Abort("A2-POINTER-VALIDITY")
+    return int.from_bytes(raw[1:], "little"), raw[0]
 
 
 def extended_base(formula: str, slot: int, reference_page: int) -> int:
@@ -487,6 +464,4 @@ def extended_base(formula: str, slot: int, reference_page: int) -> int:
         return reference_page
     if formula == "referenced_page_relative_off_by_minus_one":
         return reference_page - 1
-    if formula == "referenced_page_relative_off_by_plus_one":
-        return reference_page + 1
-    raise Abort("A2-BASE-NONE")
+    return reference_page + 1

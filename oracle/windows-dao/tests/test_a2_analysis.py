@@ -15,7 +15,7 @@ SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from a2_analysis import ReplicaInput, build_analysis  # noqa: E402
+from a2_analysis import ReplicaInput, _derive_pages, build_analysis  # noqa: E402
 from a2_layers import derive_conversion, derive_tdef  # noqa: E402
 from a2_model import (  # noqa: E402
     CHECKPOINT_IDS,
@@ -33,7 +33,6 @@ from a2_model import (  # noqa: E402
     derive_global_record,
     qualify_global_pages,
     qualify_tdef_pages,
-    require_one_page,
 )
 
 GLOBAL_PAGE = 1
@@ -87,7 +86,14 @@ def bitmap(count: int, polarity: str, width: int, first_page: int = 1) -> bytes:
     return used.to_bytes(width, "little")
 
 
-def global_page(checkpoint: str, polarity: str, *, bad_crosscheck: bool = False) -> bytes:
+def global_page(
+    checkpoint: str,
+    polarity: str,
+    *,
+    bad_crosscheck: bool = False,
+    bad_d_relation: bool = False,
+    d_control_change: bool = False,
+) -> bytes:
     body = bytearray([0xA6] * PAGE_SIZE)
     count = counts()[checkpoint]
     body[RECORD_START:] = bytes(PAGE_SIZE - RECORD_START)
@@ -107,6 +113,18 @@ def global_page(checkpoint: str, polarity: str, *, bad_crosscheck: bool = False)
         if bad_crosscheck and checkpoint == "L_REL_0512":
             encoded = bitmap(counts()["L_REL_0064"], polarity, width)
         body[RECORD_START + 5 : RECORD_START + 5 + width] = encoded
+        if bad_d_relation and checkpoint in {"D_DROP", "D_RECREATE_EMPTY"}:
+            offset = RECORD_START + 6
+            if polarity == "set_means_in_use":
+                body[offset] |= 1
+            else:
+                body[offset] &= 0xFE
+        if d_control_change and checkpoint in {"D_DROP", "D_RECREATE_EMPTY"}:
+            offset = RECORD_START + 6
+            if polarity == "set_means_in_use":
+                body[offset] |= 0x10
+            else:
+                body[offset] &= 0xEF
     else:
         body[RECORD_START] = 1
         body[RECORD_START + 1 : RECORD_START + 5] = LOW_MAP_PAGE.to_bytes(4, "little")
@@ -162,6 +180,9 @@ class MemoryReplica:
     invalid_pointer: bool = False
     bad_crosscheck: bool = False
     extra_qualified_global: bool = False
+    bad_checkpoint_order: bool = False
+    bad_d_relation: bool = False
+    d_control_change: bool = False
 
     def __post_init__(self) -> None:
         self.reads: list[str] = []
@@ -171,7 +192,13 @@ class MemoryReplica:
             hashes: list[str] = []
             for page in range(counts()[checkpoint]):
                 if page == GLOBAL_PAGE:
-                    payload = global_page(checkpoint, self.polarity, bad_crosscheck=self.bad_crosscheck)
+                    payload = global_page(
+                        checkpoint,
+                        self.polarity,
+                        bad_crosscheck=self.bad_crosscheck,
+                        bad_d_relation=self.bad_d_relation,
+                        d_control_change=self.d_control_change,
+                    )
                 elif page == LOW_MAP_PAGE:
                     payload = extended_page(
                         checkpoint, self.polarity, 0, no_discriminator=self.no_discriminator
@@ -196,7 +223,7 @@ class MemoryReplica:
 
     @property
     def checkpoint_ids(self) -> tuple[str, ...]:
-        return CHECKPOINT_IDS
+        return CHECKPOINT_IDS[::-1] if self.bad_checkpoint_order else CHECKPOINT_IDS
 
     @property
     def page_count(self) -> dict[str, int]:
@@ -281,13 +308,35 @@ class A2PredicateTests(unittest.TestCase):
             derive_conversion(view, global_model)
         self.assertEqual(caught.exception.predicate_id, "A2-POLARITY-CROSSCHECK")
 
+    def test_d_set_relation_failure_is_reachable_after_direction_selection(self) -> None:
+        _, view = self.view(bad_d_relation=True)
+        with self.assertRaises(Abort) as caught:
+            derive_global_record(view, GLOBAL_PAGE)
+        self.assertEqual(caught.exception.predicate_id, "A2-D-SET-RELATION")
+
+    def test_d_relation_does_not_require_full_bitmap_equality(self) -> None:
+        for polarity in ("set_means_in_use", "set_means_not_in_use"):
+            with self.subTest(polarity=polarity):
+                _, view = self.view(polarity, d_control_change=True)
+                self.assertEqual(
+                    derive_global_record(view, GLOBAL_PAGE).bit_polarity,
+                    polarity,
+                )
+
     def test_named_predicate_units_are_fail_closed(self) -> None:
-        with self.assertRaises(Abort) as none:
-            require_one_page((), "A2-GLOBAL-PAGE-NONE", "A2-GLOBAL-PAGE-MULTIPLE")
-        self.assertEqual(none.exception.reason, "no_physical_page_satisfies_global_transition_predicates")
-        with self.assertRaises(Abort) as multiple:
-            require_one_page((1, 2), "A2-GLOBAL-PAGE-NONE", "A2-GLOBAL-PAGE-MULTIPLE")
-        self.assertEqual(multiple.exception.predicate_id, "A2-GLOBAL-PAGE-MULTIPLE")
+        draft = _derive_pages(
+            (),
+            (),
+            lambda *_args: None,
+            "A2-GLOBAL-PAGE-NONE",
+            "A2-GLOBAL-PAGE-MULTIPLE",
+            "A2-GLOBAL-RECORD-NONE",
+        )
+        self.assertEqual(draft.abort.predicate_id, "A2-GLOBAL-PAGE-NONE")
+        self.assertEqual(
+            draft.abort.reason,
+            "no_physical_page_satisfies_global_transition_predicates",
+        )
         with self.assertRaises(Abort) as bounded:
             WorkCounter().charge(600_000_001)
         self.assertEqual(bounded.exception.predicate_id, "A2-RESOURCE-BOUND")
@@ -388,6 +437,19 @@ class A2LayeredAnalysisTests(unittest.TestCase):
         self.assertEqual(report["submodels"]["tdef"]["pointer_pair"]["status"], "no_outcome")
         self.assertIn("holdout_prediction_failure", report["no_outcome_reasons"])
         self.assertEqual(report["submodels"]["global_map"]["record"]["status"], "decisive_predicts_holdout")
+
+    def test_checkpoint_order_abort_is_retained_without_opening_holdout(self) -> None:
+        replicas = [MemoryReplica("set_means_in_use", bad_checkpoint_order=True)]
+        replicas.extend(MemoryReplica("set_means_in_use") for _ in range(2))
+        report, events = self.analyze(replicas)
+        self.assertEqual(events, [1, 2])
+        self.assertEqual(report["terminal_predicate_ids"], ["A2-SNAPSHOT-RECONSTRUCTION"])
+        self.assertEqual(report["no_outcome_reasons"], ["unreconstructable_snapshot"])
+        self.assertFalse(report["holdout_opened_after_freeze"])
+        self.assertFalse(report["holdout_evaluated"])
+        for layer in report["submodels"]["global_map"].values():
+            self.assertEqual(layer["status"], "no_outcome")
+        self.assertEqual(report["submodels"]["tdef"]["pointer_pair"]["status"], "no_outcome")
 
 
 if __name__ == "__main__":

@@ -144,22 +144,38 @@ def _polarity_cross_check(view: View, global_model: GlobalRecordModel) -> None:
         after_tag = after_record[global_model.record.start]
         pairs: list[tuple[bytes, bytes]] = []
         if before_tag == after_tag == 0:
+            before_base = int.from_bytes(
+                before_record[global_model.record.start + 1 : start], "little"
+            )
+            after_base = int.from_bytes(
+                after_record[global_model.record.start + 1 : start], "little"
+            )
+            if before_base != after_base:
+                raise Abort("A2-POLARITY-CROSSCHECK")
+            if view.page_count(right) <= before_base:
+                continue
             pairs.append((before_record[start:end], after_record[start:end]))
         elif before_tag == after_tag == 1:
             before_slots = _active_slots(before_record, global_model.record.start)
             after_slots = _active_slots(after_record, global_model.record.start)
+            if before_slots != after_slots:
+                continue
             for slot, reference in after_slots.items():
                 prior_reference = before_slots.get(slot)
-                before = (
-                    view.page(left, prior_reference)[EXTENDED_HEADER_BYTES:]
-                    if prior_reference is not None
-                    else bytes(PAGE_SIZE - EXTENDED_HEADER_BYTES)
-                )
+                if (
+                    prior_reference != reference
+                    or reference >= view.page_count(left)
+                    or reference >= view.page_count(right)
+                ):
+                    continue
+                before = view.page(left, reference)[EXTENDED_HEADER_BYTES:]
                 after = view.page(right, reference)[EXTENDED_HEADER_BYTES:]
                 pairs.append((before, after))
         else:
             # The representation changes at conversion; D has already fixed
             # polarity and the same-direction checks resume after conversion.
+            continue
+        if not pairs:
             continue
         changed_in_direction = any(
             any(
@@ -284,10 +300,14 @@ def _extended_state(
     result: dict[int, tuple[int, int]] = {}
     for slot, reference in _active_slots(record_page, global_model.record.start).items():
         if not 0 < reference < view.page_count(checkpoint):
-            raise Abort("A2-POINTER-VALIDITY")
+            if checkpoint in VALIDITY_CHECKPOINTS:
+                raise Abort("A2-POINTER-VALIDITY")
+            continue
         payload = view.page(checkpoint, reference)
         if payload[0] != 0x05:
-            raise Abort("A2-POINTER-VALIDITY")
+            if checkpoint in VALIDITY_CHECKPOINTS:
+                raise Abort("A2-POINTER-VALIDITY")
+            continue
         raw = int.from_bytes(payload[EXTENDED_HEADER_BYTES:], "little")
         if global_model.bit_polarity == "set_means_not_in_use":
             raw ^= (1 << EXTENDED_BITS) - 1
@@ -305,12 +325,21 @@ def _base_inputs(
         if CONVERSION_WINDOW.index(left) >= conversion_at
         and view.page_count(right) > view.page_count(left)
     ]
-    states = {
-        checkpoint: _extended_state(view, global_model, checkpoint)
-        for pair in pairs
-        for checkpoint in pair
-    }
-    return pairs, states
+    states: dict[str, dict[int, tuple[int, int]]] = {}
+    usable: list[tuple[str, str]] = []
+    for left, right in pairs:
+        if left not in states:
+            states[left] = _extended_state(view, global_model, left)
+        if right not in states:
+            states[right] = _extended_state(view, global_model, right)
+        before = states[left]
+        after = states[right]
+        if any(
+            slot in before and before[slot][0] == reference
+            for slot, (reference, _bits) in after.items()
+        ):
+            usable.append((left, right))
+    return usable, states
 
 
 def _base_formula_matches(
@@ -475,7 +504,6 @@ def derive_tdef(
             raise Abort("A2-POINTER-VALIDITY")
         raise Abort("A2-CHURN-POINTER-NONE")
     models: list[TdefModel] = []
-    undelimited = False
     changed = Prefix.from_flags(
         [
             len({view.page(checkpoint, page)[offset] for checkpoint in CHECKPOINT_IDS}) > 1
@@ -495,7 +523,6 @@ def derive_tdef(
                 if (start < core_start and not _stable_byte(view, page, start)) or (
                     end > core_end and not _stable_byte(view, page, end - 1)
                 ):
-                    undelimited = True
                     continue
                 outside = (
                     changed.count(start, growth_offset)
@@ -507,16 +534,13 @@ def derive_tdef(
                     + changed.count(growth_offset + 4, end)
                 )
                 if outside:
-                    undelimited = True
                     continue
                 models.append(
                     TdefModel(Record(page, start, end), layout, growth_offset, churn_offset)
                 )
     view.work.examine_models(len(models))
     if not models:
-        if undelimited:
-            raise Abort("A2-TDEF-RECORD-NONE")
-        raise Abort("A2-POINTER-MULTIPLE")
+        raise Abort("A2-TDEF-RECORD-NONE")
     records = {model.record for model in models}
     if len(records) > 1:
         raise Abort("A2-TDEF-RECORD-MULTIPLE")
@@ -550,7 +574,9 @@ def predicts_conversion(
         _validate_slot_references(view, global_model, checkpoint)
         _polarity_cross_check(view, global_model)
         return _inline_boundary_matches(view, global_model, checkpoint, frozen.inline_boundary)
-    except Abort:
+    except Abort as exc:
+        if exc.predicate_id in {"A2-SNAPSHOT-RECONSTRUCTION", "A2-RESOURCE-BOUND"}:
+            raise
         return False
 
 
@@ -574,7 +600,9 @@ def predicts_base(
         return discriminator != 0 and _base_formula_matches(
             view, frozen.extended_base_formula, pairs, states
         )
-    except Abort:
+    except Abort as exc:
+        if exc.predicate_id in {"A2-SNAPSHOT-RECONSTRUCTION", "A2-RESOURCE-BOUND"}:
+            raise
         return False
 
 
@@ -633,5 +661,7 @@ def predicts_tdef(view: View, frozen: TdefModel, churn_precondition_met: bool) -
             + changed.count(second + 4, expected.end)
         )
         return outside == 0
-    except Abort:
+    except Abort as exc:
+        if exc.predicate_id in {"A2-SNAPSHOT-RECONSTRUCTION", "A2-RESOURCE-BOUND"}:
+            raise
         return False
