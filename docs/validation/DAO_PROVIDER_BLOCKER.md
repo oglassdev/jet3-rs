@@ -2,7 +2,7 @@
 
 Status: **BLOCKED — hosted provider capability confirmed; release differential evidence absent**
 
-Audit date: 2026-08-20
+Audit date: 2026-08-21
 
 This record separates a historically observed provider capability, retained
 controlled evidence, and the evidence required on an exact release commit. A
@@ -14,12 +14,19 @@ retained M1 output descriptively, and M3 completed a replicated one-variable
 physical-delta campaign. None of those earlier-commit or provider-only results
 satisfies G3 for a later release commit.
 
+Actions run `32486063559` has now also completed the full A1 hosted lane from
+exact commit `947038265f6898c55b39da99340220e548836594`, retaining and
+independently validating the first complete A1 bundle. Its preregistered
+analysis returned `no_scientific_outcome` for `ambiguous_record_boundary`; see
+`EXP-0039`. This proves the hosted acquisition and bundle-validation lane, not
+a Rust capability or release differential result.
+
 ## Exact current blocker
 
-Provider discovery is no longer blocking current implementation or controlled
-A1 acquisition: `windows-2022` is the pinned campaign lane, subject to an exact
-fresh probe and all A1 execution gates. G3 remains blocked because the project
-lacks both:
+Provider discovery and the controlled A1 hosted lane are no longer blocking:
+`windows-2022` completed the exact-commit acquisition and independent bundle
+validation recorded by `EXP-0039`. G3 remains blocked because the project lacks
+both:
 
 1. the required Rust implementation and 100-scenario DAO-versus-Rust
    differential inventory; and
@@ -123,22 +130,27 @@ provider-capability result is not A1 output, a physical-format result, Rust
 verification, or a compatibility claim. The project still does not install or
 redistribute Access, DAO, or ACE without an operator licensing decision.
 
-## A1 acquisition boundary
+## A1 acquisition result and boundary
 
-`DAO-A1-ALLOCATION-MAPS-001` has checked acquisition, bundle-validation, and
-bounded-analysis code, but it has not been executed. The earlier hosted run did
-not create an A1 database, inspect campaign pages, or publish an A1 bundle.
-Consequently there is no A1 scientific outcome, allocation-map observation,
-Rust verification result, or new compatibility evidence to cite.
+[`32486063559`](https://github.com/oglassdev/jet3-rs/actions/runs/32486063559)
+completed `DAO-A1-ALLOCATION-MAPS-001` end to end on `windows-2022`, using the
+provider identity proved by run `32439805418`. The campaign retained all 213
+checkpoint indexes and three schema-valid replica observations, published the
+complete bundle from exact producer commit
+`947038265f6898c55b39da99340220e548836594`, and reported status
+`independently_validated`. The retained manifest SHA-256 is
+`97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381`.
 
-The first acquisition remains blocked until one exact pushed commit contains
-the frozen preregistration and a manual hosted workflow pinned to
-`windows-2022`. That workflow must repeat the stock x86 provider probe, reject
-any image or provider-identity drift, run the controlled entry point, validate
-the complete retained bundle independently, and upload that exact bundle. It
-must not fall back to `windows-2025` or install a replacement provider. Even a
-passing campaign would remain descriptive DAO-only physical evidence and would
-not satisfy the release differential gate.
+The preregistered analysis did not identify a model. It reported
+`no_scientific_outcome` with reason `ambiguous_record_boundary`, examined zero
+candidate models, and did not evaluate the holdout. Independent bundle
+validation established the retained tree, hashes, schemas, and cross-artifact
+bindings; it did not independently recompute or validate a scientific outcome.
+Per `EXP-0038`, acquisition has now started because a schema-valid replica
+observation is retained. Any analyzer change requires a new experiment ID,
+plan, and provenance entry. This no-outcome result assigns no physical-format
+meaning, advances no Rust capability, establishes no DAO compatibility, and
+does not satisfy the release differential gate.
 
 ## Requirements for future release evidence
 

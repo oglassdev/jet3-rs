@@ -126,15 +126,22 @@ This result proves hosted provider capability only. It is not an A1
 acquisition, an MDB-format observation, Rust validation, or DAO compatibility
 evidence.
 
+The same pinned lane subsequently completed the full A1 workflow in Actions
+run [`32486063559`](https://github.com/oglassdev/jet3-rs/actions/runs/32486063559)
+from exact commit `947038265f6898c55b39da99340220e548836594`; see `EXP-0039`.
+
 ## A1 allocation-map campaign status
 
 The checked A1 materials under [`experiments/a1`](experiments/a1/README.md)
 define `DAO-A1-ALLOCATION-MAPS-001`, a three-replica, preregistered DAO-only
 physical experiment. The acquisition controller, independent bundle validator,
-bounded analysis, and corruption tests are implemented, but **no A1 acquisition
-has run and no A1 scientific outcome exists**. The hosted run described above
-was only a provider probe; `.github/workflows/windows-dao-hosted.yml` does not
-execute the campaign.
+bounded analysis, and corruption tests completed end to end in run
+`32486063559`. The status was `independently_validated`, and the retained
+manifest SHA-256 is
+`97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381`.
+The preregistered analysis returned `no_scientific_outcome` with sole reason
+`ambiguous_record_boundary`; it examined zero candidate models and did not
+evaluate the holdout.
 
 Execution must use a clean, exact pushed commit on the pinned `windows-2022`
 lane. Before any database is created, the x86 protocol-1.1 provider probe must
@@ -174,11 +181,12 @@ python oracle/windows-dao/scripts/a1_contract.py validate-bundle $bundle
 if ($LASTEXITCODE -ne 0) { throw "Independent A1 bundle validation failed." }
 ```
 
-The first acquisition must use a checked hosted workflow that performs those
-same gates, retains the complete validated bundle, and never installs provider
-software. A successful bundle would remain a bounded observation of its exact
-campaign. It would not by itself establish general allocation-map behavior,
-Rust correctness, a support-matrix advance, or DAO compatibility.
+Run `32486063559` performed those same gates, retained the complete validated
+bundle, and installed no provider software. Acquisition has now started under
+the `EXP-0038` retained-replica-observation criterion, so any analyzer change
+requires a new experiment ID, plan, and provenance entry. The no-outcome bundle
+assigns no physical-format meaning and does not establish general allocation-map
+behavior, Rust correctness, a support-matrix advance, or DAO compatibility.
 
 For an M1 preflight, request a protocol 1.1 environment record explicitly:
 
