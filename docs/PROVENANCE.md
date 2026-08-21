@@ -2882,6 +2882,85 @@ Use `not applicable` explicitly rather than omitting a field.
   Microsoft provider binary or generated MDB is redistributed
 - Review: pending independent review before any manual A1 dispatch
 
+### EXP-0039 — First retained A1 acquisition: ambiguous record boundary
+
+- Recorded: 2026-08-21, OpenAI Codex
+- Kind: controlled hosted DAO acquisition with an independently validated
+  complete bundle and a preregistered `no_scientific_outcome` analysis result;
+  no physical-format, Rust, or compatibility result
+- Question: Can one preregistered joint model explain and predict the observed
+  global and per-table allocation-map transitions in three fresh Jet 3
+  databases?
+- Origin: project-authored `DAO-A1-ALLOCATION-MAPS-001` campaign executed by
+  GitHub Actions run `32486063559` from exact clean pushed producer commit
+  `947038265f6898c55b39da99340220e548836594`, under the immutable `EXP-0037`
+  plan and the report-interpretation rules recorded by `EXP-0038`; no donated
+  MDB or third-party implementation was used
+- Environment: `windows-2022` image `20260818.277.1`, x86 Windows PowerShell
+  5.1, Python 3.13.7, and machine-registered `DAO.DBEngine.36` from
+  `dao360.dll` file version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  provider proof run `32439805418`; campaign status
+  `independently_validated`; total elapsed time 5,725.92 seconds
+- Protocol: execute all 71 closed-file checkpoints for each of three fresh
+  replicas, with diagnostic progress durations 1,536.912 seconds for replica
+  1, 1,475.135 seconds for replica 2, and 1,467.223 seconds for replica 3;
+  retain the complete content-addressed bundle, run the preregistered bounded
+  analysis, independently validate bundle structure and cross-artifact
+  bindings, and upload the bundle, attestation, and bounded diagnostics
+- Artifacts: Actions bundle artifact
+  `windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1`,
+  175,556,608 bytes; attestation artifact
+  `windows-dao-a1-attestation-947038265f6898c55b39da99340220e548836594-32486063559`;
+  diagnostics artifact `windows-dao-a1-diagnostics-32486063559-1`;
+  `bundle-manifest.json` SHA-256
+  `97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381`;
+  `analysis/analysis-report.json` SHA-256
+  `5fae61fd7394a8847faef0a88c24a11962409daeffe408d0fb7d241ffd491a74`
+- Observation: the passing manifest closes 21,102 payload entries, including
+  20,883 unique page blobs, three replica observations, and 213 checkpoint
+  indexes. The preregistered report records
+  `scientific_outcome = no_scientific_outcome`, sole reason
+  `ambiguous_record_boundary`, zero candidate models examined, zero derivation
+  survivors, no holdout evaluation, 213 input checkpoints, 142,115 analysis
+  work units, and plan SHA-256
+  `a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80`.
+  This is the first retained schema-valid A1 replica observation, so acquisition
+  has now started under the `EXP-0038` criterion. Any analyzer change requires
+  a new experiment ID, plan file, and provenance entry before another run.
+- Independent validation: on a separate local copy of the three downloaded
+  artifacts, using Python 3.13.15 and the checked producer-commit validators,
+  `PYTHONPATH=oracle/windows-dao/scripts python3.13 -c 'import sys; from pathlib
+  import Path; from a1_bundle import validate_bundle;
+  result=validate_bundle(Path(sys.argv[1]));
+  print("PASS: a1_bundle.validate_bundle",
+  result["manifest"]["run_id"])' "$BUNDLE"` returned `PASS` for run
+  `20260821T132025Z-a1-gh32486063559-1`;
+  `python3.13 oracle/windows-dao/scripts/a1_contract.py validate-bundle
+  "$BUNDLE"` returned `PASS: checked DAO A1 bundle structure and bindings ...;
+  scientific outcome not validated`;
+  `python3.13 oracle/windows-dao/scripts/a1_spec.py validate-plan
+  "$BUNDLE/plan/a1-allocation-maps.plan.json"`, `validate-observation` for
+  `"$BUNDLE/observations/replica-01.json"` through `replica-03.json`, and
+  `validate-report "$BUNDLE/analysis/analysis-report.json"` each returned
+  `passed`. The local validation was read-only and did not alter the retained
+  artifacts.
+- Interpretation: the hosted A1 lane and complete-bundle validator worked, but
+  the campaign produced no scientific model and assigned no byte, record,
+  pointer, bitmap, page, or allocation-map meaning. The self-produced DAO-only
+  result advances no product capability, establishes no Rust correctness or
+  DAO compatibility, changes no support-matrix entry, and does not satisfy the
+  release differential gate.
+- Usage: `file:docs/validation/DAO_PROVIDER_BLOCKER.md`;
+  `file:oracle/windows-dao/README.md`; future separately preregistered A1
+  experiment design only
+- Rights: project-generated through the licensed Microsoft DAO provider and
+  retained as GitHub Actions artifacts; no provider binary or generated MDB is
+  committed or redistributed by this repository
+- Review: hosted status and attestation passed; manifest and analysis identities
+  were independently recomputed and the complete local bundle passed all
+  checked validators; scientific interpretation remains no outcome
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
