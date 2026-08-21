@@ -185,6 +185,9 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    if sys.version_info < (3, 11):
+        print("ERROR: Python 3.11 or newer is required for acceptance", file=sys.stderr)
+        return 1
     args = _parse_args()
     try:
         return run(repo_root=args.repo_root, run_id=args.run_id)
