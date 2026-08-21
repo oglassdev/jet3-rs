@@ -140,7 +140,7 @@ def build_page_fixture(
         raise ValidationError("record-end slack exceeds the synthetic global page")
     bitmap_start = global_start + type_bytes + inline_base_bytes
     inline_boundary = PAGE_SIZE - record_end_uniform_slack_bytes
-    inline_base = max(1, anchor_pages - bitmap_bits)
+    inline_base = int(schedule.initial_pages > 0)
     tdef_start = len(ROLES) - len(ROLES)
     stable_flank = int(schedule.batch_rows > 0)
     pointer_bytes = len(ROLES) * 2
@@ -209,15 +209,16 @@ def build_page_fixture(
                 global_start + type_bytes : bitmap_start
             ] = inline_base.to_bytes(inline_base_bytes, "little")
             in_use_bit = bit_polarity == "set_means_in_use"
-            if checkpoint_id in ("D_GROW_0128", "D_REGROW_0128"):
-                _set_bit(global_payload, bitmap_start, 0, in_use_bit)
+            highwater = (
+                row.actual_file_pages
+                if checkpoint_id in ("D_GROW_0128", "D_REGROW_0128")
+                else schedule.initial_pages
+            )
+            represented = min(bitmap_bits, max(0, highwater - inline_base))
+            for page in range(represented):
+                _set_bit(global_payload, bitmap_start, page, in_use_bit)
             if checkpoint_id == "D_REGROW_0128":
-                _set_bit(
-                    global_payload,
-                    bitmap_start,
-                    bitmap_bits - 1,
-                    in_use_bit,
-                )
+                _set_bit(global_payload, bitmap_start, bitmap_bits - 1, in_use_bit)
         else:
             global_payload[bitmap_start:inline_boundary] = (
                 bytes([not_in_use_raw]) * bitmap_bytes

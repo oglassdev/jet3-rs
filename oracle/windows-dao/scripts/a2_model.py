@@ -346,7 +346,24 @@ class DRelationIndex:
                 work,
             )
 
-    def polarity_direction(self, start: int, polarity: str) -> bool:
+    def decoded_in_use_pages(self, start: int, polarity: str, checkpoint: str) -> set[int]:
+        record = self.records[checkpoint]
+        base = int.from_bytes(record[start + 1 : start + 5], "little")
+        bitmap = record[start + 5 :]
+        set_means_in_use = polarity == "set_means_in_use"
+        return {
+            base + byte_index * 8 + bit
+            for byte_index, value in enumerate(bitmap)
+            for bit in range(8)
+            if bool(value & (1 << bit)) == set_means_in_use
+        }
+
+    def polarity_direction(
+        self,
+        start: int,
+        polarity: str,
+        expected_highwater: Mapping[str, int] | None = None,
+    ) -> bool:
         records = self.records
         if start + 5 >= PAGE_SIZE or any(record[start] != 0 for record in records.values()):
             return False
@@ -355,12 +372,28 @@ class DRelationIndex:
             for record in records.values()
         }
         bitmap_start = start + 5
-        return len(bases) == 1 and self.growth[polarity].count(bitmap_start, PAGE_SIZE) > 0
+        if len(bases) != 1 or self.growth[polarity].count(bitmap_start, PAGE_SIZE) == 0:
+            return False
+        if expected_highwater is None:
+            return True
+        base = next(iter(bases))
+        if base >= min(expected_highwater.values()):
+            return False
+        for checkpoint, highwater in expected_highwater.items():
+            pages = self.decoded_in_use_pages(start, polarity, checkpoint)
+            if not set(range(base, highwater)) <= pages or highwater in pages:
+                return False
+        return True
 
-    def relation(self, start: int, polarity: str) -> bool:
+    def relation(
+        self,
+        start: int,
+        polarity: str,
+        expected_highwater: Mapping[str, int] | None = None,
+    ) -> bool:
         bitmap_start = start + 5
         return (
-            self.polarity_direction(start, polarity)
+            self.polarity_direction(start, polarity, expected_highwater)
             and self.release_violation[polarity].none(bitmap_start, PAGE_SIZE)
             and self.recreate_release_violation[polarity].none(bitmap_start, PAGE_SIZE)
             and self.regrowth_violation[polarity].none(bitmap_start, PAGE_SIZE)
@@ -407,6 +440,10 @@ def derive_global_record(
         view.work.enumerate_intervals()
     records = {name: view.page(name, page) for name in D_CHECKPOINTS}
     index = DRelationIndex(records, view.work)
+    expected_highwater = {
+        checkpoint: view.page_count(checkpoint)
+        for checkpoint in ("E0", "D_GROW_0128", "D_REGROW_0128")
+    }
     decodable = [
         start
         for start in range(PAGE_SIZE - 5)
@@ -421,13 +458,13 @@ def derive_global_record(
         polarities = [
             polarity
             for polarity in POLARITIES
-            if index.polarity_direction(start, polarity)
+            if index.polarity_direction(start, polarity, expected_highwater)
         ]
         if len(polarities) > 1:
             raise Abort("A2-POLARITY-MULTIPLE")
         if polarities:
             polarity = polarities[0]
-            if index.relation(start, polarity):
+            if index.relation(start, polarity, expected_highwater):
                 related.append((start, polarity))
             else:
                 set_relation_failed = True
