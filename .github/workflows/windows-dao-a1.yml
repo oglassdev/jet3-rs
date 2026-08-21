@@ -65,9 +65,9 @@ jobs:
               [ref]$errors
             )
             if (@($errors).Count -ne 0) {
-              $detail = [string](@($errors | ForEach-Object {
+              [string]$detail = [Convert]::ToString((@($errors | ForEach-Object {
                 "line $($_.Extent.StartLineNumber): $($_.Message)"
-              }) -join "; ")
+              }) -join "; "))
               if ($detail.Length -gt 2000) {
                 $detail = $detail.Substring(0, 2000)
               }
@@ -351,7 +351,7 @@ jobs:
               }
             }
             catch {
-              $copyFailure = [string]$_.Exception.Message
+              [string]$copyFailure = [Convert]::ToString($_.Exception.Message)
               if ($copyFailure.Length -gt 2000) {
                 $copyFailure = $copyFailure.Substring(0, 2000)
               }
@@ -419,6 +419,7 @@ jobs:
             "oracle/windows-dao/scripts/run-a1-controlled.ps1"
           $process = $null
           $clock = $null
+          $campaignExit = $null
           $campaignError = $null
           $cleanupErrors = New-Object Collections.ArrayList
           $elapsedSeconds = 0.0
@@ -452,7 +453,13 @@ jobs:
             if ($logBytes -gt [long]$env:CAMPAIGN_MAXIMUM_OUTPUT_BYTES) {
               throw "A1 campaign output exceeded its byte ceiling."
             }
-            $campaignExit = $process.ExitCode
+            $process.WaitForExit()
+            $process.Refresh()
+            $exitCode = $process.ExitCode
+            if ($null -eq $exitCode) {
+              throw "A1 campaign exit code was unavailable after completion."
+            }
+            $campaignExit = [int]$exitCode
           }
           catch {
             $campaignError = $_
@@ -483,22 +490,31 @@ jobs:
           }
           if ($null -ne $campaignError) {
             if ($cleanupErrors.Count -ne 0) {
-              $cleanupDetail = @($cleanupErrors | ForEach-Object {
-                $_.Exception.Message
-              }) -join "; "
-              throw ($campaignError.Exception.Message +
+              [string]$cleanupDetail = [Convert]::ToString((@(
+                $cleanupErrors | ForEach-Object {
+                  [Convert]::ToString($_.Exception.Message)
+                }
+              ) -join "; "))
+              [string]$campaignMessage = [Convert]::ToString(
+                $campaignError.Exception.Message
+              )
+              throw ($campaignMessage +
                 " A1 hosted campaign cleanup also failed: " + $cleanupDetail)
             }
             throw $campaignError
           }
           if ($cleanupErrors.Count -ne 0) {
-            $cleanupDetail = @($cleanupErrors | ForEach-Object {
-              $_.Exception.Message
-            }) -join "; "
+            [string]$cleanupDetail = [Convert]::ToString((@(
+              $cleanupErrors | ForEach-Object {
+                [Convert]::ToString($_.Exception.Message)
+              }) -join "; "
+            ))
             throw "A1 hosted campaign cleanup failed: $cleanupDetail"
           }
           if ($campaignExit -ne 0) {
-            $detail = [string](Get-Content -LiteralPath $publishedStderr -Raw)
+            [string]$detail = [Convert]::ToString((
+              Get-Content -LiteralPath $publishedStderr -Raw
+            ))
             if ($detail.Length -gt 2000) { $detail = $detail.Substring(0, 2000) }
             throw "The checked A1 campaign failed: $detail"
           }

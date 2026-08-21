@@ -209,6 +209,22 @@ function Read-BoundedProcessOutput {
             stderr = $encoding.GetString($stderr.ToArray())
         }
     }
+    catch {
+        $failure = $_
+        $encoding = New-Object Text.UTF8Encoding($false, $false)
+        $failure.Exception.Data["BoundedProcess.Stdout"] =
+            $encoding.GetString($stdout.ToArray())
+        $failure.Exception.Data["BoundedProcess.Stderr"] =
+            $encoding.GetString($stderr.ToArray())
+        try {
+            if ($Launch.HasExited) {
+                $failure.Exception.Data["BoundedProcess.ExitCode"] =
+                    [int]$Launch.ExitCode
+            }
+        }
+        catch { }
+        throw $failure
+    }
     finally {
         $clock.Stop()
         $stdout.Dispose()
@@ -223,7 +239,8 @@ function Invoke-BoundedChildProcess {
         [string]$CallerLabel,
         [int]$TimeoutSeconds,
         [long]$MaximumOutputBytes = 1MB,
-        [int]$ReviewedTimeoutCeilingSeconds = 120
+        [int]$ReviewedTimeoutCeilingSeconds = 120,
+        [switch]$ReturnFailureRecord
     )
 
     Assert-BoundedProcessLimits -CallerLabel $CallerLabel `
@@ -255,6 +272,13 @@ function Invoke-BoundedChildProcess {
             -TimeoutSeconds $TimeoutSeconds `
             -MaximumOutputBytes $MaximumOutputBytes `
             -ReviewedTimeoutCeilingSeconds $ReviewedTimeoutCeilingSeconds
+        if ($ReturnFailureRecord) {
+            return [pscustomobject]@{
+                exit_code = [int]$launch.ExitCode
+                stdout = [Convert]::ToString($captured.stdout)
+                stderr = [Convert]::ToString($captured.stderr)
+            }
+        }
         if ($launch.ExitCode -ne 0) {
             $stderr = [string]$captured.stderr
             if ($stderr.Length -gt 2000) {

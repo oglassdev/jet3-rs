@@ -162,3 +162,105 @@ function Copy-A1ProgressFile {
     }
     return $destination
 }
+
+function ConvertTo-A1DiagnosticTail {
+    param(
+        [AllowNull()][object]$Value,
+        [Parameter(Mandatory = $true)][ValidateRange(1, 131072)][int]$MaximumChars
+    )
+
+    $text = [Convert]::ToString($Value)
+    if ($text.Length -le $MaximumChars) { return $text }
+    return $text.Substring($text.Length - $MaximumChars)
+}
+
+function Write-A1DiagnosticDocument {
+    param(
+        [Parameter(Mandatory = $true)][string]$DiagnosticsRoot,
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [Parameter(Mandatory = $true)][Collections.IDictionary]$Document
+    )
+
+    $root = [IO.Path]::GetFullPath($DiagnosticsRoot)
+    Assert-M1NoReparseComponents -Path $root
+    $item = Get-Item -LiteralPath $root -Force
+    if (-not $item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        $FileName -cnotmatch '^[a-z0-9][a-z0-9.-]{0,127}\.json$') {
+        throw "A1 diagnostic destination is not a bounded ordinary path."
+    }
+    $path = Join-Path $root $FileName
+    $json = $Document | ConvertTo-Json -Depth 6 -Compress
+    $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes($json + "`n")
+    if ($bytes.Length -gt $script:A1ProgressMaximumBytes) {
+        throw "A1 diagnostic document exceeds its byte ceiling."
+    }
+    $stream = New-Object IO.FileStream(
+        $path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write,
+        [IO.FileShare]::Read, 4096, [IO.FileOptions]::WriteThrough
+    )
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+    }
+    finally { $stream.Dispose() }
+    return $path
+}
+
+function Write-A1ChildFailureDiagnostic {
+    param(
+        [Parameter(Mandatory = $true)][string]$DiagnosticsRoot,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [AllowNull()][object]$ExitCode,
+        [Parameter(Mandatory = $true)][double]$ElapsedSeconds,
+        [AllowNull()][object]$Stdout,
+        [AllowNull()][object]$Stderr,
+        [AllowNull()][object]$ErrorMessage
+    )
+
+    $slug = ($Label.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+    if ($slug.Length -lt 1 -or $slug.Length -gt 64) {
+        throw "A1 diagnostic child label is invalid."
+    }
+    $exitValue = $null
+    if ($null -ne $ExitCode) { $exitValue = [int]$ExitCode }
+    $document = [ordered]@{
+        document_type = "jet3_a1_child_failure"
+        label = $Label
+        phase = $Phase
+        exit_code = $exitValue
+        elapsed_seconds = [Math]::Round($ElapsedSeconds, 3)
+        stdout_tail = ConvertTo-A1DiagnosticTail -Value $Stdout `
+            -MaximumChars 32768
+        stderr_tail = ConvertTo-A1DiagnosticTail -Value $Stderr `
+            -MaximumChars 32768
+        error_message = ConvertTo-A1DiagnosticTail -Value $ErrorMessage `
+            -MaximumChars 2000
+        recorded_utc = [DateTimeOffset]::UtcNow.ToString("o")
+    }
+    [void](Write-A1DiagnosticDocument -DiagnosticsRoot $DiagnosticsRoot `
+        -FileName ("post-worker-{0}.failure.json" -f $slug) `
+        -Document $document)
+}
+
+function Write-A1CampaignFailureDiagnostic {
+    param(
+        [Parameter(Mandatory = $true)][string]$DiagnosticsRoot,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [Parameter(Mandatory = $true)][double]$ElapsedSeconds,
+        [Parameter(Mandatory = $true)][Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    $document = [ordered]@{
+        document_type = "jet3_a1_campaign_failure"
+        phase = $Phase
+        elapsed_seconds = [Math]::Round($ElapsedSeconds, 3)
+        exception_type = $ErrorRecord.Exception.GetType().FullName
+        error_message = ConvertTo-A1DiagnosticTail `
+            -Value $ErrorRecord.Exception.Message -MaximumChars 2000
+        recorded_utc = [DateTimeOffset]::UtcNow.ToString("o")
+    }
+    [void](Write-A1DiagnosticDocument -DiagnosticsRoot $DiagnosticsRoot `
+        -FileName "campaign-error.json" -Document $document)
+}

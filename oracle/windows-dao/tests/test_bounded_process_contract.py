@@ -123,6 +123,10 @@ class BoundedProcessSourceContractTests(unittest.TestCase):
             "                -not ($outDone -and $errDone)",
             self.source,
         )
+        self.assertIn('[switch]$ReturnFailureRecord', self.source)
+        self.assertIn('exit_code = [int]$launch.ExitCode', self.source)
+        self.assertIn('$failure.Exception.Data["BoundedProcess.Stdout"]', self.source)
+        self.assertIn('$failure.Exception.Data["BoundedProcess.Stderr"]', self.source)
 
     def test_launch_has_no_pid_based_or_start_then_assign_fallback(self) -> None:
         combined = self.source + self.native
@@ -185,6 +189,25 @@ class BoundedProcessWindowsTests(unittest.TestCase):
                 "M4 child output limit is outside the reviewed ceiling.",
                 "Bounded process caller label is invalid.",
             ],
+        )
+
+    def test_opt_in_failure_record_retains_exit_code_and_both_streams(self) -> None:
+        assert self.powershell is not None
+        command = (
+            f". '{quoted(SHARED)}';"
+            f"$record=Invoke-BoundedChildProcess -Executable '{quoted(self.powershell)}' "
+            "-Arguments @('-NoProfile','-NonInteractive','-Command',"
+            "'[Console]::Out.Write(''out'');"
+            "[Console]::Error.Write(''err'');exit 7') "
+            "-CallerLabel 'failure-record-probe' -TimeoutSeconds 10 "
+            "-MaximumOutputBytes 1MB -ReturnFailureRecord;"
+            "[Console]::Write(($record|ConvertTo-Json -Compress))"
+        )
+        result = self._run(command, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {"exit_code": 7, "stdout": "out", "stderr": "err"},
         )
 
     def test_timeout_terminates_a_descendant_before_it_can_write(self) -> None:
