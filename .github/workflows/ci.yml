@@ -42,7 +42,7 @@ jobs:
           --output "artifacts/ci-evidence/${{ matrix.platform }}"
       - name: Upload platform evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: g1-${{ matrix.platform }}-${{ github.sha }}
           path: artifacts/ci-evidence/${{ matrix.platform }}
@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Download exact-run platform records
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: g1-*-${{ github.sha }}
           path: artifacts/ci-evidence/downloaded
@@ -76,7 +76,7 @@ jobs:
             artifacts/ci-evidence/g1-aggregate \
             --expected-commit "$commit"
       - name: Upload validated aggregate
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: g1-cross-platform-${{ github.sha }}
           path: artifacts/ci-evidence/g1-aggregate
@@ -144,7 +144,7 @@ jobs:
           python3 tools/validate_g6_evidence.py coverage \
             "coverage/g6/$commit/coverage-evidence.json"
       - name: Upload validated exact-commit coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: g6-coverage-${{ github.sha }}
           path: coverage/g6/${{ github.sha }}

@@ -25,7 +25,7 @@ run_quick() {
 }
 
 run_full() {
-    python3 tools/run_acceptance.py
+    "${PYTHON:-python3}" tools/run_acceptance.py
 }
 
 case "${1:-}" in

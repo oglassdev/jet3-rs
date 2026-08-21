@@ -1,5 +1,7 @@
 # Run `just` to list recipes.
 
+PYTHON := env_var_or_default("PYTHON", "python3")
+
 default:
     @just --list
 
@@ -19,11 +21,11 @@ doc:
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked
 
 quick:
-    ./scripts/acceptance.sh quick
+    PYTHON="{{PYTHON}}" ./scripts/acceptance.sh quick
 
 # Full release contract; by design exits BLOCKED until every gate has current-commit evidence.
 accept:
-    ./scripts/acceptance.sh full
+    PYTHON="{{PYTHON}}" ./scripts/acceptance.sh full
 
 # Everything currently green-able; run before publishing changes.
 ready: fmt-check lint test doc quick
