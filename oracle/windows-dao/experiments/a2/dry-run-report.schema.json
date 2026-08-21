@@ -287,7 +287,7 @@
           "all_layers_decisive_model_recovered",
           "partial_layer_outcome_retained",
           "every_abort_has_pinned_reason_mapping",
-          "every_abort_reached_by_single_perturbation",
+          "every_required_reachable_abort_reached_by_single_perturbation",
           "distinct_page_and_record_cardinality_identifiers_exercised",
           "all_required_terminal_cases_exercised",
           "decisive_layered_report_accepted_by_contract_validator",

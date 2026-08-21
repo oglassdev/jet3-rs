@@ -708,7 +708,9 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         if checks[check_name]["status"] == "pass"
     )
     if checks["abort_reachability"]["status"] == "pass":
-        assertions.append("every_abort_reached_by_single_perturbation")
+        assertions.append(
+            "every_required_reachable_abort_reached_by_single_perturbation"
+        )
     if required_cases_pass:
         assertions.append("all_required_terminal_cases_exercised")
     transcript = {

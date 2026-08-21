@@ -113,6 +113,13 @@ class A2DryRunArtifactTests(unittest.TestCase):
             set(transcript["acceptance"]["unreachable_by_construction_predicate_ids"]),
             excluded,
         )
+        self.assertIn(
+            "every_required_reachable_abort_reached_by_single_perturbation",
+            report["assertions"],
+        )
+        self.assertNotIn(
+            "every_abort_reached_by_single_perturbation", report["assertions"]
+        )
         case_names = {row["case"] for row in transcript["cases"]}
         self.assertIn("all_layers_decisive", case_names)
         self.assertIn("partial_layer_outcome", case_names)
