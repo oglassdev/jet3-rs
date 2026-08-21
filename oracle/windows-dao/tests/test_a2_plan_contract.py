@@ -11,8 +11,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a2-allocation-maps.plan.json"
+REVISION_PLAN = EXPERIMENT / "a2-allocation-maps-r2.plan.json"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 PLAN_SHA256 = "804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2"
+REVISION_PLAN_SHA256 = "977d352b6b7c042cf4d0f0cab793086842b3ad2b7da13b9c217020f00c5193c4"
 DESIGN_INPUT_HASHES = {
     "a1-run12-ambiguity-diagnosis.md": "17d5ee28983ffc126feec63e7a7d8c7ffbc369e5f025193c9cd0d8404edf430d",
     "fable-review-findings.md": "ef77b917e2c7da6c8fc7a7c262352cf9ec208783bb4b71c63c2f3bb058a2950a",
@@ -38,6 +40,26 @@ class A2PlanContractTests(unittest.TestCase):
         provenance = PROVENANCE.read_text(encoding="utf-8")
         self.assertIn("### EXP-0040", provenance)
         self.assertIn(PLAN_SHA256, provenance)
+
+    def test_r2_reachability_revision_is_hash_pinned_and_additive(self) -> None:
+        revision_bytes = REVISION_PLAN.read_bytes()
+        revision = json.loads(revision_bytes)
+        self.assertEqual(hashlib.sha256(revision_bytes).hexdigest(), REVISION_PLAN_SHA256)
+        preregistration = revision["preregistration"]
+        self.assertEqual(preregistration["revision_of"], self.plan["experiment_id"])
+        self.assertEqual(preregistration["original_plan"]["sha256"], PLAN_SHA256)
+        self.assertFalse(preregistration["acquisition_started"])
+        reconciliation = revision["analyzer_dry_run_reconciliation"]
+        exclusions = reconciliation["unreachable_by_construction"]
+        self.assertEqual(
+            [(row["predicate_id"], row["status"]) for row in exclusions],
+            [("A2-INLINE-BOUNDARY-MULTIPLE", "unreachable_by_construction")],
+        )
+        self.assertTrue(revision["execution_effect"]["original_plan_remains_immutable"])
+        self.assertFalse(revision["execution_effect"]["inline_suffix_rule_weakened"])
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        self.assertIn("### EXP-0041", provenance)
+        self.assertIn(REVISION_PLAN_SHA256, provenance)
 
     def test_committed_design_inputs_are_hash_pinned(self) -> None:
         recorded = {
@@ -241,7 +263,7 @@ class A2PlanContractTests(unittest.TestCase):
 
     def test_all_a2_json_documents_parse(self) -> None:
         documents = sorted(EXPERIMENT.glob("*.json"))
-        self.assertEqual(len(documents), 10)
+        self.assertEqual(len(documents), 11)
         for document in documents:
             with self.subTest(document=document.name):
                 json.loads(document.read_bytes())
