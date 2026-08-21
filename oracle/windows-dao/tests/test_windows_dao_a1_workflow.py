@@ -142,6 +142,24 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertIn(
             "[string]$env:ImageVersion,", self.probe_step
         )
+        self.assertIn(
+            "$provenImages = @((ConvertFrom-Json -InputObject "
+            "$env:PROVEN_IMAGES) | ForEach-Object { $_ })",
+            self.probe_step,
+        )
+        self.assertNotIn(
+            "$provenImages = @($env:PROVEN_IMAGES | ConvertFrom-Json)",
+            self.probe_step,
+        )
+        self.assertIn(
+            "$matchingImages = @($provenImages | Where-Object {",
+            self.probe_step,
+        )
+        self.assertEqual(self.probe_step.count("-isnot [string]"), 2)
+        self.assertIn(
+            'throw "The proven image allowlist contains a malformed entry."',
+            self.probe_step,
+        )
         self.assertGreaterEqual(
             self.probe_step.count("[StringComparison]::Ordinal"), 2
         )

@@ -147,7 +147,22 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $provenImages = @($env:PROVEN_IMAGES | ConvertFrom-Json)
+          $provenImages = @((ConvertFrom-Json -InputObject $env:PROVEN_IMAGES) | ForEach-Object { $_ })
+          foreach ($provenImage in $provenImages) {
+            if ($null -eq $provenImage) {
+              throw "The proven image allowlist contains a malformed entry."
+            }
+            $imageVersionProperty = $provenImage.PSObject.Properties["image_version"]
+            $proofRunIdProperty = $provenImage.PSObject.Properties["proof_run_id"]
+            if ($null -eq $imageVersionProperty -or
+                $imageVersionProperty.Value -isnot [string] -or
+                [string]::IsNullOrWhiteSpace($imageVersionProperty.Value) -or
+                $null -eq $proofRunIdProperty -or
+                $proofRunIdProperty.Value -isnot [string] -or
+                [string]::IsNullOrWhiteSpace($proofRunIdProperty.Value)) {
+              throw "The proven image allowlist contains a malformed entry."
+            }
+          }
           $matchingImages = @($provenImages | Where-Object {
             [string]::Equals(
               [string]$_.image_version,
