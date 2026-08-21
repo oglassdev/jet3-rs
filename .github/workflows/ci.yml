@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -212,13 +213,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly-2026-07-20
+      - uses: Swatinem/rust-cache@v2
+        id: fuzz-rust-cache
+        with:
+          workspaces: fuzz
+          cache-directories: ~/.cargo/bin/cargo-fuzz
       - name: Install pinned cargo-fuzz for the native host
+        if: steps.fuzz-rust-cache.outputs.cache-hit != 'true'
         run: >-
           cargo +nightly-2026-07-20 install cargo-fuzz
           --version 0.13.2 --locked
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: fuzz
       - name: Compile all checked fuzz targets
         run: cargo +nightly-2026-07-20 fuzz build --fuzz-dir fuzz
       - name: Validate fuzz registry, seed manifest, and campaign reports
