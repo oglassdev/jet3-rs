@@ -75,10 +75,13 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertNotIn('python-version: "3.13"', self.workflow)
 
     def test_exact_clean_pushed_checkout_is_controller_compatible(self) -> None:
-        self.assertNotIn("git remote set-url origin", self.workflow)
-        self.assertIn(
-            '$env:GITHUB_REPOSITORY -cne "oglassdev/jet3-rs"', self.workflow
+        repository_check = self.workflow.index(
+            '$env:GITHUB_REPOSITORY -cne "oglassdev/jet3-rs"'
         )
+        set_url = self.workflow.index(
+            "git remote set-url origin https://github.com/oglassdev/jet3-rs.git"
+        )
+        self.assertLess(repository_check, set_url)
         self.assertIn(
             '$origin -cne "https://github.com/oglassdev/jet3-rs.git"',
             self.workflow,

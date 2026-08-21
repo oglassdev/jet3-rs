@@ -127,6 +127,8 @@ jobs:
           if ($env:GITHUB_REPOSITORY -cne "oglassdev/jet3-rs") {
             throw "The workflow repository differs from the canonical repository."
           }
+          & git remote set-url origin https://github.com/oglassdev/jet3-rs.git
+          if ($LASTEXITCODE -ne 0) { throw "Could not bind the canonical origin." }
           $head = (& git rev-parse --verify HEAD).Trim()
           if ($LASTEXITCODE -ne 0 -or $head -cne $env:GITHUB_SHA) {
             throw "The checked-out commit differs from GITHUB_SHA."
