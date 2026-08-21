@@ -1,0 +1,95 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a1_allocation_maps_plan_revision",
+  "revision_id": "DAO-A1-ALLOCATION-MAPS-001-R2",
+  "preregistration": {
+    "provenance_entry": "EXP-0038",
+    "recorded_utc_date": "2026-08-20",
+    "acquisition_started": false,
+    "revision_of": "DAO-A1-ALLOCATION-MAPS-001",
+    "original_plan": {
+      "path": "oracle/windows-dao/experiments/a1/a1-allocation-maps.plan.json",
+      "sha256": "a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80"
+    },
+    "scientific_design_inherited_unchanged": [
+      "question",
+      "replicas",
+      "tables",
+      "checkpoint_design",
+      "page_capture",
+      "hypotheses",
+      "decision_rules",
+      "artifacts",
+      "bounds",
+      "claims"
+    ],
+    "revision_scope": "reconcile the preregistered no-outcome prose with the preregistered report identifiers and define fail-closed retention of a decisive report pending independent recomputation",
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
+  },
+  "decision_rule_reconciliation": {
+    "analysis_reports_emit": "report_identifiers",
+    "prose_to_report_identifiers": [
+      {
+        "plan_reason": "replica disagreement",
+        "report_identifiers": ["replica_disagreement"]
+      },
+      {
+        "plan_reason": "missing inline-to-indirect conversion",
+        "report_identifiers": ["missing_inline_to_indirect_conversion"]
+      },
+      {
+        "plan_reason": "any resource bound breach",
+        "report_identifiers": ["resource_bound_breach"]
+      },
+      {
+        "plan_reason": "zero or more than one surviving joint model",
+        "report_identifiers": [
+          "no_surviving_joint_model",
+          "multiple_surviving_joint_models"
+        ]
+      },
+      {
+        "plan_reason": "idle volatility",
+        "report_identifiers": ["idle_volatility"]
+      },
+      {
+        "plan_reason": "unreconstructable snapshot",
+        "report_identifiers": ["unreconstructable_snapshot"]
+      },
+      {
+        "plan_reason": "ambiguous record or inline boundary",
+        "report_identifiers": [
+          "ambiguous_record_boundary",
+          "ambiguous_inline_boundary"
+        ]
+      },
+      {
+        "plan_reason": "unexplained nonzero inline suffix",
+        "report_identifiers": ["unexplained_nonzero_inline_suffix"]
+      },
+      {
+        "plan_reason": "holdout prediction failure",
+        "report_identifiers": ["holdout_prediction_failure"]
+      }
+    ],
+    "schema_identifier_without_plan_condition": {
+      "report_identifier": "incomplete_transition_evidence",
+      "handling": "must_not_be_emitted"
+    }
+  },
+  "decisive_report_handling": {
+    "analysis_report_artifact": "retained",
+    "bundle_status": "decisive_pending_independent_validation",
+    "capability_verification_ceiling": "not_independently_validated",
+    "contract_validator_behavior": "a1_contract.py rejects a decisive report because it is not the separately provenanced independent recomputing validator; that rejection must not discard the retained analysis report",
+    "advancement_rule": "no capability may move past not_independently_validated until a separately provenanced independent recomputing validator exists and accepts the retained decisive report and its complete bundle"
+  },
+  "execution_effect": {
+    "original_plan_remains_immutable": true,
+    "original_schemas_remain_immutable": true,
+    "original_plan_validation_remains_immutable": true,
+    "acquisition_authorized": false,
+    "scientific_projection_changed": false,
+    "support_claim_changed": false
+  }
+}

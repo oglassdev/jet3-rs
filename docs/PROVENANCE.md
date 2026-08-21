@@ -2820,6 +2820,53 @@ Use `not applicable` explicitly rather than omitting a field.
   contract tests pass; scientific design and capacity audits require the
   pre-acquisition amendments listed above before any manual dispatch
 
+### EXP-0038 — Preregistered A1 report-interpretation amendment
+
+- Recorded: 2026-08-20, OpenAI Codex
+- Kind: additive pre-acquisition experiment-plan revision; no DAO acquisition,
+  physical-format result, or independent scientific validation
+- Question: How must the A1 campaign encode preregistered no-outcome reasons
+  and retain a decisive analysis while independent recomputation remains
+  unavailable?
+- Origin: project-authored revision
+  `DAO-A1-ALLOCATION-MAPS-001-R2`, derived only from the immutable `EXP-0037`
+  plan and analysis-report schema plus the fail-closed decisive-report rule in
+  the checked A1 contract; no MDB input, campaign output, donated fixture, or
+  third-party implementation was inspected
+- Environment: not executed; `preregistration.acquisition_started` remains
+  `false`, and the original x86 Windows, PowerShell 5.1, Python 3.13.x, exact
+  clean pushed source, and `DAO.DBEngine.36` bindings remain unchanged
+- Protocol: preserve the complete `EXP-0037` scientific design and record the
+  canonical mapping from each plan prose reason to the snake_case identifiers
+  emitted by analysis reports; map the zero/multiple-survivor and record/inline
+  ambiguity conditions to their two schema identifiers, forbid emission of the
+  schema-only `incomplete_transition_evidence` identifier, retain any decisive
+  analysis report, record bundle status
+  `decisive_pending_independent_validation`, and cap capability verification at
+  `not_independently_validated` until a separately provenanced independent
+  recomputing validator exists and accepts the retained report and bundle
+- Artifacts: revision plan
+  `oracle/windows-dao/experiments/a1/a1-allocation-maps-r2.plan.json`, SHA-256
+  `4f35f1dbf977051f79eee3b84345dcbf3ced6e2aa64441879214012227213a77`;
+  immutable original plan SHA-256
+  `a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80`
+- Observation: no A1 database, page capture, candidate set, bundle, or
+  scientific report exists. The original plan, schemas, and `a1_spec.py`
+  validation remain byte-for-byte unchanged.
+- Interpretation: this amendment resolves representation and artifact-status
+  conflicts before acquisition without changing a scientific condition or
+  authorizing execution. A decisive analyzer result is not independently
+  validated merely because the existing controller invokes `a1_contract.py`,
+  and this entry establishes no physical meaning, Rust correctness, DAO
+  compatibility, or support-matrix advancement.
+- Usage:
+  `file:oracle/windows-dao/experiments/a1/a1-allocation-maps-r2.plan.json`;
+  `file:oracle/windows-dao/tests/test_a1_plan_contract.py`; future checked A1
+  analyzer, controller, bundle-status, and independent-validator work
+- Rights: project-authored plan revision and synthetic hash-pin test; no
+  Microsoft provider binary or generated MDB is redistributed
+- Review: pending independent review before any manual A1 dispatch
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

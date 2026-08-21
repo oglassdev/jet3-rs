@@ -31,6 +31,9 @@ from a1_spec import (  # noqa: E402
 )
 from protocol_validation import ValidationError, sha256  # noqa: E402
 
+REVISION_PLAN = CHECKED_PLAN.with_name("a1-allocation-maps-r2.plan.json")
+REVISION_PLAN_SHA256 = "4f35f1dbf977051f79eee3b84345dcbf3ced6e2aa64441879214012227213a77"
+
 
 class A1PlanContractTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -44,6 +47,9 @@ class A1PlanContractTests(unittest.TestCase):
         self.assertEqual(len(checked.checkpoint_ids), 71)
         self.assertEqual(checked.document["bounds"]["max_checkpoints_per_replica"], 72)
         self.assertFalse(checked.document["checkpoint_design"]["adaptive_checkpoints_allowed"])
+
+    def test_r2_amendment_hash_is_frozen(self) -> None:
+        self.assertEqual(sha256(REVISION_PLAN), REVISION_PLAN_SHA256)
 
     def test_roles_rotate_and_holdout_cannot_refit(self) -> None:
         checked = load_checked_plan()
