@@ -314,6 +314,94 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertIn(
             '$campaignRecord.status = "independently_validated"', self.workflow
         )
+        validation_step = self.workflow.split("        id: bundle_validation", 1)[
+            1
+        ].split(
+            "      - name: Record retained A1 bundle validation status", 1
+        )[0]
+        validation_try = validation_step.split("          try {", 1)[1].split(
+            "          catch {", 1
+        )[0]
+        python_validation = validation_try.index("& python -B $validatorPath")
+        clean_check = validation_try.index(
+            "Independent validation changed the exact checkout."
+        )
+        campaign_status_check = validation_try.index(
+            "The A1 campaign validation status is not fail-closed."
+        )
+        validated_status = validation_try.index(
+            '$campaignRecord.status = "independently_validated"'
+        )
+        pending_campaign_write = validation_try.index(
+            "$pendingCampaignPath,", validated_status
+        )
+        prepare_attestation = validation_try.index("jet3-a1-attestation")
+        final_campaign_write = validation_try.index(
+            "$campaignPath,", prepare_attestation
+        )
+        final_receipt_write = validation_try.index(
+            "[IO.File]::WriteAllBytes($receiptPath, $receiptBytes)",
+            final_campaign_write,
+        )
+        self.assertLess(python_validation, clean_check)
+        self.assertLess(clean_check, campaign_status_check)
+        self.assertLess(campaign_status_check, validated_status)
+        self.assertLess(validated_status, pending_campaign_write)
+        self.assertLess(pending_campaign_write, prepare_attestation)
+        self.assertLess(prepare_attestation, final_campaign_write)
+        self.assertLess(final_campaign_write, final_receipt_write)
+        self.assertTrue(
+            validation_try.rstrip().endswith(
+                "[IO.File]::WriteAllBytes($receiptPath, $receiptBytes)\n          }"
+            )
+        )
+        self.assertIn(
+            '$pendingReceiptPath = Join-Path $pending "validation-receipt.json"',
+            validation_step,
+        )
+        self.assertIn(
+            "$pendingReceiptPath $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT",
+            validation_try,
+        )
+        attestation_prep = validation_try[
+            prepare_attestation:final_campaign_write
+        ]
+        self.assertEqual(attestation_prep.count("Copy-Item"), 3)
+        self.assertIn(
+            '(Join-Path $diagnostics "provider-binding.json")', attestation_prep
+        )
+        self.assertIn("-LiteralPath $pendingReceiptPath", attestation_prep)
+        self.assertIn("-LiteralPath $pendingCampaignPath", attestation_prep)
+
+        validation_failure = validation_step.split("          catch {", 1)[1]
+        self.assertIn('"validation-failed.json"', validation_step)
+        self.assertIn("WriteAllBytes($failurePath, $failureBytes)", validation_failure)
+        self.assertIn(
+            'label = "independent_complete_a1_bundle_validation"',
+            validation_failure,
+        )
+        self.assertIn("message = $failureMessage", validation_failure)
+        self.assertIn("if ($failureMessage.Length -gt 1024)", validation_failure)
+        self.assertIn("if ($failureBytes.Length -gt 4096)", validation_failure)
+        self.assertIn("Remove-Item -LiteralPath $receiptPath", validation_failure)
+        self.assertIn(
+            '$campaignRecord.status = "not_independently_validated"',
+            validation_failure,
+        )
+
+        upload_status = self.workflow.split(
+            "      - name: Record retained A1 bundle validation status", 1
+        )[1].split("      - name: Upload retained A1 bundle", 1)[0]
+        self.assertIn("id: bundle_upload_status", upload_status)
+        self.assertIn(
+            "INDEPENDENT_VALIDATION_OUTCOME: "
+            "${{ steps.bundle_validation.outcome }}",
+            upload_status,
+        )
+        self.assertIn("independent_validation_passed", upload_status)
+        self.assertIn("independent_validation_outcome", upload_status)
+        self.assertIn('"bundle-upload-status.json"', upload_status)
+        self.assertIn("if ($statusBytes.Length -gt 4096)", upload_status)
         evidence = self.workflow.split(
             "      - name: Upload retained A1 bundle", 1
         )[1].split(
@@ -326,8 +414,16 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
             "      - name: Upload bounded A1 diagnostics", 1
         )[1]
         self.assertIn("${{ steps.campaign.outputs.bundle_path }}", evidence)
-        self.assertNotIn("${{ runner.temp }}\\jet3-a1-diagnostics", evidence)
-        self.assertIn("if: always() && steps.campaign.outcome == 'success'", evidence)
+        self.assertIn(
+            "${{ runner.temp }}\\jet3-a1-diagnostics\\bundle-upload-status.json",
+            evidence,
+        )
+        self.assertNotIn(
+            "${{ steps.campaign.outputs.bundle_path }}\\bundle-upload-status.json",
+            evidence,
+        )
+        self.assertIn("steps.campaign.outcome == 'success'", evidence)
+        self.assertIn("steps.bundle_upload_status.outcome == 'success'", evidence)
         self.assertNotIn("steps.bundle_validation.outcome", evidence)
         self.assertIn("windows-dao-a1-bundle-${{ github.sha }}", evidence)
         self.assertNotIn("windows-dao-a1-evidence-", evidence)
@@ -342,35 +438,6 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
             "if: success() && steps.bundle_validation.outcome == 'success'",
             attestation,
         )
-        attestation_copy = self.workflow.split(
-            '$attestation = Join-Path $env:RUNNER_TEMP "jet3-a1-attestation"', 1
-        )[1].split(
-            '          $campaignRecord.status = "independently_validated"', 1
-        )[0]
-        self.assertEqual(
-            re.findall(r'^\s+"([^\"]+\.json)",?$', attestation_copy, re.MULTILINE),
-            [
-                "provider-binding.json",
-                "validation-receipt.json",
-                "campaign.json",
-            ],
-        )
-        self.assertEqual(attestation_copy.count("Copy-Item"), 1)
-        self.assertIn("-Destination (Join-Path $attestation $name)", attestation_copy)
-        validation_step = self.workflow.split("        id: bundle_validation", 1)[1].split(
-            "      - name: Upload retained A1 bundle", 1
-        )[0]
-        clean_check = validation_step.index(
-            "Independent validation changed the exact checkout."
-        )
-        prepare_attestation = validation_step.index("jet3-a1-attestation")
-        validated_status = validation_step.index(
-            '$campaignRecord.status = "independently_validated"'
-        )
-        final_diagnostics_write = validation_step.rindex("$campaignPath")
-        self.assertLess(clean_check, prepare_attestation)
-        self.assertLess(prepare_attestation, validated_status)
-        self.assertLess(validated_status, final_diagnostics_write)
         self.assertIn("if: always()", diagnostics)
         self.assertIn("${{ runner.temp }}\\jet3-a1-diagnostics", diagnostics)
         self.assertIn("retention-days: 14", diagnostics)
