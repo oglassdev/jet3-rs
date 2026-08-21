@@ -6,9 +6,10 @@
 use std::hint::black_box;
 
 use jet3::{
-    AllocationMap, AllocationMapError, ByteCount, JET3_PAGE_SIZE, PageGeometry, PageNumber,
-    ReadLimits, ResourceBudget, ResourceLimits, classify_page, decode_allocation_map,
-    extended_allocation_bits,
+    AllocationMap, AllocationMapError, AllocationTraversalError, ByteCount, DatabaseReader,
+    JET3_PAGE_SIZE, MapPageWalker, PageGeometry, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimits, SliceSource, UnsupportedTraversalStep, classify_page, decode_allocation_map,
+    extended_allocation_bits, locate_allocation_map,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -18,9 +19,12 @@ const EXTENDED_BITS: u64 = ((PAGE_BYTES - EXTENDED_BITMAP_OFFSET) * 8) as u64;
 const CONTROL_BYTES: usize = 2;
 const MAX_SELECTED_WORK: u64 = 64;
 const MAX_CURSOR_CALLS: usize = 65;
+const TRAVERSAL_PAGES: usize = 8;
+const TRAVERSAL_REFERENCES: usize = 8;
+const TRAVERSAL_DATABASE_BYTES: usize = (TRAVERSAL_PAGES + 1) * PAGE_BYTES;
 
 fuzz_target!(|data: &[u8]| {
-    let mode = selector(data.first().copied()) % 4;
+    let mode = selector(data.first().copied()) % 5;
     let work_limit = u64::from(selector(data.get(1).copied())) % (MAX_SELECTED_WORK + 1);
     let payload = data.get(CONTROL_BYTES..).unwrap_or_default();
 
@@ -37,7 +41,8 @@ fuzz_target!(|data: &[u8]| {
             record[0] = 1;
             exercise_record(&record, work_limit);
         }
-        _ => exercise_extended(payload, work_limit),
+        3 => exercise_extended(payload, work_limit),
+        _ => exercise_traversal(payload, work_limit),
     }
 
     exercise_decode_boundaries();
@@ -106,6 +111,78 @@ fn exercise_extended(payload: &[u8], work_limit: u64) {
     }
     assert!(scan_budget.item_work() <= work_limit);
     assert_eq!(scan_budget.item_work(), scan_budget.total_work_units());
+}
+
+/// Follows input-selected references through a synthetic nine-page database
+/// under input-selected chain-depth and page-visit limits. The first
+/// `TRAVERSAL_PAGES` payload bytes become page tags; the rest fill a fixed
+/// type-1 record. The location and page-base steps must stay unsupported.
+fn exercise_traversal(payload: &[u8], work_limit: u64) {
+    let mut database_bytes = [0_u8; TRAVERSAL_DATABASE_BYTES];
+    database_bytes[4..19].copy_from_slice(b"Standard Jet DB");
+    for page in 0..TRAVERSAL_PAGES {
+        database_bytes[(page + 1) * PAGE_BYTES] = payload.get(page).copied().unwrap_or(5);
+    }
+    let mut record = [0_u8; 1 + 4 * TRAVERSAL_REFERENCES];
+    record[0] = 1;
+    fill_repeating(
+        &mut record[1..],
+        payload.get(TRAVERSAL_PAGES..).unwrap_or_default(),
+    );
+    for reference in record[1..].chunks_exact_mut(4) {
+        reference[1..].fill(0);
+    }
+
+    let mut resources = ResourceBudget::new(
+        ResourceLimits::new(ReadLimits::default())
+            .with_max_chain_depth(work_limit % 4)
+            .with_max_page_visits(work_limit + 1),
+    );
+    let Ok(source) = SliceSource::new(&database_bytes, resources.read_budget()) else {
+        return;
+    };
+    let Ok(mut database) = DatabaseReader::from_source(source, &mut resources) else {
+        return;
+    };
+    assert!(matches!(
+        locate_allocation_map(&database, &mut resources),
+        Err(AllocationTraversalError::Unsupported(
+            UnsupportedTraversalStep::MapLocation
+        ))
+    ));
+    let Ok(AllocationMap::Indirect(map)) = decode_allocation_map(&record, &mut resources) else {
+        unreachable!("a fixed tag-one record of complete references decodes");
+    };
+    let geometry = database.geometry();
+    let mut walker = MapPageWalker::new(map, geometry, &mut resources)
+        .expect("the nine-page visited set is two bytes");
+    assert_eq!(resources.allocation_bytes(), ByteCount::new(2));
+
+    let mut page = [0_u8; PAGE_BYTES];
+    let mut followed = 0_u64;
+    for _ in 0..=TRAVERSAL_REFERENCES {
+        match walker.next_map_page(&mut database, &mut page, &mut resources) {
+            Ok(Some(mut reached)) => {
+                followed += 1;
+                assert!(reached.page().get() < geometry.page_count());
+                assert!(reached.page().get() != 0);
+                assert!(matches!(
+                    reached.absolute_page(0),
+                    Err(AllocationTraversalError::Unsupported(
+                        UnsupportedTraversalStep::ExtendedPageBase
+                    ))
+                ));
+                let mut bit_budget = budget(4);
+                let _ = black_box(reached.relative_bits().next_bit(&mut bit_budget));
+            }
+            Ok(None) => break,
+            Err(AllocationTraversalError::Resource(_)) => continue,
+            Err(_) => break,
+        }
+    }
+    assert_eq!(walker.depth(), followed);
+    assert!(followed <= work_limit % 4);
+    assert!(resources.page_visits() <= work_limit + 1);
 }
 
 fn exercise_decode_boundaries() {

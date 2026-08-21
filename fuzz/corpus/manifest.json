@@ -715,6 +715,23 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '10tight' > fuzz/corpus/allocation/tight_budget"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-007",
+      "path": "fuzz/corpus/allocation/traversal",
+      "size_bytes": 13,
+      "sha256": "e5674150b01d2073c90567dc0eea392cca262cbd9801fb2e74dbd4609b7174fc",
+      "purpose": "Select the traversal mode with a chain-depth limit of three, tag eight synthetic pages including a data page and an unknown tag, and repeat map-page references so the walker exercises cycle detection, lossless non-bitmap rejection, and the unsupported location and page-base steps.",
+      "origin": "Project-authored synthetic bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "binary",
+        "line_endings": "none"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '43\\005\\005\\001\\005\\377\\005\\005\\005\\002\\001\\002' > fuzz/corpus/allocation/traversal"
     }
   ]
 }
