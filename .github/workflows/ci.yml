@@ -37,6 +37,7 @@ jobs:
               - 'Cargo.lock'
               - 'tests/manifest.json'
               - 'rust-toolchain*'
+              - '.github/workflows/**'
             oracle:
               - 'oracle/**'
               - 'tools/**'
