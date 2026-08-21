@@ -25,6 +25,7 @@ class ScheduledCheckpoint:
 @dataclass(frozen=True)
 class Schedule:
     checkpoints: tuple[ScheduledCheckpoint, ...]
+    conversion_window: tuple[str, ...]
     batch_rows: int
     rows_per_page: int
     pages_per_batch: int
@@ -144,8 +145,14 @@ def build_schedule(*, delete_page_delta: int | None = None, plan: CheckedPlan | 
     regrowth = rows[CHECKPOINT_IDS.index("D_REGROW_0128")]
     if regrowth.actual_file_pages <= first_growth.actual_file_pages:
         raise ValidationError("synthetic D regrowth is not strictly larger than first growth")
+    conversion_window = tuple(
+        checked.document["checkpoint_design"]["transition_coverage"][
+            "inline_to_indirect_conversion_window"
+        ]
+    )
     return Schedule(
         tuple(rows),
+        conversion_window,
         batch_rows,
         rows_per_page,
         pages_per_batch,

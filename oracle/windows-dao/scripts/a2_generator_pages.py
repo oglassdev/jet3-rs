@@ -64,6 +64,34 @@ def _extended_page(
     return bytes(payload)
 
 
+def _anchor_checkpoint_id(
+    schedule: Schedule, conversion_ordinal: int | None
+) -> str:
+    cutoff = len(CHECKPOINT_IDS) if conversion_ordinal is None else conversion_ordinal
+    predecessors = [
+        checkpoint_id
+        for checkpoint_id in schedule.conversion_window
+        if CHECKPOINT_IDS.index(checkpoint_id) < cutoff
+    ]
+    return predecessors[-1] if predecessors else schedule.conversion_window[0]
+
+
+def _active_slot_count(
+    row_ordinal: int,
+    conversion_ordinal: int,
+    requested_at_conversion: int,
+    final_ordinal: int,
+    slot_count: int,
+) -> int:
+    if row_ordinal == conversion_ordinal:
+        return requested_at_conversion
+    if conversion_ordinal >= final_ordinal:
+        return requested_at_conversion
+    if row_ordinal >= final_ordinal:
+        return slot_count
+    return max(requested_at_conversion, int(row_ordinal > conversion_ordinal))
+
+
 def build_page_fixture(
     schedule: Schedule,
     *,
@@ -86,12 +114,8 @@ def build_page_fixture(
     physical_names = len(ROLES)
     global_page = physical_names
     tdef_page = global_page + int(global_page + 1 < schedule.initial_pages)
-    anchor_ordinal = (
-        len(CHECKPOINT_IDS) - 1
-        if conversion_ordinal is None
-        else conversion_ordinal - 1
-    )
-    anchor_pages = schedule.checkpoints[anchor_ordinal].actual_file_pages
+    anchor_id = _anchor_checkpoint_id(schedule, conversion_ordinal)
+    anchor_pages = schedule.checkpoint(anchor_id).actual_file_pages
     type_bytes = int(bool(BASE_FORMULAS))
     inline_base_bytes = len(ROLES)
     maximum_bitmap_bytes = (
@@ -116,11 +140,7 @@ def build_page_fixture(
         raise ValidationError("record-end slack exceeds the synthetic global page")
     bitmap_start = global_start + type_bytes + inline_base_bytes
     inline_boundary = PAGE_SIZE - record_end_uniform_slack_bytes
-    inline_base = {
-        "empty": anchor_pages,
-        "partial": max(1, anchor_pages - bitmap_bits // 2),
-        "full": max(1, anchor_pages - bitmap_bits),
-    }[anchor_fill_state]
+    inline_base = max(1, anchor_pages - bitmap_bits)
     tdef_start = len(ROLES) - len(ROLES)
     stable_flank = int(schedule.batch_rows > 0)
     pointer_bytes = len(ROLES) * 2
@@ -167,19 +187,13 @@ def build_page_fixture(
         )
         global_payload[global_start] = int(indirect)
         if indirect:
-            active = (
-                slot_activation_at_conversion
-                if row.ordinal == conversion_ordinal
-                else max(
-                    slot_activation_at_conversion,
-                    int(row.ordinal > conversion_ordinal),
-                )
+            active = _active_slot_count(
+                row.ordinal,
+                conversion_ordinal,
+                slot_activation_at_conversion,
+                CHECKPOINT_IDS.index("H_REL_0904"),
+                len(reference_pages),
             )
-            if (
-                row.ordinal >= CHECKPOINT_IDS.index("H_REL_0904")
-                and row.ordinal > conversion_ordinal
-            ):
-                active = len(reference_pages)
             for slot, reference in enumerate(reference_pages):
                 value = reference if slot < active else 0
                 offset = global_start + type_bytes + slot * len(ROLES)

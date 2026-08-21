@@ -247,32 +247,67 @@ class A2SpecGeneratorTests(unittest.TestCase):
         legacy = {item.conversion_ordinal for item in iter_parameter_combinations(legacy_projection=True)}
         self.assertEqual(legacy, set(LEGACY_CONVERSION_ORDINALS) | {None})
 
-    def test_anchor_fill_and_slack_do_not_move_declared_boundary_formula(self) -> None:
+    def test_anchor_fill_and_slack_do_not_rewrite_the_inline_extent(self) -> None:
         baseline = run12_calibration_parameters()
         free = self.plan.document["analyzer_dry_run_contract"]["synthetic_input"]["free_parameters"]
-        for fill in free["anchor_fill_state"]:
-            for slack in free["record_end_uniform_slack_bytes"]:
+        for slack in free["record_end_uniform_slack_bytes"]:
+            fixtures = []
+            for fill in free["anchor_fill_state"]:
                 parameters = replace(
                     baseline,
                     anchor_fill_state=fill,
                     record_end_uniform_slack_bytes=slack,
                 )
                 bundle = generate_synthetic_bundle(parameters)
+                fixtures.append(bundle)
                 self.assertEqual(bundle.global_map.record_end, PAGE_SIZE)
                 self.assertEqual(bundle.global_map.inline_boundary, PAGE_SIZE - slack)
-                anchor_id = CHECKPOINT_IDS[baseline.conversion_ordinal - 1]
-                payload = bundle.page_bytes(
-                    bundle.ordered_page_sha256[anchor_id][bundle.global_map.page]
+            first = fixtures[0]
+            for bundle in fixtures[1:]:
+                self.assertEqual(bundle.global_map.inline_base, first.global_map.inline_base)
+                self.assertEqual(bundle.global_map.record_start, first.global_map.record_start)
+
+    def test_conversion_anchor_uses_the_applicable_window_predecessor(self) -> None:
+        conversion_id = "L_REINSERT_SAME"
+        conversion = CHECKPOINT_ORDINALS[conversion_id]
+        parameters = replace(
+            run12_calibration_parameters(), conversion_ordinal=conversion
+        )
+        bundle = generate_synthetic_bundle(parameters)
+        window = self.plan.document["checkpoint_design"]["transition_coverage"][
+            "inline_to_indirect_conversion_window"
+        ]
+        anchor_id = next(
+            checkpoint_id
+            for checkpoint_id in reversed(window)
+            if CHECKPOINT_ORDINALS[checkpoint_id] < conversion
+        )
+        bitmap_start = bundle.global_map.record_start + 1 + len(ROLES)
+        capacity = (bundle.global_map.inline_boundary - bitmap_start) * 8
+        expected_base = max(1, bundle.page_count[anchor_id] - capacity)
+        self.assertEqual(anchor_id, "L_REL_1280")
+        self.assertEqual(bundle.global_map.inline_base, expected_base)
+
+    def test_final_slot_state_is_stable_through_the_idle_reopen(self) -> None:
+        final_id = "H_REL_0904"
+        idle_id = "H_IDLE_REOPEN"
+        baseline = run12_calibration_parameters()
+        for slots in self.plan.document["analyzer_dry_run_contract"][
+            "synthetic_input"
+        ]["free_parameters"]["slot_activation_at_conversion"]:
+            bundle = generate_synthetic_bundle(
+                replace(
+                    baseline,
+                    conversion_ordinal=CHECKPOINT_ORDINALS[final_id],
+                    slot_activation_at_conversion=slots,
                 )
-                bitmap = bundle.global_map.record_start + 1 + len(ROLES)
-                capacity = (bundle.global_map.inline_boundary - bitmap) * 8
-                in_use = 0
-                for bit in range(capacity):
-                    byte, shift = divmod(bit, 8)
-                    is_set = bool(payload[bitmap + byte] & (1 << shift))
-                    in_use += is_set if parameters.bit_polarity == "set_means_in_use" else not is_set
-                expected = {"empty": 0, "partial": capacity // 2, "full": capacity}[fill]
-                self.assertEqual(in_use, expected)
+            )
+            self.assertEqual(
+                bundle.ordered_page_sha256[final_id],
+                bundle.ordered_page_sha256[idle_id],
+            )
+            self.assertEqual(self._active_slot_count(bundle, final_id), slots)
+            self.assertEqual(self._active_slot_count(bundle, idle_id), slots)
 
     def test_conversion_and_slot_parameters_are_encoded_at_the_requested_ordinal(self) -> None:
         baseline = run12_calibration_parameters()
