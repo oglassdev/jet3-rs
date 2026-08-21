@@ -7,6 +7,7 @@ $script:A1MaximumUniqueBlobs = 262144L
 $script:A1MaximumPageStoreBytes = 512MB
 $script:A1MaximumChangedEntries = 1500000L
 $script:A1MaximumLogicalReadBytes = 8GB
+$script:A1StrictUtf8 = New-Object Text.UTF8Encoding($false, $true)
 
 function Read-A1CheckedJson {
     param(
@@ -44,6 +45,45 @@ function Get-A1LowerSha256 {
         )).Replace("-", "").ToLowerInvariant()
     }
     finally { $hash.Dispose() }
+}
+
+function New-A1IncrementalSha256 {
+    return [Security.Cryptography.IncrementalHash]::CreateHash(
+        [Security.Cryptography.HashAlgorithmName]::SHA256
+    )
+}
+
+function Add-A1SemanticHashRow {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Security.Cryptography.IncrementalHash]$Hash,
+        [Parameter(Mandatory = $true)][int]$Id,
+        [Parameter(Mandatory = $true)][string]$Payload
+    )
+
+    if (-not [BitConverter]::IsLittleEndian) {
+        throw "A1 rolling hash requires an explicitly little-endian host."
+    }
+    $payloadBytes = $script:A1StrictUtf8.GetBytes($Payload)
+    if ($payloadBytes.Length -gt [uint16]::MaxValue) {
+        throw "A1 semantic payload exceeds its rolling-hash length field."
+    }
+    # tables.row_algorithm.rolling_sha256 fixes this exact byte encoding;
+    # one incremental .NET hash instance preserves it across every ordered row.
+    $Hash.AppendData([BitConverter]::GetBytes([int]$Id))
+    $Hash.AppendData([BitConverter]::GetBytes([uint16]$payloadBytes.Length))
+    $Hash.AppendData($payloadBytes)
+}
+
+function Complete-A1IncrementalSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Security.Cryptography.IncrementalHash]$Hash
+    )
+
+    return ([BitConverter]::ToString(
+        $Hash.GetHashAndReset()
+    )).Replace("-", "").ToLowerInvariant()
 }
 
 function Get-A1PageBlobLocator {
@@ -107,16 +147,16 @@ function Assert-A1ExistingPageBlob {
 function Add-A1PageBlob {
     param(
         [Parameter(Mandatory = $true)][pscustomobject]$Store,
-        [Parameter(Mandatory = $true)][byte[]]$Page
+        [Parameter(Mandatory = $true)][byte[]]$Page,
+        [Parameter(Mandatory = $true)][string]$Sha256
     )
 
     if ($Page.LongLength -ne $script:A1PageBytes) {
         throw "A1 page store accepts only exact 2048-byte pages."
     }
-    $sha = Get-A1LowerSha256 -Bytes $Page
-    $locator = Get-A1PageBlobLocator -Sha256 $sha
+    $locator = Get-A1PageBlobLocator -Sha256 $Sha256
     $path = Get-M1PayloadPath -Session $Store.Session -RelativePath $locator
-    if (-not $Store.Seen.Contains($sha)) {
+    if (-not $Store.Seen.Contains($Sha256)) {
         if ($Store.Seen.Count -ge $script:A1MaximumUniqueBlobs -or
             $Store.UniqueBytes -gt (
                 $script:A1MaximumPageStoreBytes - $script:A1PageBytes
@@ -124,7 +164,7 @@ function Add-A1PageBlob {
             throw "A1 page store exceeded its preregistered ceiling."
         }
         if ([IO.File]::Exists($path)) {
-            Assert-A1ExistingPageBlob -Path $path -ExpectedSha256 $sha
+            Assert-A1ExistingPageBlob -Path $path -ExpectedSha256 $Sha256
         }
         else {
             try {
@@ -133,10 +173,11 @@ function Add-A1PageBlob {
             }
             catch [IO.IOException] {
                 if (-not [IO.File]::Exists($path)) { throw }
-                Assert-A1ExistingPageBlob -Path $path -ExpectedSha256 $sha
+                Assert-A1ExistingPageBlob -Path $path `
+                    -ExpectedSha256 $Sha256
             }
         }
-        [void]$Store.Seen.Add($sha)
+        [void]$Store.Seen.Add($Sha256)
         $Store.UniqueBytes = [long](
             $Store.UniqueBytes + $script:A1PageBytes
         )
@@ -144,7 +185,6 @@ function Add-A1PageBlob {
             $Store.RetainedBytes + $script:A1PageBytes
         )
     }
-    return $sha
 }
 
 function New-A1PageStore {
@@ -199,19 +239,154 @@ function New-A1PageStore {
     }
 }
 
+function Set-A1ExpectedSemanticDirty {
+    param([Parameter(Mandatory = $true)][string]$Role)
+    [void]$script:A1ExpectedSemanticCache.Remove($Role)
+}
+
+function Get-A1ExpectedSemanticResult {
+    param(
+        [Parameter(Mandatory = $true)][string]$Role,
+        [Parameter(Mandatory = $true)]$Rows
+    )
+
+    if ($script:A1ExpectedSemanticCache.ContainsKey($Role)) {
+        return $script:A1ExpectedSemanticCache[$Role]
+    }
+    $hash = New-A1IncrementalSha256
+    try {
+        foreach ($id in @($Rows | Sort-Object)) {
+            Add-A1SemanticHashRow -Hash $hash -Id ([int]$id) `
+                -Payload (Get-A1Payload -Role $Role -Id ([int]$id))
+        }
+        # tables.row_algorithm.reread_requirement compares the same expected
+        # count/digest; every role mutation invalidates this deterministic cache.
+        $result = [pscustomobject]@{
+            count = [int]$Rows.Count
+            sha256 = Complete-A1IncrementalSha256 -Hash $hash
+        }
+        $script:A1ExpectedSemanticCache[$Role] = $result
+        return $result
+    }
+    finally { $hash.Dispose() }
+}
+
+function Read-A1SemanticTable {
+    param(
+        [Parameter(Mandatory = $true)][object]$Database,
+        [Parameter(Mandatory = $true)][string]$Role,
+        [Parameter(Mandatory = $true)][pscustomobject]$Expected
+    )
+
+    $name = [string]$script:A1RoleNames[$Role]
+    $rows = $script:A1Rows[$Role]
+    $recordset = $null
+    $fields = $null
+    $idField = $null
+    $payloadField = $null
+    $hash = $null
+    $cleanup = New-Object Collections.ArrayList
+    $primary = $null
+    $count = 0
+    $prior = 0
+    $digest = $null
+    try {
+        $sql = "SELECT Id, Payload FROM [$name] ORDER BY Id"
+        $recordset = $Database.OpenRecordset(
+            $sql, $script:A1DbOpenSnapshot
+        )
+        # tables.row_algorithm.reread_requirement fixes Id-order values;
+        # field COM objects can be cached for this recordset without changing them.
+        $fields = $recordset.Fields
+        $idField = $fields.Item("Id")
+        $payloadField = $fields.Item("Payload")
+        $hash = New-A1IncrementalSha256
+        if (-not $recordset.EOF) { $recordset.MoveFirst() }
+        while (-not $recordset.EOF) {
+            $id = [int]$idField.Value
+            $payload = [string]$payloadField.Value
+            if ($id -le $prior -or -not $rows.Contains($id) -or
+                $payload -cne (Get-A1Payload -Role $Role -Id $id)) {
+                throw "A1 DAO semantic readback differs from expected rows."
+            }
+            Add-A1SemanticHashRow -Hash $hash -Id $id -Payload $payload
+            $prior = $id
+            $count++
+            $recordset.MoveNext()
+        }
+        $digest = Complete-A1IncrementalSha256 -Hash $hash
+    }
+    catch { $primary = $_ }
+    finally {
+        if ($null -ne $hash) { $hash.Dispose() }
+        Release-M1ComObject -Value $payloadField -CleanupErrors $cleanup `
+            -Label "A1 payload field release"
+        Release-M1ComObject -Value $idField -CleanupErrors $cleanup `
+            -Label "A1 id field release"
+        Release-M1ComObject -Value $fields -CleanupErrors $cleanup `
+            -Label "A1 semantic fields release"
+        Close-M1ComObject -Value $recordset -CleanupErrors $cleanup `
+            -Label "A1 semantic recordset close"
+        Release-M1ComObject -Value $recordset -CleanupErrors $cleanup `
+            -Label "A1 semantic recordset release"
+    }
+    Complete-M1DaoHelper -PrimaryError $primary -CleanupErrors $cleanup `
+        -Label "A1 semantic readback"
+    if ($count -ne [int]$Expected.count -or
+        $digest -cne [string]$Expected.sha256) {
+        throw "A1 semantic row count or rolling digest differs from expectation."
+    }
+    return [ordered]@{
+        role = $Role
+        row_count = $count
+        rolling_sha256 = $digest
+    }
+}
+
+function Read-A1SemanticTables {
+    $expectedByRole = @{}
+    foreach ($role in @("D", "L", "P", "H")) {
+        if ([bool]$script:A1Extant[$role]) {
+            $expectedByRole[$role] = Get-A1ExpectedSemanticResult `
+                -Role $role -Rows $script:A1Rows[$role]
+        }
+    }
+    # tables.row_algorithm.reread_requirement still reads every extant table;
+    # the closed checkpoint needs no database close between those ordered scans.
+    $documents = Invoke-A1WithDatabase -Action {
+        param($database)
+        foreach ($role in @("D", "L", "P", "H")) {
+            if ([bool]$script:A1Extant[$role]) {
+                Read-A1SemanticTable -Database $database -Role $role `
+                    -Expected $expectedByRole[$role]
+            }
+        }
+    }
+    return @($documents)
+}
+
 function Read-A1PageSnapshot {
     param(
         [Parameter(Mandatory = $true)][pscustomobject]$Store,
         [Parameter(Mandatory = $true)][string]$DatabasePath,
-        [AllowNull()][string[]]$PriorHashes
+        [AllowNull()][string[]]$PriorHashes,
+        [AllowNull()][byte[][]]$PriorPages
     )
 
     Assert-M1NoReparseComponents -Path $DatabasePath
+    if (($null -eq $PriorHashes) -ne ($null -eq $PriorPages) -or
+        ($null -ne $PriorHashes -and
+            $PriorHashes.Count -ne $PriorPages.Count) -or
+        ($null -ne $PriorPages -and
+            $PriorPages.Count -gt $script:A1MaximumPagesPerReplica)) {
+        throw "A1 prior snapshot cache is incomplete or exceeds its bound."
+    }
     $stream = New-Object IO.FileStream(
         $DatabasePath, [IO.FileMode]::Open, [IO.FileAccess]::Read,
         [IO.FileShare]::None, 65536, [IO.FileOptions]::SequentialScan
     )
     $fileHash = $null
+    $pageHash = $null
     try {
         if ($stream.Length -lt $script:A1PageBytes -or
             ($stream.Length % $script:A1PageBytes) -ne 0) {
@@ -226,9 +401,14 @@ function Read-A1PageSnapshot {
         }
         $hashes = New-Object 'Collections.Generic.List[string]' `
             ([int]$pageCount)
+        $pages = New-Object 'Collections.Generic.List[byte[]]' `
+            ([int]$pageCount)
         $changed = New-Object Collections.ArrayList
-        $page = New-Object byte[] ([int]$script:A1PageBytes)
         $fileHash = [Security.Cryptography.SHA256]::Create()
+        $pageHash = [Security.Cryptography.SHA256]::Create()
+        $pageComparer = `
+            [Collections.StructuralComparisons]::StructuralEqualityComparer
+        $page = New-Object byte[] ([int]$script:A1PageBytes)
         for ($index = 0L; $index -lt $pageCount; $index++) {
             $offset = 0
             while ($offset -lt $page.Length) {
@@ -239,8 +419,36 @@ function Read-A1PageSnapshot {
             [void]$fileHash.TransformBlock(
                 $page, 0, $page.Length, $page, 0
             )
-            $sha = Add-A1PageBlob -Store $Store -Page $page
+            # page-index.schema database_sha256 is streamed during the same
+            # page_capture.checkpoint_representation read.
+            $unchanged = $false
+            if ($null -ne $PriorPages -and $index -lt $PriorPages.Count) {
+                $priorPage = [byte[]]$PriorPages[[int]$index]
+                if ($priorPage.LongLength -ne $script:A1PageBytes) {
+                    throw "A1 prior snapshot cache contains a non-page."
+                }
+                # page_capture.checkpoint_representation requires exact ordered
+                # hashes; byte equality alone permits reuse of the prior digest.
+                $unchanged = $pageComparer.Equals($page, $priorPage)
+            }
+            if ($unchanged) {
+                $sha = [string]$PriorHashes[[int]$index]
+                [void]$pages.Add($priorPage)
+            }
+            else {
+                $sha = ([BitConverter]::ToString(
+                    $pageHash.ComputeHash($page)
+                )).Replace("-", "").ToLowerInvariant()
+                # page_capture.store uses this digest for the exact blob name.
+                Add-A1PageBlob -Store $Store -Page $page -Sha256 $sha
+                $retainedPage = New-Object byte[] ([int]$script:A1PageBytes)
+                [Buffer]::BlockCopy(
+                    $page, 0, $retainedPage, 0, $retainedPage.Length
+                )
+                [void]$pages.Add($retainedPage)
+            }
             $hashes.Add($sha)
+            # page-index.schema changed_page_indices is the ordered-hash delta.
             if ($null -eq $PriorHashes -or $index -ge $PriorHashes.Count -or
                 $PriorHashes[[int]$index] -cne $sha) {
                 if ($Store.ChangedEntries + $changed.Count -ge
@@ -284,9 +492,11 @@ function Read-A1PageSnapshot {
             page_count = $pageCount
             changed_pages = @($changed)
             hashes = $hashes.ToArray()
+            pages = $pages.ToArray()
         }
     }
     finally {
+        if ($null -ne $pageHash) { $pageHash.Dispose() }
         if ($null -ne $fileHash) { $fileHash.Dispose() }
         $stream.Dispose()
     }
