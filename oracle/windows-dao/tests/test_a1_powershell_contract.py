@@ -293,11 +293,12 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
             "ordered_page_sha256 = @($snapshot.hashes)",
             "changed_page_indices = @(",
             '"page-indexes/replica-{0:D2}/{1:D2}-{2}.json"',
+            "A1 previously seen page-store blob is missing.",
+            "A1 previously seen page-store blob has a non-page length.",
         ):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, self.combined)
         self.assertNotIn("page-store/sha256/", self.combined)
-
     def test_page_snapshot_reuse_is_exact_and_bounded(self) -> None:
         for fragment in ("[Jet3A1PageSnapshotNative]::Capture", "$capture.Bytes",
                          "$capture.ChangedIndices", "Add-A1PageBlob", "PageEquals(",
@@ -548,20 +549,15 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
             database = working / "synthetic.mdb"
             second_path = working / "second.mdb"
             third_path = working / "third.mdb"
-            first_bytes = (
-                b"A" * PAGE_BYTES + b"B" * PAGE_BYTES + b"C" * PAGE_BYTES
+            a, b, c, d, x = (
+                value * PAGE_BYTES for value in (b"A", b"B", b"C", b"D", b"X")
             )
-            second_bytes = (
-                b"A" * PAGE_BYTES
-                + b"X" * PAGE_BYTES
-                + b"C" * PAGE_BYTES
-                + b"D" * PAGE_BYTES
-            )
-            third_bytes = b"A" * PAGE_BYTES + b"X" * PAGE_BYTES
+            first_bytes = a + b + a + c
+            second_bytes = a + x + a + c + d
+            third_bytes = a + x + a
             database.write_bytes(first_bytes)
             second_path.write_bytes(second_bytes)
             third_path.write_bytes(third_bytes)
-
             first_expected = naive_snapshot(database, None)
             first_hashes = first_expected["ordered_page_sha256"]
             self.assertIsInstance(first_hashes, list)
@@ -644,6 +640,10 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                         for digest in observed[name]["ordered_page_sha256"]
                     )
                     self.assertEqual(reconstructed, raw_snapshots[name])
+            blobs = list((bundle / "page-store").iterdir())
+            expected_digests = {hashlib.sha256(page).hexdigest() for page in (a, b, c, d, x)}
+            self.assertEqual(len(blobs), len(expected_digests))
+            self.assertEqual({blob.stem for blob in blobs}, expected_digests)
 
     def test_real_one_session_dao_reread_matches_per_table_sessions(self) -> None:
         definitions = "\n\n".join(

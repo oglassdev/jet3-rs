@@ -369,7 +369,16 @@ function Add-A1PageBlob {
     }
     $locator = Get-A1PageBlobLocator -Sha256 $Sha256
     $path = Get-M1PayloadPath -Session $Store.Session -RelativePath $locator
-    if (-not $Store.Seen.Contains($Sha256)) {
+    if ($Store.Seen.Contains($Sha256)) {
+        if (-not [IO.File]::Exists($path)) {
+            throw "A1 previously seen page-store blob is missing."
+        }
+        if ([long](Get-Item -LiteralPath $path -Force).Length -ne
+            $script:A1PageBytes) {
+            throw "A1 previously seen page-store blob has a non-page length."
+        }
+    }
+    else {
         if ($Store.Seen.Count -ge $script:A1MaximumUniqueBlobs -or
             $Store.UniqueBytes -gt (
                 $script:A1MaximumPageStoreBytes - $script:A1PageBytes
