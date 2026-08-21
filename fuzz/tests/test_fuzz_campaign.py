@@ -114,7 +114,6 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         executable_path = "/tmp/fuzz-build-target/release/fuzz-example"
         log_path = self.bundle / "producer.log"
         log_path.write_text(
-            f"Running `{executable_path} /tmp/corpus`\n"
             "#1000 DONE cov: 1 ft: 1 corp: 1/5b lim: 5 exec/s: 16 rss: 1Mb\n",
             encoding="utf-8",
         )
@@ -149,10 +148,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             "TMPDIR": "/tmp/process-tmp",
         }
         command = [
-            "/usr/bin/cargo-fuzz", "fuzz", "run", "--fuzz-dir", "fuzz", "example",
-            "--sanitizer", "address",
-            "--target-dir", "/tmp/fuzz-build-target",
-            "/tmp/corpus", "--",
+            executable_path, "/tmp/corpus",
             "-max_total_time=60", "-seed=789231", "-max_len=4096",
             "-rss_limit_mb=256",
         ]
@@ -456,7 +452,6 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             "payload = bytearray(32 * 1024 * 1024)\n"
             "for offset in range(0, len(payload), 4096): payload[offset] = 1\n"
             "del payload\n"
-            f"print({f'Running `{executable}`'!r})\n"
             "print('#1 DONE cov: 1 ft: 1 corp: 1/1b lim: 1 "
             "exec/s: 1 rss: 16Mb')\n"
         )
@@ -479,6 +474,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             observer["peak_rss_bytes"],
             fuzz_evidence.parse_reported_rss(log_path.read_text(encoding="utf-8")),
         )
+        self.assertEqual(observer["executable"]["path"], str(executable))
 
     def test_vacuous_registry_is_rejected(self) -> None:
         self.registry["targets"] = []
@@ -711,19 +707,14 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "run count disagrees"):
             self._validate_report(report)
 
-    def test_rehashed_executable_forgery_is_rejected(self) -> None:
+    def test_rehashed_command_executable_forgery_is_rejected(self) -> None:
         commit = self._initialize_git()
         report = self._valid_report(commit)
-        log_path = self.bundle / "producer.log"
-        log_path.write_text(
-            log_path.read_text(encoding="utf-8").replace("fuzz-example", "other-fuzzer"),
-            encoding="utf-8",
-        )
         observer_path = self.bundle / "observer.json"
         observer = json.loads(observer_path.read_text(encoding="utf-8"))
-        observer["producer_log_sha256"] = fuzz_campaign.sha256(log_path)
+        observer["command"][0] = "/tmp/fuzz-build-target/release/other-fuzzer"
         self._rewrite_observer(report, observer)
-        report["producer"]["log"]["sha256"] = fuzz_campaign.sha256(log_path)
+        report["producer"]["command"] = observer["command"]
         with self.assertRaisesRegex(ValidationError, "executable identity disagrees"):
             self._validate_report(report)
 
@@ -795,19 +786,13 @@ class FuzzCampaignValidationTests(unittest.TestCase):
     def test_coherent_executable_escape_is_rejected_by_build_closure(self) -> None:
         commit = self._initialize_git()
         report = self._valid_report(commit)
-        old_path = "/tmp/fuzz-build-target/release/fuzz-example"
         new_path = "/tmp/other-target/release/fuzz-example"
-        log_path = self.bundle / "producer.log"
-        log_path.write_text(
-            log_path.read_text(encoding="utf-8").replace(old_path, new_path),
-            encoding="utf-8",
-        )
         observer_path = self.bundle / "observer.json"
         observer = json.loads(observer_path.read_text(encoding="utf-8"))
-        observer["producer_log_sha256"] = fuzz_campaign.sha256(log_path)
+        observer["command"][0] = new_path
         observer["executable"]["path"] = new_path
         self._rewrite_observer(report, observer)
-        report["producer"]["log"]["sha256"] = fuzz_campaign.sha256(log_path)
+        report["producer"]["command"][0] = new_path
         report["producer"]["executable"]["path"] = new_path
         with self.assertRaisesRegex(ValidationError, "isolated target"):
             self._validate_report(report)

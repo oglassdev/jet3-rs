@@ -18,13 +18,11 @@ from typing import Any
 from fuzz_build_identity import (
     BASE_ENVIRONMENT_KEYS,
     WINDOWS_ENVIRONMENT_KEYS,
-    cargo_fuzz_runtime_command,
     copy_seeds,
     prepare_isolated_fuzz_build,
     require_external_output,
     require_clean_snapshot,
     validate_build_manifest,
-    validate_fuzz_runtime_command,
 )
 from fuzz_evidence import (
     EvidenceError,
@@ -32,7 +30,6 @@ from fuzz_evidence import (
     exact_process_environment,
     observe_producer,
     parse_date_time,
-    parse_executable,
     parse_reported_rss,
     parse_runs,
     publish_directory,
@@ -51,6 +48,59 @@ SANITIZERS = {"address", "memory", "leak", "thread", "undefined", "none"}
 
 
 ValidationError = EvidenceError
+
+
+def fuzz_target_runtime_command(
+    executable_path: str,
+    corpus: Path | str,
+    duration_seconds: int,
+    deterministic_seed: int,
+    max_len: int,
+    peak_rss_limit_bytes: int,
+) -> list[str]:
+    """Construct the canonical direct libFuzzer target invocation."""
+    return [
+        executable_path,
+        str(corpus),
+        f"-max_total_time={duration_seconds}",
+        f"-seed={deterministic_seed}",
+        f"-max_len={max_len}",
+        f"-rss_limit_mb={peak_rss_limit_bytes // (1024 * 1024)}",
+    ]
+
+
+def validate_fuzz_target_runtime_command(
+    command: Any,
+    target_directory: str,
+    duration_seconds: int,
+    deterministic_seed: int,
+    max_len: int,
+    peak_rss_limit_bytes: int,
+) -> None:
+    """Require the exact direct target path, corpus, and libFuzzer limits."""
+    if not isinstance(command, list) or not command or any(
+        not isinstance(argument, str) or not argument for argument in command
+    ):
+        raise ValidationError("observer command must be a non-empty string array")
+    if len(command) < 2:
+        raise ValidationError(
+            "observer command is not the canonical direct fuzz-target invocation"
+        )
+    expected_corpus = Path(target_directory).resolve().parent / "corpus"
+    if Path(command[1]).resolve() != expected_corpus:
+        raise ValidationError("observer command does not name the disposable corpus")
+    expected_command = fuzz_target_runtime_command(
+        command[0],
+        command[1],
+        duration_seconds,
+        deterministic_seed,
+        max_len,
+        peak_rss_limit_bytes,
+    )
+    if command != expected_command:
+        raise ValidationError(
+            "observer command is not the canonical direct fuzz-target invocation"
+        )
 
 
 def _load_json(path: Path) -> Any:
@@ -283,10 +333,8 @@ def _validate_observer(
         )
 
     command = observer["command"]
-    validate_fuzz_runtime_command(
+    validate_fuzz_target_runtime_command(
         command,
-        target["name"],
-        report["campaign"]["sanitizer"],
         observer["build_environment"]["CARGO_TARGET_DIR"],
         report["campaign"]["duration_seconds"],
         deterministic_seed,
@@ -333,14 +381,8 @@ def _validate_observer(
     toolchain = _object(observer["toolchain"], "observer.toolchain")
     _exact_keys(toolchain, {"cargo", "cargo_fuzz", "rustc"}, "observer.toolchain")
     cargo = _validate_tool(toolchain["cargo"], "observer.toolchain.cargo")
-    cargo_fuzz = _validate_tool(
-        toolchain["cargo_fuzz"], "observer.toolchain.cargo_fuzz"
-    )
+    _validate_tool(toolchain["cargo_fuzz"], "observer.toolchain.cargo_fuzz")
     _validate_tool(toolchain["rustc"], "observer.toolchain.rustc")
-    if Path(cargo_fuzz["path"]).resolve().as_posix() != Path(
-        command[0]
-    ).resolve().as_posix():
-        raise ValidationError("observer cargo-fuzz identity disagrees with producer command")
     build_environment = _object(
         observer["build_environment"], "observer.build_environment"
     )
@@ -364,10 +406,11 @@ def _validate_observer(
     _exact_keys(executable, {"path", "sha256"}, "observer.executable")
     executable_path = _text(executable["path"], "observer.executable.path")
     _sha256_text(executable["sha256"], "observer.executable.sha256")
-    if Path(executable_path).resolve().as_posix() != Path(
-        parse_executable(log_text)
-    ).resolve().as_posix():
-        raise ValidationError("observer executable identity disagrees with producer log")
+    if (
+        Path(executable_path).resolve().as_posix()
+        != Path(command[0]).resolve().as_posix()
+    ):
+        raise ValidationError("observer executable identity disagrees with producer command")
 
     producer = _object(report["producer"], "producer")
     copied_identity = {
@@ -612,11 +655,8 @@ def run_campaign(
         corpus = temporary / "corpus"
         seeds = copy_seeds(root, corpus, manifest, target_name)
         log_path = temporary / "producer.log"
-        command = cargo_fuzz_runtime_command(
-            cargo_fuzz_identity["path"],
-            target_name,
-            sanitizer,
-            build_environment["CARGO_TARGET_DIR"],
+        command = fuzz_target_runtime_command(
+            prebuild["executable"]["path"],
             corpus,
             duration,
             registry["deterministic_seed"],

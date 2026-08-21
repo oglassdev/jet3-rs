@@ -17,10 +17,6 @@ from typing import Any
 
 PROGRESS_RE = re.compile(r"(?m)^#(\d+)\s")
 RSS_RE = re.compile(r"\brss:\s*(\d+)Mb\b")
-EXECUTABLE_RES = (
-    re.compile(r"(?m)^\s*Running `([^`\s]+)"),
-    re.compile(r"(?m)^\s*Running ([^\s]+)"),
-)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 SANITIZER_MARKERS = (
     "ERROR: AddressSanitizer",
@@ -79,15 +75,6 @@ def parse_runs(log_text: str) -> int:
 def parse_reported_rss(log_text: str) -> int:
     samples = [int(value) * 1024 * 1024 for value in RSS_RE.findall(ANSI_RE.sub("", log_text))]
     return max(samples, default=0)
-
-
-def parse_executable(log_text: str) -> str:
-    plain = ANSI_RE.sub("", log_text)
-    for pattern in EXECUTABLE_RES:
-        match = pattern.search(plain)
-        if match:
-            return match.group(1)
-    raise EvidenceError("producer log contains no cargo-fuzz executable identity")
 
 
 def classify_result(log_text: str, exit_code: int | None, timed_out: bool) -> str:
@@ -181,6 +168,13 @@ def observe_producer(
     build_environment: dict[str, str],
 ) -> dict[str, Any]:
     environment = exact_process_environment(build_environment)
+    if not command or not isinstance(command[0], str) or not command[0]:
+        raise EvidenceError("producer command must name its executable")
+    executable_path = Path(command[0]).resolve()
+    if not executable_path.is_file() or executable_path.is_symlink():
+        raise EvidenceError(
+            f"producer executable is missing, a symlink, or not regular: {executable_path}"
+        )
     started_at = datetime.datetime.now(datetime.timezone.utc)
     started_clock = time.monotonic()
     peak_rss = 0
@@ -232,11 +226,6 @@ def observe_producer(
         log_text = log_path.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
         raise EvidenceError(f"producer log is not valid UTF-8: {error}") from error
-    executable_path = Path(parse_executable(log_text)).resolve()
-    if not executable_path.is_file() or executable_path.is_symlink():
-        raise EvidenceError(
-            f"producer-reported executable is missing, a symlink, or not regular: {executable_path}"
-        )
     return {
         "schema_version": 1,
         "producer_log_sha256": sha256(log_path),
