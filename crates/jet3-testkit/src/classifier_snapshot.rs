@@ -423,7 +423,7 @@ mod tests {
     };
     use crate::Sha256;
 
-    const SOURCE_COMMIT: &str = "eb92f66a82ddd62c863fc7b1caead1b2d85af397";
+    const SOURCE_COMMIT: &str = "0a48b190ffb3211e3e1fd1f0483327b507d15136";
     const EXTERNAL_ROOT_VARIABLE: &str = "JET3_EXTERNAL_FIXTURE_ROOT";
     const MANIFEST_FIELDS_SCRIPT: &str = r#"import json, sys
 with open(sys.argv[1], encoding="utf-8") as source:

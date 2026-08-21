@@ -2906,6 +2906,43 @@ Use `not applicable` explicitly rather than omitting a field.
   grant; do not commit the file or derived content
 - Review: pending independent review
 
+### OBS-0002 — Retained Stage 1 classifier run
+
+- Recorded: 2026-08-20, OpenAI Codex
+- Kind: observation
+- Question: What lossless `PageKind` tallies does the Stage 1 classifier report
+  when it visits every complete page of `FIX-0001` through `FIX-0004`?
+- Origin: direct read-only classification of the four exact external fixtures
+  beneath the opt-in `JET3_EXTERNAL_FIXTURE_ROOT`; no other bundle path was
+  inspected
+- Environment: macOS 26.3.1 build 25D771280a on arm64; Rust 1.96.0
+  (`ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96`); locale `C.UTF-8`; time zone
+  `America/New_York`
+- Protocol: at clean producer commit
+  `0a48b190ffb3211e3e1fd1f0483327b507d15136`, first run the checked
+  `tools/inspect_external_corpus.py` verifier over the manifest-bound
+  `FIX-0001` through `FIX-0004` identities, then invoke the
+  `jet3-classifier-snapshot` binary with those four exact paths, verified
+  SHA-256 values, and verified byte sizes. The binary opens each fixture only
+  through public `DatabaseReader`, visits every page once through
+  `ClassifiedPage`, and emits canonical JSON keyed by fixture SHA-256 and the
+  producer commit.
+- Artifacts: producer commit
+  `0a48b190ffb3211e3e1fd1f0483327b507d15136`; binary
+  `jet3-classifier-snapshot`; snapshot
+  `docs/validation/stage1-classifier-snapshot.json`, 1,774 bytes, SHA-256
+  `b45e8c240cd386583398c96478345aa74127dc7a249b04decb50173c6b92d370`
+- Observation: the snapshot records only per-fixture `PageKind` tallies,
+  including numeric `Unknown(u8)` buckets, and no fixture file content.
+- Interpretation: this is a bounded Rust self-observation of the narrow
+  `SRC-0020` classifier. Unknown tags remain uninterpreted. The result does not
+  establish structural validity, semantic correctness, Jet generation, or DAO
+  compatibility and is not DAO verification.
+- Usage: `file:docs/validation/stage1-classifier-snapshot.json`
+- Rights: aggregate classifier tallies only; the external fixture files and
+  their content remain outside the repository and are not redistributable
+- Review: pending independent review
+
 ## Quarantined bundle paths
 
 Paths matching `project-source/**` or `project-context/**` in the donated
