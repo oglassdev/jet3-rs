@@ -33,11 +33,16 @@
           "path": "oracle/windows-dao/experiments/a2/design-inputs/fable-a2-plan-review.md",
           "sha256": "342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876",
           "role": "preregistration_review"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a2/design-inputs/fable-a2-plan-review-2.md",
+          "sha256": "620aad56198446be88ceeab3b0185e0e24eef1df6b94f365c230ae7305cb764d",
+          "role": "preregistration_rereview"
         }
       ],
       "exploratory_bundle": "windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1",
       "exploratory_bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
-      "use_limit": "the committed diagnosis, reviews, audit, and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
+      "use_limit": "the committed diagnosis, reviews, audit, rereview, and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
       "external_mdb_implementations_used": false
     },
     "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
@@ -273,16 +278,16 @@
   "record_candidate_procedure": {
     "boundary_source": "after page qualification, enumerate every half-open interval [start,end) from the fixed byte-boundary set {0,1,...,2048}, with 0 <= start < end <= 2048; boundaries are never inferred from the minimum or maximum changed byte",
     "candidate_page_space": "the finite page space is the union of every physical page index observed at any checkpoint in either derivation replica; absence is an explicit state and no all-checkpoint intersection or E0R-present filter is permitted",
-    "global_page_qualification": "before any interval enumeration, qualify a global page using hashes only: its explicit presence/hash state must differ across E0 to D_GROW_0128 and across D_GROW_0128 to D_DROP. Absence is a distinct state, and absence at both endpoints is equality. More than 12 qualifying pages is a resource_bound_breach",
-    "tdef_page_qualification": "before any interval enumeration, qualify a TDEF page using hashes only: it must be present at E0, because the table-definition record exists when the empty tables are created; its explicit presence/hash state must differ on at least one declared L or H growth transition and on both L_REL_1280 to L_DELETE_ALL and L_DELETE_ALL to L_REINSERT_SAME. Absence is a distinct state, and absence at both endpoints is equality. More than 12 qualifying pages is a resource_bound_breach",
-    "global_record_end_resolution": "for intervals on one qualified page that share a start and decode the same D relation, retain only the page-terminal interval ending at 2048 when every byte after the last D-flipped byte through byte 2047 is zero at every D checkpoint and the zero suffix is at least 16 bytes long; all shorter equivalent ends are rejected. If the byte property is absent or more than one start survives, emit global_record_end_not_resolved or multiple_global_record_boundaries_survive respectively",
+    "global_page_qualification": "before any interval enumeration, qualify a global page using hashes only: its explicit presence/hash state must differ across E0 to D_GROW_0128 and across D_GROW_0128 to D_DROP. Absence is a distinct state, absence at both endpoints is equality, and presence to absence is a difference. More than 16 qualifying pages is a resource_bound_breach",
+    "tdef_page_qualification": "before any interval enumeration, qualify a TDEF page using hashes only: it must be present at E0, because the table-definition record exists when the empty tables are created; its explicit presence/hash state must differ on at least one declared L or H growth transition and on both L_REL_1280 to L_DELETE_ALL and L_DELETE_ALL to L_REINSERT_SAME. Absence is a distinct state, absence at both endpoints is equality, and presence to absence is a difference. More than 16 qualifying pages is a resource_bound_breach",
+    "global_record_end_resolution": "after D alone has selected the unique polarity, for intervals on one qualified page that share a start and decode the same D relation, retain only the page-terminal interval ending at 2048 when every byte after the last D-flipped byte through byte 2047 decodes entirely to not-in-use under that polarity at every D checkpoint: raw 0xFF for set_means_not_in_use and raw 0x00 for set_means_in_use. The polarity-relative uniform suffix must be at least 16 bytes long; all shorter equivalent ends are rejected. If the byte property is absent or more than one start survives, emit global_record_end_not_resolved or multiple_global_record_boundaries_survive respectively",
     "tdef_record_resolution": "a TDEF interval must be inclusion-minimal while wholly containing the two distinct transition-selective four-byte pointer windows plus one byte that is stable at every checkpoint on each available side; extending into a byte that changes outside either pointer signature invalidates the interval. Zero or multiple minimal intervals have distinct outcomes",
-    "structural_exclusion_rule": "apply identically on every page: a global-map field may change only with the D set relation or declared post-delimitation global growth transitions; a growth-pointer window must be stable on D, churn, and idle transitions; a churn-pointer window must be stable on D, growth, and idle transitions. Any byte changing outside its field signature rejects that field or window. Bytes are never classified as headers by page number or offset: a byte is eligible only when it satisfies the same field signature, and otherwise is excluded without assigning header meaning. No page number or byte offset is privileged or blacklisted",
-    "prefix_sum_work_model": "for each qualified page and transition class, build fixed 2049-entry prefix sums over byte predicates once, charging one work unit per prefix cell. Test each interval, polarity, zero-suffix closure, and transition-selectivity property with O(1) prefix-difference queries; charge at most eight work units per enumerated interval across both sub-model searches and never scan interval length",
+    "structural_exclusion_rule": "apply identically on every page: a global-map field may change only with the D set relation, declared post-delimitation global growth transitions, and the declared L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME delete/reinsert transitions; it may span either neighbour of a declared idle pair only when the idle pair itself is byte-identical. A growth-pointer window must be stable on D, churn, and idle transitions; a churn-pointer window must be stable on D, growth, and idle transitions. Any byte changing outside its field signature rejects that field or window. Bytes are never classified as headers by page number or offset: a byte is eligible only when it satisfies the same field signature, and otherwise is excluded without assigning header meaning. No page number or byte offset is privileged or blacklisted",
+    "prefix_sum_work_model": "for each qualified page and transition class, build fixed 2049-entry prefix sums over byte predicates once, charging one work unit per prefix cell and permitting at most 16 prefix arrays per qualified page. Test each interval, polarity-relative suffix closure, and transition-selectivity property with O(1) prefix-difference queries; charge at most eight work units per enumerated interval across both sub-model searches and never scan interval length. At the 16-page ceiling for each of two submodels, interval queries cost at most 537,133,056 units and prefix construction at most 1,049,088 units, totaling 538,182,144 below the 600,000,000 bound",
     "multiple_records_on_one_page": "enumerate and score overlapping intervals independently, then apply the preregistered global page-terminal or TDEF inclusion-minimal byte-property resolution; deterministic replica agreement cannot replace uniqueness",
     "per_page_candidate_bound": 2098176,
-    "max_qualified_pages_per_submodel": 12,
-    "combined_record_candidate_bound": 50356224
+    "max_qualified_pages_per_submodel": 16,
+    "combined_record_candidate_bound": 67141632
   },
   "inline_boundary_procedure": {
     "subject": "the D-delimited global_map record after its page, start, and end are frozen",
@@ -461,8 +466,8 @@
         "A2-CHURN-POINTER-NONE"
       ],
       "schedule_arithmetic_assertion": "assert first D baseline 23 to 151, D_DROP remains 151, post-recreate baseline 151 to 279, 32-row batches and recorded overshoot, and alternating L deletion changes page count by +1 without satisfying the A2 full-delete premise",
-      "candidate_bound_assertion": "using page hashes before interval reads, assert the observed run-12 D-qualified page count is exactly 10, each submodel is below 12 qualified pages, enumerated intervals are no more than 50,356,224 combined, prefix construction plus O(1) interval queries remains below 500,000,000 work units, and no more than 55 blobs are opened",
-    "record_end_assertion": "apply the page-terminal all-D-zero suffix property and assert one global record survivor with at least 16 zero bytes of slack after the last D-flipped byte; shorter equivalent ends must be rejected. Assert that run-12 control-changing bytes outside a field signature cannot become global-map fields or TDEF pointer windows, without naming or blacklisting their offsets",
+      "candidate_bound_assertion": "derive qualification counts from the retained indexes using the plan rule, then assert the independent re-measurement for both run-12 derivation replicas: 13 global qualifying pages in replica 1 and 13 in replica 2, specifically pages {0,1,2,3,6,9,11,13,18,19,20,21,22} in each. Assert each submodel is at most 16 qualified pages, enumerated intervals are no more than 67,141,632 combined, interval queries are no more than 537,133,056 work units, prefix construction is no more than 1,049,088 work units, total analysis work is no more than 538,182,144 and below the 600,000,000 bound, and no more than 55 page blobs are opened",
+    "record_end_assertion": "after D selects set_means_not_in_use, apply the page-terminal polarity-relative uniform-suffix property and assert the independent re-measurement for both run-12 derivation replicas: last D-flipped byte offset 1954, 93 following bytes through 2047 are raw 0xFF and therefore decode entirely to not-in-use, and one global record survives while shorter equivalent ends are rejected. For the legacy churn transitions, assert exactly one of those suffix bytes changes on L_REL_1280 to L_DELETE_ALTERNATING and zero changes on L_DELETE_ALTERNATING to L_REINSERT_SAME in each replica; the delete change is allowed by the global-map field signature but cannot become a TDEF pointer candidate",
       "required_behavior": "complete the explicit projection, select set_means_not_in_use uniquely from D alone, check L/H agreement on the frozen global record, report legacy_projection_complete_with_tdef_churn_not_applicable by name, retain layered calibration results, and emit no A2 scientific evidence"
     },
     "synthetic_input": {
@@ -484,7 +489,7 @@
           "partial",
           "full"
         ],
-        "record_end_zero_slack_bytes": [
+        "record_end_uniform_slack_bytes": [
           16,
           32,
           64
@@ -492,7 +497,7 @@
       },
       "run12_calibration_case": "on the global_map fixture, generate source conversion ordinal 40, checkpoint P_ABS_16480, A2 ordinal 20, two active slots, set_means_not_in_use because growth cleared bits, and delete page delta +1. Map by checkpoint identity, apply A2 full-delete semantics only to the tdef churn fixture, and keep every value non-evidential",
       "arithmetic_rule": "prove the D A/B/A/C record-set relation with regrowth strictly larger than first growth, growth-only and full-delete churn-only tdef transitions, and every analyzer checkpoint equality. No equality or count may depend on a hand-authored fixture constant",
-      "record_uniqueness_rule": "the decisive fixture must have at least 32 all-D-zero bytes after its last flipped global-map byte and the page-terminal byte-property tie-break must leave exactly one record; shorter equivalent endpoints must be generated and rejected",
+      "record_uniqueness_rule": "the decisive fixture must have at least 32 polarity-relative uniform bytes after its last flipped global-map byte, each decoding entirely to not-in-use under the D-selected polarity: raw 0xFF for set_means_not_in_use and raw 0x00 for set_means_in_use. The page-terminal byte-property tie-break must leave exactly one record, and shorter equivalent endpoints must be generated and rejected",
       "base_discrimination_rule": "the all-layers-decisive fixture must produce a slot-0 flip at H_REL_0064 that leaves exactly one base formula. A second valid fixture with no discriminating flip must retain decisive earlier global layers and report insufficient_base_discrimination only for extended_base",
       "inline_boundary_rule": "generate empty, partial, and full anchor-fill variants with one invariant global-map inline boundary and recover the same boundary in all variants",
       "slot_rule": "for conversion fixtures with one or two active slots, recover a decisive conversion layer when exactly two are active by H_REL_0904; zero at conversion and a final count other than two reach their exact named layer outcomes",
@@ -853,8 +858,9 @@
     ],
     "timing_derivation": "post-PR-33 run 11 reached H_REL_0904 in 400.440-462.513 seconds with final idle costs 26.317-26.654 seconds; run 12 reached it in 543.107-619.412 seconds with final idle costs 35.394-35.901 seconds. The slow observed A2-equivalent prefix plus idle is 654.865 seconds. A 70.135-second allowance for D_RECREATE_EMPTY, full-delete differences, and rounding freezes the per-replica projection at 725 seconds",
     "per_replica_projection_seconds": 725,
-    "per_replica_headroom": "the 2400-second worker ceiling is 3.31x the 725-second post-PR-33 projection",
-    "campaign_headroom": "independent replicas run concurrently; 725 seconds plus the full 900-second fan-in safety bound yields a 1625-second complete-campaign estimate. The 2700-second campaign bound is 1.66x that estimate, and the estimate remains below the 1800-second hosted target",
+    "per_replica_headroom": "the 1700-second worker ceiling is 2.34x the 725-second post-PR-33 projection",
+    "campaign_headroom": "independent replicas run concurrently; 725 seconds plus the full 900-second fan-in safety bound yields a 1625-second complete-campaign estimate. The 1800-second figure is a performance target, not a safety bound. The 2700-second campaign timeout exactly covers the 1700-second worker ceiling plus the 900-second fan-in ceiling plus 100 seconds of setup and dispatch allowance, and is 1.66x the estimate",
+    "setup_and_dispatch_allowance_seconds": 100,
     "estimated_complete_wall_clock_seconds": 1625,
     "bounds_sanity_basis": "run 12 observed 20,701 changed hash entries over 71 checkpoints versus the 65,536 bound; projected A2 logical reads are about 254 MiB versus 2 GiB; projected inserted rows are about 150,000 versus 524,288. Dry-run boundary cases must accept each exact ceiling and reject one over"
   },
@@ -895,19 +901,19 @@
     "max_logical_checkpoint_read_bytes_per_replica": 2147483648,
     "max_inserted_rows_per_replica": 524288,
     "max_changed_hash_entries_per_replica": 65536,
-    "max_record_candidates": 50356224,
+    "max_record_candidates": 67141632,
     "max_candidate_models": 1000000,
-    "max_analysis_work_units": 500000000,
+    "max_analysis_work_units": 600000000,
     "max_unique_page_blobs": 65536,
     "max_retained_page_store_bytes": 536870912,
     "max_bundle_bytes": 805306368,
     "max_json_bytes": 67108864,
-    "worker_timeout_seconds_per_replica": 2400,
+    "worker_timeout_seconds_per_replica": 1700,
     "fan_in_timeout_seconds": 900,
     "campaign_timeout_seconds": 2700,
     "max_child_log_bytes": 1048576,
     "max_companion_bytes_per_checkpoint": 65536,
-    "max_qualified_pages_per_submodel": 12,
+    "max_qualified_pages_per_submodel": 16,
     "max_record_candidates_per_page": 2098176
   },
   "claims": {

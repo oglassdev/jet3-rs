@@ -388,6 +388,7 @@
         "per_replica_projection_seconds",
         "per_replica_headroom",
         "campaign_headroom",
+        "setup_and_dispatch_allowance_seconds",
         "estimated_complete_wall_clock_seconds",
         "bounds_sanity_basis"
       ],
@@ -446,6 +447,9 @@
         "campaign_headroom": {
           "type": "string",
           "minLength": 1
+        },
+        "setup_and_dispatch_allowance_seconds": {
+          "const": 100
         },
         "estimated_complete_wall_clock_seconds": {
           "const": 1625
@@ -509,13 +513,13 @@
           "const": 65536
         },
         "max_record_candidates": {
-          "const": 50356224
+          "const": 67141632
         },
         "max_candidate_models": {
           "const": 1000000
         },
         "max_analysis_work_units": {
-          "const": 500000000
+          "const": 600000000
         },
         "max_unique_page_blobs": {
           "const": 65536
@@ -530,7 +534,7 @@
           "const": 67108864
         },
         "worker_timeout_seconds_per_replica": {
-          "const": 2400
+          "const": 1700
         },
         "fan_in_timeout_seconds": {
           "const": 900
@@ -545,7 +549,7 @@
           "const": 65536
         },
         "max_qualified_pages_per_submodel": {
-          "const": 12
+          "const": 16
         },
         "max_record_candidates_per_page": {
           "const": 2098176

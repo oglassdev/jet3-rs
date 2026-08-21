@@ -9,7 +9,8 @@ A2 uses a record-level A/B/A/C set relation for D. Both growth legs use a fresh
 post-create baseline plus 128 pages in fixed 32-row batches, and regrowth must
 be strictly larger than first growth. Pages are qualified by hashes before
 bounded interval enumeration. Fixed prefix sums make interval tests O(1), and
-a page-terminal, all-D-zero suffix property resolves the global record end.
+a page-terminal suffix that decodes entirely to not-in-use under the D-selected
+polarity resolves the global record end.
 Every page seen at any checkpoint remains in the candidate page space; no page
 number, byte offset, or changed-byte envelope defines a record.
 
@@ -32,9 +33,10 @@ Each replica runs as an independent matrix job with its own environment
 document. The fan-in freezes replicas 1/2 before a separate process validates
 replica 3 and emits a bounded receipt, after which holdout analysis may begin.
 Post-PR-33 run-11/run-12 progress timings give a 725-second slow-runner
-projection. The frozen 2,400-second worker bound gives 3.31x headroom; the
+projection. The frozen 1,700-second worker bound gives 2.34x headroom; the
 1,625-second complete-campaign estimate remains below the 1,800-second hosted
-target, and the 2,700-second campaign bound gives 1.66x headroom.
+performance target. The 2,700-second campaign timeout covers the worker bound,
+900-second fan-in bound, and 100 seconds of setup and dispatch allowance.
 
 Before acquisition, the future analyzer must pass non-evidential dry runs on
 the retained A1 run-12 bundle in explicit legacy-projection mode and fixtures
@@ -47,7 +49,7 @@ status `decisive_pending_independent_validation`. The run-12 dry run must also
 assert the page, candidate, work, and blob ceilings. Results must be disclosed
 in a later additive provenance entry before any hosted dispatch.
 
-The four committed files in `design-inputs/`, the retained A1 bundle, and the
+The five committed files in `design-inputs/`, the retained A1 bundle, and the
 run-11/run-12 progress traces are exploratory design inputs only. They are not
 A2 evidence, cannot satisfy derivation or holdout predicates, and cannot
 advance a capability. No external MDB implementation was used.

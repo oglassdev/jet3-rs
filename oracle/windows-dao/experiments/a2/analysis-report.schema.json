@@ -73,19 +73,19 @@
         "global_map": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 12
+          "maximum": 16
         },
         "tdef": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 12
+          "maximum": 16
         }
       }
     },
     "record_candidates_examined": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 50356224
+      "maximum": 67141632
     },
     "candidate_models_examined": {
       "type": "integer",
@@ -122,7 +122,7 @@
     "analysis_work_units": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 500000000
+      "maximum": 600000000
     },
     "holdout_structurally_validated_after_freeze": {
       "const": true

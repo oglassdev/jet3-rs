@@ -2972,7 +2972,7 @@ Use `not applicable` explicitly rather than omitting a field.
   transitions in a third holdout database without refitting?
 - Origin: project-authored plan `DAO-A2-ALLOCATION-MAPS-001`, informed by the
   immutable A1 preregistrations and result in `EXP-0037`, `EXP-0038`, and
-  `EXP-0039`; the four committed, hash-pinned design inputs listed below; the
+  `EXP-0039`; the five committed, hash-pinned design inputs listed below; the
   retained A1 run-12 bundle; and the post-PR-33 run-11/run-12 progress traces.
   These were used only as exploratory design and dry-run inputs. No external
   MDB implementation, donated MDB, or other format implementation was
@@ -2984,9 +2984,11 @@ Use `not applicable` explicitly rather than omitting a field.
   SHA-256 `ef77b917e2c7da6c8fc7a7c262352cf9ec208783bb4b71c63c2f3bb058a2950a`;
   `oracle/windows-dao/experiments/a2/design-inputs/fable-analyzer-schedule-audit.md`,
   SHA-256 `c9f10f07b8b4b21da524de90819149d68fa387736dda4cb0cbcccfcb4f8ab603`;
-  and
   `oracle/windows-dao/experiments/a2/design-inputs/fable-a2-plan-review.md`,
-  SHA-256 `342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876`.
+  SHA-256 `342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876`;
+  and
+  `oracle/windows-dao/experiments/a2/design-inputs/fable-a2-plan-review-2.md`,
+  SHA-256 `620aad56198446be88ceeab3b0185e0e24eef1df6b94f365c230ae7305cb764d`.
 - Exploratory input identity: retained bundle
   `windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1`,
   manifest SHA-256
@@ -3009,6 +3011,15 @@ Use `not applicable` explicitly rather than omitting a field.
   calibration case. The named checkpoint maps to A2 ordinal 20; source ordinal
   40 is not copied as an A2 ordinal. These values are exploratory,
   non-evidential, cannot satisfy any A2 predicate, and do not constrain A2 data.
+- A1 run-12 remeasurement disclosure: a separate read-only remeasurement of
+  derivation replicas 1 and 2 used the retained page indexes and SHA-256-checked
+  page-1 blobs, never opened replica 3, and produced identical results in both
+  replicas: 13 pages satisfy the global hash qualification; the final D-flipped
+  page-1 byte is offset 1954; the 93 following bytes through 2047 are raw
+  `0xFF` and decode to not-in-use under `set_means_not_in_use`; and the legacy
+  delete/reinsert transitions change respectively one and zero of those suffix
+  bytes. These measurements calibrate only the mandatory dry-run assertions and
+  are not A2 evidence or format claims.
 - Protocol: create three fresh replicas with rotated D/L/P/H table bindings.
   D grows from the initial post-create baseline to `baseline + 128`, is dropped
   and recreated, then grows from the new post-create baseline to its own
@@ -3019,13 +3030,17 @@ Use `not applicable` explicitly rather than omitting a field.
   D drop need not shrink the file and no page, byte, or record equality is
   assumed. The candidate page space is every page observed at any checkpoint.
   Hash-only global and TDEF page qualifications precede interval enumeration
-  and are each capped at 12 pages. Every half-open interval over 2,049 fixed byte
+  and are each capped at 16 pages. Every half-open interval over 2,049 fixed byte
   boundaries is tested using 2,049-entry prefix sums and O(1) interval queries,
-  with 2,098,176 candidates per page and 50,356,224 combined. The global-record
-  end is page-terminal only when an all-D-zero suffix of at least 16 bytes
-  follows the final D flip; shorter equivalent ends are rejected. A
+  with 2,098,176 candidates per page and 67,141,632 combined. The global-record
+  end is page-terminal only when a uniform suffix of at least 16 bytes decodes
+  entirely to not-in-use under the D-selected polarity at every D checkpoint;
+  shorter equivalent ends are rejected. A
   transition-structural exclusion rule applies identically on every page; no
   page or offset is blacklisted and no change envelope supplies a boundary.
+  The global-map field signature includes the declared delete/reinsert
+  transitions as well as D and growth transitions, while pointer signatures
+  remain transition-selective.
   D alone delimits the global-map record and selects bit polarity. L/P/H growth
   checks polarity and evaluates conversion, slot activation, inline boundary,
   and extended-base candidates on that frozen global record. A separate TDEF
@@ -3063,11 +3078,13 @@ Use `not applicable` explicitly rather than omitting a field.
   final idle work; run 12 took 543.107–619.412 plus 35.394–35.901 seconds. The
   slow observed A2-equivalent prefix plus idle is 654.865 seconds. Adding
   70.135 seconds for `D_RECREATE_EMPTY`, full-delete differences, and rounding
-  freezes the projection at 725 seconds. The 2,400-second worker ceiling gives
-  3.31x per-replica headroom. Concurrent acquisition plus the full 900-second
+  freezes the projection at 725 seconds. The 1,700-second worker ceiling gives
+  2.34x per-replica headroom. Concurrent acquisition plus the full 900-second
   fan-in bound gives a 1,625-second complete-campaign estimate, below the
-  1,800-second hosted target; the 2,700-second campaign ceiling gives 1.66x
-  campaign headroom. The six timing-trace SHA-256 values, ordered run 11
+  1,800-second hosted performance target. That target is not a safety bound.
+  The 2,700-second campaign timeout exactly covers the worker ceiling, fan-in
+  ceiling, and 100 seconds of setup and dispatch allowance, and gives 1.66x
+  headroom over the estimate. The six timing-trace SHA-256 values, ordered run 11
   replicas 1–3 then run 12 replicas 1–3, are
   `b005ab46ae10144fd27aeef51ebd24d308a0460c0275a1bd7cd004a4df024a8a`,
   `f786a9e3616dca89a369130a028333f4a97d597735f6cfc9ae5c9aade46013f7`,
@@ -3086,9 +3103,12 @@ Use `not applicable` explicitly rather than omitting a field.
   `D_RECREATE_EMPTY` is missing and not applicable; A1's
   `L_DELETE_ALTERNATING` maps to A2's full-delete row only for chronology, with
   both A2 churn predicates not applicable. The dry run must resolve one global
-  record with zero-suffix slack and assert exactly 10 D-qualified pages, at
-  most 12 pages per submodel, at most 50,356,224 interval candidates, fewer
-  than 500,000,000 work units, and no more than 55 opened blobs. The synthetic
+  record with polarity-relative uniform suffix slack and independently derive
+  and assert 13 D-qualified pages in each derivation replica, final D-flipped
+  offset 1954, 93 following `0xFF` not-in-use bytes, and legacy suffix changes
+  of one byte on delete and zero on reinsert. It also asserts at most 16 pages
+  per submodel, at most 67,141,632 interval candidates, fewer than 600,000,000
+  work units, and no more than 55 opened blobs. The synthetic
   generator parses the checkpoint design, row algorithm, candidate procedure,
   and bounds from this exact plan and derives every count and equality; no A1
   hand-typed count is imported. Conversion ordinal (all A1/A2 ordinals and
@@ -3126,7 +3146,7 @@ Use `not applicable` explicitly rather than omitting a field.
   recomputation accepts the retained report and bundle.
 - Artifacts: checked plan
   `oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`, SHA-256
-  `db45bec8133d64da93b707650a742415a98fb453d488c1d58a2ecc3f650a5f6a`;
+  `804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2`;
   strict plan, environment, page-index, replica-observation, independent
   replica-artifact, layered analysis-report, holdout-structure-receipt,
   bundle-manifest, and dry-run-report schemas; hash-pin contract test
@@ -3141,7 +3161,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `file:oracle/windows-dao/experiments/a2/README.md`;
   `file:oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`;
   future separately reviewed A2 implementation and pre-acquisition dry runs
-- Rights: project-authored plan, schemas, tests, and four committed design
+- Rights: project-authored plan, schemas, tests, and five committed design
   documents; no Microsoft provider binary, generated MDB, or retained A1 bundle
   is committed or redistributed by this repository
 - Review: focused JSON/hash/schedule contracts and the repository's Python

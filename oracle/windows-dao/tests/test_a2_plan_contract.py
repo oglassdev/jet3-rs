@@ -12,12 +12,13 @@ ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a2-allocation-maps.plan.json"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
-PLAN_SHA256 = "db45bec8133d64da93b707650a742415a98fb453d488c1d58a2ecc3f650a5f6a"
+PLAN_SHA256 = "804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2"
 DESIGN_INPUT_HASHES = {
     "a1-run12-ambiguity-diagnosis.md": "17d5ee28983ffc126feec63e7a7d8c7ffbc369e5f025193c9cd0d8404edf430d",
     "fable-review-findings.md": "ef77b917e2c7da6c8fc7a7c262352cf9ec208783bb4b71c63c2f3bb058a2950a",
     "fable-analyzer-schedule-audit.md": "c9f10f07b8b4b21da524de90819149d68fa387736dda4cb0cbcccfcb4f8ab603",
     "fable-a2-plan-review.md": "342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876",
+    "fable-a2-plan-review-2.md": "620aad56198446be88ceeab3b0185e0e24eef1df6b94f365c230ae7305cb764d",
 }
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 if str(SCRIPTS) not in sys.path:
@@ -56,12 +57,14 @@ class A2PlanContractTests(unittest.TestCase):
         self.assertEqual(len(set(checkpoints)), 25)
         self.assertEqual(self.plan["bounds"]["planned_checkpoints_per_replica"], 25)
         self.assertEqual(self.plan["runtime_design"]["matrix_jobs"], 3)
-        self.assertEqual(self.plan["bounds"]["worker_timeout_seconds_per_replica"], 2400)
+        self.assertEqual(self.plan["bounds"]["worker_timeout_seconds_per_replica"], 1700)
         self.assertEqual(self.plan["bounds"]["fan_in_timeout_seconds"], 900)
         self.assertEqual(self.plan["runtime_design"]["per_replica_projection_seconds"], 725)
         self.assertEqual(self.plan["runtime_design"]["estimated_complete_wall_clock_seconds"], 1625)
         self.assertEqual(self.plan["runtime_design"]["hosted_wall_clock_target_seconds"], 1800)
-        self.assertGreaterEqual(2400 / 725, 3)
+        self.assertGreaterEqual(1700 / 725, 2)
+        setup = self.plan["runtime_design"]["setup_and_dispatch_allowance_seconds"]
+        self.assertEqual(1700 + 900 + setup, 2700)
         self.assertGreaterEqual(2700 / 1625, 1.5)
         self.assertEqual(len(self.plan["runtime_design"]["post_33_timing_inputs"]), 6)
 
@@ -88,17 +91,22 @@ class A2PlanContractTests(unittest.TestCase):
         self.assertIn("union of every physical page index", procedure["candidate_page_space"])
         self.assertIn("2049-entry prefix sums", procedure["prefix_sum_work_model"])
         self.assertIn("O(1)", procedure["prefix_sum_work_model"])
+        self.assertIn("538,182,144", procedure["prefix_sum_work_model"])
         self.assertEqual(procedure["per_page_candidate_bound"], 2_098_176)
-        self.assertEqual(procedure["max_qualified_pages_per_submodel"], 12)
-        self.assertEqual(procedure["combined_record_candidate_bound"], 50_356_224)
+        self.assertEqual(procedure["max_qualified_pages_per_submodel"], 16)
+        self.assertEqual(procedure["combined_record_candidate_bound"], 67_141_632)
+        self.assertEqual(self.plan["bounds"]["max_record_candidates"], 67_141_632)
+        self.assertEqual(self.plan["bounds"]["max_analysis_work_units"], 600_000_000)
 
     def test_global_record_end_has_byte_property_and_generator_slack(self) -> None:
         procedure = self.plan["record_candidate_procedure"]
         self.assertIn("ending at 2048", procedure["global_record_end_resolution"])
-        self.assertIn("zero at every D checkpoint", procedure["global_record_end_resolution"])
+        self.assertIn("decodes entirely to not-in-use", procedure["global_record_end_resolution"])
+        self.assertIn("raw 0xFF", procedure["global_record_end_resolution"])
+        self.assertIn("raw 0x00", procedure["global_record_end_resolution"])
         self.assertIn("at least 16 bytes", procedure["global_record_end_resolution"])
         synthetic = self.plan["analyzer_dry_run_contract"]["synthetic_input"]
-        self.assertEqual(synthetic["free_parameters"]["record_end_zero_slack_bytes"], [16, 32, 64])
+        self.assertEqual(synthetic["free_parameters"]["record_end_uniform_slack_bytes"], [16, 32, 64])
         self.assertIn("at least 32", synthetic["record_uniqueness_rule"])
         self.assertIn("shorter equivalent endpoints", synthetic["record_uniqueness_rule"])
 
@@ -140,6 +148,8 @@ class A2PlanContractTests(unittest.TestCase):
         rule = self.plan["record_candidate_procedure"]["structural_exclusion_rule"]
         self.assertIn("identically on every page", rule)
         self.assertIn("never classified as headers by page number or offset", rule)
+        self.assertIn("L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME", rule)
+        self.assertIn("idle pair itself is byte-identical", rule)
         self.assertIn("No page number or byte offset", rule)
         self.assertNotIn("header_exclusion_source", self.plan["record_candidate_procedure"])
 
@@ -173,9 +183,13 @@ class A2PlanContractTests(unittest.TestCase):
         retained = contract["retained_a1_input"]
         self.assertTrue(contract["must_complete_before_acquisition"])
         self.assertEqual(retained["max_input_page_blobs"], 55)
-        self.assertIn("exactly 10", retained["candidate_bound_assertion"])
-        self.assertIn("50,356,224", retained["candidate_bound_assertion"])
-        self.assertIn("500,000,000", retained["candidate_bound_assertion"])
+        self.assertIn("13 global qualifying pages in replica 1 and 13 in replica 2", retained["candidate_bound_assertion"])
+        self.assertIn("67,141,632", retained["candidate_bound_assertion"])
+        self.assertIn("600,000,000", retained["candidate_bound_assertion"])
+        self.assertIn("last D-flipped byte offset 1954", retained["record_end_assertion"])
+        self.assertIn("93 following bytes", retained["record_end_assertion"])
+        self.assertIn("exactly one", retained["record_end_assertion"])
+        self.assertIn("zero changes", retained["record_end_assertion"])
         synthetic = contract["synthetic_input"]
         self.assertIn("parse checkpoint_design", synthetic["generation_rule"])
         self.assertIn("every analyzer checkpoint equality", synthetic["arithmetic_rule"])

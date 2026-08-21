@@ -102,7 +102,7 @@
         "bit_polarities",
         "anchor_fill_states",
         "run12_calibration",
-        "record_end_zero_slack_bytes"
+        "record_end_uniform_slack_bytes"
       ],
       "properties": {
         "conversion_ordinals": {
@@ -196,7 +196,7 @@
             }
           ]
         },
-        "record_end_zero_slack_bytes": {
+      "record_end_uniform_slack_bytes": {
           "type": "array",
           "maxItems": 3,
           "uniqueItems": true,
@@ -256,7 +256,7 @@
           "run12_analysis_work_ceiling_respected",
           "prefix_sum_interval_queries_are_o1",
           "record_source_independent_of_change_envelope",
-          "global_record_end_unique_with_zero_slack",
+          "global_record_end_unique_with_polarity_relative_uniform_slack",
           "shorter_equivalent_record_ends_rejected",
         "transition_structural_exclusion_is_page_agnostic",
         "run12_control_bytes_not_pointer_candidates",
