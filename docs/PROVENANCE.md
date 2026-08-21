@@ -3176,7 +3176,7 @@ Use `not applicable` explicitly rather than omitting a field.
   scientific evidence, independent recomputation, or capability validation
 - Origin: project-authored A2 analyzer, schedule-derived synthetic generator,
   and dry-run harness at analyzer commit
-  `87896fabbee60071bd14941f51b92e1a51b0ee25`, applied to the immutable
+  `370636d334666739b2df1da1ba0f88f6d5693f39`, applied to the immutable
   `DAO-A2-ALLOCATION-MAPS-001` plan and the retained A1 run-12 exploratory
   input identified in `EXP-0040`. No external MDB implementation, Microsoft
   implementation source, donated MDB, or A2 holdout artifact was inspected.
@@ -3237,16 +3237,16 @@ Use `not applicable` explicitly rather than omitting a field.
   `977d352b6b7c042cf4d0f0cab793086842b3ad2b7da13b9c217020f00c5193c4`.
 - Dry-run report and input identities:
   `oracle/windows-dao/experiments/a2/dry-run/a1-run12-report.json`, SHA-256
-  `5096853820a8e5cdf6109e998f2339e560a60240c4686e04293f69011db474e8`;
+  `075410ead688caedfc2a517b715574fb023c60b613f23b740a68a08e5a88edd1`;
   retained A1 run-12 input manifest, SHA-256
   `97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381`;
   `oracle/windows-dao/experiments/a2/dry-run/a2-synthetic-report.json`, SHA-256
-  `deb3b5020867f8746e390e15edbce9577262ad82dce37f4d31c78a34d8991e72`;
+  `253dbbb8b5a37f22b30942f193cfff03aa6ee0ab7e304cc4232e86dd1abdbd74`;
   synthetic case transcript/input
   `oracle/windows-dao/experiments/a2/dry-run/a2-synthetic-cases.json`, SHA-256
-  `863c41ffa8d00d3d5ab3b2f6a3029d83431bd4e259fae216dbb9dd36e2a1d366`;
+  `9e56c6fe4207f1112cce1197736b0c45b9bb7364760b9d8aa1233b3e2c059afc`;
   and `oracle/windows-dao/experiments/a2/dry-run/checksums.sha256`, SHA-256
-  `69ad669e0d90628fd6279cfb3822756b0e7f28ea628352d24db7bc56b5b19701`.
+  `76dd47feecc59aad658dbded12f28f038b3f60d1d5f8e1743244ac374c004d27`.
 - Generator identities: `a2_generator.py`, SHA-256
   `1da5a1e0ee5fdc8469c84f5bc2300541af8b660ac1d428af69c7685c47245966`;
   `a2_generator_pages.py`, SHA-256
@@ -3259,7 +3259,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `holdout_opened = false`, `scientific_evidence = false`,
   `acquisition_authorized = false`, and
   `capability_advancement_authorized = false`. Their common recorded time is
-  `2026-08-21T21:44:45.011572Z`.
+  `2026-08-21T22:07:27.232325Z`.
 - Interpretation and execution gate: every artifact, case, calibration value,
   and self-check in this entry is synthetic or exploratory and non-evidential.
   Nothing establishes a Jet physical-format fact, Rust correctness, DAO
