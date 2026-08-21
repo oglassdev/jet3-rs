@@ -259,11 +259,20 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
 
     def test_campaign_exit_is_observed_and_null_checked_before_comparison(self) -> None:
         self.assertIn("$campaignExit = $null", self.workflow)
+        launch = self.workflow.index(
+            "$process = Start-Process -FilePath $x86PowerShell -PassThru"
+        )
+        handle = self.workflow.index("$null = $process.Handle", launch)
+        clock = self.workflow.index(
+            "$clock = [Diagnostics.Stopwatch]::StartNew()", handle
+        )
         completed_wait = self.workflow.index("$process.WaitForExit()")
         refresh = self.workflow.index("$process.Refresh()", completed_wait)
         null_guard = self.workflow.index("if ($null -eq $exitCode)", refresh)
         assignment = self.workflow.index("$campaignExit = [int]$exitCode", null_guard)
         comparison = self.workflow.index("if ($campaignExit -ne 0)", assignment)
+        self.assertLess(launch, handle)
+        self.assertLess(handle, clock)
         self.assertLess(completed_wait, refresh)
         self.assertLess(refresh, null_guard)
         self.assertLess(null_guard, assignment)
