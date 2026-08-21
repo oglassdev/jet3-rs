@@ -119,7 +119,7 @@ function Set-A1FieldValue {
     try {
         $fields = $Recordset.Fields
         $field = $fields.Item($Name)
-        $field.Value = $Value
+        switch ($Name) { "Id" { $field.Value = [Int32]$Value } "Payload" { $field.Value = [string]$Value } default { throw "A1 field name is not controlled." } }
     }
     finally {
         Release-M1ComObject -Value $field

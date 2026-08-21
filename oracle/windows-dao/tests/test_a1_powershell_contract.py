@@ -64,6 +64,9 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
             'CreateField("Id", $script:A1DbLong)',
             'CreateField("Payload", $script:A1DbText, 240)',
             '$payloadField.Attributes = $script:A1DbFixedField',
+            '$field.Value = [Int32]$Value',
+            '$field.Value = [string]$Value',
+            'throw "A1 field name is not controlled."',
             'growth_batch_rows -ne 32',
             '"A1|$Role|$($Id.ToString(\'D10\'))|"',
             "GetBytes([int]$Id)",
@@ -71,6 +74,7 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         ):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, self.worker)
+        self.assertNotIn('$field.Value = $Value', self.worker)
         self.assertIn("Id, Payload", self.worker)
         self.assertIn("ORDER BY Id", self.worker)
 
