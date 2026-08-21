@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest import mock
@@ -204,6 +204,20 @@ class AcceptanceRunnerTests(unittest.TestCase):
             result = runner._execute(["gate", "G0"], self.repo)
         self.assertEqual(result.returncode, 137)
         self.assertIn("signal 9", result.stderr)
+
+    def test_python_preflight_rejects_unsupported_version_before_parsing(self) -> None:
+        stderr = StringIO()
+        with (
+            mock.patch.object(runner.sys, "version_info", (3, 10)),
+            mock.patch.object(runner, "_parse_args") as parse_args,
+            redirect_stderr(stderr),
+        ):
+            self.assertEqual(runner.main(), 1)
+        parse_args.assert_not_called()
+        self.assertEqual(
+            stderr.getvalue(),
+            "ERROR: Python 3.11 or newer is required for acceptance\n",
+        )
 
 
 if __name__ == "__main__":

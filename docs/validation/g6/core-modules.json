@@ -8,6 +8,11 @@
       "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
     },
     {
+      "path": "crates/jet3/src/allocation_traverse.rs",
+      "classification": "format_safety",
+      "sha256": "f7b3de9413b7ce615e14f7e344f66113492c7e6b50154687d41633ca244a47c4"
+    },
+    {
       "path": "crates/jet3/src/atomic.rs",
       "classification": "safety",
       "sha256": "5c1961c2989126038576ccf987e151eb4ecd351659742721989b03425d477ebe"
@@ -60,7 +65,7 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "cac070c0c620381d91de351c76197a55ae0cf9820cda1298ae2b1646524a2eaf"
+      "sha256": "11c71d7799172a76459bce12007761a0c8abe26e409021dc79a3eb168f1cf249"
     },
     {
       "path": "crates/jet3/src/limits.rs",

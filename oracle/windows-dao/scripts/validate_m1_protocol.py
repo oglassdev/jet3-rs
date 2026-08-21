@@ -7,6 +7,7 @@ canonical snapshots, exact semantic comparisons, and immutable bundle bindings.
 
 from __future__ import annotations
 
+# Provenance usage: EXP-0007.
 import copy
 from pathlib import Path
 from typing import Any

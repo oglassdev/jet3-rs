@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -445,6 +446,39 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         ):
             observed = fuzz_evidence._process_tree_rss(10)
         self.assertEqual(observed, (100 + 200 + 300) * 1024)
+
+    @unittest.skipUnless(hasattr(os, "wait4"), "requires POSIX wait4 resource usage")
+    def test_observer_uses_child_high_water_rss_when_samples_miss_peak(self) -> None:
+        log_path = self.bundle / "producer.log"
+        executable = Path(sys.executable).resolve()
+        reported_rss = 16 * 1024 * 1024
+        script = (
+            "payload = bytearray(32 * 1024 * 1024)\n"
+            "for offset in range(0, len(payload), 4096): payload[offset] = 1\n"
+            "del payload\n"
+            f"print({f'Running `{executable}`'!r})\n"
+            "print('#1 DONE cov: 1 ft: 1 corp: 1/1b lim: 1 "
+            "exec/s: 1 rss: 16Mb')\n"
+        )
+        with mock.patch.object(
+            fuzz_evidence,
+            "_process_tree_rss",
+            return_value=1024,
+        ):
+            observer = fuzz_evidence.observe_producer(
+                self.root,
+                log_path,
+                [str(executable), "-c", script],
+                10.0,
+                {},
+                {"PATH": os.environ.get("PATH") or "/usr/bin:/bin"},
+            )
+        self.assertLess(1024, reported_rss)
+        self.assertGreaterEqual(observer["peak_rss_bytes"], reported_rss)
+        self.assertGreaterEqual(
+            observer["peak_rss_bytes"],
+            fuzz_evidence.parse_reported_rss(log_path.read_text(encoding="utf-8")),
+        )
 
     def test_vacuous_registry_is_rejected(self) -> None:
         self.registry["targets"] = []

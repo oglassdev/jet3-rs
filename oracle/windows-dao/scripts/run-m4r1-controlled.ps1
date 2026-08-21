@@ -1,3 +1,4 @@
+# Provenance usage: EXP-0014.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$RepositoryRoot,
