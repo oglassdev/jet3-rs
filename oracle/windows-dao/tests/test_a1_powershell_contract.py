@@ -566,10 +566,13 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "Invoke-A1WithDatabase",
                 "Add-A1Table",
                 "Add-A1RowBatch",
+                "Assert-A1Quiescent",
             )
         )
         with tempfile.TemporaryDirectory(prefix="a1-semantic-reread-") as directory:
-            database = Path(directory) / "semantic.mdb"
+            template_database = Path(directory) / "template.mdb"
+            one_session_database = Path(directory) / "one-session.mdb"
+            per_table_database = Path(directory) / "per-table.mdb"
             body = (
                 f". {ps_quote(DAO_VALUES)}\n"
                 f". {ps_quote(PAGE_STORE)}\n"
@@ -583,7 +586,7 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "$script:A1DbFixedField = 1\n"
                 "$script:A1DbOpenSnapshot = 4\n"
                 "$script:A1Locale = ';LANGID=0x0409;CP=1252;COUNTRY=0'\n"
-                f"$script:A1DatabasePath = {ps_quote(database)}\n"
+                f"$script:A1DatabasePath = {ps_quote(template_database)}\n"
                 "$script:A1RoleNames = @{ D = 'A1TAB_A'; L = 'A1TAB_B'; "
                 "P = 'A1TAB_C'; H = 'A1TAB_D' }\n"
                 "$script:A1Extant = @{ D = $false; L = $false; "
@@ -614,6 +617,15 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "  Add-A1RowBatch -Role 'D'\n"
                 "  Add-A1Table -Role 'L'\n"
                 "  Add-A1RowBatch -Role 'L'\n"
+                "  Assert-A1Quiescent\n"
+                f"  [IO.File]::Copy($script:A1DatabasePath, "
+                f"{ps_quote(one_session_database)}, $false)\n"
+                f"  [IO.File]::Copy($script:A1DatabasePath, "
+                f"{ps_quote(per_table_database)}, $false)\n"
+                f"  $currentInputSha = Get-M1FileSha256 -Path "
+                f"{ps_quote(one_session_database)}\n"
+                f"  $legacyInputSha = Get-M1FileSha256 -Path "
+                f"{ps_quote(per_table_database)}\n"
                 "  $script:A1OriginalDatabaseAction = "
                 "(Get-Command Invoke-A1WithDatabase).ScriptBlock\n"
                 "  function Invoke-A1WithDatabase {\n"
@@ -622,9 +634,14 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "    & $script:A1OriginalDatabaseAction "
                 "-Action $Action -Create:$Create\n"
                 "  }\n"
+                f"  $script:A1DatabasePath = {ps_quote(one_session_database)}\n"
                 "  $script:A1MeasuredOpenCount = 0\n"
                 "  $current = @(Read-A1SemanticTables)\n"
                 "  $currentOpens = $script:A1MeasuredOpenCount\n"
+                "  Assert-A1Quiescent\n"
+                "  $currentDatabaseSha = Get-M1FileSha256 "
+                "-Path $script:A1DatabasePath\n"
+                f"  $script:A1DatabasePath = {ps_quote(per_table_database)}\n"
                 "  $script:A1MeasuredOpenCount = 0\n"
                 "  $legacy = New-Object Collections.ArrayList\n"
                 "  foreach ($role in @('D', 'L', 'P', 'H')) {\n"
@@ -639,11 +656,18 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "      [void]$legacy.Add($document)\n"
                 "    }\n"
                 "  }\n"
+                "  Assert-A1Quiescent\n"
+                "  $legacyDatabaseSha = Get-M1FileSha256 "
+                "-Path $script:A1DatabasePath\n"
                 "  $output = [ordered]@{\n"
                 "    current = @($current)\n"
                 "    legacy = @($legacy)\n"
                 "    current_open_count = $currentOpens\n"
                 "    legacy_open_count = $script:A1MeasuredOpenCount\n"
+                "    current_input_sha256 = $currentInputSha\n"
+                "    legacy_input_sha256 = $legacyInputSha\n"
+                "    current_database_sha256 = $currentDatabaseSha\n"
+                "    legacy_database_sha256 = $legacyDatabaseSha\n"
                 "  } | ConvertTo-Json -Depth 8 -Compress\n"
                 "}\n"
                 "finally {\n"
@@ -658,6 +682,21 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
             observed = json.loads(result.stdout.strip().splitlines()[-1])
             self.assertEqual(observed["current_open_count"], 1)
             self.assertEqual(observed["legacy_open_count"], 2)
+            self.assertEqual(
+                observed["current_input_sha256"], observed["legacy_input_sha256"]
+            )
+            self.assertEqual(
+                observed["current_database_sha256"],
+                observed["legacy_database_sha256"],
+            )
+            self.assertEqual(
+                observed["current_database_sha256"],
+                hashlib.sha256(one_session_database.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                observed["legacy_database_sha256"],
+                hashlib.sha256(per_table_database.read_bytes()).hexdigest(),
+            )
             self.assertEqual(observed["current"], observed["legacy"])
             expected = [
                 {
