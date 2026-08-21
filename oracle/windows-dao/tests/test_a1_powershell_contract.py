@@ -460,11 +460,14 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
     def test_real_page_snapshot_matches_naive_rehash_and_reconstruction(self) -> None:
         with tempfile.TemporaryDirectory(prefix="a1-page-reuse-") as directory:
             root = Path(directory)
-            bundle = root / "bundle"
-            bundle.mkdir()
-            database = root / "synthetic.mdb"
-            second_path = root / "second.mdb"
-            third_path = root / "third.mdb"
+            stage = root / "stage"
+            bundle = stage / "bundle"
+            working = stage / "working"
+            bundle.mkdir(parents=True)
+            working.mkdir()
+            database = working / "synthetic.mdb"
+            second_path = working / "second.mdb"
+            third_path = working / "third.mdb"
             first_bytes = (
                 b"A" * PAGE_BYTES + b"B" * PAGE_BYTES + b"C" * PAGE_BYTES
             )
@@ -501,8 +504,10 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "    )\n"
                 "  }\n"
                 "}\n"
-                f"$session = [pscustomobject]@{{ StagingBundle = "
-                f"{ps_quote(bundle)} }}\n"
+                f"$stagingBundle = (Get-Item -LiteralPath {ps_quote(bundle)} "
+                "-Force).FullName\n"
+                "$session = [pscustomobject]@{ StagingBundle = "
+                "$stagingBundle }\n"
                 "$store = New-A1PageStore -Session $session\n"
                 "$first = Read-A1PageSnapshot -Store $store "
                 f"-DatabasePath {ps_quote(database)} "
