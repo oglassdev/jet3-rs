@@ -162,6 +162,25 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertNotIn("Stop-Jet3BootstrapProcessTree", monitored)
         self.assertIn("cleanup also failed", self.workflow)
 
+    def test_fast_failure_logs_are_shared_read_and_null_safe(self) -> None:
+        publication = self.workflow.split("          function Publish-A1BoundedLogs", 1)[
+            1
+        ].split("          $repository =", 1)[0]
+        self.assertIn("New-Object IO.FileStream(", publication)
+        self.assertIn(
+            "[IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete", publication
+        )
+        self.assertNotIn("[IO.File]::ReadAllBytes", publication)
+        self.assertIn("if ($null -ne $stream) { $stream.Dispose() }", publication)
+        self.assertIn('$copyFailure = [string]$_.Exception.Message', publication)
+        self.assertIn("if ($copyFailure.Length -gt 2000)", publication)
+        self.assertIn(
+            '"A1 process logs were not retained within their byte ceiling: " +',
+            publication,
+        )
+        self.assertEqual(self.workflow.count("$detail = [string]("), 2)
+        self.assertNotIn("$detail = Get-Content", self.workflow)
+
     def test_campaign_and_independent_bundle_validator_are_exactly_bound(self) -> None:
         self.assertEqual(self.workflow.count("run-a1-controlled.ps1"), 2)
         self.assertIn("from a1_bundle import validate_bundle", self.workflow)
