@@ -38,6 +38,10 @@ fn run(arguments: impl Iterator<Item = OsString>) -> Result<Vec<u8>, Box<dyn std
     let mut fixture_count = 0_u64;
 
     while let Some(path) = arguments.next() {
+        let path = PathBuf::from(path);
+        if is_quarantined(&path) {
+            return Err("fixture path names a quarantined bundle area".into());
+        }
         let sha256 = arguments.next().ok_or("missing verified fixture SHA-256")?;
         let size = arguments
             .next()
@@ -50,7 +54,7 @@ fn run(arguments: impl Iterator<Item = OsString>) -> Result<Vec<u8>, Box<dyn std
             .ok_or("verified fixture byte size is not UTF-8")?
             .parse::<u64>()?;
         snapshot.insert(classify_fixture(
-            PathBuf::from(path),
+            path,
             Sha256::new(sha256)?,
             ByteCount::new(size),
         )?)?;
@@ -64,10 +68,33 @@ fn run(arguments: impl Iterator<Item = OsString>) -> Result<Vec<u8>, Box<dyn std
     Ok(snapshot.to_canonical_json()?)
 }
 
+fn is_quarantined(path: &std::path::Path) -> bool {
+    let rendered = path.as_os_str().to_string_lossy();
+    rendered.contains("project-source") || rendered.contains("project-context")
+}
+
 fn exit_after_write(mut output: impl Write, bytes: &[u8], success: u8) -> ExitCode {
     if output.write_all(bytes).is_ok() {
         ExitCode::from(success)
     } else {
         ExitCode::from(74)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::is_quarantined;
+
+    #[test]
+    fn quarantined_bundle_paths_are_refused() {
+        assert!(is_quarantined(Path::new("bundle/project-source/file.mdb")));
+        assert!(is_quarantined(Path::new(
+            "bundle/project-context-copy/file.mdb"
+        )));
+        assert!(!is_quarantined(Path::new(
+            "bundle/controller-backups/file.mdb"
+        )));
     }
 }

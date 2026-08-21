@@ -412,84 +412,149 @@ impl Error for ClassifierSnapshotError {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::PathBuf;
+    use std::env;
+    use std::path::{Component, Path, PathBuf};
+    use std::process::Command;
 
-    use jet3::ByteCount;
+    use jet3::{ByteCount, PageKind};
 
-    use super::{ClassifierSnapshot, CommitId, PAGE_BUFFER_BYTES, classify_fixture};
+    use super::{
+        ClassifiedFixture, ClassifierSnapshot, CommitId, PageKindHistogram, classify_fixture,
+    };
     use crate::Sha256;
 
     const SOURCE_COMMIT: &str = "eb92f66a82ddd62c863fc7b1caead1b2d85af397";
+    const EXTERNAL_ROOT_VARIABLE: &str = "JET3_EXTERNAL_FIXTURE_ROOT";
+    const MANIFEST_FIELDS_SCRIPT: &str = r#"import json, sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    manifest = json.load(source)
+for fixture in manifest["fixtures"]:
+    fields = (
+        fixture["id"],
+        fixture["path"],
+        fixture["sha256"],
+        str(fixture["size_bytes"]),
+    )
+    sys.stdout.buffer.write(("\0".join(fields) + "\0").encode("ascii"))
+"#;
+    type VerifiedFixture = (PathBuf, Sha256, ByteCount);
 
-    struct FixtureFile(PathBuf);
+    fn repository_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
 
-    impl Drop for FixtureFile {
-        fn drop(&mut self) {
-            let _ = fs::remove_file(&self.0);
+    fn verified_manifest_fixtures(
+        repository: &Path,
+        external_root: &Path,
+    ) -> Result<Vec<VerifiedFixture>, Box<dyn std::error::Error>> {
+        let verifier = Command::new(repository.join("tools/inspect_external_corpus.py"))
+            .current_dir(repository)
+            .env(EXTERNAL_ROOT_VARIABLE, external_root)
+            .output()?;
+        if !verifier.status.success() {
+            return Err(format!(
+                "external corpus verifier failed: {}",
+                String::from_utf8_lossy(&verifier.stderr)
+            )
+            .into());
         }
+
+        let manifest = repository.join("docs/validation/external-corpus.json");
+        let parser = Command::new("python3")
+            .arg("-c")
+            .arg(MANIFEST_FIELDS_SCRIPT)
+            .arg(manifest)
+            .output()?;
+        if !parser.status.success() {
+            return Err(format!(
+                "external corpus manifest parser failed: {}",
+                String::from_utf8_lossy(&parser.stderr)
+            )
+            .into());
+        }
+        let fields = parser
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|field| !field.is_empty())
+            .map(std::str::from_utf8)
+            .collect::<Result<Vec<_>, _>>()?;
+        if fields.is_empty() || fields.len() % 4 != 0 {
+            return Err("external corpus manifest parser returned an invalid record set".into());
+        }
+        fields
+            .chunks_exact(4)
+            .map(|fixture| {
+                let relative = PathBuf::from(fixture[1]);
+                if relative.is_absolute()
+                    || relative.components().any(|component| {
+                        matches!(component, Component::ParentDir | Component::CurDir)
+                    })
+                {
+                    return Err("external corpus manifest returned an unsafe path".into());
+                }
+                Ok((
+                    external_root.join(relative),
+                    Sha256::new(fixture[2])?,
+                    ByteCount::new(fixture[3].parse::<u64>()?),
+                ))
+            })
+            .collect()
     }
 
     #[test]
-    fn classifier_run_reproduces_committed_snapshot_byte_for_byte()
+    fn real_corpus_run_reproduces_committed_snapshot_byte_for_byte()
     -> Result<(), Box<dyn std::error::Error>> {
-        let specifications: [(&str, &[(u8, u64)]); 4] = [
-            (
-                "5c18e9d85c2c91a1afdd6d2ddc64c990fd1442c01c753a5d76d4b6d15259537b",
-                &[(0, 33), (1, 646), (2, 28), (3, 7), (4, 62), (9, 1)],
-            ),
-            (
-                "0a68f70d901d4b519b765323c141c794b427f3d4ee25ef2bd390ce2a493378d9",
-                &[(0, 33), (1, 439), (2, 28), (3, 7), (4, 62), (9, 208)],
-            ),
-            (
-                "d8dba78c0ce51614f0099e9db7b2cd10790935ffb5db989db5fc766b7c5881fa",
-                &[(1, 437), (2, 79), (4, 37), (9, 42)],
-            ),
-            (
-                "42aa474ee656d3f1249af08424ed92c91be1388b308906cafb54b4e7ff812d61",
-                &[(1, 778), (2, 190), (4, 37), (9, 34)],
-            ),
-        ];
+        let Some(external_root) = env::var_os(EXTERNAL_ROOT_VARIABLE) else {
+            return Ok(());
+        };
+        let repository = repository_root();
         let mut snapshot = ClassifierSnapshot::new(CommitId::new(SOURCE_COMMIT)?);
-        let mut files = Vec::new();
-
-        for (index, (sha256, counts)) in specifications.into_iter().enumerate() {
-            let page_count = counts
-                .iter()
-                .try_fold(1_u64, |total, (_, count)| total.checked_add(*count))
-                .ok_or("synthetic page count overflow")?;
-            let byte_count = page_count
-                .checked_mul(PAGE_BUFFER_BYTES as u64)
-                .ok_or("synthetic byte count overflow")?;
-            let byte_count_usize = usize::try_from(byte_count)?;
-            let mut bytes = vec![0_u8; byte_count_usize];
-            bytes[4..19].copy_from_slice(b"Standard Jet DB");
-            let mut page = 1_usize;
-            for (tag, count) in counts {
-                for _ in 0..*count {
-                    bytes[page * PAGE_BUFFER_BYTES] = *tag;
-                    page = page.checked_add(1).ok_or("synthetic page overflow")?;
-                }
-            }
-            let path = std::env::temp_dir().join(format!(
-                "jet3-classifier-snapshot-{}-{index}.mdb",
-                std::process::id()
-            ));
-            fs::write(&path, bytes)?;
-            let file = FixtureFile(path);
-            snapshot.insert(classify_fixture(
-                &file.0,
-                Sha256::new(sha256)?,
-                ByteCount::new(byte_count),
-            )?)?;
-            files.push(file);
+        for (path, sha256, size) in
+            verified_manifest_fixtures(&repository, Path::new(&external_root))?
+        {
+            snapshot.insert(classify_fixture(path, sha256, size)?)?;
         }
-
         assert_eq!(
             snapshot.to_canonical_json()?,
             include_bytes!("../../../docs/validation/stage1-classifier-snapshot.json")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn writer_orders_synthetic_fixture_and_unknown_keys_canonically()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let commit = CommitId::new("c".repeat(40))?;
+        let mut snapshot = ClassifierSnapshot::new(commit);
+        for (digest, kinds) in [
+            (
+                "b".repeat(64),
+                [PageKind::Unknown(0xaa), PageKind::Unknown(0x0f)],
+            ),
+            ("a".repeat(64), [PageKind::Data, PageKind::Data]),
+        ] {
+            let mut histogram = PageKindHistogram::new();
+            for kind in kinds {
+                histogram.record(kind)?;
+            }
+            snapshot.insert(ClassifiedFixture {
+                sha256: Sha256::new(digest)?,
+                page_count: 2,
+                histogram,
+            })?;
+        }
+
+        let json = String::from_utf8(snapshot.to_canonical_json()?)?;
+        let first = json
+            .find(&format!("{}@", "a".repeat(64)))
+            .ok_or("missing a key")?;
+        let second = json
+            .find(&format!("{}@", "b".repeat(64)))
+            .ok_or("missing b key")?;
+        assert!(first < second);
+        let low_tag = json.find("\"0f\":1").ok_or("missing low unknown tag")?;
+        let high_tag = json.find("\"aa\":1").ok_or("missing high unknown tag")?;
+        assert!(low_tag < high_tag);
         Ok(())
     }
 }
