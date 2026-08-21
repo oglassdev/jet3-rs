@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -419,6 +420,56 @@ class FuzzCampaignValidationTests(unittest.TestCase):
                     )
         self.assertFalse(output.exists())
         self.assertEqual(list(self.bundle.glob(".prebuild-failed.tmp-*")), [])
+
+    def test_smoke_runs_targets_concurrently_with_deterministic_results(self) -> None:
+        second_target = copy.deepcopy(self.registry["targets"][0])
+        second_target["name"] = "alpha"
+        self.registry["targets"].append(second_target)
+        started = threading.Barrier(2)
+        observed_outputs: dict[str, Path] = {}
+
+        def run_fake_campaign(
+            _root: Path,
+            target_name: str,
+            _kind: str,
+            _sanitizer: str,
+            _cargo: str,
+            _cargo_fuzz: str,
+            output: Path,
+        ) -> str:
+            observed_outputs[target_name] = output
+            started.wait(timeout=5)
+            output.mkdir()
+            return {"alpha": "clean", "example": "crash"}[target_name]
+
+        output = self.bundle / "parallel-smoke"
+        with mock.patch.object(fuzz_campaign, "require_clean_snapshot"):
+            with mock.patch.object(
+                fuzz_campaign,
+                "validate_repository",
+                return_value=(self.registry, self.manifest),
+            ):
+                with mock.patch.object(
+                    fuzz_campaign,
+                    "run_campaign",
+                    side_effect=run_fake_campaign,
+                ):
+                    results = fuzz_campaign.run_smoke(
+                        self.root,
+                        "/usr/bin/cargo",
+                        "/usr/bin/cargo-fuzz",
+                        "address",
+                        output,
+                        jobs=2,
+                    )
+
+        self.assertEqual(results, ["clean", "crash"])
+        self.assertEqual(set(observed_outputs), {"alpha", "example"})
+        self.assertNotEqual(observed_outputs["alpha"], observed_outputs["example"])
+        self.assertEqual(
+            {path.name for path in output.iterdir()},
+            {"alpha", "example"},
+        )
 
     def test_runtime_rss_sampler_sums_only_the_process_tree(self) -> None:
         process_table = "\n".join(

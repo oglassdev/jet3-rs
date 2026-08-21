@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import math
 import os
@@ -45,6 +46,7 @@ REQUIRED_SEED_TEXT = ("id", "path", "purpose", "origin", "generator", "rights", 
 REQUIRED_ENVIRONMENT = ("os", "architecture", "encoding", "line_endings")
 RESULTS = {"clean", "crash", "panic", "hang", "sanitizer_finding", "limit_exceeded"}
 SANITIZERS = {"address", "memory", "leak", "thread", "undefined", "none"}
+DEFAULT_SMOKE_JOBS = min(4, os.cpu_count() or 1)
 
 
 ValidationError = EvidenceError
@@ -744,7 +746,10 @@ def run_smoke(
     cargo_fuzz: str,
     sanitizer: str,
     output: Path,
+    jobs: int = DEFAULT_SMOKE_JOBS,
 ) -> list[str]:
+    if jobs < 1:
+        raise ValidationError("smoke jobs must be at least 1")
     require_clean_snapshot(root)
     registry, _ = validate_repository(root)
     output = require_external_output(root, output)
@@ -752,21 +757,24 @@ def run_smoke(
     if output.exists() or output.is_symlink():
         raise ValidationError(f"refusing to replace existing evidence path: {output}")
     suite = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=output.parent))
-    results: list[str] = []
     try:
-        for target in registry["targets"]:
-            print(f"running {target['name']} for {target['smoke_seconds']} seconds", flush=True)
-            results.append(
-                run_campaign(
+        targets = sorted(registry["targets"], key=lambda target: target["name"])
+        futures: dict[str, concurrent.futures.Future[str]] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+            for target in targets:
+                name = target["name"]
+                print(f"running {name} for {target['smoke_seconds']} seconds", flush=True)
+                futures[name] = executor.submit(
+                    run_campaign,
                     root,
-                    target["name"],
+                    name,
                     "smoke",
                     sanitizer,
                     cargo,
                     cargo_fuzz,
-                    suite / target["name"],
+                    suite / name,
                 )
-            )
+            results = [futures[target["name"]].result() for target in targets]
         publish_directory(suite, output)
         return results
     except BaseException:
@@ -793,6 +801,7 @@ def main() -> int:
     smoke_parser.add_argument("--cargo-fuzz", default="cargo-fuzz")
     smoke_parser.add_argument("--sanitizer", choices=sorted(SANITIZERS), default="address")
     smoke_parser.add_argument("--output", type=Path, required=True)
+    smoke_parser.add_argument("--jobs", type=int, default=DEFAULT_SMOKE_JOBS)
     args = parser.parse_args()
     root = args.root.resolve()
     try:
@@ -815,7 +824,7 @@ def main() -> int:
                 return 1
         else:
             results = run_smoke(
-                root, args.cargo, args.cargo_fuzz, args.sanitizer, args.output
+                root, args.cargo, args.cargo_fuzz, args.sanitizer, args.output, args.jobs
             )
             if any(result != "clean" for result in results):
                 print("error: one or more fuzz campaigns recorded a finding", file=sys.stderr)

@@ -107,17 +107,21 @@ Run the deterministic developer/CI smoke for every registered target:
 
 ```sh
 python3 fuzz/tools/fuzz_campaign.py smoke \
+  --jobs 4 \
   --output /absolute/path/to/new-fuzz-evidence-suite
 ```
 
-The smoke runner copies only manifest-listed seeds into disposable corpora,
-rejects corpora over their registered byte bounds, and runs every target for
-at least 60 seconds with the registered input and peak-RSS limits. The output
-path must not exist and must be outside the Git checkout. Campaigns refuse to
-start unless the checkout is completely clean; the complete suite is built
-beside its destination and atomically renamed only after every target bundle
-validates. Run one smoke or ten-minute campaign with the same retained-evidence
-path:
+The smoke runner copies only manifest-listed seeds into per-target disposable
+corpora, rejects corpora over their registered byte bounds, and runs every
+target for at least 60 seconds with the registered input and peak-RSS limits.
+It runs up to `min(4, os.cpu_count())` targets concurrently by default; use
+`--jobs 1` for the previous serial behavior. Each target retains its own
+observer and process resource accounting, and suite reports are ordered by
+target name. The output path must not exist and must be outside the Git
+checkout. Campaigns refuse to start unless the checkout is completely clean;
+the complete suite is built beside its destination and atomically renamed only
+after every target bundle validates. Run one smoke or ten-minute campaign with
+the same retained-evidence path:
 
 ```sh
 python3 fuzz/tools/fuzz_campaign.py run binary_cursor --kind smoke \
