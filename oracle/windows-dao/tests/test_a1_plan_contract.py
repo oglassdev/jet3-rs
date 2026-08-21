@@ -32,7 +32,7 @@ from a1_spec import (  # noqa: E402
 from protocol_validation import ValidationError, sha256  # noqa: E402
 
 REVISION_PLAN = CHECKED_PLAN.with_name("a1-allocation-maps-r2.plan.json")
-REVISION_PLAN_SHA256 = "4f35f1dbf977051f79eee3b84345dcbf3ced6e2aa64441879214012227213a77"
+REVISION_PLAN_SHA256 = "6967e72c0ea6c6aa68f102d76c48764a6300caebb4b6f7bbb2e0b931822b5b0c"
 
 
 class A1PlanContractTests(unittest.TestCase):

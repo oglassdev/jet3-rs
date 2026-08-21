@@ -6,6 +6,24 @@
     "provenance_entry": "EXP-0038",
     "recorded_utc_date": "2026-08-20",
     "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts for amendment control when the first schema-valid replica observation is retained for inspection; a hosted dispatch, preflight or controller setup, or worker launch that retains no replica observation does not satisfy this criterion",
+    "prior_hosted_dispatches": {
+      "pre_worker_failures": [
+        32434371779,
+        32437968174,
+        32439806983,
+        32441192546
+      ],
+      "worker_timeout": {
+        "run_id": 32442251143,
+        "host": "proven stock x86 DAO image",
+        "worker_runtime": "approximately 30 minutes",
+        "worker_ceiling_seconds": 1800,
+        "retained_diagnostics_artifact": "windows-dao-a1-diagnostics-32442251143-1"
+      },
+      "retained_replica_observation": false,
+      "checkpoint_observation_page_capture_or_bundle_produced_or_retained": false
+    },
     "revision_of": "DAO-A1-ALLOCATION-MAPS-001",
     "original_plan": {
       "path": "oracle/windows-dao/experiments/a1/a1-allocation-maps.plan.json",

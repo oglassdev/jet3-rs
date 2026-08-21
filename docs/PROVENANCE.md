@@ -2823,8 +2823,9 @@ Use `not applicable` explicitly rather than omitting a field.
 ### EXP-0038 — Preregistered A1 report-interpretation amendment
 
 - Recorded: 2026-08-20, OpenAI Codex
-- Kind: additive pre-acquisition experiment-plan revision; no DAO acquisition,
-  physical-format result, or independent scientific validation
+- Kind: additive pre-acquisition experiment-plan revision; no retained DAO
+  scientific acquisition, physical-format result, or independent scientific
+  validation
 - Question: How must the A1 campaign encode preregistered no-outcome reasons
   and retain a decisive analysis while independent recomputation remains
   unavailable?
@@ -2833,9 +2834,13 @@ Use `not applicable` explicitly rather than omitting a field.
   plan and analysis-report schema plus the fail-closed decisive-report rule in
   the checked A1 contract; no MDB input, campaign output, donated fixture, or
   third-party implementation was inspected
-- Environment: not executed; `preregistration.acquisition_started` remains
-  `false`, and the original x86 Windows, PowerShell 5.1, Python 3.13.x, exact
-  clean pushed source, and `DAO.DBEngine.36` bindings remain unchanged
+- Environment: hosted A1 workflow dispatches `32434371779`, `32437968174`,
+  `32439806983`, and `32441192546` stopped in preflight or controller setup
+  before any worker ran. Dispatch `32442251143` bound the proven stock x86 DAO
+  image and ran one worker for approximately 30 minutes before the 1,800-second
+  worker ceiling terminated it. The original Windows, PowerShell 5.1, Python
+  3.13.x, exact clean pushed source, and `DAO.DBEngine.36` requirements remain
+  unchanged.
 - Protocol: preserve the complete `EXP-0037` scientific design and record the
   canonical mapping from each plan prose reason to the snake_case identifiers
   emitted by analysis reports; map the zero/multiple-survivor and record/inline
@@ -2847,12 +2852,22 @@ Use `not applicable` explicitly rather than omitting a field.
   recomputing validator exists and accepts the retained report and bundle
 - Artifacts: revision plan
   `oracle/windows-dao/experiments/a1/a1-allocation-maps-r2.plan.json`, SHA-256
-  `4f35f1dbf977051f79eee3b84345dcbf3ced6e2aa64441879214012227213a77`;
+  `6967e72c0ea6c6aa68f102d76c48764a6300caebb4b6f7bbb2e0b931822b5b0c`;
   immutable original plan SHA-256
   `a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80`
-- Observation: no A1 database, page capture, candidate set, bundle, or
-  scientific report exists. The original plan, schemas, and `a1_spec.py`
-  validation remain byte-for-byte unchanged.
+- Observation: none of the five dispatches produced or retained a checkpoint
+  observation, page capture, replica observation, candidate set, bundle, or
+  scientific report. Run `32442251143` retained only diagnostics artifact
+  `windows-dao-a1-diagnostics-32442251143-1`. The immutable original plan does
+  not define worker launch as acquisition start. For
+  `preregistration.acquisition_started` and its `amendment_rule`, this revision
+  treats acquisition as started when the first schema-valid replica observation
+  is retained for inspection, because that is the first preregistered
+  scientific artifact capable of informing a later amendment. A dispatch,
+  preflight or controller setup, or worker launch without a retained replica
+  observation does not meet that criterion; the flag therefore remains
+  `false`. The original plan, schemas, and `a1_spec.py` validation remain
+  byte-for-byte unchanged.
 - Interpretation: this amendment resolves representation and artifact-status
   conflicts before acquisition without changing a scientific condition or
   authorizing execution. A decisive analyzer result is not independently
