@@ -37,7 +37,23 @@ AMBIGUOUS_RECORD_BOUNDARY = "ambiguous_record_boundary"
 AMBIGUOUS_INLINE_BOUNDARY = "ambiguous_inline_boundary"
 UNEXPLAINED_INLINE_SUFFIX = "unexplained_nonzero_inline_suffix"
 HOLDOUT_PREDICTION_FAILURE = "holdout_prediction_failure"
-INCOMPLETE_TRANSITION_EVIDENCE = "incomplete_transition_evidence"
+
+# The plan states its no-outcome conditions as prose; the preregistered report
+# schema accepts only these identifiers. Every emitted reason maps onto exactly
+# one plan condition, and no reason outside this map may be emitted.
+PLAN_REASONS: dict[str, str] = {
+    REPLICA_DISAGREEMENT: "replica disagreement",
+    MISSING_CONVERSION: "missing inline-to-indirect conversion",
+    RESOURCE_BOUND_BREACH: "any resource bound breach",
+    NO_SURVIVING_MODEL: "zero or more than one surviving joint model",
+    MULTIPLE_SURVIVING_MODELS: "zero or more than one surviving joint model",
+    IDLE_VOLATILITY: "idle volatility",
+    UNRECONSTRUCTABLE_SNAPSHOT: "unreconstructable snapshot",
+    AMBIGUOUS_RECORD_BOUNDARY: "ambiguous record or inline boundary",
+    AMBIGUOUS_INLINE_BOUNDARY: "ambiguous record or inline boundary",
+    UNEXPLAINED_INLINE_SUFFIX: "unexplained nonzero inline suffix",
+    HOLDOUT_PREDICTION_FAILURE: "holdout prediction failure",
+}
 
 METADATA_PAGE = 1
 INLINE_TAG = 0x00
@@ -77,6 +93,8 @@ class Abort(Exception):
     """A preregistered no-outcome condition detected during analysis."""
 
     def __init__(self, reason: str) -> None:
+        if reason not in PLAN_REASONS:
+            raise ValueError(f"{reason!r} is not a preregistered no-outcome condition")
         super().__init__(reason)
         self.reason = reason
 
@@ -222,26 +240,46 @@ def surviving_record_pages(view: ReplicaView) -> set[int]:
     return surviving
 
 
-def _record_interval(view: ReplicaView, page: int) -> tuple[int, int]:
-    lowest = PAGE_SIZE
-    highest = -1
+def _observed_changes(view: ReplicaView, page: int) -> set[int]:
+    """Byte positions any preregistered non-idle transition is observed to change."""
+    changed: set[int] = set()
     for left, right in ALL_TRANSITIONS:
         view.work.charge(1)
         if view.hash_at(left, page) == view.hash_at(right, page):
             continue
         before = view.page(left, page)
         after = view.page(right, page)
-        first = 0
-        while before[first] == after[first]:
-            first += 1
-        last = PAGE_SIZE - 1
-        while before[last] == after[last]:
-            last -= 1
-        lowest = min(lowest, first)
-        highest = max(highest, last)
-    if highest < 0 or highest + 1 - lowest < INLINE_START_PAGE_WIDTH + 1:
+        view.work.charge(PAGE_SIZE)
+        changed.update(
+            index for index in range(PAGE_SIZE) if before[index] != after[index]
+        )
+    return changed
+
+
+def _record_interval(view: ReplicaView, page: int) -> tuple[int, int]:
+    """Select the one caller-delimited record with a unique observed start and end.
+
+    A candidate interval must contain every observed change on the page and
+    must have both of its endpoint bytes witnessed by an observed change; the
+    plan supplies no other delimiter. Exactly one interval can satisfy both, so
+    an empty or too-short observation is the ambiguity the plan rules on.
+    """
+    changed = _observed_changes(view, page)
+    if not changed:
         raise Abort(AMBIGUOUS_RECORD_BOUNDARY)
-    return lowest, highest + 1
+    lowest = min(changed)
+    highest = max(changed)
+    intervals = [
+        (start, highest + 1)
+        for start in (lowest,)
+        if start in changed and highest in changed and changed <= set(range(start, highest + 1))
+    ]
+    if len(intervals) != 1:
+        raise Abort(AMBIGUOUS_RECORD_BOUNDARY)
+    start, end = intervals[0]
+    if end - start < INLINE_START_PAGE_WIDTH + 1:
+        raise Abort(AMBIGUOUS_RECORD_BOUNDARY)
+    return start, end
 
 
 def _map_type_offset(view: ReplicaView, page: int, interval: tuple[int, int]) -> tuple[int, int]:
@@ -274,7 +312,17 @@ def _inline_extent(
     interval: tuple[int, int],
     type_offset: int,
     conversion_ordinal: int,
+    pointer_extent: int,
+    slot_extent: int,
 ) -> tuple[int, frozenset[int]]:
+    """Select the plan's one exact record boundary by candidate elimination.
+
+    A candidate boundary must agree with the used and free pointer
+    observations, explain every final inline bit, explain the inline-to-
+    indirect conversion by containing the observed type-1 slot array, and leave
+    an all-zero suffix at every inline checkpoint. Surviving on none of these
+    or on more than one candidate produces the preregistered ambiguity.
+    """
     _, end = interval
     bitmap_start = type_offset + 1 + INLINE_START_PAGE_WIDTH
     if bitmap_start >= end:
@@ -282,14 +330,26 @@ def _inline_extent(
     anchor = CHECKPOINT_IDS[conversion_ordinal - 1]
     record = view.page(anchor, page)
     view.work.charge(end - bitmap_start)
-    nonzero = [index for index in range(bitmap_start, end) if record[index]]
-    if not nonzero:
+    explained = [
+        boundary
+        for boundary in range(bitmap_start + 1, end + 1)
+        if record[boundary - 1] and boundary >= max(pointer_extent, slot_extent)
+    ]
+    if not explained:
         raise Abort(AMBIGUOUS_INLINE_BOUNDARY)
-    boundary = nonzero[-1] + 1
-    for name in CHECKPOINT_IDS[:conversion_ordinal]:
-        view.work.charge(end - boundary)
-        if any(view.page(name, page)[boundary:end]):
-            raise Abort(UNEXPLAINED_INLINE_SUFFIX)
+    quiet: list[int] = []
+    for boundary in explained:
+        view.work.charge(conversion_ordinal * (end - boundary) + 1)
+        if not any(
+            any(view.page(name, page)[boundary:end])
+            for name in CHECKPOINT_IDS[:conversion_ordinal]
+        ):
+            quiet.append(boundary)
+    if not quiet:
+        raise Abort(UNEXPLAINED_INLINE_SUFFIX)
+    if len(quiet) > 1:
+        raise Abort(AMBIGUOUS_INLINE_BOUNDARY)
+    boundary = quiet[0]
     first_page = int.from_bytes(record[type_offset + 1 : bitmap_start], "little")
     count = view.page_count(anchor)
     pages: set[int] = set()
@@ -366,26 +426,26 @@ def _type1_slots(
     indirect = CHECKPOINT_IDS[conversion_ordinal:]
     low_phase = [name for name in indirect if ORDINAL[name] <= ORDINAL[LAST_L_CHECKPOINT]]
     if not low_phase:
-        raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+        raise Abort(NO_SURVIVING_MODEL)
     low_active = _active_slots(view, page, interval, type_offset, low_phase[-1])
     if len(low_active) != 1:
-        raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+        raise Abort(NO_SURVIVING_MODEL)
     low_slot = next(iter(low_active))
     final_active = _active_slots(view, page, interval, type_offset, FINAL_CHECKPOINT)
     if len(final_active) != 2 or low_slot not in final_active:
-        raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+        raise Abort(NO_SURVIVING_MODEL)
     high_slot = max(final_active)
     if high_slot != low_slot + 1:
-        raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+        raise Abort(NO_SURVIVING_MODEL)
     for name in indirect:
         active = _active_slots(view, page, interval, type_offset, name)
         if set(active) - {low_slot, high_slot}:
-            raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+            raise Abort(NO_SURVIVING_MODEL)
         for reference in active.values():
             if not 1 <= reference < view.page_count(name):
-                raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+                raise Abort(NO_SURVIVING_MODEL)
             if view.page(name, reference)[0] != EXTENDED_MAP_TAG:
-                raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
+                raise Abort(NO_SURVIVING_MODEL)
     return low_slot, high_slot, final_active[low_slot], final_active[high_slot]
 
 
@@ -435,7 +495,6 @@ def _base_candidates(
             covered.update(origin + bit for bit in _set_bits(bits))
         if not inline_pages <= covered:
             survivors.discard(formula)
-    exact_evidence = False
     for left, right in GROWTH_TRANSITIONS:
         if ORDINAL[left] < conversion_ordinal:
             continue
@@ -448,7 +507,6 @@ def _base_candidates(
         new_bits = sum(value.bit_count() for value in fresh.values())
         view.work.charge(new_bits + 1)
         exact = delta > 0 and new_bits == delta
-        exact_evidence = exact_evidence or exact
         appended = set(range(view.page_count(left), view.page_count(right)))
         for formula in sorted(survivors):
             predicted = {
@@ -463,8 +521,6 @@ def _base_candidates(
                 survivors.discard(formula)
         if not survivors:
             break
-    if not exact_evidence:
-        raise Abort(INCOMPLETE_TRANSITION_EVIDENCE)
     return frozenset(survivors)
 
 
@@ -480,10 +536,15 @@ def derive(view: ReplicaView) -> Derivation:
         raise Abort(AMBIGUOUS_RECORD_BOUNDARY)
     interval = _record_interval(view, page)
     type_offset, conversion_ordinal = _map_type_offset(view, page, interval)
-    boundary, inline_pages = _inline_extent(view, page, interval, type_offset, conversion_ordinal)
     used, free = _pointer_candidates(view, page, interval)
+    observed = {offset for layer in (used, free) for offsets in layer.values() for offset in offsets}
+    pointer_extent = max(observed, default=interval[0]) + POINTER_WIDTH
     low_slot, high_slot, low_reference, high_reference = _type1_slots(
         view, page, interval, type_offset, conversion_ordinal
+    )
+    slot_extent = type_offset + 1 + (high_slot + 1) * POINTER_WIDTH
+    boundary, inline_pages = _inline_extent(
+        view, page, interval, type_offset, conversion_ordinal, pointer_extent, slot_extent
     )
     bases = _base_candidates(
         view, page, interval, type_offset, conversion_ordinal, inline_pages

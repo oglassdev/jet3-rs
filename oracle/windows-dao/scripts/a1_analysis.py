@@ -11,8 +11,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from a1_model import (
     HOLDOUT_PREDICTION_FAILURE,
@@ -95,8 +96,39 @@ def load_replica_indexes(
     return ReplicaIndexes(observation=observation, indexes=indexes)
 
 
+class ReplicaSource(Protocol):
+    """A replica whose artifacts are opened only when the analysis asks for it."""
+
+    def load(self) -> ReplicaIndexes: ...
+
+
+@dataclass(frozen=True)
+class BundleReplicaSource:
+    plan: CheckedPlan
+    observation_path: Path
+    bundle_root: Path
+
+    def load(self) -> ReplicaIndexes:
+        return load_replica_indexes(self.plan, self.observation_path, self.bundle_root)
+
+
+@dataclass(frozen=True)
+class LoadedReplicaSource:
+    replica: ReplicaIndexes
+
+    def load(self) -> ReplicaIndexes:
+        return self.replica
+
+
+def _as_source(candidate: ReplicaSource | ReplicaIndexes) -> ReplicaSource:
+    if isinstance(candidate, ReplicaIndexes):
+        return LoadedReplicaSource(candidate)
+    return candidate
+
+
 def _require_bindings(replicas: list[ReplicaIndexes]) -> None:
-    if [item.observation["replica"] for item in replicas] != list(range(1, REPLICAS + 1)):
+    """Check the bindings of every replica opened so far, in acquisition order."""
+    if [item.observation["replica"] for item in replicas] != list(range(1, len(replicas) + 1)):
         raise ValidationError("A1 analysis requires replicas 1, 2, and 3 in order")
     for key in SHARED_BINDINGS:
         require_equal(len({item.observation[key] for item in replicas}), 1, f"replica binding {key}")
@@ -137,9 +169,14 @@ def _report(
 
 def build_analysis(
     plan: CheckedPlan,
-    replicas: list[ReplicaIndexes],
+    sources: list[ReplicaSource | ReplicaIndexes],
     page_store_root: Path,
 ) -> dict[str, Any]:
+    """Analyze one A1 bundle; the holdout source is opened only after the freeze."""
+    if len(sources) != REPLICAS:
+        raise ValidationError("A1 analysis requires exactly three replica sources")
+    loaders = [_as_source(candidate) for candidate in sources]
+    replicas = [loaders[0].load(), loaders[1].load()]
     _require_bindings(replicas)
     work = WorkCounter()
     store = PageStore(page_store_root, work)
@@ -149,7 +186,7 @@ def build_analysis(
     holdout_evaluated = False
     model: dict[str, Any] | None = None
     try:
-        derivations = [derive(ReplicaView(item, store, work)) for item in replicas[:2]]
+        derivations = [derive(ReplicaView(item, store, work)) for item in replicas]
         if joint_shape(derivations[0]) != joint_shape(derivations[1]):
             raise Abort(REPLICA_DISAGREEMENT)
         candidates = candidate_counts(derivations[0], derivations[1], CANDIDATE_CEILING)
@@ -160,6 +197,9 @@ def build_analysis(
         if survivors > 1:
             raise Abort(MULTIPLE_SURVIVING_MODELS)
         frozen = sole_model(derivations[0], candidates)
+        # The candidate set is frozen; only now may the holdout be opened.
+        replicas.append(loaders[2].load())
+        _require_bindings(replicas)
         holdout_evaluated = True
         try:
             holdout = derive(ReplicaView(replicas[2], store, work))
@@ -189,10 +229,10 @@ def main(argv: list[str] | None = None) -> int:
         if len(arguments.replica) != REPLICAS:
             raise ValidationError("exactly three --replica paths are required")
         plan = load_checked_plan()
-        replicas = [
-            load_replica_indexes(plan, path, arguments.bundle_root) for path in arguments.replica
+        sources: list[ReplicaSource | ReplicaIndexes] = [
+            BundleReplicaSource(plan, path, arguments.bundle_root) for path in arguments.replica
         ]
-        report = build_analysis(plan, replicas, arguments.bundle_root / "page-store")
+        report = build_analysis(plan, sources, arguments.bundle_root / "page-store")
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
         arguments.output.write_bytes(canonical_json_bytes(report))
     except (OSError, ValidationError) as exc:

@@ -16,8 +16,32 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from a1_model import EXTENDED_MAP_BITS, ORDINAL, ReplicaIndexes  # noqa: E402
-from a1_spec import CHECKPOINT_IDS, LADDER, PAGE_SIZE, PLAN_SHA256, ROLE_BINDINGS  # noqa: E402
+from a1_model import ReplicaIndexes  # noqa: E402
+from a1_spec import CHECKED_PLAN, load_checked_plan  # noqa: E402
+from protocol_validation import sha256  # noqa: E402
+
+# Every fixture constant below is read out of the checked plan document, so the
+# synthetic bundles cannot silently mirror the implementation they exercise.
+PLAN = load_checked_plan().document
+PLAN_SHA256 = sha256(CHECKED_PLAN)
+CHECKPOINT_IDS: tuple[str, ...] = tuple(PLAN["checkpoint_design"]["checkpoint_ids"])
+ORDINAL = {name: index for index, name in enumerate(CHECKPOINT_IDS)}
+PAGE_SIZE = PLAN["page_capture"]["page_size"]
+PLAN_NO_OUTCOME_REASONS: tuple[str, ...] = tuple(PLAN["decision_rules"]["no_scientific_outcome"])
+ROLE_BINDINGS = [
+    {role: binding[role] for role in PLAN["tables"]["roles"]}
+    for binding in PLAN["tables"]["role_bindings"]
+]
+LADDER: tuple[int, ...] = tuple(
+    int(name.rsplit("_", 1)[1]) for name in CHECKPOINT_IDS if name.startswith("L_REL_")
+)
+EXTENDED_MAP_BITS = int(
+    next(
+        candidate
+        for candidate in PLAN["hypotheses"]["extended_base_candidates"]
+        if candidate.startswith("slot_relative_expected_")
+    ).rsplit("_", 1)[1]
+)
 
 RECORD_BASE = 16
 CONVERSION_CHECKPOINT = "L_REL_0512"
