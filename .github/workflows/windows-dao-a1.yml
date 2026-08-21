@@ -47,7 +47,8 @@ jobs:
             "oracle/windows-dao/scripts/run-a1-controlled.ps1",
             "oracle/windows-dao/scripts/a1/A1.Controller.ps1",
             "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
-            "oracle/windows-dao/scripts/a1/A1.PageStore.ps1"
+            "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
+            "oracle/windows-dao/scripts/a1/A1.Progress.ps1"
           )
           foreach ($sourcePath in $sourcePaths) {
             $item = Get-Item -LiteralPath $sourcePath -Force
@@ -432,6 +433,7 @@ jobs:
                 "-RepositoryRoot", $repository,
                 "-EnvironmentPath", $environmentPath,
                 "-OutputRoot", $outputRoot,
+                "-DiagnosticsRoot", $diagnostics,
                 "-GitCommit", $env:GITHUB_SHA,
                 "-RunId", $runId
               )
