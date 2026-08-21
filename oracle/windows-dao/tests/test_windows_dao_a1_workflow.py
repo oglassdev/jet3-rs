@@ -292,11 +292,18 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertIn("$env:GITHUB_SHA", self.workflow)
         self.assertIn("$env:EXPECTED_PROVIDER_SHA256", self.workflow)
         self.assertIn("id: bundle_validation", self.workflow)
+        self.assertNotRegex(
+            self.workflow,
+            r"(?m)^\s*&\s+python(?:\.exe)?\b[^\r\n]*\s-c\s+\$[A-Za-z_]\w*",
+        )
+        self.assertIn("validate_bundle_step.py", self.workflow)
+        self.assertIn("[IO.File]::WriteAllText(", self.workflow)
+        self.assertIn("& python -B $validatorPath", self.workflow)
         self.assertIn(
             "if: success() && steps.bundle_validation.outcome == 'success'",
             self.workflow,
         )
-        self.assertIn("Upload independently validated A1 evidence", self.workflow)
+        self.assertIn("Upload retained A1 bundle", self.workflow)
         self.assertIn("Upload independently validated A1 attestation", self.workflow)
         self.assertIn("Upload bounded A1 diagnostics", self.workflow)
         self.assertIn("jet3_windows_dao_a1_validation_receipt", self.workflow)
@@ -308,7 +315,7 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
             '$campaignRecord.status = "independently_validated"', self.workflow
         )
         evidence = self.workflow.split(
-            "      - name: Upload independently validated A1 evidence", 1
+            "      - name: Upload retained A1 bundle", 1
         )[1].split(
             "      - name: Upload independently validated A1 attestation", 1
         )[0]
@@ -320,6 +327,10 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         )[1]
         self.assertIn("${{ steps.campaign.outputs.bundle_path }}", evidence)
         self.assertNotIn("${{ runner.temp }}\\jet3-a1-diagnostics", evidence)
+        self.assertIn("if: always() && steps.campaign.outcome == 'success'", evidence)
+        self.assertNotIn("steps.bundle_validation.outcome", evidence)
+        self.assertIn("windows-dao-a1-bundle-${{ github.sha }}", evidence)
+        self.assertNotIn("windows-dao-a1-evidence-", evidence)
         self.assertIn("retention-days: 90", evidence)
         self.assertIn(
             "windows-dao-a1-attestation-${{ github.sha }}-${{ github.run_id }}",
@@ -347,7 +358,7 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertEqual(attestation_copy.count("Copy-Item"), 1)
         self.assertIn("-Destination (Join-Path $attestation $name)", attestation_copy)
         validation_step = self.workflow.split("        id: bundle_validation", 1)[1].split(
-            "      - name: Upload independently validated A1 evidence", 1
+            "      - name: Upload retained A1 bundle", 1
         )[0]
         clean_check = validation_step.index(
             "Independent validation changed the exact checkout."

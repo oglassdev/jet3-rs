@@ -580,9 +580,16 @@ jobs:
               receipt_file.write(receipt_bytes)
           print("PASS: independently validated complete A1 bundle")
           '@
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a1-diagnostics"
+          $validatorPath = Join-Path $diagnostics "validate_bundle_step.py"
+          [IO.File]::WriteAllText(
+            $validatorPath,
+            $code,
+            (New-Object Text.UTF8Encoding($false))
+          )
           $receiptPath = Join-Path $env:RUNNER_TEMP `
             "jet3-a1-diagnostics\validation-receipt.json"
-          & python -B -c $code $env:A1_BUNDLE_PATH $env:GITHUB_SHA `
+          & python -B $validatorPath $env:A1_BUNDLE_PATH $env:GITHUB_SHA `
             $env:A1_RUN_ID $env:EXPECTED_PROVIDER_SHA256 $receiptPath `
             $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT
           if ($LASTEXITCODE -ne 0) {
@@ -592,7 +599,6 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
             throw "Independent validation changed the exact checkout."
           }
-          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a1-diagnostics"
           $campaignPath = Join-Path $diagnostics "campaign.json"
           $campaignRecord = Get-Content -LiteralPath $campaignPath -Raw |
             ConvertFrom-Json
@@ -622,11 +628,11 @@ jobs:
             (New-Object Text.UTF8Encoding($false))
           )
 
-      - name: Upload independently validated A1 evidence
-        if: success() && steps.bundle_validation.outcome == 'success'
+      - name: Upload retained A1 bundle
+        if: always() && steps.campaign.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: windows-dao-a1-evidence-${{ github.sha }}-${{ steps.campaign.outputs.run_id }}
+          name: windows-dao-a1-bundle-${{ github.sha }}-${{ steps.campaign.outputs.run_id }}
           path: ${{ steps.campaign.outputs.bundle_path }}
           if-no-files-found: error
           compression-level: 0
