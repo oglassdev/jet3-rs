@@ -38,7 +38,9 @@ exactly. The checked targets are:
 - `allocation`: detached, allocation-free decoding of caller-delimited inline
   and indirect allocation maps plus already-classified extended bitmap pages,
   including truncation, unsupported types, bit and reference boundaries, and
-  exact item/work limits (`SRC-0020`).
+  exact item/work limits, plus bounded page-chain following of input-selected
+  page numbers over a synthetic database with chain-depth, page-visit,
+  repeat, required-kind, and unsupported-step boundaries (`SRC-0020`).
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
@@ -60,9 +62,11 @@ only fixed 512-byte and 2 KiB stack buffers, performs at most sixteen bounded
 region reads, and iterates exactly 256 slots per successful snapshot.
 `page_classification` expands one fixed 2 KiB stack page, performs two
 selected-policy classifications, and checks twelve fixed contextual mappings.
-`allocation` borrows at most one 4 KiB input, uses fixed stack records and one
-fixed 2 KiB page, performs at most 65 calls in each input-selected cursor, and
-scans at most 16,352 fixed extended-bitmap bits in its exact boundary check.
+`allocation` borrows at most one 4 KiB input, uses fixed stack records, one
+fixed 2 KiB page, and one fixed nine-page synthetic database, performs at most
+65 calls in each input-selected cursor and at most eight page-chain steps per
+traversal, and scans at most 16,352 fixed extended-bitmap bits in its exact
+boundary check.
 The checked corpus covers zero/tight limits, primitive reads, arithmetic
 boundary-shaped values, all documented generic Jet signature kinds, unknown
 and truncated signatures, exact/partial Jet 3 geometry,

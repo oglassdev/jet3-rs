@@ -2,6 +2,7 @@
 #![doc = "Safe, clean-room primitives for Access 97 / Jet 3 databases."]
 
 pub mod allocation;
+pub mod allocation_traverse;
 pub mod atomic;
 pub mod binary;
 pub mod binary_writer;
@@ -24,6 +25,10 @@ pub use allocation::{
     AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
     InlineAllocatedPages, InlineAllocationMap, MapPageReferences, decode_allocation_map,
     extended_allocation_bits,
+};
+pub use allocation_traverse::{
+    AllocationTraversalError, PageChainWalker, ReachedMapPage, UnsupportedTraversalStep,
+    VisitedPages, follow_map_page_reference, locate_allocation_map,
 };
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
