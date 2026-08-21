@@ -116,14 +116,70 @@ function Invoke-A1Python {
         [Parameter(Mandatory = $true)][string]$ScriptPath,
         [Parameter(Mandatory = $true)][string[]]$Arguments,
         [Parameter(Mandatory = $true)][string]$Label,
-        [ValidateRange(1, 1800)][int]$MaximumSeconds = 120
+        [ValidateRange(1, 1800)][int]$MaximumSeconds = 120,
+        [AllowEmptyString()][string]$DiagnosticsRoot = "",
+        [AllowEmptyString()][string]$Phase = ""
     )
 
     $timeout = Get-A1CampaignAllowance -MaximumSeconds $MaximumSeconds
-    [void](Invoke-BoundedChildProcess -Executable $Context.PythonPath `
-        -Arguments (@("-B", $ScriptPath) + $Arguments) `
-        -CallerLabel $Label -TimeoutSeconds $timeout -MaximumOutputBytes 1MB `
-        -ReviewedTimeoutCeilingSeconds $MaximumSeconds)
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $result = $null
+        try {
+            $result = Invoke-BoundedChildProcess `
+                -Executable $Context.PythonPath `
+                -Arguments (@("-B", $ScriptPath) + $Arguments) `
+                -CallerLabel $Label -TimeoutSeconds $timeout `
+                -MaximumOutputBytes 1MB `
+                -ReviewedTimeoutCeilingSeconds $MaximumSeconds `
+                -ReturnFailureRecord
+        }
+        catch {
+            $failure = $_
+            if (-not [string]::IsNullOrWhiteSpace($DiagnosticsRoot)) {
+                try {
+                    Write-A1ChildFailureDiagnostic `
+                        -DiagnosticsRoot $DiagnosticsRoot -Label $Label `
+                        -Phase $Phase `
+                        -ExitCode $failure.Exception.Data[
+                            "BoundedProcess.ExitCode"
+                        ] -ElapsedSeconds $clock.Elapsed.TotalSeconds `
+                        -Stdout $failure.Exception.Data[
+                            "BoundedProcess.Stdout"
+                        ] -Stderr $failure.Exception.Data[
+                            "BoundedProcess.Stderr"
+                        ] -ErrorMessage $failure.Exception.Message
+                }
+                catch {
+                    throw ([Convert]::ToString($failure.Exception.Message) +
+                        " A1 child diagnostic retention also failed: " +
+                        [Convert]::ToString($_.Exception.Message))
+                }
+            }
+            throw $failure
+        }
+        if ([int]$result.exit_code -ne 0) {
+            if (-not [string]::IsNullOrWhiteSpace($DiagnosticsRoot)) {
+                try {
+                    Write-A1ChildFailureDiagnostic `
+                        -DiagnosticsRoot $DiagnosticsRoot -Label $Label `
+                        -Phase $Phase -ExitCode $result.exit_code `
+                        -ElapsedSeconds $clock.Elapsed.TotalSeconds `
+                        -Stdout $result.stdout -Stderr $result.stderr `
+                        -ErrorMessage "$Label worker exited nonzero."
+                }
+                catch {
+                    throw ("$Label worker exited nonzero. " +
+                        "A1 child diagnostic retention also failed: " +
+                        [Convert]::ToString($_.Exception.Message))
+                }
+            }
+            $stderr = ConvertTo-A1DiagnosticTail -Value $result.stderr `
+                -MaximumChars 2000
+            throw "$Label worker failed: $stderr"
+        }
+    }
+    finally { $clock.Stop() }
 }
 
 function Assert-A1ExactPushedCommit {
@@ -556,6 +612,7 @@ function Invoke-A1Campaign {
     $binding = $null
     $campaignClock = [Diagnostics.Stopwatch]::StartNew()
     $script:A1CampaignClock = $campaignClock
+    $phase = "preflight"
     try {
         $context = Invoke-M1Preflight -RepositoryRoot $repository `
             -EnvironmentPath $EnvironmentPath -OutputRoot $OutputRoot `
@@ -606,6 +663,7 @@ function Invoke-A1Campaign {
             "oracle/windows-dao/scripts/a1/A1.Worker.ps1"
         $binding = Get-A1WorkerPowerShell
         for ($replica = 1; $replica -le 3; $replica++) {
+            $phase = "replica-$replica"
             if ($campaignClock.Elapsed.TotalSeconds -ge 7200) {
                 throw "A1 campaign exceeded its wall-clock ceiling."
             }
@@ -625,6 +683,7 @@ function Invoke-A1Campaign {
                 -Arguments @("validate-document", $observation) `
                 -Label "A1 replica observation validation"
         }
+        $phase = "analysis"
         $analysisPath = Join-Path $repository $script:A1AnalysisRelative
         $analysisOutput = Join-Path $session.WorkingPath `
             "a1-analysis-report.json"
@@ -641,12 +700,16 @@ function Invoke-A1Campaign {
                     -RelativePath "observations/replica-03.json"),
                 "--bundle-root", $session.StagingBundle,
                 "--output", $analysisOutput
-            ) -Label "A1 preregistered analysis" -MaximumSeconds 600
+            ) -Label "A1 preregistered analysis" -MaximumSeconds 600 `
+            -DiagnosticsRoot $diagnostics -Phase $phase
         $analysisInput = Read-A1ControllerInput -Path $analysisOutput `
             -MaximumBytes 64MB
+        $phase = "analysis-report-validation"
         Invoke-A1Python -Context $context -ScriptPath $contractPath `
             -Arguments @("validate-document", $analysisOutput) `
-            -Label "A1 analysis report validation"
+            -Label "A1 analysis report validation" `
+            -DiagnosticsRoot $diagnostics -Phase $phase
+        $phase = "manifest"
         Write-M1DurableBytes -Session $session `
             -RelativePath "analysis/analysis-report.json" `
             -Bytes $analysisInput.bytes
@@ -656,11 +719,14 @@ function Invoke-A1Campaign {
         if ($campaignClock.Elapsed.TotalSeconds -ge 7200) {
             throw "A1 campaign exceeded its wall-clock ceiling."
         }
+        $phase = "complete-bundle-validation"
         $validate = {
             param($bundle)
             Invoke-A1Python -Context $context -ScriptPath $contractPath `
                 -Arguments @("validate-bundle", $bundle) `
-                -Label "A1 complete bundle validation" -MaximumSeconds 900
+                -Label "A1 complete bundle validation" -MaximumSeconds 900 `
+                -DiagnosticsRoot $diagnostics `
+                -Phase "complete-bundle-validation"
         }
         $recheck = {
             param($stage)
@@ -669,6 +735,7 @@ function Invoke-A1Campaign {
             & $validate $stage.StagingBundle
             return $true
         }
+        $phase = "publication"
         Publish-M1Stage -Stage $session -RecheckScriptBlock $recheck `
             -ValidationScriptBlock $validate
         $published = $session.FinalDirectory
@@ -677,14 +744,31 @@ function Invoke-A1Campaign {
     }
     catch {
         $original = $_
+        $secondaryErrors = New-Object Collections.ArrayList
+        try {
+            Write-A1CampaignFailureDiagnostic -DiagnosticsRoot $diagnostics `
+                -Phase $phase `
+                -ElapsedSeconds $campaignClock.Elapsed.TotalSeconds `
+                -ErrorRecord $original
+        }
+        catch {
+            [void]$secondaryErrors.Add(
+                "A1 campaign diagnostic retention failed: " +
+                [Convert]::ToString($_.Exception.Message)
+            )
+        }
         if ($null -ne $session) {
             try { Remove-A1PrivateStaging -Session $session }
             catch {
-                $cleanup = $_
-                throw ($original.Exception.Message +
-                    " A1 private staging cleanup also failed: " +
-                    $cleanup.Exception.Message)
+                [void]$secondaryErrors.Add(
+                    "A1 private staging cleanup also failed: " +
+                    [Convert]::ToString($_.Exception.Message)
+                )
             }
+        }
+        if ($secondaryErrors.Count -ne 0) {
+            throw ([Convert]::ToString($original.Exception.Message) + " " +
+                (@($secondaryErrors) -join " "))
         }
         throw $original
     }

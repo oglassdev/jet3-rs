@@ -242,14 +242,32 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         )
         self.assertNotIn("[IO.File]::ReadAllBytes", publication)
         self.assertIn("if ($null -ne $stream) { $stream.Dispose() }", publication)
-        self.assertIn('$copyFailure = [string]$_.Exception.Message', publication)
+        self.assertIn(
+            '[string]$copyFailure = [Convert]::ToString($_.Exception.Message)',
+            publication,
+        )
         self.assertIn("if ($copyFailure.Length -gt 2000)", publication)
         self.assertIn(
             '"A1 process logs were not retained within their byte ceiling: " +',
             publication,
         )
-        self.assertEqual(self.workflow.count("$detail = [string]("), 2)
+        self.assertEqual(
+            self.workflow.count("[string]$detail = [Convert]::ToString(("), 2
+        )
+        self.assertNotIn("$detail = [string](", self.workflow)
         self.assertNotIn("$detail = Get-Content", self.workflow)
+
+    def test_campaign_exit_is_observed_and_null_checked_before_comparison(self) -> None:
+        self.assertIn("$campaignExit = $null", self.workflow)
+        completed_wait = self.workflow.index("$process.WaitForExit()")
+        refresh = self.workflow.index("$process.Refresh()", completed_wait)
+        null_guard = self.workflow.index("if ($null -eq $exitCode)", refresh)
+        assignment = self.workflow.index("$campaignExit = [int]$exitCode", null_guard)
+        comparison = self.workflow.index("if ($campaignExit -ne 0)", assignment)
+        self.assertLess(completed_wait, refresh)
+        self.assertLess(refresh, null_guard)
+        self.assertLess(null_guard, assignment)
+        self.assertLess(assignment, comparison)
 
     def test_campaign_and_independent_bundle_validator_are_exactly_bound(self) -> None:
         self.assertEqual(self.workflow.count("run-a1-controlled.ps1"), 2)
