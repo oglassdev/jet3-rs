@@ -10,6 +10,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -166,6 +167,11 @@ def _process_tree_rss(root_pid: int) -> int:
     return sum(rows[pid][1] for pid in descendants if pid in rows) * 1024
 
 
+def _rusage_peak_rss_bytes(usage: Any) -> int:
+    peak = int(usage.ru_maxrss)
+    return peak if sys.platform == "darwin" else peak * 1024
+
+
 def observe_producer(
     root: Path,
     log_path: Path,
@@ -179,6 +185,8 @@ def observe_producer(
     started_clock = time.monotonic()
     peak_rss = 0
     timed_out = False
+    wait_status: int | None = None
+    producer_usage: Any | None = None
     with log_path.open("wb") as log:
         producer = subprocess.Popen(
             command,
@@ -190,19 +198,29 @@ def observe_producer(
         )
         deadline = started_clock + timeout_seconds
         try:
-            while producer.poll() is None:
+            while True:
+                waited_pid, status, usage = os.wait4(producer.pid, os.WNOHANG)
+                if waited_pid == producer.pid:
+                    wait_status = status
+                    producer_usage = usage
+                    break
                 peak_rss = max(peak_rss, _process_tree_rss(producer.pid))
                 if time.monotonic() >= deadline:
                     timed_out = True
                     os.killpg(producer.pid, signal.SIGKILL)
-                    producer.wait()
+                    _, wait_status, producer_usage = os.wait4(producer.pid, 0)
                     break
                 time.sleep(0.05)
         except BaseException:
-            if producer.poll() is None:
+            if wait_status is None:
                 os.killpg(producer.pid, signal.SIGKILL)
-                producer.wait()
+                _, wait_status, producer_usage = os.wait4(producer.pid, 0)
             raise
+        finally:
+            if wait_status is not None:
+                producer.returncode = os.waitstatus_to_exitcode(wait_status)
+        if producer_usage is not None:
+            peak_rss = max(peak_rss, _rusage_peak_rss_bytes(producer_usage))
         exit_code = None if timed_out else producer.returncode
         log.flush()
         os.fsync(log.fileno())
