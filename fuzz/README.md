@@ -131,12 +131,14 @@ seeds, and registry entry together; a missing or seedless target fails
 validation.
 
 `schema/campaign-report.schema.json` defines the durable campaign evidence
-shape. Each version-3 bundle contains `report.json`, the unmodified combined
-cargo-fuzz/libFuzzer `producer.log`, a hashed `observer.json`, `build.json`, and
-the raw locked Cargo metadata result. The observer records the exact command,
+shape. Each version-3 bundle contains `report.json`, the unmodified libFuzzer
+`producer.log`, a hashed `observer.json`, `build.json`, and the raw locked Cargo
+metadata result. After an isolated cargo-fuzz prebuild, the observer executes
+the retained target binary directly and records the exact command,
 cargo, cargo-fuzz, and rustc paths/versions/hashes, executed fuzz binary
 path/hash, UTC timestamps, monotonic elapsed time, sampled process-tree peak
-RSS, exit status, classified outcome, and run count. Every run uses a fresh,
+RSS combined with the child's OS high-water RSS, exit status, classified
+outcome, and run count. Every run uses a fresh,
 isolated target directory with incremental compilation disabled. Subprocesses
 receive only the fully recorded build environment: exact Cargo and rustc
 paths, Cargo home, isolated target/temp paths, deterministic locale/color
@@ -157,8 +159,9 @@ target registry, target source, corpus, lockfile, Cargo configuration, Git
 index, dependency, or seed drift, malformed timestamps or campaign fields,
 mutated or symlinked raw artifacts, non-canonical commands and limits, and
 observed wall-clock or peak-RSS breaches. It reparses the retained producer log
-and requires its run count, executable path, RSS floor, and outcome to agree
-with both the observer and report. Older wrappers without the retained build
+and requires its run count, RSS floor, and outcome to agree with both the
+observer and report, while the direct command and retained prebuild bind the
+executable path and hash. Older wrappers without the retained build
 closure are not evidence. Reports explicitly identify `smoke` or `full`
 campaigns. Smoke reports must cover at least the target's registered duration,
 and full reports must cover at least 600 seconds. A campaign report is evidence
