@@ -11,7 +11,7 @@
     "environment_sha256": {"$ref": "#/$defs/sha256"}, "provider_sha256": {"$ref": "#/$defs/sha256"},
     "replica": {"type": "integer", "minimum": 1, "maximum": 3},
     "checkpoint_id": {"type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[A-Z0-9_]+$"},
-    "ordinal": {"type": "integer", "minimum": 0, "maximum": 23},
+    "ordinal": {"type": "integer", "minimum": 0, "maximum": 24},
     "predecessor_checkpoint_id": {"anyOf": [{"type": "null"}, {"type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[A-Z0-9_]+$"}]},
     "page_count": {"type": "integer", "minimum": 1, "maximum": 65536},
     "file_size_bytes": {"type": "integer", "minimum": 2048, "maximum": 134217728},

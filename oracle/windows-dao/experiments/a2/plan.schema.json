@@ -4,7 +4,7 @@
   "title": "DAO A2 allocation-map preregistration",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocol_version", "document_type", "experiment_id", "preregistration", "execution_gate", "repository_binding", "environment_binding", "question", "replicas", "tables", "checkpoint_design", "page_capture", "record_candidate_procedure", "inline_boundary_procedure", "hypotheses", "analyzer_dry_run_contract", "decision_rules", "decisive_report_handling", "runtime_design", "artifacts", "bounds", "claims"],
+  "required": ["protocol_version", "document_type", "experiment_id", "preregistration", "execution_gate", "repository_binding", "environment_binding", "question", "replicas", "tables", "checkpoint_design", "page_capture", "record_candidate_procedure", "inline_boundary_procedure", "hypotheses", "analyzer_dry_run_contract", "predicate_registry", "decision_rules", "decisive_report_handling", "runtime_design", "artifacts", "bounds", "claims"],
   "properties": {
     "protocol_version": {"const": "1.0.0"},
     "document_type": {"const": "dao_a2_allocation_maps_plan"},
@@ -22,6 +22,7 @@
     "inline_boundary_procedure": {"type": "object"},
     "hypotheses": {"type": "object"},
     "analyzer_dry_run_contract": {"type": "object"},
+    "predicate_registry": {"type": "object"},
     "decision_rules": {"type": "object"},
     "decisive_report_handling": {"type": "object"},
     "runtime_design": {"$ref": "#/$defs/runtimeDesign"},
@@ -85,16 +86,16 @@
     },
     "checkpointDesign": {
       "type": "object",
-      "required": ["count", "adaptive_checkpoints_allowed", "all_checkpoints_closed_and_quiescent", "d_growth_rule", "d_replay_rule", "relative_growth_rule", "absolute_growth_rule", "checkpoint_ids", "idle_pairs", "transition_coverage", "schedule_minimization_basis"],
+      "required": ["count", "adaptive_checkpoints_allowed", "all_checkpoints_closed_and_quiescent", "d_growth_rule", "d_regrowth_rule", "relative_growth_rule", "absolute_growth_rule", "checkpoint_ids", "idle_pairs", "transition_coverage", "schedule_minimization_basis"],
       "properties": {
-        "count": {"const": 24},
+        "count": {"const": 25},
         "adaptive_checkpoints_allowed": {"const": false},
         "all_checkpoints_closed_and_quiescent": {"const": true},
         "d_growth_rule": {"type": "string", "minLength": 1},
-        "d_replay_rule": {"type": "string", "minLength": 1},
+        "d_regrowth_rule": {"type": "string", "minLength": 1},
         "relative_growth_rule": {"type": "string", "minLength": 1},
         "absolute_growth_rule": {"type": "string", "minLength": 1},
-        "checkpoint_ids": {"const": ["E0", "E0R", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_SAME", "L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280", "L_DELETE_ALL", "L_REINSERT_SAME", "L_IDLE_REOPEN", "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480", "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"]},
+        "checkpoint_ids": {"const": ["E0", "E0R", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128", "L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280", "L_DELETE_ALL", "L_REINSERT_SAME", "L_IDLE_REOPEN", "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"]},
         "idle_pairs": {"type": "array"},
         "transition_coverage": {"type": "object"},
         "schedule_minimization_basis": {"type": "string", "minLength": 1}
@@ -109,7 +110,7 @@
         "hosted_wall_clock_target_seconds": {"const": 1800},
         "slow_runner_basis": {"type": "string", "minLength": 1},
         "headroom": {"type": "string", "minLength": 1},
-        "estimated_complete_wall_clock_seconds": {"const": 1680}
+        "estimated_complete_wall_clock_seconds": {"const": 1740}
       }
     },
     "bounds": {
@@ -117,7 +118,7 @@
       "required": ["page_size", "replicas", "max_checkpoints_per_replica", "planned_checkpoints_per_replica", "max_final_pages_per_replica", "max_logical_checkpoint_read_bytes_per_replica", "max_inserted_rows_per_replica", "max_changed_hash_entries_per_replica", "max_record_candidates", "max_candidate_models", "max_analysis_work_units", "max_unique_page_blobs", "max_retained_page_store_bytes", "max_bundle_bytes", "max_json_bytes", "worker_timeout_seconds_per_replica", "fan_in_timeout_seconds", "campaign_timeout_seconds", "max_child_log_bytes", "max_companion_bytes_per_checkpoint"],
       "properties": {
         "page_size": {"const": 2048}, "replicas": {"const": 3},
-        "max_checkpoints_per_replica": {"const": 24}, "planned_checkpoints_per_replica": {"const": 24},
+        "max_checkpoints_per_replica": {"const": 25}, "planned_checkpoints_per_replica": {"const": 25},
         "max_final_pages_per_replica": {"const": 65536},
         "max_logical_checkpoint_read_bytes_per_replica": {"const": 2147483648},
         "max_inserted_rows_per_replica": {"const": 524288},

@@ -11,9 +11,10 @@
       "a1_entries_read": ["EXP-0037", "EXP-0038", "EXP-0039"],
       "diagnosis": "/private/tmp/a1-run12-ambiguity-diagnosis.md",
       "independent_review": "/private/tmp/fable-review-findings.md sections 2.1, 2.2, 2.3, 2.4, 3.1, and 5.2",
+      "analyzer_schedule_audit": "/private/tmp/fable-analyzer-schedule-audit.md in full, especially sections 4 and 5",
       "exploratory_bundle": "windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1",
       "exploratory_bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
-      "use_limit": "the diagnosis and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
+      "use_limit": "the diagnosis, independent reviews, analyzer/schedule audit, and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
       "external_mdb_implementations_used": false
     },
     "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
@@ -77,29 +78,30 @@
     }
   },
   "checkpoint_design": {
-    "count": 24,
+    "count": 25,
     "adaptive_checkpoints_allowed": false,
     "all_checkpoints_closed_and_quiescent": true,
     "d_growth_rule": "D_GROW_0128 is the first closed-file state after a fixed 32-row batch whose page count is at least the post-create D baseline plus 128; record the exact achieved D row count N and overshoot without retuning",
-    "d_replay_rule": "after D_DROP, recreate the same empty D definition and capture D_RECREATE_EMPTY, then insert exactly Id 1 through N with the same payload bytes and capture D_REGROW_SAME; D_REGROW_SAME is row-count replay and must not use a second relative file-growth target",
+    "d_regrowth_rule": "after D_DROP, recreate the same empty D definition and capture D_RECREATE_EMPTY; from that closed-file post-recreate baseline, insert fixed 32-row batches until file pages are at least baseline plus 128, record the achieved row count and overshoot, and capture D_REGROW_0128. The D_REGROW_0128 page count must be strictly greater than D_GROW_0128; no row-count replay, truncation, page-count equality, or byte equality is assumed",
     "relative_growth_rule": "each L_REL or H_REL checkpoint is the first closed-file state after a fixed 32-row batch whose page count is at least that table's post-create baseline plus the named target; record overshoot and do not retune",
     "absolute_growth_rule": "each P_ABS checkpoint is the first closed-file state after a fixed 32-row batch whose total file page count is at least the named target; record overshoot and do not retune",
     "checkpoint_ids": [
-      "E0", "E0R", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_SAME",
+      "E0", "E0R", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128",
       "L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280",
       "L_DELETE_ALL", "L_REINSERT_SAME", "L_IDLE_REOPEN",
       "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480",
-      "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"
+      "H_REL_0064", "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"
     ],
     "idle_pairs": [["E0", "E0R"], ["L_REINSERT_SAME", "L_IDLE_REOPEN"], ["H_REL_0904", "H_IDLE_REOPEN"]],
     "transition_coverage": {
-      "global_map_literal_abab": ["E0", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_SAME"],
+      "global_map_record_set_abac": ["E0", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128"],
       "tdef_low_growth": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280"],
       "tdef_delete_reinsert": ["L_REL_1280", "L_DELETE_ALL", "L_REINSERT_SAME"],
-      "inline_to_indirect_conversion_window": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280", "L_REINSERT_SAME", "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480", "H_REL_0896", "H_REL_0904"],
-      "tdef_high_growth": ["P_ABS_16480", "H_REL_0896", "H_REL_0904"]
+      "inline_to_indirect_conversion_window": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280", "L_REINSERT_SAME", "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904"],
+      "tdef_high_growth": ["P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904"],
+      "pointer_validity_checkpoints": ["P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"]
     },
-    "schedule_minimization_basis": "exploratory A1 run-12 page-1 transitions justified retaining the L targets that span each coarse regime, the first fine transition, the 1024 and 1088 boundary probes, every P checkpoint needed to locate rather than assume the inline-to-indirect conversion, and the H 896-to-904 transition; the other 21-point fine steps and later H ladder points are excluded because they add repeated snapshots without adding a required A2 predicate"
+    "schedule_minimization_basis": "exploratory A1 run-12 page-1 transitions justified retaining the L targets that span each coarse regime, the first fine transition, the 1024 and 1088 boundary probes, every P checkpoint needed to locate rather than assume the inline-to-indirect conversion, and H 64 plus 896-to-904. H_REL_0064 forces the slot-0 predictions of slot-relative and referenced-page-relative base candidates to differ; the other fine and later H points are excluded because they add repeated snapshots without adding a required A2 predicate"
   },
   "page_capture": {
     "page_size": 2048,
@@ -113,11 +115,13 @@
   },
   "record_candidate_procedure": {
     "boundary_source": "for every qualifying physical page, enumerate every half-open interval [start,end) from the fixed byte-boundary set {0,1,...,2048}, with 0 <= start < end <= 2048; boundaries are never inferred as the minimum or maximum changed byte",
-    "qualifying_global_pages": "evaluate every physical page present at every global-map checkpoint; a page qualifies for interval enumeration only if at least one byte has the exact nonempty A/B/A/A/B signature required by the global_map_record_predicate",
-    "qualifying_tdef_pages": "evaluate every physical page present at every TDEF checkpoint; a page qualifies for interval enumeration only if it contains at least one four-byte window satisfying a declared growth-only or delete/reinsert-only signature under a declared pointer layout",
+    "candidate_page_space": "the finite candidate page space is the union of every physical page index observed at any checkpoint in either derivation replica, including pages absent at earlier or later checkpoints; absence is an explicit state and no all-checkpoint intersection or E0R-present filter is permitted",
+    "qualifying_global_pages": "evaluate every page in candidate_page_space using the record-level D set relation; a page qualifies for interval enumeration only if at least one candidate interval can encode a nonempty released-and-reallocated record set under one polarity",
+    "qualifying_tdef_pages": "evaluate every page in candidate_page_space; a page qualifies for interval enumeration only if it contains at least one four-byte window satisfying a declared growth-only or delete/reinsert-only signature under a declared pointer layout",
     "multiple_records_on_one_page": "enumerate and score every interval independently, including overlapping intervals; do not merge changing regions or substitute a whole-page change envelope",
     "stable_endpoint_rule": "neither endpoint is required to change or to neighbor a changed byte; all 2049 byte boundaries are candidates, so an unwitnessed stable endpoint remains in the finite search and unresolved endpoints produce the multiple-record-boundaries outcome",
-    "negative_page_rule": "all pages, including page 1, enter through the same page qualification and interval enumeration; rejection and survival use only the same record-level predicates and bounds",
+    "header_exclusion_source": "exploratory A1 run-12 page-1 calibration excludes every byte offset in the inclusive ranges 2..13 and 376..1784, plus offset 20, from A2 page-1 record intervals and pointer windows because they behaved as header or control-like bytes; the dry run must prove that no selected used or free pointer window intersects them. No offset is excluded on another page without a separately preregistered source. This calibration is non-evidential",
+    "negative_page_rule": "all pages, including page 1, enter through the same page qualification and interval enumeration; page-1 intervals or pointer windows intersecting a header_exclusion_source offset are rejected, and all remaining rejection and survival uses only the same record-level predicates and bounds",
     "interval_ceiling_per_page": 2098176
   },
   "inline_boundary_procedure": {
@@ -126,16 +130,19 @@
     "ambiguity_rule": "zero surviving boundaries emits no_inline_boundary_candidate and more than one emits multiple_inline_boundary_candidates; deterministic agreement across replicas cannot rescue a boundary selected from anchor fill level"
   },
   "hypotheses": {
-    "global_map_record_predicate": "within, and only within, a candidate interval: E0 equals D_DROP and D_RECREATE_EMPTY byte-for-byte; D_GROW_0128 equals D_REGROW_SAME byte-for-byte; the A and B values differ; idle pairs are equal. Equality is never required for the containing page. The predicate is applied independently in each derivation replica and under its rotated D binding",
-    "global_map_search": "derive global-map record candidates only from the literal D A/B/A/A/B checkpoints and never from L, P, or H transitions",
+    "bit_polarity_candidates": ["set_means_in_use", "set_means_not_in_use"],
+    "bit_polarity_rule": "evaluate both polarity candidates. Select exactly one only when the D release/reallocation set relation and the declared L/H growth transitions agree: pages allocated by growth must flip from not-in-use to in-use under that polarity, regardless of raw bit direction. Zero or two surviving polarities are named no-outcome results",
+    "global_map_record_predicate": "decode each candidate interval as a set of represented page indices under each bit_polarity_candidate. Let G be in_use(D_GROW_0128) minus in_use(E0); require G nonempty, every member of G not in use after D_DROP, and every member of G in use again at D_REGROW_0128. Require in_use(D_REGROW_0128) to contain at least one new page not in in_use(D_GROW_0128), consistent with its strictly larger relative target. D_DROP is not required to shrink the file, and no byte, record, or page equality between checkpoints is a predicate",
+    "global_map_search": "derive global-map record candidates only from the D record-set A/B/A/C checkpoints and never from L, P, or H transitions; search them independently from TDEF records",
     "tdef_pointer_layouts": ["u24le_page_then_u8_slot", "u8_slot_then_u24le_page"],
     "tdef_record_search": "search TDEF record candidates separately from global-map candidates; the page and interval may differ. Decode four-byte windows only wholly inside the candidate interval, never page headers or record-directory bytes outside it",
-    "growth_only_pointer_predicate": "the decoded reference changes at one or more declared L or H growth transitions, resolves to an observed in-range page whose byte-zero tag is 0x05 when active, and is unchanged across L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME",
-    "delete_reinsert_only_pointer_predicate": "the decoded reference is stable through declared L growth checkpoints, differs when L_DELETE_ALL has zero L rows and eligible freed pages, returns exactly at L_REINSERT_SAME, and resolves to an observed in-range page whose byte-zero tag is 0x05 whenever active",
+    "growth_only_pointer_predicate": "the decoded reference changes at one or more declared L or H growth transitions, resolves to a page in candidate_page_space whose byte-zero tag is 0x05 when active, and is unchanged across L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME",
+    "delete_reinsert_only_pointer_predicate": "the decoded reference is stable through declared L growth checkpoints, differs at L_DELETE_ALL, returns exactly at L_REINSERT_SAME, and resolves to a page in candidate_page_space whose byte-zero tag is 0x05 whenever active. The predicate is enabled only if L_REL_1280 has at least one nonempty L data page, L_DELETE_ALL DAO-rereads exactly zero rows, and deletion therefore empties at least one formerly nonempty page; otherwise emit legacy_churn_precondition_not_met rather than fitting a free-pointer model",
     "pointer_pair_rule": "growth-only and delete/reinsert-only windows must be distinct, use one declared layout, lie wholly inside the same TDEF candidate interval, and satisfy the predicates in both derivation replicas before holdout access",
     "inline_extent_rule": "one exact boundary from inline_boundary_procedure must agree across derivation replicas and both pointer observations, explain every applicable transition across the full conversion window, and satisfy the all-checkpoint suffix rule; an anchor fill level is never a boundary source",
     "type1_conversion_predicate": "classify every checkpoint in transition_coverage.inline_to_indirect_conversion_window under each candidate model, derive the conversion checkpoint as the earliest preregistered checkpoint whose state is valid indirect after at least one valid inline predecessor, require exactly one monotone inline-to-indirect transition, and do not require conversion by L_IDLE_REOPEN or any other phase boundary",
-    "type1_rule": "inactive four-byte slots are exactly zero within the TDEF candidate interval; active references identify observed pages whose byte-zero tag is 0x05; L uses the low observed slot and H uses the next observed slot",
+    "type1_rule": "slot activation at conversion is a free parameter with values 0, 1, or 2. Inactive four-byte slots are exactly zero within the TDEF candidate interval; active references identify pages in candidate_page_space whose byte-zero tag is 0x05. Exactly two active slots is a decisive-model precondition; zero or one produces unexpected_slot_activation_count, never an implicit abort",
+    "pointer_validity_rule": "require tag and in-range validity only at transition_coverage.pointer_validity_checkpoints at or after the candidate conversion checkpoint and only for nonzero active references; preactivation zero slots and checkpoints outside that declared set are not pointer-validity failures",
     "extended_base_candidates": [
       "slot_relative_expected_0_16352",
       "referenced_page_relative",
@@ -144,45 +151,114 @@
       "referenced_page_relative_off_by_minus_one",
       "referenced_page_relative_off_by_plus_one"
     ],
-    "extended_base_rule": "derive only from preregistered L, P, and H transitions; no candidate formula may be added after acquisition"
+    "extended_base_rule": "derive only from preregistered L, P, and H transitions; no candidate formula may be added after acquisition. H_REL_0064 must make slot-relative and referenced-page-relative predictions differ for slot 0, and exactly one preregistered formula must predict every observed flip; otherwise emit insufficient_base_discrimination, no_extended_base_candidate, or multiple_extended_base_candidates as applicable"
   },
   "analyzer_dry_run_contract": {
     "must_complete_before_acquisition": true,
+    "dispatch_gate": "before any A2 matrix job is dispatched, both dry-run modes must produce schema-valid reports with result pass; every required assertion must be present, each retained input and generated fixture must match its recorded SHA-256, no holdout artifact may be opened, and the additive provenance disclosure must be committed and pushed. Any failure leaves acquisition BLOCKED",
     "retained_a1_input": {
       "bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
       "required_mode": "retained_a1_run12_exploratory",
-      "required_behavior": "ingest the retained A1 schedule through an explicit legacy projection, identify its D sequence as relative A/B/A/C rather than treating it as A2 literal A/B/A/B, exercise bounded record enumeration and distinct no-outcome reporting, and emit no A2 scientific outcome"
+      "max_input_page_blobs": 55,
+      "holdout_access": "replicas 1 and 2 only; replica 3 and every holdout artifact are excluded and must not be opened",
+      "schedule_arithmetic_assertion": "assert the retained replica observations against the generator arithmetic: first D baseline 23 grows to 151, D_DROP remains 151, post-recreate baseline 151 grows to 279, every growth uses 32-row batches with recorded overshoot, and L deletion may change page count and changed it by +1 in run 12",
+      "required_behavior": "ingest no more than 55 retained A1 page blobs from replicas 1 and 2 through an explicit legacy projection, identify its D sequence as relative A/B/A/C rather than treating it as A2 equality, select set_means_not_in_use uniquely from the D and H transitions, exercise bounded union-page record enumeration and per-predicate terminal reporting, predict legacy_churn_precondition_not_met because A1 did not fully empty L, and emit no A2 scientific outcome"
     },
     "synthetic_input": {
       "required_mode": "a2_schedule_synthetic",
-      "generation_rule": "the generator must read checkpoint_design.checkpoint_ids and transition_coverage from this exact hash-pinned plan and generate every synthetic replica checkpoint from that schedule; a separately hard-coded or A1-inherited schedule is forbidden",
-      "arithmetic_rule": "the generator must prove every analyzer equality is possible under the generated checkpoint arithmetic, including identical D row ids, row count N, and payload bytes at D_GROW_0128 and D_REGROW_SAME, at least one growth-only pointer transition during the growth ladder, and at least one churn-only pointer transition when L_DELETE_ALL frees pages and L_REINSERT_SAME restores the rows",
-      "required_cases": ["one_decisive_joint_model", "no_physical_page_satisfies_global_transition_predicates", "multiple_global_record_boundaries_survive", "no_tdef_record_satisfies_transition_predicates", "multiple_tdef_record_boundaries_survive", "no_inline_boundary_candidate", "multiple_inline_boundary_candidates"]
+      "generation_rule": "the generator must parse checkpoint_design, tables.row_algorithm, and bounds from this exact hash-pinned plan and derive every replica checkpoint, relative baseline, absolute target, 32-row batch, overshoot, page count, record count, page presence state, and transition from those fields using the same arithmetic contract as the future worker; hand-typed checkpoint counts, A1 fixture counts, and a separately hard-coded or A1-inherited schedule are forbidden",
+      "free_parameters": {
+        "conversion_ordinal": "for the input schedule, every noninitial checkpoint ordinal plus never must be generated: A1 legacy ordinals 1..70 plus never, and A2 ordinals 1..24 plus never",
+        "slot_activation_at_conversion": [0, 1, 2],
+        "bit_polarity": ["set_means_in_use", "set_means_not_in_use"],
+        "anchor_fill_state": ["empty", "partial", "full"]
+      },
+      "run12_calibration_case": "generate a named non-evidential calibration case with source_conversion_ordinal 40, conversion_checkpoint_id P_ABS_16480, A2 conversion ordinal 20, active_slot_count 2, bit_polarity set_means_not_in_use because growth cleared bits, and delete_page_delta +1. The source ordinal is mapped by checkpoint identity, not copied as an A2 ordinal, and A2 full-delete semantics still govern the churn transition",
+      "arithmetic_rule": "the generator must prove the A2 schedule can produce the record-level D A/B/A/C set relation with D_REGROW_0128 strictly larger than D_GROW_0128, at least one growth-only pointer transition, and at least one churn-only pointer transition where L_DELETE_ALL DAO-rereads zero rows and empties a formerly nonempty L page before exact reinsert. Every equality between checkpoints used anywhere by the analyzer must be producible by the generator under the schedule; no asserted equality may depend on a hand-authored fixture constant",
+      "base_discrimination_rule": "the decisive fixture must make slot-relative and referenced-page-relative candidates predict different slot-0 flips at H_REL_0064, and exactly one preregistered base candidate must survive all generated L/P/H transitions",
+      "inline_boundary_rule": "generate empty, partial, and full anchor-fill variants with one invariant inline boundary; the analyzer must recover that same boundary from the fixed candidate source in all variants",
+      "abort_reachability_rule": "for every analyzer Abort or early-terminal construction site, a single named perturbation of a decisive schedule-derived fixture must reach it, must emit one or more predicate_registry identifiers, and must produce the exact preregistered no-outcome identifier; dead, unnamed, or unproducible Abort paths fail the dry run",
+      "required_cases": ["one_decisive_joint_model", "no_physical_page_satisfies_global_transition_predicates", "multiple_physical_pages_satisfy_global_transition_predicates", "no_global_record_candidate", "multiple_global_record_boundaries_survive", "no_physical_page_satisfies_tdef_transition_predicates", "multiple_physical_pages_satisfy_tdef_transition_predicates", "no_tdef_record_candidate", "multiple_tdef_record_boundaries_survive", "no_unique_bit_polarity", "multiple_bit_polarities_survive", "unexpected_slot_activation_count", "no_growth_only_pointer_candidate", "legacy_churn_precondition_not_met", "no_delete_reinsert_only_pointer_candidate", "multiple_pointer_models_survive", "missing_inline_to_indirect_conversion", "multiple_inline_to_indirect_conversions", "no_inline_boundary_candidate", "multiple_inline_boundary_candidates", "insufficient_base_discrimination", "no_extended_base_candidate", "multiple_extended_base_candidates", "pointer_validity_failure", "unexplained_nonzero_inline_suffix", "idle_volatility", "unreconstructable_snapshot", "resource_bound_breach", "replica_disagreement", "holdout_prediction_failure"]
     },
-    "disclosure_rule": "both schema-valid dry-run reports, their inputs and hashes, commands, and results must be recorded in an additive A2 provenance entry before acquisition; every dry-run report is explicitly non-evidential and cannot authorize a capability or satisfy an A2 decision predicate"
+    "source_contract_checks": [
+      "A2 analyzer and fixture code must not import, copy, or depend on A1 hand-typed fixture counts or a hard-coded A1 conversion checkpoint",
+      "every analyzer Abort construction site has a stable predicate_registry identifier and a schedule-derived synthetic reachability case",
+      "no selected global-map or TDEF record interval and no selected pointer window intersects a preregistered page-1 excluded offset",
+      "candidate pages are the union observed at any checkpoint and record candidates come from the fixed finite boundary source independently of the change envelope",
+      "both bit polarities and slot activation counts 0, 1, and 2 are exercised",
+      "every analyzer checkpoint equality is produced by the generator rather than asserted over impossible counts"
+    ],
+    "acceptance_criteria": "both reports validate against dry-run-report.schema.json; the retained-A1 report opens no holdout, uses at most 55 blobs, emits legacy_churn_precondition_not_met and no A2 outcome; the synthetic report covers every free-parameter value and required case, recovers the sole decisive joint model, proves all source-contract checks and generator arithmetic, and records every reached predicate id. Result pass is impossible if any assertion, parameter value, case, hash, bound, or predicate id is absent",
+    "disclosure_rule": "both schema-valid dry-run reports, their inputs and hashes, commands, exact analyzer and generator commits, and results must be recorded in an additive A2 provenance entry committed and pushed before acquisition; every dry-run report is explicitly non-evidential and cannot authorize a capability or satisfy an A2 decision predicate"
+  },
+  "predicate_registry": {
+    "reporting_rule": "every analyzer Abort or early terminal must attach at least one stable predicate id from this registry to the retained report; ids identify failed predicates independently from no-outcome reason ids, and no unregistered Abort is permitted",
+    "ids": [
+      "A2-IDLE-EQUALITY",
+      "A2-D-SET-RELATION",
+      "A2-PAGE-NONE",
+      "A2-PAGE-MULTIPLE",
+      "A2-GLOBAL-RECORD-NONE",
+      "A2-GLOBAL-RECORD-MULTIPLE",
+      "A2-TDEF-RECORD-NONE",
+      "A2-TDEF-RECORD-MULTIPLE",
+      "A2-HEADER-EXCLUSION",
+      "A2-POLARITY-NONE",
+      "A2-POLARITY-MULTIPLE",
+      "A2-GROWTH-POINTER-NONE",
+      "A2-CHURN-PRECONDITION",
+      "A2-CHURN-POINTER-NONE",
+      "A2-POINTER-MULTIPLE",
+      "A2-POINTER-VALIDITY",
+      "A2-CONVERSION-NONE",
+      "A2-CONVERSION-MULTIPLE",
+      "A2-SLOT-ACTIVATION",
+      "A2-INLINE-BOUNDARY-NONE",
+      "A2-INLINE-BOUNDARY-MULTIPLE",
+      "A2-INLINE-SUFFIX",
+      "A2-BASE-DISCRIMINATION",
+      "A2-BASE-NONE",
+      "A2-BASE-MULTIPLE",
+      "A2-REPLICA-DISAGREEMENT",
+      "A2-SNAPSHOT-RECONSTRUCTION",
+      "A2-RESOURCE-BOUND",
+      "A2-HOLDOUT-PREDICTION"
+    ]
   },
   "decision_rules": {
     "decisive": "exactly one complete joint model with separately identified global-map and TDEF records survives every derivation transition in replicas 1 and 2 and, after the frozen candidate-set hash is persisted, predicts every applicable holdout transition in replica 3 without refit",
     "no_scientific_outcome_identifiers": [
       "replica_disagreement",
       "no_physical_page_satisfies_global_transition_predicates",
+      "multiple_physical_pages_satisfy_global_transition_predicates",
+      "no_global_record_candidate",
       "multiple_global_record_boundaries_survive",
-      "no_tdef_record_satisfies_transition_predicates",
+      "no_physical_page_satisfies_tdef_transition_predicates",
+      "multiple_physical_pages_satisfy_tdef_transition_predicates",
+      "no_tdef_record_candidate",
       "multiple_tdef_record_boundaries_survive",
+      "no_unique_bit_polarity",
+      "multiple_bit_polarities_survive",
+      "unexpected_slot_activation_count",
       "no_growth_only_pointer_candidate",
+      "legacy_churn_precondition_not_met",
       "no_delete_reinsert_only_pointer_candidate",
       "multiple_pointer_models_survive",
+      "pointer_validity_failure",
       "missing_inline_to_indirect_conversion",
       "multiple_inline_to_indirect_conversions",
       "no_inline_boundary_candidate",
       "multiple_inline_boundary_candidates",
       "unexplained_nonzero_inline_suffix",
+      "insufficient_base_discrimination",
+      "no_extended_base_candidate",
+      "multiple_extended_base_candidates",
       "idle_volatility",
       "unreconstructable_snapshot",
       "resource_bound_breach",
       "holdout_prediction_failure"
     ],
-    "terminal_disambiguation": "the analyzer must emit no_physical_page_satisfies_global_transition_predicates when page qualification yields zero global candidates and multiple_global_record_boundaries_survive only when at least two record intervals survive; the analogous TDEF identifiers are also distinct and may not be collapsed into an ambiguous-record identifier"
+    "terminal_disambiguation": "use no_physical_page_satisfies_global_transition_predicates for zero qualifying global pages, multiple_physical_pages_satisfy_global_transition_predicates for two or more qualifying global pages, no_global_record_candidate for zero intervals on one qualifying global page, and multiple_global_record_boundaries_survive for two or more intervals on one qualifying page. Use the corresponding distinct TDEF page and record identifiers; no page-cardinality or record-cardinality result may be collapsed into an ambiguous-record identifier"
   },
   "decisive_report_handling": {
     "analysis_report_artifact": "retained_in_bundle",
@@ -194,9 +270,9 @@
     "matrix_jobs": 3,
     "fan_in_jobs": 1,
     "hosted_wall_clock_target_seconds": 1800,
-    "slow_runner_basis": "A1 progress traces: run 9 completed replica 1 in 1749.126 seconds and timed replica 2 out at 1800 seconds; runs 11 and 12 completed replicas in 1079.886-1536.912 seconds. Removing the omitted L and H snapshot checkpoints from the slow run-9 trace while retaining the full P conversion window projects the fixed A2 subset plus D_RECREATE_EMPTY at no more than 500 seconds per replica",
-    "headroom": "the frozen 1800-second per-replica ceiling is at least 3.6x the 500-second slow-runner projection; independent replicas run concurrently. The 900-second fan-in and 2700-second fail-closed campaign timeout are safety bounds, while the complete hosted wall-clock target remains 1800 seconds",
-    "estimated_complete_wall_clock_seconds": 1680
+    "slow_runner_basis": "A1 progress traces: run 9 completed replica 1 in 1749.126 seconds and timed replica 2 out at 1800 seconds; runs 11 and 12 completed replicas in 1079.886-1536.912 seconds. Removing omitted L/H snapshots from the slow run-9 trace, retaining the full P conversion window, and adding only D_RECREATE_EMPTY and H_REL_0064 projects the fixed A2 subset at no more than 540 seconds per replica",
+    "headroom": "the frozen 1800-second per-replica ceiling is at least 3.33x the 540-second slow-runner projection; independent replicas run concurrently. The 900-second fan-in and 2700-second fail-closed campaign timeout are safety bounds, while the complete hosted wall-clock target remains 1800 seconds",
+    "estimated_complete_wall_clock_seconds": 1740
   },
   "artifacts": {
     "plan": "plan/a2-allocation-maps.plan.json",
@@ -213,8 +289,8 @@
   "bounds": {
     "page_size": 2048,
     "replicas": 3,
-    "max_checkpoints_per_replica": 24,
-    "planned_checkpoints_per_replica": 24,
+    "max_checkpoints_per_replica": 25,
+    "planned_checkpoints_per_replica": 25,
     "max_final_pages_per_replica": 65536,
     "max_logical_checkpoint_read_bytes_per_replica": 2147483648,
     "max_inserted_rows_per_replica": 524288,

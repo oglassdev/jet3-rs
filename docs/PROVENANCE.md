@@ -2975,10 +2975,11 @@ Use `not applicable` explicitly rather than omitting a field.
   `EXP-0039`, the read-only diagnosis
   `/private/tmp/a1-run12-ambiguity-diagnosis.md`, independent review sections
   2.1–2.4, 3.1, and 5.2 in `/private/tmp/fable-review-findings.md`, the retained
-  A1 run-12 bundle, and the run 9, 11, and 12 diagnostic progress traces. The
-  diagnosis and retained bundle were used only as exploratory design input. No
-  external MDB implementation, donated MDB, or other format implementation was
-  inspected.
+  A1 run-12 bundle, the complete analyzer/schedule audit in
+  `/private/tmp/fable-analyzer-schedule-audit.md`, and the run 9, 11, and 12
+  diagnostic progress traces. The diagnosis, reviews, and retained bundle were
+  used only as exploratory design and dry-run input. No external MDB
+  implementation, donated MDB, or other format implementation was inspected.
 - Exploratory input identity: retained bundle
   `windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1`,
   manifest SHA-256
@@ -2994,27 +2995,41 @@ Use `not applicable` explicitly rather than omitting a field.
   pages and then from 151 to 279 pages. The no-outcome label is therefore an
   analyzer/acquisition-contract mismatch, not an observed ambiguity property of
   Jet data, and A2 does not reinterpret the A1 holdout or report as evidence.
+- A1 run-12 calibration disclosure: descriptive run-12 observations that the
+  conversion occurred at source ordinal 40 (`P_ABS_16480`), both slots were
+  active, growth cleared the relevant bits, and deletion added one file page
+  are preregistered only as free-parameter values for a synthetic generator
+  calibration case. The named checkpoint maps to A2 ordinal 20; source ordinal
+  40 is not copied as an A2 ordinal. These values are exploratory,
+  non-evidential, cannot satisfy any A2 predicate, and do not constrain A2 data.
 - Protocol: create three fresh replicas with rotated D/L/P/H table bindings.
-  D records its first `baseline + 128` growth row count `N`, then drop/recreates
-  D and inserts the exact same IDs `1..N` and payload bytes; the declared
-  global-map predicate is record-level A/B/A/A/B, never whole-page equality and
-  never a second relative regrowth target. Enumerate every half-open interval
-  from all 2,049 byte boundaries on every qualifying page, without using the
-  minimum/maximum changed-byte envelope; enumerate overlapping records
-  independently and require no endpoint to be witnessed by a change. Search
-  global-map records only with D transitions and TDEF records separately with
-  the preregistered L/P/H growth and L full-delete/reinsert transitions. Apply
-  every equality and pointer predicate only inside its candidate interval,
-  including on negative pages. Enumerate inline boundaries from every byte
-  boundary inside a surviving TDEF record and evaluate them across the complete
-  transition window; never select a boundary from an anchor's fill level or
-  last nonzero byte.
-- Checkpoint schedule: 24 fixed, nonadaptive, closed-file checkpoints per
-  replica. The schedule retains literal D replay; L relative targets 64, 512,
+  D grows from the initial post-create baseline to `baseline + 128`, is dropped
+  and recreated, then grows from the new post-create baseline to its own
+  `baseline + 128` target in fixed 32-row batches. Regrowth must be strictly
+  larger than first growth. The declared global-map predicate is the
+  record-level set relation: a nonempty set allocated by first growth is
+  released after drop and reallocated by regrowth, which also allocates at least
+  one additional page. D drop need not shrink the file and no page, byte, or
+  record equality is assumed. Enumerate every half-open interval from all 2,049
+  byte boundaries over the union of every page observed at any checkpoint,
+  without using the minimum/maximum changed-byte envelope or an all-checkpoint
+  page intersection; enumerate overlapping records independently and require no
+  endpoint to be witnessed by a change. Preregistered exploratory page-1
+  control offsets are excluded from records and pointer windows. Search global
+  records only with D transitions and TDEF records separately with L/P/H growth
+  and L full-delete/reinsert. Evaluate both allocation-bit polarities and select
+  one only through the D release/reallocation and L/H growth transitions.
+  Enumerate inline boundaries from every byte boundary inside a surviving TDEF
+  record across empty, partial, and full anchor-fill fixtures; never select a
+  boundary from fill level or the last nonzero byte.
+- Checkpoint schedule: 25 fixed, nonadaptive, closed-file checkpoints per
+  replica. The schedule retains relative D A/B/A/C; L relative targets 64, 512,
   768, 896, 904, 1024, 1088, and 1280 plus full deletion to zero rows,
   same-ID/payload reinsert, and idle reopen; the complete absolute P window at
-  4,096, 8,192, 12,288, and 16,480; and H relative targets 896 and 904 plus
-  idle reopen. The conversion checkpoint is derived as the earliest valid
+  4,096, 8,192, 12,288, and 16,480; and H relative targets 64, 896, and 904 plus
+  idle reopen. H 64 forces slot-relative and referenced-page-relative base
+  candidates to predict different slot-0 flips. The conversion checkpoint is
+  derived as the earliest valid
   monotone inline-to-indirect transition across the entire preregistered
   L/P/H growth window and is not assumed to occur by `L_IDLE_REOPEN`.
   Exploratory A1 run-12 page-1 transitions justify these probes. The omitted
@@ -3027,36 +3042,43 @@ Use `not applicable` explicitly rather than omitting a field.
   completed replica 1 in 1,749.126 seconds and timed replica 2 out at 1,800;
   runs 11 and 12 completed replicas in 1,079.886–1,536.912 seconds. Removing
   the L/H checkpoints absent from the fixed A2 schedule while retaining the
-  complete P conversion window projects no more than 500 seconds on the slow
-  trace. The frozen 1,800-second per-replica bound provides at least 3.6x
-  headroom. The fan-in safety bound is 900 seconds and the fail-closed campaign
+  complete P conversion window and adding H 64 projects no more than 540 seconds
+  on the slow trace. The frozen 1,800-second per-replica bound provides at least
+  3.33x headroom. The fan-in safety bound is 900 seconds and the fail-closed campaign
   timeout is 2,700 seconds; independent acquisition keeps the hosted target at
-  no more than 1,800 seconds, with estimated wall-clock 1,680 seconds.
+  no more than 1,800 seconds, with estimated wall-clock 1,740 seconds.
 - Analyzer dry-run contract: before acquisition, the future A2 analyzer must
   run in explicit exploratory legacy mode against the identified retained A1
   run-12 bundle and must run against the future A2 synthetic generator. The
-  legacy run must recognize A1's relative D schedule as A/B/A/C, exercise the
-  bounded record search and distinct terminal reporting, and emit no A2
-  scientific outcome. The synthetic generator must read the checkpoint IDs and
-  transition coverage from this exact hash-pinned plan, must not carry a
-  separate hard-coded schedule, and must prove every analyzer equality is
-  arithmetically possible, including identical D IDs, row count, and payloads,
-  a growth-only pointer transition, and a churn-only pointer transition caused
-  by full L deletion and exact reinsert. It must also exercise conversion
-  derivation over the full window and the fixed inline-boundary enumeration.
-  Both schema-valid dry-run reports, inputs, hashes, commands, and results must
-  be disclosed in a later additive A2 provenance entry before acquisition and
-  are explicitly non-evidential.
+  legacy run may open at most 55 page blobs from derivation replicas 1 and 2,
+  must never open the holdout, must recognize A1's relative D schedule as
+  A/B/A/C, and must predict `legacy_churn_precondition_not_met` because A1 did
+  not fully empty L. The synthetic generator must parse the checkpoint design,
+  row algorithm, and bounds from this exact hash-pinned plan and derive all
+  relative baselines, absolute targets, 32-row batches, overshoot, counts, page
+  presence, and transitions with the worker arithmetic; hand-typed counts are
+  forbidden. Conversion ordinal (every A2 ordinal 1–24 and never), active slot
+  count (0/1/2), bit polarity (both values), and anchor fill (empty/partial/full)
+  are free parameters. Generated cases must prove the D record-set relation,
+  growth-only and full-delete churn-only transitions, base discrimination, and
+  that every analyzer checkpoint equality is arithmetically producible. Every
+  analyzer Abort must have a stable predicate id in the retained report and a
+  single-perturbation generated case that reaches its exact no-outcome reason.
+  Source-contract checks forbid importing A1 hand-typed fixture counts. Both
+  schema-valid dry-run reports, inputs, hashes, commands, commits, predicate ids,
+  and results must be disclosed in a later additive A2 provenance entry before
+  any dispatch and are explicitly non-evidential.
 - Dry-run result disclosure: `not_run_preregistration_only`. This change does
   not implement the A2 worker, analyzer, generator, validator, or workflow, so
   neither required dry run exists. The execution gate remains `BLOCKED`; this
   status is non-evidential and authorizes no hosted acquisition.
-- Terminal reporting: zero global page/record candidates emits
-  `no_physical_page_satisfies_global_transition_predicates`, while two or more
-  surviving global intervals emits
-  `multiple_global_record_boundaries_survive`. TDEF zero-candidate and
-  multiple-boundary conditions have their own distinct identifiers. None may
-  be collapsed into A1's `ambiguous_record_boundary` identifier.
+- Terminal reporting: zero qualifying global pages, multiple qualifying global
+  pages, zero surviving records on one qualifying page, and multiple surviving
+  records on one qualifying page have four distinct identifiers. The equivalent
+  TDEF page/record conditions, polarity, slot activation, conversion, pointer,
+  inline boundary, base discrimination, and churn-precondition failures also
+  have named outcomes and per-Abort predicate ids. None may be collapsed into
+  A1's `ambiguous_record_boundary` identifier.
 - Decisive-report retention: a schema-valid decisive report completes rather
   than fails the campaign, remains inventoried in the complete bundle, and
   requires bundle status `decisive_pending_independent_validation` with
@@ -3067,7 +3089,7 @@ Use `not applicable` explicitly rather than omitting a field.
   recomputation accepts the retained report and bundle.
 - Artifacts: checked plan
   `oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`, SHA-256
-  `11aae49bc6be745b5660bae3a29b5f45c0406cf8fcd1befc1a8fc4f4dbf20f35`;
+  `e303c76633078740ebc07ec507e251b01d7e64e69bfb83d765b88babdd48aebf`;
   strict plan, environment, page-index, replica-observation, independent
   replica-artifact, analysis-report, bundle-manifest, and dry-run-report
   schemas; hash-pin contract test

@@ -11,14 +11,14 @@
     "created_utc": {"type": "string", "format": "date-time", "maxLength": 64}, "plan_sha256": {"$ref": "#/$defs/sha256"},
     "environment_sha256": {"$ref": "#/$defs/sha256"}, "provider_sha256": {"$ref": "#/$defs/sha256"},
     "replica_count": {"const": 3}, "replica_artifact_manifest_sha256": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/sha256"}},
-    "checkpoint_count": {"const": 72}, "page_blob_count": {"type": "integer", "minimum": 1, "maximum": 65536},
+    "checkpoint_count": {"const": 75}, "page_blob_count": {"type": "integer", "minimum": 1, "maximum": 65536},
     "bundle_size_bytes_excluding_manifest": {"type": "integer", "minimum": 1, "maximum": 805306368},
     "inventory_closed": {"const": true}, "hashes_verified": {"const": true}, "paths_closed": {"const": true},
     "execution_status": {"const": "analysis_complete"}, "campaign_failed": {"const": false}, "analysis_report_retained": {"const": true},
     "analysis_scientific_outcome": {"type": "string", "enum": ["one_joint_model_predicts_holdout", "no_scientific_outcome"]},
     "bundle_status": {"type": "string", "enum": ["decisive_pending_independent_validation", "complete_no_scientific_outcome"]},
     "independent_validation_status": {"const": "not_independently_validated"},
-    "files": {"type": "array", "minItems": 81, "maxItems": 65650, "uniqueItems": true, "items": {"$ref": "#/$defs/file"}}
+    "files": {"type": "array", "minItems": 84, "maxItems": 65650, "uniqueItems": true, "items": {"$ref": "#/$defs/file"}}
   },
   "anyOf": [
     {"type": "object", "required": ["analysis_scientific_outcome", "bundle_status"], "properties": {"analysis_scientific_outcome": {"const": "one_joint_model_predicts_holdout"}, "bundle_status": {"const": "decisive_pending_independent_validation"}}},
