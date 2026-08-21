@@ -140,7 +140,7 @@ def build_page_fixture(
         raise ValidationError("record-end slack exceeds the synthetic global page")
     bitmap_start = global_start + type_bytes + inline_base_bytes
     inline_boundary = PAGE_SIZE - record_end_uniform_slack_bytes
-    inline_base = int(schedule.initial_pages > 0)
+    inline_base = max(1, anchor_pages - bitmap_bits)
     tdef_start = len(ROLES) - len(ROLES)
     stable_flank = int(schedule.batch_rows > 0)
     pointer_bytes = len(ROLES) * 2
@@ -217,6 +217,8 @@ def build_page_fixture(
             represented = min(bitmap_bits, max(0, highwater - inline_base))
             for page in range(represented):
                 _set_bit(global_payload, bitmap_start, page, in_use_bit)
+            if not represented and checkpoint_id in ("D_GROW_0128", "D_REGROW_0128"):
+                _set_bit(global_payload, bitmap_start, 0, in_use_bit)
             if checkpoint_id == "D_REGROW_0128":
                 _set_bit(global_payload, bitmap_start, bitmap_bits - 1, in_use_bit)
         else:

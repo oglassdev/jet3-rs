@@ -89,6 +89,11 @@ class ProjectedReplica:
         checkpoints = {
             row["checkpoint_id"]: row for row in self.observation["checkpoints"]
         }
+        dropped_checkpoint = next(
+            row["a1_checkpoint"]
+            for row in RETAINED["checkpoint_projection"]
+            if row["a2_checkpoint"] == "D_DROP"
+        )
         self._checkpoint_ids = CHECKPOINT_IDS
         self._counts: dict[str, int] = {}
         self._hashes: dict[str, tuple[str, ...]] = {}
@@ -97,7 +102,9 @@ class ProjectedReplica:
             a2_checkpoint = projection["a2_checkpoint"]
             source_checkpoint = projection["a1_checkpoint"]
             if source_checkpoint is None:
-                source_checkpoint = RETAINED["checkpoint_projection"][3]["a1_checkpoint"]
+                source_checkpoint = dropped_checkpoint
+            if not isinstance(source_checkpoint, str):
+                raise ValidationError("retained projection has no usable source checkpoint")
             source = checkpoints[source_checkpoint]
             relative = source["page_index"]["path"]
             expected_prefix = f"page-indexes/replica-{replica:02d}/"

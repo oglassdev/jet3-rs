@@ -451,23 +451,33 @@ def derive_global_record(
     ]
     if not decodable:
         raise Abort("A2-GLOBAL-RECORD-NONE")
-    related: list[tuple[int, str]] = []
-    set_relation_failed = False
-    for start in decodable:
-        view.work.examine_models(len(POLARITIES))
-        polarities = [
-            polarity
-            for polarity in POLARITIES
-            if index.polarity_direction(start, polarity, expected_highwater)
-        ]
-        if len(polarities) > 1:
-            raise Abort("A2-POLARITY-MULTIPLE")
-        if polarities:
-            polarity = polarities[0]
-            if index.relation(start, polarity, expected_highwater):
-                related.append((start, polarity))
-            else:
-                set_relation_failed = True
+    def collect(
+        highwater: Mapping[str, int] | None,
+    ) -> tuple[list[tuple[int, str]], bool, bool]:
+        matches: list[tuple[int, str]] = []
+        failed = False
+        direction_seen = False
+        for start in decodable:
+            view.work.examine_models(len(POLARITIES))
+            polarities = [
+                polarity
+                for polarity in POLARITIES
+                if index.polarity_direction(start, polarity, highwater)
+            ]
+            if len(polarities) > 1:
+                raise Abort("A2-POLARITY-MULTIPLE")
+            if polarities:
+                direction_seen = True
+                polarity = polarities[0]
+                if index.relation(start, polarity, highwater):
+                    matches.append((start, polarity))
+                else:
+                    failed = True
+        return matches, failed, direction_seen
+
+    related, set_relation_failed, direction_seen = collect(expected_highwater)
+    if not direction_seen:
+        related, set_relation_failed, _ = collect(None)
     if not related:
         raise Abort("A2-D-SET-RELATION" if set_relation_failed else "A2-POLARITY-NONE")
     resolved: list[GlobalRecordModel] = []
