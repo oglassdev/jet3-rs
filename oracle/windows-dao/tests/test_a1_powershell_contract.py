@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import struct
 import sys
@@ -47,6 +48,22 @@ def function_source(source: str, name: str) -> str:
     start = source.index(f"function {name}")
     end = source.find("\nfunction ", start + 1)
     return source[start:] if end < 0 else source[start:end]
+
+
+def powershell_invocations(source: str, command: str) -> list[str]:
+    lines = source.splitlines()
+    invocations: list[str] = []
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith(command + " "):
+            continue
+        block = [line]
+        depth = line.count("(") - line.count(")")
+        while block[-1].rstrip().endswith("`") or depth > 0:
+            index += 1
+            block.append(lines[index])
+            depth += lines[index].count("(") - lines[index].count(")")
+        invocations.append("\n".join(block))
+    return invocations
 
 
 def ps_quote(value: object) -> str:
@@ -333,15 +350,80 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
             self.controller,
         )
         self.assertIn(
-            ') -Label "A1 preregistered analysis" -MaximumSeconds 1800',
+            ') -Label "A1 preregistered analysis" -MaximumSeconds 600',
             self.controller,
         )
         self.assertIn(
-            '-Label "A1 complete bundle validation" -MaximumSeconds 1800',
+            '-Label "A1 complete bundle validation" -MaximumSeconds 900',
             self.controller,
         )
-        # Two Python calls plus the independently frozen worker allowance.
-        self.assertEqual(self.controller.count("-MaximumSeconds 1800"), 3)
+        self.assertEqual(self.controller.count("-MaximumSeconds 1800"), 1)
+
+    def test_every_controller_child_timeout_fits_its_launcher_limit(self) -> None:
+        bounded_path = SCRIPTS / "shared" / "BoundedProcess.ps1"
+        bounded = bounded_path.read_text(encoding="utf-8")
+        default_match = re.search(r"CeilingSeconds = ([0-9]+)", bounded)
+        hard_match = re.search(r"CeilingSeconds -gt ([0-9]+)", bounded)
+        self.assertIsNotNone(default_match)
+        self.assertIsNotNone(hard_match)
+        default_ceiling = int(default_match.group(1))
+        hard_ceiling = int(hard_match.group(1))
+        self.assertEqual(default_ceiling, 120)
+        self.assertEqual(hard_ceiling, 1800)
+
+        python_launcher = function_source(self.controller, "Invoke-A1Python")
+        self.assertIn(
+            "-ReviewedTimeoutCeilingSeconds $MaximumSeconds", python_launcher
+        )
+        range_match = re.search(r"ValidateRange\(1, ([0-9]+)\)", python_launcher)
+        self.assertIsNotNone(range_match)
+        helper_ceiling = int(range_match.group(1))
+
+        observed: dict[str, int] = {}
+        for invocation in powershell_invocations(self.controller, "Invoke-A1Python"):
+            label_match = re.search(r'-Label "([^"]+)"', invocation)
+            maximum_match = re.search(r"-MaximumSeconds ([0-9]+)", invocation)
+            self.assertIsNotNone(label_match, invocation)
+            maximum = int(maximum_match.group(1)) if maximum_match else default_ceiling
+            self.assertLessEqual(maximum, helper_ceiling, invocation)
+            self.assertLessEqual(maximum, hard_ceiling, invocation)
+            observed[label_match.group(1)] = maximum
+        self.assertEqual(
+            observed,
+            {
+                "A1 immutable plan validation": 120,
+                "A1 environment validation": 120,
+                "A1 replica observation validation": 120,
+                "A1 preregistered analysis": 600,
+                "A1 analysis report validation": 120,
+                "A1 complete bundle validation": 900,
+            },
+        )
+
+        runtime = function_source(self.controller, "Assert-A1PythonRuntime")
+        pushed = function_source(self.controller, "Assert-A1ExactPushedCommit")
+        worker = function_source(self.controller, "Read-A1LongProcessOutput")
+        self.assertLessEqual(
+            int(re.search(r"-TimeoutSeconds ([0-9]+)", runtime).group(1)),
+            default_ceiling,
+        )
+        self.assertLessEqual(
+            int(
+                re.search(
+                    r"Get-A1CampaignAllowance -MaximumSeconds ([0-9]+)", pushed
+                ).group(1)
+            ),
+            default_ceiling,
+        )
+        worker_limit = int(
+            re.search(r"\$TimeoutSeconds -gt ([0-9]+)", worker).group(1)
+        )
+        worker_calls = powershell_invocations(self.controller, "Invoke-A1ReplicaWorker")
+        self.assertEqual(len(worker_calls), 1)
+        worker_requested = int(
+            re.search(r"-MaximumSeconds ([0-9]+)", worker_calls[0]).group(1)
+        )
+        self.assertLessEqual(worker_requested, worker_limit)
 
     def test_clean_pushed_provider_and_source_identity_gates_precede_work(self) -> None:
         for fragment in (

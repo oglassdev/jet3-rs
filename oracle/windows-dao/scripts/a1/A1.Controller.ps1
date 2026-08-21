@@ -122,7 +122,8 @@ function Invoke-A1Python {
     $timeout = Get-A1CampaignAllowance -MaximumSeconds $MaximumSeconds
     [void](Invoke-BoundedChildProcess -Executable $Context.PythonPath `
         -Arguments (@("-B", $ScriptPath) + $Arguments) `
-        -CallerLabel $Label -TimeoutSeconds $timeout -MaximumOutputBytes 1MB)
+        -CallerLabel $Label -TimeoutSeconds $timeout -MaximumOutputBytes 1MB `
+        -ReviewedTimeoutCeilingSeconds $MaximumSeconds)
 }
 
 function Assert-A1ExactPushedCommit {
@@ -640,7 +641,7 @@ function Invoke-A1Campaign {
                     -RelativePath "observations/replica-03.json"),
                 "--bundle-root", $session.StagingBundle,
                 "--output", $analysisOutput
-            ) -Label "A1 preregistered analysis" -MaximumSeconds 1800
+            ) -Label "A1 preregistered analysis" -MaximumSeconds 600
         $analysisInput = Read-A1ControllerInput -Path $analysisOutput `
             -MaximumBytes 64MB
         Invoke-A1Python -Context $context -ScriptPath $contractPath `
@@ -659,7 +660,7 @@ function Invoke-A1Campaign {
             param($bundle)
             Invoke-A1Python -Context $context -ScriptPath $contractPath `
                 -Arguments @("validate-bundle", $bundle) `
-                -Label "A1 complete bundle validation" -MaximumSeconds 1800
+                -Label "A1 complete bundle validation" -MaximumSeconds 900
         }
         $recheck = {
             param($stage)

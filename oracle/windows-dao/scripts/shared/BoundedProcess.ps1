@@ -38,7 +38,8 @@ function Assert-BoundedProcessLimits {
     param(
         [string]$CallerLabel,
         [int]$TimeoutSeconds,
-        [long]$MaximumOutputBytes
+        [long]$MaximumOutputBytes,
+        [int]$ReviewedTimeoutCeilingSeconds = 120
     )
 
     if (
@@ -48,7 +49,16 @@ function Assert-BoundedProcessLimits {
     ) {
         throw "Bounded process caller label is invalid."
     }
-    if ($TimeoutSeconds -lt 1 -or $TimeoutSeconds -gt 120) {
+    if (
+        $ReviewedTimeoutCeilingSeconds -lt 1 -or
+        $ReviewedTimeoutCeilingSeconds -gt 1800
+    ) {
+        throw "$CallerLabel reviewed timeout ceiling is invalid."
+    }
+    if (
+        $TimeoutSeconds -lt 1 -or
+        $TimeoutSeconds -gt $ReviewedTimeoutCeilingSeconds
+    ) {
         throw "$CallerLabel child timeout is outside the reviewed ceiling."
     }
     if ($MaximumOutputBytes -lt 1 -or $MaximumOutputBytes -gt 1MB) {
@@ -94,12 +104,14 @@ function Read-BoundedProcessOutput {
         [Jet3BoundedProcessLaunch]$Launch,
         [string]$CallerLabel,
         [int]$TimeoutSeconds,
-        [long]$MaximumOutputBytes
+        [long]$MaximumOutputBytes,
+        [int]$ReviewedTimeoutCeilingSeconds = 120
     )
 
     Assert-BoundedProcessLimits -CallerLabel $CallerLabel `
         -TimeoutSeconds $TimeoutSeconds `
-        -MaximumOutputBytes $MaximumOutputBytes
+        -MaximumOutputBytes $MaximumOutputBytes `
+        -ReviewedTimeoutCeilingSeconds $ReviewedTimeoutCeilingSeconds
     $stdout = New-Object IO.MemoryStream
     $stderr = New-Object IO.MemoryStream
     $outBuffer = New-Object byte[] 4096
@@ -210,12 +222,14 @@ function Invoke-BoundedChildProcess {
         [string[]]$Arguments,
         [string]$CallerLabel,
         [int]$TimeoutSeconds,
-        [long]$MaximumOutputBytes = 1MB
+        [long]$MaximumOutputBytes = 1MB,
+        [int]$ReviewedTimeoutCeilingSeconds = 120
     )
 
     Assert-BoundedProcessLimits -CallerLabel $CallerLabel `
         -TimeoutSeconds $TimeoutSeconds `
-        -MaximumOutputBytes $MaximumOutputBytes
+        -MaximumOutputBytes $MaximumOutputBytes `
+        -ReviewedTimeoutCeilingSeconds $ReviewedTimeoutCeilingSeconds
     $executablePath = [IO.Path]::GetFullPath($Executable)
     $argumentText = (
         @($Arguments | ForEach-Object {
@@ -239,7 +253,8 @@ function Invoke-BoundedChildProcess {
         $captured = Read-BoundedProcessOutput -Launch $launch `
             -CallerLabel $CallerLabel `
             -TimeoutSeconds $TimeoutSeconds `
-            -MaximumOutputBytes $MaximumOutputBytes
+            -MaximumOutputBytes $MaximumOutputBytes `
+            -ReviewedTimeoutCeilingSeconds $ReviewedTimeoutCeilingSeconds
         if ($launch.ExitCode -ne 0) {
             $stderr = [string]$captured.stderr
             if ($stderr.Length -gt 2000) {
