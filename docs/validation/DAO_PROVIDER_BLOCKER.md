@@ -154,3 +154,20 @@ For an exact release commit:
 
 Until every applicable step exists and passes, G3 and release claims depending
 on DAO remain `BLOCKED`.
+
+On 2026-08-20, A1 dispatch run
+[`32437968174`](https://github.com/oglassdev/jet3-rs/actions/runs/32437968174)
+failed closed when `windows-2022` image identity drifted, demonstrating that
+the acquisition guard rejects an unproved hosted image before DAO execution.
+GitHub was concurrently serving image versions `20260802.262.1` and
+`20260818.277.1`. Re-proof run
+[`32438973969`](https://github.com/oglassdev/jet3-rs/actions/runs/32438973969),
+retained as artifact
+`windows-dao-hosted-windows-2022-88b2118dbcef621e7b8bf56c5d1ae623e7d1b49f-1`,
+proved `20260802.262.1`; re-proof run
+[`32439805418`](https://github.com/oglassdev/jet3-rs/actions/runs/32439805418),
+retained as artifact
+`windows-dao-hosted-windows-2022-c3bcd5683f864074776b7d218d53c410aae2d550-1`,
+proved `20260818.277.1`. Both stock probes accepted the same x86
+`DAO.DBEngine.36` provider at `dao360.dll` file version `03.60.9765.0`, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.

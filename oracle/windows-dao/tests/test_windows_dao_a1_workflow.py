@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -93,26 +94,76 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", self.campaign)
 
     def test_binds_proven_stock_x86_dao_without_installing_runtime(self) -> None:
-        self.assertIn('PROVEN_PROVIDER_RUN_ID: "32327232241"', self.workflow)
-        self.assertIn("EXPECTED_IMAGE_OS: win22", self.workflow)
-        self.assertIn('EXPECTED_IMAGE_VERSION: "20260802.262.1"', self.workflow)
-        self.assertIn(
-            "$env:ImageOS -ceq $env:EXPECTED_IMAGE_OS", self.workflow
+        proven_images_match = re.search(
+            r"^\s+PROVEN_IMAGES: '([^'\n]+)'$", self.workflow, re.MULTILINE
         )
-        self.assertIn(
-            "$env:ImageVersion -ceq $env:EXPECTED_IMAGE_VERSION", self.workflow
+        self.assertIsNotNone(proven_images_match)
+        proven_images = json.loads(proven_images_match.group(1))
+        self.assertIsInstance(proven_images, list)
+        self.assertGreater(len(proven_images), 0)
+        self.assertEqual(
+            proven_images,
+            [
+                {
+                    "image_version": "20260802.262.1",
+                    "proof_run_id": "32327232241",
+                },
+                {
+                    "image_version": "20260818.277.1",
+                    "proof_run_id": "32439805418",
+                },
+            ],
         )
+        pairs = []
+        versions = []
+        for entry in proven_images:
+            self.assertEqual(set(entry), {"image_version", "proof_run_id"})
+            self.assertRegex(entry["image_version"], r"^[0-9]+(?:\.[0-9]+)+$")
+            self.assertRegex(entry["proof_run_id"], r"^[0-9]+$")
+            self.assertNotRegex(entry["proof_run_id"], r"^[0-9a-f]{40}$")
+            versions.append(entry["image_version"])
+            pairs.append((entry["image_version"], entry["proof_run_id"]))
+        self.assertEqual(len(versions), len(set(versions)))
+        self.assertEqual(len(pairs), len(set(pairs)))
+        self.assertEqual(self.workflow.count("PROVEN_IMAGES:"), 1)
         self.assertIn(
-            "The hosted image differs from run $env:PROVEN_PROVIDER_RUN_ID.",
+            "# Add newly proven windows-2022 image/proof pairs only here.",
             self.workflow,
         )
-        probe_checks = self.probe_step.split(
-            '$ErrorActionPreference = "Stop"', 1
-        )[1].lstrip()
-        self.assertTrue(
-            probe_checks.startswith(
-                "if (-not ($env:ImageOS -ceq $env:EXPECTED_IMAGE_OS)"
-            )
+        self.assertNotIn("PROVEN_PROVIDER_RUN_ID", self.workflow)
+        self.assertNotIn("EXPECTED_IMAGE_VERSION", self.workflow)
+        self.assertIn("EXPECTED_IMAGE_OS: win22", self.workflow)
+        self.assertIn(
+            "[string]$env:ImageOS,", self.probe_step
+        )
+        self.assertIn(
+            "[string]$env:EXPECTED_IMAGE_OS,", self.probe_step
+        )
+        self.assertIn(
+            "[string]$env:ImageVersion,", self.probe_step
+        )
+        self.assertGreaterEqual(
+            self.probe_step.count("[StringComparison]::Ordinal"), 2
+        )
+        self.assertIn("$matchingImages.Count -ne 1", self.probe_step)
+        self.assertIn(
+            'throw "The hosted image differs from the proven image allowlist."',
+            self.probe_step,
+        )
+        fail_closed = self.probe_step.index("$matchingImages.Count -ne 1")
+        provider_probe = self.probe_step.index("Invoke-Jet3BootstrapProcess")
+        self.assertLess(fail_closed, provider_probe)
+        self.assertIn(
+            "$proofRunId = [string]$matchingImages[0].proof_run_id",
+            self.probe_step,
+        )
+        self.assertIn("proof_run_id = $proofRunId", self.probe_step)
+        self.assertIn(
+            "MATCHED_PROVIDER_PROOF_RUN_ID=$proofRunId", self.probe_step
+        )
+        self.assertIn(
+            "provider_proof_run_id = $env:MATCHED_PROVIDER_PROOF_RUN_ID",
+            self.campaign,
         )
         self.assertIn("EXPECTED_PROVIDER_PROG_ID: DAO.DBEngine.36", self.workflow)
         self.assertIn("03.60.9765.0", self.workflow)
