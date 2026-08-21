@@ -539,9 +539,20 @@ jobs:
           A1_RUN_ID: ${{ steps.campaign.outputs.run_id }}
         run: |
           $ErrorActionPreference = "Stop"
-          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE `
-            "oracle\windows-dao\scripts"
-          $code = @'
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a1-diagnostics"
+          $pending = Join-Path $env:RUNNER_TEMP "jet3-a1-validation-pending"
+          $validatorPath = Join-Path $diagnostics "validate_bundle_step.py"
+          $pendingReceiptPath = Join-Path $pending "validation-receipt.json"
+          $pendingCampaignPath = Join-Path $pending "campaign.json"
+          $receiptPath = Join-Path $diagnostics "validation-receipt.json"
+          $campaignPath = Join-Path $diagnostics "campaign.json"
+          $failurePath = Join-Path $diagnostics "validation-failed.json"
+          $campaignRecord = $null
+          try {
+            $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE `
+              "oracle\windows-dao\scripts"
+            New-Item -ItemType Directory -Path $pending | Out-Null
+            $code = @'
           import hashlib
           import json
           import sys
@@ -578,62 +589,136 @@ jobs:
               raise RuntimeError("A1 validation receipt exceeds its byte ceiling")
           with Path(sys.argv[5]).open("xb") as receipt_file:
               receipt_file.write(receipt_bytes)
-          print("PASS: independently validated complete A1 bundle")
           '@
+            [IO.File]::WriteAllText(
+              $validatorPath,
+              $code,
+              (New-Object Text.UTF8Encoding($false))
+            )
+            & python -B $validatorPath $env:A1_BUNDLE_PATH $env:GITHUB_SHA `
+              $env:A1_RUN_ID $env:EXPECTED_PROVIDER_SHA256 `
+              $pendingReceiptPath $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT
+            if ($LASTEXITCODE -ne 0) {
+              throw "Independent complete A1 bundle validation failed."
+            }
+            $receiptBytes = [IO.File]::ReadAllBytes($pendingReceiptPath)
+            if ($receiptBytes.Length -gt 4096) {
+              throw "A1 validation receipt exceeds its byte ceiling."
+            }
+            $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+            if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+              throw "Independent validation changed the exact checkout."
+            }
+            $campaignRecord = Get-Content -LiteralPath $campaignPath -Raw |
+              ConvertFrom-Json
+            if ($campaignRecord.status -cne "not_independently_validated") {
+              throw "The A1 campaign validation status is not fail-closed."
+            }
+            $campaignRecord.status = "independently_validated"
+            $validatedCampaignJson = $campaignRecord | ConvertTo-Json -Depth 6
+            [IO.File]::WriteAllText(
+              $pendingCampaignPath,
+              $validatedCampaignJson,
+              (New-Object Text.UTF8Encoding($false))
+            )
+
+            $attestation = Join-Path $env:RUNNER_TEMP "jet3-a1-attestation"
+            New-Item -ItemType Directory -Path $attestation | Out-Null
+            Copy-Item -LiteralPath `
+              (Join-Path $diagnostics "provider-binding.json") `
+              -Destination (Join-Path $attestation "provider-binding.json")
+            Copy-Item -LiteralPath $pendingReceiptPath `
+              -Destination (Join-Path $attestation "validation-receipt.json")
+            Copy-Item -LiteralPath $pendingCampaignPath `
+              -Destination (Join-Path $attestation "campaign.json")
+
+            [IO.File]::WriteAllText(
+              $campaignPath,
+              $validatedCampaignJson,
+              (New-Object Text.UTF8Encoding($false))
+            )
+            [IO.File]::WriteAllBytes($receiptPath, $receiptBytes)
+          }
+          catch {
+            [string]$failureMessage = [Convert]::ToString($_.Exception.Message)
+            if ($failureMessage.Length -gt 1024) {
+              $failureMessage = $failureMessage.Substring(0, 1024)
+            }
+            try {
+              if (Test-Path -LiteralPath $receiptPath -PathType Leaf) {
+                Remove-Item -LiteralPath $receiptPath -Force
+              }
+            }
+            catch {
+              $failureMessage += " Receipt cleanup also failed."
+            }
+            try {
+              if ($null -ne $campaignRecord) {
+                $campaignRecord.status = "not_independently_validated"
+                [IO.File]::WriteAllText(
+                  $campaignPath,
+                  ($campaignRecord | ConvertTo-Json -Depth 6),
+                  (New-Object Text.UTF8Encoding($false))
+                )
+              }
+            }
+            catch {
+              $failureMessage += " Campaign status cleanup also failed."
+            }
+            $failure = [ordered]@{
+              document_type = "jet3_windows_dao_a1_validation_failure"
+              label = "independent_complete_a1_bundle_validation"
+              message = $failureMessage
+            }
+            $failureJson = ($failure | ConvertTo-Json -Compress) + "`n"
+            $failureBytes = [Text.Encoding]::UTF8.GetBytes($failureJson)
+            if ($failureBytes.Length -gt 4096) {
+              throw "A1 validation failure marker exceeds its byte ceiling."
+            }
+            [IO.File]::WriteAllBytes($failurePath, $failureBytes)
+            throw
+          }
+
+      - name: Record retained A1 bundle validation status
+        id: bundle_upload_status
+        if: always() && steps.campaign.outcome == 'success'
+        shell: powershell
+        env:
+          INDEPENDENT_VALIDATION_OUTCOME: ${{ steps.bundle_validation.outcome }}
+        run: |
+          $ErrorActionPreference = "Stop"
           $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a1-diagnostics"
-          $validatorPath = Join-Path $diagnostics "validate_bundle_step.py"
-          [IO.File]::WriteAllText(
-            $validatorPath,
-            $code,
-            (New-Object Text.UTF8Encoding($false))
-          )
-          $receiptPath = Join-Path $env:RUNNER_TEMP `
-            "jet3-a1-diagnostics\validation-receipt.json"
-          & python -B $validatorPath $env:A1_BUNDLE_PATH $env:GITHUB_SHA `
-            $env:A1_RUN_ID $env:EXPECTED_PROVIDER_SHA256 $receiptPath `
-            $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT
-          if ($LASTEXITCODE -ne 0) {
-            throw "Independent complete A1 bundle validation failed."
+          $statusPath = Join-Path $diagnostics "bundle-upload-status.json"
+          $status = [ordered]@{
+            document_type = "jet3_windows_dao_a1_bundle_upload_status"
+            independent_validation_passed = [string]::Equals(
+              $env:INDEPENDENT_VALIDATION_OUTCOME,
+              "success",
+              [StringComparison]::Ordinal
+            )
+            independent_validation_outcome = `
+              $env:INDEPENDENT_VALIDATION_OUTCOME
+            github_run_id = $env:GITHUB_RUN_ID
+            github_run_attempt = $env:GITHUB_RUN_ATTEMPT
           }
-          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
-          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
-            throw "Independent validation changed the exact checkout."
+          $statusJson = ($status | ConvertTo-Json -Compress) + "`n"
+          $statusBytes = [Text.Encoding]::UTF8.GetBytes($statusJson)
+          if ($statusBytes.Length -gt 4096) {
+            throw "A1 bundle upload status exceeds its byte ceiling."
           }
-          $campaignPath = Join-Path $diagnostics "campaign.json"
-          $campaignRecord = Get-Content -LiteralPath $campaignPath -Raw |
-            ConvertFrom-Json
-          if ($campaignRecord.status -cne "not_independently_validated") {
-            throw "The A1 campaign validation status is not fail-closed."
-          }
-          $attestation = Join-Path $env:RUNNER_TEMP "jet3-a1-attestation"
-          New-Item -ItemType Directory -Path $attestation | Out-Null
-          foreach ($name in @(
-              "provider-binding.json",
-              "validation-receipt.json",
-              "campaign.json"
-            )) {
-            Copy-Item -LiteralPath (Join-Path $diagnostics $name) `
-              -Destination (Join-Path $attestation $name)
-          }
-          $campaignRecord.status = "independently_validated"
-          $validatedCampaignJson = $campaignRecord | ConvertTo-Json -Depth 6
-          [IO.File]::WriteAllText(
-            (Join-Path $attestation "campaign.json"),
-            $validatedCampaignJson,
-            (New-Object Text.UTF8Encoding($false))
-          )
-          [IO.File]::WriteAllText(
-            $campaignPath,
-            $validatedCampaignJson,
-            (New-Object Text.UTF8Encoding($false))
-          )
+          [IO.File]::WriteAllBytes($statusPath, $statusBytes)
 
       - name: Upload retained A1 bundle
-        if: always() && steps.campaign.outcome == 'success'
+        if: >-
+          always() &&
+          steps.campaign.outcome == 'success' &&
+          steps.bundle_upload_status.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-dao-a1-bundle-${{ github.sha }}-${{ steps.campaign.outputs.run_id }}
-          path: ${{ steps.campaign.outputs.bundle_path }}
+          path: |
+            ${{ steps.campaign.outputs.bundle_path }}
+            ${{ runner.temp }}\jet3-a1-diagnostics\bundle-upload-status.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
