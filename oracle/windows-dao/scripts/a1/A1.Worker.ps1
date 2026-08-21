@@ -497,6 +497,9 @@ function Add-A1UntilTarget {
     )
     do {
         Add-A1RowBatch -Role $Role
+        # checkpoint_design growth rules require the first fully quiescent
+        # closed-file state after each exact 32-row candidate batch.
+        Assert-A1Quiescent
         $pages = Get-A1ClosedPageCount
     } while ($pages -lt $ThresholdPages)
 }

@@ -47,16 +47,14 @@ function Get-A1LowerSha256 {
     finally { $hash.Dispose() }
 }
 
-function New-A1IncrementalSha256 {
-    return [Security.Cryptography.IncrementalHash]::CreateHash(
-        [Security.Cryptography.HashAlgorithmName]::SHA256
-    )
+function New-A1SemanticSha256 {
+    return [Security.Cryptography.SHA256]::Create()
 }
 
 function Add-A1SemanticHashRow {
     param(
         [Parameter(Mandatory = $true)]
-        [Security.Cryptography.IncrementalHash]$Hash,
+        [Security.Cryptography.HashAlgorithm]$Hash,
         [Parameter(Mandatory = $true)][int]$Id,
         [Parameter(Mandatory = $true)][string]$Payload
     )
@@ -69,20 +67,26 @@ function Add-A1SemanticHashRow {
         throw "A1 semantic payload exceeds its rolling-hash length field."
     }
     # tables.row_algorithm.rolling_sha256 fixes this exact byte encoding;
-    # one incremental .NET hash instance preserves it across every ordered row.
-    $Hash.AppendData([BitConverter]::GetBytes([int]$Id))
-    $Hash.AppendData([BitConverter]::GetBytes([uint16]$payloadBytes.Length))
-    $Hash.AppendData($payloadBytes)
+    # one reusable SHA256 instance preserves it across every ordered row.
+    foreach ($part in @(
+        [BitConverter]::GetBytes([int]$Id),
+        [BitConverter]::GetBytes([uint16]$payloadBytes.Length),
+        $payloadBytes
+    )) {
+        [void]$Hash.TransformBlock($part, 0, $part.Length, $part, 0)
+    }
 }
 
-function Complete-A1IncrementalSha256 {
+function Complete-A1SemanticSha256 {
     param(
         [Parameter(Mandatory = $true)]
-        [Security.Cryptography.IncrementalHash]$Hash
+        [Security.Cryptography.HashAlgorithm]$Hash
     )
 
+    $empty = New-Object byte[] 0
+    [void]$Hash.TransformFinalBlock($empty, 0, 0)
     return ([BitConverter]::ToString(
-        $Hash.GetHashAndReset()
+        $Hash.Hash
     )).Replace("-", "").ToLowerInvariant()
 }
 
@@ -253,7 +257,7 @@ function Get-A1ExpectedSemanticResult {
     if ($script:A1ExpectedSemanticCache.ContainsKey($Role)) {
         return $script:A1ExpectedSemanticCache[$Role]
     }
-    $hash = New-A1IncrementalSha256
+    $hash = New-A1SemanticSha256
     try {
         foreach ($id in @($Rows | Sort-Object)) {
             Add-A1SemanticHashRow -Hash $hash -Id ([int]$id) `
@@ -263,7 +267,7 @@ function Get-A1ExpectedSemanticResult {
         # count/digest; every role mutation invalidates this deterministic cache.
         $result = [pscustomobject]@{
             count = [int]$Rows.Count
-            sha256 = Complete-A1IncrementalSha256 -Hash $hash
+            sha256 = Complete-A1SemanticSha256 -Hash $hash
         }
         $script:A1ExpectedSemanticCache[$Role] = $result
         return $result
@@ -300,7 +304,7 @@ function Read-A1SemanticTable {
         $fields = $recordset.Fields
         $idField = $fields.Item("Id")
         $payloadField = $fields.Item("Payload")
-        $hash = New-A1IncrementalSha256
+        $hash = New-A1SemanticSha256
         if (-not $recordset.EOF) { $recordset.MoveFirst() }
         while (-not $recordset.EOF) {
             $id = [int]$idField.Value
@@ -314,7 +318,7 @@ function Read-A1SemanticTable {
             $count++
             $recordset.MoveNext()
         }
-        $digest = Complete-A1IncrementalSha256 -Hash $hash
+        $digest = Complete-A1SemanticSha256 -Hash $hash
     }
     catch { $primary = $_ }
     finally {
