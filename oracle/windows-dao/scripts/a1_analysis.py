@@ -32,6 +32,7 @@ from a1_model import (
     derive,
     joint_shape,
     predicts_holdout,
+    require_unique_boundaries,
     sole_model,
 )
 from a1_spec import (
@@ -187,6 +188,7 @@ def build_analysis(
     model: dict[str, Any] | None = None
     try:
         derivations = [derive(ReplicaView(item, store, work)) for item in replicas]
+        require_unique_boundaries(derivations[0], derivations[1])
         if joint_shape(derivations[0]) != joint_shape(derivations[1]):
             raise Abort(REPLICA_DISAGREEMENT)
         candidates = candidate_counts(derivations[0], derivations[1], CANDIDATE_CEILING)

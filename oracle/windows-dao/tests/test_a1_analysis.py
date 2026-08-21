@@ -179,7 +179,12 @@ class A1AnalysisTests(unittest.TestCase):
     def test_derivation_replicas_must_agree_on_the_record_boundary(self) -> None:
         specs = decisive_specs()
         specs[1].record_shift = 4
-        self.assert_no_outcome(self.analyze(specs), "replica disagreement")
+        self.assert_no_outcome(self.analyze(specs), "ambiguous record or inline boundary")
+
+    def test_disagreeing_observed_record_start_is_ambiguous(self) -> None:
+        specs = decisive_specs()
+        specs[0].second_used_pointer = True
+        self.assert_no_outcome(self.analyze(specs), "ambiguous record or inline boundary")
 
     def test_absent_inline_to_indirect_conversion_is_terminal(self) -> None:
         specs = decisive_specs()

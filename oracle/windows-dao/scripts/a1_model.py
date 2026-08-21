@@ -259,6 +259,9 @@ def _observed_changes(view: ReplicaView, page: int) -> set[int]:
 def _record_interval(view: ReplicaView, page: int) -> tuple[int, int]:
     """Select the one caller-delimited record with a unique observed start and end.
 
+    `hypotheses.page_one`: "exactly one caller-delimited allocation-map record
+    has a unique observed start and end on physical page 1".
+
     A candidate interval must contain every observed change on the page and
     must have both of its endpoint bytes witnessed by an observed change; the
     plan supplies no other delimiter. Exactly one interval can satisfy both, so
@@ -565,6 +568,31 @@ def derive(view: ReplicaView) -> Derivation:
         free=free,
         bases=bases,
     )
+
+
+def require_unique_boundaries(first: Derivation, second: Derivation) -> None:
+    """Enforce the one unique observed start and end of `hypotheses.page_one`.
+
+    The observed start and end must be identical across the derivation replicas
+    and must contain every used and free pointer observation; any disagreement
+    is the plan's ambiguous record or inline boundary.
+    """
+    if (first.record_start, first.record_end) != (second.record_start, second.record_end):
+        raise Abort(AMBIGUOUS_RECORD_BOUNDARY)
+    if first.inline_boundary != second.inline_boundary:
+        raise Abort(AMBIGUOUS_INLINE_BOUNDARY)
+    for derivation in (first, second):
+        observed = {
+            offset
+            for layer in (derivation.used, derivation.free)
+            for offsets in layer.values()
+            for offset in offsets
+        }
+        if any(
+            not derivation.record_start <= offset <= derivation.record_end - POINTER_WIDTH
+            for offset in observed
+        ):
+            raise Abort(AMBIGUOUS_RECORD_BOUNDARY)
 
 
 def joint_shape(derivation: Derivation) -> tuple[int, int, int, int, int, int, int]:
