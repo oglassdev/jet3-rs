@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import subprocess
+import struct
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,7 +19,75 @@ CONTROLLER = A1 / "A1.Controller.ps1"
 WORKER = A1 / "A1.Worker.ps1"
 PAGE_STORE = A1 / "A1.PageStore.ps1"
 PROGRESS = A1 / "A1.Progress.ps1"
+M1 = SCRIPTS / "m1"
+DAO_VALUES = M1 / "M1.DaoValues.ps1"
+PUBLICATION = M1 / "M1.Publication.ps1"
 PLAN = ROOT / "experiments" / "a1" / "a1-allocation-maps.plan.json"
+PAGE_BYTES = 2048
+WINDOWS_ROOT = Path(os.environ.get("WINDIR", r"C:\Windows"))
+POWERSHELL_CANDIDATES = (
+    WINDOWS_ROOT
+    / "SysWOW64"
+    / "WindowsPowerShell"
+    / "v1.0"
+    / "powershell.exe",
+    WINDOWS_ROOT
+    / "System32"
+    / "WindowsPowerShell"
+    / "v1.0"
+    / "powershell.exe",
+)
+POWERSHELL = next(
+    (candidate for candidate in POWERSHELL_CANDIDATES if candidate.is_file()),
+    POWERSHELL_CANDIDATES[0],
+)
+
+
+def function_source(source: str, name: str) -> str:
+    start = source.index(f"function {name}")
+    end = source.find("\nfunction ", start + 1)
+    return source[start:] if end < 0 else source[start:end]
+
+
+def ps_quote(value: object) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def payload(role: str, row_id: int) -> str:
+    seed = f"A1|{role}|{row_id:010d}|"
+    return (seed * ((240 + len(seed) - 1) // len(seed)))[:240]
+
+
+def semantic_digest(role: str, row_ids: set[int]) -> tuple[int, str]:
+    hasher = hashlib.sha256()
+    for row_id in sorted(row_ids):
+        encoded = payload(role, row_id).encode("utf-8")
+        hasher.update(struct.pack("<iH", row_id, len(encoded)))
+        hasher.update(encoded)
+    return len(row_ids), hasher.hexdigest()
+
+
+def naive_snapshot(path: Path, prior: list[str] | None) -> dict[str, object]:
+    data = path.read_bytes()
+    assert data and len(data) % PAGE_BYTES == 0
+    pages = [
+        data[index : index + PAGE_BYTES]
+        for index in range(0, len(data), PAGE_BYTES)
+    ]
+    hashes = [hashlib.sha256(page).hexdigest() for page in pages]
+    changed = [
+        index
+        for index, digest in enumerate(hashes)
+        if prior is None or index >= len(prior) or prior[index] != digest
+    ]
+    if prior is not None:
+        changed.extend(range(len(hashes), len(prior)))
+    return {
+        "database_sha256": hashlib.sha256(data).hexdigest(),
+        "ordered_page_sha256": hashes,
+        "changed_page_indices": changed,
+        "pages": pages,
+}
 
 
 class A1PowerShellSourceContractTests(unittest.TestCase):
@@ -66,19 +140,18 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
             'CreateField("Id", $script:A1DbLong)',
             'CreateField("Payload", $script:A1DbText, 240)',
             '$payloadField.Attributes = $script:A1DbFixedField',
-            '$field.Value = [Int32]$Value',
-            '$field.Value = [string]$Value',
-            'throw "A1 field name is not controlled."',
+            '$idField.Value = [Int32]$id',
+            '$payloadField.Value = [string](',
             'growth_batch_rows -ne 32',
             '"A1|$Role|$($Id.ToString(\'D10\'))|"',
             "GetBytes([int]$Id)",
             "GetBytes([uint16]$payloadBytes.Length)",
         ):
             with self.subTest(fragment=fragment):
-                self.assertIn(fragment, self.worker)
-        self.assertNotIn('$field.Value = $Value', self.worker)
-        self.assertIn("Id, Payload", self.worker)
-        self.assertIn("ORDER BY Id", self.worker)
+                self.assertIn(fragment, self.combined)
+        self.assertNotIn('$field.Value = $Value', self.combined)
+        self.assertIn("Id, Payload", self.page_store)
+        self.assertIn("ORDER BY Id", self.page_store)
 
     def test_checkpoint_closes_rereads_and_requires_quiescence(self) -> None:
         checkpoint = self.worker.index("function Add-A1Checkpoint")
@@ -125,6 +198,74 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         for forbidden in ("retune", "adaptive checkpoint", "batch_rows +="):
             self.assertNotIn(forbidden, self.worker.lower())
 
+    def test_closed_state_probe_collects_only_after_a_sharing_failure(self) -> None:
+        database_action = function_source(self.worker, "Invoke-A1WithDatabase")
+        closed_probe = function_source(self.worker, "Get-A1ClosedPageCount")
+        growth = function_source(self.worker, "Add-A1UntilTarget")
+        checkpoint = function_source(self.worker, "Add-A1Checkpoint")
+        self.assertNotIn("[GC]::Collect()", database_action)
+        self.assertIn("[IO.FileShare]::None", closed_probe)
+        self.assertIn("$nativeCode -notin @(32, 33)", closed_probe)
+        self.assertEqual(closed_probe.count("[GC]::Collect()"), 1)
+        self.assertEqual(closed_probe.count("[GC]::WaitForPendingFinalizers()"), 1)
+        self.assertLess(
+            growth.index("Add-A1RowBatch -Role $Role"),
+            growth.index("Assert-A1Quiescent"),
+        )
+        self.assertLess(
+            growth.index("Assert-A1Quiescent"),
+            growth.index("Get-A1ClosedPageCount"),
+        )
+        self.assertGreaterEqual(checkpoint.count("Assert-A1Quiescent"), 2)
+
+    def test_expected_digest_cache_matches_append_delete_and_restore(self) -> None:
+        cache: dict[str, tuple[int, str]] = {}
+        rows: set[int] = set()
+
+        def cached(role: str) -> tuple[int, str]:
+            if role not in cache:
+                cache[role] = semantic_digest(role, rows)
+            return cache[role]
+
+        for start in (1, 33, 65):
+            rows.update(range(start, start + 32))
+            cache.pop("L", None)
+            self.assertEqual(cached("L"), semantic_digest("L", rows))
+        before_delete = cached("L")
+        deleted = {row_id for row_id in rows if row_id % 2 == 0}
+        rows.difference_update(deleted)
+        cache.pop("L", None)
+        self.assertEqual(cached("L"), semantic_digest("L", rows))
+        rows.update(deleted)
+        cache.pop("L", None)
+        self.assertEqual(cached("L"), semantic_digest("L", rows))
+        self.assertEqual(cached("L"), before_delete)
+
+        for name in ("Add-A1Table", "Remove-A1Table", "Add-A1RowBatch"):
+            with self.subTest(function=name):
+                self.assertIn(
+                    "Set-A1ExpectedSemanticDirty -Role $Role",
+                    function_source(self.worker, name),
+                )
+        for name in ("Remove-A1AlternatingRows", "Restore-A1AlternatingRows"):
+            with self.subTest(function=name):
+                self.assertIn(
+                    'Set-A1ExpectedSemanticDirty -Role "L"',
+                    function_source(self.worker, name),
+                )
+        self.assertIn("ContainsKey($Role)", self.page_store)
+        self.assertIn("New-A1SemanticSha256", self.page_store)
+
+    def test_checkpoint_uses_one_database_session_for_all_semantic_tables(self) -> None:
+        all_tables = function_source(self.page_store, "Read-A1SemanticTables")
+        one_table = function_source(self.page_store, "Read-A1SemanticTable")
+        self.assertEqual(all_tables.count("Invoke-A1WithDatabase -Action"), 1)
+        self.assertIn('@("D", "L", "P", "H")', all_tables)
+        self.assertIn("ORDER BY Id", one_table)
+        self.assertIn('$fields = $recordset.Fields', one_table)
+        self.assertIn('$idField = $fields.Item("Id")', one_table)
+        self.assertIn('$payloadField = $fields.Item("Payload")', one_table)
+
     def test_page_store_is_exact_content_addressed_and_reconstructable(self) -> None:
         for fragment in (
             '$script:A1PageBytes = 2048L',
@@ -139,6 +280,19 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, self.combined)
         self.assertNotIn("page-store/sha256/", self.combined)
+
+    def test_page_snapshot_reuse_is_exact_and_bounded(self) -> None:
+        snapshot = function_source(self.page_store, "Read-A1PageSnapshot")
+        self.assertIn("StructuralEqualityComparer", snapshot)
+        self.assertIn("$sha = [string]$PriorHashes", snapshot)
+        self.assertIn("$pageHash.ComputeHash($page)", snapshot)
+        self.assertIn("[Buffer]::BlockCopy", snapshot)
+        self.assertIn("$fileHash.TransformBlock", snapshot)
+        self.assertIn("$Store.ChangedEntries + $changed.Count", snapshot)
+        self.assertIn("$script:A1MaximumPagesPerReplica", snapshot)
+        self.assertNotIn("IncrementalHash", self.page_store)
+        self.assertIn("$Hash.TransformBlock", self.page_store)
+        self.assertIn("$Hash.TransformFinalBlock", self.page_store)
 
     def test_resource_and_process_ceilings_are_fail_closed(self) -> None:
         expected = {
@@ -252,7 +406,7 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
             "$PriorHashes.Count -gt $pageCount", self.page_store
         )
         self.assertIn("page_index = [long]$index", self.page_store)
-        self.assertIn("$fields = $Recordset.Fields", self.worker)
+        self.assertIn("$fields = $recordset.Fields", self.combined)
         self.assertIn("$tableDefinitions = $database.TableDefs", self.worker)
         self.assertIn("A1 table definitions release", self.worker)
         self.assertIn('Label "A1 table deletion"', self.worker)
@@ -263,6 +417,301 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
                 self.assertLess(
                     len(path.read_text(encoding="utf-8").splitlines()), 800
                 )
+
+
+@unittest.skipUnless(
+    sys.platform == "win32" and POWERSHELL.is_file(),
+    "Windows PowerShell 5.1 required",
+)
+class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.worker = WORKER.read_text(encoding="utf-8")
+
+    def run_ps(
+        self, body: str, *, timeout: int = 60
+    ) -> subprocess.CompletedProcess[str]:
+        source = (
+            "$ErrorActionPreference = 'Stop'\n"
+            "Set-StrictMode -Version Latest\n"
+            "if ($PSVersionTable.PSVersion.Major -ne 5) { "
+            "throw 'Windows PowerShell 5.1 is required.' }\n"
+            + body
+        )
+        with tempfile.TemporaryDirectory(prefix="a1-ps51-test-") as directory:
+            script = Path(directory) / "contract.ps1"
+            script.write_text(source, encoding="utf-8-sig")
+            return subprocess.run(
+                [
+                    str(POWERSHELL),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(script),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=timeout,
+            )
+
+    def test_real_page_snapshot_matches_naive_rehash_and_reconstruction(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a1-page-reuse-") as directory:
+            root = Path(directory)
+            stage = root / "stage"
+            bundle = stage / "bundle"
+            working = stage / "working"
+            bundle.mkdir(parents=True)
+            working.mkdir()
+            database = working / "synthetic.mdb"
+            second_path = working / "second.mdb"
+            third_path = working / "third.mdb"
+            first_bytes = (
+                b"A" * PAGE_BYTES + b"B" * PAGE_BYTES + b"C" * PAGE_BYTES
+            )
+            second_bytes = (
+                b"A" * PAGE_BYTES
+                + b"X" * PAGE_BYTES
+                + b"C" * PAGE_BYTES
+                + b"D" * PAGE_BYTES
+            )
+            third_bytes = b"A" * PAGE_BYTES + b"X" * PAGE_BYTES
+            database.write_bytes(first_bytes)
+            second_path.write_bytes(second_bytes)
+            third_path.write_bytes(third_bytes)
+
+            first_expected = naive_snapshot(database, None)
+            first_hashes = first_expected["ordered_page_sha256"]
+            self.assertIsInstance(first_hashes, list)
+            second_expected = naive_snapshot(second_path, first_hashes)
+            second_hashes = second_expected["ordered_page_sha256"]
+            self.assertIsInstance(second_hashes, list)
+            third_expected = naive_snapshot(third_path, second_hashes)
+
+            body = (
+                f". {ps_quote(PUBLICATION)}\n"
+                f". {ps_quote(PAGE_STORE)}\n"
+                "function Convert-A1TestSnapshot {\n"
+                "  param([pscustomobject]$Snapshot)\n"
+                "  return [ordered]@{\n"
+                "    database_sha256 = [string]$Snapshot.file_sha256\n"
+                "    ordered_page_sha256 = @($Snapshot.hashes)\n"
+                "    changed_page_indices = @(\n"
+                "      $Snapshot.changed_pages | ForEach-Object { "
+                "[long]$_.page_index }\n"
+                "    )\n"
+                "  }\n"
+                "}\n"
+                f"$stagingBundle = (Get-Item -LiteralPath {ps_quote(bundle)} "
+                "-Force).FullName\n"
+                "$session = [pscustomobject]@{ StagingBundle = "
+                "$stagingBundle }\n"
+                "$store = New-A1PageStore -Session $session\n"
+                "$first = Read-A1PageSnapshot -Store $store "
+                f"-DatabasePath {ps_quote(database)} "
+                "-PriorHashes $null -PriorPages $null\n"
+                f"[IO.File]::WriteAllBytes({ps_quote(database)}, "
+                f"[IO.File]::ReadAllBytes({ps_quote(second_path)}))\n"
+                "$second = Read-A1PageSnapshot -Store $store "
+                f"-DatabasePath {ps_quote(database)} "
+                "-PriorHashes ([string[]]$first.hashes) "
+                "-PriorPages ([byte[][]]$first.pages)\n"
+                f"[IO.File]::WriteAllBytes({ps_quote(database)}, "
+                f"[IO.File]::ReadAllBytes({ps_quote(third_path)}))\n"
+                "$third = Read-A1PageSnapshot -Store $store "
+                f"-DatabasePath {ps_quote(database)} "
+                "-PriorHashes ([string[]]$second.hashes) "
+                "-PriorPages ([byte[][]]$second.pages)\n"
+                "[ordered]@{\n"
+                "  first = Convert-A1TestSnapshot $first\n"
+                "  second = Convert-A1TestSnapshot $second\n"
+                "  third = Convert-A1TestSnapshot $third\n"
+                "} | ConvertTo-Json -Depth 8 -Compress\n"
+            )
+            result = self.run_ps(body)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            observed = json.loads(result.stdout.strip().splitlines()[-1])
+
+            expected_snapshots = {
+                "first": first_expected,
+                "second": second_expected,
+                "third": third_expected,
+            }
+            raw_snapshots = {
+                "first": first_bytes,
+                "second": second_bytes,
+                "third": third_bytes,
+            }
+            for name, expected in expected_snapshots.items():
+                with self.subTest(snapshot=name):
+                    projection = {
+                        key: expected[key]
+                        for key in (
+                            "database_sha256",
+                            "ordered_page_sha256",
+                            "changed_page_indices",
+                        )
+                    }
+                    self.assertEqual(observed[name], projection)
+                    reconstructed = b"".join(
+                        (
+                            bundle / "page-store" / f"{digest}.page"
+                        ).read_bytes()
+                        for digest in observed[name]["ordered_page_sha256"]
+                    )
+                    self.assertEqual(reconstructed, raw_snapshots[name])
+
+    def test_real_one_session_dao_reread_matches_per_table_sessions(self) -> None:
+        definitions = "\n\n".join(
+            function_source(self.worker, name)
+            for name in (
+                "Get-A1Payload",
+                "Invoke-A1WithDatabase",
+                "Add-A1Table",
+                "Add-A1RowBatch",
+                "Assert-A1Quiescent",
+            )
+        )
+        with tempfile.TemporaryDirectory(prefix="a1-semantic-reread-") as directory:
+            template_database = Path(directory) / "template.mdb"
+            one_session_database = Path(directory) / "one-session.mdb"
+            per_table_database = Path(directory) / "per-table.mdb"
+            body = (
+                f". {ps_quote(DAO_VALUES)}\n"
+                f". {ps_quote(PAGE_STORE)}\n"
+                + definitions
+                + "\n"
+                + "if ([IntPtr]::Size -ne 4) { "
+                "throw 'The controlled DAO test requires x86 PowerShell.' }\n"
+                "$script:A1DbVersion30 = 32\n"
+                "$script:A1DbLong = 4\n"
+                "$script:A1DbText = 10\n"
+                "$script:A1DbFixedField = 1\n"
+                "$script:A1DbOpenSnapshot = 4\n"
+                "$script:A1Locale = ';LANGID=0x0409;CP=1252;COUNTRY=0'\n"
+                f"$script:A1DatabasePath = {ps_quote(template_database)}\n"
+                "$script:A1RoleNames = @{ D = 'A1TAB_A'; L = 'A1TAB_B'; "
+                "P = 'A1TAB_C'; H = 'A1TAB_D' }\n"
+                "$script:A1Extant = @{ D = $false; L = $false; "
+                "P = $false; H = $false }\n"
+                "$script:A1Rows = @{}\n"
+                "$script:A1NextId = @{}\n"
+                "$script:A1ExpectedSemanticCache = @{}\n"
+                "foreach ($role in @('D', 'L', 'P', 'H')) {\n"
+                "  $script:A1Rows[$role] = "
+                "New-Object 'Collections.Generic.HashSet[int]'\n"
+                "  $script:A1NextId[$role] = 1\n"
+                "}\n"
+                "$script:A1InsertedRows = 0\n"
+                "$engine = $null\n"
+                "$workspaces = $null\n"
+                "$workspace = $null\n"
+                "$output = $null\n"
+                "try {\n"
+                "  $providerType = [Type]::GetTypeFromProgID("
+                "'DAO.DBEngine.36', $true)\n"
+                "  $engine = [Activator]::CreateInstance($providerType)\n"
+                "  $workspaces = $engine.Workspaces\n"
+                "  $workspace = $workspaces.Item([int]0)\n"
+                "  $script:A1Workspace = $workspace\n"
+                "  Invoke-A1WithDatabase -Create -Action { "
+                "param($database) } | Out-Null\n"
+                "  Add-A1Table -Role 'D'\n"
+                "  Add-A1RowBatch -Role 'D'\n"
+                "  Add-A1Table -Role 'L'\n"
+                "  Add-A1RowBatch -Role 'L'\n"
+                "  Assert-A1Quiescent\n"
+                f"  [IO.File]::Copy($script:A1DatabasePath, "
+                f"{ps_quote(one_session_database)}, $false)\n"
+                f"  [IO.File]::Copy($script:A1DatabasePath, "
+                f"{ps_quote(per_table_database)}, $false)\n"
+                f"  $currentInputSha = Get-M1FileSha256 -Path "
+                f"{ps_quote(one_session_database)}\n"
+                f"  $legacyInputSha = Get-M1FileSha256 -Path "
+                f"{ps_quote(per_table_database)}\n"
+                "  $script:A1OriginalDatabaseAction = "
+                "(Get-Command Invoke-A1WithDatabase).ScriptBlock\n"
+                "  function Invoke-A1WithDatabase {\n"
+                "    param([scriptblock]$Action, [switch]$Create)\n"
+                "    $script:A1MeasuredOpenCount++\n"
+                "    & $script:A1OriginalDatabaseAction "
+                "-Action $Action -Create:$Create\n"
+                "  }\n"
+                f"  $script:A1DatabasePath = {ps_quote(one_session_database)}\n"
+                "  $script:A1MeasuredOpenCount = 0\n"
+                "  $current = @(Read-A1SemanticTables)\n"
+                "  $currentOpens = $script:A1MeasuredOpenCount\n"
+                "  Assert-A1Quiescent\n"
+                "  $currentDatabaseSha = Get-M1FileSha256 "
+                "-Path $script:A1DatabasePath\n"
+                f"  $script:A1DatabasePath = {ps_quote(per_table_database)}\n"
+                "  $script:A1MeasuredOpenCount = 0\n"
+                "  $legacy = New-Object Collections.ArrayList\n"
+                "  foreach ($role in @('D', 'L', 'P', 'H')) {\n"
+                "    if ([bool]$script:A1Extant[$role]) {\n"
+                "      $expected = Get-A1ExpectedSemanticResult "
+                "-Role $role -Rows $script:A1Rows[$role]\n"
+                "      $document = Invoke-A1WithDatabase -Action {\n"
+                "        param($database)\n"
+                "        Read-A1SemanticTable -Database $database "
+                "-Role $role -Expected $expected\n"
+                "      }\n"
+                "      [void]$legacy.Add($document)\n"
+                "    }\n"
+                "  }\n"
+                "  Assert-A1Quiescent\n"
+                "  $legacyDatabaseSha = Get-M1FileSha256 "
+                "-Path $script:A1DatabasePath\n"
+                "  $output = [ordered]@{\n"
+                "    current = @($current)\n"
+                "    legacy = @($legacy)\n"
+                "    current_open_count = $currentOpens\n"
+                "    legacy_open_count = $script:A1MeasuredOpenCount\n"
+                "    current_input_sha256 = $currentInputSha\n"
+                "    legacy_input_sha256 = $legacyInputSha\n"
+                "    current_database_sha256 = $currentDatabaseSha\n"
+                "    legacy_database_sha256 = $legacyDatabaseSha\n"
+                "  } | ConvertTo-Json -Depth 8 -Compress\n"
+                "}\n"
+                "finally {\n"
+                "  Release-M1ComObject -Value $workspace\n"
+                "  Release-M1ComObject -Value $workspaces\n"
+                "  Release-M1ComObject -Value $engine\n"
+                "}\n"
+                "[Console]::Write($output)\n"
+            )
+            result = self.run_ps(body, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            observed = json.loads(result.stdout.strip().splitlines()[-1])
+            self.assertEqual(observed["current_open_count"], 1)
+            self.assertEqual(observed["legacy_open_count"], 2)
+            self.assertEqual(
+                observed["current_input_sha256"], observed["legacy_input_sha256"]
+            )
+            self.assertEqual(
+                observed["current_database_sha256"],
+                observed["legacy_database_sha256"],
+            )
+            self.assertEqual(
+                observed["current_database_sha256"],
+                hashlib.sha256(one_session_database.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                observed["legacy_database_sha256"],
+                hashlib.sha256(per_table_database.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(observed["current"], observed["legacy"])
+            expected = [
+                {
+                    "role": role,
+                    "row_count": 32,
+                    "rolling_sha256": semantic_digest(role, set(range(1, 33)))[1],
+                }
+                for role in ("D", "L")
+            ]
+            self.assertEqual(observed["current"], expected)
 
 
 if __name__ == "__main__":

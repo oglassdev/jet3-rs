@@ -98,72 +98,6 @@ function Get-A1Payload {
     while ($builder.Length -lt 240) { [void]$builder.Append($seed) }
     return $builder.ToString(0, 240)
 }
-function Get-A1FieldValue {
-    param([object]$Recordset, [string]$Name)
-    $fields = $null
-    $field = $null
-    try {
-        $fields = $Recordset.Fields
-        $field = $fields.Item($Name)
-        return $field.Value
-    }
-    finally {
-        Release-M1ComObject -Value $field
-        Release-M1ComObject -Value $fields
-    }
-}
-function Set-A1FieldValue {
-    param([object]$Recordset, [string]$Name, [object]$Value)
-    $fields = $null
-    $field = $null
-    try {
-        $fields = $Recordset.Fields
-        $field = $fields.Item($Name)
-        switch ($Name) { "Id" { $field.Value = [Int32]$Value } "Payload" { $field.Value = [string]$Value } default { throw "A1 field name is not controlled." } }
-    }
-    finally {
-        Release-M1ComObject -Value $field
-        Release-M1ComObject -Value $fields
-    }
-}
-function Add-A1HashRow {
-    param(
-        [Parameter(Mandatory = $true)][Security.Cryptography.HashAlgorithm]$Hash,
-        [Parameter(Mandatory = $true)][int]$Id,
-        [Parameter(Mandatory = $true)][string]$Payload
-    )
-    if (-not [BitConverter]::IsLittleEndian) {
-        throw "A1 rolling hash requires an explicitly little-endian host."
-    }
-    $idBytes = [BitConverter]::GetBytes([int]$Id)
-    $payloadBytes = (New-Object Text.UTF8Encoding($false, $true)).GetBytes($Payload)
-    if ($payloadBytes.Length -gt [uint16]::MaxValue) {
-        throw "A1 semantic payload exceeds its rolling-hash length field."
-    }
-    $lengthBytes = [BitConverter]::GetBytes([uint16]$payloadBytes.Length)
-    foreach ($part in @($idBytes, $lengthBytes, $payloadBytes)) {
-        [void]$Hash.TransformBlock($part, 0, $part.Length, $part, 0)
-    }
-}
-function Get-A1ExpectedSemanticHash {
-    param(
-        [Parameter(Mandatory = $true)][string]$Role,
-        [Parameter(Mandatory = $true)]$Rows
-    )
-    $hash = [Security.Cryptography.SHA256]::Create()
-    try {
-        foreach ($id in @($Rows | Sort-Object)) {
-            Add-A1HashRow -Hash $hash -Id ([int]$id) `
-                -Payload (Get-A1Payload -Role $Role -Id ([int]$id))
-        }
-        $empty = New-Object byte[] 0
-        [void]$hash.TransformFinalBlock($empty, 0, 0)
-        return ([BitConverter]::ToString($hash.Hash)).Replace(
-            "-", ""
-        ).ToLowerInvariant()
-    }
-    finally { $hash.Dispose() }
-}
 function Invoke-A1WithDatabase {
     param(
         [Parameter(Mandatory = $true)][scriptblock]$Action,
@@ -197,8 +131,7 @@ function Invoke-A1WithDatabase {
     }
     Complete-M1DaoHelper -PrimaryError $primary -CleanupErrors $cleanup `
         -Label "A1 database action"
-    [GC]::Collect()
-    [GC]::WaitForPendingFinalizers()
+    # checkpoint_design growth rules observe exclusive closure, not a GC cycle.
     return $result
 }
 function Add-A1Table {
@@ -241,6 +174,7 @@ function Add-A1Table {
     $script:A1Extant[$Role] = $true
     $script:A1Rows[$Role].Clear()
     $script:A1NextId[$Role] = 1
+    Set-A1ExpectedSemanticDirty -Role $Role
 }
 function Remove-A1Table {
     param([Parameter(Mandatory = $true)][string]$Role)
@@ -264,6 +198,7 @@ function Remove-A1Table {
     $script:A1Extant[$Role] = $false
     $script:A1Rows[$Role].Clear()
     $script:A1NextId[$Role] = 1
+    Set-A1ExpectedSemanticDirty -Role $Role
 }
 function Add-A1RowBatch {
     param([Parameter(Mandatory = $true)][string]$Role)
@@ -275,21 +210,36 @@ function Add-A1RowBatch {
     Invoke-A1WithDatabase -Action {
         param($database)
         $recordset = $null
+        $fields = $null
+        $idField = $null
+        $payloadField = $null
         $cleanup = New-Object Collections.ArrayList
         $primary = $null
         try {
             $recordset = $database.OpenRecordset($name)
+            # tables.row_algorithm fixes values, not COM lookup frequency;
+            # these field objects remain scoped to this one ordered recordset.
+            $fields = $recordset.Fields
+            $idField = $fields.Item("Id")
+            $payloadField = $fields.Item("Payload")
             for ($offset = 0; $offset -lt 32; $offset++) {
                 $id = [int]($first + $offset)
                 $recordset.AddNew()
-                Set-A1FieldValue -Recordset $recordset -Name "Id" -Value $id
-                Set-A1FieldValue -Recordset $recordset -Name "Payload" `
-                    -Value (Get-A1Payload -Role $Role -Id $id)
+                $idField.Value = [Int32]$id
+                $payloadField.Value = [string](
+                    Get-A1Payload -Role $Role -Id $id
+                )
                 $recordset.Update()
             }
         }
         catch { $primary = $_ }
         finally {
+            Release-M1ComObject -Value $payloadField `
+                -CleanupErrors $cleanup -Label "A1 payload field release"
+            Release-M1ComObject -Value $idField -CleanupErrors $cleanup `
+                -Label "A1 id field release"
+            Release-M1ComObject -Value $fields -CleanupErrors $cleanup `
+                -Label "A1 recordset fields release"
             Close-M1ComObject -Value $recordset -CleanupErrors $cleanup `
                 -Label "A1 insert recordset close"
             Release-M1ComObject -Value $recordset -CleanupErrors $cleanup `
@@ -303,25 +253,34 @@ function Add-A1RowBatch {
     }
     $script:A1NextId[$Role] = [int]($first + 32)
     $script:A1InsertedRows += 32
+    Set-A1ExpectedSemanticDirty -Role $Role
 }
 function Remove-A1AlternatingRows {
     $name = [string]$script:A1RoleNames["L"]
     Invoke-A1WithDatabase -Action {
         param($database)
         $recordset = $null
+        $fields = $null
+        $idField = $null
         $cleanup = New-Object Collections.ArrayList
         $primary = $null
         try {
             $recordset = $database.OpenRecordset($name)
+            $fields = $recordset.Fields
+            $idField = $fields.Item("Id")
             if (-not $recordset.EOF) { $recordset.MoveFirst() }
             while (-not $recordset.EOF) {
-                $id = [int](Get-A1FieldValue -Recordset $recordset -Name "Id")
+                $id = [int]$idField.Value
                 if (($id % 2) -eq 0) { $recordset.Delete() }
                 $recordset.MoveNext()
             }
         }
         catch { $primary = $_ }
         finally {
+            Release-M1ComObject -Value $idField -CleanupErrors $cleanup `
+                -Label "A1 id field release"
+            Release-M1ComObject -Value $fields -CleanupErrors $cleanup `
+                -Label "A1 recordset fields release"
             Close-M1ComObject -Value $recordset -CleanupErrors $cleanup `
                 -Label "A1 delete recordset close"
             Release-M1ComObject -Value $recordset -CleanupErrors $cleanup `
@@ -335,6 +294,7 @@ function Remove-A1AlternatingRows {
             [void]$script:A1Rows["L"].Remove([int]$id)
         }
     }
+    Set-A1ExpectedSemanticDirty -Role "L"
 }
 function Restore-A1AlternatingRows {
     $limit = [int]($script:A1NextId["L"] - 1)
@@ -346,20 +306,33 @@ function Restore-A1AlternatingRows {
     Invoke-A1WithDatabase -Action {
         param($database)
         $recordset = $null
+        $fields = $null
+        $idField = $null
+        $payloadField = $null
         $cleanup = New-Object Collections.ArrayList
         $primary = $null
         try {
             $recordset = $database.OpenRecordset($name)
+            $fields = $recordset.Fields
+            $idField = $fields.Item("Id")
+            $payloadField = $fields.Item("Payload")
             foreach ($id in $ids) {
                 $recordset.AddNew()
-                Set-A1FieldValue -Recordset $recordset -Name "Id" -Value ([int]$id)
-                Set-A1FieldValue -Recordset $recordset -Name "Payload" `
-                    -Value (Get-A1Payload -Role "L" -Id ([int]$id))
+                $idField.Value = [Int32]$id
+                $payloadField.Value = [string](
+                    Get-A1Payload -Role "L" -Id ([int]$id)
+                )
                 $recordset.Update()
             }
         }
         catch { $primary = $_ }
         finally {
+            Release-M1ComObject -Value $payloadField `
+                -CleanupErrors $cleanup -Label "A1 payload field release"
+            Release-M1ComObject -Value $idField -CleanupErrors $cleanup `
+                -Label "A1 id field release"
+            Release-M1ComObject -Value $fields -CleanupErrors $cleanup `
+                -Label "A1 recordset fields release"
             Close-M1ComObject -Value $recordset -CleanupErrors $cleanup `
                 -Label "A1 reinsert recordset close"
             Release-M1ComObject -Value $recordset -CleanupErrors $cleanup `
@@ -370,14 +343,32 @@ function Restore-A1AlternatingRows {
     } | Out-Null
     foreach ($id in $ids) { [void]$script:A1Rows["L"].Add([int]$id) }
     $script:A1InsertedRows += $ids.Count
+    Set-A1ExpectedSemanticDirty -Role "L"
 }
 function Get-A1ClosedPageCount {
     Assert-M1NoReparseComponents -Path $script:A1DatabasePath
-    $stream = New-Object IO.FileStream(
-        $script:A1DatabasePath, [IO.FileMode]::Open, [IO.FileAccess]::Read,
-        [IO.FileShare]::None, 2048, [IO.FileOptions]::SequentialScan
-    )
+    $stream = $null
     try {
+        try {
+            $stream = New-Object IO.FileStream(
+                $script:A1DatabasePath, [IO.FileMode]::Open,
+                [IO.FileAccess]::Read, [IO.FileShare]::None, 2048,
+                [IO.FileOptions]::SequentialScan
+            )
+        }
+        catch [IO.IOException] {
+            $nativeCode = ($_.Exception.HResult -band 0xffff)
+            if ($nativeCode -notin @(32, 33)) { throw }
+            # checkpoint_design growth rules require each candidate to be closed;
+            # one finalizer retry is bounded proof against a lingering RCW.
+            [GC]::Collect()
+            [GC]::WaitForPendingFinalizers()
+            $stream = New-Object IO.FileStream(
+                $script:A1DatabasePath, [IO.FileMode]::Open,
+                [IO.FileAccess]::Read, [IO.FileShare]::None, 2048,
+                [IO.FileOptions]::SequentialScan
+            )
+        }
         if ($stream.Length -lt 2048 -or ($stream.Length % 2048) -ne 0) {
             throw "A1 database length is not an exact page sequence."
         }
@@ -385,7 +376,7 @@ function Get-A1ClosedPageCount {
         if ($pages -gt 20480) { throw "A1 final-page ceiling was exceeded." }
         return $pages
     }
-    finally { $stream.Dispose() }
+    finally { if ($null -ne $stream) { $stream.Dispose() } }
 }
 function Assert-A1Quiescent {
     $companion = [IO.Path]::ChangeExtension($script:A1DatabasePath, ".ldb")
@@ -400,76 +391,6 @@ function Assert-A1Quiescent {
         throw "A1 DAO lock companion was replaced by a directory."
     }
 }
-function Read-A1SemanticTables {
-    $documents = New-Object Collections.ArrayList
-    foreach ($role in @("D", "L", "P", "H")) {
-        if (-not [bool]$script:A1Extant[$role]) { continue }
-        $name = [string]$script:A1RoleNames[$role]
-        $rows = $script:A1Rows[$role]
-        $expectedHash = Get-A1ExpectedSemanticHash -Role $role -Rows $rows
-        $observed = Invoke-A1WithDatabase -Action {
-            param($database)
-            $recordset = $null
-            $hash = $null
-            $cleanup = New-Object Collections.ArrayList
-            $primary = $null
-            $count = 0
-            $prior = 0
-            $digest = $null
-            try {
-                $sql = "SELECT Id, Payload FROM [$name] ORDER BY Id"
-                $recordset = $database.OpenRecordset(
-                    $sql, $script:A1DbOpenSnapshot
-                )
-                $hash = [Security.Cryptography.SHA256]::Create()
-                if (-not $recordset.EOF) { $recordset.MoveFirst() }
-                while (-not $recordset.EOF) {
-                    $id = [int](Get-A1FieldValue `
-                        -Recordset $recordset -Name "Id")
-                    $payload = [string](Get-A1FieldValue `
-                        -Recordset $recordset -Name "Payload")
-                    if ($id -le $prior -or -not $rows.Contains($id) -or
-                        $payload -cne (Get-A1Payload -Role $role -Id $id)) {
-                        throw "A1 DAO semantic readback differs from expected rows."
-                    }
-                    Add-A1HashRow -Hash $hash -Id $id -Payload $payload
-                    $prior = $id
-                    $count++
-                    $recordset.MoveNext()
-                }
-                $empty = New-Object byte[] 0
-                [void]$hash.TransformFinalBlock($empty, 0, 0)
-                $digest = ([BitConverter]::ToString($hash.Hash)).Replace(
-                    "-", ""
-                ).ToLowerInvariant()
-            }
-            catch { $primary = $_ }
-            finally {
-                if ($null -ne $hash) { $hash.Dispose() }
-                Close-M1ComObject -Value $recordset -CleanupErrors $cleanup `
-                    -Label "A1 semantic recordset close"
-                Release-M1ComObject -Value $recordset -CleanupErrors $cleanup `
-                    -Label "A1 semantic recordset release"
-            }
-            Complete-M1DaoHelper -PrimaryError $primary -CleanupErrors $cleanup `
-                -Label "A1 semantic readback"
-            return [pscustomobject]@{ count = $count; sha256 = $digest }
-        }
-        if ([int]$observed.count -ne $rows.Count -or
-            [string]$observed.sha256 -cne $expectedHash) {
-            throw "A1 semantic row count or rolling digest differs from expectation."
-        }
-        [void]$documents.Add([ordered]@{
-            role = $role
-            row_count = [int]$observed.count
-            rolling_sha256 = [string]$observed.sha256
-        })
-    }
-    if ($documents.Count -eq 0) {
-        Invoke-A1WithDatabase -Action { param($database) } | Out-Null
-    }
-    return @($documents)
-}
 function Add-A1Checkpoint {
     param(
         [Parameter(Mandatory = $true)][string]$CheckpointId,
@@ -481,7 +402,8 @@ function Add-A1Checkpoint {
     Assert-A1Quiescent
     $snapshot = Read-A1PageSnapshot -Store $script:A1Store `
         -DatabasePath $script:A1DatabasePath `
-        -PriorHashes $script:A1PriorHashes
+        -PriorHashes $script:A1PriorHashes `
+        -PriorPages $script:A1PriorPages
     $overshoot = $null
     if ($null -ne $Target) {
         $threshold = if ([string]$Target.kind -ceq "relative") {
@@ -564,6 +486,7 @@ function Add-A1Checkpoint {
         }
     })
     $script:A1PriorHashes = [string[]]$snapshot.hashes
+    $script:A1PriorPages = [byte[][]]$snapshot.pages
     $script:A1PriorCheckpoint = $CheckpointId
     Add-A1ProgressRecord -Progress $script:A1Progress -CheckpointId $CheckpointId -PageCount ([long]$snapshot.page_count)
 }
@@ -574,6 +497,8 @@ function Add-A1UntilTarget {
     )
     do {
         Add-A1RowBatch -Role $Role
+        # checkpoint_design growth rules require the first fully quiescent
+        # closed-file state after each exact 32-row candidate batch.
         Assert-A1Quiescent
         $pages = Get-A1ClosedPageCount
     } while ($pages -lt $ThresholdPages)
@@ -720,6 +645,7 @@ function Invoke-A1Worker {
     $script:A1Rows = @{}
     $script:A1NextId = @{}
     $script:A1Baselines = @{}
+    $script:A1ExpectedSemanticCache = @{}
     foreach ($role in @("D", "L", "P", "H")) {
         $script:A1Rows[$role] = New-Object 'Collections.Generic.HashSet[int]'
         $script:A1NextId[$role] = 1
@@ -727,6 +653,7 @@ function Invoke-A1Worker {
     $script:A1InsertedRows = 0
     $script:A1Checkpoints = New-Object Collections.ArrayList
     $script:A1PriorHashes = $null
+    $script:A1PriorPages = $null
     $script:A1PriorCheckpoint = $null
     $script:A1Store = New-A1PageStore -Session $session
     $engine = $null
