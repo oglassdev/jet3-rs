@@ -3,12 +3,17 @@
 
 mod canonical_json;
 mod canonical_snapshot;
+mod classifier_snapshot;
 
 pub use canonical_snapshot::{
     CanonicalSnapshot, Column, FiniteF32, FiniteF64, Guid, HexString, Index, IndexField,
     InvariantDateTime, InvariantDecimal, Producer, ProducerKind, PropertyMap, RawPreservation,
     Relationship, RelationshipField, Row, ScenarioId, Sha256, SnapshotError, Table, TableKind,
     TypedValue,
+};
+pub use classifier_snapshot::{
+    ClassifiedFixture, ClassifierSnapshot, ClassifierSnapshotError, CommitId, PageKindHistogram,
+    classify_fixture,
 };
 
 /// Returns the format name used in fixture metadata.

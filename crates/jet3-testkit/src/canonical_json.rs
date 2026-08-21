@@ -1,9 +1,9 @@
 //! Canonical JSON emission for the typed snapshot model.
 
 use crate::{
-    CanonicalSnapshot, Column, FiniteF32, FiniteF64, Index, IndexField, Producer, ProducerKind,
-    PropertyMap, RawPreservation, Relationship, RelationshipField, Row, SnapshotError, Table,
-    TableKind, TypedValue,
+    CanonicalSnapshot, ClassifierSnapshot, Column, FiniteF32, FiniteF64, Index, IndexField,
+    Producer, ProducerKind, PropertyMap, RawPreservation, Relationship, RelationshipField, Row,
+    SnapshotError, Table, TableKind, TypedValue,
 };
 
 const PROTOCOL_VERSION: &str = "1.0.0";
@@ -20,6 +20,64 @@ pub(crate) fn write_properties(properties: &PropertyMap) -> Result<Vec<u8>, Snap
     let mut writer = JsonWriter::new();
     writer.properties(properties)?;
     Ok(writer.bytes)
+}
+
+pub(crate) fn write_classifier_snapshot(snapshot: &ClassifierSnapshot) -> Vec<u8> {
+    let mut writer = JsonWriter::new();
+    writer.bytes.push(b'{');
+    let mut first = true;
+    writer.key(&mut first, "document_type");
+    writer.string("page_classifier_snapshot");
+    writer.key(&mut first, "fixtures");
+    writer.bytes.push(b'{');
+    for (index, fixture) in snapshot.fixtures().iter().enumerate() {
+        writer.comma(index);
+        let key = format!(
+            "{}@{}",
+            fixture.sha256().as_str(),
+            snapshot.source_commit().as_str()
+        );
+        writer.string(&key);
+        writer.bytes.push(b':');
+        writer.bytes.push(b'{');
+        let mut fixture_first = true;
+        writer.key(&mut fixture_first, "fixture_sha256");
+        writer.string(fixture.sha256().as_str());
+        writer.key(&mut fixture_first, "page_count");
+        writer.unsigned(fixture.page_count());
+        writer.key(&mut fixture_first, "page_kinds");
+        writer.bytes.push(b'{');
+        let mut kind_first = true;
+        for (name, count) in fixture.histogram().named_counts() {
+            writer.key(&mut kind_first, name);
+            writer.unsigned(count);
+        }
+        writer.key(&mut kind_first, "unknown");
+        writer.bytes.push(b'{');
+        for (index, (tag, count)) in fixture.histogram().unknown_counts().enumerate() {
+            writer.comma(index);
+            writer.string(&format!("{tag:02x}"));
+            writer.bytes.push(b':');
+            writer.unsigned(count);
+        }
+        writer.bytes.push(b'}');
+        writer.bytes.push(b'}');
+        writer.bytes.push(b'}');
+    }
+    writer.bytes.push(b'}');
+    writer.key(&mut first, "ordering");
+    writer.bytes.extend_from_slice(
+        b"{\"fixture_keys\":\"sha256_then_commit_codepoint_ascending\",\
+\"object_keys\":\"unicode_codepoint_ascending\",\
+\"unknown_tags\":\"numeric_ascending\"}",
+    );
+    writer.key(&mut first, "schema_version");
+    writer.unsigned(1);
+    writer.key(&mut first, "source_commit");
+    writer.string(snapshot.source_commit().as_str());
+    writer.bytes.push(b'}');
+    writer.bytes.push(b'\n');
+    writer.bytes
 }
 
 struct JsonWriter {
