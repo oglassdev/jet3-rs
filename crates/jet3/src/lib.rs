@@ -27,8 +27,8 @@ pub use allocation::{
     extended_allocation_bits,
 };
 pub use allocation_traverse::{
-    AllocationTraversalError, MapPageWalker, ReachedMapPage, UnsupportedTraversalStep,
-    VisitedPages, locate_allocation_map,
+    AllocationTraversalError, PageChainWalker, ReachedMapPage, UnsupportedTraversalStep,
+    VisitedPages, follow_map_page_reference, locate_allocation_map,
 };
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;

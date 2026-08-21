@@ -718,10 +718,10 @@
     },
     {
       "id": "FUZZ-SEED-ALLOCATION-007",
-      "path": "fuzz/corpus/allocation/traversal",
+      "path": "fuzz/corpus/allocation/traversal_repeat",
       "size_bytes": 13,
-      "sha256": "e5674150b01d2073c90567dc0eea392cca262cbd9801fb2e74dbd4609b7174fc",
-      "purpose": "Select the traversal mode with a chain-depth limit of three, tag eight synthetic pages including a data page and an unknown tag, and repeat map-page references so the walker exercises cycle detection, lossless non-bitmap rejection, and the unsupported location and page-base steps.",
+      "sha256": "e3975ac46c7680816c9cb24d34c7eb98be9b53ad9fbe6a53c190a139b1319129",
+      "purpose": "Select the page-chain traversal mode with a chain-depth limit of three over eight extended bitmap pages, then follow pages 2, 2, and 4 so the walker charges and rejects the repeated page without changing depth and keeps the location, pointer-following, and page-base steps unsupported.",
       "origin": "Project-authored synthetic bytes based on SRC-0020; contains no MDB fixture content.",
       "generator": "POSIX printf",
       "environment": {
@@ -731,7 +731,24 @@
         "line_endings": "none"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '43\\005\\005\\001\\005\\377\\005\\005\\005\\002\\001\\002' > fuzz/corpus/allocation/traversal"
+      "reproduction_command": "printf '43\\005\\005\\005\\005\\005\\005\\005\\005\\002\\002\\004' > fuzz/corpus/allocation/traversal_repeat"
+    },
+    {
+      "id": "FUZZ-SEED-ALLOCATION-008",
+      "path": "fuzz/corpus/allocation/traversal_kinds",
+      "size_bytes": 13,
+      "sha256": "60a6e6cd23c3f28185179afd106caca710bc37b3d1c5a45ebafe3b57f8a93f96",
+      "purpose": "Select the page-chain traversal mode with a data page at page 1 and an unknown tag 0x7f at page 2, then follow pages 2, 1, and 3 so the walker rejects a required extended bitmap losslessly as Unknown(0x7f), accepts a required data page, and rejects a bitmap page where a data page was required.",
+      "origin": "Project-authored synthetic bytes based on SRC-0020; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "binary",
+        "line_endings": "none"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '43\\001\\177\\005\\005\\005\\005\\005\\005\\002\\001\\003' > fuzz/corpus/allocation/traversal_kinds"
     }
   ]
 }

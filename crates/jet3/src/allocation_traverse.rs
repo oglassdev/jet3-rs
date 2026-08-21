@@ -1,19 +1,21 @@
-//! Bounded, iterative traversal over the detached allocation-map decoders.
+//! Bounded, iterative page-chain following for future allocation traversal.
 //!
-//! This module supplies the safety boundary that database traversal requires:
-//! checked page references, a visited set charged before it is allocated,
-//! a chain-depth ceiling, structured cycle detection, and a page-visit charge
-//! for every reference including repeats. It follows only what `SRC-0020`
-//! documents. The steps that source does not establish — locating a map
-//! record, interpreting a zero reference, and deriving the database page that
-//! an extended bitmap bit represents — return [`UnsupportedTraversalStep`]
-//! instead of guessing.
+//! [`PageChainWalker`] is format-neutral safety machinery: given page numbers
+//! the caller already holds, it follows them one at a time under a chain-depth
+//! ceiling, a visited set charged before it is allocated, repeat detection,
+//! a geometry check, one page visit per followed page, and a required
+//! classification. It interprets no database bytes.
+//!
+//! Every format-specific step that `SRC-0020` does not establish — locating a
+//! map record, turning a raw type-1 reference into a page number, and
+//! deriving the database page an extended bitmap bit represents — returns
+//! [`UnsupportedTraversalStep`] instead of guessing. When provenance for one
+//! of those steps is recorded, only that function changes.
 
 use crate::{
     ByteCount, ClassifiedPage, DatabasePageError, DatabaseReader, Error, ExtendedAllocationBits,
-    IndirectAllocationMap, JET3_PAGE_SIZE, MapPageReferences, PageGeometry, PageKind, PageNumber,
-    ReadAt, ResourceBudget, allocation::AllocationMapError, classify_page,
-    extended_allocation_bits,
+    JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget,
+    allocation::AllocationMapError, classify_page, extended_allocation_bits,
 };
 use std::fmt;
 
@@ -25,8 +27,9 @@ const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub enum UnsupportedTraversalStep {
     /// Locating the global or per-table allocation-map record in a database.
     MapLocation,
-    /// Deciding whether a zero map-page reference is a null slot or page zero.
-    ZeroReference,
+    /// Turning a raw type-1 map-page reference into a database page number,
+    /// including whether zero is a null slot.
+    PointerFollowing,
     /// Deriving the absolute database page represented by an extended bit.
     ExtendedPageBase,
 }
@@ -35,47 +38,43 @@ impl fmt::Display for UnsupportedTraversalStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::MapLocation => "locating an allocation-map record",
-            Self::ZeroReference => "interpreting a zero map-page reference",
+            Self::PointerFollowing => "following a raw map-page reference",
             Self::ExtendedPageBase => "deriving the page base of an extended bitmap",
         })
     }
 }
 
-/// A structured failure while following allocation-map page references.
+/// A structured failure while following a page chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AllocationTraversalError {
     /// The step is not established by recorded provenance.
     Unsupported(UnsupportedTraversalStep),
-    /// Decoding or iterating the detached record failed.
-    Map(AllocationMapError),
-    /// Reading or classifying a referenced page failed.
+    /// Reading or classifying a followed page failed.
     Page(DatabasePageError),
-    /// A raw reference is outside the captured page range.
+    /// A page number is outside the captured page range.
     InvalidReference {
-        /// Zero-based position of the reference in the record.
-        index: usize,
-        /// The rejected raw reference.
-        reference: u32,
+        /// The rejected page number.
+        page: PageNumber,
         /// The geometry check that rejected it.
         source: Error,
     },
-    /// A map page was referenced more than once in one traversal.
-    RepeatedMapPage {
+    /// A page was followed more than once in one chain.
+    RepeatedPage {
         /// The repeated page.
         page: PageNumber,
-        /// Zero-based position of the repeated reference.
-        index: usize,
     },
-    /// A referenced page is not an extended usage bitmap.
-    ExpectedExtendedUsageBitmap {
-        /// The referenced page.
+    /// A followed page does not have the required classification.
+    UnexpectedPageKind {
+        /// The followed page.
         page: PageNumber,
-        /// Its lossless classification.
+        /// The classification the caller required.
+        expected: PageKind,
+        /// The lossless classification found.
         actual: PageKind,
     },
-    /// Resource policy rejected the step, including depth and visited-set
-    /// charges.
+    /// Resource policy rejected the step. The walker is unchanged and the
+    /// same step may be retried with more budget.
     Resource(Error),
 }
 
@@ -85,29 +84,27 @@ impl fmt::Display for AllocationTraversalError {
             Self::Unsupported(step) => {
                 write!(formatter, "{step} is blocked on recorded evidence")
             }
-            Self::Map(source) => write!(formatter, "allocation-map traversal failed: {source}"),
-            Self::Page(source) => write!(formatter, "map page access failed: {source}"),
-            Self::InvalidReference {
-                index,
-                reference,
-                source,
+            Self::Page(source) => write!(formatter, "followed page access failed: {source}"),
+            Self::InvalidReference { page, source } => {
+                write!(
+                    formatter,
+                    "page reference {} is invalid: {source}",
+                    page.get()
+                )
+            }
+            Self::RepeatedPage { page } => {
+                write!(formatter, "page {} was already followed", page.get())
+            }
+            Self::UnexpectedPageKind {
+                page,
+                expected,
+                actual,
             } => write!(
                 formatter,
-                "map-page reference {index} ({reference}) is invalid: {source}"
-            ),
-            Self::RepeatedMapPage { page, index } => write!(
-                formatter,
-                "map-page reference {index} repeats page {}",
+                "expected page {} to be {expected:?}, found {actual:?}",
                 page.get()
             ),
-            Self::ExpectedExtendedUsageBitmap { page, actual } => write!(
-                formatter,
-                "expected page {} to be an extended usage bitmap, found {actual:?}",
-                page.get()
-            ),
-            Self::Resource(source) => {
-                write!(formatter, "allocation-map traversal rejected: {source}")
-            }
+            Self::Resource(source) => write!(formatter, "page chain step rejected: {source}"),
         }
     }
 }
@@ -115,31 +112,19 @@ impl fmt::Display for AllocationTraversalError {
 impl std::error::Error for AllocationTraversalError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Map(source) => Some(source),
             Self::Page(source) => Some(source),
             Self::InvalidReference { source, .. } | Self::Resource(source) => Some(source),
-            Self::Unsupported(_)
-            | Self::RepeatedMapPage { .. }
-            | Self::ExpectedExtendedUsageBitmap { .. } => None,
-        }
-    }
-}
-
-impl From<AllocationMapError> for AllocationTraversalError {
-    fn from(source: AllocationMapError) -> Self {
-        match source {
-            AllocationMapError::Resource(error) => Self::Resource(error),
-            other => Self::Map(other),
+            Self::Unsupported(_) | Self::RepeatedPage { .. } | Self::UnexpectedPageKind { .. } => {
+                None
+            }
         }
     }
 }
 
 /// Locates an allocation-map record inside a database.
 ///
-/// `SRC-0020` does not establish where the global or per-table map records
-/// live, so this always returns
-/// [`UnsupportedTraversalStep::MapLocation`]. It exists so the traversal
-/// entry point is fixed before the evidence that fills it in is recorded.
+/// `SRC-0020` does not establish where map records live, so this always
+/// returns [`UnsupportedTraversalStep::MapLocation`] after one work unit.
 pub fn locate_allocation_map<S: ReadAt>(
     _database: &DatabaseReader<S>,
     budget: &mut ResourceBudget,
@@ -152,6 +137,23 @@ pub fn locate_allocation_map<S: ReadAt>(
     ))
 }
 
+/// Turns a raw type-1 map-page reference into a page number to follow.
+///
+/// `SRC-0020` describes the references but does not authorize following
+/// them or interpreting zero, so this always returns
+/// [`UnsupportedTraversalStep::PointerFollowing`] after one work unit.
+pub fn follow_map_page_reference(
+    _reference: u32,
+    budget: &mut ResourceBudget,
+) -> Result<PageNumber, AllocationTraversalError> {
+    budget
+        .charge_work_units(1)
+        .map_err(AllocationTraversalError::Resource)?;
+    Err(AllocationTraversalError::Unsupported(
+        UnsupportedTraversalStep::PointerFollowing,
+    ))
+}
+
 /// One-bit-per-page visited set whose storage is charged before allocation.
 #[derive(Debug)]
 pub struct VisitedPages {
@@ -161,7 +163,8 @@ pub struct VisitedPages {
 
 impl VisitedPages {
     /// Reserves one bit per page in `geometry`, charging the byte count to the
-    /// allocation budget before any memory is requested.
+    /// allocation budget before any memory is requested. A refused
+    /// reservation is a structured error, not an abort.
     pub fn new(geometry: PageGeometry, budget: &mut ResourceBudget) -> Result<Self, Error> {
         let page_count = geometry.page_count();
         let byte_len = page_count.div_ceil(8);
@@ -170,10 +173,13 @@ impl VisitedPages {
             value: u128::from(byte_len),
             target: "usize",
         })?;
-        Ok(Self {
-            bits: vec![0; capacity],
-            page_count,
-        })
+        let mut bits = Vec::new();
+        bits.try_reserve_exact(capacity).map_err(|_| Error::Io {
+            operation: "reserve page visited set",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })?;
+        bits.resize(capacity, 0);
+        Ok(Self { bits, page_count })
     }
 
     /// Returns whether `page` was marked, without changing state.
@@ -185,8 +191,7 @@ impl VisitedPages {
 
     /// Marks `page` and reports whether it was already marked.
     ///
-    /// A page outside the reserved range is reported as a structured
-    /// arithmetic failure rather than grown into.
+    /// A page outside the reserved range is rejected rather than grown into.
     pub fn insert(&mut self, page: PageNumber) -> Result<bool, Error> {
         let (byte, mask) = self.slot(page).ok_or(Error::PageOutOfBounds {
             page: page.get(),
@@ -207,25 +212,122 @@ impl VisitedPages {
     }
 }
 
-/// An extended usage-bitmap page reached by following one map reference.
+/// Follows caller-supplied page numbers one at a time under the full
+/// traversal safety boundary.
+///
+/// The walker never decides which page comes next; it only makes following
+/// a page safe. No recursion or unbounded state exists, and a rejected step
+/// leaves the walker exactly as it was.
+#[derive(Debug)]
+pub struct PageChainWalker {
+    geometry: PageGeometry,
+    visited: VisitedPages,
+    depth: u64,
+}
+
+impl PageChainWalker {
+    /// Starts a chain, charging and reserving the visited set first.
+    pub fn new(
+        geometry: PageGeometry,
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, AllocationTraversalError> {
+        let visited =
+            VisitedPages::new(geometry, budget).map_err(AllocationTraversalError::Resource)?;
+        Ok(Self {
+            geometry,
+            visited,
+            depth: 0,
+        })
+    }
+
+    /// Returns the number of pages followed so far.
+    #[must_use]
+    pub const fn depth(&self) -> u64 {
+        self.depth
+    }
+
+    /// Returns whether `page` was already followed in this chain.
+    #[must_use]
+    pub fn followed(&self, page: PageNumber) -> bool {
+        self.visited.contains(page)
+    }
+
+    /// Follows `page`, requiring it to classify as `expected`.
+    ///
+    /// Order of checks: one explicit work unit, the chain-depth ceiling, the
+    /// geometry reference check, the page read (one page visit, charged even
+    /// when the page turns out to be a repeat), classification, the required
+    /// kind, then the visited set. Depth and the visited set change only
+    /// after every check passes, so any failure leaves the walker unchanged.
+    pub fn follow<'page, S: ReadAt>(
+        &mut self,
+        page: PageNumber,
+        expected: PageKind,
+        database: &mut DatabaseReader<S>,
+        destination: &'page mut [u8; PAGE_BYTES],
+        budget: &mut ResourceBudget,
+    ) -> Result<ClassifiedPage<'page>, AllocationTraversalError> {
+        budget
+            .charge_work_units(1)
+            .map_err(AllocationTraversalError::Resource)?;
+        let next_depth = self
+            .depth
+            .checked_add(1)
+            .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
+                operation: "advance page chain depth",
+            }))?;
+        budget
+            .check_chain_depth(next_depth)
+            .map_err(AllocationTraversalError::Resource)?;
+        self.geometry
+            .validate_reference(page)
+            .map_err(|source| AllocationTraversalError::InvalidReference { page, source })?;
+        database
+            .read_raw_page(page, destination, budget)
+            .map_err(|source| AllocationTraversalError::Page(DatabasePageError::Read(source)))?;
+        let classified = classify_page(page, destination, budget).map_err(|source| {
+            AllocationTraversalError::Page(DatabasePageError::Classification(source))
+        })?;
+        if classified.kind() != expected {
+            return Err(AllocationTraversalError::UnexpectedPageKind {
+                page,
+                expected,
+                actual: classified.kind(),
+            });
+        }
+        if self
+            .visited
+            .insert(page)
+            .map_err(AllocationTraversalError::Resource)?
+        {
+            return Err(AllocationTraversalError::RepeatedPage { page });
+        }
+        self.depth = next_depth;
+        Ok(classified)
+    }
+}
+
+/// An extended usage-bitmap page reached through a [`PageChainWalker`].
 #[derive(Debug)]
 pub struct ReachedMapPage<'page> {
     page: PageNumber,
-    index: usize,
     bits: ExtendedAllocationBits<'page>,
 }
 
 impl<'page> ReachedMapPage<'page> {
+    /// Wraps a page that already classified as an extended usage bitmap.
+    pub fn new(page: ClassifiedPage<'page>) -> Result<Self, AllocationMapError> {
+        let number = page.number();
+        Ok(Self {
+            page: number,
+            bits: extended_allocation_bits(page)?,
+        })
+    }
+
     /// Returns the physical page number that was followed.
     #[must_use]
     pub const fn page(&self) -> PageNumber {
         self.page
-    }
-
-    /// Returns the zero-based position of the reference that reached it.
-    #[must_use]
-    pub const fn reference_index(&self) -> usize {
-        self.index
     }
 
     /// Returns the set relative bit indices of the page's bitmap.
@@ -245,143 +347,6 @@ impl<'page> ReachedMapPage<'page> {
             UnsupportedTraversalStep::ExtendedPageBase,
         ))
     }
-}
-
-/// Iteratively follows the references of one caller-delimited type-1 record.
-///
-/// Each call to [`Self::next_map_page`] performs exactly one reference step
-/// under the full safety boundary, so the caller drives the chain and no
-/// recursion or unbounded state exists.
-#[derive(Debug)]
-pub struct MapPageWalker<'map> {
-    references: MapPageReferences<'map>,
-    geometry: PageGeometry,
-    visited: VisitedPages,
-    index: usize,
-    depth: u64,
-    done: bool,
-}
-
-impl<'map> MapPageWalker<'map> {
-    /// Starts a walk over `map`, charging and reserving the visited set first.
-    pub fn new(
-        map: IndirectAllocationMap<'map>,
-        geometry: PageGeometry,
-        budget: &mut ResourceBudget,
-    ) -> Result<Self, AllocationTraversalError> {
-        let visited =
-            VisitedPages::new(geometry, budget).map_err(AllocationTraversalError::Resource)?;
-        Ok(Self {
-            references: map.map_page_references(),
-            geometry,
-            visited,
-            index: 0,
-            depth: 0,
-            done: false,
-        })
-    }
-
-    /// Returns the number of extended bitmap pages reached so far.
-    #[must_use]
-    pub const fn depth(&self) -> u64 {
-        self.depth
-    }
-
-    /// Follows the next reference and returns its extended bitmap page.
-    ///
-    /// Order of checks per reference: one explicit work unit, the raw
-    /// reference item, the chain-depth ceiling, the geometry reference check,
-    /// the page read (which charges one page visit for every reference,
-    /// including a repeated one), the visited set, then classification. Every
-    /// failure other than a retryable resource rejection exhausts the walker.
-    pub fn next_map_page<'page, S: ReadAt>(
-        &mut self,
-        database: &mut DatabaseReader<S>,
-        destination: &'page mut [u8; PAGE_BYTES],
-        budget: &mut ResourceBudget,
-    ) -> Result<Option<ReachedMapPage<'page>>, AllocationTraversalError> {
-        if self.done {
-            return Ok(None);
-        }
-        budget
-            .charge_work_units(1)
-            .map_err(AllocationTraversalError::Resource)?;
-        let Some(reference) = self.references.next_reference(budget)? else {
-            self.done = true;
-            return Ok(None);
-        };
-        self.fallible_step(reference, database, destination, budget)
-            .inspect_err(|_| self.done = true)
-    }
-
-    fn fallible_step<'page, S: ReadAt>(
-        &mut self,
-        reference: u32,
-        database: &mut DatabaseReader<S>,
-        destination: &'page mut [u8; PAGE_BYTES],
-        budget: &mut ResourceBudget,
-    ) -> Result<Option<ReachedMapPage<'page>>, AllocationTraversalError> {
-        let index = self.index;
-        self.index = index
-            .checked_add(1)
-            .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                operation: "advance map-page reference index",
-            }))?;
-        let next_depth = self
-            .depth
-            .checked_add(1)
-            .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                operation: "advance map-page chain depth",
-            }))?;
-        budget
-            .check_chain_depth(next_depth)
-            .map_err(AllocationTraversalError::Resource)?;
-        if reference == 0 {
-            return Err(AllocationTraversalError::Unsupported(
-                UnsupportedTraversalStep::ZeroReference,
-            ));
-        }
-        let page = PageNumber::new(u64::from(reference));
-        self.geometry.validate_reference(page).map_err(|source| {
-            AllocationTraversalError::InvalidReference {
-                index,
-                reference,
-                source,
-            }
-        })?;
-        database
-            .read_raw_page(page, destination, budget)
-            .map_err(|source| AllocationTraversalError::Page(DatabasePageError::Read(source)))?;
-        if self
-            .visited
-            .insert(page)
-            .map_err(AllocationTraversalError::Resource)?
-        {
-            return Err(AllocationTraversalError::RepeatedMapPage { page, index });
-        }
-        let classified = classify_page(page, destination, budget).map_err(|source| {
-            AllocationTraversalError::Page(DatabasePageError::Classification(source))
-        })?;
-        let bits = extended_bits(classified)?;
-        self.depth = next_depth;
-        Ok(Some(ReachedMapPage { page, index, bits }))
-    }
-}
-
-fn extended_bits(
-    page: ClassifiedPage<'_>,
-) -> Result<ExtendedAllocationBits<'_>, AllocationTraversalError> {
-    let number = page.number();
-    let kind = page.kind();
-    extended_allocation_bits(page).map_err(|source| match source {
-        AllocationMapError::ExpectedExtendedUsageBitmap { .. } => {
-            AllocationTraversalError::ExpectedExtendedUsageBitmap {
-                page: number,
-                actual: kind,
-            }
-        }
-        other => AllocationTraversalError::Map(other),
-    })
 }
 
 #[cfg(test)]

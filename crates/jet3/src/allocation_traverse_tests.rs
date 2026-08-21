@@ -1,11 +1,10 @@
 use super::{
-    AllocationTraversalError, MapPageWalker, UnsupportedTraversalStep, VisitedPages,
-    locate_allocation_map,
+    AllocationTraversalError, PageChainWalker, ReachedMapPage, UnsupportedTraversalStep,
+    VisitedPages, follow_map_page_reference, locate_allocation_map,
 };
 use crate::{
-    AllocationMap, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
-    PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
-    ResourceLimits, SliceSource, decode_allocation_map,
+    ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE, PageGeometry, PageKind,
+    PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -13,6 +12,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const EXTENDED_TAG: u8 = 0x05;
 const DATA_TAG: u8 = 0x01;
+const BITMAP: PageKind = PageKind::ExtendedUsageBitmap;
 
 fn limits() -> ResourceLimits {
     ResourceLimits::new(ReadLimits::default())
@@ -36,14 +36,6 @@ fn database_bytes(tags: &[u8]) -> Vec<u8> {
     bytes
 }
 
-fn indirect_record(references: &[u32]) -> Vec<u8> {
-    let mut record = vec![0x01];
-    for reference in references {
-        record.extend_from_slice(&reference.to_le_bytes());
-    }
-    record
-}
-
 fn open<'a>(
     bytes: &'a [u8],
     budget: &mut ResourceBudget,
@@ -52,19 +44,8 @@ fn open<'a>(
     Ok(DatabaseReader::from_source(source, budget)?)
 }
 
-fn walker<'r>(
-    record: &'r [u8],
-    geometry: PageGeometry,
-    budget: &mut ResourceBudget,
-) -> Result<MapPageWalker<'r>, Box<dyn std::error::Error>> {
-    let AllocationMap::Indirect(map) = decode_allocation_map(record, budget)? else {
-        return Err("expected an indirect record".into());
-    };
-    Ok(MapPageWalker::new(map, geometry, budget)?)
-}
-
 #[test]
-fn map_location_is_unsupported_and_charges_one_work_unit() -> TestResult {
+fn unsupported_steps_are_structured_and_charge_one_work_unit() -> TestResult {
     let bytes = database_bytes(&[]);
     let mut resources = budget();
     let database = open(&bytes, &mut resources)?;
@@ -76,25 +57,38 @@ fn map_location_is_unsupported_and_charges_one_work_unit() -> TestResult {
         ))
     );
     assert_eq!(resources.total_work_units(), before + 1);
+    for reference in [0, 1, u32::MAX] {
+        assert_eq!(
+            follow_map_page_reference(reference, &mut resources),
+            Err(AllocationTraversalError::Unsupported(
+                UnsupportedTraversalStep::PointerFollowing
+            ))
+        );
+    }
+    assert_eq!(resources.total_work_units(), before + 4);
     Ok(())
 }
 
 #[test]
-fn follows_distinct_references_with_exact_accounting() -> TestResult {
+fn follows_distinct_pages_with_exact_accounting() -> TestResult {
     let bytes = database_bytes(&[EXTENDED_TAG, EXTENDED_TAG, EXTENDED_TAG]);
-    let record = indirect_record(&[3, 1]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
     let visits = resources.page_visits();
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
+    let work = resources.total_work_units();
+    let mut walk = PageChainWalker::new(database.geometry(), &mut resources)?;
     assert_eq!(resources.allocation_bytes(), ByteCount::new(1));
 
     let mut page = [0_u8; PAGE_BYTES];
-    let mut reached = walk
-        .next_map_page(&mut database, &mut page, &mut resources)?
-        .ok_or("expected page 3")?;
+    let reached = walk.follow(
+        PageNumber::new(3),
+        BITMAP,
+        &mut database,
+        &mut page,
+        &mut resources,
+    )?;
+    let mut reached = ReachedMapPage::new(reached)?;
     assert_eq!(reached.page(), PageNumber::new(3));
-    assert_eq!(reached.reference_index(), 0);
     assert_eq!(reached.relative_bits().next_bit(&mut resources)?, Some(0));
     assert_eq!(reached.relative_bits().next_bit(&mut resources)?, Some(1));
     assert_eq!(
@@ -104,82 +98,71 @@ fn follows_distinct_references_with_exact_accounting() -> TestResult {
         ))
     );
     assert_eq!(walk.depth(), 1);
+    assert!(walk.followed(PageNumber::new(3)));
+    assert!(!walk.followed(PageNumber::new(1)));
 
-    let reached = walk
-        .next_map_page(&mut database, &mut page, &mut resources)?
-        .ok_or("expected page 1")?;
-    assert_eq!(reached.page(), PageNumber::new(1));
-    assert_eq!(reached.reference_index(), 1);
-    assert!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)?
-            .is_none()
-    );
+    walk.follow(
+        PageNumber::new(1),
+        BITMAP,
+        &mut database,
+        &mut page,
+        &mut resources,
+    )?;
     assert_eq!(walk.depth(), 2);
     assert_eq!(resources.page_visits(), visits + 2);
+    // One visited byte, two explicit steps, two page visits, two
+    // classifications, and two inspected bits each charge aggregate work.
+    assert_eq!(resources.total_work_units(), work + 1 + 2 + 2 + 2 + 2);
     Ok(())
 }
 
 #[test]
-fn zero_length_chain_yields_nothing() -> TestResult {
-    let bytes = database_bytes(&[EXTENDED_TAG]);
-    let record = indirect_record(&[]);
-    let mut resources = budget();
-    let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
-    let mut page = [0_u8; PAGE_BYTES];
-    let visits = resources.page_visits();
-    assert!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)?
-            .is_none()
-    );
-    assert_eq!(walk.depth(), 0);
-    assert_eq!(resources.page_visits(), visits);
-    Ok(())
-}
-
-#[test]
-fn repeated_reference_is_charged_then_rejected_as_cycle() -> TestResult {
+fn repeated_page_is_charged_then_rejected_without_changing_the_walker() -> TestResult {
     let bytes = database_bytes(&[EXTENDED_TAG, EXTENDED_TAG]);
-    let record = indirect_record(&[2, 2, 1]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
+    let mut walk = PageChainWalker::new(database.geometry(), &mut resources)?;
     let mut page = [0_u8; PAGE_BYTES];
-    walk.next_map_page(&mut database, &mut page, &mut resources)?;
+    let two = PageNumber::new(2);
+    walk.follow(two, BITMAP, &mut database, &mut page, &mut resources)?;
     let visits = resources.page_visits();
     assert_eq!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)
+        walk.follow(two, BITMAP, &mut database, &mut page, &mut resources)
             .err(),
-        Some(AllocationTraversalError::RepeatedMapPage {
-            page: PageNumber::new(2),
-            index: 1,
-        })
+        Some(AllocationTraversalError::RepeatedPage { page: two })
     );
     assert_eq!(resources.page_visits(), visits + 1);
-    assert!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)?
-            .is_none(),
-        "a cycle exhausts the walker"
-    );
     assert_eq!(walk.depth(), 1);
+    walk.follow(
+        PageNumber::new(1),
+        BITMAP,
+        &mut database,
+        &mut page,
+        &mut resources,
+    )?;
+    assert_eq!(walk.depth(), 2);
     Ok(())
 }
 
 #[test]
 fn invalid_reference_is_structured_and_not_read() -> TestResult {
     let bytes = database_bytes(&[EXTENDED_TAG]);
-    let record = indirect_record(&[2]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
+    let mut walk = PageChainWalker::new(database.geometry(), &mut resources)?;
     let mut page = [0_u8; PAGE_BYTES];
     let visits = resources.page_visits();
     assert_eq!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)
-            .err(),
+        walk.follow(
+            PageNumber::new(2),
+            BITMAP,
+            &mut database,
+            &mut page,
+            &mut resources
+        )
+        .err(),
         Some(AllocationTraversalError::InvalidReference {
-            index: 0,
-            reference: 2,
+            page: PageNumber::new(2),
             source: Error::PageOutOfBounds {
                 page: 2,
                 page_count: 2,
@@ -187,72 +170,65 @@ fn invalid_reference_is_structured_and_not_read() -> TestResult {
         })
     );
     assert_eq!(resources.page_visits(), visits);
+    assert_eq!(walk.depth(), 0);
     Ok(())
 }
 
 #[test]
-fn zero_reference_is_unsupported_rather_than_interpreted() -> TestResult {
-    let bytes = database_bytes(&[EXTENDED_TAG]);
-    let record = indirect_record(&[0]);
-    let mut resources = budget();
-    let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
-    let mut page = [0_u8; PAGE_BYTES];
-    assert_eq!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)
-            .err(),
-        Some(AllocationTraversalError::Unsupported(
-            UnsupportedTraversalStep::ZeroReference
-        ))
-    );
-    Ok(())
-}
-
-#[test]
-fn non_bitmap_page_is_rejected_losslessly() -> TestResult {
+fn unexpected_kind_is_rejected_losslessly_and_not_marked() -> TestResult {
     let bytes = database_bytes(&[DATA_TAG, 0x7f]);
-    let record = indirect_record(&[1]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
+    let mut walk = PageChainWalker::new(database.geometry(), &mut resources)?;
     let mut page = [0_u8; PAGE_BYTES];
-    assert_eq!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)
-            .err(),
-        Some(AllocationTraversalError::ExpectedExtendedUsageBitmap {
-            page: PageNumber::new(1),
-            actual: PageKind::Data,
-        })
-    );
-
-    let record = indirect_record(&[2]);
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
-    assert_eq!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)
-            .err(),
-        Some(AllocationTraversalError::ExpectedExtendedUsageBitmap {
-            page: PageNumber::new(2),
-            actual: PageKind::Unknown(0x7f),
-        })
-    );
+    for (number, actual) in [(1, PageKind::Data), (2, PageKind::Unknown(0x7f))] {
+        let number = PageNumber::new(number);
+        assert_eq!(
+            walk.follow(number, BITMAP, &mut database, &mut page, &mut resources)
+                .err(),
+            Some(AllocationTraversalError::UnexpectedPageKind {
+                page: number,
+                expected: BITMAP,
+                actual,
+            })
+        );
+        assert!(!walk.followed(number));
+    }
+    assert_eq!(walk.depth(), 0);
+    walk.follow(
+        PageNumber::new(1),
+        PageKind::Data,
+        &mut database,
+        &mut page,
+        &mut resources,
+    )?;
+    assert_eq!(walk.depth(), 1);
     Ok(())
 }
 
 #[test]
-fn chain_depth_limit_is_exact() -> TestResult {
+fn chain_depth_limit_is_exact_and_checked_before_any_read() -> TestResult {
     let bytes = database_bytes(&[EXTENDED_TAG, EXTENDED_TAG]);
-    let record = indirect_record(&[1, 2]);
     let mut resources = ResourceBudget::new(limits().with_max_chain_depth(1));
     let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
+    let mut walk = PageChainWalker::new(database.geometry(), &mut resources)?;
     let mut page = [0_u8; PAGE_BYTES];
-    assert!(
-        walk.next_map_page(&mut database, &mut page, &mut resources)?
-            .is_some()
-    );
+    walk.follow(
+        PageNumber::new(1),
+        BITMAP,
+        &mut database,
+        &mut page,
+        &mut resources,
+    )?;
     let visits = resources.page_visits();
     assert!(matches!(
-        walk.next_map_page(&mut database, &mut page, &mut resources),
+        walk.follow(
+            PageNumber::new(2),
+            BITMAP,
+            &mut database,
+            &mut page,
+            &mut resources
+        ),
         Err(AllocationTraversalError::Resource(
             Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::ChainDepth,
@@ -260,50 +236,45 @@ fn chain_depth_limit_is_exact() -> TestResult {
             }
         ))
     ));
-    assert_eq!(
-        resources.page_visits(),
-        visits,
-        "depth is checked before any read"
-    );
+    assert_eq!(resources.page_visits(), visits);
+    assert_eq!(walk.depth(), 1);
     Ok(())
 }
 
 #[test]
 fn visited_set_is_charged_before_allocation_and_fails_closed() -> TestResult {
     let bytes = database_bytes(&[EXTENDED_TAG; 9]);
-    let record = indirect_record(&[1]);
     let mut resources = ResourceBudget::new(limits().with_max_allocation_bytes(ByteCount::new(1)));
     let database = open(&bytes, &mut resources)?;
     assert_eq!(database.geometry().page_count(), 10);
     assert!(matches!(
-        walker(&record, database.geometry(), &mut resources),
-        Err(error) if error.downcast_ref::<AllocationTraversalError>().is_some_and(|error| matches!(
-            error,
-            AllocationTraversalError::Resource(Error::ResourceLimitExceeded {
+        PageChainWalker::new(database.geometry(), &mut resources),
+        Err(AllocationTraversalError::Resource(
+            Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::AllocationBytes,
                 ..
-            })
+            }
         ))
     ));
     assert_eq!(resources.allocation_bytes(), ByteCount::new(0));
 
     let mut resources = ResourceBudget::new(limits().with_max_allocation_bytes(ByteCount::new(2)));
     let database = open(&bytes, &mut resources)?;
-    walker(&record, database.geometry(), &mut resources)?;
+    PageChainWalker::new(database.geometry(), &mut resources)?;
     assert_eq!(resources.allocation_bytes(), ByteCount::new(2));
     Ok(())
 }
 
 #[test]
-fn page_visit_exhaustion_is_a_retryable_resource_error() -> TestResult {
+fn resource_rejection_leaves_the_walker_retryable() -> TestResult {
     let bytes = database_bytes(&[EXTENDED_TAG]);
-    let record = indirect_record(&[1]);
     let mut resources = ResourceBudget::new(limits().with_max_page_visits(1));
     let mut database = open(&bytes, &mut resources)?;
-    let mut walk = walker(&record, database.geometry(), &mut resources)?;
+    let mut walk = PageChainWalker::new(database.geometry(), &mut resources)?;
     let mut page = [0_u8; PAGE_BYTES];
+    let one = PageNumber::new(1);
     assert!(matches!(
-        walk.next_map_page(&mut database, &mut page, &mut resources),
+        walk.follow(one, BITMAP, &mut database, &mut page, &mut resources),
         Err(AllocationTraversalError::Page(DatabasePageError::Read(
             Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::PageVisits,
@@ -312,6 +283,12 @@ fn page_visit_exhaustion_is_a_retryable_resource_error() -> TestResult {
         )))
     ));
     assert_eq!(walk.depth(), 0);
+    assert!(!walk.followed(one));
+
+    let mut retry = ResourceBudget::new(limits());
+    let mut database = open(&bytes, &mut retry)?;
+    walk.follow(one, BITMAP, &mut database, &mut page, &mut retry)?;
+    assert_eq!(walk.depth(), 1);
     Ok(())
 }
 
