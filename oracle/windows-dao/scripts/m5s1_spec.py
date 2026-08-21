@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+# Provenance usage: EXP-0034.
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any

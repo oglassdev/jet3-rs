@@ -2,6 +2,8 @@
 
 Status: **PASS — historical, descriptive DAO evidence only**
 
+Provenance usage: `EXP-0010`.
+
 The checked M3 campaign ran from exact clean pushed producer commit
 `9977745e6515363cbb179d8d949d34604554b2cd`. It launched nine fresh x86
 Windows PowerShell processes in the fixed cyclic order `E-B-I`, `B-I-E`,

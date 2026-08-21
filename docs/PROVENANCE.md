@@ -947,6 +947,7 @@ Use `not applicable` explicitly rather than omitting a field.
   and is not universal compatibility proof.
 - Usage: `SRC-0005`; `docs/validation/EXTERNAL_CORPUS.md`; exploratory evidence
   only, not currently cited by production code
+  Additional tracked Usage: `file:tools/inspect_external_corpus.py`.
 - Rights: local inspection only under the donor's authorization; no
   redistribution grant; no source files or derived byte corpus are committed
 - Review: pending independent review
@@ -987,6 +988,7 @@ Use `not applicable` explicitly rather than omitting a field.
   semantics, validity, Jet generation, or compatibility and are not used by
   production code.
 - Usage: `docs/validation/EXTERNAL_CORPUS.md`; exploratory evidence only
+  Additional tracked Usage: `file:tools/inspect_external_corpus.py`.
 - Rights: local inspection only under the donor's authorization; no
   redistribution grant; no source files or derived byte corpus are committed
 - Review: pending independent review
@@ -1170,6 +1172,10 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/scripts/m1/M1.DaoValues.ps1`;
   `oracle/windows-dao/scripts/m1/M1.Dao.ps1`;
   `oracle/windows-dao/scripts/run-m1-controlled.ps1`
+  Additional tracked Usage: `file:oracle/windows-dao/README.md`;
+  `file:oracle/windows-dao/protocol/v1_1/README.md`;
+  `file:oracle/windows-dao/scripts/m1/M1.Provider.ps1`;
+  `file:oracle/windows-dao/tests/test_m1_executor_preflight.py`.
 - Rights: generated locally through a licensed Microsoft DAO provider; the
   result JSON is retained locally and the disposable MDB was deleted
 - Review: the executor use of this result received an independent adversarial
@@ -1224,6 +1230,10 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `oracle/windows-dao/scripts/run-m1-controlled.ps1`;
   `oracle/windows-dao/scripts/validate_m1_protocol.py`;
   `docs/validation/M1_DAO_EVIDENCE.md`
+  Additional tracked Usage: `file:docs/validation/DAO_PROVIDER_BLOCKER.md`;
+  `file:docs/validation/M2_PAGE_OBSERVATION.md`;
+  `file:docs/validation/support-matrix.json`;
+  `file:oracle/windows-dao/README.md`.
 - Rights: generated locally through the licensed provider; retained outside
   the repository and not redistributed
 - Review: executor received the independent adversarial review described
@@ -1273,6 +1283,7 @@ Use `not applicable` explicitly rather than omitting a field.
   byte identity must not be assumed from semantic DAO equality.
 - Usage: `oracle/windows-dao/scripts/observe_m1_pages.py`;
   `docs/validation/M2_PAGE_OBSERVATION.md`
+  Additional tracked Usage: `file:docs/validation/DAO_PROVIDER_BLOCKER.md`.
 - Rights: generated locally through the licensed provider in `EXP-0007`;
   retained outside the repository and not redistributed
 - Review: the source M1 bundle independently revalidated, and an independent
@@ -1383,6 +1394,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/scripts/run-m3-controlled.ps1`;
   `oracle/windows-dao/scripts/m3_contract.py`;
   `docs/validation/M3_REPLICATED_DELTA_EVIDENCE.md`
+  Additional tracked Usage: `file:docs/validation/DAO_PROVIDER_BLOCKER.md`.
 - Rights: generated locally through the licensed Microsoft DAO provider;
   retained outside the repository and not redistributed
 - Review: the executor/publisher received independent experimental-design,
@@ -1456,6 +1468,9 @@ Use `not applicable` explicitly rather than omitting a field.
   assign physical meaning, change production code or the support matrix, or
   establish any Rust or MDB compatibility claim.
 - Usage: `oracle/windows-dao/experiments/m4/`
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m4r1/`;
+  `dir:oracle/windows-dao/experiments/m4r2/`;
+  `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: the plan and schemas are original project material; future generated
   databases and evidence must receive their own provenance and redistribution
   review
@@ -1594,6 +1609,7 @@ Use `not applicable` explicitly rather than omitting a field.
   outside MDB-prefix analysis. This observation assigns no physical meaning to
   either MDB or `.ldb` bytes and establishes no compatibility.
 - Usage: blocker record for a future M4/M5 revision; no production Rust usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: generated locally through the licensed provider; retained outside
   the repository and not redistributed
 - Review: pending independent review
@@ -1646,6 +1662,8 @@ Use `not applicable` explicitly rather than omitting a field.
   sets, acquire physical meaning, or establish compatibility.
 - Usage: `oracle/windows-dao/experiments/m4r1/`;
   `oracle/windows-dao/scripts/run-m4r1-controlled.ps1`; revised M5 input
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m4r2/`;
+  `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan, schemas, controller, validators, and tests are original project
   material; future generated evidence requires its own retention and rights
   record
@@ -1690,6 +1708,7 @@ Use `not applicable` explicitly rather than omitting a field.
   or establish Rust compatibility.
 - Usage: `oracle/windows-dao/experiments/m5/m5-compact-confirm-r2.plan.json`;
   future checked M5R1 implementation
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan and README are original project material; future generated
   evidence requires its own retention and redistribution review
 - Review: pending independent review
@@ -1732,6 +1751,7 @@ Use `not applicable` explicitly rather than omitting a field.
   pass. This observation assigns no MDB or companion format meaning and
   establishes no compatibility.
 - Usage: blocker record for `EXP-0017`; no production Rust usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: generated locally through the licensed provider; no bundle was
   retained or redistributed
 - Review: pending independent review
@@ -1778,6 +1798,7 @@ Use `not applicable` explicitly rather than omitting a field.
   independent bundle validation.
 - Usage: `oracle/windows-dao/experiments/m4r2/`; companion-aware M4 executor;
   future M5 input revision
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan, schemas, controller, validators, and tests are original project
   material; future generated evidence requires its own retention and rights
   record
@@ -1832,6 +1853,10 @@ Use `not applicable` explicitly rather than omitting a field.
   M4 input to a later preregistered M5 revision.
 - Usage: immutable input to the future M5 follow-on revision; no production
   Rust format constant or support claim
+  Additional tracked Usage: `file:docs/architecture/SEMANTIC_READER.md`;
+  `dir:oracle/windows-dao/experiments/m5/`;
+  `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`.
 - Rights: generated locally through the licensed provider; retained outside
   the repository and not redistributed
 - Review: complete project validator passed twice; independent human review
@@ -1877,6 +1902,7 @@ Use `not applicable` explicitly rather than omitting a field.
   file may be called compatibility evidence.
 - Usage: `oracle/windows-dao/experiments/m5/m5-compact-confirm-r3.plan.json`;
   future checked M5R2 implementation
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan and README are original project material; future generated
   evidence requires its own retention and redistribution review
 - Review: pending independent review and implementation
@@ -1932,6 +1958,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: authorize one exact-commit execution of
   `DAO-M5-COMPACT-CONFIRM-003` through
   `refs/heads/codex/m5r2-m4r2-bound`; future M5 execution record only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: implementation, schemas, and synthetic test bundles are original
   project material; future licensed-provider output requires its own retention
   and redistribution record
@@ -1973,6 +2000,7 @@ Use `not applicable` explicitly rather than omitting a field.
   artifact, and validation rule.
 - Usage: blocker source for the next additive M5 preregistration; no production
   Rust or MDB format usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: no licensed-provider output was created or retained
 - Review: pending additive preregistration and exact-commit re-execution
 
@@ -2020,6 +2048,7 @@ Use `not applicable` explicitly rather than omitting a field.
   compatibility.
 - Usage: checked M5 controller, isolated workers, analysis, and independent
   bundle validator; future exact-commit M5R4 execution only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan, README, schemas, controller changes, validators, and synthetic
   tests are original project material; future provider output requires its own
   retention and redistribution record
@@ -2077,6 +2106,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: authorize one exact-commit execution of
   `DAO-M5-COMPACT-CONFIRM-004` through
   `refs/heads/codex/m5r3-timeout-bounded`; future M5R4 execution record only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: implementation, schemas, and synthetic tests are original project
   material; future licensed-provider output requires its own retention and
   redistribution record
@@ -2120,6 +2150,7 @@ Use `not applicable` explicitly rather than omitting a field.
   call, locator, artifact, comparison, predicate, outcome, and validation rule.
 - Usage: blocker source for the next additive M5 preregistration; no production
   Rust or MDB format usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: no licensed-provider output was created or retained
 - Review: pending additive preregistration and exact-commit re-execution
 
@@ -2170,6 +2201,7 @@ Use `not applicable` explicitly rather than omitting a field.
   meaning, changes no scientific hypothesis, and establishes no compatibility.
 - Usage: checked M5 controller, isolated workers, analysis, and independent
   bundle validator; future exact-commit M5R5 execution only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan, README, schemas, worker changes, validators, and synthetic tests
   are original project material; future licensed-provider output requires its
   own retention and redistribution record
@@ -2230,6 +2262,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `DAO-M5-COMPACT-CONFIRM-005` through
   `refs/heads/codex/m5r4-worker-preflight-bound`; future M5R5 execution record
   only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: implementation, schemas, and synthetic tests are original project
   material; future licensed-provider output requires its own retention and
   redistribution record
@@ -2278,6 +2311,7 @@ Use `not applicable` explicitly rather than omitting a field.
   meaning and establishes no compatibility.
 - Usage: blocker source for the next additive M5 preregistration; no production
   Rust or MDB format usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: no licensed-provider output was retained or published
 - Review: pending additive preregistration and exact-commit re-execution
 
@@ -2324,6 +2358,7 @@ Use `not applicable` explicitly rather than omitting a field.
   meaning, changes no scientific hypothesis, and establishes no compatibility.
 - Usage: checked M5 controller, isolated workers, analysis, and independent
   bundle validator; future exact-commit M5R6 execution only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan, README, schemas, worker changes, validators, and synthetic tests
   are original project material; future licensed-provider output requires its
   own retention and redistribution record
@@ -2383,6 +2418,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: authorize one exact-commit execution of
   `DAO-M5-COMPACT-CONFIRM-006` through
   `refs/heads/codex/m5r5-worker-return-bound`; future M5R6 execution record only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: implementation, schemas, and synthetic tests are original project
   material; future licensed-provider output requires its own retention and
   redistribution record
@@ -2431,6 +2467,7 @@ Use `not applicable` explicitly rather than omitting a field.
   compatibility.
 - Usage: blocker source for the next additive M5 preregistration; no production
   Rust or MDB format usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: no licensed-provider output was retained or published
 - Review: pending additive preregistration and exact-commit re-execution
 
@@ -2476,6 +2513,7 @@ Use `not applicable` explicitly rather than omitting a field.
   scientific hypothesis, and establishes no compatibility.
 - Usage: checked M5 controller, isolated workers, analysis, and independent
   bundle validator; future exact-commit M5R7 execution only
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5/`.
 - Rights: plan, README, schemas, artifact-builder changes, validators, and
   synthetic tests are original project material; future licensed-provider
   output requires its own retention and redistribution record
@@ -2567,6 +2605,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: terminal blocker for the current M5 campaign family; input to a future
   separately preregistered experimental design only; no production Rust or MDB
   format usage
+  Additional tracked Usage: `dir:oracle/windows-dao/experiments/m5s1/`;
+  `file:oracle/windows-dao/scripts/m5s1_spec.py`.
 - Rights: no licensed-provider output was retained or published
 - Review: execution trace and immutable-M4 cause verified; current M5 campaign
   remains blocked with no scientific or compatibility claim
@@ -2809,6 +2849,7 @@ Use `not applicable` explicitly rather than omitting a field.
   correctness, or compatibility.
 - Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
+  Additional tracked Usage: `file:docs/validation/external-corpus.json`.
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
@@ -2840,6 +2881,7 @@ Use `not applicable` explicitly rather than omitting a field.
   correctness, or compatibility.
 - Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0003`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
+  Additional tracked Usage: `file:docs/validation/external-corpus.json`.
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
@@ -2870,6 +2912,7 @@ Use `not applicable` explicitly rather than omitting a field.
   correctness, or compatibility.
 - Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
+  Additional tracked Usage: `file:docs/validation/external-corpus.json`.
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
@@ -2902,6 +2945,7 @@ Use `not applicable` explicitly rather than omitting a field.
   correctness, or compatibility.
 - Usage: `OBS-0001`; `EXP-0001`; `EXP-0002`; `EXP-0004`;
   `docs/validation/EXTERNAL_CORPUS.md`
+  Additional tracked Usage: `file:docs/validation/external-corpus.json`.
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review

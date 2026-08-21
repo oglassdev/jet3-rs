@@ -1,5 +1,7 @@
 # M3 replicated physical-delta campaign
 
+Provenance usage: `EXP-0010`.
+
 M3 is a descriptive DAO-only experiment. It is not a protocol-1.1 extension,
 does not add meaningful G3 scenarios, and cannot advance the support matrix.
 The exact checked plan is `m3-index-isolation.plan.json`.

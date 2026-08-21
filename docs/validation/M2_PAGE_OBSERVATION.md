@@ -2,6 +2,8 @@
 
 Status: **PASS — descriptive only**
 
+Provenance usage: `EXP-0008`.
+
 The bounded observer at exact clean pushed commit
 `550ddc266eddf7e6765cf929ef50fd5aac19c542` analyzed only the passing
 project-generated M1 bundle recorded by `EXP-0007`. Its exact input manifest
