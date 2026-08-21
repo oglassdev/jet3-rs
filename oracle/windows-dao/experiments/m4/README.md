@@ -1,5 +1,7 @@
 # M4 version/encryption file-prefix campaign
 
+Provenance usage: `EXP-0011`.
+
 M4 is a bounded, descriptive, DAO-only experiment. It asks whether byte
 positions in the first 1,536 bytes of freshly created databases covary with
 Microsoft-documented creation-version and encryption inputs. It does not assign

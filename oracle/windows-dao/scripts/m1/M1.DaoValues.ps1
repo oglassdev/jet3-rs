@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 
+# Provenance usage: EXP-0006.
 $script:M1Utf8 = New-Object Text.UTF8Encoding($false)
 
 function Release-M1ComObject {

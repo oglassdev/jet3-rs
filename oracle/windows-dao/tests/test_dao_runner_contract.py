@@ -3,6 +3,7 @@ import unittest
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+# Provenance usage: EXP-0005.
 RUNNER = (
     REPOSITORY_ROOT
     / "oracle"
