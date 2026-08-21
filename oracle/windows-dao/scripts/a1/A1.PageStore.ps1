@@ -9,6 +9,215 @@ $script:A1MaximumChangedEntries = 1500000L
 $script:A1MaximumLogicalReadBytes = 8GB
 $script:A1StrictUtf8 = New-Object Text.UTF8Encoding($false, $true)
 
+function Initialize-A1PageSnapshotNative {
+    if ("Jet3A1PageSnapshotNative" -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+
+public sealed class Jet3A1PageSnapshotResult
+{
+    public byte[] Bytes;
+    public string FileSha256;
+    public string[] PageSha256;
+    public long[] ChangedIndices;
+    public byte[][] ChangedPages;
+}
+
+public sealed class Jet3A1PageStoreInventoryResult
+{
+    public HashSet<string> Seen;
+    public long RetainedBytes;
+}
+
+public static class Jet3A1PageSnapshotNative
+{
+    private static string LowerHex(byte[] value)
+    {
+        StringBuilder text = new StringBuilder(value.Length * 2);
+        for (int index = 0; index < value.Length; index++)
+        {
+            text.Append(value[index].ToString("x2"));
+        }
+        return text.ToString();
+    }
+
+    private static bool IsLowerSha256(string value)
+    {
+        if (value == null || value.Length != 64) return false;
+        for (int index = 0; index < value.Length; index++)
+        {
+            char current = value[index];
+            if (!((current >= '0' && current <= '9') ||
+                  (current >= 'a' && current <= 'f'))) return false;
+        }
+        return true;
+    }
+
+    private static bool PageEquals(
+        byte[] current, int currentOffset, byte[] prior, int priorOffset,
+        int pageBytes)
+    {
+        for (int offset = 0; offset < pageBytes; offset++)
+        {
+            if (current[currentOffset + offset] != prior[priorOffset + offset])
+                return false;
+        }
+        return true;
+    }
+
+    public static Jet3A1PageStoreInventoryResult Inventory(
+        string bundleRoot, string pageRoot, int maximumEntries,
+        int maximumPages, long maximumBytes, int pageBytes)
+    {
+        bundleRoot = Path.GetFullPath(bundleRoot).TrimEnd(
+            Path.DirectorySeparatorChar);
+        pageRoot = Path.GetFullPath(pageRoot).TrimEnd(
+            Path.DirectorySeparatorChar);
+        if ((File.GetAttributes(bundleRoot) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Bundle root is a reparse point.");
+        Stack<string> pending = new Stack<string>();
+        pending.Push(bundleRoot);
+        HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+        long retained = 0;
+        int entries = 0;
+        while (pending.Count != 0)
+        {
+            string directory = pending.Pop();
+            foreach (string child in Directory.EnumerateDirectories(
+                directory, "*", SearchOption.TopDirectoryOnly))
+            {
+                if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("Bundle directory is a reparse point.");
+                pending.Push(child);
+            }
+            foreach (string path in Directory.EnumerateFiles(
+                directory, "*", SearchOption.TopDirectoryOnly))
+            {
+                FileInfo item = new FileInfo(path);
+                entries++;
+                if (entries > maximumEntries || item.Length < 0 ||
+                    item.Length > maximumBytes - retained ||
+                    (item.Attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("Bundle inventory exceeds its bound.");
+                retained += item.Length;
+                if (!path.StartsWith(
+                        pageRoot + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !path.EndsWith(".page", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                string digest = Path.GetFileNameWithoutExtension(path);
+                string expected = Path.Combine(pageRoot, digest + ".page");
+                if (!path.Equals(expected, StringComparison.Ordinal) ||
+                    !IsLowerSha256(digest) || item.Length != pageBytes ||
+                    !seen.Add(digest) || seen.Count > maximumPages)
+                    throw new InvalidDataException(
+                        "Existing page-store entry is noncanonical.");
+            }
+        }
+        return new Jet3A1PageStoreInventoryResult {
+            Seen = seen,
+            RetainedBytes = retained
+        };
+    }
+
+    public static Jet3A1PageSnapshotResult Capture(
+        string path, int pageBytes, int maximumPages, long maximumBytes,
+        byte[] priorBytes, string[] priorHashes)
+    {
+        if (pageBytes < 1 || maximumPages < 1 || maximumBytes < pageBytes)
+            throw new ArgumentOutOfRangeException("page snapshot bound");
+        if ((priorBytes == null) != (priorHashes == null))
+            throw new InvalidDataException("Prior snapshot cache is incomplete.");
+        if (priorBytes != null)
+        {
+            if (priorBytes.Length % pageBytes != 0 ||
+                priorBytes.Length / pageBytes != priorHashes.Length ||
+                priorHashes.Length > maximumPages)
+                throw new InvalidDataException("Prior snapshot cache is invalid.");
+            foreach (string digest in priorHashes)
+            {
+                if (!IsLowerSha256(digest))
+                    throw new InvalidDataException("Prior page digest is invalid.");
+            }
+        }
+
+        byte[] bytes;
+        using (FileStream stream = new FileStream(
+            path, FileMode.Open, FileAccess.Read, FileShare.None, 1048576,
+            FileOptions.SequentialScan))
+        {
+            long length = stream.Length;
+            if (length < pageBytes || length % pageBytes != 0 ||
+                length / pageBytes > maximumPages || length > maximumBytes ||
+                length > Int32.MaxValue)
+                throw new InvalidDataException("Page snapshot size is invalid.");
+            bytes = new byte[(int)length];
+            int offset = 0;
+            while (offset < bytes.Length)
+            {
+                int read = stream.Read(bytes, offset, bytes.Length - offset);
+                if (read <= 0)
+                    throw new EndOfStreamException("Page snapshot ended early.");
+                offset += read;
+            }
+            if (stream.ReadByte() != -1 || stream.Length != length)
+                throw new IOException("Page snapshot changed during capture.");
+        }
+
+        int pageCount = bytes.Length / pageBytes;
+        int priorCount = priorBytes == null ? 0 : priorHashes.Length;
+        string[] hashes = new string[pageCount];
+        List<long> changed = new List<long>();
+        List<byte[]> changedPages = new List<byte[]>();
+        string fileDigest;
+        using (SHA256 hash = SHA256.Create())
+        {
+            // page_capture.checkpoint_representation fixes these exact bytes
+            // and ordered page digests, independent of loop implementation.
+            fileDigest = LowerHex(hash.ComputeHash(bytes));
+            for (int index = 0; index < pageCount; index++)
+            {
+                int pageOffset = index * pageBytes;
+                bool unchanged = index < priorCount && PageEquals(
+                    bytes, pageOffset, priorBytes, pageOffset, pageBytes);
+                if (unchanged)
+                {
+                    hashes[index] = priorHashes[index];
+                    continue;
+                }
+                hashes[index] = LowerHex(
+                    hash.ComputeHash(bytes, pageOffset, pageBytes));
+                // changed_page_indices is the ordered-digest delta.
+                if (index < priorCount && hashes[index].Equals(
+                    priorHashes[index], StringComparison.Ordinal))
+                    continue;
+                byte[] page = new byte[pageBytes];
+                Buffer.BlockCopy(bytes, pageOffset, page, 0, pageBytes);
+                changed.Add(index);
+                changedPages.Add(page);
+            }
+        }
+        for (int index = pageCount; index < priorCount; index++)
+        {
+            changed.Add(index);
+            changedPages.Add(null);
+        }
+        return new Jet3A1PageSnapshotResult {
+            Bytes = bytes,
+            FileSha256 = fileDigest,
+            PageSha256 = hashes,
+            ChangedIndices = changed.ToArray(),
+            ChangedPages = changedPages.ToArray()
+        };
+    }
+}
+'@
+}
+
 function Read-A1CheckedJson {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -194,50 +403,21 @@ function Add-A1PageBlob {
 function New-A1PageStore {
     param([Parameter(Mandatory = $true)][pscustomobject]$Session)
 
-    $seen = New-Object 'Collections.Generic.HashSet[string]' `
-        ([StringComparer]::Ordinal)
     $root = Get-M1PayloadPath -Session $Session -RelativePath "page-store"
-    $retained = [long]0
-    $allFiles = @([IO.Directory]::EnumerateFiles(
-        $Session.StagingBundle, "*", [IO.SearchOption]::AllDirectories
-    ))
-    if ($allFiles.Count -gt 262399) {
-        throw "A1 staged bundle exceeds its entry ceiling."
-    }
-    foreach ($path in $allFiles) {
-        Assert-M1NoReparseComponents -Path $path
-        $length = [long](Get-Item -LiteralPath $path -Force).Length
-        if ($length -gt (768MB - $retained)) {
-            throw "A1 staged bundle exceeds its retained-byte ceiling."
-        }
-        $retained += $length
-    }
-    if ([IO.Directory]::Exists($root)) {
-        $files = @([IO.Directory]::EnumerateFiles(
-            $root, "*.page", [IO.SearchOption]::AllDirectories
-        ))
-        if ($files.Count -gt $script:A1MaximumUniqueBlobs) {
-            throw "A1 existing page store exceeds its entry ceiling."
-        }
-        foreach ($path in $files) {
-            Assert-M1NoReparseComponents -Path $path
-            $name = [IO.Path]::GetFileNameWithoutExtension($path)
-            $expected = Get-A1PageBlobLocator -Sha256 $name
-            $actual = $path.Substring(
-                $Session.StagingBundle.TrimEnd('\').Length + 1
-            ).Replace('\', '/')
-            if ($actual -cne $expected) {
-                throw "A1 existing page-store locator is noncanonical."
-            }
-            Assert-A1ExistingPageBlob -Path $path -ExpectedSha256 $name
-            [void]$seen.Add($name)
-        }
-    }
+    Assert-M1NoReparseComponents -Path $Session.StagingBundle
+    Initialize-A1PageSnapshotNative
+    # page_capture.store binds canonical content-addressed blobs; the complete
+    # validator rehashes every blob before publication.
+    $inventory = [Jet3A1PageSnapshotNative]::Inventory(
+        $Session.StagingBundle, $root, 262399,
+        [int]$script:A1MaximumUniqueBlobs, 768MB,
+        [int]$script:A1PageBytes
+    )
     return [pscustomobject]@{
         Session = $Session
-        Seen = $seen
-        UniqueBytes = [long]($seen.Count * $script:A1PageBytes)
-        RetainedBytes = $retained
+        Seen = $inventory.Seen
+        UniqueBytes = [long]($inventory.Seen.Count * $script:A1PageBytes)
+        RetainedBytes = [long]$inventory.RetainedBytes
         LogicalReadBytes = [long]0
         ChangedEntries = [long]0
     }
@@ -374,134 +554,62 @@ function Read-A1PageSnapshot {
         [Parameter(Mandatory = $true)][pscustomobject]$Store,
         [Parameter(Mandatory = $true)][string]$DatabasePath,
         [AllowNull()][string[]]$PriorHashes,
-        [AllowNull()][byte[][]]$PriorPages
+        [AllowNull()][byte[]]$PriorPages
     )
 
     Assert-M1NoReparseComponents -Path $DatabasePath
     if (($null -eq $PriorHashes) -ne ($null -eq $PriorPages) -or
         ($null -ne $PriorHashes -and
-            $PriorHashes.Count -ne $PriorPages.Count) -or
+            $PriorHashes.Count -ne
+                ($PriorPages.LongLength / $script:A1PageBytes)) -or
         ($null -ne $PriorPages -and
-            $PriorPages.Count -gt $script:A1MaximumPagesPerReplica)) {
+            ($PriorPages.LongLength % $script:A1PageBytes) -ne 0) -or
+        ($null -ne $PriorPages -and
+            ($PriorPages.LongLength / $script:A1PageBytes) -gt
+                $script:A1MaximumPagesPerReplica)) {
         throw "A1 prior snapshot cache is incomplete or exceeds its bound."
     }
-    $stream = New-Object IO.FileStream(
-        $DatabasePath, [IO.FileMode]::Open, [IO.FileAccess]::Read,
-        [IO.FileShare]::None, 65536, [IO.FileOptions]::SequentialScan
+    Initialize-A1PageSnapshotNative
+    $remaining = [long](
+        $script:A1MaximumLogicalReadBytes - $Store.LogicalReadBytes
     )
-    $fileHash = $null
-    $pageHash = $null
-    try {
-        if ($stream.Length -lt $script:A1PageBytes -or
-            ($stream.Length % $script:A1PageBytes) -ne 0) {
-            throw "A1 closed database is not an exact sequence of pages."
-        }
-        $pageCount = [long]($stream.Length / $script:A1PageBytes)
-        if ($pageCount -gt $script:A1MaximumPagesPerReplica -or
-            $stream.Length -gt (
-                $script:A1MaximumLogicalReadBytes - $Store.LogicalReadBytes
-            )) {
-            throw "A1 snapshot exceeded its page or logical-read ceiling."
-        }
-        $hashes = New-Object 'Collections.Generic.List[string]' `
-            ([int]$pageCount)
-        $pages = New-Object 'Collections.Generic.List[byte[]]' `
-            ([int]$pageCount)
-        $changed = New-Object Collections.ArrayList
-        $fileHash = [Security.Cryptography.SHA256]::Create()
-        $pageHash = [Security.Cryptography.SHA256]::Create()
-        $pageComparer = `
-            [Collections.StructuralComparisons]::StructuralEqualityComparer
-        $page = New-Object byte[] ([int]$script:A1PageBytes)
-        for ($index = 0L; $index -lt $pageCount; $index++) {
-            $offset = 0
-            while ($offset -lt $page.Length) {
-                $read = $stream.Read($page, $offset, $page.Length - $offset)
-                if ($read -le 0) { throw "A1 page read ended early." }
-                $offset += $read
-            }
-            [void]$fileHash.TransformBlock(
-                $page, 0, $page.Length, $page, 0
-            )
-            # page-index.schema database_sha256 is streamed during the same
-            # page_capture.checkpoint_representation read.
-            $unchanged = $false
-            if ($null -ne $PriorPages -and $index -lt $PriorPages.Count) {
-                $priorPage = [byte[]]$PriorPages[[int]$index]
-                if ($priorPage.LongLength -ne $script:A1PageBytes) {
-                    throw "A1 prior snapshot cache contains a non-page."
-                }
-                # page_capture.checkpoint_representation requires exact ordered
-                # hashes; byte equality alone permits reuse of the prior digest.
-                $unchanged = $pageComparer.Equals($page, $priorPage)
-            }
-            if ($unchanged) {
-                $sha = [string]$PriorHashes[[int]$index]
-                [void]$pages.Add($priorPage)
-            }
-            else {
-                $sha = ([BitConverter]::ToString(
-                    $pageHash.ComputeHash($page)
-                )).Replace("-", "").ToLowerInvariant()
-                # page_capture.store uses this digest for the exact blob name.
-                Add-A1PageBlob -Store $Store -Page $page -Sha256 $sha
-                $retainedPage = New-Object byte[] ([int]$script:A1PageBytes)
-                [Buffer]::BlockCopy(
-                    $page, 0, $retainedPage, 0, $retainedPage.Length
-                )
-                [void]$pages.Add($retainedPage)
-            }
-            $hashes.Add($sha)
-            # page-index.schema changed_page_indices is the ordered-hash delta.
-            if ($null -eq $PriorHashes -or $index -ge $PriorHashes.Count -or
-                $PriorHashes[[int]$index] -cne $sha) {
-                if ($Store.ChangedEntries + $changed.Count -ge
-                    $script:A1MaximumChangedEntries) {
-                    throw "A1 changed-page index exceeded its ceiling."
-                }
-                [void]$changed.Add([ordered]@{
-                    page_index = $index
-                    sha256 = $sha
-                })
-            }
-        }
-        if ($null -ne $PriorHashes -and $PriorHashes.Count -gt $pageCount) {
-            for ($index = $pageCount; $index -lt $PriorHashes.Count; $index++) {
-                if ($Store.ChangedEntries + $changed.Count -ge
-                    $script:A1MaximumChangedEntries) {
-                    throw "A1 changed-page index exceeded its ceiling."
-                }
-                [void]$changed.Add([ordered]@{
-                    page_index = [long]$index
-                    sha256 = $null
-                })
-            }
-        }
-        if ($stream.ReadByte() -ne -1) {
-            throw "A1 database grew during its exclusive snapshot."
-        }
-        $empty = New-Object byte[] 0
-        [void]$fileHash.TransformFinalBlock($empty, 0, 0)
-        $Store.LogicalReadBytes = [long](
-            $Store.LogicalReadBytes + $stream.Length
-        )
-        $Store.ChangedEntries = [long](
-            $Store.ChangedEntries + $changed.Count
-        )
-        return [pscustomobject]@{
-            file_bytes = [long]$stream.Length
-            file_sha256 = ([BitConverter]::ToString(
-                $fileHash.Hash
-            )).Replace("-", "").ToLowerInvariant()
-            page_count = $pageCount
-            changed_pages = @($changed)
-            hashes = $hashes.ToArray()
-            pages = $pages.ToArray()
-        }
+    $capture = [Jet3A1PageSnapshotNative]::Capture(
+        $DatabasePath, [int]$script:A1PageBytes,
+        [int]$script:A1MaximumPagesPerReplica, $remaining,
+        $PriorPages, $PriorHashes
+    )
+    if ($Store.ChangedEntries + $capture.ChangedIndices.Length -gt
+        $script:A1MaximumChangedEntries) {
+        throw "A1 changed-page index exceeded its ceiling."
     }
-    finally {
-        if ($null -ne $pageHash) { $pageHash.Dispose() }
-        if ($null -ne $fileHash) { $fileHash.Dispose() }
-        $stream.Dispose()
+    $changed = New-Object Collections.ArrayList
+    for ($offset = 0; $offset -lt $capture.ChangedIndices.Length; $offset++) {
+        $index = [long]$capture.ChangedIndices[$offset]
+        $sha = if ($index -lt $capture.PageSha256.Length) {
+            [string]$capture.PageSha256[[int]$index]
+        } else { $null }
+        if ($null -ne $sha) {
+            # page_capture.store keeps the exact changed page under its digest.
+            Add-A1PageBlob -Store $Store `
+                -Page ([byte[]]$capture.ChangedPages[$offset]) -Sha256 $sha
+        }
+        [void]$changed.Add([ordered]@{
+            page_index = $index
+            sha256 = $sha
+        })
+    }
+    $Store.LogicalReadBytes = [long](
+        $Store.LogicalReadBytes + $capture.Bytes.LongLength
+    )
+    $Store.ChangedEntries = [long](
+        $Store.ChangedEntries + $changed.Count
+    )
+    return [pscustomobject]@{
+        file_bytes = [long]$capture.Bytes.LongLength
+        file_sha256 = [string]$capture.FileSha256
+        page_count = [long]$capture.PageSha256.Length
+        changed_pages = @($changed)
+        hashes = [string[]]$capture.PageSha256
+        pages = [byte[]]$capture.Bytes
     }
 }

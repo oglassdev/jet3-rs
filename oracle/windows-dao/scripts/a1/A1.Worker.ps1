@@ -486,7 +486,7 @@ function Add-A1Checkpoint {
         }
     })
     $script:A1PriorHashes = [string[]]$snapshot.hashes
-    $script:A1PriorPages = [byte[][]]$snapshot.pages
+    $script:A1PriorPages = [byte[]]$snapshot.pages
     $script:A1PriorCheckpoint = $CheckpointId
     Add-A1ProgressRecord -Progress $script:A1Progress -CheckpointId $CheckpointId -PageCount ([long]$snapshot.page_count)
 }

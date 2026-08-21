@@ -299,18 +299,18 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         self.assertNotIn("page-store/sha256/", self.combined)
 
     def test_page_snapshot_reuse_is_exact_and_bounded(self) -> None:
-        snapshot = function_source(self.page_store, "Read-A1PageSnapshot")
-        self.assertIn("StructuralEqualityComparer", snapshot)
-        self.assertIn("$sha = [string]$PriorHashes", snapshot)
-        self.assertIn("$pageHash.ComputeHash($page)", snapshot)
-        self.assertIn("[Buffer]::BlockCopy", snapshot)
-        self.assertIn("$fileHash.TransformBlock", snapshot)
-        self.assertIn("$Store.ChangedEntries + $changed.Count", snapshot)
-        self.assertIn("$script:A1MaximumPagesPerReplica", snapshot)
+        for fragment in ("[Jet3A1PageSnapshotNative]::Capture", "$capture.Bytes",
+                         "$capture.ChangedIndices", "Add-A1PageBlob", "PageEquals(",
+                         "hash.ComputeHash(bytes)", "$script:A1MaximumPagesPerReplica",
+                         "$Hash.TransformBlock", "$Hash.TransformFinalBlock"):
+            self.assertIn(fragment, self.page_store)
+        self.assertIn("$script:A1PriorPages = [byte[]]$snapshot.pages", self.worker)
+        startup = function_source(self.page_store, "New-A1PageStore")
+        self.assertNotIn("Assert-A1ExistingPageBlob", startup)
+        for fragment in ("[Jet3A1PageSnapshotNative]::Inventory", "maximumEntries",
+                         "item.Length != pageBytes"):
+            self.assertIn(fragment, self.page_store)
         self.assertNotIn("IncrementalHash", self.page_store)
-        self.assertIn("$Hash.TransformBlock", self.page_store)
-        self.assertIn("$Hash.TransformFinalBlock", self.page_store)
-
     def test_resource_and_process_ceilings_are_fail_closed(self) -> None:
         expected = {
             "20480": self.combined,
@@ -484,10 +484,8 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         self.assertIn("Refusing cleanup outside", self.controller)
 
     def test_snapshot_shrink_and_dao_collections_are_explicit(self) -> None:
-        self.assertIn(
-            "$PriorHashes.Count -gt $pageCount", self.page_store
-        )
-        self.assertIn("page_index = [long]$index", self.page_store)
+        self.assertIn("index = pageCount; index < priorCount", self.page_store)
+        self.assertIn("page_index = $index", self.page_store)
         self.assertIn("$fields = $recordset.Fields", self.combined)
         self.assertIn("$tableDefinitions = $database.TableDefs", self.worker)
         self.assertIn("A1 table definitions release", self.worker)
@@ -594,18 +592,20 @@ class A1PowerShellWindowsFunctionalTests(unittest.TestCase):
                 "$first = Read-A1PageSnapshot -Store $store "
                 f"-DatabasePath {ps_quote(database)} "
                 "-PriorHashes $null -PriorPages $null\n"
+                "$store = New-A1PageStore -Session $session\n"
                 f"[IO.File]::WriteAllBytes({ps_quote(database)}, "
                 f"[IO.File]::ReadAllBytes({ps_quote(second_path)}))\n"
                 "$second = Read-A1PageSnapshot -Store $store "
                 f"-DatabasePath {ps_quote(database)} "
                 "-PriorHashes ([string[]]$first.hashes) "
-                "-PriorPages ([byte[][]]$first.pages)\n"
+                "-PriorPages ([byte[]]$first.pages)\n"
+                "$store = New-A1PageStore -Session $session\n"
                 f"[IO.File]::WriteAllBytes({ps_quote(database)}, "
                 f"[IO.File]::ReadAllBytes({ps_quote(third_path)}))\n"
                 "$third = Read-A1PageSnapshot -Store $store "
                 f"-DatabasePath {ps_quote(database)} "
                 "-PriorHashes ([string[]]$second.hashes) "
-                "-PriorPages ([byte[][]]$second.pages)\n"
+                "-PriorPages ([byte[]]$second.pages)\n"
                 "[ordered]@{\n"
                 "  first = Convert-A1TestSnapshot $first\n"
                 "  second = Convert-A1TestSnapshot $second\n"
