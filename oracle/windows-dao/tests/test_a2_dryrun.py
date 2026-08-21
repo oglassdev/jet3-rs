@@ -7,6 +7,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
@@ -18,12 +19,18 @@ if str(SCRIPTS) not in sys.path:
 from a2_dryrun import (  # noqa: E402
     CASE_TRANSCRIPT,
     CHECKSUMS,
+    DEFAULT_RETAINED_ROOT,
     RETAINED_REPORT,
     SYNTHETIC_REPORT,
 )
-from a2_dryrun_retained import LEGACY_STATE, ProjectedReplica  # noqa: E402
-from a2_dryrun_synthetic import REQUIRED_CASES, source_contract_checks  # noqa: E402
-from a2_model import PLAN, PLAN_SHA256, PREDICATES  # noqa: E402
+from a2_dryrun_retained import (  # noqa: E402
+    BlobTracker,
+    LEGACY_STATE,
+    ProjectedReplica,
+    _manifest,
+    run_retained,
+)
+from a2_model import PLAN, PLAN_SHA256  # noqa: E402
 from a2_spec import PREDICATE_IDS, validate_dry_run_report  # noqa: E402
 from protocol_validation import ValidationError, canonical_json_bytes  # noqa: E402
 
@@ -43,11 +50,13 @@ class A2DryRunArtifactTests(unittest.TestCase):
         validate_dry_run_report(synthetic)
         for report in (retained, synthetic):
             self.assertEqual(report["plan_sha256"], PLAN_SHA256)
-            self.assertEqual(report["result"], "pass")
             self.assertFalse(report["holdout_opened"])
             self.assertFalse(report["scientific_evidence"])
             self.assertFalse(report["acquisition_authorized"])
             self.assertFalse(report["capability_advancement_authorized"])
+        self.assertEqual(retained["result"], "pass")
+        transcript = load(CASE_TRANSCRIPT)
+        self.assertEqual(synthetic["result"], transcript["acceptance"]["result"])
 
     def test_retained_report_records_the_named_legacy_state_and_bounds(self) -> None:
         report = load(RETAINED_REPORT)
@@ -71,15 +80,24 @@ class A2DryRunArtifactTests(unittest.TestCase):
             hashlib.sha256(payload).hexdigest(),
             report["source_identity"]["manifest_or_fixture_sha256"],
         )
-        self.assertEqual(set(report["predicted_terminal_states"]), set(REQUIRED_CASES))
-        self.assertEqual(set(report["terminal_predicate_ids"]), set(PREDICATE_IDS))
         reachability = transcript["predicate_reachability"]
         self.assertEqual(
-            {row["predicate_ids"][0] for row in reachability}, set(PREDICATE_IDS)
+            {row["target_predicate_id"] for row in reachability}, set(PREDICATE_IDS)
         )
+        reached = {row["target_predicate_id"] for row in reachability if row["status"] == "reached"}
         self.assertEqual(
-            {row["outcome"] for row in reachability},
-            {reason for reason, _ in PREDICATES.values()},
+            set(report["terminal_predicate_ids"]), reached
+        )
+        for row in reachability:
+            with self.subTest(predicate=row["target_predicate_id"]):
+                self.assertEqual(
+                    row["status"] == "reached",
+                    row["target_predicate_id"] in row["actual_predicate_ids"],
+                )
+                self.assertEqual(row["reported_layer"], row["layer"])
+        self.assertEqual(
+            set(transcript["acceptance"]["unreachable_predicate_ids"]),
+            set(PREDICATE_IDS) - reached,
         )
         case_names = {row["case"] for row in transcript["cases"]}
         self.assertIn("all_layers_decisive", case_names)
@@ -97,8 +115,16 @@ class A2DryRunArtifactTests(unittest.TestCase):
         for name, expected in recorded.items():
             self.assertEqual(hashlib.sha256((DRY_RUN / name).read_bytes()).hexdigest(), expected)
 
-    def test_source_contract_checks_pass_and_modules_remain_bounded(self) -> None:
-        self.assertTrue(all(source_contract_checks().values()))
+    def test_source_contract_checks_are_evidenced_and_modules_remain_bounded(self) -> None:
+        transcript = load(CASE_TRANSCRIPT)
+        checks = transcript["source_contract_checks"]
+        self.assertEqual(checks["abort_reachability"]["status"], "fail")
+        for name, result in checks.items():
+            with self.subTest(check=name):
+                self.assertIn(result["status"], {"pass", "fail", "not_implemented"})
+                self.assertIn("evidence", result)
+                if name != "abort_reachability":
+                    self.assertEqual(result["status"], "pass")
         for path in sorted(SCRIPTS.glob("a2_*.py")):
             with self.subTest(path=path.name):
                 self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), 800)
@@ -106,6 +132,68 @@ class A2DryRunArtifactTests(unittest.TestCase):
     def test_replica_three_is_rejected_before_any_path_access(self) -> None:
         with self.assertRaises(ValidationError):
             ProjectedReplica(Path("/not-opened"), 3, {}, object())
+
+    def test_run_retained_never_accesses_replica_three_or_holdout_and_caches_reads(self) -> None:
+        if not DEFAULT_RETAINED_ROOT.is_dir():
+            self.skipTest("pinned retained run-12 copy is not available")
+        opened_pages: list[Path] = []
+        original_open = Path.open
+        original_read_bytes = Path.read_bytes
+
+        def assert_allowed(path: Path) -> None:
+            text = path.as_posix().lower()
+            self.assertNotIn("replica-03", text)
+            self.assertNotIn("/holdout", text)
+
+        def trapped_open(path: Path, *args: object, **kwargs: object):
+            assert_allowed(path)
+            return original_open(path, *args, **kwargs)
+
+        def trapped_read_bytes(path: Path) -> bytes:
+            assert_allowed(path)
+            if path.suffix == ".page":
+                opened_pages.append(path)
+            return original_read_bytes(path)
+
+        with patch.object(Path, "open", trapped_open), patch.object(
+            Path, "read_bytes", trapped_read_bytes
+        ):
+            result = run_retained(DEFAULT_RETAINED_ROOT)
+        self.assertEqual(len(opened_pages), result.blob_count)
+        self.assertEqual(len(set(opened_pages)), result.blob_count)
+        self.assertLessEqual(
+            result.blob_count,
+            PLAN["analyzer_dry_run_contract"]["retained_a1_input"]["max_input_page_blobs"],
+        )
+
+    def test_missing_recreate_projection_remains_null(self) -> None:
+        if not DEFAULT_RETAINED_ROOT.is_dir():
+            self.skipTest("pinned retained run-12 copy is not available")
+        _, entries = _manifest(DEFAULT_RETAINED_ROOT)
+        replica = ProjectedReplica(
+            DEFAULT_RETAINED_ROOT, 1, entries, BlobTracker()
+        )
+        self.assertEqual(
+            replica.projection_status["D_RECREATE_EMPTY"],
+            "not_applicable_missing_a1_checkpoint",
+        )
+        self.assertNotIn("D_RECREATE_EMPTY", replica.page_count)
+        self.assertNotIn("D_RECREATE_EMPTY", replica.ordered_page_sha256)
+
+    def test_every_legacy_ordinal_row_is_an_analyzer_result(self) -> None:
+        transcript = load(CASE_TRANSCRIPT)
+        rows = [row for row in transcript["cases"] if row.get("input_schedule")]
+        self.assertEqual(len(rows), 71)
+        self.assertEqual(
+            {row["legacy_source_conversion_ordinal"] for row in rows},
+            set(range(1, 71)) | {None},
+        )
+        for row in rows:
+            self.assertIn(
+                row["scientific_outcome"],
+                {"one_or_more_submodels_predict_holdout", "no_submodel_predicts_holdout"},
+            )
+            self.assertTrue(row["layer_outcomes"])
 
 
 if __name__ == "__main__":

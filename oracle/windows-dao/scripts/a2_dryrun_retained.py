@@ -18,9 +18,7 @@ from a2_model import (
     PLAN,
     Abort,
     GlobalRecordModel,
-    View,
     WorkCounter,
-    candidate_page_space,
     derive_global_record,
     qualify_global_pages,
 )
@@ -28,6 +26,22 @@ from protocol_validation import ValidationError
 
 RETAINED = PLAN["analyzer_dry_run_contract"]["retained_a1_input"]
 LEGACY_STATE = "legacy_projection_complete_with_tdef_churn_not_applicable"
+LEGACY_D_CHECKPOINTS = tuple(
+    row["a2_checkpoint"]
+    for row in RETAINED["checkpoint_projection"]
+    if row["a2_checkpoint"]
+    in {"E0", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128"}
+    and row["status"] == "applicable"
+)
+
+
+class RetainedBlobBound(Exception):
+    """The next distinct content-addressed read would exceed the legacy ceiling."""
+
+    def __init__(self, opened_count: int) -> None:
+        self.opened_count = opened_count
+        self.requested_unique_count = opened_count + 1
+        super().__init__("retained dry run would exceed its page-blob ceiling")
 
 
 def _sha256(path: Path) -> str:
@@ -57,11 +71,20 @@ def _checked_json(path: Path, expected_sha256: str | None = None) -> dict[str, A
 class BlobTracker:
     def __init__(self) -> None:
         self.opened: set[str] = set()
+        self.cache: dict[str, bytes] = {}
 
-    def record(self, digest: str) -> None:
+    def retained(self, digest: str) -> bytes | None:
+        return self.cache.get(digest)
+
+    def reserve(self, digest: str) -> None:
+        if digest in self.opened:
+            raise ValidationError("retained page blob cache accounting diverged")
+        if len(self.opened) >= RETAINED["max_input_page_blobs"]:
+            raise RetainedBlobBound(len(self.opened))
         self.opened.add(digest)
-        if len(self.opened) > RETAINED["max_input_page_blobs"]:
-            raise ValidationError("retained dry run exceeded its page-blob ceiling")
+
+    def store(self, digest: str, payload: bytes) -> None:
+        self.cache[digest] = payload
 
 
 class ProjectedReplica:
@@ -89,22 +112,27 @@ class ProjectedReplica:
         checkpoints = {
             row["checkpoint_id"]: row for row in self.observation["checkpoints"]
         }
-        dropped_checkpoint = next(
-            row["a1_checkpoint"]
-            for row in RETAINED["checkpoint_projection"]
-            if row["a2_checkpoint"] == "D_DROP"
-        )
         self._checkpoint_ids = CHECKPOINT_IDS
         self._counts: dict[str, int] = {}
         self._hashes: dict[str, tuple[str, ...]] = {}
+        self._statuses: dict[str, str] = {}
         self._allowed_digests: set[str] = set()
         for projection in RETAINED["checkpoint_projection"]:
             a2_checkpoint = projection["a2_checkpoint"]
             source_checkpoint = projection["a1_checkpoint"]
+            status = projection["status"]
+            self._statuses[a2_checkpoint] = status
             if source_checkpoint is None:
-                source_checkpoint = dropped_checkpoint
+                if status != "not_applicable_missing_a1_checkpoint":
+                    raise ValidationError("null retained projection has an unexpected status")
+                continue
             if not isinstance(source_checkpoint, str):
                 raise ValidationError("retained projection has no usable source checkpoint")
+            if status not in {
+                "applicable",
+                "not_applicable_full_delete_and_churn_pointer",
+            }:
+                raise ValidationError("retained projection status/source mismatch")
             source = checkpoints[source_checkpoint]
             relative = source["page_index"]["path"]
             expected_prefix = f"page-indexes/replica-{replica:02d}/"
@@ -133,18 +161,57 @@ class ProjectedReplica:
     def ordered_page_sha256(self) -> dict[str, tuple[str, ...]]:
         return self._hashes
 
+    @property
+    def projection_status(self) -> dict[str, str]:
+        return self._statuses
+
     def page_bytes(self, digest: str) -> bytes:
         if digest not in self._allowed_digests:
             raise ValidationError("page digest is not referenced by this projected replica")
+        retained = self.tracker.retained(digest)
+        if retained is not None:
+            return retained
         path = self.root / "page-store" / f"{digest}.page"
         metadata = path.lstat()
         if path.is_symlink() or not stat.S_ISREG(metadata.st_mode) or metadata.st_size != PAGE_SIZE:
             raise ValidationError("unsafe retained page blob")
-        self.tracker.record(digest)
+        self.tracker.reserve(digest)
         payload = path.read_bytes()
         if hashlib.sha256(payload).hexdigest() != digest:
             raise ValidationError("retained page blob content-address mismatch")
+        self.tracker.store(digest, payload)
         return payload
+
+
+class ProjectedView:
+    """Checked access to applicable rows of the explicit legacy projection."""
+
+    def __init__(self, source: ProjectedReplica, work: WorkCounter) -> None:
+        self.source = source
+        self.work = work
+
+    def page_count(self, checkpoint: str) -> int:
+        try:
+            return self.source.page_count[checkpoint]
+        except KeyError as exc:
+            raise Abort("A2-SNAPSHOT-RECONSTRUCTION") from exc
+
+    def hash_at(self, checkpoint: str, page: int) -> str | None:
+        try:
+            hashes = self.source.ordered_page_sha256[checkpoint]
+        except KeyError as exc:
+            raise Abort("A2-SNAPSHOT-RECONSTRUCTION") from exc
+        return hashes[page] if 0 <= page < len(hashes) else None
+
+    def page(self, checkpoint: str, page: int) -> bytes:
+        digest = self.hash_at(checkpoint, page)
+        if digest is None:
+            raise Abort("A2-SNAPSHOT-RECONSTRUCTION")
+        self.work.opened(digest)
+        try:
+            return self.source.page_bytes(digest)
+        except (OSError, ValueError, ValidationError) as exc:
+            raise Abort("A2-SNAPSHOT-RECONSTRUCTION") from exc
 
 
 @dataclass(frozen=True)
@@ -242,9 +309,19 @@ def run_retained(root: Path) -> RetainedResult:
     if len(replicas) != 2:
         raise ValidationError("retained dry run requires exactly two derivation replicas")
     _schedule_assertions(replicas)
+    expected_statuses = {
+        row["a2_checkpoint"]: row["status"]
+        for row in RETAINED["checkpoint_projection"]
+    }
+    if any(replica.projection_status != expected_statuses for replica in replicas):
+        raise ValidationError("retained checkpoint projection status mismatch")
+    if any("D_RECREATE_EMPTY" in replica.page_count for replica in replicas):
+        raise ValidationError("missing A1 recreate checkpoint was materialized")
     work = WorkCounter()
-    views = tuple(View(replica, work) for replica in replicas)
-    pages = candidate_page_space(views)
+    views = tuple(ProjectedView(replica, work) for replica in replicas)
+    pages = range(
+        max(count for replica in replicas for count in replica.page_count.values())
+    )
     qualified = tuple(qualify_global_pages(view, pages) for view in views)
     expected = _expected_qualified_pages()
     if qualified != (expected, expected) or len(expected) > MAX_QUALIFIED_PAGES:
@@ -253,10 +330,17 @@ def run_retained(root: Path) -> RetainedResult:
     survivors: list[GlobalRecordModel] = []
     for page in expected:
         try:
-            model = derive_global_record(views[0], page)
+            model = derive_global_record(
+                views[0], page, d_checkpoints=LEGACY_D_CHECKPOINTS
+            )
         except Abort:
             continue
-        second = derive_global_record(views[1], page, enumerate_candidates=False)
+        second = derive_global_record(
+            views[1],
+            page,
+            enumerate_candidates=False,
+            d_checkpoints=LEGACY_D_CHECKPOINTS,
+        )
         if model != second:
             raise ValidationError("retained global record disagrees across replicas")
         survivors.append(model)

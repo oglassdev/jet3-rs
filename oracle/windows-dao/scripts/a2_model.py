@@ -285,7 +285,7 @@ class DRelationIndex:
         empty = records["E0"]
         grown = records["D_GROW_0128"]
         dropped = records["D_DROP"]
-        recreated = records["D_RECREATE_EMPTY"]
+        recreated = records.get("D_RECREATE_EMPTY")
         regrown = records["D_REGROW_0128"]
         self.records = records
         self.growth: dict[str, Prefix] = {}
@@ -297,18 +297,24 @@ class DRelationIndex:
             if polarity == "set_means_in_use":
                 growth = [grown[index] & ~empty[index] & 0xFF for index in range(PAGE_SIZE)]
                 release = [growth[index] & dropped[index] for index in range(PAGE_SIZE)]
-                recreate_release = [
-                    growth[index] & recreated[index] for index in range(PAGE_SIZE)
-                ]
+                recreate_release = (
+                    [growth[index] & recreated[index] for index in range(PAGE_SIZE)]
+                    if recreated is not None
+                    else [0] * PAGE_SIZE
+                )
                 violation = [growth[index] & ~regrown[index] & 0xFF for index in range(PAGE_SIZE)]
                 additional = [regrown[index] & ~grown[index] & 0xFF for index in range(PAGE_SIZE)]
             else:
                 growth = [(~grown[index]) & empty[index] & 0xFF for index in range(PAGE_SIZE)]
                 release = [growth[index] & ~dropped[index] & 0xFF for index in range(PAGE_SIZE)]
-                recreate_release = [
-                    growth[index] & ~recreated[index] & 0xFF
-                    for index in range(PAGE_SIZE)
-                ]
+                recreate_release = (
+                    [
+                        growth[index] & ~recreated[index] & 0xFF
+                        for index in range(PAGE_SIZE)
+                    ]
+                    if recreated is not None
+                    else [0] * PAGE_SIZE
+                )
                 violation = [growth[index] & regrown[index] for index in range(PAGE_SIZE)]
                 additional = [(~regrown[index]) & grown[index] & 0xFF for index in range(PAGE_SIZE)]
             self.growth[polarity] = Prefix.from_flags([bool(value) for value in growth], work)
@@ -325,7 +331,7 @@ class DRelationIndex:
                 [bool(value) for value in additional], work
             )
         changed_flags = [
-            len({records[name][index] for name in D_CHECKPOINTS}) > 1
+            len({record[index] for record in records.values()}) > 1
             for index in range(PAGE_SIZE)
         ]
         self.changed = Prefix.from_flags(changed_flags, work)
@@ -340,7 +346,7 @@ class DRelationIndex:
             unused = 0x00 if polarity == "set_means_in_use" else 0xFF
             self.bad_unused[polarity] = Prefix.from_flags(
                 [
-                    any(records[name][index] != unused for name in D_CHECKPOINTS)
+                    any(record[index] != unused for record in records.values())
                     for index in range(PAGE_SIZE)
                 ],
                 work,
@@ -433,12 +439,18 @@ def _suffix_slack(
 
 
 def derive_global_record(
-    view: View, page: int, *, enumerate_candidates: bool = True
+    view: View,
+    page: int,
+    *,
+    enumerate_candidates: bool = True,
+    d_checkpoints: tuple[str, ...] = D_CHECKPOINTS,
 ) -> GlobalRecordModel:
     """Enumerate the fixed interval space and apply the D-only terminal tie-break."""
     if enumerate_candidates:
         view.work.enumerate_intervals()
-    records = {name: view.page(name, page) for name in D_CHECKPOINTS}
+    if not {"E0", "D_GROW_0128", "D_DROP", "D_REGROW_0128"} <= set(d_checkpoints):
+        raise Abort("A2-SNAPSHOT-RECONSTRUCTION")
+    records = {name: view.page(name, page) for name in d_checkpoints}
     index = DRelationIndex(records, view.work)
     expected_highwater = {
         checkpoint: view.page_count(checkpoint)

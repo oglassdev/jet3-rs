@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import inspect
+import json
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import Any
 
 from a2_analysis import LoadedReplicaSource, ReplicaInput, build_analysis
+from a2_dryrun_mutations import Mutation, attempts
+from a2_dryrun_validator import validate_decisive_handling
 from a2_generator import (
     SyntheticBundle,
     SyntheticParameters,
     generate_synthetic_bundles,
-    iter_parameter_combinations,
     run12_calibration_parameters,
 )
 from a2_generator_pages import _extended_page
@@ -29,6 +30,7 @@ from a2_model import (
     PAGE_SIZE,
     PER_PAGE_CANDIDATES,
     PLAN,
+    PLAN_PATH,
     PLAN_SHA256,
     PREDICATES,
     Abort,
@@ -36,12 +38,10 @@ from a2_model import (
 )
 from a2_spec import (
     A2_CONVERSION_ORDINALS,
-    BOUNDS,
     LEGACY_CONVERSION_ORDINALS,
     PREDICATE_IDS,
     RUN12_CALIBRATION,
     validate_analysis_report,
-    validate_bundle_manifest,
 )
 from protocol_validation import ValidationError, canonical_json_bytes
 
@@ -63,12 +63,15 @@ SOURCE_FILES = (
     "a2_analysis.py",
 )
 
-
 @dataclass(frozen=True)
 class SyntheticResult:
     transcript: dict[str, Any]
     transcript_sha256: str
     generator_sha256: str
+    result: str
+    assertions: tuple[str, ...]
+    terminal_predicate_ids: tuple[str, ...]
+    terminal_states: tuple[str, ...]
 
 
 def _file_hash(path: Path) -> str:
@@ -100,11 +103,11 @@ def _source(bundle: SyntheticBundle) -> LoadedReplicaSource:
 
 def _analyze(
     parameters: SyntheticParameters,
-    mutation: Callable[[SyntheticBundle], SyntheticBundle] | None = None,
+    mutation: Mutation | None = None,
 ) -> dict[str, Any]:
     bundles = generate_synthetic_bundles(parameters)
     if mutation is not None:
-        bundles = tuple(mutation(bundle) for bundle in bundles)
+        bundles = mutation(bundles)
     sources = [_source(bundle) for bundle in bundles]
     with TemporaryDirectory(prefix="a2-dryrun-") as directory:
         report = build_analysis(
@@ -138,7 +141,7 @@ def _analysis_case(
     name: str,
     parameters: SyntheticParameters,
     cache: dict[SyntheticParameters, dict[str, Any]],
-    mutation: Callable[[SyntheticBundle], SyntheticBundle] | None = None,
+    mutation: Mutation | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if mutation is None:
         report = cache.get(parameters)
@@ -209,27 +212,13 @@ def _free_parameter_cases() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             case, _ = _analysis_case(f"{label}_{value}", parameters, cache)
             cases.append(case)
 
-    seen_legacy: set[int | None] = set()
-    for parameters in iter_parameter_combinations(legacy_projection=True):
-        ordinal = parameters.conversion_ordinal
-        if ordinal in seen_legacy:
-            continue
-        seen_legacy.add(ordinal)
-        cases.append(
-            {
-                "case": f"legacy_conversion_ordinal_{ordinal}",
-                "parameters": asdict(parameters),
-                "scientific_outcome": "non_evidential_input_schedule_generated",
-                "predicate_ids": [],
-                "no_outcome_reasons": [],
-                "layer_outcomes": {},
-            }
-        )
-    if seen_legacy != {*LEGACY_CONVERSION_ORDINALS, None}:
-        raise ValidationError("legacy conversion ordinal generator coverage is incomplete")
+    cases.extend(_legacy_parameter_cases(baseline, cache))
 
     partial_case, partial = _analysis_case(
-        "partial_layer_outcome", baseline, cache, _without_base_discriminator
+        "partial_layer_outcome",
+        baseline,
+        cache,
+        lambda bundles: tuple(_without_base_discriminator(bundle) for bundle in bundles),
     )
     cases.append(partial_case)
     global_map = partial["submodels"]["global_map"]
@@ -243,6 +232,48 @@ def _free_parameter_cases() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return cases, decisive
 
 
+def _legacy_projection_ordinal(source_ordinal: int | None) -> int | None:
+    if source_ordinal is None:
+        return None
+    a1_plan_path = PLAN_PATH.parents[1] / "a1" / "a1-allocation-maps.plan.json"
+    a1_plan = json.loads(a1_plan_path.read_bytes())
+    source_ids = tuple(a1_plan["checkpoint_design"]["checkpoint_ids"])
+    if len(source_ids) - 1 != len(LEGACY_CONVERSION_ORDINALS):
+        raise ValidationError("checked A1 legacy schedule ordinal count changed")
+    source_positions = {checkpoint: index for index, checkpoint in enumerate(source_ids)}
+    projection = [
+        row
+        for row in PLAN["analyzer_dry_run_contract"]["retained_a1_input"][
+            "checkpoint_projection"
+        ]
+        if row["a1_checkpoint"] is not None
+    ]
+    projected = next(
+        row
+        for row in projection
+        if source_positions[row["a1_checkpoint"]] >= source_ordinal
+    )
+    return CHECKPOINT_IDS.index(projected["a2_checkpoint"])
+
+
+def _legacy_parameter_cases(
+    baseline: SyntheticParameters,
+    cache: dict[SyntheticParameters, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+    for source_ordinal in (*LEGACY_CONVERSION_ORDINALS, None):
+        projected_ordinal = _legacy_projection_ordinal(source_ordinal)
+        parameters = replace(baseline, conversion_ordinal=projected_ordinal)
+        case, _ = _analysis_case(
+            f"legacy_conversion_ordinal_{source_ordinal}", parameters, cache
+        )
+        case["legacy_source_conversion_ordinal"] = source_ordinal
+        case["projected_a2_conversion_ordinal"] = projected_ordinal
+        case["input_schedule"] = "a1_legacy_projected_by_checkpoint_identity"
+        cases.append(case)
+    return cases
+
+
 def _reachability_cases() -> list[dict[str, Any]]:
     required_reasons = set(REQUIRED_CASES) - {
         "all_layers_decisive",
@@ -252,118 +283,94 @@ def _reachability_cases() -> list[dict[str, Any]]:
     registered_reasons = {reason for reason, _ in PREDICATES.values()}
     if required_reasons != registered_reasons:
         raise ValidationError("required terminal cases and predicate registry diverge")
-    cases = []
-    for predicate_id in PREDICATE_IDS:
-        reached = Abort(predicate_id)
+    baseline = run12_calibration_parameters()
+    registered = attempts(baseline)
+    if tuple(row.predicate_id for row in registered) != PREDICATE_IDS:
+        raise ValidationError("reachability mutations do not follow the predicate registry")
+    cases: list[dict[str, Any]] = []
+    for attempt in registered:
+        report = _analyze(attempt.parameters, attempt.mutation)
+        predicate_id = attempt.predicate_id
         reason, layer = PREDICATES[predicate_id]
-        if (reached.reason, reached.registered_layer) != (reason, layer):
-            raise ValidationError("Abort does not preserve its registered mapping")
+        result = next(
+            row for row in report["predicate_results"] if row["predicate_id"] == predicate_id
+        )
+        reached = result["status"] == "fail" and predicate_id in report["terminal_predicate_ids"]
+        if reached and reason not in report["no_outcome_reasons"]:
+            raise ValidationError("reached predicate omitted its registered reason")
         cases.append(
             {
                 "case": reason,
-                "perturbation": f"schedule_derived_{reason}",
-                "predicate_ids": [predicate_id],
-                "outcome": reason,
+                "perturbation": attempt.perturbation,
+                "target_predicate_id": predicate_id,
+                "actual_predicate_ids": report["terminal_predicate_ids"],
+                "actual_reasons": report["no_outcome_reasons"],
+                "status": "reached" if reached else "unreachable",
+                "outcome": reason if reached else "target_not_reached",
                 "layer": layer,
+                "reported_layer": result["layer"],
+                "parameters": asdict(attempt.parameters),
             }
         )
     return cases
 
 
-def _manifest_files() -> list[dict[str, Any]]:
-    replicas = BOUNDS["replicas"]
-    roles = (
-        ("plan", 1),
-        ("environment", replicas),
-        ("replica_artifact_manifest", replicas),
-        ("replica_observation", replicas),
-        ("page_index", replicas * len(CHECKPOINT_IDS)),
-        ("frozen_candidate_set", 1),
-        ("analysis_report", 1),
-        ("holdout_structure_receipt", 1),
-    )
-    files: list[dict[str, Any]] = []
-    counter = 1
-    for role, count in roles:
-        for _ in range(count):
-            digest = f"{counter:064x}"
-            files.append(
-                {
-                    "path": f"synthetic/{role}-{counter}.json",
-                    "role": role,
-                    "sha256": digest,
-                    "size_bytes": 1,
-                    "media_type": "application/json",
-                }
-            )
-            counter += 1
-    digest = f"{counter:064x}"
-    files.append(
-        {
-            "path": f"page-store/{digest}.page",
-            "role": "page_blob",
-            "sha256": digest,
-            "size_bytes": BOUNDS["page_size"],
-            "media_type": "application/octet-stream",
-        }
-    )
-    return files
+def _called_name(node: ast.Call) -> str | None:
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
 
 
-def _validate_decisive_handling(report: dict[str, Any]) -> dict[str, str]:
-    validate_analysis_report(report)
-    files = _manifest_files()
-    handling = PLAN["decisive_report_handling"]
-    manifest = {
-        "protocol_version": "1.0.0",
-        "document_type": "dao_a2_bundle_manifest",
-        "experiment_id": PLAN["experiment_id"],
-        "campaign_id": report["campaign_id"],
-        "producer_commit": report["producer_commit"],
-        "repository_url": PLAN["repository_binding"]["canonical_https_url"],
-        "created_utc": "2026-08-21T00:00:00Z",
-        "plan_sha256": PLAN_SHA256,
-        "replica_environment_sha256": [f"{index + 100:064x}" for index in range(3)],
-        "provider_sha256": f"{200:064x}",
-        "replica_count": BOUNDS["replicas"],
-        "replica_artifact_manifest_sha256": [
-            f"{index + 300:064x}" for index in range(3)
-        ],
-        "checkpoint_count": BOUNDS["replicas"] * len(CHECKPOINT_IDS),
-        "page_blob_count": 1,
-        "bundle_size_bytes_excluding_manifest": sum(row["size_bytes"] for row in files),
-        "inventory_closed": True,
-        "hashes_verified": True,
-        "paths_closed": True,
-        "execution_status": "analysis_complete",
-        "campaign_failed": False,
-        "holdout_structure_receipt_sha256": f"{400:064x}",
-        "analysis_report_retained": True,
-        "analysis_scientific_outcome": report["scientific_outcome"],
-        "bundle_status": handling["bundle_status"],
-        "independent_validation_status": "not_independently_validated",
-        "files": files,
-    }
-    validate_bundle_manifest(manifest)
-    return {
-        "analysis_report": "validate_document_pass",
-        "bundle_manifest": "validate_document_pass",
-        "bundle_status": manifest["bundle_status"],
-    }
-
-
-def _predicate_literal_ids() -> set[str]:
+def _predicate_site_ids() -> tuple[set[str], list[str]]:
     ids: set[str] = set()
+    dynamic: list[str] = []
     for name in ("a2_model.py", "a2_layers.py", "a2_analysis.py"):
         tree = ast.parse((SCRIPTS / name).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Constant)
-                and isinstance(node.value, str)
-                and node.value.startswith("A2-")
-            ):
-                ids.add(node.value)
-    return ids
+            if not isinstance(node, ast.Call):
+                continue
+            called = _called_name(node)
+            if called == "Abort" and node.args:
+                value = node.args[0]
+                if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    ids.add(value.value)
+                else:
+                    alternatives = {
+                        child.value
+                        for child in ast.walk(value)
+                        if isinstance(child, ast.Constant)
+                        and isinstance(child.value, str)
+                        and child.value.startswith("A2-")
+                    }
+                    ids.update(alternatives)
+                    if not alternatives:
+                        dynamic.append(f"{name}:{node.lineno}")
+            elif called == "_derive_pages" and len(node.args) >= 6:
+                for value in node.args[3:6]:
+                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                        ids.add(value.value)
+            elif called == "add" and node.args:
+                value = node.args[0]
+                if (
+                    isinstance(value, ast.Constant)
+                    and value.value == "A2-HOLDOUT-PREDICTION"
+                ):
+                    ids.add(value.value)
+    return ids, dynamic
+
+
+def _function_node(tree: ast.Module, name: str) -> ast.FunctionDef:
+    return next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+
+
+def _check(status: bool, evidence: Any) -> dict[str, Any]:
+    return {"status": "pass" if status else "fail", "evidence": evidence}
 
 
 def _check_exact_bounds() -> None:
@@ -413,8 +420,14 @@ def _check_exact_bounds() -> None:
         raise ValidationError("page-blob ceiling accepted one over")
 
 
-def source_contract_checks() -> dict[str, bool]:
+def source_contract_checks(
+    reachability: list[dict[str, Any]] | None = None,
+    parameter_cases: list[dict[str, Any]] | None = None,
+    decisive_validation: dict[str, str] | None = None,
+) -> dict[str, dict[str, Any]]:
     sources = {name: (SCRIPTS / name).read_text(encoding="utf-8") for name in SOURCE_FILES}
+    import_violations: list[str] = []
+    a1_binding_literals: list[str] = []
     for name, source in sources.items():
         tree = ast.parse(source)
         imports: set[str] = set()
@@ -423,41 +436,255 @@ def source_contract_checks() -> dict[str, bool]:
                 imports.update(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module is not None:
                 imports.add(node.module)
-        if any(module.startswith("a1") for module in imports):
-            raise ValidationError(f"{name} imports an A1 module")
-        exact_terms = ("CONVERSION_" + "CHECKPOINT", "header_" + "exclusion")
-        if any(term in source for term in exact_terms) or ("black" + "list") in source.lower():
-            raise ValidationError(f"{name} contains forbidden source contract text")
-    if _predicate_literal_ids() != set(PREDICATE_IDS):
-        raise ValidationError("analyzer predicate sites do not cover the registry")
-    from a2_analysis import _derive_layers
+        import_violations.extend(
+            f"{name}:{module}" for module in imports if module.startswith("a1")
+        )
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and ("a1-allocation" in node.value.lower() or "CONVERSION_CHECKPOINT" in node.value)
+            ):
+                a1_binding_literals.append(f"{name}:{node.lineno}")
 
-    analysis_source = inspect.getsource(_derive_layers)
-    qualification = analysis_source.index("qualify_global_pages")
-    enumeration = analysis_source.index("derive_global_record")
-    if qualification >= enumeration:
-        raise ValidationError("global page qualification does not precede enumeration")
+    site_ids, dynamic_sites = _predicate_site_ids()
+    mappings_bijective = (
+        len(PREDICATES) == len(PREDICATE_IDS)
+        and set(PREDICATES) == set(PREDICATE_IDS)
+        and len({reason for reason, _ in PREDICATES.values()}) == len(PREDICATES)
+    )
+    reachability = _reachability_cases() if reachability is None else reachability
+    reached = {
+        row["target_predicate_id"]
+        for row in reachability
+        if row["status"] == "reached"
+    }
+
+    analysis_tree = ast.parse(sources["a2_analysis.py"])
+    derive_layers = _function_node(analysis_tree, "_derive_layers")
+    calls = [
+        (_called_name(node), node.lineno)
+        for node in ast.walk(derive_layers)
+        if isinstance(node, ast.Call)
+    ]
+    qualification_lines = [
+        node.lineno
+        for node in ast.walk(derive_layers)
+        if isinstance(node, ast.Name)
+        and node.id in {"qualify_global_pages", "qualify_tdef_pages"}
+    ]
+    enumeration_lines = [line for name, line in calls if name in {"derive_global_record", "derive_tdef"}]
+    qualification_first = bool(qualification_lines and enumeration_lines) and (
+        min(qualification_lines) < min(enumeration_lines)
+    )
+
+    model_tree = ast.parse(sources["a2_model.py"])
+    prefix_count = _function_node(
+        next(
+            node
+            for node in model_tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "Prefix"
+        ),
+        "count",
+    )
+    bounded_prefix = not any(
+        isinstance(node, (ast.For, ast.While, ast.comprehension))
+        for node in ast.walk(prefix_count)
+    ) and any(isinstance(node, ast.Sub) for node in ast.walk(prefix_count))
+
+    layers_tree = ast.parse(sources["a2_layers.py"])
+    pointer_candidates = _function_node(layers_tree, "_pointer_candidates")
+    compared_coordinates = []
+    for node in ast.walk(pointer_candidates):
+        if not isinstance(node, ast.Compare):
+            continue
+        names = {child.id for child in ast.walk(node) if isinstance(child, ast.Name)}
+        if names & {"page", "offset"} and any(
+            isinstance(child, ast.Constant) and isinstance(child.value, int)
+            for child in ast.walk(node)
+        ):
+            compared_coordinates.append(node.lineno)
+    loop_sources = {
+        ast.unparse(node.target): ast.unparse(node.iter)
+        for node in ast.walk(pointer_candidates)
+        if isinstance(node, ast.For)
+    }
+    global_function = _function_node(model_tree, "derive_global_record")
+    global_loops = {
+        ast.unparse(node.target): ast.unparse(node.iter)
+        for node in ast.walk(global_function)
+        if isinstance(node, (ast.For, ast.comprehension))
+    }
+    structural_scan = (
+        loop_sources.get("offset") == "range(PAGE_SIZE - 3)"
+        and loop_sources.get("layout") == "POINTER_LAYOUTS"
+        and not compared_coordinates
+    )
+    header_neutral = structural_scan and any(
+        "range(PAGE_SIZE - 5)" in value for value in global_loops.values()
+    )
+
+    global_source = ast.unparse(global_function)
+    conversion_source = ast.unparse(_function_node(layers_tree, "derive_conversion"))
+    base_source = ast.unparse(_function_node(layers_tree, "derive_base"))
+    tdef_function = _function_node(layers_tree, "derive_tdef")
+    tdef_arguments = {argument.arg for argument in tdef_function.args.args}
+    layer_separation = (
+        "d_checkpoints" in global_source
+        and "derive_conversion" not in global_source
+        and "global_model" in conversion_source
+        and "global_model" in base_source
+        and "global_model" not in tdef_arguments
+    )
+
     baseline = generate_synthetic_bundles(run12_calibration_parameters())[0]
     for left, right in PLAN["checkpoint_design"]["idle_pairs"]:
         if baseline.ordered_page_sha256[left] != baseline.ordered_page_sha256[right]:
             raise ValidationError("generator cannot produce a declared checkpoint equality")
+    from a2_layers import _stable, _window_values
+
+    stable_sources = {
+        name: ast.unparse(_function_node(layers_tree, name))
+        for name in ("_growth_pointer_matches", "_churn_pointer_matches", "_pointer_candidates")
+    }
+    work = WorkCounter()
+    from a2_model import CHURN_TRANSITIONS, D_TRANSITIONS, GROWTH_TRANSITIONS, IDLE_PAIRS, View
+
+    view = View(baseline, work)
+    growth_values = _window_values(
+        view,
+        baseline.tdef.page,
+        baseline.tdef.growth_pointer_offset,
+        baseline.tdef.pointer_layout,
+    )
+    churn_values = _window_values(
+        view,
+        baseline.tdef.page,
+        baseline.tdef.delete_reinsert_pointer_offset,
+        baseline.tdef.pointer_layout,
+    )
+    equality_evidence = {
+        "growth_pointer_churn_stable": _stable(
+            growth_values,
+            CHURN_TRANSITIONS + D_TRANSITIONS + IDLE_PAIRS,
+        ),
+        "churn_pointer_growth_stable": _stable(
+            churn_values,
+            GROWTH_TRANSITIONS + D_TRANSITIONS + IDLE_PAIRS,
+        ),
+        "ast_comparisons": stable_sources,
+    }
+    generator_equalities = all(
+        value for key, value in equality_evidence.items() if key != "ast_comparisons"
+    ) and all(
+        token in "\n".join(stable_sources.values())
+        for token in ("D_TRANSITIONS", "GROWTH_TRANSITIONS", "CHURN_TRANSITIONS", "IDLE_PAIRS")
+    )
     _check_exact_bounds()
+    if parameter_cases is None:
+        parameter_cases, _ = _free_parameter_cases()
+    legacy_sources = {
+        row.get("legacy_source_conversion_ordinal")
+        for row in parameter_cases
+        if row.get("input_schedule") == "a1_legacy_projected_by_checkpoint_identity"
+    }
+    parameter_complete = legacy_sources == {*LEGACY_CONVERSION_ORDINALS, None}
+    decisive_validation = decisive_validation or {}
     return {
-        "no_a1_constants": True,
-        "abort_registry_bijective": True,
-        "abort_reachability_named": True,
-        "qualification_before_enumeration": True,
-        "no_page_or_offset_exclusions": True,
-        "generator_produced_equalities": True,
+        "no_a1_constants": _check(
+            not import_violations and not a1_binding_literals,
+            {"import_violations": import_violations, "binding_literals": a1_binding_literals},
+        ),
+        "abort_registry_bijective": _check(
+            mappings_bijective and site_ids == set(PREDICATE_IDS),
+            {"site_ids": sorted(site_ids), "dynamic_abort_sites": dynamic_sites},
+        ),
+        "abort_reachability": _check(
+            reached == set(PREDICATE_IDS),
+            {"reached": sorted(reached), "unreachable": sorted(set(PREDICATE_IDS) - reached)},
+        ),
+        "qualification_before_enumeration": _check(
+            qualification_first and bounded_prefix,
+            {"qualification_lines": qualification_lines, "enumeration_lines": enumeration_lines, "prefix_count_o1": bounded_prefix},
+        ),
+        "transition_structural_exclusions": _check(
+            structural_scan,
+            {"pointer_loops": loop_sources, "coordinate_comparisons": compared_coordinates},
+        ),
+        "header_bytes_position_neutral": _check(
+            header_neutral,
+            {"global_candidate_loops": global_loops, "pointer_loops": loop_sources},
+        ),
+        "layer_input_separation": _check(
+            layer_separation,
+            {"tdef_arguments": sorted(tdef_arguments), "global_uses_d_checkpoint_parameter": "d_checkpoints" in global_source},
+        ),
+        "parameter_coverage_executed": _check(
+            parameter_complete,
+            {"legacy_ordinals_analyzed": len(legacy_sources), "case_count": len(parameter_cases)},
+        ),
+        "generator_produced_equalities": _check(generator_equalities, equality_evidence),
+        "decisive_report_handling": _check(
+            decisive_validation.get("bundle_status") == "decisive_pending_independent_validation"
+            and decisive_validation.get("analysis_report") == "validate_document_pass"
+            and decisive_validation.get("bundle_manifest") == "validate_document_pass",
+            decisive_validation,
+        ),
     }
 
 
 def run_synthetic(analyzer_commit: str) -> SyntheticResult:
     cases, decisive = _free_parameter_cases()
     reachability = _reachability_cases()
-    decisive_validation = _validate_decisive_handling(decisive)
-    checks = source_contract_checks()
+    decisive_validation = validate_decisive_handling(decisive)
+    checks = source_contract_checks(reachability, cases, decisive_validation)
     hashes = generator_hashes()
+    reached_ids = tuple(
+        row["target_predicate_id"]
+        for row in reachability
+        if row["status"] == "reached"
+    )
+    reached_states = {
+        row["outcome"] for row in reachability if row["status"] == "reached"
+    }
+    reached_states.update(
+        {
+            "all_layers_decisive",
+            "partial_layer_outcome",
+            "legacy_projection_complete_with_tdef_churn_not_applicable",
+        }
+    )
+    source_checks_pass = all(row["status"] == "pass" for row in checks.values())
+    required_cases_pass = set(REQUIRED_CASES) <= reached_states
+    result = "pass" if source_checks_pass and required_cases_pass else "fail"
+    assertions = [
+        "schedule_and_worker_arithmetic_generated_from_plan",
+        "conversion_ordinal_parameter_complete",
+        "slot_activation_parameter_complete",
+        "bit_polarity_parameter_complete",
+        "all_layers_decisive_model_recovered",
+        "partial_layer_outcome_retained",
+        "decisive_layered_report_accepted_by_contract_validator",
+        "run12_calibration_case_non_evidential",
+        "bounds_accept_exact_and_reject_one_over",
+    ]
+    check_assertions = {
+        "no_a1_constants": "no_a1_hand_typed_counts_imported",
+        "qualification_before_enumeration": "page_qualification_precedes_interval_enumeration",
+        "transition_structural_exclusions": "transition_structural_exclusion_is_page_agnostic",
+        "header_bytes_position_neutral": "no_page_or_offset_blacklist",
+        "generator_produced_equalities": "all_analyzer_equalities_generator_producible",
+        "abort_registry_bijective": "every_abort_has_pinned_reason_mapping",
+    }
+    assertions.extend(
+        assertion
+        for check_name, assertion in check_assertions.items()
+        if checks[check_name]["status"] == "pass"
+    )
+    if checks["abort_reachability"]["status"] == "pass":
+        assertions.append("every_abort_reached_by_single_perturbation")
+    if required_cases_pass:
+        assertions.append("all_required_terminal_cases_exercised")
     transcript = {
         "protocol_version": "1.0.0",
         "document_type": "dao_a2_dry_run_case_transcript",
@@ -470,6 +697,12 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         "predicate_reachability": reachability,
         "source_contract_checks": checks,
         "decisive_validator": decisive_validation,
+        "acceptance": {
+            "result": result,
+            "required_terminal_cases_pass": required_cases_pass,
+            "source_contract_checks_pass": source_checks_pass,
+            "unreachable_predicate_ids": sorted(set(PREDICATE_IDS) - set(reached_ids)),
+        },
         "scientific_evidence": False,
     }
     payload = canonical_json_bytes(transcript)
@@ -477,4 +710,8 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         transcript,
         hashlib.sha256(payload).hexdigest(),
         combined_generator_sha256(hashes),
+        result,
+        tuple(assertions),
+        reached_ids,
+        tuple(state for state in REQUIRED_CASES if state in reached_states),
     )

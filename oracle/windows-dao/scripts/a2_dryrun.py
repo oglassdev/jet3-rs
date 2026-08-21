@@ -13,12 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from a2_dryrun_retained import LEGACY_STATE, run_retained
-from a2_dryrun_synthetic import REQUIRED_CASES, run_synthetic
+from a2_dryrun_retained import LEGACY_STATE, RetainedBlobBound, run_retained
+from a2_dryrun_synthetic import run_synthetic
 from a2_model import EXPERIMENT_DIR, PLAN, PLAN_SHA256
 from a2_spec import (
     LEGACY_CONVERSION_ORDINALS,
-    PREDICATE_IDS,
     RUN12_CALIBRATION,
     validate_dry_run_report,
 )
@@ -67,47 +66,6 @@ RETAINED_ASSERTIONS = [
     "run12_calibration_case_non_evidential",
 ]
 
-SYNTHETIC_ASSERTIONS = [
-    "page_qualification_precedes_interval_enumeration",
-    "prefix_sum_interval_queries_are_o1",
-    "record_source_independent_of_change_envelope",
-    "transition_structural_exclusion_is_page_agnostic",
-    "no_page_or_offset_blacklist",
-    "schedule_and_worker_arithmetic_generated_from_plan",
-    "no_a1_hand_typed_counts_imported",
-    "all_analyzer_equalities_generator_producible",
-    "d_record_set_relation_arithmetically_possible",
-    "d_drop_does_not_assume_truncation",
-    "d_alone_selects_bit_polarity",
-    "global_growth_polarity_cross_check_passes",
-    "growth_only_transition_arithmetically_possible",
-    "churn_only_transition_arithmetically_possible",
-    "conversion_ordinal_parameter_complete",
-    "slot_activation_parameter_complete",
-    "slot_activation_one_or_two_can_be_decisive",
-    "two_slots_active_by_h_rel_0904",
-    "bit_polarity_parameter_complete",
-    "conversion_derived_within_full_window",
-    "pointer_validity_only_at_preregistered_checkpoints",
-    "global_delimitation_uses_d_only",
-    "global_conversion_inline_and_base_use_lph",
-    "tdef_model_is_pointer_only",
-    "inline_boundaries_from_fixed_enumeration",
-    "inline_boundary_anchor_fill_independent",
-    "base_candidates_discriminated",
-    "base_nondiscrimination_is_layer_local",
-    "all_layers_decisive_model_recovered",
-    "partial_layer_outcome_retained",
-    "every_abort_has_pinned_reason_mapping",
-    "every_abort_reached_by_single_perturbation",
-    "distinct_page_and_record_cardinality_identifiers_exercised",
-    "all_required_terminal_cases_exercised",
-    "decisive_layered_report_accepted_by_contract_validator",
-    "run12_calibration_case_non_evidential",
-    "bounds_accept_exact_and_reject_one_over",
-]
-
-
 def _empty_coverage() -> dict[str, Any]:
     return {
         "conversion_ordinals": [],
@@ -153,25 +111,56 @@ def build_artifacts(
     retained_root: Path, analyzer_commit: str, recorded_utc: str
 ) -> dict[str, bytes]:
     _validate_metadata(analyzer_commit, recorded_utc)
-    retained = run_retained(retained_root)
+    retained_breach: RetainedBlobBound | None = None
+    try:
+        retained = run_retained(retained_root)
+    except RetainedBlobBound as exc:
+        retained = None
+        retained_breach = exc
     synthetic = run_synthetic(analyzer_commit)
     retained_report = {
         **_base_report(analyzer_commit, recorded_utc),
         "source_kind": "retained_a1_run12_exploratory",
         "source_identity": {
-            "manifest_or_fixture_sha256": retained.manifest_sha256,
+            "manifest_or_fixture_sha256": (
+                retained.manifest_sha256
+                if retained is not None
+                else PLAN["analyzer_dry_run_contract"]["retained_a1_input"][
+                    "bundle_manifest_sha256"
+                ]
+            ),
             "generator_sha256": None,
         },
         "checkpoint_schedule_source": "explicit_a1_legacy_projection",
-        "input_page_blob_count": retained.blob_count,
+        "input_page_blob_count": (
+            retained.blob_count
+            if retained is not None
+            else retained_breach.opened_count
+        ),
         "parameter_coverage": _empty_coverage(),
-        "predicted_terminal_states": [LEGACY_STATE],
-        "terminal_predicate_ids": list(retained.terminal_predicate_ids),
-        "assertions": RETAINED_ASSERTIONS,
+        "predicted_terminal_states": (
+            [LEGACY_STATE] if retained is not None else ["resource_bound_breach"]
+        ),
+        "terminal_predicate_ids": (
+            list(retained.terminal_predicate_ids)
+            if retained is not None
+            else ["A2-RESOURCE-BOUND"]
+        ),
+        "assertions": (
+            RETAINED_ASSERTIONS
+            if retained is not None
+            else [
+                "legacy_projection_table_exact",
+                "holdout_never_opened",
+                "no_a2_scientific_outcome_emitted_for_a1_input",
+            ]
+        ),
+        "result": "pass" if retained is not None else "fail",
     }
     free = SYNTHETIC_FREE_PARAMETERS
     synthetic_report = {
         **_base_report(analyzer_commit, recorded_utc),
+        "result": synthetic.result,
         "source_kind": "a2_schedule_synthetic",
         "source_identity": {
             "manifest_or_fixture_sha256": synthetic.transcript_sha256,
@@ -188,9 +177,9 @@ def build_artifacts(
             "run12_calibration": dict(RUN12_CALIBRATION),
             "record_end_uniform_slack_bytes": free["record_end_uniform_slack_bytes"],
         },
-        "predicted_terminal_states": list(REQUIRED_CASES),
-        "terminal_predicate_ids": list(PREDICATE_IDS),
-        "assertions": SYNTHETIC_ASSERTIONS,
+        "predicted_terminal_states": list(synthetic.terminal_states),
+        "terminal_predicate_ids": list(synthetic.terminal_predicate_ids),
+        "assertions": list(synthetic.assertions),
     }
     validate_dry_run_report(retained_report)
     validate_dry_run_report(synthetic_report)
@@ -212,14 +201,19 @@ SYNTHETIC_FREE_PARAMETERS = PLAN["analyzer_dry_run_contract"]["synthetic_input"]
 ]
 
 
-def _write_new_or_same(root: Path, artifacts: dict[str, bytes]) -> None:
+def _write_new_or_same(
+    root: Path, artifacts: dict[str, bytes], *, replace_existing: bool = False
+) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for name, payload in artifacts.items():
         path = root / name
         if path.exists():
-            if not path.is_file() or path.read_bytes() != payload:
+            if not path.is_file():
+                raise ValidationError(f"refusing to replace non-file artifact: {path}")
+            if path.read_bytes() == payload:
+                continue
+            if not replace_existing:
                 raise ValidationError(f"refusing to overwrite differing artifact: {path}")
-            continue
         path.write_bytes(payload)
 
 
@@ -273,6 +267,11 @@ def _parser() -> argparse.ArgumentParser:
         if command == "generate":
             child.add_argument("--analyzer-commit", default=None)
             child.add_argument("--recorded-utc", default=None)
+            child.add_argument(
+                "--replace-existing",
+                action="store_true",
+                help="replace differing generated artifacts after recomputation",
+            )
     return parser
 
 
@@ -288,7 +287,11 @@ def main(argv: list[str] | None = None) -> int:
             "+00:00", "Z"
         )
         artifacts = build_artifacts(arguments.retained_root, analyzer_commit, recorded_utc)
-        _write_new_or_same(arguments.output, artifacts)
+        _write_new_or_same(
+            arguments.output,
+            artifacts,
+            replace_existing=arguments.replace_existing,
+        )
     except (OSError, subprocess.CalledProcessError, ValidationError) as exc:
         print(f"A2 dry run failed: {exc}", file=sys.stderr)
         return 1
