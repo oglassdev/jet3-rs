@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import itertools
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -20,14 +19,17 @@ from typing import Any, Iterator, Mapping
 from a2_generator_pages import PageFixture, build_page_fixture
 from a2_generator_schedule import Schedule, build_schedule, checkpoint_document
 from a2_spec import (
+    A2_CONVERSION_ORDINALS,
     BIT_POLARITIES,
     BOUNDS,
     CHECKPOINT_IDS,
     EXPERIMENT_ID,
+    LEGACY_CONVERSION_ORDINALS,
     PAGE_SIZE,
     PLAN_SHA256,
     ROLE_BINDINGS,
     ROLES,
+    RUN12_CALIBRATION,
     expected_reread_sha256,
     load_checked_plan,
     validate_environment,
@@ -125,33 +127,17 @@ A2SyntheticBundle = SyntheticBundle
 SyntheticBundleView = SyntheticBundle
 
 
-def _calibration_fields() -> tuple[int, int, str, int]:
-    text = _SYNTHETIC["run12_calibration_case"]
-    ordinal = re.search(r"A2 ordinal ([0-9]+)", text)
-    polarity = next((item for item in BIT_POLARITIES if item in text), None)
-    slot_words = {"zero": 0, "one": 1, "two": 2}
-    slots = next(
-        (value for word, value in slot_words.items() if f"{word} active slots" in text),
-        None,
-    )
-    delta = re.search(r"delete page delta \+([0-9]+)", text)
-    if ordinal is None or polarity is None or slots is None or delta is None:
-        raise ValidationError("run12_calibration_case is not mechanically parseable")
-    return int(ordinal.group(1)), slots, polarity, int(delta.group(1))
-
-
 def run12_calibration_parameters() -> SyntheticParameters:
     """Return the plan-declared non-evidential calibration parameter case."""
-    ordinal, slots, polarity, delta = _calibration_fields()
     anchor_states = _FREE["anchor_fill_state"]
     slack_values = _FREE["record_end_uniform_slack_bytes"]
     return SyntheticParameters(
-        conversion_ordinal=ordinal,
-        slot_activation_at_conversion=slots,
-        bit_polarity=polarity,
+        conversion_ordinal=RUN12_CALIBRATION["a2_conversion_ordinal"],
+        slot_activation_at_conversion=RUN12_CALIBRATION["active_slot_count"],
+        bit_polarity=RUN12_CALIBRATION["bit_polarity"],
         anchor_fill_state=anchor_states[-1],
         record_end_uniform_slack_bytes=slack_values[len(slack_values) // 2],
-        delete_page_delta=delta,
+        delete_page_delta=RUN12_CALIBRATION["delete_page_delta"],
     )
 
 
@@ -160,20 +146,12 @@ def iter_parameter_combinations(
 ) -> Iterator[SyntheticParameters]:
     """Enumerate every checked free-parameter combination, including never.
 
-    A2 enumeration covers ordinals 1..24 plus never. Legacy-projection mode
-    reads its 1..70 bound from the same plan sentence and also includes never.
+    Both ordinal ranges are parsed from the checked plan; neither projection
+    inherits a hand-authored schedule bound.
     """
-    if legacy_projection:
-        match = re.search(
-            r"legacy ordinals 1\.\.([0-9]+)", _FREE["conversion_ordinal"]
-        )
-        if match is None:
-            raise ValidationError("legacy conversion bound is absent from the plan")
-        last_ordinal = int(match.group(1))
-    else:
-        last_ordinal = len(CHECKPOINT_IDS) - 1
-    conversion_values: tuple[int | None, ...] = (*range(1, last_ordinal + 1), None)
-    delete_delta = _calibration_fields()[3]
+    ordinals = LEGACY_CONVERSION_ORDINALS if legacy_projection else A2_CONVERSION_ORDINALS
+    conversion_values: tuple[int | None, ...] = (*ordinals, None)
+    delete_delta = RUN12_CALIBRATION["delete_page_delta"]
     for conversion, slots, polarity, fill, slack in itertools.product(
         conversion_values,
         _FREE["slot_activation_at_conversion"],

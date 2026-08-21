@@ -7,6 +7,7 @@ import argparse
 import functools
 import hashlib
 import json
+import re
 import stat
 import sys
 from dataclasses import dataclass
@@ -197,6 +198,61 @@ POINTER_LAYOUTS = tuple(_PLAN.document["hypotheses"]["tdef_pointer_layouts"])
 BASE_FORMULAS = tuple(_PLAN.document["hypotheses"]["extended_base_candidates"])
 
 
+def _conversion_ordinals(label: str) -> tuple[int, ...]:
+    source = _PLAN.document["analyzer_dry_run_contract"]["synthetic_input"][
+        "free_parameters"
+    ]["conversion_ordinal"]
+    match = re.search(rf"{re.escape(label)} ordinals 1\.\.([0-9]+)", source)
+    if match is None:
+        raise ValidationError(f"{label} conversion ordinal bound is absent from the plan")
+    return tuple(range(1, int(match.group(1)) + 1))
+
+
+def _run12_calibration() -> Mapping[str, Any]:
+    synthetic = _PLAN.document["analyzer_dry_run_contract"]["synthetic_input"]
+    text = synthetic["run12_calibration_case"]
+    checkpoint_matches = [checkpoint for checkpoint in CHECKPOINT_IDS if checkpoint in text]
+    polarity_matches = [polarity for polarity in BIT_POLARITIES if polarity in text]
+    source_ordinal = re.search(r"source conversion ordinal ([0-9]+)", text)
+    delete_delta = re.search(r"delete page delta \+([0-9]+)", text)
+    slot_names = ("zero", "one", "two")
+    slot_matches = [
+        count
+        for count in synthetic["free_parameters"]["slot_activation_at_conversion"]
+        if count < len(slot_names) and f"{slot_names[count]} active slots" in text
+    ]
+    if (
+        len(checkpoint_matches) != 1
+        or len(polarity_matches) != 1
+        or len(slot_matches) != 1
+        or source_ordinal is None
+        or delete_delta is None
+    ):
+        raise ValidationError("run12_calibration_case is not mechanically parseable")
+    checkpoint = checkpoint_matches[0]
+    return MappingProxyType(
+        {
+            "source_conversion_ordinal": int(source_ordinal.group(1)),
+            "conversion_checkpoint_id": checkpoint,
+            "a2_conversion_ordinal": CHECKPOINT_ORDINALS[checkpoint],
+            "active_slot_count": slot_matches[0],
+            "bit_polarity": polarity_matches[0],
+            "delete_page_delta": int(delete_delta.group(1)),
+            "scientific_evidence": False,
+        }
+    )
+
+
+A2_CONVERSION_ORDINALS = _conversion_ordinals("A2")
+LEGACY_CONVERSION_ORDINALS = _conversion_ordinals("A1 legacy")
+require_equal(
+    A2_CONVERSION_ORDINALS,
+    tuple(range(1, len(CHECKPOINT_IDS))),
+    "A2 conversion ordinal schedule",
+)
+RUN12_CALIBRATION = _run12_calibration()
+
+
 def _schema(document: dict[str, Any], expected_type: str) -> None:
     require_equal(SCHEMAS.validate(document), expected_type, "$.document_type")
     if expected_type != "dao_a2_allocation_maps_plan":
@@ -274,6 +330,21 @@ def _is_target(checkpoint_id: str) -> bool:
     return checkpoint_id.startswith(("D_GROW_", "D_REGROW_", "L_REL_", "H_REL_", "P_ABS_"))
 
 
+def _relative_baseline_sources(checkpoint_ids: tuple[str, ...]) -> dict[str, str]:
+    family_sources: dict[str, str] = {}
+    result: dict[str, str] = {}
+    for ordinal, checkpoint_id in enumerate(checkpoint_ids):
+        if not _is_target(checkpoint_id) or checkpoint_id.startswith("P_ABS_"):
+            continue
+        family = checkpoint_id.rsplit("_", 1)[0]
+        if family not in family_sources:
+            if ordinal == 0:
+                raise ValidationError("relative target has no preceding baseline checkpoint")
+            family_sources[family] = checkpoint_ids[ordinal - 1]
+        result[checkpoint_id] = family_sources[family]
+    return result
+
+
 def validate_replica_observation(document: dict[str, Any], plan: CheckedPlan = _PLAN) -> dict[str, Any]:
     _schema(document, "dao_a2_replica_observation")
     replica = document["replica"]
@@ -283,6 +354,8 @@ def validate_replica_observation(document: dict[str, Any], plan: CheckedPlan = _
     logical_bytes = 0
     maximum_inserted = 0
     prior_inserted = 0
+    checkpoints_by_id = {row["checkpoint_id"]: row for row in checkpoints}
+    baseline_sources = _relative_baseline_sources(plan.checkpoint_ids)
     for ordinal, checkpoint in enumerate(checkpoints):
         location = f"$.checkpoints[{ordinal}]"
         checkpoint_id = checkpoint["checkpoint_id"]
@@ -301,6 +374,12 @@ def validate_replica_observation(document: dict[str, Any], plan: CheckedPlan = _
                 baseline = checkpoint["target_baseline_pages"]
                 if baseline is None:
                     raise ValidationError(f"{location}.target_baseline_pages: missing")
+                baseline_source = baseline_sources[checkpoint_id]
+                require_equal(
+                    baseline,
+                    checkpoints_by_id[baseline_source]["actual_file_pages"],
+                    f"{location}.target_baseline_pages",
+                )
                 expected_target = baseline + named
             require_equal(checkpoint["target_threshold_pages"], expected_target, f"{location}.target_threshold_pages")
             if checkpoint["actual_file_pages"] < expected_target:
@@ -616,8 +695,17 @@ def validate_dry_run_report(document: dict[str, Any]) -> dict[str, Any]:
             "hash_pinned_a2_plan_checkpoint_design",
             "$.checkpoint_schedule_source",
         )
-        require_equal(parameters["conversion_ordinals"], list(range(1, 71)), "$.parameter_coverage.conversion_ordinals")
+        require_equal(
+            parameters["conversion_ordinals"],
+            list(LEGACY_CONVERSION_ORDINALS),
+            "$.parameter_coverage.conversion_ordinals",
+        )
         require_equal(parameters["conversion_never"], True, "$.parameter_coverage.conversion_never")
+        require_equal(
+            parameters["run12_calibration"],
+            dict(RUN12_CALIBRATION),
+            "$.parameter_coverage.run12_calibration",
+        )
         parameter_bindings = (
             ("slot_activation_counts", "slot_activation_at_conversion"),
             ("bit_polarities", "bit_polarity"),
