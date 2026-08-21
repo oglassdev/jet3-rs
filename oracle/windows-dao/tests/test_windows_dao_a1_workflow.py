@@ -51,6 +51,7 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
             "oracle/windows-dao/scripts/a1/A1.Controller.ps1",
             "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
             "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
+            "oracle/windows-dao/scripts/a1/A1.Progress.ps1",
         ):
             self.assertEqual(self.parse_step.count(path), 1)
         for forbidden in ("Start-Process", "Invoke-A1", "Invoke-Jet3", "& "):
@@ -252,6 +253,7 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
 
     def test_campaign_and_independent_bundle_validator_are_exactly_bound(self) -> None:
         self.assertEqual(self.workflow.count("run-a1-controlled.ps1"), 2)
+        self.assertIn('"-DiagnosticsRoot", $diagnostics', self.workflow)
         self.assertIn("from a1_bundle import validate_bundle", self.workflow)
         self.assertIn('manifest["producer_commit"] != sys.argv[2]', self.workflow)
         self.assertIn('manifest["run_id"] != sys.argv[3]', self.workflow)

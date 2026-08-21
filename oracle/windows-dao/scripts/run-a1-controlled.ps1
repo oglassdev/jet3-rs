@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][string]$RepositoryRoot,
     [Parameter(Mandatory = $true)][string]$EnvironmentPath,
     [Parameter(Mandatory = $true)][string]$OutputRoot,
+    [Parameter(Mandatory = $true)][string]$DiagnosticsRoot,
     [Parameter(Mandatory = $true)][string]$GitCommit,
     [Parameter(Mandatory = $true)][string]$RunId
 )
@@ -110,6 +111,7 @@ $sources = @(
     "oracle/windows-dao/scripts/a1/A1.Controller.ps1",
     "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
     "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
+    "oracle/windows-dao/scripts/a1/A1.Progress.ps1",
     "oracle/windows-dao/scripts/a1_contract.py",
     "oracle/windows-dao/scripts/a1_bundle.py",
     "oracle/windows-dao/scripts/a1_analysis.py",
@@ -146,9 +148,12 @@ try {
     . (Join-Path $repository `
         "oracle/windows-dao/scripts/m1/M1.DaoValues.ps1")
     . (Join-Path $repository `
+        "oracle/windows-dao/scripts/a1/A1.Progress.ps1")
+    . (Join-Path $repository `
         "oracle/windows-dao/scripts/a1/A1.Controller.ps1")
     $published = Invoke-A1Campaign -RepositoryRoot $repository `
         -EnvironmentPath $EnvironmentPath -OutputRoot $OutputRoot `
+        -DiagnosticsRoot $DiagnosticsRoot `
         -GitCommit $GitCommit -RunId $RunId
     Write-Output "PASS: retained A1 campaign at $published"
     exit 0

@@ -12,6 +12,7 @@ ENTRY = SCRIPTS / "run-a1-controlled.ps1"
 CONTROLLER = A1 / "A1.Controller.ps1"
 WORKER = A1 / "A1.Worker.ps1"
 PAGE_STORE = A1 / "A1.PageStore.ps1"
+PROGRESS = A1 / "A1.Progress.ps1"
 PLAN = ROOT / "experiments" / "a1" / "a1-allocation-maps.plan.json"
 
 
@@ -22,9 +23,10 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         cls.controller = CONTROLLER.read_text(encoding="utf-8")
         cls.worker = WORKER.read_text(encoding="utf-8")
         cls.page_store = PAGE_STORE.read_text(encoding="utf-8")
+        cls.progress = PROGRESS.read_text(encoding="utf-8")
         cls.plan = json.loads(PLAN.read_text(encoding="utf-8"))
         cls.combined = "\n".join(
-            (cls.entry, cls.controller, cls.worker, cls.page_store)
+            (cls.entry, cls.controller, cls.worker, cls.page_store, cls.progress)
         )
 
     def test_exact_replica_and_checkpoint_schedule_is_plan_driven(self) -> None:
@@ -89,6 +91,28 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         )
         self.assertIn("A1 DAO lock companion remains after close", self.worker)
         self.assertIn("retained_for_physical_analysis = $false", self.worker)
+
+    def test_checkpoint_progress_is_flushed_and_retained_on_worker_failure(self) -> None:
+        for field in ("checkpoint_id", "elapsed_seconds", "page_count"):
+            with self.subTest(field=field):
+                self.assertIn(field, self.progress)
+        self.assertIn("$stream.Flush($true)", self.progress)
+        self.assertIn("$script:A1ProgressMaximumBytes = 1MB", self.progress)
+        self.assertIn("replica-*.progress.jsonl", self.progress)
+        self.assertIn("Open-A1WorkerProgress", self.worker)
+        checkpoint = self.worker.index("function Add-A1Checkpoint")
+        progress = self.worker.index("Add-A1ProgressRecord", checkpoint)
+        prior = self.worker.index("$script:A1PriorCheckpoint = $CheckpointId", checkpoint)
+        self.assertLess(prior, progress)
+        invoke = self.controller.index("function Invoke-A1ReplicaWorker")
+        end = self.controller.index("function Get-A1FileRecord", invoke)
+        worker = self.controller[invoke:end]
+        self.assertLess(worker.index("New-A1ProgressFile"), worker.index("StartSuspendedInJob"))
+        self.assertIn("catch { $primary = $_ }", worker)
+        finally_block = worker[worker.index("finally {") :]
+        self.assertIn("Copy-A1ProgressFile", finally_block)
+        self.assertIn("-DiagnosticsRoot $DiagnosticsRoot", finally_block)
+        self.assertIn("[Parameter(Mandatory = $true)][string]$DiagnosticsRoot", self.entry)
 
     def test_growth_targets_are_crossed_only_by_fixed_batches(self) -> None:
         self.assertIn("do {", self.worker)
@@ -234,7 +258,7 @@ class A1PowerShellSourceContractTests(unittest.TestCase):
         self.assertIn('Label "A1 table deletion"', self.worker)
 
     def test_production_scripts_stay_below_800_lines(self) -> None:
-        for path in (ENTRY, CONTROLLER, WORKER, PAGE_STORE):
+        for path in (ENTRY, CONTROLLER, WORKER, PAGE_STORE, PROGRESS):
             with self.subTest(path=path.name):
                 self.assertLess(
                     len(path.read_text(encoding="utf-8").splitlines()), 800

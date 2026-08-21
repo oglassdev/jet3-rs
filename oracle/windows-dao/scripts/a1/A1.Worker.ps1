@@ -18,9 +18,9 @@ $m1Root = Join-Path $RepositoryRoot "oracle/windows-dao/scripts/m1"
 . (Join-Path $m1Root "M1.Publication.ps1")
 . (Join-Path $m1Root "M1.DaoValues.ps1")
 . (Join-Path $PSScriptRoot "A1.PageStore.ps1")
+. (Join-Path $PSScriptRoot "A1.Progress.ps1")
 $script:A1ExperimentId = "DAO-A1-ALLOCATION-MAPS-001"
-$script:A1FrozenPlanSha256 = `
-    "a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80"
+$script:A1FrozenPlanSha256 = "a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80"
 $script:A1DbVersion30 = 32
 # SRC-0021 records these public DAO enumeration values for the oracle only.
 $script:A1DbLong = 4
@@ -565,6 +565,7 @@ function Add-A1Checkpoint {
     })
     $script:A1PriorHashes = [string[]]$snapshot.hashes
     $script:A1PriorCheckpoint = $CheckpointId
+    Add-A1ProgressRecord -Progress $script:A1Progress -CheckpointId $CheckpointId -PageCount ([long]$snapshot.page_count)
 }
 function Add-A1UntilTarget {
     param(
@@ -701,6 +702,7 @@ function Invoke-A1Worker {
     Assert-M1NoReparseComponents -Path $repository
     Assert-M1NoReparseComponents -Path $bundle
     Assert-M1NoReparseComponents -Path $working
+    $script:A1Progress = Open-A1WorkerProgress -WorkingRoot $working -ReplicaOrdinal $ReplicaOrdinal
     $session = [pscustomobject]@{ StagingBundle = $bundle }
     $replicaId = "replica-{0:D2}" -f $ReplicaOrdinal
     $replicaRoot = Join-Path $working $replicaId
@@ -727,7 +729,6 @@ function Invoke-A1Worker {
     $script:A1PriorHashes = $null
     $script:A1PriorCheckpoint = $null
     $script:A1Store = New-A1PageStore -Session $session
-
     $engine = $null
     $workspaces = $null
     $workspace = $null
@@ -794,6 +795,5 @@ function Invoke-A1Worker {
 Invoke-A1Worker -RepositoryRoot $RepositoryRoot -BundleRoot $BundleRoot `
     -WorkingRoot $WorkingRoot -PlanPath $PlanPath `
     -EnvironmentPath $EnvironmentPath -ProducerCommit $ProducerCommit `
-    -RunId $RunId `
-    -PlanSha256 $PlanSha256 -EnvironmentSha256 $EnvironmentSha256 `
-    -ReplicaOrdinal $ReplicaOrdinal
+    -RunId $RunId -PlanSha256 $PlanSha256 `
+    -EnvironmentSha256 $EnvironmentSha256 -ReplicaOrdinal $ReplicaOrdinal

@@ -183,6 +183,7 @@ function Assert-A1RuntimeGate {
         "oracle/windows-dao/scripts/a1/A1.Controller.ps1",
         "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
         "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
+        "oracle/windows-dao/scripts/a1/A1.Progress.ps1",
         "oracle/windows-dao/scripts/a1_contract.py"
     )) {
         $path = Join-Path $Repository $relative
@@ -316,11 +317,14 @@ function Invoke-A1ReplicaWorker {
         [Parameter(Mandatory = $true)][string]$PlanSha256,
         [Parameter(Mandatory = $true)][string]$EnvironmentPath,
         [Parameter(Mandatory = $true)][string]$EnvironmentSha256,
+        [Parameter(Mandatory = $true)][string]$DiagnosticsRoot,
         [Parameter(Mandatory = $true)][ValidateRange(1, 3)][int]$Replica,
         [Parameter(Mandatory = $true)][ValidateRange(1, 1800)][int]$TimeoutSeconds
     )
 
     Assert-A1WorkerPowerShell -Binding $Binding
+    $progressPath = New-A1ProgressFile -WorkingRoot $Session.WorkingPath `
+        -ReplicaOrdinal $Replica
     $arguments = @(
         "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
         "-File", $WorkerPath, "-RepositoryRoot", $Context.RepositoryRoot,
@@ -342,11 +346,14 @@ function Invoke-A1ReplicaWorker {
     if ($commandLine.Length -gt 32766) {
         throw "A1 worker command line exceeds the Windows ceiling."
     }
-    Initialize-BoundedProcessJobNative
-    $launch = [Jet3BoundedProcessJobNative]::StartSuspendedInJob(
-        $Binding.path, $commandLine
-    )
+    $launch = $null
+    $primary = $null
+    $cleanupErrors = New-Object Collections.ArrayList
     try {
+        Initialize-BoundedProcessJobNative
+        $launch = [Jet3BoundedProcessJobNative]::StartSuspendedInJob(
+            $Binding.path, $commandLine
+        )
         $captured = Read-A1LongProcessOutput -Launch $launch `
             -TimeoutSeconds $TimeoutSeconds -MaximumOutputBytes 1MB
         if ($launch.ExitCode -ne 0) {
@@ -355,9 +362,37 @@ function Invoke-A1ReplicaWorker {
             throw "A1 replica worker failed: $detail"
         }
     }
+    catch { $primary = $_ }
     finally {
-        try { Stop-BoundedProcessJob -Launch $launch }
-        finally { $launch.Dispose() }
+        if ($null -ne $launch) {
+            try { Stop-BoundedProcessJob -Launch $launch }
+            catch { [void]$cleanupErrors.Add($_) }
+            try { $launch.Dispose() }
+            catch { [void]$cleanupErrors.Add($_) }
+        }
+        try {
+            [void](Copy-A1ProgressFile -SourcePath $progressPath `
+                -DiagnosticsRoot $DiagnosticsRoot -ReplicaOrdinal $Replica)
+        }
+        catch { [void]$cleanupErrors.Add($_) }
+    }
+    if ($null -ne $primary) {
+        if ($cleanupErrors.Count -ne 0) {
+            $detail = @($cleanupErrors | ForEach-Object {
+                $_.Exception.Message
+            }) -join "; "
+            if ($detail.Length -gt 2000) { $detail = $detail.Substring(0, 2000) }
+            throw ($primary.Exception.Message +
+                " A1 worker cleanup or progress retention also failed: " + $detail)
+        }
+        throw $primary
+    }
+    if ($cleanupErrors.Count -ne 0) {
+        $detail = @($cleanupErrors | ForEach-Object {
+            $_.Exception.Message
+        }) -join "; "
+        if ($detail.Length -gt 2000) { $detail = $detail.Substring(0, 2000) }
+        throw "A1 worker cleanup or progress retention failed: $detail"
     }
 }
 
@@ -477,16 +512,25 @@ function Invoke-A1Campaign {
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
         [Parameter(Mandatory = $true)][string]$EnvironmentPath,
         [Parameter(Mandatory = $true)][string]$OutputRoot,
+        [Parameter(Mandatory = $true)][string]$DiagnosticsRoot,
         [Parameter(Mandatory = $true)][string]$GitCommit,
         [Parameter(Mandatory = $true)][string]$RunId
     )
 
     $repository = [IO.Path]::GetFullPath($RepositoryRoot)
+    $diagnostics = [IO.Path]::GetFullPath($DiagnosticsRoot)
+    Assert-M1NoReparseComponents -Path $diagnostics
+    $diagnosticsItem = Get-Item -LiteralPath $diagnostics -Force
+    if (-not $diagnosticsItem.PSIsContainer -or
+        ($diagnosticsItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "A1 diagnostics root is not a bounded ordinary directory."
+    }
     $executed = @(
         "oracle/windows-dao/scripts/run-a1-controlled.ps1",
         "oracle/windows-dao/scripts/a1/A1.Controller.ps1",
         "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
         "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
+        "oracle/windows-dao/scripts/a1/A1.Progress.ps1",
         "oracle/windows-dao/scripts/a1_contract.py",
         "oracle/windows-dao/scripts/a1_bundle.py",
         "oracle/windows-dao/scripts/a1_analysis.py",
@@ -571,6 +615,7 @@ function Invoke-A1Campaign {
                 -PlanSha256 $planInput.sha256 `
                 -EnvironmentPath $stagedEnvironment `
                 -EnvironmentSha256 $a1EnvironmentSha `
+                -DiagnosticsRoot $diagnostics `
                 -Replica $replica `
                 -TimeoutSeconds (Get-A1CampaignAllowance -MaximumSeconds 1800)
             $observation = Get-M1PayloadPath -Session $session `
