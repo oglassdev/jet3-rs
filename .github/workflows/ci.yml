@@ -13,6 +13,36 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  changes:
+    name: Detect heavy-job paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      oracle: ${{ steps.filter.outputs.oracle }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 20
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'fuzz/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'tests/manifest.json'
+              - 'rust-toolchain*'
+            oracle:
+              - 'oracle/**'
+              - 'tools/**'
+              - 'docs/validation/**'
+              - '.github/workflows/**'
+
   test:
     name: Core (${{ matrix.os }})
     strategy:
@@ -154,6 +184,8 @@ jobs:
 
   windows-oracle-contracts:
     name: Windows oracle and bounded-process contracts
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.oracle == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -178,6 +210,8 @@ jobs:
 
   benchmarks:
     name: Benchmark harness
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -205,6 +239,8 @@ jobs:
 
   fuzz:
     name: Fuzz target smoke
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     env:
       RUSTUP_TOOLCHAIN: nightly-2026-07-20
@@ -237,6 +273,8 @@ jobs:
 
   miri:
     name: Miri library tests
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
