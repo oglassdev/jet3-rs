@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from protocol_validation import ProtocolSchemaSet, ValidationError, sha256
+from a2_revision import EFFECTIVE_REQUIRED_CASES, REQUIRED_REACHABLE_PREDICATE_IDS
 
 DAO_ROOT = Path(__file__).resolve().parents[1]
 A2_ROOT = DAO_ROOT / "experiments" / "a2"
@@ -723,10 +724,10 @@ def validate_dry_run_report(document: dict[str, Any]) -> dict[str, Any]:
             )
         require_equal(
             set(document["predicted_terminal_states"]),
-            set(synthetic["required_cases"]),
+            set(EFFECTIVE_REQUIRED_CASES),
             "$.predicted_terminal_states",
         )
-        require_equal(set(document["terminal_predicate_ids"]), set(PREDICATE_IDS), "$.terminal_predicate_ids")
+        require_equal(set(document["terminal_predicate_ids"]), set(REQUIRED_REACHABLE_PREDICATE_IDS), "$.terminal_predicate_ids")
         if document["source_identity"]["generator_sha256"] is None:
             raise ValidationError("synthetic dry run requires a generator hash")
     else:

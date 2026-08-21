@@ -43,29 +43,18 @@ from a2_spec import (
     RUN12_CALIBRATION,
     validate_analysis_report,
 )
+from a2_revision import (
+    EFFECTIVE_REQUIRED_CASES,
+    REQUIRED_REACHABLE_PREDICATE_IDS,
+    REVISION,
+    REVISION_SHA256,
+    UNREACHABLE_BY_CONSTRUCTION,
+)
 from protocol_validation import ValidationError, canonical_json_bytes
 
 SCRIPTS = Path(__file__).resolve().parent
 SYNTHETIC = PLAN["analyzer_dry_run_contract"]["synthetic_input"]
 REQUIRED_CASES = tuple(SYNTHETIC["required_cases"])
-REVISION_PATH = PLAN_PATH.with_name("a2-allocation-maps-r2.plan.json")
-REVISION_BYTES = REVISION_PATH.read_bytes()
-REVISION_SHA256 = hashlib.sha256(REVISION_BYTES).hexdigest()
-EXPECTED_REVISION_SHA256 = "977d352b6b7c042cf4d0f0cab793086842b3ad2b7da13b9c217020f00c5193c4"
-if REVISION_SHA256 != EXPECTED_REVISION_SHA256:
-    raise RuntimeError("A2 analyzer dry-run revision hash does not match the preregistration")
-REVISION = json.loads(REVISION_BYTES)
-if (
-    REVISION["preregistration"]["revision_of"] != PLAN["experiment_id"]
-    or REVISION["preregistration"]["original_plan"]["sha256"] != PLAN_SHA256
-):
-    raise RuntimeError("A2 analyzer dry-run revision does not bind the checked original plan")
-UNREACHABLE_BY_CONSTRUCTION = {
-    row["predicate_id"]: row
-    for row in REVISION["analyzer_dry_run_reconciliation"][
-        "unreachable_by_construction"
-    ]
-}
 GENERATOR_FILES = (
     "a2_generator.py",
     "a2_generator_pages.py",
@@ -73,6 +62,7 @@ GENERATOR_FILES = (
 )
 SOURCE_FILES = (
     "a2_spec.py",
+    "a2_revision.py",
     "a2_generator.py",
     "a2_generator_pages.py",
     "a2_generator_schedule.py",
@@ -489,7 +479,7 @@ def source_contract_checks(
         for row in reachability
         if row["status"] == "unreachable_by_construction"
     }
-    required_reachable = set(PREDICATE_IDS) - set(UNREACHABLE_BY_CONSTRUCTION)
+    required_reachable = set(REQUIRED_REACHABLE_PREDICATE_IDS)
 
     analysis_tree = ast.parse(sources["a2_analysis.py"])
     derive_layers = _function_node(analysis_tree, "_derive_layers")
@@ -691,11 +681,7 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         }
     )
     source_checks_pass = all(row["status"] == "pass" for row in checks.values())
-    excluded_reasons = {
-        PREDICATES[predicate_id][0] for predicate_id in UNREACHABLE_BY_CONSTRUCTION
-    }
-    effective_required_cases = set(REQUIRED_CASES) - excluded_reasons
-    required_cases_pass = effective_required_cases <= reached_states
+    required_cases_pass = set(EFFECTIVE_REQUIRED_CASES) <= reached_states
     result = "pass" if source_checks_pass and required_cases_pass else "fail"
     assertions = [
         "schedule_and_worker_arithmetic_generated_from_plan",
