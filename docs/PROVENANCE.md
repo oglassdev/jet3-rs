@@ -3168,6 +3168,113 @@ Use `not applicable` explicitly rather than omitting a field.
   oracle tests must pass; acquisition remains blocked on the plan's seven
   execution requirements
 
+### EXP-0041 — A2 pre-acquisition analyzer dry runs and reachability revision
+
+- Recorded: 2026-08-21, OpenAI Codex
+- Kind: additive pre-acquisition reachability reconciliation and non-evidential
+  analyzer dry-run result; no A2 DAO acquisition, physical-format observation,
+  scientific evidence, independent recomputation, or capability validation
+- Origin: project-authored A2 analyzer, schedule-derived synthetic generator,
+  and dry-run harness at analyzer commit
+  `370636d334666739b2df1da1ba0f88f6d5693f39`, applied to the immutable
+  `DAO-A2-ALLOCATION-MAPS-001` plan and the retained A1 run-12 exploratory
+  input identified in `EXP-0040`. No external MDB implementation, Microsoft
+  implementation source, donated MDB, or A2 holdout artifact was inspected.
+- Additive R2 revision: before acquisition, independent review established
+  that `A2-INLINE-BOUNDARY-MULTIPLE` is structurally unreachable under the
+  frozen `inline_boundary_procedure`. If a boundary survives, its entire
+  all-checkpoint suffix must be quiet. A later boundary cannot also explain
+  its additional represented interval under either registered polarity;
+  attempts to manufacture a second survivor are preempted by
+  `A2-INLINE-SUFFIX`. The suffix rule was not weakened. The original plan,
+  schemas, 34-entry predicate registry, mappings, and scientific design remain
+  immutable. Revision `DAO-A2-ALLOCATION-MAPS-001-R2` removes only this one
+  site from the reachability requirement and requires its registry id to remain
+  in the transcript with status `unreachable_by_construction` and the real
+  preempting analyzer result.
+- Retained-A1 dry run: result `pass`; the explicit legacy projection opened no
+  holdout, qualified 13 global pages in each derivation replica, resolved one
+  global record, selected polarity `set_means_not_in_use`, and measured the
+  final D-flipped byte at offset 1954 followed by 93 raw `0xFF` bytes through
+  byte 2047, all decoding to not-in-use. It opened 43 of the permitted 55
+  distinct physical page blobs and emitted terminal state
+  `legacy_projection_complete_with_tdef_churn_not_applicable`. The two retained
+  terminal predicate ids are the explicitly not-applicable
+  `A2-CHURN-PRECONDITION` and `A2-CHURN-POINTER-NONE`; this is not an A2
+  scientific outcome.
+- Synthetic dry run: result `pass`; 109 analyzer parameter/layer cases comprise
+  one all-layers-decisive case, 25 A2 conversion cases (ordinals 1–24 plus
+  never), 11 slot/polarity/anchor/slack axis cases, 71 A1 legacy conversion
+  cases (source ordinals 1–70 plus never, projected by checkpoint identity),
+  and one partial-layer case. A separate 34-case reachability sweep executed
+  every registered perturbation. All 33 predicates required by R2 were reached
+  by real analyzer execution (`33/33`), no required predicate was unreachable,
+  and `A2-INLINE-BOUNDARY-MULTIPLE` was retained as the one
+  `unreachable_by_construction` registry id; its attempted perturbation emitted
+  the real preempting predicate `A2-INLINE-SUFFIX`. The corrected pointer
+  perturbations retained a non-pointer qualifying transition while removing
+  the target witness, and emitted exactly `A2-GROWTH-POINTER-NONE` and
+  `A2-CHURN-POINTER-NONE`. All ten source-contract checks passed, all 36
+  effective required terminal states were recorded, and the decisive report
+  and bundle validators accepted status
+  `decisive_pending_independent_validation`.
+- Synthetic calibration: the explicitly non-evidential run-12 case retained
+  source conversion ordinal 40 mapped by checkpoint identity to
+  `P_ABS_16480` and A2 ordinal 20, two active slots, polarity
+  `set_means_not_in_use`, delete page delta `+1`, and
+  `scientific_evidence = false`. Parameter coverage also exercised both bit
+  polarities, slot counts 0/1/2, anchor fills empty/partial/full, record-end
+  slack 16/32/64 bytes, every required conversion ordinal, and never.
+- Commands: `python3.13 oracle/windows-dao/scripts/a2_dryrun.py generate
+  --replace-existing`; then `python3.13
+  oracle/windows-dao/scripts/a2_dryrun.py verify`. Generation wrote the four
+  retained artifacts, and verification independently recomputed them from the
+  pinned inputs and reported exact byte equality.
+- Plan and revision identities:
+  `oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`, SHA-256
+  `804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2`;
+  `oracle/windows-dao/experiments/a2/a2-allocation-maps-r2.plan.json`, SHA-256
+  `977d352b6b7c042cf4d0f0cab793086842b3ad2b7da13b9c217020f00c5193c4`.
+- Dry-run report and input identities:
+  `oracle/windows-dao/experiments/a2/dry-run/a1-run12-report.json`, SHA-256
+  `075410ead688caedfc2a517b715574fb023c60b613f23b740a68a08e5a88edd1`;
+  retained A1 run-12 input manifest, SHA-256
+  `97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381`;
+  `oracle/windows-dao/experiments/a2/dry-run/a2-synthetic-report.json`, SHA-256
+  `253dbbb8b5a37f22b30942f193cfff03aa6ee0ab7e304cc4232e86dd1abdbd74`;
+  synthetic case transcript/input
+  `oracle/windows-dao/experiments/a2/dry-run/a2-synthetic-cases.json`, SHA-256
+  `9e56c6fe4207f1112cce1197736b0c45b9bb7364760b9d8aa1233b3e2c059afc`;
+  and `oracle/windows-dao/experiments/a2/dry-run/checksums.sha256`, SHA-256
+  `76dd47feecc59aad658dbded12f28f038b3f60d1d5f8e1743244ac374c004d27`.
+- Generator identities: `a2_generator.py`, SHA-256
+  `1da5a1e0ee5fdc8469c84f5bc2300541af8b660ac1d428af69c7685c47245966`;
+  `a2_generator_pages.py`, SHA-256
+  `bc94d94a2ea996e7e1175bef31cf57afcaf0be72c0750c1384383310a7a73d86`;
+  `a2_generator_schedule.py`, SHA-256
+  `6fc96711bd1dc23e6d950378c34f5b1a82dfcbb6f159a836443fa15cdf56a5fb`;
+  canonical combined generator SHA-256
+  `19ebc201abc8006fd4e0e73c9b50121d07a2fc2d5103e56b0bebb07bc140dd80`.
+- Observation: both schema-valid dry-run reports say `result = pass`,
+  `holdout_opened = false`, `scientific_evidence = false`,
+  `acquisition_authorized = false`, and
+  `capability_advancement_authorized = false`. Their common recorded time is
+  `2026-08-21T22:07:27.232325Z`.
+- Interpretation and execution gate: every artifact, case, calibration value,
+  and self-check in this entry is synthetic or exploratory and non-evidential.
+  Nothing establishes a Jet physical-format fact, Rust correctness, DAO
+  compatibility, independent validation, or a support-matrix advancement.
+  Acquisition remains `BLOCKED`: the A2 worker and independent three-replica
+  matrix/fan-in workflow do not exist, and the complete dispatch gate must be
+  re-evaluated after they exist and all other blocking requirements are
+  satisfied. These passing dry runs do not authorize hosted dispatch.
+- Usage: pre-acquisition A2 analyzer/generator contract verification only
+- Rights: project-authored revision, analyzer, generator, tests, and reports;
+  the retained A1 bundle remains external and is not redistributed
+- Review: the Python 3.13 oracle tests and `tools/reconcile_tests.py` must pass;
+  an independent review must confirm the additive revision, real analyzer-site
+  reachability, hashes, non-evidential classification, and blocked dispatch
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

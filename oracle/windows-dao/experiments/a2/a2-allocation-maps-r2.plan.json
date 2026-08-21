@@ -1,0 +1,61 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a2_allocation_maps_plan_revision",
+  "revision_id": "DAO-A2-ALLOCATION-MAPS-001-R2",
+  "preregistration": {
+    "provenance_entry": "EXP-0041",
+    "recorded_utc_date": "2026-08-21",
+    "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts when the first schema-valid A2 replica observation is retained for inspection",
+    "revision_of": "DAO-A2-ALLOCATION-MAPS-001",
+    "original_plan": {
+      "path": "oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json",
+      "sha256": "804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2"
+    },
+    "scientific_design_inherited_unchanged": [
+      "question",
+      "replicas",
+      "tables",
+      "checkpoint_design",
+      "page_capture",
+      "record_candidate_procedure",
+      "inline_boundary_procedure",
+      "hypotheses",
+      "predicate_registry",
+      "decision_rules",
+      "decisive_report_handling",
+      "runtime_design",
+      "artifacts",
+      "bounds",
+      "claims"
+    ],
+    "revision_scope": "classify one analyzer Abort site as structurally unreachable under the frozen inline-boundary procedure and remove only that site from the pre-acquisition dry-run reachability requirement",
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
+  },
+  "analyzer_dry_run_reconciliation": {
+    "inherited_contract": "the original analyzer dry-run contract, required cases, predicate registry, mappings, generator axes, scientific design, and acquisition gate remain unchanged except for the single reachability reconciliation below",
+    "required_reachable_predicate_derivation": "take every id in the original predicate_registry.ids and remove only ids listed under unreachable_by_construction",
+    "unreachable_by_construction": [
+      {
+        "predicate_id": "A2-INLINE-BOUNDARY-MULTIPLE",
+        "reason": "multiple_inline_boundary_candidates",
+        "layer": "global_map.conversion_inline",
+        "status": "unreachable_by_construction",
+        "analyzer_site": "a2_layers.py:_inline_boundaries",
+        "preempting_predicate_id": "A2-INLINE-SUFFIX",
+        "proof": "For any two candidate boundaries b1 < b2, survival of b1 requires every byte in [b1, global_map.end) to be zero at every conversion-window checkpoint. Survival of b2 also requires its larger capacity to be witnessed and every byte before b2 to explain every inline checkpoint. Under either registered polarity, the extra represented interval [b1,b2) needed to witness b2 is incompatible with the all-checkpoint quiet suffix required by b1: it is nonzero for set_means_in_use, while for set_means_not_in_use an earlier checkpoint leaves a nonzero not-in-use byte that violates b2's explanation. Therefore at most one boundary can survive. A perturbation attempting a second boundary either leaves zero survivors and emits A2-INLINE-SUFFIX or leaves the original single survivor; len(quiet) > 1 cannot be true."
+      }
+    ],
+    "effective_reachability_rule": "every registered predicate not classified unreachable_by_construction must be reached by one real analyzer execution using its named single perturbation; each excluded registry id remains in the transcript with status unreachable_by_construction and its preempting analyzer result",
+    "effective_required_terminal_cases": "remove multiple_inline_boundary_candidates, the reason mapped to A2-INLINE-BOUNDARY-MULTIPLE, from the original synthetic required_cases reachability set; no other required case changes"
+  },
+  "execution_effect": {
+    "original_plan_remains_immutable": true,
+    "original_schemas_remain_immutable": true,
+    "original_predicate_registry_remains_immutable": true,
+    "inline_suffix_rule_weakened": false,
+    "scientific_projection_changed": false,
+    "acquisition_authorized": false,
+    "support_claim_changed": false
+  }
+}

@@ -46,6 +46,10 @@ from a2_spec import (  # noqa: E402
     validate_holdout_structure_receipt,
     validate_page_index,
 )
+from a2_revision import (  # noqa: E402
+    EFFECTIVE_REQUIRED_CASES,
+    REQUIRED_REACHABLE_PREDICATE_IDS,
+)
 from protocol_validation import ValidationError  # noqa: E402
 
 
@@ -469,14 +473,13 @@ class A2SpecGeneratorTests(unittest.TestCase):
 
     def _dry_run_report(self) -> dict[str, object]:
         free = self.plan.document["analyzer_dry_run_contract"]["synthetic_input"]["free_parameters"]
-        required = self.plan.document["analyzer_dry_run_contract"]["synthetic_input"]["required_cases"]
         return {
             "protocol_version": "1.0.0", "document_type": "dao_a2_analyzer_dry_run_report", "experiment_id": EXPERIMENT_ID,
             "plan_sha256": PLAN_SHA256, "analyzer_commit": PLAN_SHA256[:40], "recorded_utc": "2026-08-21T00:00:00Z",
             "source_kind": "a2_schedule_synthetic", "source_identity": {"manifest_or_fixture_sha256": "2" * 64, "generator_sha256": "3" * 64},
             "checkpoint_schedule_source": "hash_pinned_a2_plan_checkpoint_design", "input_page_blob_count": 0, "holdout_opened": False,
             "parameter_coverage": {"conversion_ordinals": list(LEGACY_CONVERSION_ORDINALS), "conversion_never": True, "slot_activation_counts": free["slot_activation_at_conversion"], "bit_polarities": free["bit_polarity"], "anchor_fill_states": free["anchor_fill_state"], "run12_calibration": dict(RUN12_CALIBRATION), "record_end_uniform_slack_bytes": free["record_end_uniform_slack_bytes"]},
-            "predicted_terminal_states": required, "terminal_predicate_ids": list(PREDICATE_IDS), "result": "pass",
+            "predicted_terminal_states": list(EFFECTIVE_REQUIRED_CASES), "terminal_predicate_ids": list(REQUIRED_REACHABLE_PREDICATE_IDS), "result": "pass",
             "assertions": ["schedule_and_worker_arithmetic_generated_from_plan"], "scientific_evidence": False,
             "acquisition_authorized": False, "capability_advancement_authorized": False,
         }

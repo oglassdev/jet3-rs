@@ -31,6 +31,7 @@ from a2_dryrun_retained import (  # noqa: E402
     run_retained,
 )
 from a2_model import PLAN, PLAN_SHA256  # noqa: E402
+from a2_dryrun_synthetic import UNREACHABLE_BY_CONSTRUCTION  # noqa: E402
 from a2_spec import PREDICATE_IDS, validate_dry_run_report  # noqa: E402
 from protocol_validation import ValidationError, canonical_json_bytes  # noqa: E402
 
@@ -85,19 +86,39 @@ class A2DryRunArtifactTests(unittest.TestCase):
             {row["target_predicate_id"] for row in reachability}, set(PREDICATE_IDS)
         )
         reached = {row["target_predicate_id"] for row in reachability if row["status"] == "reached"}
+        excluded = {
+            row["target_predicate_id"]
+            for row in reachability
+            if row["status"] == "unreachable_by_construction"
+        }
         self.assertEqual(
             set(report["terminal_predicate_ids"]), reached
         )
         for row in reachability:
             with self.subTest(predicate=row["target_predicate_id"]):
-                self.assertEqual(
-                    row["status"] == "reached",
-                    row["target_predicate_id"] in row["actual_predicate_ids"],
-                )
+                if row["status"] == "unreachable_by_construction":
+                    self.assertNotIn(row["target_predicate_id"], row["actual_predicate_ids"])
+                else:
+                    self.assertEqual(
+                        row["status"] == "reached",
+                        row["target_predicate_id"] in row["actual_predicate_ids"],
+                    )
                 self.assertEqual(row["reported_layer"], row["layer"])
+        self.assertEqual(excluded, set(UNREACHABLE_BY_CONSTRUCTION))
         self.assertEqual(
             set(transcript["acceptance"]["unreachable_predicate_ids"]),
-            set(PREDICATE_IDS) - reached,
+            set(PREDICATE_IDS) - reached - excluded,
+        )
+        self.assertEqual(
+            set(transcript["acceptance"]["unreachable_by_construction_predicate_ids"]),
+            excluded,
+        )
+        self.assertIn(
+            "every_required_reachable_abort_reached_by_single_perturbation",
+            report["assertions"],
+        )
+        self.assertNotIn(
+            "every_abort_reached_by_single_perturbation", report["assertions"]
         )
         case_names = {row["case"] for row in transcript["cases"]}
         self.assertIn("all_layers_decisive", case_names)
@@ -118,16 +139,27 @@ class A2DryRunArtifactTests(unittest.TestCase):
     def test_source_contract_checks_are_evidenced_and_modules_remain_bounded(self) -> None:
         transcript = load(CASE_TRANSCRIPT)
         checks = transcript["source_contract_checks"]
-        self.assertEqual(checks["abort_reachability"]["status"], "fail")
         for name, result in checks.items():
             with self.subTest(check=name):
                 self.assertIn(result["status"], {"pass", "fail", "not_implemented"})
                 self.assertIn("evidence", result)
-                if name != "abort_reachability":
-                    self.assertEqual(result["status"], "pass")
+                self.assertEqual(result["status"], "pass")
         for path in sorted(SCRIPTS.glob("a2_*.py")):
             with self.subTest(path=path.name):
                 self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), 800)
+
+    def test_pointer_none_sites_are_reached_and_inline_multiple_is_classified(self) -> None:
+        rows = {
+            row["target_predicate_id"]: row
+            for row in load(CASE_TRANSCRIPT)["predicate_reachability"]
+        }
+        for predicate_id in ("A2-GROWTH-POINTER-NONE", "A2-CHURN-POINTER-NONE"):
+            with self.subTest(predicate_id=predicate_id):
+                self.assertEqual(rows[predicate_id]["status"], "reached")
+                self.assertEqual(rows[predicate_id]["actual_predicate_ids"], [predicate_id])
+        inline = rows["A2-INLINE-BOUNDARY-MULTIPLE"]
+        self.assertEqual(inline["status"], "unreachable_by_construction")
+        self.assertEqual(inline["actual_predicate_ids"], ["A2-INLINE-SUFFIX"])
 
     def test_replica_three_is_rejected_before_any_path_access(self) -> None:
         with self.assertRaises(ValidationError):

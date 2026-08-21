@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from protocol_validation import ProtocolSchemaSet, ValidationError, sha256
+from a2_revision import EFFECTIVE_REQUIRED_CASES, REQUIRED_REACHABLE_PREDICATE_IDS
 
 DAO_ROOT = Path(__file__).resolve().parents[1]
 A2_ROOT = DAO_ROOT / "experiments" / "a2"
@@ -38,7 +39,7 @@ SCHEMA_SHA256: Mapping[str, str] = MappingProxyType(
     {
         "analysis-report.schema.json": "0f0e5d930a1da16de4a3df761f4797771d4f28a04c041a8276125e9ef7533e45",
         "bundle-manifest.schema.json": "9725fc9ab1b2fb9a7b6dd596634410511f99755de1c616dd2c2d3491705734a1",
-        "dry-run-report.schema.json": "ac4972e9b5346afe370bebaa4237fbd43050d0546ad0a1395b3e590425b78bd0",
+        "dry-run-report.schema.json": "63fcdf26e5ea9a8f6a8b93ed3cd320d8c8759574221ee4e775c2ed4180468753",
         "environment.schema.json": "687e2984e3ba3e7e43b68317ad63f90cd03eb786fb570ab3c2cc1bd2b8b2451a",
         "holdout-structure-receipt.schema.json": "5d67c196edc2b5281809e1a61e693f79d4aa4b4c109a99479e1d9236a4777376",
         "page-index.schema.json": "a3cee31952d3d2adc2e6100973ef40ad0cb3366e8d7f4464b263eed2e4b99131",
@@ -723,10 +724,10 @@ def validate_dry_run_report(document: dict[str, Any]) -> dict[str, Any]:
             )
         require_equal(
             set(document["predicted_terminal_states"]),
-            set(synthetic["required_cases"]),
+            set(EFFECTIVE_REQUIRED_CASES),
             "$.predicted_terminal_states",
         )
-        require_equal(set(document["terminal_predicate_ids"]), set(PREDICATE_IDS), "$.terminal_predicate_ids")
+        require_equal(set(document["terminal_predicate_ids"]), set(REQUIRED_REACHABLE_PREDICATE_IDS), "$.terminal_predicate_ids")
         if document["source_identity"]["generator_sha256"] is None:
             raise ValidationError("synthetic dry run requires a generator hash")
     else:

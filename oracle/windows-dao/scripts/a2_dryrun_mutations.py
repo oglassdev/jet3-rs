@@ -280,19 +280,26 @@ def _polarity_crosscheck(bundles: BundleSet) -> BundleSet:
     )
 
 
-def _stable_pointer(bundles: BundleSet, offset_name: str) -> BundleSet:
+def _remove_pointer_witness(bundles: BundleSet, offset_name: str) -> BundleSet:
     def change(bundle: SyntheticBundle) -> SyntheticBundle:
-        offset = getattr(bundle.tdef, offset_name)
-        source = bundle.page_bytes(bundle.ordered_page_sha256["E0"][bundle.tdef.page])[
-            offset : offset + 4
-        ]
+        removing_growth = offset_name == "growth_pointer_offset"
         result = bundle
-        for checkpoint in CHECKPOINT_IDS[1:]:
-            result = _edit(
-                result,
-                checkpoint,
-                bundle.tdef.page,
-                lambda body, raw=source, at=offset: body.__setitem__(slice(at, at + 4), raw),
+        for checkpoint in CHECKPOINT_IDS:
+            payload = bytearray([0xFF]) * PAGE_SIZE
+            raw = bytearray((8, 8, 0, 0))
+            if removing_growth:
+                offset = PAGE_SIZE - 4
+                if checkpoint == "L_DELETE_ALL":
+                    raw[3] = 1
+            else:
+                offset = 0
+                if checkpoint == "L_REL_0512":
+                    raw[0] += 1
+            payload[offset : offset + 4] = raw
+            if checkpoint in {"L_REL_0512", "L_DELETE_ALL"}:
+                payload[PAGE_SIZE // 2] ^= 1
+            result = _replace_payload(
+                result, checkpoint, bundle.tdef.page, bytes(payload)
             )
         return result
 
@@ -539,9 +546,9 @@ def attempts(baseline: SyntheticParameters) -> tuple[ReachabilityAttempt, ...]:
         ("A2-POLARITY-NONE", "qualify_page_outside_a_D_record_with_no_growth_direction", baseline, _polarity_none),
         ("A2-POLARITY-MULTIPLE", "encode_opposed_D_growth_directions_in_one_record", baseline, _polarity_multiple),
         ("A2-POLARITY-CROSSCHECK", "remove_one_L_growth_direction_change", baseline, _polarity_crosscheck),
-        ("A2-GROWTH-POINTER-NONE", "hold_growth_pointer_stable_across_all_checkpoints", baseline, lambda b: _stable_pointer(b, "growth_pointer_offset")),
+        ("A2-GROWTH-POINTER-NONE", "stabilize_growth_pointer_and_retain_non_pointer_page_transitions", baseline, lambda b: _remove_pointer_witness(b, "growth_pointer_offset")),
         ("A2-CHURN-PRECONDITION", "retain_one_L_row_at_full_delete_checkpoint", baseline, _churn_precondition),
-        ("A2-CHURN-POINTER-NONE", "hold_churn_pointer_stable_across_all_checkpoints", baseline, lambda b: _stable_pointer(b, "delete_reinsert_pointer_offset")),
+        ("A2-CHURN-POINTER-NONE", "stabilize_churn_pointer_and_retain_non_pointer_page_transitions", baseline, lambda b: _remove_pointer_witness(b, "delete_reinsert_pointer_offset")),
         ("A2-POINTER-MULTIPLE", "encode_both_pointer_layouts_at_same_windows", baseline, _pointer_multiple),
         ("A2-POINTER-VALIDITY", "point_growth_window_beyond_file_at_validity_checkpoints", baseline, _pointer_validity),
         ("A2-CONVERSION-NONE", "set_conversion_parameter_to_never", never, identity),

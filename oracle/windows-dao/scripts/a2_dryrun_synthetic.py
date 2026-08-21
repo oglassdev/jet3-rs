@@ -43,6 +43,13 @@ from a2_spec import (
     RUN12_CALIBRATION,
     validate_analysis_report,
 )
+from a2_revision import (
+    EFFECTIVE_REQUIRED_CASES,
+    REQUIRED_REACHABLE_PREDICATE_IDS,
+    REVISION,
+    REVISION_SHA256,
+    UNREACHABLE_BY_CONSTRUCTION,
+)
 from protocol_validation import ValidationError, canonical_json_bytes
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -55,6 +62,7 @@ GENERATOR_FILES = (
 )
 SOURCE_FILES = (
     "a2_spec.py",
+    "a2_revision.py",
     "a2_generator.py",
     "a2_generator_pages.py",
     "a2_generator_schedule.py",
@@ -298,6 +306,13 @@ def _reachability_cases() -> list[dict[str, Any]]:
         reached = result["status"] == "fail" and predicate_id in report["terminal_predicate_ids"]
         if reached and reason not in report["no_outcome_reasons"]:
             raise ValidationError("reached predicate omitted its registered reason")
+        excluded = predicate_id in UNREACHABLE_BY_CONSTRUCTION
+        if excluded:
+            status = "revision_violation" if reached else "unreachable_by_construction"
+            outcome = reason if reached else "unreachable_by_construction"
+        else:
+            status = "reached" if reached else "unreachable"
+            outcome = reason if reached else "target_not_reached"
         cases.append(
             {
                 "case": reason,
@@ -305,8 +320,8 @@ def _reachability_cases() -> list[dict[str, Any]]:
                 "target_predicate_id": predicate_id,
                 "actual_predicate_ids": report["terminal_predicate_ids"],
                 "actual_reasons": report["no_outcome_reasons"],
-                "status": "reached" if reached else "unreachable",
-                "outcome": reason if reached else "target_not_reached",
+                "status": status,
+                "outcome": outcome,
                 "layer": layer,
                 "reported_layer": result["layer"],
                 "parameters": asdict(attempt.parameters),
@@ -459,6 +474,12 @@ def source_contract_checks(
         for row in reachability
         if row["status"] == "reached"
     }
+    excluded = {
+        row["target_predicate_id"]
+        for row in reachability
+        if row["status"] == "unreachable_by_construction"
+    }
+    required_reachable = set(REQUIRED_REACHABLE_PREDICATE_IDS)
 
     analysis_tree = ast.parse(sources["a2_analysis.py"])
     derive_layers = _function_node(analysis_tree, "_derive_layers")
@@ -600,8 +621,13 @@ def source_contract_checks(
             {"site_ids": sorted(site_ids), "dynamic_abort_sites": dynamic_sites},
         ),
         "abort_reachability": _check(
-            reached == set(PREDICATE_IDS),
-            {"reached": sorted(reached), "unreachable": sorted(set(PREDICATE_IDS) - reached)},
+            reached == required_reachable
+            and excluded == set(UNREACHABLE_BY_CONSTRUCTION),
+            {
+                "reached": sorted(reached),
+                "unreachable_by_construction": sorted(excluded),
+                "unreachable": sorted(required_reachable - reached),
+            },
         ),
         "qualification_before_enumeration": _check(
             qualification_first and bounded_prefix,
@@ -655,7 +681,7 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         }
     )
     source_checks_pass = all(row["status"] == "pass" for row in checks.values())
-    required_cases_pass = set(REQUIRED_CASES) <= reached_states
+    required_cases_pass = set(EFFECTIVE_REQUIRED_CASES) <= reached_states
     result = "pass" if source_checks_pass and required_cases_pass else "fail"
     assertions = [
         "schedule_and_worker_arithmetic_generated_from_plan",
@@ -682,7 +708,9 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         if checks[check_name]["status"] == "pass"
     )
     if checks["abort_reachability"]["status"] == "pass":
-        assertions.append("every_abort_reached_by_single_perturbation")
+        assertions.append(
+            "every_required_reachable_abort_reached_by_single_perturbation"
+        )
     if required_cases_pass:
         assertions.append("all_required_terminal_cases_exercised")
     transcript = {
@@ -690,6 +718,8 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
         "document_type": "dao_a2_dry_run_case_transcript",
         "experiment_id": PLAN["experiment_id"],
         "plan_sha256": PLAN_SHA256,
+        "plan_revision_id": REVISION["revision_id"],
+        "plan_revision_sha256": REVISION_SHA256,
         "analyzer_commit": analyzer_commit,
         "generator_files": hashes,
         "run12_calibration": dict(RUN12_CALIBRATION),
@@ -701,7 +731,17 @@ def run_synthetic(analyzer_commit: str) -> SyntheticResult:
             "result": result,
             "required_terminal_cases_pass": required_cases_pass,
             "source_contract_checks_pass": source_checks_pass,
-            "unreachable_predicate_ids": sorted(set(PREDICATE_IDS) - set(reached_ids)),
+            "required_reachable_predicate_count": len(PREDICATE_IDS)
+            - len(UNREACHABLE_BY_CONSTRUCTION),
+            "reached_predicate_count": len(reached_ids),
+            "unreachable_by_construction_predicate_ids": sorted(
+                UNREACHABLE_BY_CONSTRUCTION
+            ),
+            "unreachable_predicate_ids": sorted(
+                set(PREDICATE_IDS)
+                - set(UNREACHABLE_BY_CONSTRUCTION)
+                - set(reached_ids)
+            ),
         },
         "scientific_evidence": False,
     }
