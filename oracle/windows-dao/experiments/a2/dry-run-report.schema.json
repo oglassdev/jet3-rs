@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a2/dry-run-report.schema.json",
+  "title": "DAO A2 pre-acquisition analyzer dry-run report",
+  "type": "object", "additionalProperties": false,
+  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "analyzer_commit", "recorded_utc", "source_kind", "source_identity", "checkpoint_schedule_source", "result", "assertions", "scientific_evidence", "acquisition_authorized", "capability_advancement_authorized"],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"}, "document_type": {"const": "dao_a2_analyzer_dry_run_report"},
+    "experiment_id": {"const": "DAO-A2-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "analyzer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "recorded_utc": {"type": "string", "format": "date-time", "maxLength": 64},
+    "source_kind": {"type": "string", "enum": ["retained_a1_run12_exploratory", "a2_schedule_synthetic"]},
+    "source_identity": {"type": "object", "additionalProperties": false, "required": ["manifest_or_fixture_sha256", "generator_sha256"], "properties": {"manifest_or_fixture_sha256": {"$ref": "#/$defs/sha256"}, "generator_sha256": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]}}},
+    "checkpoint_schedule_source": {"type": "string", "enum": ["explicit_a1_legacy_projection", "hash_pinned_a2_plan_checkpoint_design"]},
+    "result": {"type": "string", "enum": ["pass", "fail"]},
+    "assertions": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "enum": ["legacy_relative_d_is_abac", "no_a2_scientific_outcome_emitted_for_a1_input", "bounded_record_enumeration_exercised", "schedule_generated_from_plan", "all_analyzer_equalities_arithmetically_possible", "growth_only_transition_arithmetically_possible", "churn_only_transition_arithmetically_possible", "conversion_derived_within_full_window", "inline_boundaries_from_fixed_enumeration", "decisive_synthetic_model_recovered", "no_physical_page_identifier_exercised", "multiple_global_boundaries_identifier_exercised", "no_tdef_record_identifier_exercised", "multiple_tdef_boundaries_identifier_exercised", "no_inline_boundary_identifier_exercised", "multiple_inline_boundaries_identifier_exercised"]}},
+    "scientific_evidence": {"const": false}, "acquisition_authorized": {"const": false}, "capability_advancement_authorized": {"const": false}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

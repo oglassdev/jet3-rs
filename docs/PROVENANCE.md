@@ -2961,6 +2961,134 @@ Use `not applicable` explicitly rather than omitting a field.
   were independently recomputed and the complete local bundle passed all
   checked validators; scientific interpretation remains no outcome
 
+### EXP-0040 — Preregistered A2 record-level allocation-map campaign
+
+- Recorded: 2026-08-21, OpenAI Codex
+- Kind: pre-acquisition experimental design and fail-closed analyzer dry-run
+  contract; no A2 DAO acquisition, physical-format result, analyzer result, or
+  independent scientific validation
+- Question: Can separately delimited record-level models derived from two fresh
+  Jet 3 databases predict the observed global and per-table allocation-map
+  transitions in a third holdout database without refitting?
+- Origin: project-authored plan `DAO-A2-ALLOCATION-MAPS-001`, informed by the
+  immutable A1 preregistrations and result in `EXP-0037`, `EXP-0038`, and
+  `EXP-0039`, the read-only diagnosis
+  `/private/tmp/a1-run12-ambiguity-diagnosis.md`, independent review sections
+  2.1–2.4, 3.1, and 5.2 in `/private/tmp/fable-review-findings.md`, the retained
+  A1 run-12 bundle, and the run 9, 11, and 12 diagnostic progress traces. The
+  diagnosis and retained bundle were used only as exploratory design input. No
+  external MDB implementation, donated MDB, or other format implementation was
+  inspected.
+- Exploratory input identity: retained bundle
+  `windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1`,
+  manifest SHA-256
+  `97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381`.
+  This A1 input is not A2 evidence, cannot satisfy an A2 derivation, holdout,
+  or decision predicate, and cannot authorize a physical-format or capability
+  claim.
+- A1 run-12 diagnosis disclosure: the retained A1 report reason
+  `ambiguous_record_boundary` was emitted by the zero-surviving-pages branch,
+  not by multiple surviving record boundaries. As the cited read-only diagnosis
+  establishes, A1 required whole-page D equality between `D_GROW_0128` and
+  `D_REGROW_0128` even though its acquisition arithmetic grew from 23 to 151
+  pages and then from 151 to 279 pages. The no-outcome label is therefore an
+  analyzer/acquisition-contract mismatch, not an observed ambiguity property of
+  Jet data, and A2 does not reinterpret the A1 holdout or report as evidence.
+- Protocol: create three fresh replicas with rotated D/L/P/H table bindings.
+  D records its first `baseline + 128` growth row count `N`, then drop/recreates
+  D and inserts the exact same IDs `1..N` and payload bytes; the declared
+  global-map predicate is record-level A/B/A/A/B, never whole-page equality and
+  never a second relative regrowth target. Enumerate every half-open interval
+  from all 2,049 byte boundaries on every qualifying page, without using the
+  minimum/maximum changed-byte envelope; enumerate overlapping records
+  independently and require no endpoint to be witnessed by a change. Search
+  global-map records only with D transitions and TDEF records separately with
+  the preregistered L/P/H growth and L full-delete/reinsert transitions. Apply
+  every equality and pointer predicate only inside its candidate interval,
+  including on negative pages. Enumerate inline boundaries from every byte
+  boundary inside a surviving TDEF record and evaluate them across the complete
+  transition window; never select a boundary from an anchor's fill level or
+  last nonzero byte.
+- Checkpoint schedule: 24 fixed, nonadaptive, closed-file checkpoints per
+  replica. The schedule retains literal D replay; L relative targets 64, 512,
+  768, 896, 904, 1024, 1088, and 1280 plus full deletion to zero rows,
+  same-ID/payload reinsert, and idle reopen; the complete absolute P window at
+  4,096, 8,192, 12,288, and 16,480; and H relative targets 896 and 904 plus
+  idle reopen. The conversion checkpoint is derived as the earliest valid
+  monotone inline-to-indirect transition across the entire preregistered
+  L/P/H growth window and is not assumed to occur by `L_IDLE_REOPEN`.
+  Exploratory A1 run-12 page-1 transitions justify these probes. The omitted
+  fine L points and later H points do not contribute an additional A2 decision
+  predicate.
+- Parallel acquisition and bounds: each replica must run as an independent
+  matrix job with no shared database, page store, output directory, or mutable
+  state. A fan-in job validates the three artifacts, freezes and hashes the
+  replicas 1/2 candidate set, then and only then opens replica 3. A1 run 9
+  completed replica 1 in 1,749.126 seconds and timed replica 2 out at 1,800;
+  runs 11 and 12 completed replicas in 1,079.886–1,536.912 seconds. Removing
+  the L/H checkpoints absent from the fixed A2 schedule while retaining the
+  complete P conversion window projects no more than 500 seconds on the slow
+  trace. The frozen 1,800-second per-replica bound provides at least 3.6x
+  headroom. The fan-in safety bound is 900 seconds and the fail-closed campaign
+  timeout is 2,700 seconds; independent acquisition keeps the hosted target at
+  no more than 1,800 seconds, with estimated wall-clock 1,680 seconds.
+- Analyzer dry-run contract: before acquisition, the future A2 analyzer must
+  run in explicit exploratory legacy mode against the identified retained A1
+  run-12 bundle and must run against the future A2 synthetic generator. The
+  legacy run must recognize A1's relative D schedule as A/B/A/C, exercise the
+  bounded record search and distinct terminal reporting, and emit no A2
+  scientific outcome. The synthetic generator must read the checkpoint IDs and
+  transition coverage from this exact hash-pinned plan, must not carry a
+  separate hard-coded schedule, and must prove every analyzer equality is
+  arithmetically possible, including identical D IDs, row count, and payloads,
+  a growth-only pointer transition, and a churn-only pointer transition caused
+  by full L deletion and exact reinsert. It must also exercise conversion
+  derivation over the full window and the fixed inline-boundary enumeration.
+  Both schema-valid dry-run reports, inputs, hashes, commands, and results must
+  be disclosed in a later additive A2 provenance entry before acquisition and
+  are explicitly non-evidential.
+- Dry-run result disclosure: `not_run_preregistration_only`. This change does
+  not implement the A2 worker, analyzer, generator, validator, or workflow, so
+  neither required dry run exists. The execution gate remains `BLOCKED`; this
+  status is non-evidential and authorizes no hosted acquisition.
+- Terminal reporting: zero global page/record candidates emits
+  `no_physical_page_satisfies_global_transition_predicates`, while two or more
+  surviving global intervals emits
+  `multiple_global_record_boundaries_survive`. TDEF zero-candidate and
+  multiple-boundary conditions have their own distinct identifiers. None may
+  be collapsed into A1's `ambiguous_record_boundary` identifier.
+- Decisive-report retention: a schema-valid decisive report completes rather
+  than fails the campaign, remains inventoried in the complete bundle, and
+  requires bundle status `decisive_pending_independent_validation` with
+  `analysis_report_retained = true`, `campaign_failed = false`, and independent
+  validation status `not_independently_validated`. Structural validation may
+  not delete staging merely because the scientific result is decisive; a
+  capability remains capped until separately provenanced independent
+  recomputation accepts the retained report and bundle.
+- Artifacts: checked plan
+  `oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`, SHA-256
+  `11aae49bc6be745b5660bae3a29b5f45c0406cf8fcd1befc1a8fc4f4dbf20f35`;
+  strict plan, environment, page-index, replica-observation, independent
+  replica-artifact, analysis-report, bundle-manifest, and dry-run-report
+  schemas; hash-pin contract test
+- Observation: `preregistration.acquisition_started` is `false`. No A2
+  database, checkpoint, replica observation, candidate set, evidence bundle,
+  dry-run report, or scientific report exists.
+- Interpretation: this entry preregisters only a bounded experiment and its
+  pre-acquisition checks. It assigns no byte, record, page, pointer, bitmap, or
+  allocation-map meaning; establishes no Rust correctness or DAO compatibility;
+  changes no support-matrix entry; and cannot satisfy a release differential
+  gate.
+- Usage: `file:oracle/windows-dao/experiments/a2/README.md`;
+  `file:oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`;
+  future separately reviewed A2 implementation and pre-acquisition dry runs
+- Rights: project-authored plan, schemas, and synthetic hash-pin test; no
+  Microsoft provider binary, generated MDB, retained A1 bundle, or diagnosis is
+  committed or redistributed by this repository
+- Review: focused JSON/hash/schedule contracts and the repository's Python
+  oracle tests must pass; acquisition remains blocked on the plan's six
+  execution requirements
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

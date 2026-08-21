@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a2/environment.schema.json",
+  "title": "DAO A2 bound execution environment",
+  "type": "object", "additionalProperties": false,
+  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "producer_commit", "repository_url", "campaign_id", "status", "host", "provider"],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"}, "document_type": {"const": "dao_a2_environment"},
+    "experiment_id": {"const": "DAO-A2-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "repository_url": {"const": "https://github.com/oglassdev/jet3-rs.git"},
+    "campaign_id": {"$ref": "#/$defs/id"}, "status": {"const": "ready"},
+    "host": {"type": "object", "additionalProperties": false, "required": ["windows_version", "process_architecture", "powershell_version", "python_version"], "properties": {"windows_version": {"type": "string", "minLength": 1, "maxLength": 128}, "process_architecture": {"const": "x86"}, "powershell_version": {"type": "string", "pattern": "^5\\.[0-9]+(?:\\.[0-9]+){0,2}$"}, "python_version": {"type": "string", "pattern": "^3\\.13\\.[0-9]+$"}}},
+    "provider": {"type": "object", "additionalProperties": false, "required": ["prog_id", "clsid", "provider_version", "server_path", "server_file_version", "server_sha256"], "properties": {"prog_id": {"const": "DAO.DBEngine.36"}, "clsid": {"type": "string", "minLength": 38, "maxLength": 38}, "provider_version": {"type": "string", "minLength": 1, "maxLength": 64}, "server_path": {"type": "string", "minLength": 3, "maxLength": 1024}, "server_file_version": {"type": "string", "minLength": 1, "maxLength": 64}, "server_sha256": {"$ref": "#/$defs/sha256"}}}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}}
+}

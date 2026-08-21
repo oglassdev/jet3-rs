@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a2/analysis-report.schema.json",
+  "title": "DAO A2 allocation-map analysis report",
+  "type": "object", "additionalProperties": false,
+  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "campaign_id", "producer_commit", "derivation_replicas", "holdout_replica", "input_checkpoint_count", "record_candidates_examined", "candidate_models_examined", "derivation_survivor_count", "derivation_candidate_set_sha256", "analysis_work_units", "holdout_opened_after_freeze", "holdout_evaluated", "scientific_outcome", "no_outcome_reasons", "surviving_model", "claims"],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"}, "document_type": {"const": "dao_a2_analysis_report"},
+    "experiment_id": {"const": "DAO-A2-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "campaign_id": {"$ref": "#/$defs/id"}, "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "derivation_replicas": {"const": [1, 2]}, "holdout_replica": {"const": 3}, "input_checkpoint_count": {"const": 72},
+    "record_candidates_examined": {"type": "integer", "minimum": 0, "maximum": 16777216},
+    "candidate_models_examined": {"type": "integer", "minimum": 0, "maximum": 1000000},
+    "derivation_survivor_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+    "derivation_candidate_set_sha256": {"$ref": "#/$defs/sha256"}, "analysis_work_units": {"type": "integer", "minimum": 0, "maximum": 500000000},
+    "holdout_opened_after_freeze": {"type": "boolean"}, "holdout_evaluated": {"type": "boolean"},
+    "scientific_outcome": {"type": "string", "enum": ["one_joint_model_predicts_holdout", "no_scientific_outcome"]},
+    "no_outcome_reasons": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/reason"}},
+    "surviving_model": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/model"}]}, "claims": {"$ref": "#/$defs/claims"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "reason": {"type": "string", "enum": ["replica_disagreement", "no_physical_page_satisfies_global_transition_predicates", "multiple_global_record_boundaries_survive", "no_tdef_record_satisfies_transition_predicates", "multiple_tdef_record_boundaries_survive", "no_growth_only_pointer_candidate", "no_delete_reinsert_only_pointer_candidate", "multiple_pointer_models_survive", "missing_inline_to_indirect_conversion", "multiple_inline_to_indirect_conversions", "no_inline_boundary_candidate", "multiple_inline_boundary_candidates", "unexplained_nonzero_inline_suffix", "idle_volatility", "unreconstructable_snapshot", "resource_bound_breach", "holdout_prediction_failure"]},
+    "record": {"type": "object", "additionalProperties": false, "required": ["page", "start", "end"], "properties": {"page": {"type": "integer", "minimum": 0, "maximum": 65535}, "start": {"type": "integer", "minimum": 0, "maximum": 2047}, "end": {"type": "integer", "minimum": 1, "maximum": 2048}}},
+    "model": {"type": "object", "additionalProperties": false, "required": ["global_map_record", "tdef_record", "pointer_layout", "growth_pointer_offset", "delete_reinsert_pointer_offset", "inline_boundary", "low_type1_slot", "high_type1_slot", "low_reference_page", "high_reference_page", "extended_base_formula"], "properties": {"global_map_record": {"$ref": "#/$defs/record"}, "tdef_record": {"$ref": "#/$defs/record"}, "pointer_layout": {"type": "string", "enum": ["u24le_page_then_u8_slot", "u8_slot_then_u24le_page"]}, "growth_pointer_offset": {"type": "integer", "minimum": 0, "maximum": 2044}, "delete_reinsert_pointer_offset": {"type": "integer", "minimum": 0, "maximum": 2044}, "inline_boundary": {"type": "integer", "minimum": 5, "maximum": 2048}, "low_type1_slot": {"type": "integer", "minimum": 0, "maximum": 511}, "high_type1_slot": {"type": "integer", "minimum": 1, "maximum": 511}, "low_reference_page": {"type": "integer", "minimum": 1, "maximum": 65535}, "high_reference_page": {"type": "integer", "minimum": 1, "maximum": 65535}, "extended_base_formula": {"type": "string", "enum": ["slot_relative_expected_0_16352", "referenced_page_relative", "slot_relative_off_by_minus_one", "slot_relative_off_by_plus_one", "referenced_page_relative_off_by_minus_one", "referenced_page_relative_off_by_plus_one"]}}},
+    "claims": {"type": "object", "additionalProperties": false, "required": ["descriptive_provider_observation_only", "general_tdef_catalog_row_index_or_lval_layout", "unobserved_slot_or_base_behavior", "compaction_encryption_or_version_behavior", "rust_correctness", "dao_compatibility_or_support"], "properties": {"descriptive_provider_observation_only": {"const": true}, "general_tdef_catalog_row_index_or_lval_layout": {"const": false}, "unobserved_slot_or_base_behavior": {"const": false}, "compaction_encryption_or_version_behavior": {"const": false}, "rust_correctness": {"const": false}, "dao_compatibility_or_support": {"const": false}}}
+  }
+}

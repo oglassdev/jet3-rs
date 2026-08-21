@@ -1,0 +1,245 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a2_allocation_maps_plan",
+  "experiment_id": "DAO-A2-ALLOCATION-MAPS-001",
+  "preregistration": {
+    "provenance_entry": "EXP-0040",
+    "recorded_utc_date": "2026-08-21",
+    "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts when the first schema-valid A2 replica observation is retained for inspection",
+    "origin_disclosure": {
+      "a1_entries_read": ["EXP-0037", "EXP-0038", "EXP-0039"],
+      "diagnosis": "/private/tmp/a1-run12-ambiguity-diagnosis.md",
+      "independent_review": "/private/tmp/fable-review-findings.md sections 2.1, 2.2, 2.3, 2.4, 3.1, and 5.2",
+      "exploratory_bundle": "windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1",
+      "exploratory_bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
+      "use_limit": "the diagnosis and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
+      "external_mdb_implementations_used": false
+    },
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
+  },
+  "execution_gate": {
+    "status": "BLOCKED",
+    "blocking_requirements": [
+      "checked_windows_acquisition",
+      "checked_a2_analyzer_and_synthetic_generator",
+      "passing_analyzer_dry_runs_disclosed_in_an_additive_a2_provenance_entry",
+      "independent_complete_bundle_validator",
+      "exact_clean_pushed_producer_commit",
+      "licensed_x86_dao_host_binding"
+    ]
+  },
+  "repository_binding": {
+    "canonical_https_url": "https://github.com/oglassdev/jet3-rs.git",
+    "producer_commit_required": true,
+    "clean_worktree_required": true,
+    "pushed_commit_required": true
+  },
+  "environment_binding": {
+    "operating_system": "Windows",
+    "process_architecture": "x86",
+    "powershell_major": 5,
+    "python_version": "3.13.x",
+    "dao_prog_id": "DAO.DBEngine.36",
+    "provider_identity_and_binary_hash_required": true
+  },
+  "question": "Can separately delimited record-level models explain and predict the observed global and per-table allocation-map transitions in three fresh Jet 3 databases?",
+  "replicas": {
+    "count": 3,
+    "derivation": [1, 2],
+    "holdout": 3,
+    "acquisition_independence": "each replica is created, mutated, closed, captured, validated, and uploaded by a separate matrix job that reads no other replica and shares no database, page store, output directory, or mutable state",
+    "fan_in_rule": "the fan-in job validates all three independently uploaded replica artifacts; it derives and persists the complete candidate set from replicas 1 and 2, records its SHA-256, and only then may open replica 3 and evaluate it without refit, candidate addition, deletion, relaxation, or reinterpretation"
+  },
+  "tables": {
+    "physical_names": ["A2TAB_A", "A2TAB_B", "A2TAB_C", "A2TAB_D"],
+    "roles": ["D", "L", "P", "H"],
+    "role_bindings": [
+      {"replica": 1, "D": "A2TAB_A", "L": "A2TAB_B", "P": "A2TAB_C", "H": "A2TAB_D"},
+      {"replica": 2, "D": "A2TAB_B", "L": "A2TAB_C", "P": "A2TAB_D", "H": "A2TAB_A"},
+      {"replica": 3, "D": "A2TAB_C", "L": "A2TAB_D", "P": "A2TAB_A", "H": "A2TAB_B"}
+    ],
+    "definition": {
+      "indexed": false,
+      "fields": [
+        {"name": "Id", "dao_type": "dbLong", "size": 4},
+        {"name": "Payload", "dao_type": "dbText", "size": 240, "fixed_length": true}
+      ]
+    },
+    "row_algorithm": {
+      "id": "positive one-based monotonically increasing signed 32-bit integer within each logical role; deleted Id values are reinserted unchanged",
+      "payload": "repeat the ASCII seed A2|<role>|<Id as ten zero-padded decimal digits>| and truncate to exactly 240 characters",
+      "growth_batch_rows": 32,
+      "reread_order": "Id ascending",
+      "rolling_sha256": "one SHA-256 stream over each row encoded as Id signed little-endian 32-bit, Payload UTF-8 byte length unsigned little-endian 16-bit, then Payload ASCII bytes",
+      "delete_rule": "at L_DELETE_ALL delete every row from L in Id order so its data pages are eligible to become free; at L_REINSERT_SAME reinsert the exact same Id values and payload bytes",
+      "reread_requirement": "after every checkpoint, DAO must return the exact expected count and rolling SHA-256 for every extant table"
+    }
+  },
+  "checkpoint_design": {
+    "count": 24,
+    "adaptive_checkpoints_allowed": false,
+    "all_checkpoints_closed_and_quiescent": true,
+    "d_growth_rule": "D_GROW_0128 is the first closed-file state after a fixed 32-row batch whose page count is at least the post-create D baseline plus 128; record the exact achieved D row count N and overshoot without retuning",
+    "d_replay_rule": "after D_DROP, recreate the same empty D definition and capture D_RECREATE_EMPTY, then insert exactly Id 1 through N with the same payload bytes and capture D_REGROW_SAME; D_REGROW_SAME is row-count replay and must not use a second relative file-growth target",
+    "relative_growth_rule": "each L_REL or H_REL checkpoint is the first closed-file state after a fixed 32-row batch whose page count is at least that table's post-create baseline plus the named target; record overshoot and do not retune",
+    "absolute_growth_rule": "each P_ABS checkpoint is the first closed-file state after a fixed 32-row batch whose total file page count is at least the named target; record overshoot and do not retune",
+    "checkpoint_ids": [
+      "E0", "E0R", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_SAME",
+      "L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280",
+      "L_DELETE_ALL", "L_REINSERT_SAME", "L_IDLE_REOPEN",
+      "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480",
+      "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"
+    ],
+    "idle_pairs": [["E0", "E0R"], ["L_REINSERT_SAME", "L_IDLE_REOPEN"], ["H_REL_0904", "H_IDLE_REOPEN"]],
+    "transition_coverage": {
+      "global_map_literal_abab": ["E0", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_SAME"],
+      "tdef_low_growth": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280"],
+      "tdef_delete_reinsert": ["L_REL_1280", "L_DELETE_ALL", "L_REINSERT_SAME"],
+      "inline_to_indirect_conversion_window": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280", "L_REINSERT_SAME", "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480", "H_REL_0896", "H_REL_0904"],
+      "tdef_high_growth": ["P_ABS_16480", "H_REL_0896", "H_REL_0904"]
+    },
+    "schedule_minimization_basis": "exploratory A1 run-12 page-1 transitions justified retaining the L targets that span each coarse regime, the first fine transition, the 1024 and 1088 boundary probes, every P checkpoint needed to locate rather than assume the inline-to-indirect conversion, and the H 896-to-904 transition; the other 21-point fine steps and later H ladder points are excluded because they add repeated snapshots without adding a required A2 predicate"
+  },
+  "page_capture": {
+    "page_size": 2048,
+    "checkpoint_representation": "ordered physical-page SHA-256 values from page zero through the final page",
+    "store": "content-addressed distinct 2048-byte blobs named <lowercase-sha256>.page",
+    "duplicate_blobs_stored_once": true,
+    "snapshot_reconstruction_required": true,
+    "companion_ceiling_bytes_per_checkpoint": 65536,
+    "post_close_quiescence_required": true,
+    "companion_bytes_in_physical_analysis": false
+  },
+  "record_candidate_procedure": {
+    "boundary_source": "for every qualifying physical page, enumerate every half-open interval [start,end) from the fixed byte-boundary set {0,1,...,2048}, with 0 <= start < end <= 2048; boundaries are never inferred as the minimum or maximum changed byte",
+    "qualifying_global_pages": "evaluate every physical page present at every global-map checkpoint; a page qualifies for interval enumeration only if at least one byte has the exact nonempty A/B/A/A/B signature required by the global_map_record_predicate",
+    "qualifying_tdef_pages": "evaluate every physical page present at every TDEF checkpoint; a page qualifies for interval enumeration only if it contains at least one four-byte window satisfying a declared growth-only or delete/reinsert-only signature under a declared pointer layout",
+    "multiple_records_on_one_page": "enumerate and score every interval independently, including overlapping intervals; do not merge changing regions or substitute a whole-page change envelope",
+    "stable_endpoint_rule": "neither endpoint is required to change or to neighbor a changed byte; all 2049 byte boundaries are candidates, so an unwitnessed stable endpoint remains in the finite search and unresolved endpoints produce the multiple-record-boundaries outcome",
+    "negative_page_rule": "all pages, including page 1, enter through the same page qualification and interval enumeration; rejection and survival use only the same record-level predicates and bounds",
+    "interval_ceiling_per_page": 2098176
+  },
+  "inline_boundary_procedure": {
+    "candidate_source": "for each surviving TDEF record [start,end), enumerate every byte boundary b in the fixed set {start+5,...,end}; do not derive candidates from the last nonzero byte, the fill level, or any single anchor checkpoint",
+    "survival_rule": "evaluate each candidate b against every checkpoint in transition_coverage.inline_to_indirect_conversion_window: bytes and bits before b must explain the complete declared allocation-transition sequence, windows at or after b must satisfy the declared pointer and type-1 rules, and bytes classified as unused suffix must be zero at every applicable checkpoint",
+    "ambiguity_rule": "zero surviving boundaries emits no_inline_boundary_candidate and more than one emits multiple_inline_boundary_candidates; deterministic agreement across replicas cannot rescue a boundary selected from anchor fill level"
+  },
+  "hypotheses": {
+    "global_map_record_predicate": "within, and only within, a candidate interval: E0 equals D_DROP and D_RECREATE_EMPTY byte-for-byte; D_GROW_0128 equals D_REGROW_SAME byte-for-byte; the A and B values differ; idle pairs are equal. Equality is never required for the containing page. The predicate is applied independently in each derivation replica and under its rotated D binding",
+    "global_map_search": "derive global-map record candidates only from the literal D A/B/A/A/B checkpoints and never from L, P, or H transitions",
+    "tdef_pointer_layouts": ["u24le_page_then_u8_slot", "u8_slot_then_u24le_page"],
+    "tdef_record_search": "search TDEF record candidates separately from global-map candidates; the page and interval may differ. Decode four-byte windows only wholly inside the candidate interval, never page headers or record-directory bytes outside it",
+    "growth_only_pointer_predicate": "the decoded reference changes at one or more declared L or H growth transitions, resolves to an observed in-range page whose byte-zero tag is 0x05 when active, and is unchanged across L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME",
+    "delete_reinsert_only_pointer_predicate": "the decoded reference is stable through declared L growth checkpoints, differs when L_DELETE_ALL has zero L rows and eligible freed pages, returns exactly at L_REINSERT_SAME, and resolves to an observed in-range page whose byte-zero tag is 0x05 whenever active",
+    "pointer_pair_rule": "growth-only and delete/reinsert-only windows must be distinct, use one declared layout, lie wholly inside the same TDEF candidate interval, and satisfy the predicates in both derivation replicas before holdout access",
+    "inline_extent_rule": "one exact boundary from inline_boundary_procedure must agree across derivation replicas and both pointer observations, explain every applicable transition across the full conversion window, and satisfy the all-checkpoint suffix rule; an anchor fill level is never a boundary source",
+    "type1_conversion_predicate": "classify every checkpoint in transition_coverage.inline_to_indirect_conversion_window under each candidate model, derive the conversion checkpoint as the earliest preregistered checkpoint whose state is valid indirect after at least one valid inline predecessor, require exactly one monotone inline-to-indirect transition, and do not require conversion by L_IDLE_REOPEN or any other phase boundary",
+    "type1_rule": "inactive four-byte slots are exactly zero within the TDEF candidate interval; active references identify observed pages whose byte-zero tag is 0x05; L uses the low observed slot and H uses the next observed slot",
+    "extended_base_candidates": [
+      "slot_relative_expected_0_16352",
+      "referenced_page_relative",
+      "slot_relative_off_by_minus_one",
+      "slot_relative_off_by_plus_one",
+      "referenced_page_relative_off_by_minus_one",
+      "referenced_page_relative_off_by_plus_one"
+    ],
+    "extended_base_rule": "derive only from preregistered L, P, and H transitions; no candidate formula may be added after acquisition"
+  },
+  "analyzer_dry_run_contract": {
+    "must_complete_before_acquisition": true,
+    "retained_a1_input": {
+      "bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
+      "required_mode": "retained_a1_run12_exploratory",
+      "required_behavior": "ingest the retained A1 schedule through an explicit legacy projection, identify its D sequence as relative A/B/A/C rather than treating it as A2 literal A/B/A/B, exercise bounded record enumeration and distinct no-outcome reporting, and emit no A2 scientific outcome"
+    },
+    "synthetic_input": {
+      "required_mode": "a2_schedule_synthetic",
+      "generation_rule": "the generator must read checkpoint_design.checkpoint_ids and transition_coverage from this exact hash-pinned plan and generate every synthetic replica checkpoint from that schedule; a separately hard-coded or A1-inherited schedule is forbidden",
+      "arithmetic_rule": "the generator must prove every analyzer equality is possible under the generated checkpoint arithmetic, including identical D row ids, row count N, and payload bytes at D_GROW_0128 and D_REGROW_SAME, at least one growth-only pointer transition during the growth ladder, and at least one churn-only pointer transition when L_DELETE_ALL frees pages and L_REINSERT_SAME restores the rows",
+      "required_cases": ["one_decisive_joint_model", "no_physical_page_satisfies_global_transition_predicates", "multiple_global_record_boundaries_survive", "no_tdef_record_satisfies_transition_predicates", "multiple_tdef_record_boundaries_survive", "no_inline_boundary_candidate", "multiple_inline_boundary_candidates"]
+    },
+    "disclosure_rule": "both schema-valid dry-run reports, their inputs and hashes, commands, and results must be recorded in an additive A2 provenance entry before acquisition; every dry-run report is explicitly non-evidential and cannot authorize a capability or satisfy an A2 decision predicate"
+  },
+  "decision_rules": {
+    "decisive": "exactly one complete joint model with separately identified global-map and TDEF records survives every derivation transition in replicas 1 and 2 and, after the frozen candidate-set hash is persisted, predicts every applicable holdout transition in replica 3 without refit",
+    "no_scientific_outcome_identifiers": [
+      "replica_disagreement",
+      "no_physical_page_satisfies_global_transition_predicates",
+      "multiple_global_record_boundaries_survive",
+      "no_tdef_record_satisfies_transition_predicates",
+      "multiple_tdef_record_boundaries_survive",
+      "no_growth_only_pointer_candidate",
+      "no_delete_reinsert_only_pointer_candidate",
+      "multiple_pointer_models_survive",
+      "missing_inline_to_indirect_conversion",
+      "multiple_inline_to_indirect_conversions",
+      "no_inline_boundary_candidate",
+      "multiple_inline_boundary_candidates",
+      "unexplained_nonzero_inline_suffix",
+      "idle_volatility",
+      "unreconstructable_snapshot",
+      "resource_bound_breach",
+      "holdout_prediction_failure"
+    ],
+    "terminal_disambiguation": "the analyzer must emit no_physical_page_satisfies_global_transition_predicates when page qualification yields zero global candidates and multiple_global_record_boundaries_survive only when at least two record intervals survive; the analogous TDEF identifiers are also distinct and may not be collapsed into an ambiguous-record identifier"
+  },
+  "decisive_report_handling": {
+    "analysis_report_artifact": "retained_in_bundle",
+    "bundle_status": "decisive_pending_independent_validation",
+    "campaign_behavior": "a schema-valid decisive analysis completes the campaign successfully, is inventoried and retained with the complete bundle, and must not be passed through a validator path that treats decisiveness as campaign failure or deletes staging",
+    "independent_validation_rule": "the bundle validator validates structure and bindings without rejecting a decisive result; capability verification remains not_independently_validated until a separately provenanced independent recomputing validator accepts the retained decisive report and complete bundle"
+  },
+  "runtime_design": {
+    "matrix_jobs": 3,
+    "fan_in_jobs": 1,
+    "hosted_wall_clock_target_seconds": 1800,
+    "slow_runner_basis": "A1 progress traces: run 9 completed replica 1 in 1749.126 seconds and timed replica 2 out at 1800 seconds; runs 11 and 12 completed replicas in 1079.886-1536.912 seconds. Removing the omitted L and H snapshot checkpoints from the slow run-9 trace while retaining the full P conversion window projects the fixed A2 subset plus D_RECREATE_EMPTY at no more than 500 seconds per replica",
+    "headroom": "the frozen 1800-second per-replica ceiling is at least 3.6x the 500-second slow-runner projection; independent replicas run concurrently. The 900-second fan-in and 2700-second fail-closed campaign timeout are safety bounds, while the complete hosted wall-clock target remains 1800 seconds",
+    "estimated_complete_wall_clock_seconds": 1680
+  },
+  "artifacts": {
+    "plan": "plan/a2-allocation-maps.plan.json",
+    "environment": "environment/environment.json",
+    "replica_observations": ["observations/replica-01.json", "observations/replica-02.json", "observations/replica-03.json"],
+    "replica_artifact_manifests": ["replica-artifacts/replica-01-manifest.json", "replica-artifacts/replica-02-manifest.json", "replica-artifacts/replica-03-manifest.json"],
+    "page_index_directory": "page-indexes",
+    "page_store_directory": "page-store",
+    "frozen_candidate_set": "analysis/derivation-candidates.json",
+    "analysis_report": "analysis/analysis-report.json",
+    "bundle_manifest": "bundle-manifest.json",
+    "dry_run_reports": ["dry-run/a1-run12-report.json", "dry-run/a2-synthetic-report.json"]
+  },
+  "bounds": {
+    "page_size": 2048,
+    "replicas": 3,
+    "max_checkpoints_per_replica": 24,
+    "planned_checkpoints_per_replica": 24,
+    "max_final_pages_per_replica": 65536,
+    "max_logical_checkpoint_read_bytes_per_replica": 2147483648,
+    "max_inserted_rows_per_replica": 524288,
+    "max_changed_hash_entries_per_replica": 65536,
+    "max_record_candidates": 16777216,
+    "max_candidate_models": 1000000,
+    "max_analysis_work_units": 500000000,
+    "max_unique_page_blobs": 65536,
+    "max_retained_page_store_bytes": 536870912,
+    "max_bundle_bytes": 805306368,
+    "max_json_bytes": 67108864,
+    "worker_timeout_seconds_per_replica": 1800,
+    "fan_in_timeout_seconds": 900,
+    "campaign_timeout_seconds": 2700,
+    "max_child_log_bytes": 1048576,
+    "max_companion_bytes_per_checkpoint": 65536
+  },
+  "claims": {
+    "descriptive_provider_observation_only": true,
+    "a1_exploratory_input_is_a2_evidence": false,
+    "synthetic_dry_run_is_a2_evidence": false,
+    "general_tdef_catalog_row_index_or_lval_layout": false,
+    "unobserved_slot_or_base_behavior": false,
+    "compaction_encryption_or_version_behavior": false,
+    "rust_correctness": false,
+    "dao_compatibility_or_support": false
+  }
+}

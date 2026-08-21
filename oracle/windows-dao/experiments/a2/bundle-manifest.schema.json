@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a2/bundle-manifest.schema.json",
+  "title": "DAO A2 complete evidence bundle manifest",
+  "type": "object", "additionalProperties": false,
+  "required": ["protocol_version", "document_type", "experiment_id", "campaign_id", "producer_commit", "repository_url", "created_utc", "plan_sha256", "environment_sha256", "provider_sha256", "replica_count", "replica_artifact_manifest_sha256", "checkpoint_count", "page_blob_count", "bundle_size_bytes_excluding_manifest", "inventory_closed", "hashes_verified", "paths_closed", "execution_status", "campaign_failed", "analysis_report_retained", "analysis_scientific_outcome", "bundle_status", "independent_validation_status", "files"],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"}, "document_type": {"const": "dao_a2_bundle_manifest"},
+    "experiment_id": {"const": "DAO-A2-ALLOCATION-MAPS-001"}, "campaign_id": {"$ref": "#/$defs/id"},
+    "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "repository_url": {"const": "https://github.com/oglassdev/jet3-rs.git"},
+    "created_utc": {"type": "string", "format": "date-time", "maxLength": 64}, "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "environment_sha256": {"$ref": "#/$defs/sha256"}, "provider_sha256": {"$ref": "#/$defs/sha256"},
+    "replica_count": {"const": 3}, "replica_artifact_manifest_sha256": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/sha256"}},
+    "checkpoint_count": {"const": 72}, "page_blob_count": {"type": "integer", "minimum": 1, "maximum": 65536},
+    "bundle_size_bytes_excluding_manifest": {"type": "integer", "minimum": 1, "maximum": 805306368},
+    "inventory_closed": {"const": true}, "hashes_verified": {"const": true}, "paths_closed": {"const": true},
+    "execution_status": {"const": "analysis_complete"}, "campaign_failed": {"const": false}, "analysis_report_retained": {"const": true},
+    "analysis_scientific_outcome": {"type": "string", "enum": ["one_joint_model_predicts_holdout", "no_scientific_outcome"]},
+    "bundle_status": {"type": "string", "enum": ["decisive_pending_independent_validation", "complete_no_scientific_outcome"]},
+    "independent_validation_status": {"const": "not_independently_validated"},
+    "files": {"type": "array", "minItems": 81, "maxItems": 65650, "uniqueItems": true, "items": {"$ref": "#/$defs/file"}}
+  },
+  "anyOf": [
+    {"type": "object", "required": ["analysis_scientific_outcome", "bundle_status"], "properties": {"analysis_scientific_outcome": {"const": "one_joint_model_predicts_holdout"}, "bundle_status": {"const": "decisive_pending_independent_validation"}}},
+    {"type": "object", "required": ["analysis_scientific_outcome", "bundle_status"], "properties": {"analysis_scientific_outcome": {"const": "no_scientific_outcome"}, "bundle_status": {"const": "complete_no_scientific_outcome"}}}
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "file": {"type": "object", "additionalProperties": false, "required": ["path", "role", "sha256", "size_bytes", "media_type"], "properties": {"path": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"}, "role": {"type": "string", "enum": ["plan", "environment", "replica_artifact_manifest", "replica_observation", "page_index", "page_blob", "frozen_candidate_set", "analysis_report", "acquisition_log"]}, "sha256": {"$ref": "#/$defs/sha256"}, "size_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864}, "media_type": {"type": "string", "enum": ["application/json", "application/octet-stream", "text/plain"]}}}
+  }
+}
