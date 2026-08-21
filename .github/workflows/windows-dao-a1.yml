@@ -99,7 +99,7 @@ jobs:
     timeout-minutes: 210
     env:
       # Add newly proven windows-2022 image/proof pairs only here.
-      PROVEN_IMAGES: '[{"image_version":"20260802.262.1","proof_run_id":"32327232241"}]'
+      PROVEN_IMAGES: '[{"image_version":"20260802.262.1","proof_run_id":"32327232241"},{"image_version":"20260818.277.1","proof_run_id":"32439805418"}]'
       EXPECTED_IMAGE_OS: win22
       EXPECTED_PROVIDER_PROG_ID: DAO.DBEngine.36
       EXPECTED_PROVIDER_CLSID: "{00000100-0000-0010-8000-00AA006D2EA4}"

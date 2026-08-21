@@ -101,12 +101,18 @@ class WindowsDaoA1WorkflowTests(unittest.TestCase):
         proven_images = json.loads(proven_images_match.group(1))
         self.assertIsInstance(proven_images, list)
         self.assertGreater(len(proven_images), 0)
-        self.assertIn(
-            {
-                "image_version": "20260802.262.1",
-                "proof_run_id": "32327232241",
-            },
+        self.assertEqual(
             proven_images,
+            [
+                {
+                    "image_version": "20260802.262.1",
+                    "proof_run_id": "32327232241",
+                },
+                {
+                    "image_version": "20260818.277.1",
+                    "proof_run_id": "32439805418",
+                },
+            ],
         )
         pairs = []
         versions = []
