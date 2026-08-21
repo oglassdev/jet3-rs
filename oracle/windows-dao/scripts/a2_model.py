@@ -285,7 +285,7 @@ class DRelationIndex:
         empty = records["E0"]
         grown = records["D_GROW_0128"]
         dropped = records["D_DROP"]
-        recreated = records["D_RECREATE_EMPTY"]
+        recreated = records.get("D_RECREATE_EMPTY")
         regrown = records["D_REGROW_0128"]
         self.records = records
         self.growth: dict[str, Prefix] = {}
@@ -297,18 +297,24 @@ class DRelationIndex:
             if polarity == "set_means_in_use":
                 growth = [grown[index] & ~empty[index] & 0xFF for index in range(PAGE_SIZE)]
                 release = [growth[index] & dropped[index] for index in range(PAGE_SIZE)]
-                recreate_release = [
-                    growth[index] & recreated[index] for index in range(PAGE_SIZE)
-                ]
+                recreate_release = (
+                    [growth[index] & recreated[index] for index in range(PAGE_SIZE)]
+                    if recreated is not None
+                    else [0] * PAGE_SIZE
+                )
                 violation = [growth[index] & ~regrown[index] & 0xFF for index in range(PAGE_SIZE)]
                 additional = [regrown[index] & ~grown[index] & 0xFF for index in range(PAGE_SIZE)]
             else:
                 growth = [(~grown[index]) & empty[index] & 0xFF for index in range(PAGE_SIZE)]
                 release = [growth[index] & ~dropped[index] & 0xFF for index in range(PAGE_SIZE)]
-                recreate_release = [
-                    growth[index] & ~recreated[index] & 0xFF
-                    for index in range(PAGE_SIZE)
-                ]
+                recreate_release = (
+                    [
+                        growth[index] & ~recreated[index] & 0xFF
+                        for index in range(PAGE_SIZE)
+                    ]
+                    if recreated is not None
+                    else [0] * PAGE_SIZE
+                )
                 violation = [growth[index] & regrown[index] for index in range(PAGE_SIZE)]
                 additional = [(~regrown[index]) & grown[index] & 0xFF for index in range(PAGE_SIZE)]
             self.growth[polarity] = Prefix.from_flags([bool(value) for value in growth], work)
@@ -325,7 +331,7 @@ class DRelationIndex:
                 [bool(value) for value in additional], work
             )
         changed_flags = [
-            len({records[name][index] for name in D_CHECKPOINTS}) > 1
+            len({record[index] for record in records.values()}) > 1
             for index in range(PAGE_SIZE)
         ]
         self.changed = Prefix.from_flags(changed_flags, work)
@@ -340,13 +346,30 @@ class DRelationIndex:
             unused = 0x00 if polarity == "set_means_in_use" else 0xFF
             self.bad_unused[polarity] = Prefix.from_flags(
                 [
-                    any(records[name][index] != unused for name in D_CHECKPOINTS)
+                    any(record[index] != unused for record in records.values())
                     for index in range(PAGE_SIZE)
                 ],
                 work,
             )
 
-    def polarity_direction(self, start: int, polarity: str) -> bool:
+    def decoded_in_use_pages(self, start: int, polarity: str, checkpoint: str) -> set[int]:
+        record = self.records[checkpoint]
+        base = int.from_bytes(record[start + 1 : start + 5], "little")
+        bitmap = record[start + 5 :]
+        set_means_in_use = polarity == "set_means_in_use"
+        return {
+            base + byte_index * 8 + bit
+            for byte_index, value in enumerate(bitmap)
+            for bit in range(8)
+            if bool(value & (1 << bit)) == set_means_in_use
+        }
+
+    def polarity_direction(
+        self,
+        start: int,
+        polarity: str,
+        expected_highwater: Mapping[str, int] | None = None,
+    ) -> bool:
         records = self.records
         if start + 5 >= PAGE_SIZE or any(record[start] != 0 for record in records.values()):
             return False
@@ -355,12 +378,28 @@ class DRelationIndex:
             for record in records.values()
         }
         bitmap_start = start + 5
-        return len(bases) == 1 and self.growth[polarity].count(bitmap_start, PAGE_SIZE) > 0
+        if len(bases) != 1 or self.growth[polarity].count(bitmap_start, PAGE_SIZE) == 0:
+            return False
+        if expected_highwater is None:
+            return True
+        base = next(iter(bases))
+        if base >= min(expected_highwater.values()):
+            return False
+        for checkpoint, highwater in expected_highwater.items():
+            pages = self.decoded_in_use_pages(start, polarity, checkpoint)
+            if not set(range(base, highwater)) <= pages or highwater in pages:
+                return False
+        return True
 
-    def relation(self, start: int, polarity: str) -> bool:
+    def relation(
+        self,
+        start: int,
+        polarity: str,
+        expected_highwater: Mapping[str, int] | None = None,
+    ) -> bool:
         bitmap_start = start + 5
         return (
-            self.polarity_direction(start, polarity)
+            self.polarity_direction(start, polarity, expected_highwater)
             and self.release_violation[polarity].none(bitmap_start, PAGE_SIZE)
             and self.recreate_release_violation[polarity].none(bitmap_start, PAGE_SIZE)
             and self.regrowth_violation[polarity].none(bitmap_start, PAGE_SIZE)
@@ -400,13 +439,23 @@ def _suffix_slack(
 
 
 def derive_global_record(
-    view: View, page: int, *, enumerate_candidates: bool = True
+    view: View,
+    page: int,
+    *,
+    enumerate_candidates: bool = True,
+    d_checkpoints: tuple[str, ...] = D_CHECKPOINTS,
 ) -> GlobalRecordModel:
     """Enumerate the fixed interval space and apply the D-only terminal tie-break."""
     if enumerate_candidates:
         view.work.enumerate_intervals()
-    records = {name: view.page(name, page) for name in D_CHECKPOINTS}
+    if not {"E0", "D_GROW_0128", "D_DROP", "D_REGROW_0128"} <= set(d_checkpoints):
+        raise Abort("A2-SNAPSHOT-RECONSTRUCTION")
+    records = {name: view.page(name, page) for name in d_checkpoints}
     index = DRelationIndex(records, view.work)
+    expected_highwater = {
+        checkpoint: view.page_count(checkpoint)
+        for checkpoint in ("E0", "D_GROW_0128", "D_REGROW_0128")
+    }
     decodable = [
         start
         for start in range(PAGE_SIZE - 5)
@@ -414,23 +463,33 @@ def derive_global_record(
     ]
     if not decodable:
         raise Abort("A2-GLOBAL-RECORD-NONE")
-    related: list[tuple[int, str]] = []
-    set_relation_failed = False
-    for start in decodable:
-        view.work.examine_models(len(POLARITIES))
-        polarities = [
-            polarity
-            for polarity in POLARITIES
-            if index.polarity_direction(start, polarity)
-        ]
-        if len(polarities) > 1:
-            raise Abort("A2-POLARITY-MULTIPLE")
-        if polarities:
-            polarity = polarities[0]
-            if index.relation(start, polarity):
-                related.append((start, polarity))
-            else:
-                set_relation_failed = True
+    def collect(
+        highwater: Mapping[str, int] | None,
+    ) -> tuple[list[tuple[int, str]], bool, bool]:
+        matches: list[tuple[int, str]] = []
+        failed = False
+        direction_seen = False
+        for start in decodable:
+            view.work.examine_models(len(POLARITIES))
+            polarities = [
+                polarity
+                for polarity in POLARITIES
+                if index.polarity_direction(start, polarity, highwater)
+            ]
+            if len(polarities) > 1:
+                raise Abort("A2-POLARITY-MULTIPLE")
+            if polarities:
+                direction_seen = True
+                polarity = polarities[0]
+                if index.relation(start, polarity, highwater):
+                    matches.append((start, polarity))
+                else:
+                    failed = True
+        return matches, failed, direction_seen
+
+    related, set_relation_failed, direction_seen = collect(expected_highwater)
+    if not direction_seen:
+        related, set_relation_failed, _ = collect(None)
     if not related:
         raise Abort("A2-D-SET-RELATION" if set_relation_failed else "A2-POLARITY-NONE")
     resolved: list[GlobalRecordModel] = []
