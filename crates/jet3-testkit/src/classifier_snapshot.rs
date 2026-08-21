@@ -409,3 +409,87 @@ impl Error for ClassifierSnapshotError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use jet3::ByteCount;
+
+    use super::{ClassifierSnapshot, CommitId, PAGE_BUFFER_BYTES, classify_fixture};
+    use crate::Sha256;
+
+    const SOURCE_COMMIT: &str = "eb92f66a82ddd62c863fc7b1caead1b2d85af397";
+
+    struct FixtureFile(PathBuf);
+
+    impl Drop for FixtureFile {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn classifier_run_reproduces_committed_snapshot_byte_for_byte()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let specifications: [(&str, &[(u8, u64)]); 4] = [
+            (
+                "5c18e9d85c2c91a1afdd6d2ddc64c990fd1442c01c753a5d76d4b6d15259537b",
+                &[(0, 33), (1, 646), (2, 28), (3, 7), (4, 62), (9, 1)],
+            ),
+            (
+                "0a68f70d901d4b519b765323c141c794b427f3d4ee25ef2bd390ce2a493378d9",
+                &[(0, 33), (1, 439), (2, 28), (3, 7), (4, 62), (9, 208)],
+            ),
+            (
+                "d8dba78c0ce51614f0099e9db7b2cd10790935ffb5db989db5fc766b7c5881fa",
+                &[(1, 437), (2, 79), (4, 37), (9, 42)],
+            ),
+            (
+                "42aa474ee656d3f1249af08424ed92c91be1388b308906cafb54b4e7ff812d61",
+                &[(1, 778), (2, 190), (4, 37), (9, 34)],
+            ),
+        ];
+        let mut snapshot = ClassifierSnapshot::new(CommitId::new(SOURCE_COMMIT)?);
+        let mut files = Vec::new();
+
+        for (index, (sha256, counts)) in specifications.into_iter().enumerate() {
+            let page_count = counts
+                .iter()
+                .try_fold(1_u64, |total, (_, count)| total.checked_add(*count))
+                .ok_or("synthetic page count overflow")?;
+            let byte_count = page_count
+                .checked_mul(PAGE_BUFFER_BYTES as u64)
+                .ok_or("synthetic byte count overflow")?;
+            let byte_count_usize = usize::try_from(byte_count)?;
+            let mut bytes = vec![0_u8; byte_count_usize];
+            bytes[4..19].copy_from_slice(b"Standard Jet DB");
+            let mut page = 1_usize;
+            for (tag, count) in counts {
+                for _ in 0..*count {
+                    bytes[page * PAGE_BUFFER_BYTES] = *tag;
+                    page = page.checked_add(1).ok_or("synthetic page overflow")?;
+                }
+            }
+            let path = std::env::temp_dir().join(format!(
+                "jet3-classifier-snapshot-{}-{index}.mdb",
+                std::process::id()
+            ));
+            fs::write(&path, bytes)?;
+            let file = FixtureFile(path);
+            snapshot.insert(classify_fixture(
+                &file.0,
+                Sha256::new(sha256)?,
+                ByteCount::new(byte_count),
+            )?)?;
+            files.push(file);
+        }
+
+        assert_eq!(
+            snapshot.to_canonical_json()?,
+            include_bytes!("../../../docs/validation/stage1-classifier-snapshot.json")
+        );
+        Ok(())
+    }
+}
