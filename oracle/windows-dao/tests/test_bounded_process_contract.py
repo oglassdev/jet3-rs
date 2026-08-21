@@ -90,7 +90,13 @@ class BoundedProcessSourceContractTests(unittest.TestCase):
 
     def test_limits_are_positive_caller_labeled_and_hard_capped(self) -> None:
         self.assertIn("$TimeoutSeconds -lt 1", self.source)
-        self.assertIn("$TimeoutSeconds -gt 120", self.source)
+        self.assertGreaterEqual(
+            self.source.count("[int]$ReviewedTimeoutCeilingSeconds = 120"), 3
+        )
+        self.assertIn("$ReviewedTimeoutCeilingSeconds -gt 1800", self.source)
+        self.assertIn(
+            "$TimeoutSeconds -gt $ReviewedTimeoutCeilingSeconds", self.source
+        )
         self.assertIn("$MaximumOutputBytes -lt 1", self.source)
         self.assertIn("$MaximumOutputBytes -gt 1MB", self.source)
         self.assertIn("[string]::IsNullOrWhiteSpace($CallerLabel)", self.source)
