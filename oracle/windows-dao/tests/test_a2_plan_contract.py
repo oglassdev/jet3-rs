@@ -12,7 +12,13 @@ ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a2-allocation-maps.plan.json"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
-PLAN_SHA256 = "e303c76633078740ebc07ec507e251b01d7e64e69bfb83d765b88babdd48aebf"
+PLAN_SHA256 = "db45bec8133d64da93b707650a742415a98fb453d488c1d58a2ecc3f650a5f6a"
+DESIGN_INPUT_HASHES = {
+    "a1-run12-ambiguity-diagnosis.md": "17d5ee28983ffc126feec63e7a7d8c7ffbc369e5f025193c9cd0d8404edf430d",
+    "fable-review-findings.md": "ef77b917e2c7da6c8fc7a7c262352cf9ec208783bb4b71c63c2f3bb058a2950a",
+    "fable-analyzer-schedule-audit.md": "c9f10f07b8b4b21da524de90819149d68fa387736dda4cb0cbcccfcb4f8ab603",
+    "fable-a2-plan-review.md": "342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876",
+}
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
@@ -32,112 +38,196 @@ class A2PlanContractTests(unittest.TestCase):
         self.assertIn("### EXP-0040", provenance)
         self.assertIn(PLAN_SHA256, provenance)
 
+    def test_committed_design_inputs_are_hash_pinned(self) -> None:
+        recorded = {
+            Path(item["path"]).name: item["sha256"]
+            for item in self.plan["preregistration"]["origin_disclosure"]["design_inputs"]
+        }
+        self.assertEqual(recorded, DESIGN_INPUT_HASHES)
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        for name, expected in DESIGN_INPUT_HASHES.items():
+            path = EXPERIMENT / "design-inputs" / name
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
+            self.assertIn(expected, provenance)
+
     def test_checkpoint_schedule_and_parallel_bounds_are_frozen(self) -> None:
         checkpoints = self.plan["checkpoint_design"]["checkpoint_ids"]
         self.assertEqual(len(checkpoints), 25)
         self.assertEqual(len(set(checkpoints)), 25)
         self.assertEqual(self.plan["bounds"]["planned_checkpoints_per_replica"], 25)
-        self.assertIn("H_REL_0064", checkpoints)
         self.assertEqual(self.plan["runtime_design"]["matrix_jobs"], 3)
-        self.assertEqual(self.plan["bounds"]["worker_timeout_seconds_per_replica"], 1800)
+        self.assertEqual(self.plan["bounds"]["worker_timeout_seconds_per_replica"], 2400)
         self.assertEqual(self.plan["bounds"]["fan_in_timeout_seconds"], 900)
+        self.assertEqual(self.plan["runtime_design"]["per_replica_projection_seconds"], 725)
+        self.assertEqual(self.plan["runtime_design"]["estimated_complete_wall_clock_seconds"], 1625)
         self.assertEqual(self.plan["runtime_design"]["hosted_wall_clock_target_seconds"], 1800)
+        self.assertGreaterEqual(2400 / 725, 3)
+        self.assertGreaterEqual(2700 / 1625, 1.5)
+        self.assertEqual(len(self.plan["runtime_design"]["post_33_timing_inputs"]), 6)
 
-    def test_d_schedule_and_predicate_are_record_level_abac(self) -> None:
+    def test_d_relation_and_d_only_polarity_are_record_level(self) -> None:
         checkpoints = self.plan["checkpoint_design"]["checkpoint_ids"]
         self.assertEqual(
             checkpoints[2:6],
             ["D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128"],
         )
-        regrowth = self.plan["checkpoint_design"]["d_regrowth_rule"]
-        self.assertIn("post-recreate baseline", regrowth)
-        self.assertIn("strictly greater", regrowth)
-        predicate = self.plan["hypotheses"]["global_map_record_predicate"]
-        self.assertIn("Let G be", predicate)
-        self.assertIn("set", predicate)
-        self.assertIn("no byte, record, or page equality", predicate)
+        self.assertIn("strictly greater", self.plan["checkpoint_design"]["d_regrowth_rule"])
+        hypotheses = self.plan["hypotheses"]
+        self.assertIn("record-level models", self.plan["question"])
+        self.assertIn("no byte, record, or page equality", hypotheses["global_map_record_predicate"])
+        self.assertIn("D-delimited global_map record only", hypotheses["bit_polarity_rule"])
+        self.assertIn("after D alone freezes polarity", hypotheses["polarity_cross_check"])
 
-    def test_record_candidates_are_finite_and_do_not_use_change_extrema(self) -> None:
+    def test_page_qualification_and_record_enumeration_are_bounded(self) -> None:
         procedure = self.plan["record_candidate_procedure"]
-        self.assertEqual(procedure["interval_ceiling_per_page"], 2_098_176)
+        self.assertIn("hashes only", procedure["global_page_qualification"])
+        self.assertIn("present at E0", procedure["tdef_page_qualification"])
+        self.assertIn("absence at both endpoints is equality", procedure["global_page_qualification"])
         self.assertIn("{0,1,...,2048}", procedure["boundary_source"])
-        self.assertIn("never inferred as the minimum or maximum", procedure["boundary_source"])
-        self.assertIn("neither endpoint is required to change", procedure["stable_endpoint_rule"])
-        self.assertIn("overlapping intervals", procedure["multiple_records_on_one_page"])
+        self.assertIn("never inferred from the minimum or maximum", procedure["boundary_source"])
         self.assertIn("union of every physical page index", procedure["candidate_page_space"])
-        self.assertIn("header_exclusion_source offset", procedure["negative_page_rule"])
+        self.assertIn("2049-entry prefix sums", procedure["prefix_sum_work_model"])
+        self.assertIn("O(1)", procedure["prefix_sum_work_model"])
+        self.assertEqual(procedure["per_page_candidate_bound"], 2_098_176)
+        self.assertEqual(procedure["max_qualified_pages_per_submodel"], 12)
+        self.assertEqual(procedure["combined_record_candidate_bound"], 50_356_224)
 
-    def test_global_and_tdef_searches_and_terminal_identifiers_are_distinct(self) -> None:
-        self.assertIn("only from the D record-set", self.plan["hypotheses"]["global_map_search"])
-        self.assertIn("separately", self.plan["hypotheses"]["tdef_record_search"])
-        reasons = self.plan["decision_rules"]["no_scientific_outcome_identifiers"]
-        self.assertIn("no_physical_page_satisfies_global_transition_predicates", reasons)
-        self.assertIn("multiple_global_record_boundaries_survive", reasons)
-        self.assertIn("multiple_physical_pages_satisfy_global_transition_predicates", reasons)
-        self.assertIn("no_global_record_candidate", reasons)
-        self.assertIn("no_physical_page_satisfies_tdef_transition_predicates", reasons)
-        self.assertIn("no_tdef_record_candidate", reasons)
-        self.assertIn("multiple_tdef_record_boundaries_survive", reasons)
+    def test_global_record_end_has_byte_property_and_generator_slack(self) -> None:
+        procedure = self.plan["record_candidate_procedure"]
+        self.assertIn("ending at 2048", procedure["global_record_end_resolution"])
+        self.assertIn("zero at every D checkpoint", procedure["global_record_end_resolution"])
+        self.assertIn("at least 16 bytes", procedure["global_record_end_resolution"])
+        synthetic = self.plan["analyzer_dry_run_contract"]["synthetic_input"]
+        self.assertEqual(synthetic["free_parameters"]["record_end_zero_slack_bytes"], [16, 32, 64])
+        self.assertIn("at least 32", synthetic["record_uniqueness_rule"])
+        self.assertIn("shorter equivalent endpoints", synthetic["record_uniqueness_rule"])
 
-    def test_conversion_churn_and_inline_boundary_sources_are_satisfiable(self) -> None:
-        coverage = self.plan["checkpoint_design"]["transition_coverage"]
-        window = coverage["inline_to_indirect_conversion_window"]
-        self.assertIn("L_REL_0064", window)
-        self.assertIn("P_ABS_04096", window)
+    def test_models_have_separate_ownership_and_layered_outcomes(self) -> None:
+        hypotheses = self.plan["hypotheses"]
+        self.assertIn("use only E0", hypotheses["global_map_search"])
+        self.assertIn("L/P/H", hypotheses["global_map_search"])
+        self.assertIn("only for the growth-only and churn-only", hypotheses["tdef_record_search"])
+        self.assertIn("no conversion", hypotheses["tdef_record_search"])
+        layers = self.plan["decision_rules"]["layered_outcomes"]
+        self.assertEqual(
+            set(layers),
+            {
+                "global_map_record",
+                "global_map_conversion_inline",
+                "global_map_extended_base",
+                "tdef_pointer_pair",
+            },
+        )
+        self.assertIn("at least one layer is decisive", self.plan["decision_rules"]["scientific_outcome"])
+
+    def test_conversion_slots_churn_inline_and_base_are_satisfiable(self) -> None:
+        hypotheses = self.plan["hypotheses"]
+        window = self.plan["checkpoint_design"]["transition_coverage"]["inline_to_indirect_conversion_window"]
+        self.assertEqual(window[0], "L_REL_0064")
         self.assertIn("P_ABS_16480", window)
-        self.assertIn("H_REL_0904", window)
-        self.assertIn("H_REL_0064", window)
-        self.assertNotIn("L_DELETE_ALL", window)
-        self.assertIn("earliest preregistered checkpoint", self.plan["hypotheses"]["type1_conversion_predicate"])
-        self.assertIn("every row from L", self.plan["tables"]["row_algorithm"]["delete_rule"])
-        arithmetic = self.plan["analyzer_dry_run_contract"]["synthetic_input"]["arithmetic_rule"]
-        self.assertIn("growth-only pointer transition", arithmetic)
-        self.assertIn("churn-only pointer transition", arithmetic)
-        self.assertIn("Every equality between checkpoints", arithmetic)
-        self.assertIn("fixed set", self.plan["inline_boundary_procedure"]["candidate_source"])
-        self.assertIn("do not derive", self.plan["inline_boundary_procedure"]["candidate_source"])
+        self.assertEqual(window[-1], "H_REL_0904")
+        self.assertIn("earliest valid indirect checkpoint", hypotheses["type1_conversion_predicate"])
+        self.assertIn("one or two at conversion are valid", hypotheses["type1_rule"])
+        self.assertIn("exactly two active references by H_REL_0904", hypotheses["type1_rule"])
+        self.assertIn("DAO-rereads zero rows", hypotheses["delete_reinsert_only_pointer_predicate"])
+        self.assertIn("only for the extended_base layer", hypotheses["extended_base_rule"])
+        boundary = self.plan["inline_boundary_procedure"]
+        self.assertIn("D-delimited global_map record", boundary["subject"])
+        self.assertIn("enumerate every byte boundary", boundary["candidate_source"])
+        self.assertIn("fill level", boundary["candidate_source"])
 
-    def test_decisive_report_is_retained_without_campaign_failure(self) -> None:
+    def test_structural_exclusion_has_no_page_or_offset_blacklist(self) -> None:
+        rule = self.plan["record_candidate_procedure"]["structural_exclusion_rule"]
+        self.assertIn("identically on every page", rule)
+        self.assertIn("never classified as headers by page number or offset", rule)
+        self.assertIn("No page number or byte offset", rule)
+        self.assertNotIn("header_exclusion_source", self.plan["record_candidate_procedure"])
+
+    def test_holdout_freeze_and_environment_identity_are_explicit(self) -> None:
+        replicas = self.plan["replicas"]
+        self.assertIn("first validates only replica 1 and 2", replicas["fan_in_rule"])
+        self.assertIn("Only after that freeze", replicas["fan_in_rule"])
+        self.assertIn("bounded pass/fail receipt", replicas["fan_in_rule"])
+        self.assertEqual(len(self.plan["artifacts"]["replica_environments"]), 3)
+        self.assertIn("provider CLSID and binary SHA-256", replicas["environment_identity_rule"])
+        self.assertIn("may differ", replicas["environment_identity_rule"])
+
+    def test_legacy_projection_is_explicit_and_non_applicable_rows_are_named(self) -> None:
+        retained = self.plan["analyzer_dry_run_contract"]["retained_a1_input"]
+        projection = retained["checkpoint_projection"]
+        self.assertEqual(len(projection), 25)
+        self.assertEqual(
+            [row["a2_checkpoint"] for row in projection],
+            self.plan["checkpoint_design"]["checkpoint_ids"],
+        )
+        by_a2 = {row["a2_checkpoint"]: row for row in projection}
+        self.assertIsNone(by_a2["D_RECREATE_EMPTY"]["a1_checkpoint"])
+        self.assertEqual(by_a2["L_DELETE_ALL"]["a1_checkpoint"], "L_DELETE_ALTERNATING")
+        self.assertEqual(
+            set(retained["not_applicable_predicates"]),
+            {"A2-CHURN-PRECONDITION", "A2-CHURN-POINTER-NONE"},
+        )
+
+    def test_run12_and_synthetic_dry_run_acceptance_is_closed(self) -> None:
+        contract = self.plan["analyzer_dry_run_contract"]
+        retained = contract["retained_a1_input"]
+        self.assertTrue(contract["must_complete_before_acquisition"])
+        self.assertEqual(retained["max_input_page_blobs"], 55)
+        self.assertIn("exactly 10", retained["candidate_bound_assertion"])
+        self.assertIn("50,356,224", retained["candidate_bound_assertion"])
+        self.assertIn("500,000,000", retained["candidate_bound_assertion"])
+        synthetic = contract["synthetic_input"]
+        self.assertIn("parse checkpoint_design", synthetic["generation_rule"])
+        self.assertIn("every analyzer checkpoint equality", synthetic["arithmetic_rule"])
+        self.assertEqual(synthetic["free_parameters"]["slot_activation_at_conversion"], [0, 1, 2])
+        self.assertEqual(
+            synthetic["free_parameters"]["bit_polarity"],
+            ["set_means_in_use", "set_means_not_in_use"],
+        )
+        self.assertIn("before any A2 matrix job", contract["dispatch_gate"])
+        self.assertIn("decisive-report validator case", contract["dispatch_gate"])
+        self.assertFalse(self.plan["claims"]["a1_exploratory_input_is_a2_evidence"])
+        self.assertFalse(self.plan["claims"]["synthetic_dry_run_is_a2_evidence"])
+
+    def test_predicate_reason_mapping_is_bijective_and_cardinality_is_distinct(self) -> None:
+        registry = self.plan["predicate_registry"]
+        mappings = registry["mappings"]
+        self.assertEqual(len(registry["ids"]), 34)
+        self.assertEqual({item["predicate_id"] for item in mappings}, set(registry["ids"]))
+        reasons = [item["reason"] for item in mappings]
+        self.assertEqual(len(reasons), len(set(reasons)))
+        required = {
+            "no_physical_page_satisfies_global_transition_predicates",
+            "multiple_physical_pages_satisfy_global_transition_predicates",
+            "no_global_record_candidate",
+            "multiple_global_record_boundaries_survive",
+            "no_physical_page_satisfies_tdef_transition_predicates",
+            "multiple_physical_pages_satisfy_tdef_transition_predicates",
+            "no_tdef_record_candidate",
+            "multiple_tdef_record_boundaries_survive",
+        }
+        self.assertLessEqual(required, set(reasons))
+
+    def test_decisive_report_is_retained_and_validator_is_a_blocker(self) -> None:
         handling = self.plan["decisive_report_handling"]
         self.assertEqual(handling["analysis_report_artifact"], "retained_in_bundle")
         self.assertEqual(handling["bundle_status"], "decisive_pending_independent_validation")
         self.assertIn("completes the campaign successfully", handling["campaign_behavior"])
+        self.assertIn(
+            "a2_contract_validator_accepts_decisive_reports",
+            self.plan["execution_gate"]["blocking_requirements"],
+        )
 
-    def test_dry_runs_are_plan_derived_and_non_evidential(self) -> None:
-        contract = self.plan["analyzer_dry_run_contract"]
-        self.assertTrue(contract["must_complete_before_acquisition"])
-        self.assertIn("retained A1 page blobs", contract["retained_a1_input"]["required_behavior"])
-        self.assertEqual(contract["retained_a1_input"]["max_input_page_blobs"], 55)
-        self.assertIn("parse checkpoint_design", contract["synthetic_input"]["generation_rule"])
-        self.assertIn("hand-typed", contract["synthetic_input"]["generation_rule"])
-        self.assertIn("Every equality between checkpoints", contract["synthetic_input"]["arithmetic_rule"])
-        self.assertIn("before any A2 matrix job", contract["dispatch_gate"])
-        self.assertFalse(self.plan["claims"]["a1_exploratory_input_is_a2_evidence"])
-        self.assertFalse(self.plan["claims"]["synthetic_dry_run_is_a2_evidence"])
-
-    def test_analyzer_parameters_and_abort_contract_are_preregistered(self) -> None:
-        synthetic = self.plan["analyzer_dry_run_contract"]["synthetic_input"]
-        parameters = synthetic["free_parameters"]
-        self.assertIn("every noninitial checkpoint ordinal plus never", parameters["conversion_ordinal"])
-        self.assertEqual(parameters["slot_activation_at_conversion"], [0, 1, 2])
-        self.assertEqual(parameters["bit_polarity"], ["set_means_in_use", "set_means_not_in_use"])
-        self.assertEqual(parameters["anchor_fill_state"], ["empty", "partial", "full"])
-        self.assertIn("source_conversion_ordinal 40", synthetic["run12_calibration_case"])
-        self.assertIn("single named perturbation", synthetic["abort_reachability_rule"])
-        self.assertEqual(len(self.plan["predicate_registry"]["ids"]), 29)
-
-    def test_pointer_polarity_boundary_and_base_rules_are_closed(self) -> None:
-        hypotheses = self.plan["hypotheses"]
-        self.assertEqual(hypotheses["bit_polarity_candidates"], ["set_means_in_use", "set_means_not_in_use"])
-        self.assertIn("D release/reallocation", hypotheses["bit_polarity_rule"])
-        self.assertIn("L_DELETE_ALL DAO-rereads exactly zero rows", hypotheses["delete_reinsert_only_pointer_predicate"])
-        self.assertIn("only at transition_coverage.pointer_validity_checkpoints", hypotheses["pointer_validity_rule"])
-        self.assertIn("H_REL_0064", hypotheses["extended_base_rule"])
-        self.assertIn("anchor-fill", self.plan["analyzer_dry_run_contract"]["synthetic_input"]["inline_boundary_rule"])
+    def test_bounds_sanity_is_preregistered(self) -> None:
+        runtime = self.plan["runtime_design"]
+        self.assertIn("20,701", runtime["bounds_sanity_basis"])
+        self.assertIn("254 MiB", runtime["bounds_sanity_basis"])
+        self.assertIn("150,000", runtime["bounds_sanity_basis"])
+        self.assertIn("accept each exact ceiling and reject one over", runtime["bounds_sanity_basis"])
 
     def test_all_a2_json_documents_parse(self) -> None:
         documents = sorted(EXPERIMENT.glob("*.json"))
-        self.assertEqual(len(documents), 9)
+        self.assertEqual(len(documents), 10)
         for document in documents:
             with self.subTest(document=document.name):
                 json.loads(document.read_bytes())

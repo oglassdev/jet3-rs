@@ -5,48 +5,49 @@ experiment preregistered as `EXP-0040` on 2026-08-21. No A2 acquisition has
 begun, and this directory contains no worker, analyzer, generator, validator,
 or workflow implementation.
 
-A2 replaces A1's incompatible D equality with a record-level A/B/A/C set
-relation. Both growth legs use a fresh post-create baseline plus 128 pages in
-fixed 32-row batches, so regrowth is strictly larger than first growth and no
-page, byte, or record equality is assumed. Candidate records come from the
-finite set of every half-open byte interval over the union of pages observed at
-any checkpoint; they never come from a changed-byte envelope. Global-map and
-TDEF records are searched separately, and preregistered page-1 control offsets
-cannot participate in record or pointer candidates.
+A2 uses a record-level A/B/A/C set relation for D. Both growth legs use a fresh
+post-create baseline plus 128 pages in fixed 32-row batches, and regrowth must
+be strictly larger than first growth. Pages are qualified by hashes before
+bounded interval enumeration. Fixed prefix sums make interval tests O(1), and
+a page-terminal, all-D-zero suffix property resolves the global record end.
+Every page seen at any checkpoint remains in the candidate page space; no page
+number, byte offset, or changed-byte envelope defines a record.
 
-The fixed schedule has 25 checkpoints per replica. It retains the exploratory
-A1 run-12 transitions needed for D allocation/release/regrowth, low-target
-growth and churn, the full four-checkpoint absolute conversion window, and H
-targets 64, 896, and 904 while removing repeated fine-growth snapshots. The H
-64 checkpoint makes the preregistered base formulas predict different slot-0
-flips. L is fully deleted
-and exactly reinserted so pages can actually become free and a churn-only
-transition is arithmetically possible. Conversion is derived as the single
-transition within the whole preregistered growth window, not assumed to occur
-by the end of L. Inline-boundary candidates come from a fixed enumeration of
-every byte boundary inside each record, never from an anchor's fill level.
+The D-delimited global-map record owns polarity, conversion, slot activation,
+inline boundary, and extended-base hypotheses. D alone selects polarity; L/P/H
+growth checks it and evaluates the later global-map layers. A separately
+delimited TDEF record carries only growth and delete/reinsert pointer
+hypotheses. The report schema retains four layered outcomes so an inconclusive
+conversion, base, or TDEF layer cannot erase another decisive result.
 
-Each replica must run in an independent matrix job. A fan-in job must freeze
-the replicas 1/2 candidate set before opening replica 3. The frozen safety
-bounds are 1,800 seconds per replica, 900 seconds for fan-in, and 2,700 seconds
-for fail-closed campaign termination; the hosted target remains at most 1,800
-seconds and the preregistered estimate is 1,740 seconds.
+The fixed schedule has 25 checkpoints per replica. L is fully deleted and
+exactly reinserted so the churn precondition can empty a page. Conversion is
+derived over the entire L/P/H growth window rather than assumed at an L phase
+boundary. One or two slots may be active at conversion, but two must be active
+by `H_REL_0904`. Inline boundaries come from a fixed byte-boundary enumeration,
+independent of anchor fill. Failure to discriminate an extended base is local
+to that layer.
 
-Before acquisition, the future A2 analyzer must pass two non-evidential dry
-runs: the retained A1 run-12 bundle in explicit exploratory legacy mode and
-fixtures emitted by the future A2 synthetic generator directly from this
-plan's checkpoint schedule and worker arithmetic. Conversion ordinal, active
-slot count, bit polarity, and anchor fill are generator parameters; every
-analyzer equality and every named Abort must be producible by generated cases.
-This preregistration-only change does not implement or run either tool, so
-acquisition remains `BLOCKED`. Their hashes, commands, predicate ids, and
-results must be disclosed in a later additive A2 provenance entry.
+Each replica runs as an independent matrix job with its own environment
+document. The fan-in freezes replicas 1/2 before a separate process validates
+replica 3 and emits a bounded receipt, after which holdout analysis may begin.
+Post-PR-33 run-11/run-12 progress timings give a 725-second slow-runner
+projection. The frozen 2,400-second worker bound gives 3.31x headroom; the
+1,625-second complete-campaign estimate remains below the 1,800-second hosted
+target, and the 2,700-second campaign bound gives 1.66x headroom.
 
-The A1 bundle and diagnosis informed only the A2 design and dry-run contract.
-They are not A2 evidence, cannot satisfy a derivation or holdout predicate, and
-cannot advance a capability. No external MDB implementation was used.
+Before acquisition, the future analyzer must pass non-evidential dry runs on
+the retained A1 run-12 bundle in explicit legacy-projection mode and fixtures
+emitted by the A2 synthetic generator directly from this plan. The generator
+must vary every conversion ordinal, both polarities, slot counts 0/1/2, anchor
+fill, and record-end slack; generate every analyzer equality; prove one global
+record survivor and both growth-only and churn-only transitions; reach every
+Abort through a single perturbation; and accept a decisive layered report with
+status `decisive_pending_independent_validation`. The run-12 dry run must also
+assert the page, candidate, work, and blob ceilings. Results must be disclosed
+in a later additive provenance entry before any hosted dispatch.
 
-A decisive report is a successful retained campaign artifact, not a controller
-failure. Its complete bundle must use status
-`decisive_pending_independent_validation` and remain capped at
-`not_independently_validated` until separate scientific recomputation succeeds.
+The four committed files in `design-inputs/`, the retained A1 bundle, and the
+run-11/run-12 progress traces are exploratory design inputs only. They are not
+A2 evidence, cannot satisfy derivation or holdout predicates, and cannot
+advance a capability. No external MDB implementation was used.

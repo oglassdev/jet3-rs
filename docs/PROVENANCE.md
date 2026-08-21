@@ -2972,14 +2972,21 @@ Use `not applicable` explicitly rather than omitting a field.
   transitions in a third holdout database without refitting?
 - Origin: project-authored plan `DAO-A2-ALLOCATION-MAPS-001`, informed by the
   immutable A1 preregistrations and result in `EXP-0037`, `EXP-0038`, and
-  `EXP-0039`, the read-only diagnosis
-  `/private/tmp/a1-run12-ambiguity-diagnosis.md`, independent review sections
-  2.1–2.4, 3.1, and 5.2 in `/private/tmp/fable-review-findings.md`, the retained
-  A1 run-12 bundle, the complete analyzer/schedule audit in
-  `/private/tmp/fable-analyzer-schedule-audit.md`, and the run 9, 11, and 12
-  diagnostic progress traces. The diagnosis, reviews, and retained bundle were
-  used only as exploratory design and dry-run input. No external MDB
-  implementation, donated MDB, or other format implementation was inspected.
+  `EXP-0039`; the four committed, hash-pinned design inputs listed below; the
+  retained A1 run-12 bundle; and the post-PR-33 run-11/run-12 progress traces.
+  These were used only as exploratory design and dry-run inputs. No external
+  MDB implementation, donated MDB, or other format implementation was
+  inspected.
+- Committed design-input identities:
+  `oracle/windows-dao/experiments/a2/design-inputs/a1-run12-ambiguity-diagnosis.md`,
+  SHA-256 `17d5ee28983ffc126feec63e7a7d8c7ffbc369e5f025193c9cd0d8404edf430d`;
+  `oracle/windows-dao/experiments/a2/design-inputs/fable-review-findings.md`,
+  SHA-256 `ef77b917e2c7da6c8fc7a7c262352cf9ec208783bb4b71c63c2f3bb058a2950a`;
+  `oracle/windows-dao/experiments/a2/design-inputs/fable-analyzer-schedule-audit.md`,
+  SHA-256 `c9f10f07b8b4b21da524de90819149d68fa387736dda4cb0cbcccfcb4f8ab603`;
+  and
+  `oracle/windows-dao/experiments/a2/design-inputs/fable-a2-plan-review.md`,
+  SHA-256 `342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876`.
 - Exploratory input identity: retained bundle
   `windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1`,
   manifest SHA-256
@@ -3006,22 +3013,25 @@ Use `not applicable` explicitly rather than omitting a field.
   D grows from the initial post-create baseline to `baseline + 128`, is dropped
   and recreated, then grows from the new post-create baseline to its own
   `baseline + 128` target in fixed 32-row batches. Regrowth must be strictly
-  larger than first growth. The declared global-map predicate is the
-  record-level set relation: a nonempty set allocated by first growth is
-  released after drop and reallocated by regrowth, which also allocates at least
-  one additional page. D drop need not shrink the file and no page, byte, or
-  record equality is assumed. Enumerate every half-open interval from all 2,049
-  byte boundaries over the union of every page observed at any checkpoint,
-  without using the minimum/maximum changed-byte envelope or an all-checkpoint
-  page intersection; enumerate overlapping records independently and require no
-  endpoint to be witnessed by a change. Preregistered exploratory page-1
-  control offsets are excluded from records and pointer windows. Search global
-  records only with D transitions and TDEF records separately with L/P/H growth
-  and L full-delete/reinsert. Evaluate both allocation-bit polarities and select
-  one only through the D release/reallocation and L/H growth transitions.
-  Enumerate inline boundaries from every byte boundary inside a surviving TDEF
-  record across empty, partial, and full anchor-fill fixtures; never select a
-  boundary from fill level or the last nonzero byte.
+  larger than first growth. The global predicate is a record-level set relation:
+  a nonempty set allocated by first growth is released after drop and
+  reallocated by regrowth, which also allocates at least one additional page.
+  D drop need not shrink the file and no page, byte, or record equality is
+  assumed. The candidate page space is every page observed at any checkpoint.
+  Hash-only global and TDEF page qualifications precede interval enumeration
+  and are each capped at 12 pages. Every half-open interval over 2,049 fixed byte
+  boundaries is tested using 2,049-entry prefix sums and O(1) interval queries,
+  with 2,098,176 candidates per page and 50,356,224 combined. The global-record
+  end is page-terminal only when an all-D-zero suffix of at least 16 bytes
+  follows the final D flip; shorter equivalent ends are rejected. A
+  transition-structural exclusion rule applies identically on every page; no
+  page or offset is blacklisted and no change envelope supplies a boundary.
+  D alone delimits the global-map record and selects bit polarity. L/P/H growth
+  checks polarity and evaluates conversion, slot activation, inline boundary,
+  and extended-base candidates on that frozen global record. A separate TDEF
+  record carries only the growth-only and full-delete churn-only pointer pair.
+  Four report layers preserve independently decisive global-record,
+  global-conversion/inline, extended-base, and TDEF-pointer results.
 - Checkpoint schedule: 25 fixed, nonadaptive, closed-file checkpoints per
   replica. The schedule retains relative D A/B/A/C; L relative targets 64, 512,
   768, 896, 904, 1024, 1088, and 1280 plus full deletion to zero rows,
@@ -3032,42 +3042,68 @@ Use `not applicable` explicitly rather than omitting a field.
   derived as the earliest valid
   monotone inline-to-indirect transition across the entire preregistered
   L/P/H growth window and is not assumed to occur by `L_IDLE_REOPEN`.
+  One or two global-map slots may be active at conversion, while exactly two
+  must be active by `H_REL_0904`. Inline-boundary candidates are every fixed
+  byte boundary inside the frozen global record and are independent of anchor
+  fill. Failure of H 64 to discriminate a base is a no-outcome only for the
+  extended-base layer, not for any earlier layer.
   Exploratory A1 run-12 page-1 transitions justify these probes. The omitted
   fine L points and later H points do not contribute an additional A2 decision
   predicate.
 - Parallel acquisition and bounds: each replica must run as an independent
   matrix job with no shared database, page store, output directory, or mutable
-  state. A fan-in job validates the three artifacts, freezes and hashes the
-  replicas 1/2 candidate set, then and only then opens replica 3. A1 run 9
-  completed replica 1 in 1,749.126 seconds and timed replica 2 out at 1,800;
-  runs 11 and 12 completed replicas in 1,079.886–1,536.912 seconds. Removing
-  the L/H checkpoints absent from the fixed A2 schedule while retaining the
-  complete P conversion window and adding H 64 projects no more than 540 seconds
-  on the slow trace. The frozen 1,800-second per-replica bound provides at least
-  3.33x headroom. The fan-in safety bound is 900 seconds and the fail-closed campaign
-  timeout is 2,700 seconds; independent acquisition keeps the hosted target at
-  no more than 1,800 seconds, with estimated wall-clock 1,740 seconds.
+  state, and emits its own environment document. Provider prog id, CLSID,
+  binary hash, x86 architecture, and PowerShell major must match; runner image
+  and Python patch may differ within the recorded bindings. Fan-in first
+  validates replicas 1/2, persists and hashes every layered candidate set, and
+  closes those inputs. Only then may a separate process structurally validate
+  replica 3 and emit a bounded pass/fail receipt without exposing page bytes to
+  the analyzer; holdout analysis follows the freeze. Post-PR-33 run-11 progress
+  reached `H_REL_0904` in 400.440–462.513 seconds with 26.317–26.654 seconds of
+  final idle work; run 12 took 543.107–619.412 plus 35.394–35.901 seconds. The
+  slow observed A2-equivalent prefix plus idle is 654.865 seconds. Adding
+  70.135 seconds for `D_RECREATE_EMPTY`, full-delete differences, and rounding
+  freezes the projection at 725 seconds. The 2,400-second worker ceiling gives
+  3.31x per-replica headroom. Concurrent acquisition plus the full 900-second
+  fan-in bound gives a 1,625-second complete-campaign estimate, below the
+  1,800-second hosted target; the 2,700-second campaign ceiling gives 1.66x
+  campaign headroom. The six timing-trace SHA-256 values, ordered run 11
+  replicas 1–3 then run 12 replicas 1–3, are
+  `b005ab46ae10144fd27aeef51ebd24d308a0460c0275a1bd7cd004a4df024a8a`,
+  `f786a9e3616dca89a369130a028333f4a97d597735f6cfc9ae5c9aade46013f7`,
+  `76fa961bb00d1b3c056dec659eaee6b89046dedb3ac46ba35d1ba01995d0706b`,
+  `fbc70ccc78490abbb1c8e3cdfd43323242143e7762e374f958d0c5d3a332674a`,
+  `1ae3013c0a38928e5b7800bef79fad34ea993769c834f7329607941f62d2072d`,
+  and `632d4d86e9e83c80fca395faa8589ba0289c595803b0d700a5eeb93573e726ed`.
+  Bounds remain conservative against run 12: 20,701 changed hashes versus
+  65,536, about 254 MiB logical reads versus 2 GiB, and about 150,000 inserted
+  rows versus 524,288; dry-run cases accept each ceiling and reject one over.
 - Analyzer dry-run contract: before acquisition, the future A2 analyzer must
   run in explicit exploratory legacy mode against the identified retained A1
   run-12 bundle and must run against the future A2 synthetic generator. The
   legacy run may open at most 55 page blobs from derivation replicas 1 and 2,
-  must never open the holdout, must recognize A1's relative D schedule as
-  A/B/A/C, and must predict `legacy_churn_precondition_not_met` because A1 did
-  not fully empty L. The synthetic generator must parse the checkpoint design,
-  row algorithm, and bounds from this exact hash-pinned plan and derive all
-  relative baselines, absolute targets, 32-row batches, overshoot, counts, page
-  presence, and transitions with the worker arithmetic; hand-typed counts are
-  forbidden. Conversion ordinal (every A2 ordinal 1–24 and never), active slot
-  count (0/1/2), bit polarity (both values), and anchor fill (empty/partial/full)
-  are free parameters. Generated cases must prove the D record-set relation,
-  growth-only and full-delete churn-only transitions, base discrimination, and
-  that every analyzer checkpoint equality is arithmetically producible. Every
-  analyzer Abort must have a stable predicate id in the retained report and a
-  single-perturbation generated case that reaches its exact no-outcome reason.
-  Source-contract checks forbid importing A1 hand-typed fixture counts. Both
-  schema-valid dry-run reports, inputs, hashes, commands, commits, predicate ids,
-  and results must be disclosed in a later additive A2 provenance entry before
-  any dispatch and are explicitly non-evidential.
+  must never open the holdout, and uses the plan's explicit 25-row projection.
+  `D_RECREATE_EMPTY` is missing and not applicable; A1's
+  `L_DELETE_ALTERNATING` maps to A2's full-delete row only for chronology, with
+  both A2 churn predicates not applicable. The dry run must resolve one global
+  record with zero-suffix slack and assert exactly 10 D-qualified pages, at
+  most 12 pages per submodel, at most 50,356,224 interval candidates, fewer
+  than 500,000,000 work units, and no more than 55 opened blobs. The synthetic
+  generator parses the checkpoint design, row algorithm, candidate procedure,
+  and bounds from this exact plan and derives every count and equality; no A1
+  hand-typed count is imported. Conversion ordinal (all A1/A2 ordinals and
+  never), slot activation (0/1/2), both bit polarities, anchor fill, and
+  record-end slack are free parameters. Cases prove the D record-set relation,
+  D-only polarity selection, later growth agreement, a unique global endpoint
+  with slack, growth-only and full-delete churn-only pointer transitions, one-
+  or two-slot conversion paths, anchor-independent inline boundaries, and both
+  decisive and locally inconclusive layered outcomes. Every equality must be
+  generator-producible; every Abort has one pinned reason/predicate/layer map
+  and a single-perturbation case. A decisive layered report must pass the A2
+  document validator before dispatch. Both schema-valid dry-run reports,
+  inputs, hashes, commands, commits, predicate ids, layered results, and the
+  decisive-validator result must be disclosed in a later additive A2
+  provenance entry before dispatch and are explicitly non-evidential.
 - Dry-run result disclosure: `not_run_preregistration_only`. This change does
   not implement the A2 worker, analyzer, generator, validator, or workflow, so
   neither required dry run exists. The execution gate remains `BLOCKED`; this
@@ -3077,8 +3113,9 @@ Use `not applicable` explicitly rather than omitting a field.
   records on one qualifying page have four distinct identifiers. The equivalent
   TDEF page/record conditions, polarity, slot activation, conversion, pointer,
   inline boundary, base discrimination, and churn-precondition failures also
-  have named outcomes and per-Abort predicate ids. None may be collapsed into
-  A1's `ambiguous_record_boundary` identifier.
+  have named outcomes. The plan pins a bijective 34-entry
+  reason/predicate-id/layer mapping for every Abort or early terminal. None may
+  be collapsed into A1's `ambiguous_record_boundary` identifier.
 - Decisive-report retention: a schema-valid decisive report completes rather
   than fails the campaign, remains inventoried in the complete bundle, and
   requires bundle status `decisive_pending_independent_validation` with
@@ -3089,10 +3126,10 @@ Use `not applicable` explicitly rather than omitting a field.
   recomputation accepts the retained report and bundle.
 - Artifacts: checked plan
   `oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`, SHA-256
-  `e303c76633078740ebc07ec507e251b01d7e64e69bfb83d765b88babdd48aebf`;
+  `db45bec8133d64da93b707650a742415a98fb453d488c1d58a2ecc3f650a5f6a`;
   strict plan, environment, page-index, replica-observation, independent
-  replica-artifact, analysis-report, bundle-manifest, and dry-run-report
-  schemas; hash-pin contract test
+  replica-artifact, layered analysis-report, holdout-structure-receipt,
+  bundle-manifest, and dry-run-report schemas; hash-pin contract test
 - Observation: `preregistration.acquisition_started` is `false`. No A2
   database, checkpoint, replica observation, candidate set, evidence bundle,
   dry-run report, or scientific report exists.
@@ -3104,11 +3141,11 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `file:oracle/windows-dao/experiments/a2/README.md`;
   `file:oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json`;
   future separately reviewed A2 implementation and pre-acquisition dry runs
-- Rights: project-authored plan, schemas, and synthetic hash-pin test; no
-  Microsoft provider binary, generated MDB, retained A1 bundle, or diagnosis is
-  committed or redistributed by this repository
+- Rights: project-authored plan, schemas, tests, and four committed design
+  documents; no Microsoft provider binary, generated MDB, or retained A1 bundle
+  is committed or redistributed by this repository
 - Review: focused JSON/hash/schedule contracts and the repository's Python
-  oracle tests must pass; acquisition remains blocked on the plan's six
+  oracle tests must pass; acquisition remains blocked on the plan's seven
   execution requirements
 
 ## Fixtures and black-box results

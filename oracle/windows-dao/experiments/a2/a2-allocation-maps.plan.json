@@ -8,13 +8,36 @@
     "acquisition_started": false,
     "acquisition_start_criterion": "acquisition starts when the first schema-valid A2 replica observation is retained for inspection",
     "origin_disclosure": {
-      "a1_entries_read": ["EXP-0037", "EXP-0038", "EXP-0039"],
-      "diagnosis": "/private/tmp/a1-run12-ambiguity-diagnosis.md",
-      "independent_review": "/private/tmp/fable-review-findings.md sections 2.1, 2.2, 2.3, 2.4, 3.1, and 5.2",
-      "analyzer_schedule_audit": "/private/tmp/fable-analyzer-schedule-audit.md in full, especially sections 4 and 5",
+      "a1_entries_read": [
+        "EXP-0037",
+        "EXP-0038",
+        "EXP-0039"
+      ],
+      "design_inputs": [
+        {
+          "path": "oracle/windows-dao/experiments/a2/design-inputs/a1-run12-ambiguity-diagnosis.md",
+          "sha256": "17d5ee28983ffc126feec63e7a7d8c7ffbc369e5f025193c9cd0d8404edf430d",
+          "role": "run12_diagnosis"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a2/design-inputs/fable-review-findings.md",
+          "sha256": "ef77b917e2c7da6c8fc7a7c262352cf9ec208783bb4b71c63c2f3bb058a2950a",
+          "role": "independent_review"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a2/design-inputs/fable-analyzer-schedule-audit.md",
+          "sha256": "c9f10f07b8b4b21da524de90819149d68fa387736dda4cb0cbcccfcb4f8ab603",
+          "role": "analyzer_schedule_audit"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a2/design-inputs/fable-a2-plan-review.md",
+          "sha256": "342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876",
+          "role": "preregistration_review"
+        }
+      ],
       "exploratory_bundle": "windows-dao-a1-bundle-947038265f6898c55b39da99340220e548836594-20260821T132025Z-a1-gh32486063559-1",
       "exploratory_bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
-      "use_limit": "the diagnosis, independent reviews, analyzer/schedule audit, and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
+      "use_limit": "the committed diagnosis, reviews, audit, and retained A1 run-12 bundle are exploratory design and pre-acquisition analyzer dry-run inputs only; they are never A2 evidence and cannot satisfy any A2 derivation, holdout, or decision predicate",
       "external_mdb_implementations_used": false
     },
     "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
@@ -26,6 +49,7 @@
       "checked_a2_analyzer_and_synthetic_generator",
       "passing_analyzer_dry_runs_disclosed_in_an_additive_a2_provenance_entry",
       "independent_complete_bundle_validator",
+      "a2_contract_validator_accepts_decisive_reports",
       "exact_clean_pushed_producer_commit",
       "licensed_x86_dao_host_binding"
     ]
@@ -42,29 +66,82 @@
     "powershell_major": 5,
     "python_version": "3.13.x",
     "dao_prog_id": "DAO.DBEngine.36",
-    "provider_identity_and_binary_hash_required": true
+    "provider_identity_and_binary_hash_required": true,
+    "per_replica_environment_required": true,
+    "cross_replica_exact_fields": [
+      "dao_prog_id",
+      "provider_clsid",
+      "provider_binary_sha256",
+      "process_architecture",
+      "powershell_major"
+    ],
+    "recorded_may_differ_fields": [
+      "windows_version",
+      "python_patch_version"
+    ]
   },
   "question": "Can separately delimited record-level models explain and predict the observed global and per-table allocation-map transitions in three fresh Jet 3 databases?",
   "replicas": {
     "count": 3,
-    "derivation": [1, 2],
+    "derivation": [
+      1,
+      2
+    ],
     "holdout": 3,
     "acquisition_independence": "each replica is created, mutated, closed, captured, validated, and uploaded by a separate matrix job that reads no other replica and shares no database, page store, output directory, or mutable state",
-    "fan_in_rule": "the fan-in job validates all three independently uploaded replica artifacts; it derives and persists the complete candidate set from replicas 1 and 2, records its SHA-256, and only then may open replica 3 and evaluate it without refit, candidate addition, deletion, relaxation, or reinterpretation"
+    "fan_in_rule": "the fan-in analyzer first validates only replica 1 and 2 artifacts, derives and persists every layered candidate set, records its SHA-256, and closes those inputs. Only after that freeze, a separate holdout structural-validation process validates replica 3 and writes a bounded pass/fail receipt plus artifact hash without exposing page bytes to the analyzer; the analyzer may then open replica 3 and evaluate every frozen layer without refit, candidate addition, deletion, relaxation, or reinterpretation",
+    "environment_identity_rule": "each matrix job produces its own environment document and SHA-256. Across replicas, DAO prog id, provider CLSID and binary SHA-256, x86 process architecture, and PowerShell major must match exactly; Windows image and Python patch version may differ only within the plan bindings and are recorded per replica"
   },
   "tables": {
-    "physical_names": ["A2TAB_A", "A2TAB_B", "A2TAB_C", "A2TAB_D"],
-    "roles": ["D", "L", "P", "H"],
+    "physical_names": [
+      "A2TAB_A",
+      "A2TAB_B",
+      "A2TAB_C",
+      "A2TAB_D"
+    ],
+    "roles": [
+      "D",
+      "L",
+      "P",
+      "H"
+    ],
     "role_bindings": [
-      {"replica": 1, "D": "A2TAB_A", "L": "A2TAB_B", "P": "A2TAB_C", "H": "A2TAB_D"},
-      {"replica": 2, "D": "A2TAB_B", "L": "A2TAB_C", "P": "A2TAB_D", "H": "A2TAB_A"},
-      {"replica": 3, "D": "A2TAB_C", "L": "A2TAB_D", "P": "A2TAB_A", "H": "A2TAB_B"}
+      {
+        "replica": 1,
+        "D": "A2TAB_A",
+        "L": "A2TAB_B",
+        "P": "A2TAB_C",
+        "H": "A2TAB_D"
+      },
+      {
+        "replica": 2,
+        "D": "A2TAB_B",
+        "L": "A2TAB_C",
+        "P": "A2TAB_D",
+        "H": "A2TAB_A"
+      },
+      {
+        "replica": 3,
+        "D": "A2TAB_C",
+        "L": "A2TAB_D",
+        "P": "A2TAB_A",
+        "H": "A2TAB_B"
+      }
     ],
     "definition": {
       "indexed": false,
       "fields": [
-        {"name": "Id", "dao_type": "dbLong", "size": 4},
-        {"name": "Payload", "dao_type": "dbText", "size": 240, "fixed_length": true}
+        {
+          "name": "Id",
+          "dao_type": "dbLong",
+          "size": 4
+        },
+        {
+          "name": "Payload",
+          "dao_type": "dbText",
+          "size": 240,
+          "fixed_length": true
+        }
       ]
     },
     "row_algorithm": {
@@ -86,20 +163,100 @@
     "relative_growth_rule": "each L_REL or H_REL checkpoint is the first closed-file state after a fixed 32-row batch whose page count is at least that table's post-create baseline plus the named target; record overshoot and do not retune",
     "absolute_growth_rule": "each P_ABS checkpoint is the first closed-file state after a fixed 32-row batch whose total file page count is at least the named target; record overshoot and do not retune",
     "checkpoint_ids": [
-      "E0", "E0R", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128",
-      "L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280",
-      "L_DELETE_ALL", "L_REINSERT_SAME", "L_IDLE_REOPEN",
-      "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480",
-      "H_REL_0064", "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"
+      "E0",
+      "E0R",
+      "D_GROW_0128",
+      "D_DROP",
+      "D_RECREATE_EMPTY",
+      "D_REGROW_0128",
+      "L_REL_0064",
+      "L_REL_0512",
+      "L_REL_0768",
+      "L_REL_0896",
+      "L_REL_0904",
+      "L_REL_1024",
+      "L_REL_1088",
+      "L_REL_1280",
+      "L_DELETE_ALL",
+      "L_REINSERT_SAME",
+      "L_IDLE_REOPEN",
+      "P_ABS_04096",
+      "P_ABS_08192",
+      "P_ABS_12288",
+      "P_ABS_16480",
+      "H_REL_0064",
+      "H_REL_0896",
+      "H_REL_0904",
+      "H_IDLE_REOPEN"
     ],
-    "idle_pairs": [["E0", "E0R"], ["L_REINSERT_SAME", "L_IDLE_REOPEN"], ["H_REL_0904", "H_IDLE_REOPEN"]],
+    "idle_pairs": [
+      [
+        "E0",
+        "E0R"
+      ],
+      [
+        "L_REINSERT_SAME",
+        "L_IDLE_REOPEN"
+      ],
+      [
+        "H_REL_0904",
+        "H_IDLE_REOPEN"
+      ]
+    ],
     "transition_coverage": {
-      "global_map_record_set_abac": ["E0", "D_GROW_0128", "D_DROP", "D_RECREATE_EMPTY", "D_REGROW_0128"],
-      "tdef_low_growth": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280"],
-      "tdef_delete_reinsert": ["L_REL_1280", "L_DELETE_ALL", "L_REINSERT_SAME"],
-      "inline_to_indirect_conversion_window": ["L_REL_0064", "L_REL_0512", "L_REL_0768", "L_REL_0896", "L_REL_0904", "L_REL_1024", "L_REL_1088", "L_REL_1280", "L_REINSERT_SAME", "P_ABS_04096", "P_ABS_08192", "P_ABS_12288", "P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904"],
-      "tdef_high_growth": ["P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904"],
-      "pointer_validity_checkpoints": ["P_ABS_16480", "H_REL_0064", "H_REL_0896", "H_REL_0904", "H_IDLE_REOPEN"]
+      "global_map_record_set_abac": [
+        "E0",
+        "D_GROW_0128",
+        "D_DROP",
+        "D_RECREATE_EMPTY",
+        "D_REGROW_0128"
+      ],
+      "tdef_low_growth": [
+        "L_REL_0064",
+        "L_REL_0512",
+        "L_REL_0768",
+        "L_REL_0896",
+        "L_REL_0904",
+        "L_REL_1024",
+        "L_REL_1088",
+        "L_REL_1280"
+      ],
+      "tdef_delete_reinsert": [
+        "L_REL_1280",
+        "L_DELETE_ALL",
+        "L_REINSERT_SAME"
+      ],
+      "inline_to_indirect_conversion_window": [
+        "L_REL_0064",
+        "L_REL_0512",
+        "L_REL_0768",
+        "L_REL_0896",
+        "L_REL_0904",
+        "L_REL_1024",
+        "L_REL_1088",
+        "L_REL_1280",
+        "L_REINSERT_SAME",
+        "P_ABS_04096",
+        "P_ABS_08192",
+        "P_ABS_12288",
+        "P_ABS_16480",
+        "H_REL_0064",
+        "H_REL_0896",
+        "H_REL_0904"
+      ],
+      "tdef_high_growth": [
+        "P_ABS_16480",
+        "H_REL_0064",
+        "H_REL_0896",
+        "H_REL_0904"
+      ],
+      "pointer_validity_checkpoints": [
+        "P_ABS_16480",
+        "H_REL_0064",
+        "H_REL_0896",
+        "H_REL_0904",
+        "H_IDLE_REOPEN"
+      ]
     },
     "schedule_minimization_basis": "exploratory A1 run-12 page-1 transitions justified retaining the L targets that span each coarse regime, the first fine transition, the 1024 and 1088 boundary probes, every P checkpoint needed to locate rather than assume the inline-to-indirect conversion, and H 64 plus 896-to-904. H_REL_0064 forces the slot-0 predictions of slot-relative and referenced-page-relative base candidates to differ; the other fine and later H points are excluded because they add repeated snapshots without adding a required A2 predicate"
   },
@@ -114,35 +271,46 @@
     "companion_bytes_in_physical_analysis": false
   },
   "record_candidate_procedure": {
-    "boundary_source": "for every qualifying physical page, enumerate every half-open interval [start,end) from the fixed byte-boundary set {0,1,...,2048}, with 0 <= start < end <= 2048; boundaries are never inferred as the minimum or maximum changed byte",
-    "candidate_page_space": "the finite candidate page space is the union of every physical page index observed at any checkpoint in either derivation replica, including pages absent at earlier or later checkpoints; absence is an explicit state and no all-checkpoint intersection or E0R-present filter is permitted",
-    "qualifying_global_pages": "evaluate every page in candidate_page_space using the record-level D set relation; a page qualifies for interval enumeration only if at least one candidate interval can encode a nonempty released-and-reallocated record set under one polarity",
-    "qualifying_tdef_pages": "evaluate every page in candidate_page_space; a page qualifies for interval enumeration only if it contains at least one four-byte window satisfying a declared growth-only or delete/reinsert-only signature under a declared pointer layout",
-    "multiple_records_on_one_page": "enumerate and score every interval independently, including overlapping intervals; do not merge changing regions or substitute a whole-page change envelope",
-    "stable_endpoint_rule": "neither endpoint is required to change or to neighbor a changed byte; all 2049 byte boundaries are candidates, so an unwitnessed stable endpoint remains in the finite search and unresolved endpoints produce the multiple-record-boundaries outcome",
-    "header_exclusion_source": "exploratory A1 run-12 page-1 calibration excludes every byte offset in the inclusive ranges 2..13 and 376..1784, plus offset 20, from A2 page-1 record intervals and pointer windows because they behaved as header or control-like bytes; the dry run must prove that no selected used or free pointer window intersects them. No offset is excluded on another page without a separately preregistered source. This calibration is non-evidential",
-    "negative_page_rule": "all pages, including page 1, enter through the same page qualification and interval enumeration; page-1 intervals or pointer windows intersecting a header_exclusion_source offset are rejected, and all remaining rejection and survival uses only the same record-level predicates and bounds",
-    "interval_ceiling_per_page": 2098176
+    "boundary_source": "after page qualification, enumerate every half-open interval [start,end) from the fixed byte-boundary set {0,1,...,2048}, with 0 <= start < end <= 2048; boundaries are never inferred from the minimum or maximum changed byte",
+    "candidate_page_space": "the finite page space is the union of every physical page index observed at any checkpoint in either derivation replica; absence is an explicit state and no all-checkpoint intersection or E0R-present filter is permitted",
+    "global_page_qualification": "before any interval enumeration, qualify a global page using hashes only: its explicit presence/hash state must differ across E0 to D_GROW_0128 and across D_GROW_0128 to D_DROP. Absence is a distinct state, and absence at both endpoints is equality. More than 12 qualifying pages is a resource_bound_breach",
+    "tdef_page_qualification": "before any interval enumeration, qualify a TDEF page using hashes only: it must be present at E0, because the table-definition record exists when the empty tables are created; its explicit presence/hash state must differ on at least one declared L or H growth transition and on both L_REL_1280 to L_DELETE_ALL and L_DELETE_ALL to L_REINSERT_SAME. Absence is a distinct state, and absence at both endpoints is equality. More than 12 qualifying pages is a resource_bound_breach",
+    "global_record_end_resolution": "for intervals on one qualified page that share a start and decode the same D relation, retain only the page-terminal interval ending at 2048 when every byte after the last D-flipped byte through byte 2047 is zero at every D checkpoint and the zero suffix is at least 16 bytes long; all shorter equivalent ends are rejected. If the byte property is absent or more than one start survives, emit global_record_end_not_resolved or multiple_global_record_boundaries_survive respectively",
+    "tdef_record_resolution": "a TDEF interval must be inclusion-minimal while wholly containing the two distinct transition-selective four-byte pointer windows plus one byte that is stable at every checkpoint on each available side; extending into a byte that changes outside either pointer signature invalidates the interval. Zero or multiple minimal intervals have distinct outcomes",
+    "structural_exclusion_rule": "apply identically on every page: a global-map field may change only with the D set relation or declared post-delimitation global growth transitions; a growth-pointer window must be stable on D, churn, and idle transitions; a churn-pointer window must be stable on D, growth, and idle transitions. Any byte changing outside its field signature rejects that field or window. Bytes are never classified as headers by page number or offset: a byte is eligible only when it satisfies the same field signature, and otherwise is excluded without assigning header meaning. No page number or byte offset is privileged or blacklisted",
+    "prefix_sum_work_model": "for each qualified page and transition class, build fixed 2049-entry prefix sums over byte predicates once, charging one work unit per prefix cell. Test each interval, polarity, zero-suffix closure, and transition-selectivity property with O(1) prefix-difference queries; charge at most eight work units per enumerated interval across both sub-model searches and never scan interval length",
+    "multiple_records_on_one_page": "enumerate and score overlapping intervals independently, then apply the preregistered global page-terminal or TDEF inclusion-minimal byte-property resolution; deterministic replica agreement cannot replace uniqueness",
+    "per_page_candidate_bound": 2098176,
+    "max_qualified_pages_per_submodel": 12,
+    "combined_record_candidate_bound": 50356224
   },
   "inline_boundary_procedure": {
-    "candidate_source": "for each surviving TDEF record [start,end), enumerate every byte boundary b in the fixed set {start+5,...,end}; do not derive candidates from the last nonzero byte, the fill level, or any single anchor checkpoint",
-    "survival_rule": "evaluate each candidate b against every checkpoint in transition_coverage.inline_to_indirect_conversion_window: bytes and bits before b must explain the complete declared allocation-transition sequence, windows at or after b must satisfy the declared pointer and type-1 rules, and bytes classified as unused suffix must be zero at every applicable checkpoint",
-    "ambiguity_rule": "zero surviving boundaries emits no_inline_boundary_candidate and more than one emits multiple_inline_boundary_candidates; deterministic agreement across replicas cannot rescue a boundary selected from anchor fill level"
+    "subject": "the D-delimited global_map record after its page, start, and end are frozen",
+    "candidate_source": "enumerate every byte boundary b in the fixed set {global_map.start+5,...,global_map.end}; do not derive candidates from the last nonzero byte, fill level, or an anchor checkpoint",
+    "survival_rule": "evaluate each b against every checkpoint in transition_coverage.inline_to_indirect_conversion_window on the frozen global_map record: bytes and bits before b must explain the complete declared allocation sequence, windows at or after b must satisfy declared global-map pointer and type-1 rules, and bytes classified as unused suffix must be zero at every applicable checkpoint",
+    "ambiguity_rule": "zero surviving boundaries emits no_inline_boundary_candidate and more than one emits multiple_inline_boundary_candidates; deterministic agreement across replicas cannot rescue a boundary selected from anchor fill"
   },
   "hypotheses": {
-    "bit_polarity_candidates": ["set_means_in_use", "set_means_not_in_use"],
-    "bit_polarity_rule": "evaluate both polarity candidates. Select exactly one only when the D release/reallocation set relation and the declared L/H growth transitions agree: pages allocated by growth must flip from not-in-use to in-use under that polarity, regardless of raw bit direction. Zero or two surviving polarities are named no-outcome results",
-    "global_map_record_predicate": "decode each candidate interval as a set of represented page indices under each bit_polarity_candidate. Let G be in_use(D_GROW_0128) minus in_use(E0); require G nonempty, every member of G not in use after D_DROP, and every member of G in use again at D_REGROW_0128. Require in_use(D_REGROW_0128) to contain at least one new page not in in_use(D_GROW_0128), consistent with its strictly larger relative target. D_DROP is not required to shrink the file, and no byte, record, or page equality between checkpoints is a predicate",
-    "global_map_search": "derive global-map record candidates only from the D record-set A/B/A/C checkpoints and never from L, P, or H transitions; search them independently from TDEF records",
-    "tdef_pointer_layouts": ["u24le_page_then_u8_slot", "u8_slot_then_u24le_page"],
-    "tdef_record_search": "search TDEF record candidates separately from global-map candidates; the page and interval may differ. Decode four-byte windows only wholly inside the candidate interval, never page headers or record-directory bytes outside it",
-    "growth_only_pointer_predicate": "the decoded reference changes at one or more declared L or H growth transitions, resolves to a page in candidate_page_space whose byte-zero tag is 0x05 when active, and is unchanged across L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME",
-    "delete_reinsert_only_pointer_predicate": "the decoded reference is stable through declared L growth checkpoints, differs at L_DELETE_ALL, returns exactly at L_REINSERT_SAME, and resolves to a page in candidate_page_space whose byte-zero tag is 0x05 whenever active. The predicate is enabled only if L_REL_1280 has at least one nonempty L data page, L_DELETE_ALL DAO-rereads exactly zero rows, and deletion therefore empties at least one formerly nonempty page; otherwise emit legacy_churn_precondition_not_met rather than fitting a free-pointer model",
-    "pointer_pair_rule": "growth-only and delete/reinsert-only windows must be distinct, use one declared layout, lie wholly inside the same TDEF candidate interval, and satisfy the predicates in both derivation replicas before holdout access",
-    "inline_extent_rule": "one exact boundary from inline_boundary_procedure must agree across derivation replicas and both pointer observations, explain every applicable transition across the full conversion window, and satisfy the all-checkpoint suffix rule; an anchor fill level is never a boundary source",
-    "type1_conversion_predicate": "classify every checkpoint in transition_coverage.inline_to_indirect_conversion_window under each candidate model, derive the conversion checkpoint as the earliest preregistered checkpoint whose state is valid indirect after at least one valid inline predecessor, require exactly one monotone inline-to-indirect transition, and do not require conversion by L_IDLE_REOPEN or any other phase boundary",
-    "type1_rule": "slot activation at conversion is a free parameter with values 0, 1, or 2. Inactive four-byte slots are exactly zero within the TDEF candidate interval; active references identify pages in candidate_page_space whose byte-zero tag is 0x05. Exactly two active slots is a decisive-model precondition; zero or one produces unexpected_slot_activation_count, never an implicit abort",
-    "pointer_validity_rule": "require tag and in-range validity only at transition_coverage.pointer_validity_checkpoints at or after the candidate conversion checkpoint and only for nonzero active references; preactivation zero slots and checkpoints outside that declared set are not pointer-validity failures",
+    "bit_polarity_candidates": [
+      "set_means_in_use",
+      "set_means_not_in_use"
+    ],
+    "bit_polarity_rule": "evaluate both polarities on the D-delimited global_map record only. Let G be in_use(D_GROW_0128) minus in_use(E0); the selected polarity is the unique value for which G is nonempty, every G page is not in use after D_DROP, every G page is in use at D_REGROW_0128, and regrowth adds at least one page beyond first growth. Zero or two values are named global-map no-outcomes",
+    "polarity_cross_check": "after D alone freezes polarity, L/P/H growth on the same global_map record must flip newly allocated pages from not-in-use to in-use under that polarity, regardless of raw bit direction. Disagreement emits growth_polarity_disagreement for the global conversion layer but never retroactively changes D polarity or the global record",
+    "global_map_record_predicate": "decode each candidate interval as represented page sets under each polarity and apply the D-only allocation, release, reallocation, and additional-regrowth relation. D_DROP need not shrink the file, and no byte, record, or page equality between checkpoints is a predicate",
+    "global_map_search": "use only E0, D_GROW_0128, D_DROP, D_RECREATE_EMPTY, and D_REGROW_0128 to qualify and delimit the global_map record. After its page and boundaries are frozen, evaluate conversion, slot activation, inline boundary, polarity agreement, and extended-map bases on that same record with the preregistered L/P/H transitions",
+    "tdef_pointer_layouts": [
+      "u24le_page_then_u8_slot",
+      "u8_slot_then_u24le_page"
+    ],
+    "tdef_record_search": "search a separate tdef record only for the growth-only and churn-only pointer windows. The tdef record carries no conversion, slot-activation, inline-boundary, bit-polarity, or extended-base hypothesis",
+    "growth_only_pointer_predicate": "inside the tdef record, a decoded reference changes on one or more declared L or H growth transitions, resolves to a page in candidate_page_space whose byte-zero tag is 0x05 when active, and is unchanged across L_REL_1280, L_DELETE_ALL, and L_REINSERT_SAME",
+    "delete_reinsert_only_pointer_predicate": "inside the tdef record, a decoded reference is stable through declared L growth, differs at L_DELETE_ALL, returns exactly at L_REINSERT_SAME, and resolves to a page in candidate_page_space whose byte-zero tag is 0x05 whenever active. Enable only if L_REL_1280 has a nonempty L data page and L_DELETE_ALL DAO-rereads zero rows, thereby emptying a formerly nonempty page; otherwise report legacy_churn_precondition_not_met for the tdef layer",
+    "pointer_pair_rule": "growth-only and delete/reinsert-only windows must be distinct, use one declared layout, lie wholly inside the same tdef interval, and satisfy the predicates in both derivation replicas before holdout access",
+    "inline_extent_rule": "one exact boundary inside the frozen global_map record must agree across derivation replicas, explain every applicable transition across the full conversion window, and satisfy the all-checkpoint suffix rule; anchor fill is never a boundary source",
+    "type1_conversion_predicate": "classify every checkpoint in transition_coverage.inline_to_indirect_conversion_window on the frozen global_map record, derive the earliest valid indirect checkpoint after at least one valid inline predecessor, require exactly one monotone transition, and do not require conversion by any phase boundary",
+    "type1_rule": "slot activation at conversion is a free parameter 0, 1, or 2. A decisive conversion layer requires at least one active reference at conversion and exactly two active references by H_REL_0904; one or two at conversion are valid, zero emits no_active_slot_at_conversion, and a final count other than two emits final_slot_activation_not_two",
+    "pointer_validity_rule": "for global-map slots and tdef pointers, require tag and in-range validity only at transition_coverage.pointer_validity_checkpoints at or after the applicable activation checkpoint and only for nonzero references; preactivation zero values and checkpoints outside that set are not failures",
     "extended_base_candidates": [
       "slot_relative_expected_0_16352",
       "referenced_page_relative",
@@ -151,60 +319,256 @@
       "referenced_page_relative_off_by_minus_one",
       "referenced_page_relative_off_by_plus_one"
     ],
-    "extended_base_rule": "derive only from preregistered L, P, and H transitions; no candidate formula may be added after acquisition. H_REL_0064 must make slot-relative and referenced-page-relative predictions differ for slot 0, and exactly one preregistered formula must predict every observed flip; otherwise emit insufficient_base_discrimination, no_extended_base_candidate, or multiple_extended_base_candidates as applicable"
+    "extended_base_rule": "evaluate the preregistered formulas on the frozen global_map record using actual flip direction. H_REL_0064 is the planned slot-0 discriminator, but failure to produce a discriminating flip yields insufficient_base_discrimination only for the extended_base layer; it cannot erase a decisive global record, conversion layer, or tdef pointer layer. No formula may be added after acquisition"
   },
   "analyzer_dry_run_contract": {
     "must_complete_before_acquisition": true,
-    "dispatch_gate": "before any A2 matrix job is dispatched, both dry-run modes must produce schema-valid reports with result pass; every required assertion must be present, each retained input and generated fixture must match its recorded SHA-256, no holdout artifact may be opened, and the additive provenance disclosure must be committed and pushed. Any failure leaves acquisition BLOCKED",
+    "dispatch_gate": "before any A2 matrix job is dispatched, both dry-run modes and the decisive-report validator case must produce schema-valid pass reports; every required assertion must be present, inputs and fixtures must match recorded hashes, no holdout artifact may be opened, and the additive provenance disclosure must be committed and pushed. Any failure leaves acquisition BLOCKED",
     "retained_a1_input": {
       "bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
       "required_mode": "retained_a1_run12_exploratory",
       "max_input_page_blobs": 55,
       "holdout_access": "replicas 1 and 2 only; replica 3 and every holdout artifact are excluded and must not be opened",
-      "schedule_arithmetic_assertion": "assert the retained replica observations against the generator arithmetic: first D baseline 23 grows to 151, D_DROP remains 151, post-recreate baseline 151 grows to 279, every growth uses 32-row batches with recorded overshoot, and L deletion may change page count and changed it by +1 in run 12",
-      "required_behavior": "ingest no more than 55 retained A1 page blobs from replicas 1 and 2 through an explicit legacy projection, identify its D sequence as relative A/B/A/C rather than treating it as A2 equality, select set_means_not_in_use uniquely from the D and H transitions, exercise bounded union-page record enumeration and per-predicate terminal reporting, predict legacy_churn_precondition_not_met because A1 did not fully empty L, and emit no A2 scientific outcome"
+      "checkpoint_projection": [
+        {
+          "a2_checkpoint": "E0",
+          "a1_checkpoint": "E0",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "E0R",
+          "a1_checkpoint": "E0R",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "D_GROW_0128",
+          "a1_checkpoint": "D_GROW_0128",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "D_DROP",
+          "a1_checkpoint": "D_DROP",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "D_RECREATE_EMPTY",
+          "a1_checkpoint": null,
+          "status": "not_applicable_missing_a1_checkpoint"
+        },
+        {
+          "a2_checkpoint": "D_REGROW_0128",
+          "a1_checkpoint": "D_REGROW_0128",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0064",
+          "a1_checkpoint": "L_REL_0064",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0512",
+          "a1_checkpoint": "L_REL_0512",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0768",
+          "a1_checkpoint": "L_REL_0768",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0896",
+          "a1_checkpoint": "L_REL_0896",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0904",
+          "a1_checkpoint": "L_REL_0904",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_1024",
+          "a1_checkpoint": "L_REL_1024",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_1088",
+          "a1_checkpoint": "L_REL_1088",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_1280",
+          "a1_checkpoint": "L_REL_1280",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_DELETE_ALL",
+          "a1_checkpoint": "L_DELETE_ALTERNATING",
+          "status": "not_applicable_full_delete_and_churn_pointer"
+        },
+        {
+          "a2_checkpoint": "L_REINSERT_SAME",
+          "a1_checkpoint": "L_REINSERT_SAME",
+          "status": "not_applicable_full_delete_and_churn_pointer"
+        },
+        {
+          "a2_checkpoint": "L_IDLE_REOPEN",
+          "a1_checkpoint": "L_IDLE_REOPEN",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_04096",
+          "a1_checkpoint": "P_ABS_04096",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_08192",
+          "a1_checkpoint": "P_ABS_08192",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_12288",
+          "a1_checkpoint": "P_ABS_12288",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_16480",
+          "a1_checkpoint": "P_ABS_16480",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_REL_0064",
+          "a1_checkpoint": "H_REL_0064",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_REL_0896",
+          "a1_checkpoint": "H_REL_0896",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_REL_0904",
+          "a1_checkpoint": "H_REL_0904",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_IDLE_REOPEN",
+          "a1_checkpoint": "H_IDLE_REOPEN",
+          "status": "applicable"
+        }
+      ],
+      "not_applicable_predicates": [
+        "A2-CHURN-PRECONDITION",
+        "A2-CHURN-POINTER-NONE"
+      ],
+      "schedule_arithmetic_assertion": "assert first D baseline 23 to 151, D_DROP remains 151, post-recreate baseline 151 to 279, 32-row batches and recorded overshoot, and alternating L deletion changes page count by +1 without satisfying the A2 full-delete premise",
+      "candidate_bound_assertion": "using page hashes before interval reads, assert the observed run-12 D-qualified page count is exactly 10, each submodel is below 12 qualified pages, enumerated intervals are no more than 50,356,224 combined, prefix construction plus O(1) interval queries remains below 500,000,000 work units, and no more than 55 blobs are opened",
+    "record_end_assertion": "apply the page-terminal all-D-zero suffix property and assert one global record survivor with at least 16 zero bytes of slack after the last D-flipped byte; shorter equivalent ends must be rejected. Assert that run-12 control-changing bytes outside a field signature cannot become global-map fields or TDEF pointer windows, without naming or blacklisting their offsets",
+      "required_behavior": "complete the explicit projection, select set_means_not_in_use uniquely from D alone, check L/H agreement on the frozen global record, report legacy_projection_complete_with_tdef_churn_not_applicable by name, retain layered calibration results, and emit no A2 scientific evidence"
     },
     "synthetic_input": {
       "required_mode": "a2_schedule_synthetic",
-      "generation_rule": "the generator must parse checkpoint_design, tables.row_algorithm, and bounds from this exact hash-pinned plan and derive every replica checkpoint, relative baseline, absolute target, 32-row batch, overshoot, page count, record count, page presence state, and transition from those fields using the same arithmetic contract as the future worker; hand-typed checkpoint counts, A1 fixture counts, and a separately hard-coded or A1-inherited schedule are forbidden",
+      "generation_rule": "parse checkpoint_design, tables.row_algorithm, record_candidate_procedure, and bounds from this exact plan and derive every checkpoint, baseline, target, 32-row batch, overshoot, page and row count, page state, qualified-page count, prefix sum, record candidate, and work unit with the worker and analyzer arithmetic; hand-typed counts and inherited A1 schedules are forbidden",
       "free_parameters": {
-        "conversion_ordinal": "for the input schedule, every noninitial checkpoint ordinal plus never must be generated: A1 legacy ordinals 1..70 plus never, and A2 ordinals 1..24 plus never",
-        "slot_activation_at_conversion": [0, 1, 2],
-        "bit_polarity": ["set_means_in_use", "set_means_not_in_use"],
-        "anchor_fill_state": ["empty", "partial", "full"]
+        "conversion_ordinal": "for the input schedule, generate every noninitial ordinal plus never: A1 legacy ordinals 1..70 plus never and A2 ordinals 1..24 plus never",
+        "slot_activation_at_conversion": [
+          0,
+          1,
+          2
+        ],
+        "bit_polarity": [
+          "set_means_in_use",
+          "set_means_not_in_use"
+        ],
+        "anchor_fill_state": [
+          "empty",
+          "partial",
+          "full"
+        ],
+        "record_end_zero_slack_bytes": [
+          16,
+          32,
+          64
+        ]
       },
-      "run12_calibration_case": "generate a named non-evidential calibration case with source_conversion_ordinal 40, conversion_checkpoint_id P_ABS_16480, A2 conversion ordinal 20, active_slot_count 2, bit_polarity set_means_not_in_use because growth cleared bits, and delete_page_delta +1. The source ordinal is mapped by checkpoint identity, not copied as an A2 ordinal, and A2 full-delete semantics still govern the churn transition",
-      "arithmetic_rule": "the generator must prove the A2 schedule can produce the record-level D A/B/A/C set relation with D_REGROW_0128 strictly larger than D_GROW_0128, at least one growth-only pointer transition, and at least one churn-only pointer transition where L_DELETE_ALL DAO-rereads zero rows and empties a formerly nonempty L page before exact reinsert. Every equality between checkpoints used anywhere by the analyzer must be producible by the generator under the schedule; no asserted equality may depend on a hand-authored fixture constant",
-      "base_discrimination_rule": "the decisive fixture must make slot-relative and referenced-page-relative candidates predict different slot-0 flips at H_REL_0064, and exactly one preregistered base candidate must survive all generated L/P/H transitions",
-      "inline_boundary_rule": "generate empty, partial, and full anchor-fill variants with one invariant inline boundary; the analyzer must recover that same boundary from the fixed candidate source in all variants",
-      "abort_reachability_rule": "for every analyzer Abort or early-terminal construction site, a single named perturbation of a decisive schedule-derived fixture must reach it, must emit one or more predicate_registry identifiers, and must produce the exact preregistered no-outcome identifier; dead, unnamed, or unproducible Abort paths fail the dry run",
-      "required_cases": ["one_decisive_joint_model", "no_physical_page_satisfies_global_transition_predicates", "multiple_physical_pages_satisfy_global_transition_predicates", "no_global_record_candidate", "multiple_global_record_boundaries_survive", "no_physical_page_satisfies_tdef_transition_predicates", "multiple_physical_pages_satisfy_tdef_transition_predicates", "no_tdef_record_candidate", "multiple_tdef_record_boundaries_survive", "no_unique_bit_polarity", "multiple_bit_polarities_survive", "unexpected_slot_activation_count", "no_growth_only_pointer_candidate", "legacy_churn_precondition_not_met", "no_delete_reinsert_only_pointer_candidate", "multiple_pointer_models_survive", "missing_inline_to_indirect_conversion", "multiple_inline_to_indirect_conversions", "no_inline_boundary_candidate", "multiple_inline_boundary_candidates", "insufficient_base_discrimination", "no_extended_base_candidate", "multiple_extended_base_candidates", "pointer_validity_failure", "unexplained_nonzero_inline_suffix", "idle_volatility", "unreconstructable_snapshot", "resource_bound_breach", "replica_disagreement", "holdout_prediction_failure"]
+      "run12_calibration_case": "on the global_map fixture, generate source conversion ordinal 40, checkpoint P_ABS_16480, A2 ordinal 20, two active slots, set_means_not_in_use because growth cleared bits, and delete page delta +1. Map by checkpoint identity, apply A2 full-delete semantics only to the tdef churn fixture, and keep every value non-evidential",
+      "arithmetic_rule": "prove the D A/B/A/C record-set relation with regrowth strictly larger than first growth, growth-only and full-delete churn-only tdef transitions, and every analyzer checkpoint equality. No equality or count may depend on a hand-authored fixture constant",
+      "record_uniqueness_rule": "the decisive fixture must have at least 32 all-D-zero bytes after its last flipped global-map byte and the page-terminal byte-property tie-break must leave exactly one record; shorter equivalent endpoints must be generated and rejected",
+      "base_discrimination_rule": "the all-layers-decisive fixture must produce a slot-0 flip at H_REL_0064 that leaves exactly one base formula. A second valid fixture with no discriminating flip must retain decisive earlier global layers and report insufficient_base_discrimination only for extended_base",
+      "inline_boundary_rule": "generate empty, partial, and full anchor-fill variants with one invariant global-map inline boundary and recover the same boundary in all variants",
+      "slot_rule": "for conversion fixtures with one or two active slots, recover a decisive conversion layer when exactly two are active by H_REL_0904; zero at conversion and a final count other than two reach their exact named layer outcomes",
+      "abort_reachability_rule": "every Abort or early terminal has one stable predicate_registry mapping and a single named perturbation of a schedule-derived fixture that reaches the exact reason and layer; dead, unnamed, or unproducible sites fail the dry run",
+      "required_cases": [
+        "all_layers_decisive",
+        "partial_layer_outcome",
+        "legacy_projection_complete_with_tdef_churn_not_applicable",
+        "no_physical_page_satisfies_global_transition_predicates",
+        "multiple_physical_pages_satisfy_global_transition_predicates",
+        "no_global_record_candidate",
+        "multiple_global_record_boundaries_survive",
+        "global_record_end_not_resolved",
+        "no_physical_page_satisfies_tdef_transition_predicates",
+        "multiple_physical_pages_satisfy_tdef_transition_predicates",
+        "no_tdef_record_candidate",
+        "multiple_tdef_record_boundaries_survive",
+        "structural_field_exclusion_failure",
+        "global_set_relation_not_satisfied",
+        "no_unique_bit_polarity",
+        "multiple_bit_polarities_survive",
+        "growth_polarity_disagreement",
+        "no_active_slot_at_conversion",
+        "final_slot_activation_not_two",
+        "no_growth_only_pointer_candidate",
+        "legacy_churn_precondition_not_met",
+        "no_delete_reinsert_only_pointer_candidate",
+        "multiple_pointer_models_survive",
+        "pointer_validity_failure",
+        "missing_inline_to_indirect_conversion",
+        "multiple_inline_to_indirect_conversions",
+        "no_inline_boundary_candidate",
+        "multiple_inline_boundary_candidates",
+        "unexplained_nonzero_inline_suffix",
+        "insufficient_base_discrimination",
+        "no_extended_base_candidate",
+        "multiple_extended_base_candidates",
+        "idle_volatility",
+        "unreconstructable_snapshot",
+        "resource_bound_breach",
+        "replica_disagreement",
+        "holdout_prediction_failure"
+      ]
     },
     "source_contract_checks": [
-      "A2 analyzer and fixture code must not import, copy, or depend on A1 hand-typed fixture counts or a hard-coded A1 conversion checkpoint",
-      "every analyzer Abort construction site has a stable predicate_registry identifier and a schedule-derived synthetic reachability case",
-      "no selected global-map or TDEF record interval and no selected pointer window intersects a preregistered page-1 excluded offset",
-      "candidate pages are the union observed at any checkpoint and record candidates come from the fixed finite boundary source independently of the change envelope",
-      "both bit polarities and slot activation counts 0, 1, and 2 are exercised",
-      "every analyzer checkpoint equality is produced by the generator rather than asserted over impossible counts"
+      "A2 code does not import, copy, or depend on A1 hand-typed fixture counts or a hard-coded A1 conversion checkpoint",
+      "every Abort has exactly one stable reason-to-predicate mapping and a schedule-derived reachability case",
+      "page qualification precedes interval enumeration and interval predicates use bounded O(1) prefix-difference queries",
+    "record and pointer exclusions are transition-structural and identical on every page; no page number or byte-offset blacklist exists",
+    "bytes commonly described as page headers receive no positional meaning and enter a record or pointer only if they satisfy the same transition signature as every other byte",
+      "global delimitation uses D only; conversion, slot, inline, polarity agreement, and base evaluation use L/P/H on the frozen global record; tdef carries only pointer predicates",
+      "both D polarities, slot counts 0/1/2, all conversion ordinals plus never, anchor fills, and record-end slack values are exercised",
+      "every checkpoint equality is generator-produced",
+      "a schema-valid layered report with at least one decisive submodel passes validate-document and is accepted with bundle status decisive_pending_independent_validation"
     ],
-    "acceptance_criteria": "both reports validate against dry-run-report.schema.json; the retained-A1 report opens no holdout, uses at most 55 blobs, emits legacy_churn_precondition_not_met and no A2 outcome; the synthetic report covers every free-parameter value and required case, recovers the sole decisive joint model, proves all source-contract checks and generator arithmetic, and records every reached predicate id. Result pass is impossible if any assertion, parameter value, case, hash, bound, or predicate id is absent",
-    "disclosure_rule": "both schema-valid dry-run reports, their inputs and hashes, commands, exact analyzer and generator commits, and results must be recorded in an additive A2 provenance entry committed and pushed before acquisition; every dry-run report is explicitly non-evidential and cannot authorize a capability or satisfy an A2 decision predicate"
+    "acceptance_criteria": "the retained-A1 report opens no holdout, stays within blob, page, candidate, and work ceilings, applies the exact projection table, resolves one global record end with slack, and emits the named legacy state. The synthetic report covers every parameter, layered and terminal case, recovers an all-layers-decisive model, retains partial outcomes, and records every predicate id. The decisive validator case must pass. Any missing case, hash, bound, mapping, assertion, or generator-produced equality keeps acquisition BLOCKED",
+    "disclosure_rule": "retain both schema-valid dry-run reports, fixtures, hashes, commands, exact commits, layered outcomes, predicate ids, and decisive-validator result and record them in an additive A2 provenance entry before acquisition; all are non-evidential"
   },
   "predicate_registry": {
-    "reporting_rule": "every analyzer Abort or early terminal must attach at least one stable predicate id from this registry to the retained report; ids identify failed predicates independently from no-outcome reason ids, and no unregistered Abort is permitted",
+    "reporting_rule": "every Abort or early terminal attaches exactly one registered predicate id and its pinned reason to the applicable retained layer result; no unregistered or remapped Abort is permitted",
     "ids": [
       "A2-IDLE-EQUALITY",
       "A2-D-SET-RELATION",
-      "A2-PAGE-NONE",
-      "A2-PAGE-MULTIPLE",
+      "A2-GLOBAL-PAGE-NONE",
+      "A2-GLOBAL-PAGE-MULTIPLE",
       "A2-GLOBAL-RECORD-NONE",
       "A2-GLOBAL-RECORD-MULTIPLE",
+      "A2-GLOBAL-RECORD-END",
+      "A2-TDEF-PAGE-NONE",
+      "A2-TDEF-PAGE-MULTIPLE",
       "A2-TDEF-RECORD-NONE",
       "A2-TDEF-RECORD-MULTIPLE",
-      "A2-HEADER-EXCLUSION",
+      "A2-STRUCTURAL-EXCLUSION",
       "A2-POLARITY-NONE",
       "A2-POLARITY-MULTIPLE",
+      "A2-POLARITY-CROSSCHECK",
       "A2-GROWTH-POINTER-NONE",
       "A2-CHURN-PRECONDITION",
       "A2-CHURN-POINTER-NONE",
@@ -213,6 +577,7 @@
       "A2-CONVERSION-NONE",
       "A2-CONVERSION-MULTIPLE",
       "A2-SLOT-ACTIVATION",
+      "A2-SLOT-FINAL",
       "A2-INLINE-BOUNDARY-NONE",
       "A2-INLINE-BOUNDARY-MULTIPLE",
       "A2-INLINE-SUFFIX",
@@ -223,23 +588,205 @@
       "A2-SNAPSHOT-RECONSTRUCTION",
       "A2-RESOURCE-BOUND",
       "A2-HOLDOUT-PREDICTION"
+    ],
+    "mappings": [
+      {
+        "predicate_id": "A2-IDLE-EQUALITY",
+        "reason": "idle_volatility",
+        "layer": "campaign"
+      },
+      {
+        "predicate_id": "A2-D-SET-RELATION",
+        "reason": "global_set_relation_not_satisfied",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-GLOBAL-PAGE-NONE",
+        "reason": "no_physical_page_satisfies_global_transition_predicates",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-GLOBAL-PAGE-MULTIPLE",
+        "reason": "multiple_physical_pages_satisfy_global_transition_predicates",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-GLOBAL-RECORD-NONE",
+        "reason": "no_global_record_candidate",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-GLOBAL-RECORD-MULTIPLE",
+        "reason": "multiple_global_record_boundaries_survive",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-GLOBAL-RECORD-END",
+        "reason": "global_record_end_not_resolved",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-TDEF-PAGE-NONE",
+        "reason": "no_physical_page_satisfies_tdef_transition_predicates",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-TDEF-PAGE-MULTIPLE",
+        "reason": "multiple_physical_pages_satisfy_tdef_transition_predicates",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-TDEF-RECORD-NONE",
+        "reason": "no_tdef_record_candidate",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-TDEF-RECORD-MULTIPLE",
+        "reason": "multiple_tdef_record_boundaries_survive",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-STRUCTURAL-EXCLUSION",
+        "reason": "structural_field_exclusion_failure",
+        "layer": "applicable_layer"
+      },
+      {
+        "predicate_id": "A2-POLARITY-NONE",
+        "reason": "no_unique_bit_polarity",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-POLARITY-MULTIPLE",
+        "reason": "multiple_bit_polarities_survive",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A2-POLARITY-CROSSCHECK",
+        "reason": "growth_polarity_disagreement",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-GROWTH-POINTER-NONE",
+        "reason": "no_growth_only_pointer_candidate",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-CHURN-PRECONDITION",
+        "reason": "legacy_churn_precondition_not_met",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-CHURN-POINTER-NONE",
+        "reason": "no_delete_reinsert_only_pointer_candidate",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-POINTER-MULTIPLE",
+        "reason": "multiple_pointer_models_survive",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A2-POINTER-VALIDITY",
+        "reason": "pointer_validity_failure",
+        "layer": "applicable_layer"
+      },
+      {
+        "predicate_id": "A2-CONVERSION-NONE",
+        "reason": "missing_inline_to_indirect_conversion",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-CONVERSION-MULTIPLE",
+        "reason": "multiple_inline_to_indirect_conversions",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-SLOT-ACTIVATION",
+        "reason": "no_active_slot_at_conversion",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-SLOT-FINAL",
+        "reason": "final_slot_activation_not_two",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-INLINE-BOUNDARY-NONE",
+        "reason": "no_inline_boundary_candidate",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-INLINE-BOUNDARY-MULTIPLE",
+        "reason": "multiple_inline_boundary_candidates",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-INLINE-SUFFIX",
+        "reason": "unexplained_nonzero_inline_suffix",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A2-BASE-DISCRIMINATION",
+        "reason": "insufficient_base_discrimination",
+        "layer": "global_map.extended_base"
+      },
+      {
+        "predicate_id": "A2-BASE-NONE",
+        "reason": "no_extended_base_candidate",
+        "layer": "global_map.extended_base"
+      },
+      {
+        "predicate_id": "A2-BASE-MULTIPLE",
+        "reason": "multiple_extended_base_candidates",
+        "layer": "global_map.extended_base"
+      },
+      {
+        "predicate_id": "A2-REPLICA-DISAGREEMENT",
+        "reason": "replica_disagreement",
+        "layer": "applicable_layer"
+      },
+      {
+        "predicate_id": "A2-SNAPSHOT-RECONSTRUCTION",
+        "reason": "unreconstructable_snapshot",
+        "layer": "campaign"
+      },
+      {
+        "predicate_id": "A2-RESOURCE-BOUND",
+        "reason": "resource_bound_breach",
+        "layer": "campaign"
+      },
+      {
+        "predicate_id": "A2-HOLDOUT-PREDICTION",
+        "reason": "holdout_prediction_failure",
+        "layer": "applicable_layer"
+      }
     ]
   },
   "decision_rules": {
-    "decisive": "exactly one complete joint model with separately identified global-map and TDEF records survives every derivation transition in replicas 1 and 2 and, after the frozen candidate-set hash is persisted, predicts every applicable holdout transition in replica 3 without refit",
+    "layered_outcomes": {
+      "global_map_record": "decisive when one D-delimited record and one D-selected polarity survive derivation and predict the holdout; independent of later conversion, base, and tdef outcomes",
+      "global_map_conversion_inline": "evaluated only on the frozen global record; decisive when one conversion, valid slot schedule, polarity cross-check, and inline boundary predict the holdout",
+      "global_map_extended_base": "evaluated on the frozen global record and conversion; decisive when one base predicts holdout. Insufficient slot-0 discrimination is only this layer's no-outcome",
+      "tdef_pointer_pair": "decisive when one separately delimited tdef record with one growth/churn pointer pair predicts holdout; independent of global conversion and base outcomes"
+    },
+    "freeze_rule": "persist and hash every derivation candidate set and every layer result from replicas 1 and 2 before any replica-3 structural validation or page access; holdout cannot alter any layer",
+    "scientific_outcome": "one_or_more_submodels_predict_holdout when at least one layer is decisive on holdout, otherwise no_submodel_predicts_holdout. An unmet layer never erases another layer's result",
     "no_scientific_outcome_identifiers": [
-      "replica_disagreement",
+      "idle_volatility",
+      "global_set_relation_not_satisfied",
       "no_physical_page_satisfies_global_transition_predicates",
       "multiple_physical_pages_satisfy_global_transition_predicates",
       "no_global_record_candidate",
       "multiple_global_record_boundaries_survive",
+      "global_record_end_not_resolved",
       "no_physical_page_satisfies_tdef_transition_predicates",
       "multiple_physical_pages_satisfy_tdef_transition_predicates",
       "no_tdef_record_candidate",
       "multiple_tdef_record_boundaries_survive",
+      "structural_field_exclusion_failure",
       "no_unique_bit_polarity",
       "multiple_bit_polarities_survive",
-      "unexpected_slot_activation_count",
+      "growth_polarity_disagreement",
       "no_growth_only_pointer_candidate",
       "legacy_churn_precondition_not_met",
       "no_delete_reinsert_only_pointer_candidate",
@@ -247,44 +794,97 @@
       "pointer_validity_failure",
       "missing_inline_to_indirect_conversion",
       "multiple_inline_to_indirect_conversions",
+      "no_active_slot_at_conversion",
+      "final_slot_activation_not_two",
       "no_inline_boundary_candidate",
       "multiple_inline_boundary_candidates",
       "unexplained_nonzero_inline_suffix",
       "insufficient_base_discrimination",
       "no_extended_base_candidate",
       "multiple_extended_base_candidates",
-      "idle_volatility",
+      "replica_disagreement",
       "unreconstructable_snapshot",
       "resource_bound_breach",
       "holdout_prediction_failure"
     ],
-    "terminal_disambiguation": "use no_physical_page_satisfies_global_transition_predicates for zero qualifying global pages, multiple_physical_pages_satisfy_global_transition_predicates for two or more qualifying global pages, no_global_record_candidate for zero intervals on one qualifying global page, and multiple_global_record_boundaries_survive for two or more intervals on one qualifying page. Use the corresponding distinct TDEF page and record identifiers; no page-cardinality or record-cardinality result may be collapsed into an ambiguous-record identifier"
+    "terminal_disambiguation": "global and tdef searches each use distinct reasons for zero qualifying pages, multiple qualifying pages, zero records, and multiple records; record-end, polarity, conversion, slot, pointer, inline, base, campaign, and holdout failures retain their own mapped reasons"
   },
   "decisive_report_handling": {
     "analysis_report_artifact": "retained_in_bundle",
     "bundle_status": "decisive_pending_independent_validation",
-    "campaign_behavior": "a schema-valid decisive analysis completes the campaign successfully, is inventoried and retained with the complete bundle, and must not be passed through a validator path that treats decisiveness as campaign failure or deletes staging",
-    "independent_validation_rule": "the bundle validator validates structure and bindings without rejecting a decisive result; capability verification remains not_independently_validated until a separately provenanced independent recomputing validator accepts the retained decisive report and complete bundle"
+    "campaign_behavior": "a schema-valid layered report with one or more decisive holdout-predicting submodels completes the campaign successfully, is inventoried and retained, and must pass the A2 contract validator without being routed through an A1 validator or deletion path",
+    "independent_validation_rule": "structural validation accepts the retained layered result but capability verification remains not_independently_validated until a separately provenanced independent recomputing validator accepts the report and bundle"
   },
   "runtime_design": {
     "matrix_jobs": 3,
     "fan_in_jobs": 1,
     "hosted_wall_clock_target_seconds": 1800,
-    "slow_runner_basis": "A1 progress traces: run 9 completed replica 1 in 1749.126 seconds and timed replica 2 out at 1800 seconds; runs 11 and 12 completed replicas in 1079.886-1536.912 seconds. Removing omitted L/H snapshots from the slow run-9 trace, retaining the full P conversion window, and adding only D_RECREATE_EMPTY and H_REL_0064 projects the fixed A2 subset at no more than 540 seconds per replica",
-    "headroom": "the frozen 1800-second per-replica ceiling is at least 3.33x the 540-second slow-runner projection; independent replicas run concurrently. The 900-second fan-in and 2700-second fail-closed campaign timeout are safety bounds, while the complete hosted wall-clock target remains 1800 seconds",
-    "estimated_complete_wall_clock_seconds": 1740
+    "post_33_timing_inputs": [
+      {
+        "run": 11,
+        "replica": 1,
+        "sha256": "b005ab46ae10144fd27aeef51ebd24d308a0460c0275a1bd7cd004a4df024a8a"
+      },
+      {
+        "run": 11,
+        "replica": 2,
+        "sha256": "f786a9e3616dca89a369130a028333f4a97d597735f6cfc9ae5c9aade46013f7"
+      },
+      {
+        "run": 11,
+        "replica": 3,
+        "sha256": "76fa961bb00d1b3c056dec659eaee6b89046dedb3ac46ba35d1ba01995d0706b"
+      },
+      {
+        "run": 12,
+        "replica": 1,
+        "sha256": "fbc70ccc78490abbb1c8e3cdfd43323242143e7762e374f958d0c5d3a332674a"
+      },
+      {
+        "run": 12,
+        "replica": 2,
+        "sha256": "1ae3013c0a38928e5b7800bef79fad34ea993769c834f7329607941f62d2072d"
+      },
+      {
+        "run": 12,
+        "replica": 3,
+        "sha256": "632d4d86e9e83c80fca395faa8589ba0289c595803b0d700a5eeb93573e726ed"
+      }
+    ],
+    "timing_derivation": "post-PR-33 run 11 reached H_REL_0904 in 400.440-462.513 seconds with final idle costs 26.317-26.654 seconds; run 12 reached it in 543.107-619.412 seconds with final idle costs 35.394-35.901 seconds. The slow observed A2-equivalent prefix plus idle is 654.865 seconds. A 70.135-second allowance for D_RECREATE_EMPTY, full-delete differences, and rounding freezes the per-replica projection at 725 seconds",
+    "per_replica_projection_seconds": 725,
+    "per_replica_headroom": "the 2400-second worker ceiling is 3.31x the 725-second post-PR-33 projection",
+    "campaign_headroom": "independent replicas run concurrently; 725 seconds plus the full 900-second fan-in safety bound yields a 1625-second complete-campaign estimate. The 2700-second campaign bound is 1.66x that estimate, and the estimate remains below the 1800-second hosted target",
+    "estimated_complete_wall_clock_seconds": 1625,
+    "bounds_sanity_basis": "run 12 observed 20,701 changed hash entries over 71 checkpoints versus the 65,536 bound; projected A2 logical reads are about 254 MiB versus 2 GiB; projected inserted rows are about 150,000 versus 524,288. Dry-run boundary cases must accept each exact ceiling and reject one over"
   },
   "artifacts": {
     "plan": "plan/a2-allocation-maps.plan.json",
-    "environment": "environment/environment.json",
-    "replica_observations": ["observations/replica-01.json", "observations/replica-02.json", "observations/replica-03.json"],
-    "replica_artifact_manifests": ["replica-artifacts/replica-01-manifest.json", "replica-artifacts/replica-02-manifest.json", "replica-artifacts/replica-03-manifest.json"],
+    "replica_observations": [
+      "observations/replica-01.json",
+      "observations/replica-02.json",
+      "observations/replica-03.json"
+    ],
+    "replica_artifact_manifests": [
+      "replica-artifacts/replica-01-manifest.json",
+      "replica-artifacts/replica-02-manifest.json",
+      "replica-artifacts/replica-03-manifest.json"
+    ],
     "page_index_directory": "page-indexes",
     "page_store_directory": "page-store",
     "frozen_candidate_set": "analysis/derivation-candidates.json",
     "analysis_report": "analysis/analysis-report.json",
     "bundle_manifest": "bundle-manifest.json",
-    "dry_run_reports": ["dry-run/a1-run12-report.json", "dry-run/a2-synthetic-report.json"]
+    "dry_run_reports": [
+      "dry-run/a1-run12-report.json",
+      "dry-run/a2-synthetic-report.json"
+    ],
+    "replica_environments": [
+      "environment/replica-01.json",
+      "environment/replica-02.json",
+      "environment/replica-03.json"
+    ],
+    "holdout_structure_receipt": "analysis/holdout-structure-receipt.json"
   },
   "bounds": {
     "page_size": 2048,
@@ -295,18 +895,20 @@
     "max_logical_checkpoint_read_bytes_per_replica": 2147483648,
     "max_inserted_rows_per_replica": 524288,
     "max_changed_hash_entries_per_replica": 65536,
-    "max_record_candidates": 16777216,
+    "max_record_candidates": 50356224,
     "max_candidate_models": 1000000,
     "max_analysis_work_units": 500000000,
     "max_unique_page_blobs": 65536,
     "max_retained_page_store_bytes": 536870912,
     "max_bundle_bytes": 805306368,
     "max_json_bytes": 67108864,
-    "worker_timeout_seconds_per_replica": 1800,
+    "worker_timeout_seconds_per_replica": 2400,
     "fan_in_timeout_seconds": 900,
     "campaign_timeout_seconds": 2700,
     "max_child_log_bytes": 1048576,
-    "max_companion_bytes_per_checkpoint": 65536
+    "max_companion_bytes_per_checkpoint": 65536,
+    "max_qualified_pages_per_submodel": 12,
+    "max_record_candidates_per_page": 2098176
   },
   "claims": {
     "descriptive_provider_observation_only": true,
