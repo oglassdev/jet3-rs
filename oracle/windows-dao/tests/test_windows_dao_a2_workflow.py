@@ -75,13 +75,13 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         self.assertIn("max-parallel: 3", self.replica)
         self.assertIn("fail-fast: false", self.replica)
         self.assertIn("runs-on: windows-latest", self.replica)
-        self.assertIn("timeout-minutes: 31", self.replica)
+        self.assertIn("timeout-minutes: 37", self.replica)
         self.assertIn('FROZEN_WORKER_TIMEOUT_SECONDS: "1700"', self.replica)
-        self.assertIn('HOSTED_REPLICA_TIMEOUT_SECONDS: "1800"', self.replica)
+        self.assertIn('HOSTED_REPLICA_TIMEOUT_SECONDS: "2120"', self.replica)
         self.assertIn('FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"', self.replica)
         self.assertIn('REPLICA_MAXIMUM_OUTPUT_BYTES: "1048576"', self.replica)
-        self.assertIn("timeout-minutes: 15", self.fan_in)
-        self.assertEqual(1_800 + 15 * 60, 2_700)
+        self.assertIn("timeout-minutes: 20", self.fan_in)
+        self.assertEqual(1_700 + 120 + 300, 2_120)
 
     def test_replica_launch_is_x86_waited_bounded_and_null_safe(self) -> None:
         self.assertIn(
@@ -114,6 +114,9 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         self.assertIn("REPLICA_MAXIMUM_OUTPUT_BYTES", self.run_step)
         self.assertIn("HOSTED_REPLICA_TIMEOUT_SECONDS", self.run_step)
         self.assertIn("Stop-Jet3BootstrapProcessTree -Process $process", self.run_step)
+        self.assertIn('started_utc = [DateTimeOffset]::UtcNow.ToString("o")', self.run_step)
+        self.assertIn('completed_utc = [DateTimeOffset]::UtcNow.ToString("o")', self.run_step)
+        self.assertIn("elapsed_seconds = [Math]::Round($elapsedSeconds, 3)", self.run_step)
         for argument in (
             '"-RepositoryRoot", $repository',
             '"-OutputRoot", $outputRoot',
@@ -134,7 +137,8 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
             self.workflow.count("status --porcelain=v1 --untracked-files=all"),
             2,
         )
-        self.assertIn("fetch-depth: 0", self.replica)
+        self.assertIn("fetch-depth: 1", self.replica)
+        self.assertIn("needs.contract.result == 'success'", self.replica)
 
     def test_replica_and_diagnostic_uploads_are_always_retained(self) -> None:
         retained = self.replica.split(
@@ -153,7 +157,7 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         self.assertIn("retention-days: 14", diagnostics)
 
     def test_fan_in_downloads_exactly_three_and_runs_contract_order(self) -> None:
-        self.assertEqual(self.fan_in.count("actions/download-artifact@"), 3)
+        self.assertEqual(self.fan_in.count("actions/download-artifact@"), 4)
         for replica in (1, 2, 3):
             self.assertIn(f"name: windows-dao-a2-replica-{replica}", self.fan_in)
             self.assertIn(f"replica-0{replica}", self.fan_in)
@@ -168,16 +172,45 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         self.assertEqual(self.fan_in.count("--replica (Join-Path"), 3)
         self.assertIn('$campaignId = "a2-run-$env:GITHUB_RUN_ID"', self.fan_in)
         self.assertIn("--holdout-receipt", self.fan_in)
+        self.assertIn('--campaign-id "a2-run-$env:GITHUB_RUN_ID"', self.fan_in)
+        self.assertIn("--producer-commit $env:GITHUB_SHA", self.fan_in)
         upload = self.fan_in.split("      - name: Upload retained A2 bundle", 1)[1]
         self.assertIn("if: always()", upload)
+        self.assertIn("fan-in-status.json", upload)
+        self.assertIn("if-no-files-found: error", upload)
         self.assertIn("compression-level: 0", upload)
         self.assertIn("retention-days: 90", upload)
+
+    def test_fan_in_status_is_bounded_timed_and_always_retained(self) -> None:
+        for step_id in ("assemble", "analyze", "finalize", "validate"):
+            self.assertIn(f"id: {step_id}", self.fan_in)
+            self.assertIn(f"steps.{step_id}.outcome", self.fan_in)
+        status = self.fan_in.split(
+            "      - name: Record retained A2 fan-in status", 1
+        )[1].split("      - name: Upload retained A2 bundle", 1)[0]
+        self.assertIn("if: always()", status)
+        for field in (
+            "independent_validation_passed",
+            "campaign_elapsed_seconds",
+            "within_plan_campaign_timeout",
+            "timing_records_complete",
+        ):
+            self.assertIn(field, status)
+        self.assertIn("$statusBytes.Length -gt 4096", status)
+        self.assertIn("hosted-replica.json", self.fan_in)
+        self.assertIn("started_utc", self.fan_in)
+        diagnostics = self.fan_in.split(
+            "      - name: Upload bounded A2 fan-in diagnostics", 1
+        )[1]
+        self.assertIn("if: always()", diagnostics)
+        self.assertIn("if-no-files-found: error", diagnostics)
+        self.assertIn("retention-days: 14", diagnostics)
 
     def test_all_actions_are_commit_pinned(self) -> None:
         actions = re.findall(
             r"^\s*-?\s*uses:\s*([^\s#]+)", self.workflow, re.MULTILINE
         )
-        self.assertEqual(len(actions), 12)
+        self.assertEqual(len(actions), 14)
         for action in actions:
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
         self.assertEqual(self.workflow.count("persist-credentials: false"), 3)

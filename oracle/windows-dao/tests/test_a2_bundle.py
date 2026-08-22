@@ -9,12 +9,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
+import a2_bundle  # noqa: E402
 from a2_analysis import main as analysis_main  # noqa: E402
 from a2_bundle import (  # noqa: E402
     CHECKPOINT_COUNT,
@@ -32,6 +34,7 @@ from a2_generator import (  # noqa: E402
     generate_synthetic_bundles,
     write_synthetic_bundle,
 )
+from a2_holdout import FAN_IN_TIMEOUT_SECONDS, HOLDOUT_TIMEOUT_SECONDS  # noqa: E402
 from a2_spec import BOUNDS, PLAN_SHA256  # noqa: E402
 from protocol_validation import ValidationError  # noqa: E402
 
@@ -72,6 +75,8 @@ class A2BundleTests(unittest.TestCase):
         self.assertEqual(MAX_PAGE_BLOBS, 65_536)
         self.assertEqual(MAX_PAGE_STORE_BYTES, 536_870_912)
         self.assertEqual(MAX_BUNDLE_BYTES, 805_306_368)
+        self.assertEqual(FAN_IN_TIMEOUT_SECONDS, 900)
+        self.assertEqual(HOLDOUT_TIMEOUT_SECONDS, 300)
         self.assertEqual(
             {
                 "page_size": PAGE_SIZE,
@@ -96,6 +101,7 @@ class A2BundleTests(unittest.TestCase):
         self.assertEqual(manifest["plan_sha256"], PLAN_SHA256)
         self.assertEqual(manifest["replica_count"], REPLICA_COUNT)
         self.assertEqual(manifest["checkpoint_count"], 75)
+        self.assertRegex(manifest["created_utc"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
         self.assertEqual(
             manifest["bundle_status"],
             "decisive_pending_independent_validation",
@@ -155,6 +161,65 @@ class A2BundleTests(unittest.TestCase):
             )
         self.assertFalse(destination.exists())
 
+    def test_inventory_uses_descriptor_identity_when_direntry_zeros_it(self) -> None:
+        root = self.root / "zeroed-direntry"
+        root.mkdir()
+        artifact = root / "artifact.json"
+        artifact.write_text("{}\n", encoding="utf-8")
+        actual = artifact.stat()
+        real_scandir = a2_bundle.os.scandir
+        real_path_identity = a2_bundle._path_identity
+
+        class ZeroedMetadata:
+            def __init__(self, metadata: object) -> None:
+                self._metadata = metadata
+                self.st_dev = 0
+                self.st_ino = 0
+                self.st_nlink = 0
+
+            def __getattr__(self, name: str) -> object:
+                return getattr(self._metadata, name)
+
+        class ZeroedEntry:
+            def __init__(self, entry: object) -> None:
+                self._entry = entry
+                self.path = entry.path
+
+            def stat(self, *, follow_symlinks: bool = True) -> ZeroedMetadata:
+                return ZeroedMetadata(
+                    self._entry.stat(follow_symlinks=follow_symlinks)
+                )
+
+            def is_symlink(self) -> bool:
+                return self._entry.is_symlink()
+
+        class ZeroedScan:
+            def __init__(self, path: object) -> None:
+                self._scan = real_scandir(path)
+
+            def __enter__(self) -> object:
+                return (ZeroedEntry(entry) for entry in self._scan.__enter__())
+
+            def __exit__(self, *arguments: object) -> object:
+                return self._scan.__exit__(*arguments)
+
+        def windows_path_identity(path: Path, metadata: object) -> tuple[int, int, int]:
+            with mock.patch.object(a2_bundle.os, "name", "nt"):
+                return real_path_identity(path, metadata)
+
+        with mock.patch.object(a2_bundle.os, "scandir", ZeroedScan), mock.patch.object(
+            a2_bundle, "_path_identity", side_effect=windows_path_identity
+        ) as identity:
+            tree, directories = a2_bundle._inventory(root)
+
+        self.assertEqual(directories, set())
+        self.assertEqual(
+            (tree["artifact.json"].device, tree["artifact.json"].inode),
+            (actual.st_dev, actual.st_ino),
+        )
+        self.assertEqual(tree["artifact.json"].links, actual.st_nlink)
+        identity.assert_called_once()
+
     def test_complete_validator_rejects_modified_artifact(self) -> None:
         corrupted = self.root / "corrupted-bundle"
         shutil.copytree(self.bundle, corrupted)
@@ -162,6 +227,13 @@ class A2BundleTests(unittest.TestCase):
         report.write_bytes(report.read_bytes() + b" ")
         with self.assertRaisesRegex(ValidationError, "size|sha256"):
             validate_bundle(corrupted)
+
+    def test_complete_validator_rejects_explicit_binding_mismatch(self) -> None:
+        producer_commit = self.manifest["producer_commit"]
+        with self.assertRaisesRegex(ValidationError, "expected campaign"):
+            validate_bundle(self.bundle, "a2-wrong-campaign", producer_commit)
+        with self.assertRaisesRegex(ValidationError, "expected producer commit"):
+            validate_bundle(self.bundle, self.campaign_id, "f" * 40)
 
     def test_finalize_refuses_manifest_replacement(self) -> None:
         with self.assertRaisesRegex(ValidationError, "already exists"):

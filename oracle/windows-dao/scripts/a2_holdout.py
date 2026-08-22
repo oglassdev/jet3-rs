@@ -14,6 +14,7 @@ from a2_spec import BOUNDS, EXPERIMENT_ID, PLAN_SHA256, validate_holdout_structu
 from protocol_validation import ValidationError, canonical_json_bytes
 
 FAN_IN_TIMEOUT_SECONDS = 900
+HOLDOUT_TIMEOUT_SECONDS = 300
 if BOUNDS["fan_in_timeout_seconds"] != FAN_IN_TIMEOUT_SECONDS:
     raise RuntimeError("checked A2 fan-in bound drifted")
 
@@ -30,8 +31,6 @@ def run_holdout_process(
         str(Path(__file__)),
         "--bundle-root",
         str(bundle_root),
-        "--replica",
-        "3",
         "--candidate-set",
         str(candidate_set),
         "--candidate-sha256",
@@ -41,7 +40,7 @@ def run_holdout_process(
     ]
     try:
         completed = subprocess.run(
-            command, check=False, timeout=FAN_IN_TIMEOUT_SECONDS
+            command, check=False, timeout=HOLDOUT_TIMEOUT_SECONDS
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise ValidationError(f"holdout structural validator failed: {exc}") from exc
@@ -83,7 +82,6 @@ def write_receipt(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle-root", type=Path, required=True)
-    parser.add_argument("--replica", type=int, choices=(3,), default=3)
     parser.add_argument("--candidate-set", type=Path, required=True)
     parser.add_argument("--candidate-sha256", required=True)
     parser.add_argument("--output", type=Path, required=True)

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Assemble, finalize, and independently validate DAO A2 bundle trees."""
+"""Assemble, finalize, and separately validate DAO A2 bundle trees.
+
+This is not the plan's separately provenanced independent validation rule.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +12,7 @@ import json
 import os
 import shutil
 import stat
+import sys
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -111,6 +115,17 @@ def _safe_locator(value: Any, label: str) -> str:
     if candidate.as_posix() != value:
         raise ValidationError(f"{label}: non-canonical artifact path")
     return value
+def _identity(metadata: os.stat_result) -> tuple[int, int, int]:
+    return metadata.st_dev, metadata.st_ino, metadata.st_nlink
+def _path_identity(path: Path, metadata: os.stat_result) -> tuple[int, int, int]:
+    if os.name != "nt":
+        return _identity(metadata)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        return _identity(os.fstat(descriptor))
+    finally:
+        os.close(descriptor)
 def _inventory(root: Path) -> tuple[dict[str, TreeFile], set[str]]:
     root = root.resolve()
     try:
@@ -148,16 +163,15 @@ def _inventory(root: Path) -> tuple[dict[str, TreeFile], set[str]]:
                         directories.add(locator)
                         pending.append((Path(child.path), depth + 1))
                     elif stat.S_ISREG(child_metadata.st_mode):
-                        identity = (child_metadata.st_dev, child_metadata.st_ino)
-                        if child_metadata.st_nlink != 1 or identity in identities:
+                        file_identity = _path_identity(Path(child.path), child_metadata)
+                        identity = file_identity[:2]
+                        if file_identity[2] != 1 or identity in identities:
                             raise ValidationError(f"{locator}: hard links are forbidden")
                         identities.add(identity)
                         files[locator] = TreeFile(
                             child_metadata.st_size,
                             child_metadata.st_mtime_ns,
-                            child_metadata.st_dev,
-                            child_metadata.st_ino,
-                            child_metadata.st_nlink,
+                            *file_identity,
                         )
                     else:
                         raise ValidationError(f"{locator}: non-regular tree entry")
@@ -173,8 +187,6 @@ def _expected_directories(paths: Iterable[str]) -> set[str]:
         for parent in Path(locator).parents
         if parent != Path(".")
     }
-def _identity(metadata: os.stat_result) -> tuple[int, int, int]:
-    return metadata.st_dev, metadata.st_ino, metadata.st_nlink
 def _read_checked(root: Path, locator: str, tree: dict[str, TreeFile], maximum: int) -> bytes:
     try:
         expected = tree[locator]
@@ -537,8 +549,6 @@ def _copy_verified(
     if total != size or observed.hexdigest() != digest:
         destination.unlink()
         raise ValidationError(f"{locator}: copy source binding failed")
-
-
 def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
                     campaign_id: str) -> dict[str, Any]:
     roots = tuple(Path(root).resolve() for root in replica_roots)
@@ -590,8 +600,6 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
         "producer_commit": result.replicas[0].producer_commit,
         "provider_sha256": result.replicas[0].provider_sha256,
     }
-
-
 def validate_holdout_replica(bundle_root: Path, candidate_path: Path,
                              candidate_sha256: str) -> ReplicaResult:
     tree, directories = _inventory(bundle_root.resolve())
@@ -624,8 +632,6 @@ def _role_for_path(path: str, replicas: tuple[ReplicaResult, ...]) -> str:
         if path in replica.entries:
             return replica.entries[path]["role"]
     raise ValidationError(f"{path}: cannot assign bundle role")
-
-
 def finalize_bundle(bundle_root: Path) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
     if (bundle_root / MANIFEST_PATH).exists():
@@ -656,7 +662,7 @@ def finalize_bundle(bundle_root: Path) -> dict[str, Any]:
         "campaign_id": payload.replicas[0].campaign_id,
         "producer_commit": payload.replicas[0].producer_commit,
         "repository_url": REPOSITORY_URL,
-        "created_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "created_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "plan_sha256": PLAN_SHA256,
         "replica_environment_sha256": [row.environment_sha256 for row in payload.replicas],
         "provider_sha256": payload.replicas[0].provider_sha256,
@@ -692,9 +698,8 @@ def finalize_bundle(bundle_root: Path) -> dict[str, Any]:
     with (bundle_root / MANIFEST_PATH).open("xb") as handle:
         handle.write(manifest_bytes)
     return manifest
-
-
-def validate_bundle(bundle_root: Path) -> dict[str, Any]:
+def validate_bundle(bundle_root: Path, campaign_id: str | None = None,
+                    producer_commit: str | None = None) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
     tree, directories = _inventory(bundle_root)
     manifest, manifest_payload = _json_artifact(bundle_root, MANIFEST_PATH, tree)
@@ -707,6 +712,10 @@ def validate_bundle(bundle_root: Path) -> dict[str, Any]:
     payload = _validate_payload(bundle_root, require_analysis=True,
                                 allow_manifest=True)
     assert payload.analysis is not None and payload.receipt is not None
+    if campaign_id is not None:
+        _require(manifest["campaign_id"], campaign_id, "expected campaign")
+    if producer_commit is not None:
+        _require(manifest["producer_commit"], producer_commit, "expected producer commit")
     expected = {
         "experiment_id": EXPERIMENT_ID,
         "campaign_id": payload.replicas[0].campaign_id,
@@ -740,27 +749,19 @@ def validate_bundle(bundle_root: Path) -> dict[str, Any]:
         "analysis": payload.analysis,
         "replicas": [row.observation for row in payload.replicas],
     }
-
-
-def _bundle_argument(parser: argparse.ArgumentParser, *, positional: bool = False) -> None:
-    if positional:
-        parser.add_argument("bundle", nargs="?", type=Path)
-        parser.add_argument("--bundle-root", type=Path)
-    else:
-        parser.add_argument("--bundle-root", type=Path, required=True)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     assemble = subparsers.add_parser("assemble")
     assemble.add_argument("--replica-root", action="append", type=Path, required=True)
-    _bundle_argument(assemble)
+    assemble.add_argument("--bundle-root", type=Path, required=True)
     assemble.add_argument("--campaign-id", required=True)
     finalize = subparsers.add_parser("finalize")
-    _bundle_argument(finalize)
+    finalize.add_argument("--bundle-root", type=Path, required=True)
     validate = subparsers.add_parser("validate")
-    _bundle_argument(validate, positional=True)
+    validate.add_argument("bundle", type=Path)
+    validate.add_argument("--campaign-id", required=True)
+    validate.add_argument("--producer-commit", required=True)
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == "assemble":
@@ -774,10 +775,9 @@ def main(argv: list[str] | None = None) -> int:
                 "file_count": len(manifest["files"]),
             }
         else:
-            bundle_root = arguments.bundle_root or arguments.bundle
-            if bundle_root is None:
-                raise ValidationError("validate requires a bundle root")
-            validation = validate_bundle(bundle_root)
+            bundle_root = arguments.bundle
+            validation = validate_bundle(
+                bundle_root, arguments.campaign_id, arguments.producer_commit)
             result = {
                 "bundle_root": str(bundle_root),
                 "campaign_id": validation["manifest"]["campaign_id"],
@@ -785,7 +785,7 @@ def main(argv: list[str] | None = None) -> int:
                 "manifest_sha256": validation["manifest_sha256"],
             }
     except (OSError, ValidationError) as exc:
-        print(f"A2 bundle {arguments.command} failed: {exc}", file=os.sys.stderr)
+        print(f"A2 bundle {arguments.command} failed: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, sort_keys=True, default=str))
     return 0
