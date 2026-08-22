@@ -6,6 +6,19 @@ started. This lane contains the plan, A3-bound schemas, and hash-pinned design
 input pointers only; it contains no analyzer, independent validator, worker, or
 workflow implementation.
 
+Before acquisition, additive revision `DAO-A3-ALLOCATION-MAPS-001-R2` was
+recorded as `EXP-0045` to pin the previously unstated campaign and per-layer
+predicate evaluation sequence and status projection. Acquisition has not
+started, so this additive revision is permitted by the base plan's amendment
+rule. The immutable revision file is
+`oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`, SHA-256
+`3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`.
+It preserves the base plan and explicitly flags four supplied positions whose
+ordering appears to conflict with its operational prose: global record end
+before polarity resolution, polarity cross-check before conversion/slot/inline
+evaluation, inline suffix after boundary ambiguity, and extended-base pointer
+validity after the base terminals.
+
 The actual `EXP-0042` polarity cross-check outcome is a violation on leg 3,
 `L_REL_0512` to `L_REL_0768`, first at page 1021; the later tag-change leg is
 never reached. On EXP-0042-like data, the `global_map_conversion_inline` and

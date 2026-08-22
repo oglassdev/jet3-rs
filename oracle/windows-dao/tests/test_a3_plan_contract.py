@@ -12,9 +12,11 @@ ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a3"
 A2_EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a3-allocation-maps.plan.json"
+REVISION_PLAN = EXPERIMENT / "a3-allocation-maps-r2.plan.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
     "a2-independent-review-pointer.md": "2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b",
@@ -43,6 +45,104 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn("### EXP-0044", provenance)
         self.assertIn(PLAN_SHA256, provenance)
         self.assertIn(PLAN_SHA256, readme)
+
+    def test_r2_predicate_sequence_is_hash_pinned_and_additive(self) -> None:
+        revision_bytes = REVISION_PLAN.read_bytes()
+        revision = json.loads(revision_bytes)
+        self.assertEqual(
+            hashlib.sha256(revision_bytes).hexdigest(), REVISION_PLAN_SHA256
+        )
+        preregistration = revision["preregistration"]
+        self.assertEqual(preregistration["revision_of"], self.plan["experiment_id"])
+        self.assertEqual(preregistration["original_plan"]["sha256"], PLAN_SHA256)
+        self.assertFalse(preregistration["acquisition_started"])
+        self.assertIn("permitted", preregistration["amendment_permitted"])
+
+        reconciliation = revision["predicate_evaluation_sequence_reconciliation"]
+        self.assertEqual(
+            reconciliation["campaign_evaluated_before_any_layer"],
+            [
+                "A3-IDLE-EQUALITY",
+                "A3-SNAPSHOT-RECONSTRUCTION",
+                "A3-RESOURCE-BOUND",
+            ],
+        )
+        self.assertEqual(
+            reconciliation["per_layer_ordered_predicates"],
+            {
+                "global_map.record": [
+                    "A3-GLOBAL-PAGE-NONE",
+                    "A3-GLOBAL-RECORD-NONE",
+                    "A3-D-SET-RELATION",
+                    "A3-GLOBAL-RECORD-END",
+                    "A3-POLARITY-NONE",
+                    "A3-POLARITY-MULTIPLE",
+                    "A3-GLOBAL-PAGE-MULTIPLE",
+                    "A3-GLOBAL-RECORD-MULTIPLE",
+                    "A3-STRUCTURAL-EXCLUSION",
+                    "A3-REPLICA-DISAGREEMENT",
+                ],
+                "global_map.conversion_inline": [
+                    "A3-POLARITY-CROSSCHECK",
+                    "A3-CONVERSION-NONE",
+                    "A3-CONVERSION-MULTIPLE",
+                    "A3-SLOT-ACTIVATION",
+                    "A3-SLOT-FINAL",
+                    "A3-POINTER-VALIDITY",
+                    "A3-INLINE-BOUNDARY-NONE",
+                    "A3-INLINE-BOUNDARY-MULTIPLE",
+                    "A3-INLINE-SUFFIX",
+                    "A3-STRUCTURAL-EXCLUSION",
+                    "A3-REPLICA-DISAGREEMENT",
+                ],
+                "global_map.extended_base": [
+                    "A3-BASE-DISCRIMINATION",
+                    "A3-BASE-NONE",
+                    "A3-BASE-MULTIPLE",
+                    "A3-POINTER-VALIDITY",
+                    "A3-REPLICA-DISAGREEMENT",
+                ],
+                "tdef.pointer_pair": [
+                    "A3-TDEF-PAGE-NONE",
+                    "A3-CHURN-PRECONDITION",
+                    "A3-GROWTH-POINTER-NONE",
+                    "A3-CHURN-POINTER-NONE",
+                    "A3-TDEF-RECORD-NONE",
+                    "A3-TDEF-PAGE-MULTIPLE",
+                    "A3-TDEF-RECORD-MULTIPLE",
+                    "A3-POINTER-MULTIPLE",
+                    "A3-POINTER-VALIDITY",
+                    "A3-STRUCTURAL-EXCLUSION",
+                    "A3-REPLICA-DISAGREEMENT",
+                ],
+            },
+        )
+        self.assertIn("stops", reconciliation["layer_evaluation_rule"])
+        self.assertIn("reached", reconciliation["applicable_layer_status_rule"])
+        self.assertIn("unreached", reconciliation["layer_specific_status_rule"])
+        self.assertIn("A3-HOLDOUT-PREDICTION", reconciliation["holdout_exception"])
+        self.assertEqual(
+            [
+                (row["layer"], row["predicate_id"], row["position"])
+                for row in reconciliation["base_text_consistency_review"][
+                    "flagged_positions"
+                ]
+            ],
+            [
+                ("global_map.record", "A3-GLOBAL-RECORD-END", 4),
+                ("global_map.conversion_inline", "A3-POLARITY-CROSSCHECK", 1),
+                ("global_map.conversion_inline", "A3-INLINE-SUFFIX", 9),
+                ("global_map.extended_base", "A3-POINTER-VALIDITY", 4),
+            ],
+        )
+        self.assertTrue(revision["execution_effect"]["original_plan_remains_immutable"])
+        self.assertFalse(revision["execution_effect"]["operational_rules_changed"])
+
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+        self.assertIn("### EXP-0045", provenance)
+        self.assertIn(REVISION_PLAN_SHA256, provenance)
+        self.assertIn(REVISION_PLAN_SHA256, readme)
 
     def test_design_input_pointers_and_targets_are_hash_pinned(self) -> None:
         recorded = {
@@ -439,7 +539,7 @@ class A3PlanContractTests(unittest.TestCase):
 
     def test_all_a3_json_documents_parse(self) -> None:
         documents = sorted(EXPERIMENT.glob("*.json"))
-        self.assertEqual(len(documents), 12)
+        self.assertEqual(len(documents), 13)
         for document in documents:
             with self.subTest(document=document.name):
                 json.loads(document.read_bytes())
