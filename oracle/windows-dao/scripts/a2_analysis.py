@@ -739,7 +739,8 @@ def _receipt_validator(path: Path, bundle_root: Path, candidate_path: Path,
     def validate(frozen_sha256: str) -> None:
         from a2_holdout import run_holdout_process
 
-        run_holdout_process(bundle_root, candidate_path, frozen_sha256, path)
+        run_holdout_process(bundle_root, candidate_path, frozen_sha256,
+                            replica.campaign_id, replica.producer_commit, path)
         receipt = _bounded_json(path)
         validate_document(receipt, "holdout-structure-receipt.schema.json")
         expected = {

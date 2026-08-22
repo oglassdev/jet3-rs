@@ -374,7 +374,8 @@ jobs:
             --replica-root (Join-Path $replicas "replica-01") `
             --replica-root (Join-Path $replicas "replica-02") `
             --replica-root (Join-Path $replicas "replica-03") `
-            --bundle-root $bundle --campaign-id $campaignId
+            --bundle-root $bundle --campaign-id $campaignId `
+            --producer-commit $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "A2 replica assembly failed." }
 
       - name: Freeze derivation, validate holdout separately, and analyze
@@ -400,7 +401,9 @@ jobs:
           $ErrorActionPreference = "Stop"
           $bundle = Join-Path $env:RUNNER_TEMP "jet3-a2-bundle"
           & python -B oracle/windows-dao/scripts/a2_bundle.py finalize `
-            --bundle-root $bundle
+            --bundle-root $bundle `
+            --campaign-id "a2-run-$env:GITHUB_RUN_ID" `
+            --producer-commit $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "A2 bundle finalization failed." }
 
       - name: Independently validate the complete A2 bundle

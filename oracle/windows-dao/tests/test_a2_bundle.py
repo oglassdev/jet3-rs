@@ -53,15 +53,18 @@ class A2BundleTests(unittest.TestCase):
             write_synthetic_bundle(root, bundle)
         observation = cls.synthetic[0].documents["observations/replica-01.json"]
         cls.campaign_id = observation["campaign_id"]
+        cls.producer_commit = observation["producer_commit"]
         cls.bundle = cls.root / "complete-bundle"
         cls.assembly = assemble_bundle(
-            cls.replica_roots, cls.bundle, cls.campaign_id
+            cls.replica_roots, cls.bundle, cls.campaign_id, cls.producer_commit
         )
         analysis_exit = analysis_main(["--bundle-root", str(cls.bundle)])
         if analysis_exit != 0:
             raise AssertionError("synthetic A2 analysis did not complete")
-        cls.manifest = finalize_bundle(cls.bundle)
-        cls.validation = validate_bundle(cls.bundle)
+        cls.manifest = finalize_bundle(
+            cls.bundle, cls.campaign_id, cls.producer_commit)
+        cls.validation = validate_bundle(
+            cls.bundle, cls.campaign_id, cls.producer_commit)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -93,6 +96,12 @@ class A2BundleTests(unittest.TestCase):
                 "max_retained_page_store_bytes", "max_bundle_bytes",
             )},
         )
+
+    def test_bundle_and_holdout_never_read_ci_bindings_from_environment(self) -> None:
+        for script in ("a2_bundle.py", "a2_holdout.py"):
+            source = (SCRIPTS / script).read_text(encoding="utf-8")
+            self.assertNotIn("os.environ", source)
+            self.assertNotIn("os.getenv", source)
 
     def test_complete_bundle_is_closed_bound_and_decisive(self) -> None:
         manifest = self.validation["manifest"]
@@ -145,7 +154,16 @@ class A2BundleTests(unittest.TestCase):
     def test_assemble_rejects_wrong_campaign_without_publication(self) -> None:
         destination = self.root / "wrong-campaign"
         with self.assertRaisesRegex(ValidationError, "campaign"):
-            assemble_bundle(self.replica_roots, destination, "a2-wrong-campaign")
+            assemble_bundle(
+                self.replica_roots, destination, "a2-wrong-campaign",
+                self.producer_commit)
+        self.assertFalse(destination.exists())
+
+    def test_assemble_rejects_wrong_explicit_producer_without_publication(self) -> None:
+        destination = self.root / "wrong-producer"
+        with self.assertRaisesRegex(ValidationError, "expected producer commit"):
+            assemble_bundle(
+                self.replica_roots, destination, self.campaign_id, "f" * 40)
         self.assertFalse(destination.exists())
 
     def test_assemble_rejects_extra_replica_inventory(self) -> None:
@@ -158,6 +176,7 @@ class A2BundleTests(unittest.TestCase):
                 (replica_copy, *self.replica_roots[1:]),
                 destination,
                 self.campaign_id,
+                self.producer_commit,
             )
         self.assertFalse(destination.exists())
 
@@ -226,18 +245,19 @@ class A2BundleTests(unittest.TestCase):
         report = corrupted / "analysis" / "analysis-report.json"
         report.write_bytes(report.read_bytes() + b" ")
         with self.assertRaisesRegex(ValidationError, "size|sha256"):
-            validate_bundle(corrupted)
+            validate_bundle(corrupted, self.campaign_id, self.producer_commit)
 
     def test_complete_validator_rejects_explicit_binding_mismatch(self) -> None:
-        producer_commit = self.manifest["producer_commit"]
         with self.assertRaisesRegex(ValidationError, "expected campaign"):
-            validate_bundle(self.bundle, "a2-wrong-campaign", producer_commit)
+            validate_bundle(
+                self.bundle, "a2-wrong-campaign", self.producer_commit)
         with self.assertRaisesRegex(ValidationError, "expected producer commit"):
             validate_bundle(self.bundle, self.campaign_id, "f" * 40)
 
     def test_finalize_refuses_manifest_replacement(self) -> None:
         with self.assertRaisesRegex(ValidationError, "already exists"):
-            finalize_bundle(self.bundle)
+            finalize_bundle(
+                self.bundle, self.campaign_id, self.producer_commit)
 
 
 if __name__ == "__main__":

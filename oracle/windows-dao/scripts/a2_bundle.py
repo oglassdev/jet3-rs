@@ -550,7 +550,7 @@ def _copy_verified(
         destination.unlink()
         raise ValidationError(f"{locator}: copy source binding failed")
 def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
-                    campaign_id: str) -> dict[str, Any]:
+                    campaign_id: str, producer_commit: str) -> dict[str, Any]:
     roots = tuple(Path(root).resolve() for root in replica_roots)
     if len(roots) != REPLICA_COUNT:
         raise ValidationError("assemble requires exactly three replica roots")
@@ -563,9 +563,7 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
             root, tree, directories, replica, campaign_id, closed=True))
     replicas = tuple(validated)
     _validate_environments(replicas)
-    github_sha = os.environ.get("GITHUB_SHA")
-    if github_sha is not None:
-        _require(replicas[0].producer_commit, github_sha, "checked-out producer commit")
+    _require(replicas[0].producer_commit, producer_commit, "expected producer commit")
     bundle_parent = bundle_root.resolve().parent
     bundle_parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".a2-assemble-", dir=bundle_parent))
@@ -601,10 +599,13 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
         "provider_sha256": result.replicas[0].provider_sha256,
     }
 def validate_holdout_replica(bundle_root: Path, candidate_path: Path,
-                             candidate_sha256: str) -> ReplicaResult:
+                             candidate_sha256: str, campaign_id: str,
+                             producer_commit: str) -> ReplicaResult:
     tree, directories = _inventory(bundle_root.resolve())
     replica = _validate_replica(bundle_root.resolve(), tree, directories,
                                 REPLICA_COUNT, None, closed=False)
+    _require(replica.campaign_id, campaign_id, "expected holdout campaign")
+    _require(replica.producer_commit, producer_commit, "expected holdout producer")
     payload = _read_checked(
         bundle_root.resolve(),
         candidate_path.resolve().relative_to(bundle_root.resolve()).as_posix(),
@@ -615,8 +616,6 @@ def validate_holdout_replica(bundle_root: Path, candidate_path: Path,
     frozen = _parse_json(payload, candidate_path.as_posix())
     _validate_frozen(frozen, replica.campaign_id)
     return replica
-
-
 def _role_for_path(path: str, replicas: tuple[ReplicaResult, ...]) -> str:
     fixed = {
         "plan/a2-allocation-maps.plan.json": "plan",
@@ -632,12 +631,15 @@ def _role_for_path(path: str, replicas: tuple[ReplicaResult, ...]) -> str:
         if path in replica.entries:
             return replica.entries[path]["role"]
     raise ValidationError(f"{path}: cannot assign bundle role")
-def finalize_bundle(bundle_root: Path) -> dict[str, Any]:
+def finalize_bundle(bundle_root: Path, campaign_id: str,
+                    producer_commit: str) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
     if (bundle_root / MANIFEST_PATH).exists():
         raise ValidationError("bundle manifest already exists")
     payload = _validate_payload(bundle_root, require_analysis=True)
     assert payload.analysis is not None and payload.receipt is not None
+    _require(payload.replicas[0].campaign_id, campaign_id, "expected campaign")
+    _require(payload.replicas[0].producer_commit, producer_commit, "expected producer")
     files = []
     for path in sorted(payload.expected_paths):
         item = payload.tree[path]
@@ -698,8 +700,8 @@ def finalize_bundle(bundle_root: Path) -> dict[str, Any]:
     with (bundle_root / MANIFEST_PATH).open("xb") as handle:
         handle.write(manifest_bytes)
     return manifest
-def validate_bundle(bundle_root: Path, campaign_id: str | None = None,
-                    producer_commit: str | None = None) -> dict[str, Any]:
+def validate_bundle(bundle_root: Path, campaign_id: str,
+                    producer_commit: str) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
     tree, directories = _inventory(bundle_root)
     manifest, manifest_payload = _json_artifact(bundle_root, MANIFEST_PATH, tree)
@@ -712,10 +714,8 @@ def validate_bundle(bundle_root: Path, campaign_id: str | None = None,
     payload = _validate_payload(bundle_root, require_analysis=True,
                                 allow_manifest=True)
     assert payload.analysis is not None and payload.receipt is not None
-    if campaign_id is not None:
-        _require(manifest["campaign_id"], campaign_id, "expected campaign")
-    if producer_commit is not None:
-        _require(manifest["producer_commit"], producer_commit, "expected producer commit")
+    _require(manifest["campaign_id"], campaign_id, "expected campaign")
+    _require(manifest["producer_commit"], producer_commit, "expected producer commit")
     expected = {
         "experiment_id": EXPERIMENT_ID,
         "campaign_id": payload.replicas[0].campaign_id,
@@ -756,8 +756,11 @@ def main(argv: list[str] | None = None) -> int:
     assemble.add_argument("--replica-root", action="append", type=Path, required=True)
     assemble.add_argument("--bundle-root", type=Path, required=True)
     assemble.add_argument("--campaign-id", required=True)
+    assemble.add_argument("--producer-commit", required=True)
     finalize = subparsers.add_parser("finalize")
     finalize.add_argument("--bundle-root", type=Path, required=True)
+    finalize.add_argument("--campaign-id", required=True)
+    finalize.add_argument("--producer-commit", required=True)
     validate = subparsers.add_parser("validate")
     validate.add_argument("bundle", type=Path)
     validate.add_argument("--campaign-id", required=True)
@@ -765,9 +768,11 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == "assemble":
-            result = assemble_bundle(arguments.replica_root, arguments.bundle_root, arguments.campaign_id)
+            result = assemble_bundle(arguments.replica_root, arguments.bundle_root,
+                                     arguments.campaign_id, arguments.producer_commit)
         elif arguments.command == "finalize":
-            manifest = finalize_bundle(arguments.bundle_root)
+            manifest = finalize_bundle(
+                arguments.bundle_root, arguments.campaign_id, arguments.producer_commit)
             result = {
                 "bundle_root": str(arguments.bundle_root),
                 "campaign_id": manifest["campaign_id"],
@@ -789,7 +794,5 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(json.dumps(result, sort_keys=True, default=str))
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

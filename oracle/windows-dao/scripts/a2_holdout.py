@@ -23,6 +23,8 @@ def run_holdout_process(
     bundle_root: Path,
     candidate_set: Path,
     candidate_sha256: str,
+    campaign_id: str,
+    producer_commit: str,
     output: Path,
 ) -> None:
     command = [
@@ -35,6 +37,10 @@ def run_holdout_process(
         str(candidate_set),
         "--candidate-sha256",
         candidate_sha256,
+        "--campaign-id",
+        campaign_id,
+        "--producer-commit",
+        producer_commit,
         "--output",
         str(output),
     ]
@@ -52,9 +58,12 @@ def write_receipt(
     bundle_root: Path,
     candidate_set: Path,
     candidate_sha256: str,
+    campaign_id: str,
+    producer_commit: str,
     output: Path,
 ) -> dict[str, object]:
-    replica = validate_holdout_replica(bundle_root, candidate_set, candidate_sha256)
+    replica = validate_holdout_replica(
+        bundle_root, candidate_set, candidate_sha256, campaign_id, producer_commit)
     receipt: dict[str, object] = {
         "protocol_version": "1.0.0",
         "document_type": "dao_a2_holdout_structure_receipt",
@@ -84,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bundle-root", type=Path, required=True)
     parser.add_argument("--candidate-set", type=Path, required=True)
     parser.add_argument("--candidate-sha256", required=True)
+    parser.add_argument("--campaign-id", required=True)
+    parser.add_argument("--producer-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     try:
@@ -96,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
             arguments.bundle_root,
             arguments.candidate_set,
             arguments.candidate_sha256,
+            arguments.campaign_id,
+            arguments.producer_commit,
             arguments.output,
         )
     except (OSError, ValidationError, ValueError) as exc:

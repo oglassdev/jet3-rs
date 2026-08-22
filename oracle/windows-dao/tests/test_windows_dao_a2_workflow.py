@@ -173,7 +173,9 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         self.assertIn('$campaignId = "a2-run-$env:GITHUB_RUN_ID"', self.fan_in)
         self.assertIn("--holdout-receipt", self.fan_in)
         self.assertIn('--campaign-id "a2-run-$env:GITHUB_RUN_ID"', self.fan_in)
-        self.assertIn("--producer-commit $env:GITHUB_SHA", self.fan_in)
+        self.assertEqual(
+            self.fan_in.count("--producer-commit $env:GITHUB_SHA"), 3
+        )
         upload = self.fan_in.split("      - name: Upload retained A2 bundle", 1)[1]
         self.assertIn("if: always()", upload)
         self.assertIn("fan-in-status.json", upload)
