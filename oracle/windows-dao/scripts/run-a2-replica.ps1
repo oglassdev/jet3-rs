@@ -514,9 +514,9 @@ function Invoke-A2ReplicaCampaign {
         [void][IO.Directory]::CreateDirectory($Diagnostics)
         Assert-M1NoReparseComponents -Path $Output
         Assert-M1NoReparseComponents -Path $Diagnostics
-        if (Test-M1PathWithin -Path $Output -Parent $Repository -or
-            Test-M1PathWithin -Path $Diagnostics -Parent $Repository -or
-            Test-M1PathWithin -Path $Diagnostics -Parent $Output) {
+        if ((Test-M1PathWithin -Path $Output -Parent $Repository) -or
+            (Test-M1PathWithin -Path $Diagnostics -Parent $Repository) -or
+            (Test-M1PathWithin -Path $Diagnostics -Parent $Output)) {
             throw "A2 output and diagnostics must remain outside the repository and separate."
         }
         if (@([IO.Directory]::EnumerateFileSystemEntries($Output)).Count -ne 0) {

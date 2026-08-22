@@ -392,6 +392,23 @@ class A2PowerShellContractTests(unittest.TestCase):
         self.assertNotIn("Trim('\"')", self.entry)
         self.assertIn("server_path -match '\"'", self.entry)
 
+    def test_command_conditions_parenthesize_calls_before_logical_operators(
+        self,
+    ) -> None:
+        ambiguous = re.compile(
+            r"(?m)^\s*(?:if|while)\s*\(\s*(?:"
+            r"-not\s+[A-Za-z][A-Za-z0-9]*-[A-Za-z][A-Za-z0-9]*\b|"
+            r"[A-Za-z][A-Za-z0-9]*-[A-Za-z][A-Za-z0-9]*\b"
+            r"[^\r\n]*\s-(?:or|and|not)\b)"
+        )
+        self.assertRegex(
+            "if (Test-One -Path $value -or Test-Two -Path $value) {",
+            ambiguous,
+        )
+        for path in (ENTRY, WORKER, PAGE_STORE, PROGRESS):
+            with self.subTest(path=path.name):
+                self.assertNotRegex(path.read_text(encoding="utf-8"), ambiguous)
+
     def test_acquisition_assigns_no_physical_format_meaning(self) -> None:
         lowered = "\n".join((self.worker, self.page_store)).lower()
         for forbidden in (
