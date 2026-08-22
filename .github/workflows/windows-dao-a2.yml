@@ -19,7 +19,7 @@ concurrency:
 jobs:
   contract:
     name: Validate the checked A2 contract
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -108,7 +108,7 @@ jobs:
       max-parallel: 3
       matrix:
         replica: [1, 2, 3]
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 37
     env:
       FROZEN_WORKER_TIMEOUT_SECONDS: "1700"
@@ -322,7 +322,7 @@ jobs:
       inputs.execute_a2_campaign &&
       needs.contract.result == 'success' &&
       needs.a2-replica.result == 'success'
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 20
     env:
       FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"

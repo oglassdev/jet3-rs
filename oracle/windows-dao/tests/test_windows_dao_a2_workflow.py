@@ -75,7 +75,9 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         self.assertIn("replica: [1, 2, 3]", self.replica)
         self.assertIn("max-parallel: 3", self.replica)
         self.assertIn("fail-fast: false", self.replica)
-        self.assertIn("runs-on: windows-latest", self.replica)
+        # EXP-0006 pins the dao360.dll binary shipped by the Server 2022 image.
+        self.assertEqual(self.workflow.count("runs-on: windows-2022"), 3)
+        self.assertNotIn("windows-latest", self.workflow)
         self.assertIn("timeout-minutes: 37", self.replica)
         self.assertIn('FROZEN_WORKER_TIMEOUT_SECONDS: "1700"', self.replica)
         self.assertIn('HOSTED_REPLICA_TIMEOUT_SECONDS: "2120"', self.replica)
