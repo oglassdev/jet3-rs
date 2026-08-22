@@ -3677,6 +3677,110 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: focused A3 plan hash, exact sequence, status-projection, amendment,
   and flagged-position contracts plus repository validation must pass
 
+### EXP-0046 — A3 pre-acquisition layer-semantics revision
+
+- Recorded: 2026-08-22, Claude Fable 5
+- Kind: additive pre-acquisition operational-rule reconciliation; no A3 worker,
+  workflow, analyzer result, validator result, dry-run result, DAO acquisition,
+  physical-format result, Rust result, or compatibility result
+- Origin: project-authored joint review of analyzer PR #54
+  (`origin/codex/a3-analyzer`) and independent validator PR #53
+  (`origin/codex/a3-validator`), which found ten plan gaps that the two lanes
+  filled differently (extended-page bitmap offset, conversion attribution,
+  replica agreement, inline boundary source and suffix order, polarity versus
+  multiplicity order, TDEF validity/structural position, slot activation,
+  report ordering fields, holdout slack/slot semantics, page absence). The
+  review is committed as
+  `oracle/windows-dao/experiments/a3/design-inputs/fable-a3-pair-review.md`,
+  SHA-256 `70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65`. Every
+  rule was derived from the immutable base plan's intent and from direct
+  inspection of the `EXP-0042` bundle derivation replicas 1 and 2; the two
+  implementations were read only to understand each divergence and no rule
+  adopts an implementation for convenience. `EXP-0042` replica 3 was not
+  opened. No external MDB implementation, Microsoft implementation source,
+  donated MDB, A3 DAO observation, or holdout artifact was inspected.
+- Additive R3 revision: `DAO-A3-ALLOCATION-MAPS-001-R3` binds the base plan
+  (SHA-256 `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`)
+  and R2 (SHA-256
+  `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`),
+  inherits R2's sequences unchanged, and pins one operational rule with one
+  implementation for each gap (`R3-G01` through `R3-G10`) plus six minor
+  readings (`R3-M01` through `R3-M06`). Acquisition has not started, so the
+  revision is permitted by the base plan's amendment rule. No schema changed.
+- Extended-page layout re-derived from `EXP-0042` (both derivation replicas):
+  the referenced `0x05` pages 14848 and 16352 carry bytes `05 01 00 00` at
+  `[0,4)`; the bitmap is `[4,2048)`, 16352 LSB-first bits. Page 14848 has one
+  nonzero bitmap byte at offset 1860 (`0xFE`, bits 14849–14855) at
+  `P_ABS_16480`; those seven bits flip to in-use at `H_REL_0064` and the
+  page-index hashes of exactly pages 14849–14855 (with 0, 27, 28, 14848,
+  16352, 16356–16358) change across that leg. Page 16352's tail run of
+  not-in-use bits starts at bit 129, 196, 1028, and 1036 at `P_ABS_16480`,
+  `H_REL_0064`, `H_REL_0896`, and `H_REL_0904`/`H_IDLE_REOPEN`, i.e. exactly
+  `16352 + i = page_count` (16481, 16548, 17380, 17388). Under the R3 survival
+  rule (flip-direction prediction on the slot-0 discriminator leg, map page
+  self-in-use, `page_count` sentinel, beyond-EOF not-in-use) the unique
+  survivor is `slot_relative_expected_0_16352`; `referenced_page_relative`
+  maps the flips beyond `page_count`, the two off-by-minus-one variants decode
+  the map page or sentinel wrongly, and the off-by-plus-one variants predict
+  page 14856 (unchanged) or put the sentinel in-use. A 1-byte header was tested
+  and refuted: byte 1 (`0x01`) would mark page 0 and page 16352 not-in-use and
+  the tail run would land on page 16505, not 16481. On `EXP-0042`-like data
+  the conversion layer is terminal at leg 3 and the extended-base layer is
+  therefore inapplicable; these numbers are calibration only.
+- Other re-derived calibrations: the global record on page 1 `[1915,2048)`
+  passes bounds only under `set_means_not_in_use`; in-use set sizes 29/157/27/
+  29/285, `Gp = [29,157)`, `|R \ G| = 128`; 34 D-flipped bytes 1922–1955 and
+  92 uniform `0xFF` bytes through 2047 (slack 92). The conversion window
+  classifies as inline ×2 (349, 797 pages), neither ×10 (capacity 1024
+  exceeded from 1053 pages), indirect ×4, so the class-change count is 2
+  (`A3-CONVERSION-MULTIPLE` if reached). The minimal inline extent `b*` over
+  the 12 inline-phase checkpoints is 3457 > 2048 (`A3-INLINE-BOUNDARY-NONE` if
+  reached). At `E0` the bytes `[1920,1924)` decode to u32 3758096384 with tag
+  0, which is why slot activation is restricted to tag-1 checkpoints; both
+  slots activate at `P_ABS_16480`. Replica disagreement, TDEF exclusion,
+  holdout opening, and page absence are not exhibited by the bundle and carry
+  no worked example.
+- Reachability: `A3-POLARITY-NONE` and `A3-INLINE-BOUNDARY-MULTIPLE` are
+  unreachable by construction with recorded proofs and preempting predicates;
+  `A3-STRUCTURAL-EXCLUSION` is unreachable on both global layers and reachable
+  only on `tdef.pointer_pair`; extended-base `A3-POINTER-VALIDITY` is reached
+  but never terminal. 32 predicate ids must be reached by executed fixtures.
+- Holdout semantics: frozen models are re-checked on the holdout without
+  re-derivation; `zero_suffix_slack_bytes` is frozen as the derivation minimum
+  and requires only structural agreement (≥ 16 uniform bytes) on the holdout;
+  `slot_reference_pages` is an exact prediction; holdout uniqueness is not
+  re-established and that limitation is disclosed.
+- Dry-run honesty clause: predicate reachability only by executed fixture
+  transcripts (`dry-run/a3-reachability-transcript.json`); synthetic replica 3
+  generated with independent overshoot in every phase; analyzer/validator
+  acceptance gate is full-sweep agreement on every synthetic case (identical
+  terminals, models, transcripts, and 34 statuses) retained as
+  `dry-run/a3-pair-agreement.json`; T1–T5 reported only when executed.
+- Plan identities:
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`, SHA-256
+  `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
+  `2f719310ea1f1a9d944f2c1524b2e7ce47078a5e0d6d2a816c4656a1cc91615a`.
+- Observation: `preregistration.acquisition_started` remains `false`; this
+  revision records no database, checkpoint, replica observation, candidate
+  set, report, validation receipt, evidence bundle, or scientific outcome.
+- Interpretation and execution gate: this amendment resolves implementation
+  contract ambiguities only. It assigns no independently validated Jet
+  meaning, proves no Rust behavior or DAO compatibility, changes no
+  support-matrix entry, and authorizes no A3 acquisition. The `EXP-0044`
+  execution gate remains `BLOCKED`.
+- Usage: `file:oracle/windows-dao/experiments/a3/README.md`;
+  `file:oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`;
+  `file:oracle/windows-dao/experiments/a3/design-inputs/fable-a3-pair-review.md`;
+  future separately reviewed A3 analyzer and independent validator
+- Rights: project-authored revision, review, and tests; no DAO binary, MDB,
+  page blob, or retained bundle is committed or redistributed
+- Review: focused A3 plan hash, R3 binding, gap-rule text, reachability,
+  holdout-semantics, and dry-run-clause contracts plus repository validation
+  must pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
