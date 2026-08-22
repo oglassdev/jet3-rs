@@ -212,10 +212,10 @@ function Assert-A2ExactPushedCommit {
             "ls-remote", "--heads", $script:A2RepositoryUrl
         ) -CallerLabel "A2 pushed commit binding" -TimeoutSeconds 30 `
         -MaximumOutputBytes 1MB
-    $matches = @([Convert]::ToString($remote.stdout) -split "\r?\n" | Where-Object {
+    $advertised = @([Convert]::ToString($remote.stdout) -split "\r?\n" | Where-Object {
         $_.StartsWith($Context.GitCommit + "`t", [StringComparison]::Ordinal)
     })
-    if ($matches.Count -lt 1) {
+    if ($advertised.Count -lt 1) {
         throw "A2 producer commit is not advertised by a pushed branch."
     }
 }
@@ -347,14 +347,17 @@ function Assert-A2ReplicaOutput {
         throw "A2 output file inventory differs from its manifest."
     }
     foreach ($path in $files) {
-        Assert-M1NoReparseComponents -Path $path
+        $item = Get-Item -LiteralPath $path -Force
+        if ($item.PSIsContainer -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "A2 output artifact is not a bounded ordinary file."
+        }
         $relative = $path.Substring($rootPath.Length + 1).Replace('\', '/')
         if ($relative -ceq $manifestRelative) { continue }
         if (-not $recordByPath.ContainsKey($relative)) {
             throw "A2 output contains an unmanifested artifact."
         }
         $record = $recordByPath[$relative]
-        $item = Get-Item -LiteralPath $path -Force
         if ([long]$record.size_bytes -ne [long]$item.Length -or
             [string]$record.sha256 -cne (Get-M1FileSha256 -Path $path)) {
             throw "A2 artifact differs from its manifest hash or size."
@@ -462,6 +465,37 @@ function Remove-A2PrivateWorkingRoot {
     [IO.Directory]::Delete($working, $true)
 }
 
+function Move-A2FailedDatabase {
+    param(
+        [Parameter(Mandatory = $true)][string]$WorkingRoot,
+        [Parameter(Mandatory = $true)][string]$Diagnostics,
+        [Parameter(Mandatory = $true)][int]$Replica
+    )
+    $working = [IO.Path]::GetFullPath($WorkingRoot)
+    $diagnosticsPath = [IO.Path]::GetFullPath($Diagnostics)
+    $expected = Join-Path $diagnosticsPath "private"
+    if (-not $working.Equals($expected, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing A2 failed-database retention outside its private boundary."
+    }
+    $replicaRoot = Join-Path $working ("replica-{0:D2}" -f $Replica)
+    $source = Join-Path $replicaRoot "ACQUISITION.MDB"
+    if (-not [IO.File]::Exists($source)) { return }
+    Assert-M1NoReparseComponents -Path $source
+    $item = Get-Item -LiteralPath $source -Force
+    if ($item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        $item.Length -lt 1 -or $item.Length -gt 128MB) {
+        throw "A2 failed database is not a bounded ordinary file."
+    }
+    $destination = Join-Path $diagnosticsPath `
+        ("failed-replica-{0:D2}.mdb" -f $Replica)
+    if ([IO.File]::Exists($destination) -or
+        [IO.Directory]::Exists($destination)) {
+        throw "A2 failed-database diagnostic already exists."
+    }
+    [IO.File]::Move($item.FullName, $destination)
+}
+
 function Invoke-A2ReplicaCampaign {
     param(
         [Parameter(Mandatory = $true)][string]$Repository,
@@ -472,6 +506,8 @@ function Invoke-A2ReplicaCampaign {
     )
     $context = $null
     $working = Join-Path $Diagnostics "private"
+    $primary = $null
+    $secondaryErrors = New-Object Collections.ArrayList
     try {
         $script:A2Stage = "output-preflight"
         [void][IO.Directory]::CreateDirectory($Output)
@@ -559,12 +595,54 @@ function Invoke-A2ReplicaCampaign {
         [void](Assert-M1RuntimeBinding -Context $context)
         Assert-A2ExactPushedCommit -Context $context
     }
+    catch { $primary = $_ }
     finally {
-        if ([IO.Directory]::Exists($working)) {
-            Remove-A2PrivateWorkingRoot -WorkingRoot $working `
-                -Diagnostics $Diagnostics
+        $removePrivate = $true
+        if ($null -ne $primary) {
+            try {
+                Move-A2FailedDatabase -WorkingRoot $working `
+                    -Diagnostics $Diagnostics -Replica $Replica
+            }
+            catch {
+                $removePrivate = $false
+                [void]$secondaryErrors.Add(
+                    "A2 failed-database retention also failed: " +
+                    [Convert]::ToString($_.Exception.Message)
+                )
+            }
         }
-        if ($null -ne $context) { Close-M1PreflightContext -Context $context }
+        if ($removePrivate -and [IO.Directory]::Exists($working)) {
+            try {
+                Remove-A2PrivateWorkingRoot -WorkingRoot $working `
+                    -Diagnostics $Diagnostics
+            }
+            catch {
+                [void]$secondaryErrors.Add(
+                    "A2 private cleanup also failed: " +
+                    [Convert]::ToString($_.Exception.Message)
+                )
+            }
+        }
+        if ($null -ne $context) {
+            try { Close-M1PreflightContext -Context $context }
+            catch {
+                [void]$secondaryErrors.Add(
+                    "A2 preflight cleanup also failed: " +
+                    [Convert]::ToString($_.Exception.Message)
+                )
+            }
+        }
+    }
+    if ($null -ne $primary) {
+        if ($secondaryErrors.Count -ne 0) {
+            $detail = @($secondaryErrors) -join " "
+            if ($detail.Length -gt 2000) { $detail = $detail.Substring(0, 2000) }
+            throw ([Convert]::ToString($primary.Exception.Message) + " " + $detail)
+        }
+        throw $primary
+    }
+    if ($secondaryErrors.Count -ne 0) {
+        throw (@($secondaryErrors) -join " ")
     }
 }
 

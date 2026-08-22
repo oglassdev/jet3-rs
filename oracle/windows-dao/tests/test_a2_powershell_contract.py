@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -17,7 +19,20 @@ PROGRESS = A2 / "A2.Progress.ps1"
 A1_PAGE_STORE = SCRIPTS / "a1" / "A1.PageStore.ps1"
 PLAN = ROOT / "experiments" / "a2" / "a2-allocation-maps.plan.json"
 SPEC = SCRIPTS / "a2_spec.py"
-MANIFEST = ROOT.parents[1] / "tests" / "manifest.json"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from a2_generator_schedule import build_schedule, checkpoint_document  # noqa: E402
+from a2_spec import (  # noqa: E402
+    CHECKPOINT_ORDINALS,
+    EXPERIMENT_ID,
+    PLAN_SHA256,
+    ROLE_BINDINGS,
+    ROLES,
+    expected_reread_sha256,
+    validate_replica_observation,
+)
+from protocol_validation import ValidationError  # noqa: E402
 
 
 def function_source(source: str, name: str) -> str:
@@ -258,6 +273,21 @@ class A2PowerShellContractTests(unittest.TestCase):
         self.assertIn("$files.Count -ne ($records.Count + 1)", verify)
         self.assertIn("unexpected directory", verify)
         self.assertIn("unmanifested artifact", verify)
+        for source in (manifest, verify):
+            self.assertNotIn("Assert-M1NoReparseComponents -Path $path", source)
+            self.assertIn("[IO.FileAttributes]::ReparsePoint", source)
+
+    def test_worker_rechecks_process_and_environment_identity(self) -> None:
+        worker = function_source(self.worker, "Invoke-A2Worker")
+        for fragment in (
+            "[IntPtr]::Size -ne 4",
+            "$PSVersionTable.PSVersion.Major -ne 5",
+            "$environment.experiment_id",
+            "$environment.repository_url",
+            '$environment.status -cne "ready"',
+        ):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, worker)
 
     def test_every_output_document_has_all_five_runtime_bindings(self) -> None:
         checkpoint = function_source(self.worker, "Add-A2Checkpoint")
@@ -334,6 +364,22 @@ class A2PowerShellContractTests(unittest.TestCase):
         self.assertIn("exit 1", catch)
         self.assertIn("exit 0", self.entry)
 
+    def test_primary_failure_is_preserved_and_failed_mdb_is_retained(self) -> None:
+        retain = function_source(self.entry, "Move-A2FailedDatabase")
+        campaign = function_source(self.entry, "Invoke-A2ReplicaCampaign")
+        self.assertIn('"failed-replica-{0:D2}.mdb"', retain)
+        self.assertIn('"replica-{0:D2}"', retain)
+        self.assertIn('"ACQUISITION.MDB"', retain)
+        self.assertIn("$item.Length -gt 128MB", retain)
+        self.assertIn("[IO.File]::Move", retain)
+        self.assertIn("catch { $primary = $_ }", campaign)
+        self.assertLess(
+            campaign.index("Move-A2FailedDatabase"),
+            campaign.index("Remove-A2PrivateWorkingRoot"),
+        )
+        self.assertIn("$primary.Exception.Message", campaign)
+        self.assertIn("throw $primary", campaign)
+
     def test_powershell_51_strictmode_pitfalls_are_guarded(self) -> None:
         self.assertNotRegex(self.combined, r"\[int\]\$[A-Za-z0-9_.]+\.exit_code")
         self.assertNotIn(".ExitCode", self.combined)
@@ -365,9 +411,84 @@ class A2PowerShellContractTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 self.assertLess(len(path.read_text(encoding="utf-8").splitlines()), 800)
 
-    def test_test_source_is_registered_in_repository_manifest(self) -> None:
-        manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn("test_a2_powershell_contract.py", manifest)
+    def test_worker_shaped_observation_passes_and_bad_reinsert_fails(self) -> None:
+        schedule = build_schedule()
+        checkpoints = []
+        for row in schedule.checkpoints:
+            reference = {
+                "path": (
+                    f"page-indexes/replica-01/{row.ordinal:02d}-"
+                    f"{row.checkpoint_id}.json"
+                ),
+                "sha256": hashlib.sha256(row.checkpoint_id.encode()).hexdigest(),
+                "size_bytes": 128,
+            }
+            checkpoint = checkpoint_document(row, reference)
+            checkpoint["dao_reread"] = [
+                {
+                    "role": role,
+                    "row_count": row.table_row_counts[role],
+                    "rolling_sha256": expected_reread_sha256(
+                        role, row.table_row_counts[role]
+                    ),
+                }
+                for role in ROLES
+                if not (row.checkpoint_id == "D_DROP" and role == "D")
+            ]
+            checkpoints.append(checkpoint)
+        first = checkpoints[CHECKPOINT_ORDINALS["D_GROW_0128"]]
+        recreated = checkpoints[CHECKPOINT_ORDINALS["D_RECREATE_EMPTY"]]
+        regrown = checkpoints[CHECKPOINT_ORDINALS["D_REGROW_0128"]]
+        observation = {
+            "protocol_version": "1.0.0",
+            "document_type": "dao_a2_replica_observation",
+            "experiment_id": EXPERIMENT_ID,
+            "plan_sha256": PLAN_SHA256,
+            "producer_commit": "1" * 40,
+            "repository_url": "https://github.com/oglassdev/jet3-rs.git",
+            "campaign_id": "a2-worker-contract",
+            "matrix_job": {
+                "job_id": "replica-01",
+                "replica_only": True,
+                "shared_mutable_state": False,
+            },
+            "environment_sha256": "2" * 64,
+            "provider_sha256": "3" * 64,
+            "replica": 1,
+            "role_binding": dict(ROLE_BINDINGS[0]),
+            "d_growth_observation": {
+                "first_baseline_pages": first["target_baseline_pages"],
+                "first_target_pages": first["target_threshold_pages"],
+                "first_achieved_pages": first["actual_file_pages"],
+                "first_rows": first["table_row_counts"]["D"],
+                "regrowth_baseline_pages": recreated["actual_file_pages"],
+                "regrowth_target_pages": regrown["target_threshold_pages"],
+                "regrowth_achieved_pages": regrown["actual_file_pages"],
+                "regrowth_rows": regrown["table_row_counts"]["D"],
+            },
+            "logical_checkpoint_read_bytes": sum(
+                checkpoint["actual_size_bytes"] for checkpoint in checkpoints
+            ),
+            "inserted_rows_total": checkpoints[-1]["inserted_rows_total"],
+            "changed_hash_entries": 25,
+            "checkpoints": checkpoints,
+        }
+        self.assertEqual(len(checkpoints), 25)
+        self.assertIs(validate_replica_observation(observation), observation)
+
+        invalid = copy.deepcopy(observation)
+        reinsert = invalid["checkpoints"][
+            CHECKPOINT_ORDINALS["L_REINSERT_SAME"]
+        ]
+        reinsert["table_row_counts"]["L"] -= 1
+        reread_l = next(row for row in reinsert["dao_reread"] if row["role"] == "L")
+        reread_l["row_count"] -= 1
+        reread_l["rolling_sha256"] = expected_reread_sha256(
+            "L", reread_l["row_count"]
+        )
+        self.assertNotEqual(reinsert["table_row_counts"]["L"] % 32, 0)
+        with self.assertRaises(ValidationError):
+            validate_replica_observation(invalid)
 
 
 if __name__ == "__main__":

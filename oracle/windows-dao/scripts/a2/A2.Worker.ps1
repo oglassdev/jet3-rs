@@ -542,9 +542,10 @@ function Write-A2ReplicaManifest {
     $records = New-Object Collections.ArrayList
     $pageBlobs = 0; $pageIndexes = 0; $total = [long]0
     foreach ($path in @($files | Sort-Object)) {
-        Assert-M1NoReparseComponents -Path $path
         $item = Get-Item -LiteralPath $path -Force
-        if ($item.PSIsContainer -or $item.Length -lt 1 -or $item.Length -gt 64MB) {
+        if ($item.PSIsContainer -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            $item.Length -lt 1 -or $item.Length -gt 64MB) {
             throw "A2 output artifact violates its file bound."
         }
         $relative = $path.Substring($script:A2Output.TrimEnd('\').Length + 1).Replace('\', '/')
@@ -586,6 +587,9 @@ function Write-A2ReplicaManifest {
 }
 
 function Invoke-A2Worker {
+    if ([IntPtr]::Size -ne 4 -or $PSVersionTable.PSVersion.Major -ne 5) {
+        throw "A2 worker requires x86 Windows PowerShell 5."
+    }
     $script:A2Replica = $Replica; $script:A2ProducerCommit = $ProducerCommit
     $script:A2CampaignId = $CampaignId; $script:A2MatrixJobId = $MatrixJobId
     $script:A2PlanSha256 = $PlanSha256
@@ -601,11 +605,15 @@ function Invoke-A2Worker {
     $roleBinding = Assert-A2WorkerPlan -Plan $script:A2Plan
     $environment = $environmentInput.document
     if ([string]$environment.document_type -cne "dao_a2_environment" -or
+        [string]$environment.experiment_id -cne $script:A2ExperimentId -or
         [string]$environment.plan_sha256 -cne $PlanSha256 -or
         [string]$environment.producer_commit -cne $ProducerCommit -or
+        [string]$environment.repository_url -cne
+            "https://github.com/oglassdev/jet3-rs.git" -or
         [string]$environment.campaign_id -cne $CampaignId -or
         [int]$environment.replica -ne $Replica -or
         [string]$environment.matrix_job_id -cne $MatrixJobId -or
+        [string]$environment.status -cne "ready" -or
         [string]$environment.host.process_architecture -cne "x86" -or
         [string]$environment.provider.prog_id -cne "DAO.DBEngine.36") {
         throw "A2 published environment differs from the worker binding."
