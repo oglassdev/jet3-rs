@@ -63,12 +63,13 @@ class WindowsDaoA2WorkflowTests(unittest.TestCase):
         for test in (
             "test_a2_plan_contract.py",
             "test_a2_spec_generator.py",
-            "test_a2_dryrun.py",
             "test_a2_powershell_contract.py",
-            "test_a2_bundle.py",
             "test_windows_dao_a2_workflow.py",
         ):
             self.assertEqual(self.contract.count(test), 1)
+        # The bundle and dry-run suites run in regular CI; they exceed the dispatch-time budget on Windows.
+        for heavy in ("test_a2_bundle.py", "test_a2_dryrun.py"):
+            self.assertNotIn(heavy, self.contract)
 
     def test_three_job_matrix_and_bounds_are_frozen(self) -> None:
         self.assertIn("replica: [1, 2, 3]", self.replica)
