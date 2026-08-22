@@ -135,6 +135,8 @@ jobs:
         run: |
           python3 tools/validate_contract.py
           python3 tools/validate_contract.py --self-test
+      - name: Validate repository contract
+        run: python3 tools/validate_repository_contract.py
       - name: Reject G6 core inventory drift
         run: python3 tools/validate_g6_evidence.py inventory
       - name: Test validation and acceptance tooling

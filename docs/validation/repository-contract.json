@@ -42,6 +42,13 @@
         "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
       },
       {
+        "path": "crates/jet3/src/allocation_traverse.rs",
+        "provenance_ids": [
+          "SRC-0020"
+        ],
+        "sha256": "f7b3de9413b7ce615e14f7e344f66113492c7e6b50154687d41633ca244a47c4"
+      },
+      {
         "path": "crates/jet3/src/candidate.rs",
         "provenance_ids": [
           "SRC-0004",
@@ -112,6 +119,11 @@
         "sha256": "33d399e3ca3dae5d026cef08900fe2c090d23085cdac60ae6dfde70e83f55a1d"
       },
       {
+        "path": "crates/jet3/src/allocation_traverse_tests.rs",
+        "reason": "Test-only verification of the provenance-bound bounded allocation traversal in allocation_traverse.rs.",
+        "sha256": "71b6fd8cfac85d09ac4e7e18260c03f7b9cbeb2d24ce8fe8054536297505e485"
+      },
+      {
         "path": "crates/jet3/src/atomic.rs",
         "reason": "Format-neutral atomic file replacement and recovery mechanics only.",
         "sha256": "5c1961c2989126038576ccf987e151eb4ecd351659742721989b03425d477ebe"
@@ -174,7 +186,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "cac070c0c620381d91de351c76197a55ae0cf9820cda1298ae2b1646524a2eaf"
+        "sha256": "11c71d7799172a76459bce12007761a0c8abe26e409021dc79a3eb168f1cf249"
       },
       {
         "path": "crates/jet3/src/limits.rs",
