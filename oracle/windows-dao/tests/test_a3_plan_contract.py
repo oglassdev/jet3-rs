@@ -1,0 +1,301 @@
+"""Focused hash and design contracts for the frozen DAO A3 preregistration."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a3"
+A2_EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
+PLAN = EXPERIMENT / "a3-allocation-maps.plan.json"
+README = EXPERIMENT / "README.md"
+PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
+PLAN_SHA256 = "08fe1e1336a9567af7530e5db4bb7d0867110c9dd35a07fdba3afb1285ec7750"
+DESIGN_INPUT_HASHES = {
+    "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
+    "a2-independent-review-pointer.md": "2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b",
+    "exp-0042-bundle-pointer.md": "c999dcb4624e9f945c966d5e621f0f5f5a44fd21cc9e10b470565ed4afc7d706",
+}
+SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from protocol_validation import lint_schema, validate_schema_value  # noqa: E402
+
+
+class A3PlanContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.plan_bytes = PLAN.read_bytes()
+        cls.plan = json.loads(cls.plan_bytes)
+        cls.a2_plan = json.loads(
+            (A2_EXPERIMENT / "a2-allocation-maps.plan.json").read_bytes()
+        )
+
+    def test_exact_plan_hash_is_frozen_in_readme_and_provenance(self) -> None:
+        self.assertEqual(hashlib.sha256(self.plan_bytes).hexdigest(), PLAN_SHA256)
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+        self.assertIn("### EXP-0044", provenance)
+        self.assertIn(PLAN_SHA256, provenance)
+        self.assertIn(PLAN_SHA256, readme)
+
+    def test_design_input_pointers_and_targets_are_hash_pinned(self) -> None:
+        recorded = {
+            Path(item["path"]).name: item["sha256"]
+            for item in self.plan["preregistration"]["origin_disclosure"][
+                "design_inputs"
+            ]
+        }
+        self.assertEqual(recorded, DESIGN_INPUT_HASHES)
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        for name, expected in DESIGN_INPUT_HASHES.items():
+            path = EXPERIMENT / "design-inputs" / name
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
+            self.assertIn(expected, provenance)
+        pointer = (EXPERIMENT / "design-inputs" / "exp-0042-bundle-pointer.md").read_text()
+        self.assertIn("7e58dc5e3c8424110897053cdfeab703b0e1d15fde2dfd4d8235efd62da43dc7", pointer)
+        self.assertIn("9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46", pointer)
+
+    def test_a2_schedule_roles_rows_capture_and_bounds_are_unchanged(self) -> None:
+        a2 = self.a2_plan
+        a3 = self.plan
+        self.assertEqual(a3["tables"], a2["tables"])
+        self.assertEqual(a3["page_capture"], a2["page_capture"])
+        self.assertEqual(a3["bounds"], a2["bounds"])
+        self.assertEqual(a3["replicas"], a2["replicas"])
+        self.assertEqual(a3["runtime_design"], a2["runtime_design"])
+        for key in (
+            "count",
+            "adaptive_checkpoints_allowed",
+            "all_checkpoints_closed_and_quiescent",
+            "d_growth_rule",
+            "d_regrowth_rule",
+            "relative_growth_rule",
+            "absolute_growth_rule",
+            "checkpoint_ids",
+            "idle_pairs",
+        ):
+            self.assertEqual(a3["checkpoint_design"][key], a2["checkpoint_design"][key])
+        for key in a2["checkpoint_design"]["transition_coverage"]:
+            self.assertEqual(
+                a3["checkpoint_design"]["transition_coverage"][key],
+                a2["checkpoint_design"]["transition_coverage"][key],
+            )
+        self.assertEqual(len(a3["checkpoint_design"]["checkpoint_ids"]), 25)
+
+    def test_record_layout_and_start_resolution_are_operational(self) -> None:
+        procedure = self.plan["record_candidate_procedure"]
+        layout = procedure["global_record_layout"]
+        start = procedure["global_record_start_resolution"]
+        self.assertIn("byte start is the one-byte representation tag", layout)
+        self.assertIn("[start+1,start+5)", layout)
+        self.assertIn("least-significant-bit-first", layout)
+        self.assertIn("base+i", layout)
+        for checkpoint in ("E0", "D_GROW_0128", "D_REGROW_0128"):
+            self.assertIn(checkpoint, start)
+        self.assertIn("tag == 0", start)
+        self.assertIn("base <= page_count < base+capacity", start)
+        self.assertIn("page_count itself to be not-in-use", start)
+        self.assertIn("both derivation replicas", start)
+        self.assertIn("representation-anchoring predicate", start)
+
+    def test_exp_0042_record_start_example_is_numeric_and_non_evidential(self) -> None:
+        example = self.plan["record_candidate_procedure"][
+            "global_record_start_worked_example"
+        ]
+        for text in (
+            "[1915,2048)",
+            "[1916,1920)",
+            "[1920,2048)",
+            "capacity 1024",
+            "29, 157, and 285",
+            "1,935 starts 0 through 1934",
+            "anchors start 1915",
+            "cannot satisfy A3",
+        ):
+            self.assertIn(text, example)
+
+    def test_no_equality_rule_is_amended_for_representation_anchor(self) -> None:
+        predicate = self.plan["hypotheses"]["global_map_record_predicate"]
+        self.assertIn("No byte, record, physical page, or page count", predicate)
+        self.assertIn("within-snapshot tag/base/highwater", predicate)
+        self.assertIn("not cross-checkpoint equality", predicate)
+
+    def test_polarity_cross_check_has_frozen_legs_and_stop_rule(self) -> None:
+        legs = self.plan["checkpoint_design"]["transition_coverage"][
+            "polarity_cross_check_legs"
+        ]
+        self.assertEqual(legs[0], ["D_REGROW_0128", "L_REL_0064"])
+        self.assertIn(["P_ABS_12288", "P_ABS_16480"], legs)
+        self.assertEqual(legs[-1], ["H_REL_0896", "H_REL_0904"])
+        rule = self.plan["hypotheses"]["polarity_cross_check"]
+        self.assertIn("both record tags are 0 and equal", rule)
+        self.assertIn("[page_count(left),page_count(right))", rule)
+        self.assertIn("representable by both snapshots", rule)
+        self.assertIn("passes vacuously", rule)
+        self.assertIn("stop before interpreting", rule)
+        self.assertIn("first violating leg", rule)
+        self.assertIn("lowest violating page", rule)
+
+    def test_cross_check_transcript_is_required_by_both_schemas(self) -> None:
+        report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
+        frozen = json.loads((EXPERIMENT / "derivation-candidates.schema.json").read_bytes())
+        self.assertIn("polarity_cross_check", report["required"])
+        self.assertIn("polarity_cross_check", frozen["required"])
+        for schema in (report, frozen):
+            required = schema["$defs"]["crossCheck"]["required"]
+            self.assertEqual(
+                required,
+                [
+                    "evaluated_legs",
+                    "representation_change_stop",
+                    "first_violating_leg",
+                    "first_violating_page",
+                ],
+            )
+
+    def test_frozen_candidate_set_has_fixed_shape_and_report_comparison(self) -> None:
+        schema = json.loads((EXPERIMENT / "derivation-candidates.schema.json").read_bytes())
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(
+            set(schema["properties"]["layers"]["required"]),
+            {
+                "global_map_record",
+                "global_map_conversion_inline",
+                "global_map_extended_base",
+                "tdef_pointer_pair",
+            },
+        )
+        freeze = self.plan["decision_rules"]["freeze_rule"]
+        self.assertIn("parsed frozen values", freeze)
+        self.assertIn("qualified_page_counts equals array lengths", freeze)
+        self.assertIn("Hash equality alone is insufficient", freeze)
+        report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
+        self.assertIn("qualified_pages", report["required"])
+
+    def test_predicate_reporting_is_total_bijective_and_fail_iff_terminal(self) -> None:
+        registry = self.plan["predicate_registry"]
+        ids = registry["ids"]
+        mappings = registry["mappings"]
+        self.assertEqual(len(ids), 34)
+        self.assertEqual(len(set(ids)), 34)
+        self.assertEqual({row["predicate_id"] for row in mappings}, set(ids))
+        rule = registry["reporting_rule"]
+        self.assertIn("exactly 34 entries", rule)
+        self.assertIn("status is fail if and only if", rule)
+        self.assertIn("A3-HOLDOUT-PREDICTION must be pass", rule)
+        report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
+        predicates = report["properties"]["predicate_results"]
+        self.assertEqual((predicates["minItems"], predicates["maxItems"]), (34, 34))
+
+    def test_tdef_no_outcome_order_is_exact(self) -> None:
+        rule = self.plan["record_candidate_procedure"]["tdef_no_outcome_ordering"]
+        stages = [
+            "(1) churn precondition",
+            "(2) growth windows",
+            "(3) churn windows",
+            "(4) records",
+            "(5) multiplicity",
+        ]
+        offsets = [rule.index(stage) for stage in stages]
+        self.assertEqual(offsets, sorted(offsets))
+        for reason in (
+            "legacy_churn_precondition_not_met",
+            "no_growth_only_pointer_candidate",
+            "no_delete_reinsert_only_pointer_candidate",
+            "no_tdef_record_candidate",
+            "multiple_tdef_record_boundaries_survive",
+            "multiple_pointer_models_survive",
+        ):
+            self.assertIn(reason, rule)
+
+    def test_pointer_validity_window_is_fully_ordered(self) -> None:
+        rule = self.plan["hypotheses"]["pointer_validity_rule"]
+        for text in (
+            "earliest checkpoint in the complete 25-checkpoint order",
+            "transition_coverage.pointer_validity_checkpoints",
+            "at or after activation_checkpoint",
+            "a zero reference is skipped",
+            "1 <= p < that checkpoint's page_count",
+            "candidate_page_space",
+            "byte zero",
+            "0x05",
+            "schedule order, then pointer offset, then slot number",
+        ):
+            self.assertIn(text, rule)
+
+    def test_worker_and_workflow_rebinding_is_narrow_and_fail_closed(self) -> None:
+        binding = self.plan["implementation_rebinding"]
+        self.assertEqual(binding["required_experiment_id"], "DAO-A3-ALLOCATION-MAPS-001")
+        self.assertIn("may change only", binding["source_rule"])
+        self.assertIn("reject unless experiment_id is exactly", binding["worker_fail_closed_rule"])
+        self.assertIn("must reject", binding["workflow_fail_closed_rule"])
+        self.assertNotIn("windows-dao-a2-", binding["allowed_artifact_name_changes"])
+        self.assertEqual(binding["plan_lane_implementation_status"], "not_implemented")
+
+    def test_execution_gate_is_blocked_on_named_implementations_and_disclosure(self) -> None:
+        gate = self.plan["execution_gate"]
+        self.assertEqual(gate["status"], "BLOCKED")
+        requirements = set(gate["blocking_requirements"])
+        self.assertLessEqual(
+            {
+                "checked_a3_analyzer_and_synthetic_generator",
+                "independent_recomputing_a3_validator",
+                "a2_worker_and_workflow_rebound_to_a3_with_fail_closed_experiment_id",
+                "passing_a3_dry_runs_disclosed_in_an_additive_provenance_entry",
+            },
+            requirements,
+        )
+        self.assertEqual(
+            self.plan["analyzer_dry_run_contract"]["dry_run_result_disclosure"],
+            "not_run_preregistration_only",
+        )
+
+    def test_independent_validator_is_preregistered_and_rejects_t1_to_t5(self) -> None:
+        contract = self.plan["independent_validator_contract"]
+        self.assertIn("must not read, import, execute", contract["implementation_independence"])
+        self.assertIn("Parse the frozen candidate set", contract["required_recomputation"])
+        self.assertEqual(
+            [case["id"] for case in contract["tamper_cases"]],
+            ["T1", "T2", "T3", "T4", "T5"],
+        )
+        self.assertIn("moves independent_validation_status", contract["acceptance_rule"])
+        self.assertEqual(contract["plan_lane_implementation_status"], "not_implemented")
+
+    def test_exp_0042_is_disclosed_as_prediction_input_not_a3_evidence(self) -> None:
+        origin = self.plan["preregistration"]["origin_disclosure"]
+        self.assertIn("prediction test", origin["prediction_not_rediscovery_disclosure"])
+        self.assertIn("three new replicas", origin["prediction_not_rediscovery_disclosure"])
+        self.assertFalse(self.plan["claims"]["exp_0042_bundle_is_a3_evidence"])
+        replay = self.plan["analyzer_dry_run_contract"]["retained_exp_0042_input"]
+        self.assertFalse(replay["scientific_evidence"])
+        self.assertIn("replica 3", replay["holdout_access"])
+
+    def test_plan_lane_contains_no_implementation_code(self) -> None:
+        suffixes = {path.suffix for path in EXPERIMENT.rglob("*") if path.is_file()}
+        self.assertLessEqual(suffixes, {".json", ".md"})
+
+    def test_all_a3_json_documents_parse(self) -> None:
+        documents = sorted(EXPERIMENT.glob("*.json"))
+        self.assertEqual(len(documents), 12)
+        for document in documents:
+            with self.subTest(document=document.name):
+                json.loads(document.read_bytes())
+
+    def test_schemas_lint_and_plan_validates(self) -> None:
+        schemas = sorted(EXPERIMENT.glob("*.schema.json"))
+        self.assertEqual(len(schemas), 11)
+        for path in schemas:
+            with self.subTest(schema=path.name):
+                lint_schema(json.loads(path.read_bytes()))
+        schema = json.loads((EXPERIMENT / "plan.schema.json").read_bytes())
+        validate_schema_value(self.plan, schema, schema, "$")
+
+
+if __name__ == "__main__":
+    unittest.main()

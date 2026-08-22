@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a3/derivation-candidates.schema.json",
+  "title": "DAO A3 frozen derivation candidate set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version", "document_type", "experiment_id", "plan_sha256",
+    "campaign_id", "derivation_replicas", "qualified_pages",
+    "polarity_cross_check", "layers"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"},
+    "document_type": {"const": "dao_a3_frozen_derivation_candidates"},
+    "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"},
+    "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "campaign_id": {"$ref": "#/$defs/id"},
+    "derivation_replicas": {"const": [1, 2]},
+    "qualified_pages": {
+      "type": "object", "additionalProperties": false,
+      "required": ["global_map", "tdef"],
+      "properties": {
+        "global_map": {"$ref": "#/$defs/pages"},
+        "tdef": {"$ref": "#/$defs/pages"}
+      }
+    },
+    "polarity_cross_check": {"$ref": "#/$defs/crossCheck"},
+    "layers": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "global_map_record", "global_map_conversion_inline",
+        "global_map_extended_base", "tdef_pointer_pair"
+      ],
+      "properties": {
+        "global_map_record": {"$ref": "#/$defs/globalRecordLayer"},
+        "global_map_conversion_inline": {"$ref": "#/$defs/conversionLayer"},
+        "global_map_extended_base": {"$ref": "#/$defs/baseLayer"},
+        "tdef_pointer_pair": {"$ref": "#/$defs/tdefLayer"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "pages": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 65535}},
+    "leg": {"type": "object", "additionalProperties": false, "required": ["left_checkpoint_id", "right_checkpoint_id"], "properties": {"left_checkpoint_id": {"type": "string", "pattern": "^[A-Z0-9_]+$"}, "right_checkpoint_id": {"type": "string", "pattern": "^[A-Z0-9_]+$"}}},
+    "nullableLeg": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/leg"}]},
+    "crossCheck": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evaluated_legs", "representation_change_stop", "first_violating_leg", "first_violating_page"],
+      "properties": {
+        "evaluated_legs": {"type": "array", "maxItems": 15, "items": {"$ref": "#/$defs/leg"}},
+        "representation_change_stop": {"$ref": "#/$defs/nullableLeg"},
+        "first_violating_leg": {"$ref": "#/$defs/nullableLeg"},
+        "first_violating_page": {"anyOf": [{"type": "null"}, {"type": "integer", "minimum": 0, "maximum": 65535}]}
+      }
+    },
+    "record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["page", "start", "end"],
+      "properties": {
+        "page": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "start": {"type": "integer", "minimum": 0, "maximum": 2042},
+        "end": {"const": 2048}
+      }
+    },
+    "globalRecordModel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record", "bit_polarity", "zero_suffix_slack_bytes"],
+      "properties": {
+        "record": {"$ref": "#/$defs/record"},
+        "bit_polarity": {"enum": ["set_means_in_use", "set_means_not_in_use"]},
+        "zero_suffix_slack_bytes": {"type": "integer", "minimum": 16, "maximum": 2048}
+      }
+    },
+    "conversionModel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversion_checkpoint_id", "conversion_ordinal", "active_slot_count_at_conversion", "active_slot_count_at_h_rel_0904", "inline_boundary", "slot_reference_pages"],
+      "properties": {
+        "conversion_checkpoint_id": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+        "conversion_ordinal": {"type": "integer", "minimum": 1, "maximum": 24},
+        "active_slot_count_at_conversion": {"type": "integer", "minimum": 1, "maximum": 2},
+        "active_slot_count_at_h_rel_0904": {"const": 2},
+        "inline_boundary": {"type": "integer", "minimum": 5, "maximum": 2048},
+        "slot_reference_pages": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "integer", "minimum": 1, "maximum": 65535}}
+      }
+    },
+    "baseModel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["extended_base_formula"],
+      "properties": {"extended_base_formula": {"enum": ["slot_relative_expected_0_16352", "referenced_page_relative", "slot_relative_off_by_minus_one", "slot_relative_off_by_plus_one", "referenced_page_relative_off_by_minus_one", "referenced_page_relative_off_by_plus_one"]}}
+    },
+    "tdefModel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record", "pointer_layout", "growth_pointer_offset", "delete_reinsert_pointer_offset"],
+      "properties": {
+        "record": {"$ref": "#/$defs/record"},
+        "pointer_layout": {"enum": ["u24le_page_then_u8_slot", "u8_slot_then_u24le_page"]},
+        "growth_pointer_offset": {"type": "integer", "minimum": 0, "maximum": 2044},
+        "delete_reinsert_pointer_offset": {"type": "integer", "minimum": 0, "maximum": 2044}
+      }
+    },
+    "reason": {"anyOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 128}]},
+    "predicate": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^A3-[A-Z0-9-]+$"}]},
+    "globalRecordLayer": {"$ref": "#/$defs/layerGlobal"},
+    "conversionLayer": {"$ref": "#/$defs/layerConversion"},
+    "baseLayer": {"$ref": "#/$defs/layerBase"},
+    "tdefLayer": {"$ref": "#/$defs/layerTdef"},
+    "layerGlobal": {"type": "object", "additionalProperties": false, "required": ["applicable", "derivation_survivor_count", "model", "no_outcome_reason", "terminal_predicate_id"], "properties": {"applicable": {"type": "boolean"}, "derivation_survivor_count": {"type": "integer", "minimum": 0, "maximum": 1000000}, "model": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/globalRecordModel"}]}, "no_outcome_reason": {"$ref": "#/$defs/reason"}, "terminal_predicate_id": {"$ref": "#/$defs/predicate"}}},
+    "layerConversion": {"type": "object", "additionalProperties": false, "required": ["applicable", "derivation_survivor_count", "model", "no_outcome_reason", "terminal_predicate_id"], "properties": {"applicable": {"type": "boolean"}, "derivation_survivor_count": {"type": "integer", "minimum": 0, "maximum": 1000000}, "model": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/conversionModel"}]}, "no_outcome_reason": {"$ref": "#/$defs/reason"}, "terminal_predicate_id": {"$ref": "#/$defs/predicate"}}},
+    "layerBase": {"type": "object", "additionalProperties": false, "required": ["applicable", "derivation_survivor_count", "model", "no_outcome_reason", "terminal_predicate_id"], "properties": {"applicable": {"type": "boolean"}, "derivation_survivor_count": {"type": "integer", "minimum": 0, "maximum": 1000000}, "model": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/baseModel"}]}, "no_outcome_reason": {"$ref": "#/$defs/reason"}, "terminal_predicate_id": {"$ref": "#/$defs/predicate"}}},
+    "layerTdef": {"type": "object", "additionalProperties": false, "required": ["applicable", "derivation_survivor_count", "model", "no_outcome_reason", "terminal_predicate_id"], "properties": {"applicable": {"type": "boolean"}, "derivation_survivor_count": {"type": "integer", "minimum": 0, "maximum": 1000000}, "model": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/tdefModel"}]}, "no_outcome_reason": {"$ref": "#/$defs/reason"}, "terminal_predicate_id": {"$ref": "#/$defs/predicate"}}}
+  }
+}

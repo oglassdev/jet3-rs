@@ -1,0 +1,367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a3/dry-run-report.schema.json",
+  "title": "DAO A3 pre-acquisition analyzer dry-run report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "experiment_id",
+    "plan_sha256",
+    "analyzer_commit",
+    "recorded_utc",
+    "source_kind",
+    "source_identity",
+    "checkpoint_schedule_source",
+    "input_page_blob_count",
+    "holdout_opened",
+    "parameter_coverage",
+    "predicted_terminal_states",
+    "terminal_predicate_ids",
+    "result",
+    "assertions",
+    "scientific_evidence",
+    "acquisition_authorized",
+    "capability_advancement_authorized"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0.0"
+    },
+    "document_type": {
+      "const": "dao_a3_analyzer_dry_run_report"
+    },
+    "experiment_id": {
+      "const": "DAO-A3-ALLOCATION-MAPS-001"
+    },
+    "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "analyzer_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "recorded_utc": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "source_kind": {
+      "type": "string",
+      "enum": [
+        "retained_a2_exp_0042_exploratory_derivation_only",
+        "a3_schedule_synthetic"
+      ]
+    },
+    "source_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_or_fixture_sha256",
+        "generator_sha256"
+      ],
+      "properties": {
+        "manifest_or_fixture_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "generator_sha256": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        }
+      }
+    },
+    "checkpoint_schedule_source": {
+      "type": "string",
+      "enum": [
+        "explicit_exp_0042_checkpoint_projection",
+        "hash_pinned_a3_plan_checkpoint_design"
+      ]
+    },
+    "input_page_blob_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 55
+    },
+    "holdout_opened": {
+      "const": false
+    },
+    "parameter_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conversion_ordinals",
+        "conversion_never",
+        "slot_activation_counts",
+        "bit_polarities",
+        "anchor_fill_states",
+        "exp_0042_calibration",
+        "record_end_uniform_slack_bytes"
+      ],
+      "properties": {
+        "conversion_ordinals": {
+          "type": "array",
+          "maxItems": 70,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 70
+          }
+        },
+        "conversion_never": {
+          "type": "boolean"
+        },
+        "slot_activation_counts": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          }
+        },
+        "bit_polarities": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "set_means_in_use",
+              "set_means_not_in_use"
+            ]
+          }
+        },
+        "anchor_fill_states": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "partial",
+              "full"
+            ]
+          }
+        },
+        "exp_0042_calibration": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source_a2_conversion_ordinal",
+                "conversion_checkpoint_id",
+                "a3_conversion_ordinal",
+                "active_slot_count",
+                "bit_polarity",
+                "delete_page_delta",
+                "scientific_evidence"
+              ],
+              "properties": {
+                "source_a2_conversion_ordinal": {
+                  "const": 20
+                },
+                "conversion_checkpoint_id": {
+                  "const": "P_ABS_16480"
+                },
+                "a3_conversion_ordinal": {
+                  "const": 20
+                },
+                "active_slot_count": {
+                  "const": 2
+                },
+                "bit_polarity": {
+                  "const": "set_means_not_in_use"
+                },
+                "delete_page_delta": {
+                  "const": 1
+                },
+                "scientific_evidence": {
+                  "const": false
+                }
+              }
+            }
+          ]
+        },
+      "record_end_uniform_slack_bytes": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 16,
+            "maximum": 64
+          }
+        }
+      }
+    },
+    "predicted_terminal_states": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 48,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-z0-9_]+$"
+      }
+    },
+    "terminal_predicate_ids": {
+      "type": "array",
+      "maxItems": 34,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/predicateId"
+      }
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "legacy_relative_d_is_abac",
+          "legacy_projection_table_exact",
+          "legacy_churn_precondition_identifier_exercised",
+          "retained_input_blob_bound_respected",
+          "holdout_never_opened",
+          "no_a3_scientific_outcome_emitted_for_exp_0042_input",
+          "page_qualification_precedes_interval_enumeration",
+          "candidate_page_union_exercised",
+          "exp_0042_qualified_page_ceiling_respected",
+          "exp_0042_record_candidate_ceiling_respected",
+          "exp_0042_analysis_work_ceiling_respected",
+          "prefix_sum_interval_queries_are_o1",
+          "record_source_independent_of_change_envelope",
+          "tag_base_bitmap_layout_decoded",
+          "three_highwater_anchors_enforced",
+          "global_record_start_unique",
+          "page_count_sentinel_not_in_use",
+          "global_record_end_unique_with_polarity_relative_uniform_slack",
+          "shorter_equivalent_record_ends_rejected",
+        "transition_structural_exclusion_is_page_agnostic",
+        "exp_0042_control_bytes_not_pointer_candidates",
+        "no_page_or_offset_blacklist",
+          "schedule_and_worker_arithmetic_generated_from_plan",
+          "no_a2_analyzer_results_imported",
+          "all_analyzer_equalities_generator_producible",
+          "d_record_set_relation_arithmetically_possible",
+          "d_drop_does_not_assume_truncation",
+          "d_alone_selects_bit_polarity",
+          "global_growth_polarity_cross_check_passes",
+          "polarity_cross_check_stops_before_representation_change",
+          "first_violating_leg_and_page_reported",
+          "growth_only_transition_arithmetically_possible",
+          "churn_only_transition_arithmetically_possible",
+          "conversion_ordinal_parameter_complete",
+          "slot_activation_parameter_complete",
+          "slot_activation_one_or_two_can_be_decisive",
+          "two_slots_active_by_h_rel_0904",
+          "bit_polarity_parameter_complete",
+          "conversion_derived_within_full_window",
+          "pointer_validity_only_at_preregistered_checkpoints",
+          "tdef_no_outcome_ordering_exercised",
+          "global_delimitation_uses_d_only",
+          "global_conversion_inline_and_base_use_lph",
+          "tdef_model_is_pointer_only",
+          "inline_boundaries_from_fixed_enumeration",
+          "inline_boundary_anchor_fill_independent",
+          "base_candidates_discriminated",
+          "base_nondiscrimination_is_layer_local",
+          "all_layers_decisive_model_recovered",
+          "partial_layer_outcome_retained",
+          "frozen_candidate_set_schema_valid",
+          "frozen_candidate_set_parsed_and_compared",
+          "every_predicate_id_exactly_once",
+          "predicate_fail_iff_terminal",
+          "decisive_holdout_prediction_predicate_passes",
+          "every_abort_has_pinned_reason_mapping",
+          "every_required_reachable_abort_reached_by_single_perturbation",
+          "distinct_page_and_record_cardinality_identifiers_exercised",
+          "all_required_terminal_cases_exercised",
+          "decisive_layered_report_accepted_by_contract_validator",
+          "independent_validator_rejects_t1_through_t5",
+          "exp_0042_calibration_case_non_evidential",
+          "bounds_accept_exact_and_reject_one_over"
+        ]
+      }
+    },
+    "scientific_evidence": {
+      "const": false
+    },
+    "acquisition_authorized": {
+      "const": false
+    },
+    "capability_advancement_authorized": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "predicateId": {
+      "type": "string",
+      "enum": [
+        "A3-IDLE-EQUALITY",
+        "A3-D-SET-RELATION",
+        "A3-GLOBAL-PAGE-NONE",
+        "A3-GLOBAL-PAGE-MULTIPLE",
+        "A3-GLOBAL-RECORD-NONE",
+        "A3-GLOBAL-RECORD-MULTIPLE",
+        "A3-GLOBAL-RECORD-END",
+        "A3-TDEF-PAGE-NONE",
+        "A3-TDEF-PAGE-MULTIPLE",
+        "A3-TDEF-RECORD-NONE",
+        "A3-TDEF-RECORD-MULTIPLE",
+        "A3-STRUCTURAL-EXCLUSION",
+        "A3-POLARITY-NONE",
+        "A3-POLARITY-MULTIPLE",
+        "A3-POLARITY-CROSSCHECK",
+        "A3-GROWTH-POINTER-NONE",
+        "A3-CHURN-PRECONDITION",
+        "A3-CHURN-POINTER-NONE",
+        "A3-POINTER-MULTIPLE",
+        "A3-POINTER-VALIDITY",
+        "A3-CONVERSION-NONE",
+        "A3-CONVERSION-MULTIPLE",
+        "A3-SLOT-ACTIVATION",
+        "A3-SLOT-FINAL",
+        "A3-INLINE-BOUNDARY-NONE",
+        "A3-INLINE-BOUNDARY-MULTIPLE",
+        "A3-INLINE-SUFFIX",
+        "A3-BASE-DISCRIMINATION",
+        "A3-BASE-NONE",
+        "A3-BASE-MULTIPLE",
+        "A3-REPLICA-DISAGREEMENT",
+        "A3-SNAPSHOT-RECONSTRUCTION",
+        "A3-RESOURCE-BOUND",
+        "A3-HOLDOUT-PREDICTION"
+      ]
+    }
+  }
+}
