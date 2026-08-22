@@ -8,7 +8,7 @@ Qualified-page then record/page disambiguation | :func:`derive_layers`
 Per-leg transcript frozen with all layers | :func:`candidate_document`
 Four independent layered outcomes | :func:`build_analysis`
 Frozen model-only holdout prediction | :func:`build_analysis`
-Exactly-once reporting and holdout exception | :func:`predicate_results`
+R2 ordered reporting and holdout exception | :func:`predicate_results`
 Field-for-field frozen/report agreement | :func:`build_analysis`
 CLI compatible with the A2 analyzer shape | :func:`main`
 """
@@ -37,9 +37,9 @@ from a3_model import (
     qualify_global_pages, qualify_tdef_pages,
 )
 from a3_spec import (
-    BOUNDS, EXPERIMENT_ID, LAYER_KEYS, PLAN, PLAN_SHA256, PREDICATES,
-    PREDICATE_IDS, compare_frozen_to_report, load_bounded_json,
-    frozen_json_bytes, validate_analysis_report, validate_document,
+    BOUNDS, EXPERIMENT_ID, LAYER_KEYS, PLAN, PLAN_SHA256,
+    compare_frozen_to_report, frozen_json_bytes, load_bounded_json,
+    project_predicate_results, validate_analysis_report, validate_document,
     validate_frozen_candidates,
 )
 
@@ -347,75 +347,19 @@ def _layer_result(draft: LayerDraft, holdout_match: bool | None, campaign_abort:
     return {"status": "no_outcome", "derivation_survivor_count": draft.survivor_count, "holdout_evaluated": True, "no_outcome_reasons": ["holdout_prediction_failure"], "terminal_predicate_id": "A3-HOLDOUT-PREDICTION", "model": draft.model.document() if draft.model else None}
 
 
-def predicate_results(layer_results: dict[str, dict[str, Any]], idle_evaluated: bool) -> tuple[list[dict[str, str]], list[str]]:
-    terminals = {row["terminal_predicate_id"] for row in layer_results.values() if row["terminal_predicate_id"]}
-    decisive = {key for key, row in layer_results.items() if row["status"] == "decisive_predicts_holdout"}
-    if decisive:
-        terminals.discard("A3-HOLDOUT-PREDICTION")
-    stage_groups = {
-        "global_map_record": (
-            ("A3-GLOBAL-PAGE-NONE", "A3-GLOBAL-PAGE-MULTIPLE"),
-            ("A3-GLOBAL-RECORD-NONE", "A3-D-SET-RELATION"),
-            ("A3-GLOBAL-RECORD-END",),
-            ("A3-POLARITY-NONE", "A3-POLARITY-MULTIPLE"),
-            ("A3-GLOBAL-RECORD-MULTIPLE",),
-        ),
-        "global_map_conversion_inline": (
-            ("A3-POLARITY-CROSSCHECK",),
-            ("A3-CONVERSION-NONE", "A3-CONVERSION-MULTIPLE"),
-            ("A3-SLOT-ACTIVATION", "A3-SLOT-FINAL"),
-            ("A3-INLINE-BOUNDARY-NONE", "A3-INLINE-BOUNDARY-MULTIPLE", "A3-INLINE-SUFFIX"),
-        ),
-        "global_map_extended_base": (
-            ("A3-BASE-DISCRIMINATION",),
-            ("A3-BASE-NONE", "A3-BASE-MULTIPLE"),
-        ),
-        "tdef_pointer_pair": (
-            ("A3-TDEF-PAGE-NONE", "A3-TDEF-PAGE-MULTIPLE"),
-            ("A3-CHURN-PRECONDITION",),
-            ("A3-GROWTH-POINTER-NONE",),
-            ("A3-CHURN-POINTER-NONE",),
-            ("A3-TDEF-RECORD-NONE",),
-            ("A3-TDEF-RECORD-MULTIPLE", "A3-POINTER-MULTIPLE"),
-        ),
-    }
-    evaluated: set[str] = set()
-    for key, groups in stage_groups.items():
-        row = layer_results[key]
-        if row["status"] == "not_applicable":
-            continue
-        terminal = row["terminal_predicate_id"]
-        stop = next((index for index, group in enumerate(groups) if terminal in group), len(groups) - 1)
-        evaluated.update(predicate for group in groups[:stop + 1] for predicate in group)
-    if idle_evaluated:
-        evaluated.update(("A3-IDLE-EQUALITY", "A3-SNAPSHOT-RECONSTRUCTION", "A3-RESOURCE-BOUND"))
-    if any(row["status"] != "not_applicable" for row in layer_results.values()):
-        evaluated.update(("A3-STRUCTURAL-EXCLUSION", "A3-POINTER-VALIDITY", "A3-REPLICA-DISAGREEMENT"))
-    if decisive or any(row["holdout_evaluated"] for row in layer_results.values()):
-        evaluated.add("A3-HOLDOUT-PREDICTION")
-    results: list[dict[str, str]] = []
-    for predicate_id in PREDICATE_IDS:
-        _reason, registered_layer = PREDICATES[predicate_id]
-        if predicate_id in terminals:
-            status = "fail"
-        elif predicate_id == "A3-HOLDOUT-PREDICTION" and decisive:
-            status = "pass"
-        elif predicate_id in evaluated:
-            status = "pass"
-        else:
-            status = "not_applicable"
-        results.append({"predicate_id": predicate_id, "status": status, "layer": registered_layer})
-    return results, sorted(terminals)
+def predicate_results(
+    layer_results: dict[str, dict[str, Any]],
+) -> tuple[list[dict[str, str]], list[str]]:
+    return project_predicate_results(layer_results)
 
 
 def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validate_holdout_after_freeze: Callable[[str], None]) -> dict[str, Any]:
     if len(sources) != 3:
         raise ValidationError("A3 analysis requires exactly three replica sources")
     derivation = [sources[0].open(), sources[1].open()]
-    work, campaign_abort, idle_evaluated = WorkCounter(), None, False
+    work, campaign_abort = WorkCounter(), None
     try:
         drafts, global_pages, tdef_pages, transcript = derive_layers(derivation, work)
-        idle_evaluated = True
     except Abort as exc:
         campaign_abort = exc
         drafts = {key: LayerDraft(None, 0, exc) for key in LAYER_KEYS}
@@ -446,7 +390,7 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
         except Abort as exc:
             campaign_abort = exc
     layers = {key: _layer_result(drafts[key], matches[key], campaign_abort) for key in LAYER_KEYS}
-    predicates, terminal_ids = predicate_results(layers, idle_evaluated)
+    predicates, terminal_ids = predicate_results(layers)
     decisive = any(row["status"] == "decisive_predicts_holdout" for row in layers.values())
     report = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_analysis_report", "experiment_id": EXPERIMENT_ID,

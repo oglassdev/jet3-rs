@@ -44,7 +44,8 @@ from a3_model import (
 )
 from a3_spec import (
     BOUNDS, EXPERIMENT_ID, PLAN, PLAN_SHA256, PREDICATES, PREDICATE_IDS,
-    load_bounded_json, validate_analysis_report, validate_dry_run_report,
+    REASON_PREDICATES, load_bounded_json, project_predicate_results,
+    validate_analysis_report, validate_dry_run_report,
     validate_predicate_reporting,
 )
 
@@ -215,20 +216,27 @@ def compare_retained_frozen(document: dict[str, Any], model: GlobalRecordModel, 
         raise ValidationError("EXP-0042 frozen TDEF outcome differs from ordered recomputation")
 
 
-def reporting_rows(terminal: str | None, *, decisive: bool = False) -> list[dict[str, str]]:
-    rows = []
-    for predicate_id in PREDICATE_IDS:
-        _reason, layer = PREDICATES[predicate_id]
-        status = "fail" if predicate_id == terminal else "pass"
-        if predicate_id == "A3-HOLDOUT-PREDICTION":
-            if decisive:
-                status = "pass"
-            elif terminal == predicate_id:
-                status = "fail"
-            else:
-                status = "not_applicable"
-        rows.append({"predicate_id": predicate_id, "status": status, "layer": layer})
-    return rows
+def reporting_rows(tdef_terminal: str) -> tuple[list[dict[str, str]], list[str]]:
+    """Project the retained replay's derivation-only layers through R2."""
+    layers = {
+        "global_map_record": {
+            "status": "no_outcome",
+            "terminal_predicate_id": None,
+        },
+        "global_map_conversion_inline": {
+            "status": "no_outcome",
+            "terminal_predicate_id": "A3-POLARITY-CROSSCHECK",
+        },
+        "global_map_extended_base": {
+            "status": "not_applicable",
+            "terminal_predicate_id": None,
+        },
+        "tdef_pointer_pair": {
+            "status": "no_outcome",
+            "terminal_predicate_id": tdef_terminal,
+        },
+    }
+    return project_predicate_results(layers)
 
 
 @dataclass(frozen=True)
@@ -238,6 +246,7 @@ class ReplayResult:
     model: GlobalRecordModel
     transcript: CrossCheckTranscript
     layer_outcomes: dict[str, str]
+    terminal_predicate_ids: tuple[str, ...]
     qualified_pages: dict[str, list[int]]
     legacy_start_count: int
     t3_rejected: bool
@@ -303,12 +312,23 @@ def run_replay(root: Path) -> ReplayResult:
         t3_rejected = True
     else:
         t3_rejected = False
-    rows = reporting_rows("A3-POLARITY-CROSSCHECK")
-    validate_predicate_reporting(rows, ["A3-POLARITY-CROSSCHECK"], any_decisive=False, any_holdout_failure=False)
+    tdef_terminal = REASON_PREDICATES[tdef_outcomes[0]]
+    rows, terminal_ids = reporting_rows(tdef_terminal)
+    validate_predicate_reporting(
+        rows,
+        terminal_ids,
+        any_decisive=False,
+        any_holdout_failure=False,
+    )
     tampered = copy.deepcopy(rows)
     tampered[0]["status"] = "fail"
     try:
-        validate_predicate_reporting(tampered, ["A3-POLARITY-CROSSCHECK"], any_decisive=False, any_holdout_failure=False)
+        validate_predicate_reporting(
+            tampered,
+            terminal_ids,
+            any_decisive=False,
+            any_holdout_failure=False,
+        )
     except ValidationError:
         t5_rejected = True
     else:
@@ -323,6 +343,7 @@ def run_replay(root: Path) -> ReplayResult:
             "global_map_extended_base": "not_applicable",
             "tdef_pointer_pair": tdef_outcomes[0],
         },
+        tuple(terminal_ids),
         {"global_map": list(global_pages[0]), "tdef": list(tdef_pages[0])},
         len(legacy[0]), t3_rejected, t5_rejected,
     )
@@ -447,7 +468,7 @@ def build_artifacts(root: Path, commit: str, recorded: str) -> dict[str, bytes]:
         "checkpoint_schedule_source": "explicit_exp_0042_checkpoint_projection",
         "input_page_blob_count": replay.blob_count, "parameter_coverage": _coverage(calibration),
         "predicted_terminal_states": sorted(set(replay.layer_outcomes.values())),
-        "terminal_predicate_ids": ["A3-POLARITY-CROSSCHECK"],
+        "terminal_predicate_ids": list(replay.terminal_predicate_ids),
         "assertions": [
             "holdout_never_opened", "no_a3_scientific_outcome_emitted_for_exp_0042_input",
             "page_qualification_precedes_interval_enumeration", "candidate_page_union_exercised",

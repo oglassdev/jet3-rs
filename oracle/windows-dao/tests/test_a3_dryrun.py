@@ -10,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from a3_dryrun import DEFAULT_RETAINED_ROOT, registry_reachability, run_replay  # noqa: E402
+from a3_dryrun import (  # noqa: E402
+    DEFAULT_RETAINED_ROOT, registry_reachability, reporting_rows, run_replay,
+)
 from a3_generator import FREE, iter_parameter_cases  # noqa: E402
 from a3_spec import PREDICATE_IDS  # noqa: E402
 
@@ -35,6 +37,16 @@ class A3DryRunTests(unittest.TestCase):
         self.assertEqual([row["predicate_id"] for row in rows], list(PREDICATE_IDS))
         self.assertEqual({row["status"] for row in rows}, {"reached"})
         self.assertEqual(len({row["perturbation"] for row in rows}), len(PREDICATE_IDS))
+
+    def test_replay_reporting_stops_at_r2_terminals(self) -> None:
+        rows, terminals = reporting_rows("A3-TDEF-RECORD-NONE")
+        statuses = {row["predicate_id"]: row["status"] for row in rows}
+        self.assertEqual(
+            terminals,
+            ["A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"],
+        )
+        self.assertEqual(statuses["A3-TDEF-PAGE-MULTIPLE"], "not_applicable")
+        self.assertEqual(statuses["A3-POINTER-VALIDITY"], "not_applicable")
 
     def test_parameter_enumerator_covers_all_axes(self) -> None:
         cases = list(iter_parameter_cases())

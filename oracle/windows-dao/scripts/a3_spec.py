@@ -3,7 +3,8 @@
 
 A3 rule | implementation
 --- | ---
-Hash-pinned plan and schema set | :func:`load_checked_plan`
+Hash-pinned base plan, R2 revision, and schema set | :func:`load_checked_plan`, :func:`load_checked_revision_plan`
+R2 campaign and per-layer predicate sequence | :func:`project_predicate_results`
 Exactly-once predicate reporting and applicable-layer literals | :func:`validate_analysis_report`
 Report-level holdout exception | :func:`validate_analysis_report`
 Frozen-set field equality, including the holdout-only exception | :func:`compare_frozen_to_report`
@@ -29,7 +30,10 @@ DAO_ROOT = Path(__file__).resolve().parents[1]
 A3_ROOT = DAO_ROOT / "experiments" / "a3"
 CHECKED_PLAN = A3_ROOT / "a3-allocation-maps.plan.json"
 PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+CHECKED_REVISION_PLAN = A3_ROOT / "a3-allocation-maps-r2.plan.json"
+REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 EXPERIMENT_ID = "DAO-A3-ALLOCATION-MAPS-001"
+REVISION_ID = "DAO-A3-ALLOCATION-MAPS-001-R2"
 
 _SCHEMA_FILES = {
     "dao_a3_allocation_maps_plan": "plan.schema.json",
@@ -149,6 +153,51 @@ def load_checked_plan(path: Path = CHECKED_PLAN) -> CheckedPlan:
 
 
 PLAN = load_checked_plan()
+
+
+def load_checked_revision_plan(
+    plan: CheckedPlan = PLAN,
+    path: Path = CHECKED_REVISION_PLAN,
+) -> dict[str, Any]:
+    """Load the exact additive R2 sequence contract and verify its base binding."""
+    require_equal(_sha256(path), REVISION_PLAN_SHA256, "R2 revision plan sha256")
+    document = load_bounded_json(path)
+    require_equal(
+        document.get("document_type"),
+        "dao_a3_allocation_maps_plan_revision",
+        "R2 document type",
+    )
+    require_equal(document.get("revision_id"), REVISION_ID, "R2 revision id")
+    original = document["preregistration"]["original_plan"]
+    require_equal(
+        original["path"],
+        "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json",
+        "R2 original plan path",
+    )
+    require_equal(original["sha256"], PLAN_SHA256, "R2 original plan sha256")
+    registry_ids = set(plan.predicate_ids)
+    reconciliation = document["predicate_evaluation_sequence_reconciliation"]
+    campaign = reconciliation["campaign_evaluated_before_any_layer"]
+    require_equal(len(campaign), len(set(campaign)), "R2 campaign sequence uniqueness")
+    require_equal(set(campaign) <= registry_ids, True, "R2 campaign predicate registry")
+    sequences = reconciliation["per_layer_ordered_predicates"]
+    require_equal(
+        set(sequences),
+        {
+            "global_map.record",
+            "global_map.conversion_inline",
+            "global_map.extended_base",
+            "tdef.pointer_pair",
+        },
+        "R2 layer sequence set",
+    )
+    for layer, sequence in sequences.items():
+        require_equal(len(sequence), len(set(sequence)), f"R2 {layer} sequence uniqueness")
+        require_equal(set(sequence) <= registry_ids, True, f"R2 {layer} predicate registry")
+    return document
+
+
+REVISION_PLAN = load_checked_revision_plan()
 CHECKPOINT_IDS = PLAN.checkpoint_ids
 CHECKPOINT_ORDINALS = PLAN.checkpoint_ordinals
 PREDICATE_IDS = PLAN.predicate_ids
@@ -163,6 +212,19 @@ LAYER_KEYS = (
     "global_map_record", "global_map_conversion_inline",
     "global_map_extended_base", "tdef_pointer_pair",
 )
+_REVISION_LAYER_NAMES = MappingProxyType({
+    "global_map_record": "global_map.record",
+    "global_map_conversion_inline": "global_map.conversion_inline",
+    "global_map_extended_base": "global_map.extended_base",
+    "tdef_pointer_pair": "tdef.pointer_pair",
+})
+_INTERNAL_LAYER_NAMES = MappingProxyType({value: key for key, value in _REVISION_LAYER_NAMES.items()})
+_SEQUENCE_CONTRACT = REVISION_PLAN["predicate_evaluation_sequence_reconciliation"]
+CAMPAIGN_PREDICATE_SEQUENCE = tuple(_SEQUENCE_CONTRACT["campaign_evaluated_before_any_layer"])
+LAYER_PREDICATE_SEQUENCES: Mapping[str, tuple[str, ...]] = MappingProxyType({
+    key: tuple(_SEQUENCE_CONTRACT["per_layer_ordered_predicates"][revision_key])
+    for key, revision_key in _REVISION_LAYER_NAMES.items()
+})
 
 
 def _schema(document: dict[str, Any], expected: str) -> None:
@@ -178,6 +240,84 @@ def _layer_rows(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "global_map_extended_base": report["submodels"]["global_map"]["extended_base"],
         "tdef_pointer_pair": report["submodels"]["tdef"]["pointer_pair"],
     }
+
+
+def _reached_predicates(
+    sequence: tuple[str, ...],
+    terminal: str | None,
+    *,
+    applicable: bool,
+) -> set[str]:
+    if not applicable:
+        return set()
+    if terminal in sequence:
+        return set(sequence[: sequence.index(terminal) + 1])
+    if terminal is None or terminal == "A3-HOLDOUT-PREDICTION":
+        return set(sequence)
+    return set()
+
+
+def project_predicate_results(
+    layer_results: Mapping[str, Mapping[str, Any]],
+    *,
+    campaign_evaluated: bool = True,
+) -> tuple[list[dict[str, str]], list[str]]:
+    """Project total predicate statuses using the exact R2 evaluation order."""
+    terminals = {
+        row["terminal_predicate_id"]
+        for row in layer_results.values()
+        if row["terminal_predicate_id"] is not None
+    }
+    decisive = any(
+        row["status"] == "decisive_predicts_holdout"
+        for row in layer_results.values()
+    )
+    if decisive:
+        terminals.discard("A3-HOLDOUT-PREDICTION")
+
+    campaign_terminal = next(
+        (predicate_id for predicate_id in CAMPAIGN_PREDICATE_SEQUENCE if predicate_id in terminals),
+        None,
+    )
+    campaign_reached = _reached_predicates(
+        CAMPAIGN_PREDICATE_SEQUENCE,
+        campaign_terminal,
+        applicable=campaign_evaluated,
+    )
+    reached_by_layer = {
+        key: _reached_predicates(
+            LAYER_PREDICATE_SEQUENCES[key],
+            row["terminal_predicate_id"],
+            applicable=row["status"] != "not_applicable",
+        )
+        for key, row in layer_results.items()
+    }
+    reached_in_any_layer = set().union(*reached_by_layer.values())
+
+    results: list[dict[str, str]] = []
+    for predicate_id in PREDICATE_IDS:
+        _reason, registered_layer = PREDICATES[predicate_id]
+        if predicate_id == "A3-HOLDOUT-PREDICTION" and decisive:
+            status = "pass"
+        elif predicate_id in terminals:
+            status = "fail"
+        elif registered_layer == "campaign":
+            status = "pass" if predicate_id in campaign_reached else "not_applicable"
+        elif registered_layer == "applicable_layer":
+            status = "pass" if predicate_id in reached_in_any_layer else "not_applicable"
+        else:
+            internal_layer = _INTERNAL_LAYER_NAMES[registered_layer]
+            status = (
+                "pass"
+                if predicate_id in reached_by_layer[internal_layer]
+                else "not_applicable"
+            )
+        results.append({
+            "predicate_id": predicate_id,
+            "status": status,
+            "layer": registered_layer,
+        })
+    return results, sorted(terminals)
 
 
 def frozen_json_bytes(document: dict[str, Any]) -> bytes:
@@ -325,6 +465,8 @@ def validate_analysis_report(document: dict[str, Any], frozen: dict[str, Any] | 
         results, document["terminal_predicate_ids"], any_decisive=bool(decisive),
         any_holdout_failure=holdout_fail,
     )
+    expected_results, _ = project_predicate_results(layers)
+    require_equal(results, expected_results, "R2 predicate status projection")
     require_equal(document["scientific_outcome"], "one_or_more_submodels_predict_holdout" if decisive else "no_submodel_predicts_holdout", "scientific outcome")
     require_equal(
         document["qualified_page_counts"],

@@ -22,8 +22,10 @@ from a3_model import (  # noqa: E402
     Abort, View, WorkCounter, decode_inline, global_start_candidates,
 )
 from a3_spec import (  # noqa: E402
-    PLAN_SHA256, PREDICATES, PREDICATE_IDS, compare_frozen_to_report,
-    load_bounded_json, validate_analysis_report, validate_predicate_reporting,
+    LAYER_PREDICATE_SEQUENCES, PLAN_SHA256, PREDICATES, PREDICATE_IDS,
+    REVISION_PLAN_SHA256, compare_frozen_to_report, load_bounded_json,
+    project_predicate_results, validate_analysis_report,
+    validate_predicate_reporting,
 )
 
 
@@ -109,6 +111,74 @@ class A3AnalyzerTests(unittest.TestCase):
             PLAN_SHA256,
             "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1",
         )
+
+    def test_r2_hash_and_tdef_sequence_are_bound(self) -> None:
+        self.assertEqual(
+            REVISION_PLAN_SHA256,
+            "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
+        )
+        sequence = LAYER_PREDICATE_SEQUENCES["tdef_pointer_pair"]
+        self.assertLess(
+            sequence.index("A3-TDEF-RECORD-NONE"),
+            sequence.index("A3-TDEF-PAGE-MULTIPLE"),
+        )
+
+    def test_r2_stops_projection_at_each_layer_terminal(self) -> None:
+        layers = {
+            "global_map_record": {
+                "status": "decisive_predicts_holdout",
+                "terminal_predicate_id": None,
+            },
+            "global_map_conversion_inline": {
+                "status": "no_outcome",
+                "terminal_predicate_id": "A3-POLARITY-CROSSCHECK",
+            },
+            "global_map_extended_base": {
+                "status": "not_applicable",
+                "terminal_predicate_id": None,
+            },
+            "tdef_pointer_pair": {
+                "status": "no_outcome",
+                "terminal_predicate_id": "A3-TDEF-RECORD-NONE",
+            },
+        }
+        rows, terminals = project_predicate_results(layers)
+        statuses = {row["predicate_id"]: row["status"] for row in rows}
+        self.assertEqual(statuses["A3-TDEF-RECORD-NONE"], "fail")
+        self.assertEqual(statuses["A3-TDEF-PAGE-MULTIPLE"], "not_applicable")
+        self.assertEqual(statuses["A3-POINTER-VALIDITY"], "not_applicable")
+        self.assertEqual(statuses["A3-STRUCTURAL-EXCLUSION"], "pass")
+        self.assertEqual(
+            terminals,
+            ["A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"],
+        )
+
+    def test_report_validator_rejects_unreached_r2_pass(self) -> None:
+        report, frozen, _ = self.analyze()
+        report["submodels"]["tdef"]["pointer_pair"].update({
+            "status": "no_outcome",
+            "derivation_survivor_count": 0,
+            "holdout_evaluated": False,
+            "no_outcome_reasons": ["no_tdef_record_candidate"],
+            "terminal_predicate_id": "A3-TDEF-RECORD-NONE",
+            "model": None,
+        })
+        report["derivation_survivor_counts"]["tdef_pointer_pair"] = 0
+        report["no_outcome_reasons"] = ["no_tdef_record_candidate"]
+        layers = {
+            "global_map_record": report["submodels"]["global_map"]["record"],
+            "global_map_conversion_inline": report["submodels"]["global_map"]["conversion_inline"],
+            "global_map_extended_base": report["submodels"]["global_map"]["extended_base"],
+            "tdef_pointer_pair": report["submodels"]["tdef"]["pointer_pair"],
+        }
+        report["predicate_results"], report["terminal_predicate_ids"] = (
+            project_predicate_results(layers)
+        )
+        for row in report["predicate_results"]:
+            if row["predicate_id"] == "A3-TDEF-PAGE-MULTIPLE":
+                row["status"] = "pass"
+        with self.assertRaises(ValidationError):
+            validate_analysis_report(report)
 
 
 if __name__ == "__main__":
