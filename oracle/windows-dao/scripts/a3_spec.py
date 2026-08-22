@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""Fail-closed checked contract for DAO-A3-ALLOCATION-MAPS-001.
+
+A3 rule | implementation
+--- | ---
+Hash-pinned plan and schema set | :func:`load_checked_plan`
+Exactly-once predicate reporting and applicable-layer literals | :func:`validate_analysis_report`
+Report-level holdout exception | :func:`validate_analysis_report`
+Frozen-set field equality, including the holdout-only exception | :func:`compare_frozen_to_report`
+Canonical frozen-set bytes | :func:`validate_frozen_candidates`
+Ordered dry-run parameter and predicate coverage | :func:`validate_dry_run_report`
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import stat
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from types import MappingProxyType
+from typing import Any, Mapping
+
+from protocol_validation import ProtocolSchemaSet, ValidationError
+
+DAO_ROOT = Path(__file__).resolve().parents[1]
+A3_ROOT = DAO_ROOT / "experiments" / "a3"
+CHECKED_PLAN = A3_ROOT / "a3-allocation-maps.plan.json"
+PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+EXPERIMENT_ID = "DAO-A3-ALLOCATION-MAPS-001"
+
+_SCHEMA_FILES = {
+    "dao_a3_allocation_maps_plan": "plan.schema.json",
+    "dao_a3_replica_observation": "replica-observation.schema.json",
+    "dao_a3_page_index": "page-index.schema.json",
+    "dao_a3_replica_artifact_manifest": "replica-artifact-manifest.schema.json",
+    "dao_a3_bundle_manifest": "bundle-manifest.schema.json",
+    "dao_a3_analysis_report": "analysis-report.schema.json",
+    "dao_a3_analyzer_dry_run_report": "dry-run-report.schema.json",
+    "dao_a3_holdout_structure_receipt": "holdout-structure-receipt.schema.json",
+    "dao_a3_environment": "environment.schema.json",
+    "dao_a3_frozen_derivation_candidates": "derivation-candidates.schema.json",
+    "dao_a3_independent_validation_report": "independent-validation-report.schema.json",
+}
+SCHEMA_SHA256: Mapping[str, str] = MappingProxyType({
+    "analysis-report.schema.json": "f15bf39ad703f77fb7749d93214fe43711a9b525376b128f93c898b531db6460",
+    "bundle-manifest.schema.json": "9d049c910b4a53da5d3cd3ee71f02c5671fdbb75b94e33587999cf40a91e9727",
+    "derivation-candidates.schema.json": "50a9f7a1208969475a89ac3782077cb2bc0e5d3f9635ec51d5a46e8afcacd5b2",
+    "dry-run-report.schema.json": "f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593",
+    "environment.schema.json": "6fb863f1c224698b466ba5fd5e10d9869a6b313b7480f02045e70c2e8eb49465",
+    "holdout-structure-receipt.schema.json": "c2316f9bf84f7722c93160c354f671d7411c0089bf7f52124237b262f43c50fe",
+    "independent-validation-report.schema.json": "2ad90d2b6ade15e815ad9819c09ca28d6b7e77ab6064e3a1139a9acf7e4c6d8c",
+    "page-index.schema.json": "5e78e1a4b8d95ca1313c5d7e1df78f033f3791c959cb22a5b464aef581ddbdfd",
+    "plan.schema.json": "177fdbdda54b0e0d90383578a9bbea4a398cbcbd74424d522997a8f304113f03",
+    "replica-artifact-manifest.schema.json": "a60cf012c2ceb8dee55ffd55e4fa21b14759d0d258b0203e14fd583b0b08d197",
+    "replica-observation.schema.json": "e0605f67cae502da3b0187c05f9c6ff83b1f7da42a1496af95310dc90d1a2bbf",
+})
+SCHEMAS = ProtocolSchemaSet(A3_ROOT, _SCHEMA_FILES)
+
+
+def require_equal(actual: Any, expected: Any, location: str) -> None:
+    if actual != expected:
+        raise ValidationError(f"{location}: does not match the checked A3 contract")
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_bounded_json(path: Path, maximum: int = 64 * 1024 * 1024) -> dict[str, Any]:
+    """Load one regular, duplicate-key-free, bounded UTF-8 JSON object."""
+    try:
+        metadata = path.lstat()
+        reparse = bool(getattr(metadata, "st_file_attributes", 0) & 0x400)
+        if path.is_symlink() or reparse or not stat.S_ISREG(metadata.st_mode):
+            raise ValidationError(f"{path}: JSON input must be a regular file")
+        if metadata.st_size > maximum:
+            raise ValidationError(f"{path}: exceeds {maximum}-byte JSON ceiling")
+        payload = path.read_bytes()
+    except OSError as exc:
+        raise ValidationError(f"{path}: cannot inspect JSON: {exc}") from exc
+    if payload.startswith(b"\xef\xbb\xbf"):
+        raise ValidationError(f"{path}: UTF-8 byte-order marks are forbidden")
+
+    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate object key {key!r}")
+            result[key] = value
+        return result
+
+    try:
+        value = json.loads(
+            payload.decode("utf-8"), object_pairs_hook=unique,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+        )
+    except (UnicodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
+        raise ValidationError(f"{path}: invalid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValidationError(f"{path}: JSON root must be an object")
+    return value
+
+
+@dataclass(frozen=True)
+class CheckedPlan:
+    document: dict[str, Any]
+    checkpoint_ids: tuple[str, ...]
+    checkpoint_ordinals: Mapping[str, int]
+    predicate_ids: tuple[str, ...]
+    predicate_rows: Mapping[str, tuple[str, str]]
+    reason_predicates: Mapping[str, str]
+    bounds: Mapping[str, int]
+
+
+def _compile_plan(document: dict[str, Any]) -> CheckedPlan:
+    SCHEMAS.validate(document)
+    require_equal(document["experiment_id"], EXPERIMENT_ID, "$.experiment_id")
+    checkpoints = tuple(document["checkpoint_design"]["checkpoint_ids"])
+    require_equal(len(checkpoints), document["checkpoint_design"]["count"], "checkpoint count")
+    require_equal(len(checkpoints), len(set(checkpoints)), "checkpoint uniqueness")
+    registry = document["predicate_registry"]
+    ids = tuple(registry["ids"])
+    rows = registry["mappings"]
+    require_equal([row["predicate_id"] for row in rows], list(ids), "predicate order")
+    reasons = [row["reason"] for row in rows]
+    require_equal(len(reasons), len(set(reasons)), "predicate reason uniqueness")
+    require_equal(set(reasons), set(document["decision_rules"]["no_scientific_outcome_identifiers"]), "reason registry")
+    bounds = document["bounds"]
+    require_equal(bounds["page_size"], document["page_capture"]["page_size"], "page size")
+    require_equal(bounds["max_record_candidates_per_page"], document["record_candidate_procedure"]["per_page_candidate_bound"], "per-page candidates")
+    return CheckedPlan(
+        document, checkpoints, MappingProxyType({name: i for i, name in enumerate(checkpoints)}),
+        ids, MappingProxyType({row["predicate_id"]: (row["reason"], row["layer"]) for row in rows}),
+        MappingProxyType({row["reason"]: row["predicate_id"] for row in rows}),
+        MappingProxyType(dict(bounds)),
+    )
+
+
+def load_checked_plan(path: Path = CHECKED_PLAN) -> CheckedPlan:
+    require_equal(set(SCHEMA_SHA256), set(_SCHEMA_FILES.values()), "schema pin set")
+    for name, expected in SCHEMA_SHA256.items():
+        require_equal(_sha256(A3_ROOT / name), expected, name)
+    SCHEMAS.lint()
+    require_equal(_sha256(path), PLAN_SHA256, "preregistered plan sha256")
+    return _compile_plan(load_bounded_json(path))
+
+
+PLAN = load_checked_plan()
+CHECKPOINT_IDS = PLAN.checkpoint_ids
+CHECKPOINT_ORDINALS = PLAN.checkpoint_ordinals
+PREDICATE_IDS = PLAN.predicate_ids
+PREDICATES = PLAN.predicate_rows
+REASON_PREDICATES = PLAN.reason_predicates
+BOUNDS = PLAN.bounds
+PAGE_SIZE = BOUNDS["page_size"]
+POLARITIES = tuple(PLAN.document["hypotheses"]["bit_polarity_candidates"])
+POINTER_LAYOUTS = tuple(PLAN.document["hypotheses"]["tdef_pointer_layouts"])
+BASE_FORMULAS = tuple(PLAN.document["hypotheses"]["extended_base_candidates"])
+LAYER_KEYS = (
+    "global_map_record", "global_map_conversion_inline",
+    "global_map_extended_base", "tdef_pointer_pair",
+)
+
+
+def _schema(document: dict[str, Any], expected: str) -> None:
+    require_equal(SCHEMAS.validate(document), expected, "$.document_type")
+    if expected != "dao_a3_allocation_maps_plan":
+        require_equal(document["plan_sha256"], PLAN_SHA256, "$.plan_sha256")
+
+
+def _layer_rows(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        "global_map_record": report["submodels"]["global_map"]["record"],
+        "global_map_conversion_inline": report["submodels"]["global_map"]["conversion_inline"],
+        "global_map_extended_base": report["submodels"]["global_map"]["extended_base"],
+        "tdef_pointer_pair": report["submodels"]["tdef"]["pointer_pair"],
+    }
+
+
+def frozen_json_bytes(document: dict[str, Any]) -> bytes:
+    """Encode the frozen document in schema property order with one trailing LF."""
+    def record(value: dict[str, Any]) -> dict[str, Any]:
+        return {key: value[key] for key in ("page", "start", "end")}
+
+    def model(name: str, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        if name == "global_map_record":
+            return {
+                "record": record(value["record"]), "bit_polarity": value["bit_polarity"],
+                "zero_suffix_slack_bytes": value["zero_suffix_slack_bytes"],
+            }
+        if name == "global_map_conversion_inline":
+            keys = (
+                "conversion_checkpoint_id", "conversion_ordinal", "indirect_tag",
+                "active_slot_count_at_conversion", "active_slot_count_at_h_rel_0904",
+                "inline_boundary", "slot_reference_pages",
+            )
+            return {key: value[key] for key in keys}
+        if name == "global_map_extended_base":
+            return {"extended_base_formula": value["extended_base_formula"]}
+        return {
+            "record": record(value["record"]), "pointer_layout": value["pointer_layout"],
+            "growth_pointer_offset": value["growth_pointer_offset"],
+            "delete_reinsert_pointer_offset": value["delete_reinsert_pointer_offset"],
+        }
+
+    def leg(value: dict[str, Any] | None) -> dict[str, Any] | None:
+        return None if value is None else {
+            "left_checkpoint_id": value["left_checkpoint_id"],
+            "right_checkpoint_id": value["right_checkpoint_id"],
+        }
+
+    cross = document["polarity_cross_check"]
+    ordered = {
+        "protocol_version": document["protocol_version"],
+        "document_type": document["document_type"],
+        "experiment_id": document["experiment_id"],
+        "plan_sha256": document["plan_sha256"],
+        "campaign_id": document["campaign_id"],
+        "derivation_replicas": document["derivation_replicas"],
+        "qualified_pages": {
+            "global_map": document["qualified_pages"]["global_map"],
+            "tdef": document["qualified_pages"]["tdef"],
+        },
+        "polarity_cross_check": {
+            "evaluated_legs": [leg(value) for value in cross["evaluated_legs"]],
+            "representation_change_stop": leg(cross["representation_change_stop"]),
+            "first_violating_leg": leg(cross["first_violating_leg"]),
+            "first_violating_page": cross["first_violating_page"],
+        },
+        "layers": {},
+    }
+    for name in LAYER_KEYS:
+        value = document["layers"][name]
+        ordered["layers"][name] = {
+            "applicable": value["applicable"],
+            "derivation_survivor_count": value["derivation_survivor_count"],
+            "model": model(name, value["model"]),
+            "no_outcome_reason": value["no_outcome_reason"],
+            "terminal_predicate_id": value["terminal_predicate_id"],
+        }
+    return (json.dumps(ordered, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+
+
+def validate_frozen_candidates(document: dict[str, Any], payload: bytes | None = None) -> dict[str, Any]:
+    _schema(document, "dao_a3_frozen_derivation_candidates")
+    for name in ("global_map", "tdef"):
+        pages = document["qualified_pages"][name]
+        require_equal(pages, sorted(set(pages)), f"$.qualified_pages.{name}")
+    if payload is not None:
+        require_equal(payload, frozen_json_bytes(document), "frozen canonical bytes")
+    return document
+
+
+def compare_frozen_to_report(frozen: dict[str, Any], report: dict[str, Any]) -> None:
+    """Enforce the parsed, field-for-field freeze rule; a matching hash is insufficient."""
+    require_equal(report["qualified_pages"], frozen["qualified_pages"], "frozen qualified pages")
+    require_equal(report["polarity_cross_check"], frozen["polarity_cross_check"], "frozen cross-check")
+    rows = _layer_rows(report)
+    for name in LAYER_KEYS:
+        retained = frozen["layers"][name]
+        current = rows[name]
+        require_equal(current["model"], retained["model"], f"{name}.model")
+        require_equal(current["derivation_survivor_count"], retained["derivation_survivor_count"], f"{name}.count")
+        require_equal(retained["applicable"], current["status"] != "not_applicable", f"{name}.applicable")
+        reasons = current["no_outcome_reasons"]
+        terminal = current["terminal_predicate_id"]
+        if reasons == ["holdout_prediction_failure"] and terminal == "A3-HOLDOUT-PREDICTION":
+            reasons, terminal = [], None
+        require_equal(reasons, [] if retained["no_outcome_reason"] is None else [retained["no_outcome_reason"]], f"{name}.reason")
+        require_equal(terminal, retained["terminal_predicate_id"], f"{name}.terminal")
+
+
+def validate_predicate_reporting(
+    results: list[dict[str, str]], terminal_ids: list[str], *,
+    any_decisive: bool, any_holdout_failure: bool,
+) -> None:
+    """Validate the registry order, literal layers, and report holdout exception."""
+    require_equal([row["predicate_id"] for row in results], list(PREDICATE_IDS), "predicate_results order")
+    result_map = {row["predicate_id"]: row for row in results}
+    require_equal(len(result_map), len(PREDICATE_IDS), "predicate_results uniqueness")
+    for predicate_id, (_reason, layer) in PREDICATES.items():
+        require_equal(result_map[predicate_id]["layer"], layer, f"{predicate_id}.layer")
+    terminals = set(terminal_ids)
+    require_equal(len(terminals), len(terminal_ids), "terminal predicate uniqueness")
+    for predicate_id in PREDICATE_IDS:
+        status = result_map[predicate_id]["status"]
+        if predicate_id in terminals:
+            require_equal(status, "fail", f"{predicate_id}.status")
+        elif status == "fail":
+            raise ValidationError(f"{predicate_id}: nonterminal predicate cannot fail")
+    if any_decisive:
+        expected_holdout_status = "pass"
+    elif any_holdout_failure:
+        expected_holdout_status = "fail"
+    else:
+        expected_holdout_status = "not_applicable"
+    holdout_status = result_map["A3-HOLDOUT-PREDICTION"]["status"]
+    require_equal(
+        holdout_status,
+        expected_holdout_status,
+        "holdout reporting exception",
+    )
+
+
+def validate_analysis_report(document: dict[str, Any], frozen: dict[str, Any] | None = None) -> dict[str, Any]:
+    _schema(document, "dao_a3_analysis_report")
+    results = document["predicate_results"]
+    layers = _layer_rows(document)
+    decisive = {name for name, row in layers.items() if row["status"] == "decisive_predicts_holdout"}
+    holdout_fail = any(row["terminal_predicate_id"] == "A3-HOLDOUT-PREDICTION" for row in layers.values())
+    report_terminals = set(document["terminal_predicate_ids"])
+    expected_terminals = {
+        row["terminal_predicate_id"] for row in layers.values()
+        if row["terminal_predicate_id"] is not None
+    }
+    if decisive:
+        expected_terminals.discard("A3-HOLDOUT-PREDICTION")
+    require_equal(report_terminals, expected_terminals, "report terminal ids")
+    validate_predicate_reporting(
+        results, document["terminal_predicate_ids"], any_decisive=bool(decisive),
+        any_holdout_failure=holdout_fail,
+    )
+    require_equal(document["scientific_outcome"], "one_or_more_submodels_predict_holdout" if decisive else "no_submodel_predicts_holdout", "scientific outcome")
+    require_equal(
+        document["qualified_page_counts"],
+        {name: len(document["qualified_pages"][name]) for name in ("global_map", "tdef")},
+        "qualified page counts",
+    )
+    require_equal(
+        document["holdout_evaluated"],
+        any(row["holdout_evaluated"] for row in layers.values()),
+        "holdout evaluated",
+    )
+    require_equal(
+        set(document["no_outcome_reasons"]),
+        {reason for row in layers.values() for reason in row["no_outcome_reasons"]},
+        "report no-outcome reasons",
+    )
+    for name, row in layers.items():
+        require_equal(row["derivation_survivor_count"], document["derivation_survivor_counts"][name], f"{name}.count")
+        if row["status"] == "decisive_predicts_holdout":
+            if row["model"] is None or row["derivation_survivor_count"] != 1 or not row["holdout_evaluated"] or row["no_outcome_reasons"]:
+                raise ValidationError(f"{name}: malformed decisive layer")
+        elif row["status"] == "not_applicable" and any((row["model"], row["derivation_survivor_count"], row["holdout_evaluated"], row["no_outcome_reasons"], row["terminal_predicate_id"])):
+            raise ValidationError(f"{name}: malformed not-applicable layer")
+    if frozen is not None:
+        compare_frozen_to_report(frozen, document)
+    return document
+
+
+def validate_dry_run_report(document: dict[str, Any]) -> dict[str, Any]:
+    _schema(document, "dao_a3_analyzer_dry_run_report")
+    if document["result"] != "pass":
+        return document
+    if document["holdout_opened"]:
+        raise ValidationError("dry run must never open a holdout")
+    if document["source_kind"] == "a3_schedule_synthetic":
+        free = PLAN.document["analyzer_dry_run_contract"]["synthetic_input"]["free_parameters"]
+        coverage = document["parameter_coverage"]
+        require_equal(coverage["conversion_ordinals"], list(range(1, len(CHECKPOINT_IDS))), "conversion coverage")
+        require_equal(coverage["conversion_never"], True, "conversion never")
+        for report_key, plan_key in (("slot_activation_counts", "slot_activation_at_conversion"), ("bit_polarities", "bit_polarity"), ("anchor_fill_states", "anchor_fill_state"), ("record_end_uniform_slack_bytes", "record_end_uniform_slack_bytes")):
+            require_equal(coverage[report_key], free[plan_key], report_key)
+        require_equal(set(document["predicted_terminal_states"]), set(PLAN.document["analyzer_dry_run_contract"]["synthetic_input"]["required_cases"]), "required cases")
+        require_equal(set(document["terminal_predicate_ids"]), set(PREDICATE_IDS), "predicate reachability")
+        if document["source_identity"]["generator_sha256"] is None:
+            raise ValidationError("synthetic dry run requires generator hash")
+    else:
+        require_equal(document["source_identity"]["generator_sha256"], None, "replay generator hash")
+    return document
+
+
+def validate_document(document: dict[str, Any]) -> Any:
+    kind = document.get("document_type")
+    if kind == "dao_a3_allocation_maps_plan":
+        require_equal(document, PLAN.document, "checked plan")
+        return document
+    if kind == "dao_a3_analysis_report":
+        return validate_analysis_report(document)
+    if kind == "dao_a3_analyzer_dry_run_report":
+        return validate_dry_run_report(document)
+    if kind == "dao_a3_frozen_derivation_candidates":
+        return validate_frozen_candidates(document)
+    _schema(document, str(kind))
+    return document
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("path", nargs="?", type=Path, default=CHECKED_PLAN)
+    arguments = parser.parse_args(argv)
+    try:
+        validate_document(load_bounded_json(arguments.path, BOUNDS["max_json_bytes"]))
+    except ValidationError as exc:
+        print(f"A3 validation failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"A3 validation passed: {arguments.path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
