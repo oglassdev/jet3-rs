@@ -1,0 +1,274 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a3_allocation_maps_plan_revision",
+  "revision_id": "DAO-A3-ALLOCATION-MAPS-001-R3",
+  "preregistration": {
+    "provenance_entry": "EXP-0046",
+    "recorded_utc_date": "2026-08-22",
+    "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts when the first schema-valid A3 replica observation is retained for inspection",
+    "revision_of": "DAO-A3-ALLOCATION-MAPS-001",
+    "original_plan": {
+      "path": "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json",
+      "sha256": "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+    },
+    "prior_revision": {
+      "revision_id": "DAO-A3-ALLOCATION-MAPS-001-R2",
+      "path": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json",
+      "sha256": "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
+      "inherited": "R2's campaign order, per-layer ordered predicate sequences, layer evaluation rule, and status projection rules are inherited unchanged; R3 resolves the four positions R2 flagged and pins the operational rules those sequences left open"
+    },
+    "design_inputs": [
+      {
+        "path": "oracle/windows-dao/experiments/a3/design-inputs/fable-a3-pair-review.md",
+        "sha256": "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65",
+        "role": "joint_review_of_two_independent_a3_implementations"
+      }
+    ],
+    "scientific_design_inherited_unchanged": [
+      "question",
+      "replicas",
+      "tables",
+      "checkpoint_design",
+      "page_capture",
+      "record_candidate_procedure",
+      "inline_boundary_procedure",
+      "hypotheses",
+      "predicate_registry",
+      "decision_rules",
+      "decisive_report_handling",
+      "runtime_design",
+      "artifacts",
+      "bounds",
+      "claims"
+    ],
+    "revision_scope": "pin, with exactly one operational rule and one implementation each, the ten layer-semantics gaps that two independent implementations (analyzer PR #54 on origin/codex/a3-analyzer and validator PR #53 on origin/codex/a3-validator) filled differently; classify the registered predicates that are unreachable by construction; fix the holdout prediction semantics for measured slack and slot reference pages; and add a dry-run honesty clause. No predicate id, mapping, schema, scientific model, bound, or acquisition gate changes",
+    "derivation_basis": "every rule below is written from the immutable base plan's intent and from direct inspection of the EXP-0042 bundle derivation replicas 1 and 2 (page indexes and hash-verified page blobs); the two implementations were read only to understand each divergence and no rule adopts an implementation's choice because it is convenient. EXP-0042 replica 3 was not opened",
+    "amendment_permitted": "acquisition has not started, so this additive revision is permitted by the original plan's amendment rule",
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
+  },
+  "layer_semantics_reconciliation": {
+    "inherited_contract": "the immutable original plan, schemas, 34-entry predicate registry and mappings, R2 sequences, scientific design, holdout exception, and blocked acquisition gate remain unchanged; this revision supplies only the operational readings below. Where a rule below names a worked example, every number was re-derived from the EXP-0042 derivation replicas for this revision and is design-input calibration only; none of it is A3 evidence",
+    "worked_example_inputs": {
+      "bundle": "windows-dao-a2-bundle-1a0585446ac8b0d232ee4c0391cce9d635e7c43a-32587946283-1",
+      "replicas_opened": [
+        1,
+        2
+      ],
+      "replica_3_opened": false,
+      "global_record": "page 1, interval [1915,2048), tag offset 1915, base bytes [1916,1920), bitmap [1920,2048), capacity 1024",
+      "indirect_prefix_at_and_after_P_ABS_16480": "01 | 00 3A 00 00 | E0 3F 00 00 (tag 1, slot-0 u32 14848, slot-1 u32 16352) at P_ABS_16480, H_REL_0064, H_REL_0896, H_REL_0904, and H_IDLE_REOPEN in both replicas",
+      "page_counts": {
+        "E0": 29,
+        "D_GROW_0128": 157,
+        "D_DROP": 157,
+        "D_RECREATE_EMPTY": 157,
+        "D_REGROW_0128": 285,
+        "L_REL_0064": 349,
+        "L_REL_0512": 797,
+        "L_REL_0768": 1053,
+        "L_REL_0896": 1181,
+        "L_REL_0904": 1189,
+        "L_REL_1024": 1309,
+        "L_REL_1088": 1373,
+        "L_REL_1280": 1565,
+        "L_DELETE_ALL": 1566,
+        "L_REINSERT_SAME": 1573,
+        "L_IDLE_REOPEN": 1573,
+        "P_ABS_04096": 4096,
+        "P_ABS_08192": 8192,
+        "P_ABS_12288": 12288,
+        "P_ABS_16480": 16481,
+        "H_REL_0064": 16548,
+        "H_REL_0896": 17380,
+        "H_REL_0904": 17388,
+        "H_IDLE_REOPEN": 17388
+      },
+      "identical_in_both_derivation_replicas": true
+    },
+    "gaps": [
+      {
+        "gap_id": "R3-G01",
+        "title": "extended 0x05 page bitmap layout and formula survival",
+        "plan_gap": "hypotheses.extended_base_rule evaluates formulas against the allocation bitmaps on referenced 0x05 pages without stating where the bitmap starts, its bit order or capacity, whether in-use-to-not-in-use flips count, or what predicting a flip direction means operationally",
+        "rule": "An extended allocation page is a page whose byte zero is 0x05 as established by hypotheses.pointer_validity_rule. Bytes [1,4) are not interpreted and carry no predicate. Bytes [4,2048) are the extended bitmap: 16352 bits numbered least-significant-bit-first within each byte, bit i in [0,16352), decoded in-use or not-in-use under the D-selected polarity exactly as the inline bitmap. For active slot k in {0,1} with reference r, bit i denotes physical page F(k,r,i): slot_relative_expected_0_16352 = 16352*k + i; referenced_page_relative = r + i; slot_relative_off_by_minus_one = 16352*k + i - 1; slot_relative_off_by_plus_one = 16352*k + i + 1; referenced_page_relative_off_by_minus_one = r + i - 1; referenced_page_relative_off_by_plus_one = r + i + 1. A bit whose computed page is negative or at least 65536 is unrepresentable under that formula and is ignored for condition (b); for condition (a) every flipping slot-0 bit must be representable or the formula fails. The discriminator leg is [P_ABS_16480, H_REL_0064]; both ends lie in pointer_validity_checkpoints, so the referenced pages were validated 0x05 by the conversion layer before this layer is applicable, and no bitmap is ever read outside that window. This restricts hypotheses.extended_base_rule's 'every indirect checkpoint' to the window in which pointer_validity_rule has established the referenced pages are 0x05; bitmaps at indirect checkpoints outside the window are unvalidated and are not read. A3-BASE-DISCRIMINATION (insufficient_base_discrimination) is terminal when slot-0 does not exist (tag not 1) or is inactive at either end of the discriminator leg, the slot-0 reference differs between the ends, or no bit of slot-0's page flips across the leg. Otherwise a formula F survives iff (a) for every slot-0 bit i that flips across the leg, p = F(0,r,i) is representable, satisfies 1 <= p < page_count(H_REL_0064), and belongs to candidate_page_space; a flip to in-use requires page p's page-index state to differ between the two checkpoints (absent then present, or present at both with different SHA-256); a flip to not-in-use requires p < page_count(P_ABS_16480); flips in both directions are evaluated and none is ignored; and (b) at every checkpoint in pointer_validity_checkpoints at or after conversion_checkpoint, for every active slot k with reference r: if some i has F(k,r,i) = r then bit i decodes in-use (the map page occupies itself); if some i has F(k,r,i) = page_count then bit i decodes not-in-use; and every representable bit with F(k,r,i) > page_count decodes not-in-use. Zero surviving formulas emit A3-BASE-NONE, more than one emit A3-BASE-MULTIPLE, exactly one is the baseModel. The extended_base layer is applicable iff the conversion layer holds a model at derivation; when the conversion layer is terminal, extended_base is inapplicable (frozen applicable false, report status not_applicable, no terminal, every layer-specific predicate not_applicable)",
+        "single_implementation": "header length 4, bitmap [4,2048), capacity 16352, LSB-first, six formulas as stated, discriminator leg [P_ABS_16480, H_REL_0064], conditions (a) and (b) in that order; no other offset, capacity, leg, or survival condition",
+        "exp_0042_worked_example": "Both derivation replicas: page 14848 (slot-0) and page 16352 (slot-1) carry bytes 05 01 00 00 at bytes [0,4) at every window checkpoint (page 16352 byte 4 is F0 at P_ABS_16480 and 80 afterwards). At P_ABS_16480 page 14848 has exactly one nonzero byte beyond the header, offset 1860 = 0xFE, i.e. bits 14849 through 14855 set; under slot_relative_expected_0_16352 these are pages 14849-14855 not-in-use. At H_REL_0064 those seven bits flip to in-use and the page-index hashes of exactly pages 0, 27, 28, 14848, 14849-14855, 16352, and 16356-16358 change between the two checkpoints (67 pages are appended). On page 16352 the tail run of not-in-use bits begins at bit 129 at P_ABS_16480 (page_count 16481), 196 at H_REL_0064 (16548), 1028 at H_REL_0896 (17380), and 1036 at H_REL_0904 and H_IDLE_REOPEN (17388): each equals 16352*1 + i = page_count, which is the same page_count sentinel the inline layout uses. Eliminations: referenced_page_relative maps the seven flips to pages 29697-29703, beyond page_count, and decodes slot-0 bit 1633 (page 16481 = page_count at P_ABS_16480) in-use; slot_relative_off_by_minus_one decodes slot-0's own page 14848 not-in-use (bit 14849 set at P_ABS_16480); slot_relative_off_by_plus_one maps flip 14855 to page 14856, whose hash does not change, and decodes slot-1 bit 128 (page 16481) in-use; referenced_page_relative_off_by_minus_one and _off_by_plus_one decode slot-0 bits 1634 and 1632 (page 16481) in-use. Unique survivor in both replicas: slot_relative_expected_0_16352. The alternative 1-byte header (bitmap [1,2048), 16376 bits) was tested and refuted on the same bytes: byte 1 = 0x01 would make page 0 and page 16352 decode not-in-use under slot-relative addressing, and the page-16352 tail run would begin at bit 153 = page 16505, not page_count 16481; it fails condition (b) under every formula. On EXP-0042 data this layer is inapplicable because the conversion layer is terminal at A3-POLARITY-CROSSCHECK, so the above is calibration only; on an A3 replica whose 0x05 pages satisfy no formula under this layout, the layer reports A3-BASE-NONE and no further layout hypothesis is admitted"
+      },
+      {
+        "gap_id": "R3-G02",
+        "title": "conversion failure attribution",
+        "plan_gap": "hypotheses.type1_conversion_predicate requires exactly one monotone inline-to-indirect transition but does not say which of missing_inline_to_indirect_conversion or multiple_inline_to_indirect_conversions applies when the window starts indirect, when a neither checkpoint precedes the first indirect checkpoint, or when a non-indirect checkpoint follows it",
+        "rule": "Classify each of the 16 checkpoints of transition_coverage.inline_to_indirect_conversion_window, in schedule order, as inline, indirect, or neither exactly as type1_conversion_predicate defines (an absent global page at a window checkpoint is neither). Let first_indirect be the earliest indirect checkpoint. A3-CONVERSION-NONE (missing_inline_to_indirect_conversion) is terminal iff no checkpoint is indirect or no inline checkpoint precedes first_indirect. Otherwise count class changes between adjacent checkpoints; A3-CONVERSION-MULTIPLE (multiple_inline_to_indirect_conversions) is terminal iff that count is not exactly 1, which covers a neither checkpoint before first_indirect and any inline or neither checkpoint at or after it. Exactly one class change, necessarily inline to indirect at first_indirect, sets conversion_checkpoint = first_indirect",
+        "single_implementation": "classification then the two tests above in that order; no other attribution",
+        "exp_0042_worked_example": "If the conversion layer were reached past the cross-check: L_REL_0064 (page_count 349) and L_REL_0512 (797) are inline; L_REL_0768 through P_ABS_12288 (page counts 1053 through 12288) keep tag 0 and base 0 but violate page_count < base + capacity with capacity 1024, so all ten are neither; P_ABS_16480 through H_REL_0904 are indirect with a raw-zero indirect suffix [1924,2048). first_indirect = P_ABS_16480 (ordinal 20) with inline predecessors, the class-change count is 2 (inline to neither at L_REL_0768, neither to indirect at P_ABS_16480), so the attribution would be A3-CONVERSION-MULTIPLE. It is not reached on EXP-0042 data because A3-POLARITY-CROSSCHECK at R2 position 1 is terminal at leg 3"
+      },
+      {
+        "gap_id": "R3-G03",
+        "title": "replica agreement and replica_disagreement",
+        "plan_gap": "the plan requires survival in both derivation replicas and registers replica_disagreement but does not define how per-replica results combine or what disagreement is",
+        "rule": "Every layer's R2 ordered predicate sequence is evaluated separately and completely in derivation replica 1 and in derivation replica 2 from that replica's own snapshots, producing for each replica either a first terminal predicate or a model. The layer terminal is predicate P iff both replicas are terminal at the same predicate P; it is A3-REPLICA-DISAGREEMENT (replica_disagreement) iff exactly one replica is terminal, the replicas are terminal at different predicates, or both hold models that are not identical field-for-field under R3-G09's comparison rule (for the conversion layer, when both replicas hold models the polarity_cross_check transcripts must also be identical field-for-field). In every case the frozen polarity_cross_check transcript is replica 1's; when the layer terminal is A3-POLARITY-CROSSCHECK in both replicas the transcripts need not be identical and the per-replica transcripts are retained in the report. No internal evidence flag, candidate list, survivor list, or intermediate state is compared across replicas; only the terminal predicate and the schema-shaped model are. The frozen qualified_pages arrays are the union over both derivation replicas; a page qualified in only one replica carries zero survivors in the other and the layer's start-survival intersection handles it; record_candidates_examined counts each page of the union once per replica that enumerated it (R3-G08). When A3-REPLICA-DISAGREEMENT is terminal, predicates strictly preceding the earliest replica terminal are pass; that terminal predicate, and every later predicate of that layer other than A3-REPLICA-DISAGREEMENT, is not_applicable",
+        "single_implementation": "per-replica full evaluation, then the three-way comparison above; union qualified_pages; replica 1 transcript frozen",
+        "exp_0042_worked_example": "not exhibited by the EXP-0042 derivation replicas; no worked example is claimed; replicas 1 and 2 are identical in every inspected field (page counts, record bytes, cross-check transcript, extended bitmaps)"
+      },
+      {
+        "gap_id": "R3-G04",
+        "title": "inline boundary selection and A3-INLINE-SUFFIX order",
+        "plan_gap": "inline_boundary_procedure enumerates every b but does not say why a longer b fails to explain the inline phase, and R2 flagged A3-INLINE-SUFFIX at position 9 after the boundary zero/multiplicity predicates although survival_rule makes the quiet suffix a survival condition",
+        "rule": "The inline phase is the set of conversion-window checkpoints before conversion_checkpoint (all inline by R3-G02). The explaining boundary is the minimal extent that represents every inline-phase page_count sentinel: b* = max over inline-phase checkpoints c of start + 5 + floor((page_count(c) - base(c)) / 8) + 1. Because every inline-phase checkpoint passed the inline bounds under capacity 8*(end-(start+5)), b* <= global_map.end and the decode under capacity 8*(b*-(start+5)) (tag, base, bounds, highwater, and page_count sentinel per global_record_start_resolution) passes at every inline-phase checkpoint; A3-INLINE-BOUNDARY-NONE (no_inline_boundary_candidate) and A3-INLINE-BOUNDARY-MULTIPLE (multiple_inline_boundary_candidates) are therefore both unreachable by construction (see predicate_reachability_reconciliation) and are reached nonterminally. A3-INLINE-SUFFIX (unexplained_nonzero_inline_suffix) is terminal iff b* survives and some byte in [b*, global_map.end) at some inline-phase checkpoint is not the polarity-relative not-in-use byte (raw 0xFF for set_means_not_in_use, 0x00 for set_means_in_use). The raw-zero indirect suffix after conversion is enforced by the valid-indirect classification in R3-G02 and is not this predicate. This reading departs from inline_boundary_procedure.candidate_source and ambiguity_rule, which enumerate every b and treat more than one survivor as multiple_inline_boundary_candidates. Under the base survival_rule the survivor set is upward-closed in b (a larger b keeps the bounds and shortens the quiet suffix), so literal enumeration always yields multiple survivors and can never select a boundary; the minimal survivor is the only boundary that explains the inline phase without slack. b* is that minimal survivor computed in closed form from the registered page_count sentinel, which is a within-snapshot representation anchor, not anchor fill; anchor_fill_state remains forbidden as a boundary source and the dry run's inline_boundary_rule still applies. This resolves R2 flagged position 3: the quiet-suffix condition of survival_rule is evaluated as the separate A3-INLINE-SUFFIX predicate after boundary selection, so the R2 order NONE, MULTIPLE, SUFFIX stands",
+        "single_implementation": "b* formula, reduced-capacity decode (never terminal), SUFFIX test, in that order; enumeration of other b values is not performed",
+        "exp_0042_worked_example": "Not reached on EXP-0042 data (terminal at A3-POLARITY-CROSSCHECK). For calibration only: had the two valid inline checkpoints L_REL_0064 and L_REL_0512 formed the inline phase, b* = 1920 + floor(797/8) + 1 = 2020, within end 2048 as the rule guarantees"
+      },
+      {
+        "gap_id": "R3-G05",
+        "title": "global record start, end, polarity, and multiplicity order",
+        "plan_gap": "global_record_start_resolution, global_record_end_resolution, bit_polarity_rule, and terminal_disambiguation leave open which end values are enumerated for the D relation, whether tag 0 is required at all five D checkpoints, which bytes the D-flip scan covers, the trigger for no_unique_bit_polarity, and whether a page with two surviving starts next to a page with one is page or record multiplicity; R2 flagged A3-GLOBAL-RECORD-END before the polarity predicates",
+        "rule": "Per derivation replica and per qualified global page, candidates are (start, polarity) pairs with end = 2048 only; shorter ends are never enumerated because global_record_end_resolution retains only the page-terminal interval. Stage 1 A3-GLOBAL-PAGE-NONE: no qualified global page. Stage 2 A3-GLOBAL-RECORD-NONE: no candidate passes the inline bounds at E0, D_GROW_0128, and D_REGROW_0128 (tag 0 is required at exactly those three anchors; D_DROP and D_RECREATE_EMPTY are decoded under the inline layout without a tag requirement, the decoded u32 base is used as an unbounded integer offset, the in-use set is the set of integers base+i, and no representability filter applies there). Stage 3 A3-D-SET-RELATION: some candidate passes the bounds but none satisfies the five-part D relation under its own polarity. Stage 4 A3-GLOBAL-RECORD-END: some candidate satisfies the D relation but none has a polarity-relative uniform not-in-use suffix of at least 16 bytes after the last D-flipped byte, where the flip scan covers every byte of [start, 2048) including the tag and base bytes across all five D checkpoints. Stage 5 A3-POLARITY-NONE: unreachable by construction (see predicate_reachability_reconciliation). Stage 6 A3-POLARITY-MULTIPLE: the survivors of stage 4 contain both registered polarities. Stage 7 A3-GLOBAL-PAGE-MULTIPLE: survivors exist on two or more distinct qualified pages, regardless of how many starts each page holds (this extends terminal_disambiguation's exactly-one-start wording to the mixed case it does not cover; page multiplicity still precedes record multiplicity). Stage 8 A3-GLOBAL-RECORD-MULTIPLE: survivors exist on exactly one page and more than one start survives there. Stage 9 A3-STRUCTURAL-EXCLUSION: unreachable on this layer by construction. Stage 10 A3-REPLICA-DISAGREEMENT per R3-G03. This resolves R2 flagged position 1: end resolution uses each candidate's own polarity and does not need polarity uniqueness, so A3-GLOBAL-RECORD-END legitimately precedes the polarity predicates",
+        "single_implementation": "end 2048 only, three tag anchors, full-interval flip scan, stages 1-10 as listed",
+        "exp_0042_worked_example": "Page 1, start 1915, end 2048, both replicas: under set_means_in_use the E0 bitmap bytes [1920,1923) = 00 00 00 would decode pages 0-23 not-in-use, violating the highwater requirement, so only set_means_not_in_use passes the bounds; in-use sets have sizes |E| 29, |G| 157, |X| 27, |Y| 29, |R| 285, Gp = G \\ E = [29,157) with 128 pages, Gp ∩ X = ∅, Gp ∩ Y = ∅, Gp ⊆ R, |R \\ G| = 128; the D-flipped bytes are 34 bytes from offset 1922 through 1955, and the 92 bytes [1956,2048) are raw 0xFF at all five D checkpoints, so zero_suffix_slack_bytes is 92 (at least 16). Polarity is unique, one page and one start survive, and the model is {page 1, start 1915, end 2048, set_means_not_in_use, slack 92} in both replicas, consistent with the base plan's disclosed anchor"
+      },
+      {
+        "gap_id": "R3-G06",
+        "title": "TDEF structural exclusion, pointer validity position, and window distinctness",
+        "plan_gap": "tdef_no_outcome_ordering enumerates windows without saying whether 0x05 validity and D/idle structural stability are candidacy conditions or later predicates; R2 places A3-POINTER-VALIDITY and A3-STRUCTURAL-EXCLUSION after A3-POINTER-MULTIPLE; growth_only_pointer_predicate says 0x05 when active while pointer_validity_rule restricts validity to a window; and distinct windows are undefined",
+        "rule": "Stages 2 and 3 of tdef_no_outcome_ordering admit a window on the transition-selective signature alone: a growth window's decoded reference changes on at least one declared L or H growth transition and is unchanged across L_REL_1280, L_DELETE_ALL, and L_REINSERT_SAME; a churn window's decoded reference is stable across every declared L growth transition, differs at L_DELETE_ALL, and returns exactly at L_REINSERT_SAME. Declared L growth transitions are the seven consecutive pairs of transition_coverage.tdef_low_growth; declared H growth transitions are the three consecutive pairs of tdef_high_growth; declared P growth transitions are (L_IDLE_REOPEN, P_ABS_04096), (P_ABS_04096, P_ABS_08192), (P_ABS_08192, P_ABS_12288), (P_ABS_12288, P_ABS_16480). Two windows are distinct iff their four-byte ranges do not overlap. Stages 4 and 5 resolve records and multiplicity on those candidates. On the single surviving model only, position 9 A3-POINTER-VALIDITY applies pointer_validity_rule to both references at pointer_validity_checkpoints at or after activation; the phrases 0x05 when active and whenever active in the two pointer predicates mean exactly that windowed check and nothing outside the window. Position 10 A3-STRUCTURAL-EXCLUSION (structural_field_exclusion_failure) is terminal iff the growth window changes on any D transition (E0 to D_REGROW_0128 inclusive) or idle transition, or the churn window changes on any D transition, any declared L, P, or H growth transition, or idle transition (all growth transitions, as structural_exclusion_rule requires; the candidacy signature already fixes L stability, so position 10 adds P and H). An excluded or invalid window therefore never contributes to a NONE stage and never silently disappears",
+        "single_implementation": "signature-only candidacy, non-overlap distinctness, validity at position 9 and structural stability at position 10 on the surviving model",
+        "exp_0042_worked_example": "not exhibited by the EXP-0042 derivation replicas; no worked example is claimed for the TDEF layer; this revision performed no TDEF derivation on the bundle"
+      },
+      {
+        "gap_id": "R3-G07",
+        "title": "global slot activation only at tag-1 checkpoints",
+        "plan_gap": "pointer_validity_rule defines activation as the earliest checkpoint in the complete 25-checkpoint order where the u32 slot is nonzero, but while the tag is 0 the same bytes are the inline base and bitmap, not slots",
+        "rule": "A global slot exists only at a checkpoint whose record tag is 1. Activation of global slot k is the earliest checkpoint in the complete 25-checkpoint order whose tag is 1 and whose slot-k u32 is nonzero; checkpoints with tag 0 or any other tag are skipped for activation. TDEF activation is unchanged",
+        "single_implementation": "tag-1 filter before the earliest-nonzero search",
+        "exp_0042_worked_example": "At E0 bytes [1920,1924) are 00 00 00 E0, u32 3758096384, while the tag is 0; the literal rule would activate slot-1 at ordinal 0 with an impossible reference. Under R3 both slots activate at P_ABS_16480 (ordinal 20) with references 14848 and 16352, giving active_slot_count_at_conversion 2 and active_slot_count_at_h_rel_0904 2 in both replicas"
+      },
+      {
+        "gap_id": "R3-G08",
+        "title": "report no_outcome_reasons order, holdout_opened_after_freeze, record_candidates_examined",
+        "plan_gap": "the analysis-report schema leaves the order of report-level no_outcome_reasons unspecified, does not say whether replica 3 is opened when no layer holds a model, and does not say what record_candidates_examined counts when a layer terminates before enumeration",
+        "rule": "Report-level no_outcome_reasons is the campaign terminal reason if any, followed by each layer's sole reason in the frozen-set layer order global_map_record, global_map_conversion_inline, global_map_extended_base, tdef_pointer_pair, with duplicates removed keeping the first occurrence; per-layer no_outcome_reasons holds at most one reason. Replica 3 is opened iff at least one layer holds a frozen model; holdout_opened_after_freeze and holdout_evaluated both equal that condition, and each layer's holdout_evaluated is true iff that layer holds a model. The holdout structure receipt is produced regardless. record_candidates_examined = 2098176 multiplied by the number of (derivation replica, qualified page) enumerations: each page of the union qualified_pages of R3-G03 counted once per derivation replica that actually enumerated its intervals, which is every qualified global page in that replica, plus every qualified TDEF page in that replica only when stage 1 (churn precondition) passed there; the independent validator recomputes the same count",
+        "single_implementation": "the three rules above",
+        "exp_0042_worked_example": "not exhibited by the EXP-0042 derivation replicas; no worked example is claimed"
+      },
+      {
+        "gap_id": "R3-G09",
+        "title": "holdout prediction semantics for measured slack, slot pages, and uniqueness",
+        "plan_gap": "the frozen models carry zero_suffix_slack_bytes and slot_reference_pages, which are measurements that can depend on per-replica overshoot; the plan does not say whether holdout prediction requires those exact values or whether the frozen model must be re-derived uniquely on the holdout",
+        "rule": "Holdout prediction re-evaluates the frozen model's own predicates on the holdout replica without refit or re-derivation; uniqueness is not re-established on the holdout and that limitation is disclosed. global_map_record predicts holdout iff the frozen (page, start, end 2048, bit_polarity) passes the inline bounds at the three anchors, the D relation, and the end resolution on the holdout with a uniform suffix of at least 16 bytes; zero_suffix_slack_bytes is a measured quantity, frozen as the minimum of the two derivation replicas' values, excluded from the cross-replica model comparison of R3-G03, and never required to equal the holdout's measured slack (structural agreement, chosen because the slack is a function of achieved page count, which the plan lets overshoot differ per replica). global_map_conversion_inline predicts holdout iff the holdout's classification yields the same conversion_checkpoint_id and ordinal, the same active slot counts at conversion and H_REL_0904, the same inline_boundary b*, the polarity_cross_check walk of hypotheses.polarity_cross_check evaluated on the holdout ends with first_violating_leg null (the holdout transcript's evaluated_legs and representation_change_stop are recorded but are not required to equal the frozen transcript), every byte of [b*, end) at every holdout inline-phase checkpoint is the polarity-relative not-in-use byte, and exactly the frozen slot_reference_pages in slot order, and the frozen references pass pointer validity on the holdout (exact prediction, chosen because type1_rule makes the conversion-checkpoint u32 values the model, the P_ABS schedule fixes absolute file geometry at conversion, and the plan forbids reinterpretation; a page-number difference caused by overshoot is reported as holdout_prediction_failure, not relaxed). b* is a function of the inline-phase page counts and therefore of per-replica overshoot; a derivation-replica difference in b* is replica_disagreement and a holdout difference is holdout_prediction_failure by design, consistent with hypotheses.inline_extent_rule. The synthetic generator must not select replica-3 overshoot to preserve b*; a decisive fixture whose b* differs across replicas reports the registered outcome. global_map_extended_base predicts holdout iff the frozen formula alone satisfies R3-G01 conditions (a) and (b) on the holdout; other formulas are not evaluated; a holdout with no slot-0 flip across the discriminator leg satisfies (a) vacuously and the layer predicts iff (b) holds. tdef_pointer_pair predicts holdout iff the frozen record, layout, and two offsets satisfy the growth and churn signatures, validity, and structural stability of R3-G06 on the holdout",
+        "single_implementation": "predicate re-check of the frozen model only, with the slack, b*, cross-check, inline-suffix, and slot-page semantics stated",
+        "exp_0042_worked_example": "The frozen slack would be 92 in both derivation replicas; the plan records that A1 run 12 measured 1954/93 for the same record, so a holdout replica with different overshoot changes the slack without changing the record or polarity, which is why slack is structural rather than exact"
+      },
+      {
+        "gap_id": "R3-G10",
+        "title": "page absence at a later checkpoint",
+        "plan_gap": "candidate_page_space says absence is an explicit state and qualification admits presence to absence, but the plan does not say whether a candidate that needs bytes of an absent page aborts the campaign or is rejected",
+        "rule": "A page index p is absent at checkpoint c iff p >= page_count(c). unreconstructable_snapshot (A3-SNAPSHOT-RECONSTRUCTION) is reserved for a page index whose page_count disagrees with len(ordered_page_sha256) or the observation's actual_file_pages, or whose listed hash has no matching blob. Any predicate that needs the bytes of an absent page at c evaluates as failed for that candidate only: a global start candidate whose page is absent at any of the five D checkpoints fails at stage 2 (it has no decodable inline record at that checkpoint), a conversion-window checkpoint is classified neither, a TDEF window is not a candidate, a referenced page is a validity failure only inside pointer_validity_checkpoints, and an extended-bitmap read is impossible there by construction. Absence never erases another candidate or layer",
+        "single_implementation": "absent means candidate rejection at that checkpoint; campaign abort only for the three reconstruction conditions named",
+        "exp_0042_worked_example": "not exhibited by the EXP-0042 derivation replicas; no worked example is claimed; page_count never decreases in either derivation replica"
+      }
+    ],
+    "pinned_minor_readings": [
+      {
+        "id": "R3-M01",
+        "reading": "a polarity cross-check leg whose two tags are equal but nonzero is not inline-checkable, is skipped without being evaluated or recorded as a stop, and the walk continues; only a right tag that differs from the left tag is a representation_change_stop"
+      },
+      {
+        "id": "R3-M02",
+        "reading": "the required page p >= 65536 validity rule in hypotheses.polarity_cross_check is retained verbatim but is vacuous under bounds.max_final_pages_per_replica = 65536, because every required page is below page_count(right) <= 65536; an implementation must keep the check and must not raise it as a campaign-level abort"
+      },
+      {
+        "id": "R3-M03",
+        "reading": "R2 flagged position 2 (A3-POLARITY-CROSSCHECK at conversion-layer position 1) stands: the cross-check reads only inline-checkable legs and never depends on conversion classification, so evaluating it first changes no result"
+      },
+      {
+        "id": "R3-M04",
+        "reading": "R2 flagged position 4 (extended_base A3-POINTER-VALIDITY at position 4) is resolved by R3-G01: the base layer reads only pages already validated by the conversion layer at the same window checkpoints, so this position is reached and never terminal"
+      },
+      {
+        "id": "R3-M05",
+        "reading": "when a campaign predicate (A3-IDLE-EQUALITY, A3-SNAPSHOT-RECONSTRUCTION, A3-RESOURCE-BOUND) is terminal, no layer is derived: all four layers are inapplicable with no terminal and every layer predicate is not_applicable; the independent validator must reproduce that projection rather than derive layers"
+      },
+      {
+        "id": "R3-M06",
+        "reading": "an abort raised while evaluating the holdout for one layer attributes holdout_prediction_failure to that layer only and never rewrites any layer's derivation terminal; the report is still emitted"
+      }
+    ]
+  },
+  "predicate_reachability_reconciliation": {
+    "required_reachable_predicate_derivation": "take every id in the original predicate_registry.ids and remove only ids listed under unreachable_by_construction",
+    "unreachable_by_construction": [
+      {
+        "predicate_id": "A3-POLARITY-NONE",
+        "reason": "no_unique_bit_polarity",
+        "layer": "global_map.record",
+        "status": "unreachable_by_construction",
+        "preempting_predicate_ids": [
+          "A3-D-SET-RELATION",
+          "A3-GLOBAL-RECORD-END"
+        ],
+        "proof": "Under R3-G05 polarity uniqueness is evaluated over the (start, polarity) survivors of the D relation and end resolution. Zero survivors is exactly the condition that makes A3-D-SET-RELATION or A3-GLOBAL-RECORD-END terminal at an earlier stage, and one or more survivors yields at least one polarity. The set of surviving polarities is therefore never empty when stage 5 is reached"
+      },
+      {
+        "predicate_id": "A3-INLINE-BOUNDARY-MULTIPLE",
+        "reason": "multiple_inline_boundary_candidates",
+        "layer": "global_map.conversion_inline",
+        "status": "unreachable_by_construction",
+        "preempting_predicate_ids": [
+          "A3-CONVERSION-NONE",
+          "A3-CONVERSION-MULTIPLE"
+        ],
+        "proof": "R3-G04 defines the explaining boundary as the single value b*; the candidate set has cardinality at most one, so more than one surviving boundary cannot occur"
+      },
+      {
+        "predicate_id": "A3-INLINE-BOUNDARY-NONE",
+        "reason": "no_inline_boundary_candidate",
+        "layer": "global_map.conversion_inline",
+        "status": "unreachable_by_construction",
+        "preempting_predicate_ids": [
+          "A3-CONVERSION-NONE",
+          "A3-CONVERSION-MULTIPLE"
+        ],
+        "proof": "R3-G02 admits only checkpoints that passed the inline bounds under the frozen end's capacity 8*(end-(start+5)) into the inline phase, so page_count(c) - base(c) <= 8*(end-(start+5)) - 1 at every inline-phase checkpoint c, b* <= global_map.end, and the reduced-capacity decode under 8*(b*-(start+5)) > page_count(c) - base(c) passes by construction"
+      }
+    ],
+    "layer_unreachable_but_id_reachable": [
+      {
+        "predicate_id": "A3-STRUCTURAL-EXCLUSION",
+        "unreachable_layers": [
+          "global_map.record",
+          "global_map.conversion_inline"
+        ],
+        "reachable_layer": "tdef.pointer_pair",
+        "proof": "structural_exclusion_rule lets a global-map field change on the D relation transitions, every declared growth transition, and the delete/reinsert transitions, and lets it span an idle pair only when the pair is byte-identical. Every one of the 24 consecutive transitions of the 25-checkpoint schedule is a D transition, an L, P, or H growth transition, a delete/reinsert transition, or an idle pair, and idle byte-identity is already guaranteed by A3-IDLE-EQUALITY before any layer runs. No global-map byte change can therefore fall outside the signature; the predicate is reached and nonterminal on both global layers and reachable only through R3-G06 position 10"
+      },
+      {
+        "predicate_id": "A3-POINTER-VALIDITY",
+        "unreachable_layers": [
+          "global_map.extended_base"
+        ],
+        "reachable_layer": "global_map.conversion_inline and tdef.pointer_pair",
+        "proof": "R3-G01 reads extended bitmaps only at pointer_validity_checkpoints at or after conversion, on references the conversion layer validated at the same checkpoints before the base layer became applicable"
+      }
+    ],
+    "effective_reachability_rule": "every registered predicate not classified unreachable_by_construction (31 ids) must be reached as a terminal by one real analyzer execution of a named schedule-derived fixture with a single named perturbation, recorded in the reachability transcript of the dry-run honesty clause; each excluded id remains in the transcript with status unreachable_by_construction and its preempting predicate ids",
+    "effective_required_terminal_cases": "remove no_unique_bit_polarity, multiple_inline_boundary_candidates, and no_inline_boundary_candidate from the original synthetic required_cases reachability set; structural_field_exclusion_failure remains required and is reached on the tdef.pointer_pair layer; no other required case changes"
+  },
+  "dry_run_honesty_clause": {
+    "reachability_by_transcript": "predicate reachability is demonstrated only by an executed fixture transcript: for each of the 31 reachable ids, the transcript names the fixture, its single perturbation, the layer, and the terminal predicate id the analyzer actually produced, and the expected terminal for every synthetic case is asserted against the produced one. A reachability entry derived from the registry, a label, or a constant fails the dry run; an id without a reaching execution fails the dry run",
+    "replica_3_independent_overshoot": "the synthetic generator produces replica 3 from its own schedule walk with a recorded overshoot sequence that differs from both derivation replicas at at least one checkpoint in each of the D, L, P, and H phases, so every decisive_predicts_holdout in the sweep is a prediction rather than byte identity; a replica 3 that is byte-identical or renumbered from a derivation replica fails the dry run",
+    "pair_acceptance_gate": "the acceptance gate for the analyzer/independent-validator pair is full-sweep agreement: for every synthetic case, including every perturbation fixture, the analyzer report and the validator's independent recomputation must carry identical per-layer terminal predicate ids, identical models, identical polarity_cross_check transcripts, and identical 34 predicate statuses, and the validator must emit accepted=true on the all-layers-decisive fixture. Any disagreement fails the dry run. The agreement table (case id, analyzer result, validator result, agreement) is retained as a companion document dry-run/a3-pair-agreement.json next to the synthetic dry-run report, and the reachability transcript as dry-run/a3-reachability-transcript.json; both SHA-256 values are cited in the additive disclosure provenance entry. The immutable dry-run report schema is not changed; the report's result may be pass only when both companions exist and pass",
+    "tamper_suite_execution": "the validator reports T1-T5 as rejected only for variants it actually executed during that run or in a separately provenanced run whose identity it cites; a constant rejected=true is a dry-run failure",
+    "generator_parameters": "anchor_fill_state must change generated bytes; the record-uniqueness, cross-check-violation, no-flip base, slot-count, and bounds-edge fixtures named by the base plan must be generated and executed, not asserted as literals; the EXP-0042 replay report carries no synthetic parameter coverage"
+  },
+  "execution_effect": {
+    "original_plan_remains_immutable": true,
+    "original_schemas_remain_immutable": true,
+    "original_predicate_registry_remains_immutable": true,
+    "r2_sequences_remain_immutable": true,
+    "operational_rules_pinned": true,
+    "scientific_projection_changed": false,
+    "acquisition_authorized": false,
+    "support_claim_changed": false
+  }
+}

@@ -17,6 +17,9 @@ README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
 REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
+R3_PLAN = EXPERIMENT / "a3-allocation-maps-r3.plan.json"
+R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
+PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
     "a2-independent-review-pointer.md": "2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b",
@@ -143,6 +146,126 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn("### EXP-0045", provenance)
         self.assertIn(REVISION_PLAN_SHA256, provenance)
         self.assertIn(REVISION_PLAN_SHA256, readme)
+
+    def test_r3_layer_semantics_are_hash_pinned_and_additive(self) -> None:
+        revision_bytes = R3_PLAN.read_bytes()
+        revision = json.loads(revision_bytes)
+        self.assertEqual(hashlib.sha256(revision_bytes).hexdigest(), R3_PLAN_SHA256)
+        preregistration = revision["preregistration"]
+        self.assertEqual(revision["revision_id"], "DAO-A3-ALLOCATION-MAPS-001-R3")
+        self.assertEqual(preregistration["provenance_entry"], "EXP-0046")
+        self.assertEqual(preregistration["revision_of"], self.plan["experiment_id"])
+        self.assertEqual(preregistration["original_plan"]["sha256"], PLAN_SHA256)
+        self.assertEqual(
+            preregistration["prior_revision"]["sha256"], REVISION_PLAN_SHA256
+        )
+        self.assertFalse(preregistration["acquisition_started"])
+        self.assertIn("permitted", preregistration["amendment_permitted"])
+        self.assertIn("not opened", preregistration["derivation_basis"])
+        review = preregistration["design_inputs"][0]
+        self.assertEqual(review["sha256"], PAIR_REVIEW_SHA256)
+        review_path = ROOT / review["path"]
+        self.assertEqual(
+            hashlib.sha256(review_path.read_bytes()).hexdigest(), PAIR_REVIEW_SHA256
+        )
+
+        gaps = revision["layer_semantics_reconciliation"]["gaps"]
+        self.assertEqual(
+            [gap["gap_id"] for gap in gaps], [f"R3-G{i:02d}" for i in range(1, 11)]
+        )
+        for gap in gaps:
+            self.assertIn("rule", gap)
+            self.assertIn("single_implementation", gap)
+            self.assertIn("exp_0042_worked_example", gap)
+        rules = {gap["gap_id"]: gap["rule"] for gap in gaps}
+        base = rules["R3-G01"]
+        for text in (
+            "Bytes [4,2048) are the extended bitmap: 16352 bits",
+            "least-significant-bit-first",
+            "[P_ABS_16480, H_REL_0064]",
+            "slot_relative_expected_0_16352 = 16352*k + i",
+            "decodes in-use (the map page occupies itself)",
+            "F(k,r,i) = page_count then bit i decodes not-in-use",
+            "flips in both directions are evaluated and none is ignored",
+            "applicable iff the conversion layer holds a model",
+        ):
+            self.assertIn(text, base)
+        example = gaps[0]["exp_0042_worked_example"]
+        for text in ("offset 1860 = 0xFE", "bits 14849 through 14855", "bit 129", "1036", "refuted"):
+            self.assertIn(text, example)
+        conversion = rules["R3-G02"]
+        self.assertLess(
+            conversion.index("A3-CONVERSION-NONE"), conversion.index("A3-CONVERSION-MULTIPLE")
+        )
+        self.assertIn("count is not exactly 1", conversion)
+        self.assertIn("only the terminal predicate and the schema-shaped model", rules["R3-G03"])
+        inline = rules["R3-G04"]
+        self.assertIn("b* = max over inline-phase checkpoints", inline)
+        self.assertLess(
+            inline.index("A3-INLINE-BOUNDARY-NONE"), inline.index("A3-INLINE-SUFFIX (")
+        )
+        record = rules["R3-G05"]
+        self.assertIn("end = 2048 only", record)
+        self.assertIn("exactly those three anchors", record)
+        for stage in range(1, 11):
+            self.assertIn(f"Stage {stage} ", record)
+        self.assertLess(
+            record.index("A3-GLOBAL-RECORD-END"), record.index("A3-POLARITY-MULTIPLE")
+        )
+        self.assertLess(
+            record.index("A3-GLOBAL-PAGE-MULTIPLE"), record.index("A3-GLOBAL-RECORD-MULTIPLE")
+        )
+        tdef = rules["R3-G06"]
+        self.assertIn("four-byte ranges do not overlap", tdef)
+        self.assertLess(tdef.index("Stages 4 and 5"), tdef.index("position 9 A3-POINTER-VALIDITY"))
+        self.assertLess(
+            tdef.index("position 9 A3-POINTER-VALIDITY"),
+            tdef.index("Position 10 A3-STRUCTURAL-EXCLUSION"),
+        )
+        self.assertIn("whose tag is 1", rules["R3-G07"])
+        self.assertIn("global_map_record, global_map_conversion_inline, global_map_extended_base, tdef_pointer_pair", rules["R3-G08"])
+        self.assertIn("Replica 3 is opened iff at least one layer holds a frozen model", rules["R3-G08"])
+        holdout = rules["R3-G09"]
+        self.assertIn("never required to equal the holdout's measured slack", holdout)
+        self.assertIn("exactly the frozen slot_reference_pages", holdout)
+        self.assertIn("uniqueness is not re-established", holdout)
+        self.assertIn("evaluates as failed for that candidate only", rules["R3-G10"])
+
+        reachability = revision["predicate_reachability_reconciliation"]
+        self.assertEqual(
+            [row["predicate_id"] for row in reachability["unreachable_by_construction"]],
+            ["A3-POLARITY-NONE", "A3-INLINE-BOUNDARY-MULTIPLE", "A3-INLINE-BOUNDARY-NONE"],
+        )
+        for row in reachability["unreachable_by_construction"]:
+            self.assertEqual(row["status"], "unreachable_by_construction")
+            self.assertIn(row["predicate_id"], self.plan["predicate_registry"]["ids"])
+        structural = reachability["layer_unreachable_but_id_reachable"][0]
+        self.assertEqual(structural["predicate_id"], "A3-STRUCTURAL-EXCLUSION")
+        self.assertEqual(
+            structural["unreachable_layers"],
+            ["global_map.record", "global_map.conversion_inline"],
+        )
+        self.assertIn("31 ids", reachability["effective_reachability_rule"])
+
+        dry_run = revision["dry_run_honesty_clause"]
+        self.assertIn("executed fixture transcript", dry_run["reachability_by_transcript"])
+        self.assertIn("each of the D, L, P, and H phases", dry_run["replica_3_independent_overshoot"])
+        self.assertIn("full-sweep agreement", dry_run["pair_acceptance_gate"])
+        self.assertIn("dry-run/a3-pair-agreement.json", dry_run["pair_acceptance_gate"])
+        self.assertIn("constant rejected=true is a dry-run failure", dry_run["tamper_suite_execution"])
+
+        effect = revision["execution_effect"]
+        self.assertTrue(effect["original_plan_remains_immutable"])
+        self.assertTrue(effect["original_schemas_remain_immutable"])
+        self.assertTrue(effect["r2_sequences_remain_immutable"])
+        self.assertFalse(effect["acquisition_authorized"])
+
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+        self.assertIn("### EXP-0046", provenance)
+        for digest in (R3_PLAN_SHA256, PAIR_REVIEW_SHA256):
+            self.assertIn(digest, provenance)
+            self.assertIn(digest, readme)
 
     def test_design_input_pointers_and_targets_are_hash_pinned(self) -> None:
         recorded = {
@@ -539,7 +662,7 @@ class A3PlanContractTests(unittest.TestCase):
 
     def test_all_a3_json_documents_parse(self) -> None:
         documents = sorted(EXPERIMENT.glob("*.json"))
-        self.assertEqual(len(documents), 13)
+        self.assertEqual(len(documents), 14)
         for document in documents:
             with self.subTest(document=document.name):
                 json.loads(document.read_bytes())

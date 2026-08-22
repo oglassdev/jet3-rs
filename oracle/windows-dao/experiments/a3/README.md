@@ -19,6 +19,44 @@ before polarity resolution, polarity cross-check before conversion/slot/inline
 evaluation, inline suffix after boundary ambiguity, and extended-base pointer
 validity after the base terminals.
 
+Before acquisition, additive revision `DAO-A3-ALLOCATION-MAPS-001-R3` was
+recorded as `EXP-0046` to pin the layer semantics that two independent
+implementations (analyzer PR #54, validator PR #53) filled differently, as
+enumerated by the joint review committed at
+`design-inputs/fable-a3-pair-review.md` (SHA-256
+`70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65`). Acquisition has not
+started. The immutable revision file is
+`oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
+`bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`; it binds the
+base plan and R2 hashes and inherits R2's sequences unchanged. R3 pins, with
+one rule each: the extended 0x05-page bitmap layout (bytes `[4,2048)`, 16352
+LSB-first bits, slot-relative and referenced-page formulas, discriminator leg
+`[P_ABS_16480, H_REL_0064]`, self-in-use and `page_count` sentinel content
+predicates), under which the EXP-0042 derivation replicas leave the unique
+survivor `slot_relative_expected_0_16352` and refute a 1-byte header;
+conversion attribution by class-change count; per-replica evaluation with
+model-only comparison for `replica_disagreement`; the minimal-extent inline
+boundary `b*` (a disclosed departure from the base enumeration, whose
+survivor set is upward-closed) with `A3-INLINE-SUFFIX` evaluated after
+boundary selection; the
+global record stage order with end 2048 only, three tag anchors, and page
+multiplicity on any two pages; TDEF signature-only candidacy with validity and
+structural stability on the surviving model; tag-1-only global slot
+activation; report reason order, holdout opening only when a model exists,
+and enumerated-page candidate counts; structural holdout agreement for slack
+versus exact prediction of slot reference pages and of `b*` (both
+overshoot-dependent by design), with the cross-check walk and quiet inline
+suffix re-checked on the holdout; and page absence as candidate rejection.
+`A3-POLARITY-NONE`, `A3-INLINE-BOUNDARY-NONE`, and
+`A3-INLINE-BOUNDARY-MULTIPLE` are declared unreachable by construction (under
+R3-G02 every inline-phase checkpoint already passed the frozen-end capacity,
+so `b* <= end` and the reduced-capacity decode passes); `A3-STRUCTURAL-EXCLUSION` is reachable
+only on `tdef.pointer_pair`. On EXP-0042-like data the conversion layer is
+terminal at leg 3 and the extended-base layer is therefore inapplicable. The
+dry-run honesty clause requires executed fixture transcripts for all 31
+reachable predicates, a replica 3 with independent overshoot, and full-sweep
+analyzer/validator agreement recorded in retained companion documents.
+
 The actual `EXP-0042` polarity cross-check outcome is a violation on leg 3,
 `L_REL_0512` to `L_REL_0768`, first at page 1021; the later tag-change leg is
 never reached. On EXP-0042-like data, the `global_map_conversion_inline` and
