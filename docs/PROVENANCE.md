@@ -3594,6 +3594,89 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: focused A3 plan/schema/hash contracts and repository validation must
   pass; acquisition remains blocked until every listed requirement is met
 
+### EXP-0045 — A3 pre-acquisition predicate evaluation sequence revision
+
+- Recorded: 2026-08-22, OpenAI Codex
+- Kind: additive pre-acquisition reporting-order reconciliation; no A3 worker,
+  workflow, analyzer result, validator result, dry-run result, DAO acquisition,
+  physical-format result, Rust result, or compatibility result
+- Origin: project-authored review of the immutable
+  `DAO-A3-ALLOCATION-MAPS-001` plan after two independent implementations,
+  analyzer PR #54 and validator PR #53, disagreed on whether
+  `A3-TDEF-PAGE-MULTIPLE` and `A3-POINTER-VALIDITY` were `pass` or
+  `not_applicable` on an analyzer-produced synthetic report. No external MDB
+  implementation, Microsoft implementation source, donated MDB, A3 DAO
+  observation, or holdout artifact was inspected.
+- Additive R2 revision: the base plan's
+  `predicate_registry.reporting_rule` states total reporting and terminal
+  projection but leaves the campaign and per-layer predicate evaluation
+  sequence unstated. Revision `DAO-A3-ALLOCATION-MAPS-001-R2` pins the missing
+  order without changing the immutable base plan, schemas, 34-entry registry,
+  mappings, operational rules, scientific models, or blocked execution gate.
+  Acquisition has not started, so this additive revision is permitted by the
+  base plan's amendment rule.
+- Campaign order: evaluate `A3-IDLE-EQUALITY`,
+  `A3-SNAPSHOT-RECONSTRUCTION`, and `A3-RESOURCE-BOUND`, in that order, before
+  any layer.
+- Layer orders: `global_map.record` evaluates `A3-GLOBAL-PAGE-NONE`,
+  `A3-GLOBAL-RECORD-NONE`, `A3-D-SET-RELATION`, `A3-GLOBAL-RECORD-END`,
+  `A3-POLARITY-NONE`, `A3-POLARITY-MULTIPLE`, `A3-GLOBAL-PAGE-MULTIPLE`,
+  `A3-GLOBAL-RECORD-MULTIPLE`, `A3-STRUCTURAL-EXCLUSION`, and
+  `A3-REPLICA-DISAGREEMENT`; `global_map.conversion_inline` evaluates
+  `A3-POLARITY-CROSSCHECK`, `A3-CONVERSION-NONE`, `A3-CONVERSION-MULTIPLE`,
+  `A3-SLOT-ACTIVATION`, `A3-SLOT-FINAL`, `A3-POINTER-VALIDITY`,
+  `A3-INLINE-BOUNDARY-NONE`, `A3-INLINE-BOUNDARY-MULTIPLE`,
+  `A3-INLINE-SUFFIX`, `A3-STRUCTURAL-EXCLUSION`, and
+  `A3-REPLICA-DISAGREEMENT`; `global_map.extended_base` evaluates
+  `A3-BASE-DISCRIMINATION`, `A3-BASE-NONE`, `A3-BASE-MULTIPLE`,
+  `A3-POINTER-VALIDITY`, and `A3-REPLICA-DISAGREEMENT`; and
+  `tdef.pointer_pair` evaluates `A3-TDEF-PAGE-NONE`,
+  `A3-CHURN-PRECONDITION`, `A3-GROWTH-POINTER-NONE`,
+  `A3-CHURN-POINTER-NONE`, `A3-TDEF-RECORD-NONE`,
+  `A3-TDEF-PAGE-MULTIPLE`, `A3-TDEF-RECORD-MULTIPLE`,
+  `A3-POINTER-MULTIPLE`, `A3-POINTER-VALIDITY`,
+  `A3-STRUCTURAL-EXCLUSION`, and `A3-REPLICA-DISAGREEMENT`, in those exact
+  orders.
+- Evaluation and status projection: an applicable layer stops at its first
+  terminal. An `applicable_layer` predicate is `pass` iff reached in at least
+  one applicable layer and terminal nowhere, `fail` iff terminal in any layer,
+  and otherwise `not_applicable`. A layer-specific predicate is `pass` iff
+  reached and nonterminal, and is `not_applicable` when unreached or its layer
+  is inapplicable. A terminal layer-specific predicate is `fail`.
+  `A3-HOLDOUT-PREDICTION` retains the base plan's exception unchanged.
+- Base-text consistency review: the supplied sequence is pinned without silent
+  reordering, but four positions appear to conflict with the immutable
+  operational prose. `A3-GLOBAL-RECORD-END` precedes polarity although the
+  record-end rule says D has already selected a unique polarity; the base
+  start-resolution prose is itself internally inconsistent because it also
+  says polarity uniqueness follows end resolution. `A3-POLARITY-CROSSCHECK`
+  precedes conversion, slot, and inline checks although the global-map search
+  and source-contract text list polarity agreement after them.
+  `A3-INLINE-SUFFIX` follows boundary zero/multiplicity although the survival
+  rule makes the quiet suffix a prerequisite to boundary survival. Extended-
+  base `A3-POINTER-VALIDITY` follows every base terminal although the base rule
+  evaluates allocation bitmaps on referenced `0x05` pages whose validity that
+  predicate establishes. These positions remain exactly as supplied in R2.
+- Plan identities:
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`, SHA-256
+  `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`.
+- Observation: `preregistration.acquisition_started` remains `false`; this
+  revision records no database, checkpoint, replica observation, candidate
+  set, report, validation receipt, evidence bundle, or scientific outcome.
+- Interpretation and execution gate: this amendment resolves an implementation
+  contract ambiguity only. It assigns no Jet meaning, proves no Rust behavior
+  or DAO compatibility, changes no support-matrix entry, and authorizes no A3
+  acquisition. The `EXP-0044` execution gate remains `BLOCKED`.
+- Usage: `file:oracle/windows-dao/experiments/a3/README.md`;
+  `file:oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`;
+  future separately reviewed A3 analyzer and independent validator
+- Rights: project-authored revision and tests; no DAO binary, MDB, page blob,
+  or retained bundle is committed or redistributed
+- Review: focused A3 plan hash, exact sequence, status-projection, amendment,
+  and flagged-position contracts plus repository validation must pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
