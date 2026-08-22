@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from a3_independent_base import derive_extended_base
 from a3_independent_bundle import LoadedBundle, Replica, ValidationError
 
 
@@ -193,53 +194,75 @@ def model_layer(model: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def derive_global_record(
-    replicas: list[Replica], qualified: list[int]
-) -> tuple[dict[str, Any], GlobalCandidate | None, dict[int, list[GlobalCandidate]]]:
+def _derive_global_record_replica(
+    replica: Replica,
+    qualified: list[int],
+) -> tuple[dict[str, Any], GlobalCandidate | None, list[GlobalCandidate]]:
     if not qualified:
-        return no_layer("no_physical_page_satisfies_global_transition_predicates", "A3-GLOBAL-PAGE-NONE"), None, {}
-    per_replica: dict[int, set[GlobalCandidate]] = {}
-    seen_by_replica: dict[int, dict[str, bool]] = {}
-    for replica in replicas:
-        found: set[GlobalCandidate] = set()
-        aggregate = {"anchor": False, "relation": False, "suffix": False}
-        for page in qualified:
-            candidates, seen = candidates_for_page(replica, page)
-            found.update(candidates)
-            for key in aggregate:
-                aggregate[key] = aggregate[key] or seen[key]
-        per_replica[replica.number] = found
-        seen_by_replica[replica.number] = aggregate
-    common = set.intersection(*per_replica.values()) if per_replica else set()
-    transcript = {number: sorted(values, key=lambda item: (item.page, item.start, item.polarity, item.slack)) for number, values in per_replica.items()}
-    if not common:
-        if all(not seen["anchor"] for seen in seen_by_replica.values()):
+        return no_layer("no_physical_page_satisfies_global_transition_predicates", "A3-GLOBAL-PAGE-NONE"), None, []
+    found: set[GlobalCandidate] = set()
+    aggregate = {"anchor": False, "relation": False, "suffix": False}
+    for page in qualified:
+        candidates, seen = candidates_for_page(replica, page)
+        found.update(candidates)
+        for key in aggregate:
+            aggregate[key] = aggregate[key] or seen[key]
+    transcript = sorted(found, key=lambda item: (item.page, item.start, item.polarity, item.slack))
+    if not found:
+        if not aggregate["anchor"]:
             reason, predicate = "no_global_record_candidate", "A3-GLOBAL-RECORD-NONE"
-        elif all(not seen["relation"] for seen in seen_by_replica.values()):
+        elif not aggregate["relation"]:
             reason, predicate = "global_set_relation_not_satisfied", "A3-D-SET-RELATION"
-        elif all(not seen["suffix"] for seen in seen_by_replica.values()):
+        elif not aggregate["suffix"]:
             reason, predicate = "global_record_end_not_resolved", "A3-GLOBAL-RECORD-END"
         else:
-            reason, predicate = "replica_disagreement", "A3-REPLICA-DISAGREEMENT"
+            raise ValidationError("global_record_stage_inconsistent")
         return no_layer(reason, predicate), None, transcript
-    pages = {candidate.page for candidate in common}
-    starts_by_page = {page: {candidate.start for candidate in common if candidate.page == page} for page in pages}
-    if len(pages) > 1 and all(len(starts) == 1 for starts in starts_by_page.values()):
-        return no_layer("multiple_physical_pages_satisfy_global_transition_predicates", "A3-GLOBAL-PAGE-MULTIPLE"), None, transcript
-    if any(len(starts) > 1 for starts in starts_by_page.values()):
-        return no_layer("multiple_global_record_boundaries_survive", "A3-GLOBAL-RECORD-MULTIPLE"), None, transcript
-    pairs = {(candidate.page, candidate.start) for candidate in common}
-    if len(pairs) != 1:
-        return no_layer("multiple_physical_pages_satisfy_global_transition_predicates", "A3-GLOBAL-PAGE-MULTIPLE"), None, transcript
-    polarities = {candidate.polarity for candidate in common}
-    if len(polarities) == 0:
-        return no_layer("no_unique_bit_polarity", "A3-POLARITY-NONE"), None, transcript
+    polarities = {candidate.polarity for candidate in found}
     if len(polarities) > 1:
         return no_layer("multiple_bit_polarities_survive", "A3-POLARITY-MULTIPLE"), None, transcript
-    if len(common) != 1:
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), None, transcript
-    candidate = next(iter(common))
+    pages = {candidate.page for candidate in found}
+    if len(pages) > 1:
+        return no_layer("multiple_physical_pages_satisfy_global_transition_predicates", "A3-GLOBAL-PAGE-MULTIPLE"), None, transcript
+    starts = {candidate.start for candidate in found}
+    if len(starts) > 1:
+        return no_layer("multiple_global_record_boundaries_survive", "A3-GLOBAL-RECORD-MULTIPLE"), None, transcript
+    candidate = next(iter(found))
     return model_layer(candidate.model()), candidate, transcript
+
+
+def _global_comparison_key(candidate: GlobalCandidate) -> tuple[int, int, str]:
+    return candidate.page, candidate.start, candidate.polarity
+
+
+def derive_global_record(
+    replicas: list[Replica],
+    qualified: dict[int, list[int]],
+) -> tuple[dict[str, Any], GlobalCandidate | None, dict[int, list[GlobalCandidate]], list[str | None]]:
+    evaluations = [
+        _derive_global_record_replica(replica, qualified[replica.number]["global_map"])
+        for replica in replicas
+    ]
+    terminals = [layer["terminal_predicate_id"] for layer, _, _ in evaluations]
+    transcript = {replica.number: result[2] for replica, result in zip(replicas, evaluations)}
+    if any(terminal is not None for terminal in terminals):
+        if len(set(terminals)) == 1:
+            return evaluations[0][0], None, transcript, terminals
+        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), None, transcript, terminals
+    candidates = [candidate for _, candidate, _ in evaluations]
+    concrete = [candidate for candidate in candidates if candidate is not None]
+    if len(concrete) != len(replicas) or any(
+        _global_comparison_key(candidate) != _global_comparison_key(concrete[0])
+        for candidate in concrete[1:]
+    ):
+        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), None, transcript, terminals
+    candidate = GlobalCandidate(
+        concrete[0].page,
+        concrete[0].start,
+        concrete[0].polarity,
+        min(item.slack for item in concrete),
+    )
+    return model_layer(candidate.model()), candidate, transcript, terminals
 
 
 def _record_page(replica: Replica, checkpoint_id: str, model: GlobalCandidate) -> bytes:
@@ -255,12 +278,16 @@ def polarity_cross_check(replica: Replica, plan: dict[str, Any], model: GlobalCa
     violating_leg = None
     violating_page = None
     for left, right in plan["checkpoint_design"]["transition_coverage"]["polarity_cross_check_legs"]:
-        left_page = _record_page(replica, left, model)
-        right_page = _record_page(replica, right, model)
+        left_page = replica.page(left, model.page)
+        right_page = replica.page(right, model.page)
+        if left_page is None or right_page is None:
+            continue
         left_tag, right_tag = left_page[model.start], right_page[model.start]
-        if left_tag != right_tag or left_tag != 0:
+        if left_tag != right_tag:
             stop = leg(left, right)
             break
+        if left_tag != 0:
+            continue
         left_base = int.from_bytes(left_page[model.start + 1 : model.start + 5], "little")
         right_base = int.from_bytes(right_page[model.start + 1 : model.start + 5], "little")
         capacity = 8 * (2048 - model.start - 5)
@@ -339,81 +366,95 @@ def _pointer_valid(replica: Replica, plan: dict[str, Any], references: dict[str,
     return True
 
 
+def _inline_boundary(replica: Replica, checkpoints: list[str], model: GlobalCandidate) -> int:
+    extents = []
+    for checkpoint in checkpoints:
+        page = _record_page(replica, checkpoint, model)
+        base = int.from_bytes(page[model.start + 1 : model.start + 5], "little")
+        page_count = replica.index(checkpoint)["page_count"]
+        extents.append(model.start + 5 + (page_count - base) // 8 + 1)
+    return max(extents)
+
+
+def _derive_conversion_replica(
+    replica: Replica,
+    plan: dict[str, Any],
+    model: GlobalCandidate,
+    cross: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if cross["first_violating_leg"] is not None:
+        return no_layer("growth_polarity_disagreement", "A3-POLARITY-CROSSCHECK"), cross
+    window = plan["checkpoint_design"]["transition_coverage"]["inline_to_indirect_conversion_window"]
+    classes: list[str] = []
+    references: dict[str, tuple[int, int]] = {}
+    for checkpoint_id in plan["checkpoint_design"]["checkpoint_ids"]:
+        page = replica.page(checkpoint_id, model.page)
+        references[checkpoint_id] = (0, 0) if page is None or page[model.start] != 1 else _indirect_slots(page, model.start)
+    for checkpoint_id in window:
+        if _inline_valid(replica, checkpoint_id, model):
+            classes.append("inline")
+        elif _indirect_valid(replica, checkpoint_id, model):
+            classes.append("indirect")
+        else:
+            classes.append("neither")
+    first_indirect = next((index for index, value in enumerate(classes) if value == "indirect"), None)
+    if first_indirect is None or "inline" not in classes[:first_indirect]:
+        return no_layer("missing_inline_to_indirect_conversion", "A3-CONVERSION-NONE"), cross
+    class_changes = sum(left != right for left, right in zip(classes, classes[1:]))
+    if class_changes != 1:
+        return no_layer("multiple_inline_to_indirect_conversions", "A3-CONVERSION-MULTIPLE"), cross
+    conversion = window[first_indirect]
+    slots = references[conversion]
+    if sum(value != 0 for value in slots) == 0:
+        return no_layer("no_active_slot_at_conversion", "A3-SLOT-ACTIVATION"), cross
+    if sum(value != 0 for value in references["H_REL_0904"]) != 2:
+        return no_layer("final_slot_activation_not_two", "A3-SLOT-FINAL"), cross
+    if not _pointer_valid(replica, plan, references):
+        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY"), cross
+    inline_phase = window[:first_indirect]
+    boundary = _inline_boundary(replica, inline_phase, model)
+    expected = 0xFF if model.polarity == "set_means_not_in_use" else 0x00
+    if any(
+        any(byte != expected for byte in _record_page(replica, checkpoint, model)[boundary:])
+        for checkpoint in inline_phase
+    ):
+        return no_layer("unexplained_nonzero_inline_suffix", "A3-INLINE-SUFFIX"), cross
+    conversion_model = {
+        "conversion_checkpoint_id": conversion,
+        "conversion_ordinal": plan["checkpoint_design"]["checkpoint_ids"].index(conversion),
+        "indirect_tag": 1,
+        "active_slot_count_at_conversion": sum(value != 0 for value in slots),
+        "active_slot_count_at_h_rel_0904": 2,
+        "inline_boundary": boundary,
+        "slot_reference_pages": list(slots),
+    }
+    return model_layer(conversion_model), cross
+
+
 def derive_conversion(
     replicas: list[Replica],
     plan: dict[str, Any],
     model: GlobalCandidate | None,
     cross_checks: dict[int, dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any], list[str | None]]:
     empty_cross = {"evaluated_legs": [], "representation_change_stop": None, "first_violating_leg": None, "first_violating_page": None}
     if model is None:
-        return no_layer(None, None, False), empty_cross
-    values = list(cross_checks.values())
-    if any(value != values[0] for value in values[1:]):
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), values[0]
-    cross = values[0]
-    if cross["first_violating_leg"] is not None:
-        return no_layer("growth_polarity_disagreement", "A3-POLARITY-CROSSCHECK"), cross
-    window = plan["checkpoint_design"]["transition_coverage"]["inline_to_indirect_conversion_window"]
-    replica_models: list[dict[str, Any]] = []
-    for replica in replicas:
-        classes: list[str] = []
-        references: dict[str, tuple[int, int]] = {}
-        for checkpoint_id in plan["checkpoint_design"]["checkpoint_ids"]:
-            page = replica.page(checkpoint_id, model.page)
-            references[checkpoint_id] = (0, 0) if page is None or page[model.start] != 1 else _indirect_slots(page, model.start)
-        for checkpoint_id in window:
-            if _inline_valid(replica, checkpoint_id, model):
-                classes.append("inline")
-            elif _indirect_valid(replica, checkpoint_id, model):
-                classes.append("indirect")
-            else:
-                classes.append("neither")
-        transitions = [
-            index for index in range(1, len(window))
-            if classes[index - 1] == "inline" and classes[index] == "indirect"
-        ]
-        if not transitions:
-            return no_layer("missing_inline_to_indirect_conversion", "A3-CONVERSION-NONE"), cross
-        if len(transitions) > 1:
-            return no_layer("multiple_inline_to_indirect_conversions", "A3-CONVERSION-MULTIPLE"), cross
-        index = transitions[0]
-        if not all(value == "inline" for value in classes[:index]) or not all(value == "indirect" for value in classes[index:]):
-            reason = "multiple_inline_to_indirect_conversions" if "inline" in classes[index + 1 :] else "missing_inline_to_indirect_conversion"
-            predicate = "A3-CONVERSION-MULTIPLE" if reason.startswith("multiple") else "A3-CONVERSION-NONE"
-            return no_layer(reason, predicate), cross
-        conversion = window[index]
-        slots = references[conversion]
-        if sum(value != 0 for value in slots) == 0:
-            return no_layer("no_active_slot_at_conversion", "A3-SLOT-ACTIVATION"), cross
-        if sum(value != 0 for value in references["H_REL_0904"]) != 2:
-            return no_layer("final_slot_activation_not_two", "A3-SLOT-FINAL"), cross
-        if not _pointer_valid(replica, plan, references):
-            return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY"), cross
-        inline_counts = [replica.index(checkpoint)["page_count"] for checkpoint in window[:index]]
-        inline_bases = [int.from_bytes(_record_page(replica, checkpoint, model)[model.start + 1 : model.start + 5], "little") for checkpoint in window[:index]]
-        required_bytes = max((count - base + 1 + 7) // 8 for count, base in zip(inline_counts, inline_bases))
-        boundary = model.start + 5 + required_bytes
-        expected = 0xFF if model.polarity == "set_means_not_in_use" else 0x00
-        if boundary > 2048 or any(
-            any(byte != expected for byte in _record_page(replica, checkpoint, model)[boundary:])
-            for checkpoint in window[:index]
-        ):
-            return no_layer("no_inline_boundary_candidate", "A3-INLINE-BOUNDARY-NONE"), cross
-        replica_models.append(
-            {
-                "conversion_checkpoint_id": conversion,
-                "conversion_ordinal": plan["checkpoint_design"]["checkpoint_ids"].index(conversion),
-                "indirect_tag": 1,
-                "active_slot_count_at_conversion": sum(value != 0 for value in slots),
-                "active_slot_count_at_h_rel_0904": 2,
-                "inline_boundary": boundary,
-                "slot_reference_pages": list(slots),
-            }
-        )
-    if any(value != replica_models[0] for value in replica_models[1:]):
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), cross
-    return model_layer(replica_models[0]), cross
+        return no_layer(None, None, False), empty_cross, [None for _ in replicas]
+    evaluations = [
+        _derive_conversion_replica(replica, plan, model, cross_checks[replica.number])
+        for replica in replicas
+    ]
+    terminals = [layer["terminal_predicate_id"] for layer, _ in evaluations]
+    frozen_cross = evaluations[0][1]
+    if any(terminal is not None for terminal in terminals):
+        if len(set(terminals)) == 1:
+            return evaluations[0][0], frozen_cross, terminals
+        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), frozen_cross, terminals
+    models = [layer["model"] for layer, _ in evaluations]
+    crosses = [cross for _, cross in evaluations]
+    if any(value != models[0] for value in models[1:]) or any(value != crosses[0] for value in crosses[1:]):
+        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), frozen_cross, terminals
+    return model_layer(models[0]), frozen_cross, terminals
 
 
 def _decode_pointer(page: bytes, offset: int, layout: str) -> tuple[int, int]:
@@ -427,6 +468,24 @@ def _window_stable(replica: Replica, page: int, offset: int, legs: Iterable[tupl
     for left, right in legs:
         left_page, right_page = replica.page(left, page), replica.page(right, page)
         if left_page is None or right_page is None or left_page[offset : offset + 4] != right_page[offset : offset + 4]:
+            return False
+    return True
+
+
+def _reference_stable(
+    replica: Replica,
+    page: int,
+    offset: int,
+    layout: str,
+    legs: Iterable[tuple[str, str]],
+) -> bool:
+    for left, right in legs:
+        left_page, right_page = replica.page(left, page), replica.page(right, page)
+        if (
+            left_page is None
+            or right_page is None
+            or _decode_pointer(left_page, offset, layout)[0] != _decode_pointer(right_page, offset, layout)[0]
+        ):
             return False
     return True
 
@@ -455,23 +514,25 @@ def _reference_valid(replica: Replica, plan: dict[str, Any], page: int, offset: 
 
 def pointer_windows(replica: Replica, plan: dict[str, Any], pages: list[int]) -> tuple[set[PointerWindow], set[PointerWindow]]:
     growth = growth_legs(plan)
-    idle = [tuple(value) for value in plan["checkpoint_design"]["idle_pairs"]]
-    d_legs = _pairs(list(GLOBAL_D))
+    low_growth = _pairs(plan["checkpoint_design"]["transition_coverage"]["tdef_low_growth"])
     layouts = plan["hypotheses"]["tdef_pointer_layouts"]
     growth_windows: set[PointerWindow] = set()
     churn_windows: set[PointerWindow] = set()
     for page_number in pages:
         for offset in range(2045):
             for layout in layouts:
-                if _window_stable(replica, page_number, offset, CHURN_LEGS + tuple(d_legs) + tuple(idle)):
+                if _reference_stable(replica, page_number, offset, layout, CHURN_LEGS):
                     values = []
                     for left, right in growth:
                         left_page, right_page = replica.page(left, page_number), replica.page(right, page_number)
                         if left_page is not None and right_page is not None:
-                            values.append(_decode_pointer(left_page, offset, layout) != _decode_pointer(right_page, offset, layout))
-                    if any(values) and _reference_valid(replica, plan, page_number, offset, layout):
+                            values.append(
+                                _decode_pointer(left_page, offset, layout)[0]
+                                != _decode_pointer(right_page, offset, layout)[0]
+                            )
+                    if any(values):
                         growth_windows.add(PointerWindow(page_number, offset, layout))
-                if _window_stable(replica, page_number, offset, tuple(growth) + tuple(d_legs) + tuple(idle)):
+                if _reference_stable(replica, page_number, offset, layout, low_growth):
                     before = replica.page("L_REL_1280", page_number)
                     deleted = replica.page("L_DELETE_ALL", page_number)
                     restored = replica.page("L_REINSERT_SAME", page_number)
@@ -479,7 +540,7 @@ def pointer_windows(replica: Replica, plan: dict[str, Any], pages: list[int]) ->
                         first = _decode_pointer(before, offset, layout)
                         middle = _decode_pointer(deleted, offset, layout)
                         last = _decode_pointer(restored, offset, layout)
-                        if first != middle and first == last and _reference_valid(replica, plan, page_number, offset, layout):
+                        if first[0] != middle[0] and first[0] == last[0]:
                             churn_windows.add(PointerWindow(page_number, offset, layout))
     return growth_windows, churn_windows
 
@@ -495,7 +556,11 @@ def _tdef_models(replica: Replica, growth: set[PointerWindow], churn: set[Pointe
     models: set[tuple[Any, ...]] = set()
     for left in growth:
         for right in churn:
-            if left.page != right.page or left.layout != right.layout or left.offset == right.offset:
+            if (
+                left.page != right.page
+                or left.layout != right.layout
+                or not (left.offset + 4 <= right.offset or right.offset + 4 <= left.offset)
+            ):
                 continue
             start = min(left.offset, right.offset)
             end = max(left.offset, right.offset) + 4
@@ -513,41 +578,69 @@ def _tdef_models(replica: Replica, growth: set[PointerWindow], churn: set[Pointe
     return models
 
 
-def derive_tdef(replicas: list[Replica], plan: dict[str, Any], qualified: list[int]) -> dict[str, Any]:
+def _tdef_precondition(replica: Replica) -> bool:
+    before = replica.checkpoint_observation("L_REL_1280")["table_row_counts"]["L"]
+    deleted_rows = next(
+        (item["row_count"] for item in replica.checkpoint_observation("L_DELETE_ALL")["dao_reread"] if item["role"] == "L"),
+        None,
+    )
+    return before != 0 and deleted_rows == 0
+
+
+def _p_growth_legs() -> list[tuple[str, str]]:
+    return [
+        ("L_IDLE_REOPEN", "P_ABS_04096"),
+        ("P_ABS_04096", "P_ABS_08192"),
+        ("P_ABS_08192", "P_ABS_12288"),
+        ("P_ABS_12288", "P_ABS_16480"),
+    ]
+
+
+def _tdef_structural_valid(replica: Replica, plan: dict[str, Any], model: tuple[Any, ...]) -> bool:
+    page, _, _, _, growth_offset, churn_offset = model
+    schedule = plan["checkpoint_design"]["checkpoint_ids"]
+    d_legs = _pairs(schedule[:6])
+    idle = [tuple(value) for value in plan["checkpoint_design"]["idle_pairs"]]
+    all_growth = growth_legs(plan) + _p_growth_legs()
+    return _window_stable(replica, page, growth_offset, d_legs + idle) and _window_stable(
+        replica,
+        page,
+        churn_offset,
+        d_legs + all_growth + idle,
+    )
+
+
+def _derive_tdef_replica(replica: Replica, plan: dict[str, Any], qualified: list[int]) -> dict[str, Any]:
     if not qualified:
         return no_layer("no_physical_page_satisfies_tdef_transition_predicates", "A3-TDEF-PAGE-NONE")
-    for replica in replicas:
-        before = replica.checkpoint_observation("L_REL_1280")["table_row_counts"]["L"]
-        deleted_rows = next(
-            (item["row_count"] for item in replica.checkpoint_observation("L_DELETE_ALL")["dao_reread"] if item["role"] == "L"),
-            None,
-        )
-        if before == 0 or deleted_rows != 0:
-            return no_layer("legacy_churn_precondition_not_met", "A3-CHURN-PRECONDITION")
-    per_replica: dict[int, tuple[set[PointerWindow], set[PointerWindow], set[tuple[Any, ...]]]] = {}
-    for replica in replicas:
-        growth, churn = pointer_windows(replica, plan, qualified)
-        if not growth:
-            return no_layer("no_growth_only_pointer_candidate", "A3-GROWTH-POINTER-NONE")
-        if not churn:
-            return no_layer("no_delete_reinsert_only_pointer_candidate", "A3-CHURN-POINTER-NONE")
-        per_replica[replica.number] = (growth, churn, _tdef_models(replica, growth, churn))
-    if any(not values[2] for values in per_replica.values()):
+    if not _tdef_precondition(replica):
+        return no_layer("legacy_churn_precondition_not_met", "A3-CHURN-PRECONDITION")
+    growth, churn = pointer_windows(replica, plan, qualified)
+    if not growth:
+        return no_layer("no_growth_only_pointer_candidate", "A3-GROWTH-POINTER-NONE")
+    if not churn:
+        return no_layer("no_delete_reinsert_only_pointer_candidate", "A3-CHURN-POINTER-NONE")
+    models = _tdef_models(replica, growth, churn)
+    if not models:
         return no_layer("no_tdef_record_candidate", "A3-TDEF-RECORD-NONE")
-    common = set.intersection(*(values[2] for values in per_replica.values()))
-    if not common:
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT")
-    record_keys = {(item[0], item[1], item[2]) for item in common}
+    record_keys = {(item[0], item[1], item[2]) for item in models}
     starts_by_page: dict[int, set[int]] = {}
     for page, start, _ in record_keys:
         starts_by_page.setdefault(page, set()).add(start)
-    if len(starts_by_page) > 1 and all(len(starts) == 1 for starts in starts_by_page.values()):
+    if len(starts_by_page) > 1:
         return no_layer("multiple_physical_pages_satisfy_tdef_transition_predicates", "A3-TDEF-PAGE-MULTIPLE")
     if len(record_keys) > 1:
         return no_layer("multiple_tdef_record_boundaries_survive", "A3-TDEF-RECORD-MULTIPLE")
-    if len(common) > 1:
+    if len(models) > 1:
         return no_layer("multiple_pointer_models_survive", "A3-POINTER-MULTIPLE")
-    page, start, end, layout, growth_offset, churn_offset = next(iter(common))
+    model = next(iter(models))
+    page, start, end, layout, growth_offset, churn_offset = model
+    if not _reference_valid(replica, plan, page, growth_offset, layout) or not _reference_valid(
+        replica, plan, page, churn_offset, layout
+    ):
+        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY")
+    if not _tdef_structural_valid(replica, plan, model):
+        return no_layer("structural_field_exclusion_failure", "A3-STRUCTURAL-EXCLUSION")
     return model_layer(
         {
             "record": {"page": page, "start": start, "end": end},
@@ -558,27 +651,80 @@ def derive_tdef(replicas: list[Replica], plan: dict[str, Any], qualified: list[i
     )
 
 
+def derive_tdef(
+    replicas: list[Replica],
+    plan: dict[str, Any],
+    qualified: dict[int, list[int]],
+) -> tuple[dict[str, Any], list[str | None]]:
+    layers = [
+        _derive_tdef_replica(replica, plan, qualified[replica.number]["tdef"])
+        for replica in replicas
+    ]
+    terminals = [layer["terminal_predicate_id"] for layer in layers]
+    if any(terminal is not None for terminal in terminals):
+        if len(set(terminals)) == 1:
+            return layers[0], terminals
+        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), terminals
+    if any(layer["model"] != layers[0]["model"] for layer in layers[1:]):
+        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), terminals
+    return model_layer(layers[0]["model"]), terminals
+
+
 def recompute_derivation(bundle: LoadedBundle) -> dict[str, Any]:
     replicas = [bundle.replicas[number] for number in (1, 2)]
     plan = bundle.plan
+    empty_cross = {
+        "evaluated_legs": [],
+        "representation_change_stop": None,
+        "first_violating_leg": None,
+        "first_violating_page": None,
+    }
+    idle_results = {replica.number: idle_equal(replica, plan) for replica in replicas}
+    if not all(idle_results.values()):
+        inapplicable = {name: no_layer(None, None, False) for name in (
+            "global_map_record",
+            "global_map_conversion_inline",
+            "global_map_extended_base",
+            "tdef_pointer_pair",
+        )}
+        return {
+            "qualified_pages": {"global_map": [], "tdef": []},
+            "per_replica_qualified_pages": {
+                replica.number: {"global_map": [], "tdef": []} for replica in replicas
+            },
+            "polarity_cross_check": empty_cross,
+            "layers": inapplicable,
+            "record_candidates": {},
+            "idle_equality": False,
+            "campaign_terminal_predicate_id": "A3-IDLE-EQUALITY",
+            "replica_terminals": {name: [None, None] for name in inapplicable},
+            "record_candidate_enumerations": 0,
+        }
     qualifications = {replica.number: qualify_pages(replica, plan) for replica in replicas}
-    common_qualified = {
-        key: sorted(set.intersection(*(set(value[key]) for value in qualifications.values())))
+    union_qualified = {
+        key: sorted(set.union(*(set(value[key]) for value in qualifications.values())))
         for key in ("global_map", "tdef")
     }
-    global_layer, global_model, record_candidates = derive_global_record(replicas, common_qualified["global_map"])
+    global_layer, global_model, record_candidates, global_terminals = derive_global_record(replicas, qualifications)
     cross_checks = {
         replica.number: polarity_cross_check(replica, plan, global_model)
         for replica in replicas
     } if global_model is not None else {}
-    conversion_layer, cross_check = derive_conversion(replicas, plan, global_model, cross_checks)
+    conversion_layer, cross_check, conversion_terminals = derive_conversion(replicas, plan, global_model, cross_checks)
     if conversion_layer["model"] is None:
         base_layer = no_layer(None, None, False)
+        base_terminals: list[str | None] = [None, None]
     else:
-        base_layer = derive_extended_base(replicas, plan, global_model, conversion_layer["model"])
-    tdef_layer = derive_tdef(replicas, plan, common_qualified["tdef"])
+        base_layer, base_terminals = derive_extended_base(replicas, plan, global_model, conversion_layer["model"])
+    tdef_layer, tdef_terminals = derive_tdef(replicas, plan, qualifications)
+    enumerations = sum(len(value["global_map"]) for value in qualifications.values())
+    enumerations += sum(
+        len(qualifications[replica.number]["tdef"])
+        for replica in replicas
+        if _tdef_precondition(replica)
+    )
     return {
-        "qualified_pages": common_qualified,
+        "qualified_pages": union_qualified,
         "per_replica_qualified_pages": qualifications,
         "polarity_cross_check": cross_check,
         "layers": {
@@ -591,95 +737,13 @@ def recompute_derivation(bundle: LoadedBundle) -> dict[str, Any]:
             str(number): [candidate.model() for candidate in candidates]
             for number, candidates in record_candidates.items()
         },
-        "idle_equality": all(idle_equal(replica, plan) for replica in replicas),
+        "idle_equality": True,
+        "campaign_terminal_predicate_id": None,
+        "replica_terminals": {
+            "global_map_record": global_terminals,
+            "global_map_conversion_inline": conversion_terminals,
+            "global_map_extended_base": base_terminals,
+            "tdef_pointer_pair": tdef_terminals,
+        },
+        "record_candidate_enumerations": enumerations,
     }
-
-
-def derive_extended_base(
-    replicas: list[Replica],
-    plan: dict[str, Any],
-    global_model: GlobalCandidate,
-    conversion_model: dict[str, Any],
-) -> dict[str, Any]:
-    formulas = plan["hypotheses"]["extended_base_candidates"]
-    survivors_by_replica: list[set[str]] = []
-    window = plan["checkpoint_design"]["transition_coverage"]["inline_to_indirect_conversion_window"]
-    conversion_index = window.index(conversion_model["conversion_checkpoint_id"])
-
-    def formula_base(formula: str, slot: int, reference: int) -> int:
-        base = (0, 16352)[slot] if formula.startswith("slot_relative") else reference
-        if formula.endswith("minus_one"):
-            return base - 1
-        if formula.endswith("plus_one"):
-            return base + 1
-        return base
-
-    for replica in replicas:
-        h_left_record = _record_page(replica, "P_ABS_16480", global_model)
-        h_right_record = _record_page(replica, "H_REL_0064", global_model)
-        h_left_reference = _indirect_slots(h_left_record, global_model.start)[0]
-        h_right_reference = _indirect_slots(h_right_record, global_model.start)[0]
-        h_left_page = replica.page("P_ABS_16480", h_left_reference) if h_left_reference else None
-        h_right_page = replica.page("H_REL_0064", h_right_reference) if h_right_reference else None
-        if (
-            h_left_page is None
-            or h_right_page is None
-            or not any(_bit_set(h_left_page, 1, bit) != _bit_set(h_right_page, 1, bit) for bit in range(16352))
-        ):
-            return no_layer("insufficient_base_discrimination", "A3-BASE-DISCRIMINATION")
-        survivors: set[str] = set()
-        for formula in formulas:
-            valid = True
-            h64_discriminated = False
-            for left, right in _pairs(window[conversion_index:]):
-                left_record = _record_page(replica, left, global_model)
-                right_record = _record_page(replica, right, global_model)
-                left_references = _indirect_slots(left_record, global_model.start)
-                right_references = _indirect_slots(right_record, global_model.start)
-                append_low = replica.index(left)["page_count"]
-                append_high = replica.index(right)["page_count"]
-                for slot in (0, 1):
-                    left_reference, right_reference = left_references[slot], right_references[slot]
-                    if left_reference == 0 or right_reference == 0:
-                        continue
-                    left_page = replica.page(left, left_reference)
-                    right_page = replica.page(right, right_reference)
-                    if left_page is None or right_page is None or left_page[0] != 0x05 or right_page[0] != 0x05:
-                        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY")
-                    left_base = formula_base(formula, slot, left_reference)
-                    right_base = formula_base(formula, slot, right_reference)
-                    low = max(left_base, right_base, 0)
-                    high = min(left_base + 16352, right_base + 16352, 65536)
-                    for physical_page in range(low, max(low, high)):
-                        left_set = _bit_set(left_page, 1, physical_page - left_base)
-                        right_set = _bit_set(right_page, 1, physical_page - right_base)
-                        if left_set == right_set:
-                            continue
-                        left_in_use = left_set == (global_model.polarity == "set_means_in_use")
-                        right_in_use = right_set == (global_model.polarity == "set_means_in_use")
-                        if not (append_low <= physical_page < append_high and not left_in_use and right_in_use):
-                            valid = False
-                            break
-                        if left == "P_ABS_16480" and right == "H_REL_0064" and slot == 0:
-                            h64_discriminated = True
-                    if not valid:
-                        break
-                    for physical_page in range(max(append_low, low), min(append_high, high)):
-                        left_set = _bit_set(left_page, 1, physical_page - left_base)
-                        right_set = _bit_set(right_page, 1, physical_page - right_base)
-                        if left_set == (global_model.polarity == "set_means_in_use") or right_set != (global_model.polarity == "set_means_in_use"):
-                            valid = False
-                            break
-                    if not valid:
-                        break
-                if not valid:
-                    break
-            if valid and h64_discriminated:
-                survivors.add(formula)
-        survivors_by_replica.append(survivors)
-    common = set.intersection(*survivors_by_replica)
-    if not common:
-        return no_layer("no_extended_base_candidate", "A3-BASE-NONE")
-    if len(common) > 1:
-        return no_layer("multiple_extended_base_candidates", "A3-BASE-MULTIPLE")
-    return model_layer({"extended_base_formula": next(iter(common))})

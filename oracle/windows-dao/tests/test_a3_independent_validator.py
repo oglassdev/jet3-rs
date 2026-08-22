@@ -14,11 +14,18 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 PLAN_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps.plan.json"
-R2_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r2.plan.json"
+R3_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r3.plan.json"
 sys.path.insert(0, str(SCRIPTS))
 
-from a3_independent_bundle import ValidationError, canonical_json_bytes  # noqa: E402
-from a3_independent_validator import R2_SHA256, _load_predicate_sequences, main  # noqa: E402
+from a3_independent_bundle import BundleLoader, ValidationError, canonical_json_bytes  # noqa: E402
+from a3_independent_core import recompute_derivation  # noqa: E402
+from a3_independent_validator import (  # noqa: E402
+    R3_SHA256,
+    _expected_predicate_statuses,
+    _load_predicate_sequences,
+    _validate_terminal_predicate_ids,
+    main,
+)
 
 
 CHECKPOINTS = [
@@ -78,12 +85,10 @@ def _pointer_bytes(reference: int, slot: int = 1) -> bytes:
 
 def _tdef_page(checkpoint: str) -> bytes:
     page = bytearray(2048)
-    growth_reference = 10 if CHECKPOINTS.index(checkpoint) <= CHECKPOINTS.index("L_REL_0064") else 11
-    churn_reference = 21 if checkpoint == "L_DELETE_ALL" else 20
-    page[100:104] = _pointer_bytes(growth_reference)
-    page[200:204] = _pointer_bytes(churn_reference)
-    if checkpoint in {"P_ABS_04096", "P_ABS_08192"}:
-        page[150] = 0x7D
+    growth_reference = 65546 if CHECKPOINTS.index(checkpoint) <= CHECKPOINTS.index("L_REL_0064") else 10
+    churn_reference = 65556 if checkpoint == "L_DELETE_ALL" else 20
+    page[2040:2044] = bytes([1]) + growth_reference.to_bytes(3, "little")
+    page[2044:2048] = bytes([1]) + churn_reference.to_bytes(3, "little")
     return bytes(page)
 
 
@@ -98,7 +103,31 @@ def _global_page(checkpoint: str) -> bytes:
         return _bitmap_page(450)
     if checkpoint == "L_REL_0512":
         return _bitmap_page(898)
-    return _bitmap_page(1154, 1021)
+    if CHECKPOINTS.index(checkpoint) < CHECKPOINTS.index("P_ABS_04096"):
+        return _bitmap_page(COUNTS[CHECKPOINTS.index(checkpoint)])
+    page = bytearray([0xFF] * 2048)
+    page[GLOBAL_START] = 1
+    page[GLOBAL_START + 1 : GLOBAL_START + 5] = (10).to_bytes(4, "little")
+    page[GLOBAL_START + 5 : GLOBAL_START + 9] = (16362).to_bytes(4, "little")
+    page[GLOBAL_START + 9 :] = bytes(2048 - GLOBAL_START - 9)
+    return bytes(page)
+
+
+def _extended_page(slot: int, checkpoint: str) -> bytes:
+    page = bytearray([0xFF] * 2048)
+    page[:4] = bytes([0x05, 0x00, 0x00, 0x00])
+    self_bit = 10
+    page[4 + self_bit // 8] &= ~(1 << (self_bit % 8))
+    if slot == 0 and CHECKPOINTS.index(checkpoint) >= CHECKPOINTS.index("H_REL_0064"):
+        page[4 + 100 // 8] &= ~(1 << (100 % 8))
+    return bytes(page)
+
+
+def _changed_discriminator_page(checkpoint: str) -> bytes:
+    page = bytearray([0x05]) + bytearray(2047)
+    if CHECKPOINTS.index(checkpoint) >= CHECKPOINTS.index("H_REL_0064"):
+        page[1] = 1
+    return bytes(page)
 
 
 def _page_digest(root: Path, raw: bytes, known: dict[str, bytes]) -> str:
@@ -153,10 +182,15 @@ def _frozen(plan_sha: str, slack: int) -> dict[str, Any]:
             {"left_checkpoint_id": "D_REGROW_0128", "right_checkpoint_id": "L_REL_0064"},
             {"left_checkpoint_id": "L_REL_0064", "right_checkpoint_id": "L_REL_0512"},
             {"left_checkpoint_id": "L_REL_0512", "right_checkpoint_id": "L_REL_0768"},
+            {"left_checkpoint_id": "L_REL_0768", "right_checkpoint_id": "L_REL_0896"},
+            {"left_checkpoint_id": "L_REL_0896", "right_checkpoint_id": "L_REL_0904"},
+            {"left_checkpoint_id": "L_REL_0904", "right_checkpoint_id": "L_REL_1024"},
+            {"left_checkpoint_id": "L_REL_1024", "right_checkpoint_id": "L_REL_1088"},
+            {"left_checkpoint_id": "L_REL_1088", "right_checkpoint_id": "L_REL_1280"},
         ],
-        "representation_change_stop": None,
-        "first_violating_leg": {"left_checkpoint_id": "L_REL_0512", "right_checkpoint_id": "L_REL_0768"},
-        "first_violating_page": 1021,
+        "representation_change_stop": {"left_checkpoint_id": "L_IDLE_REOPEN", "right_checkpoint_id": "P_ABS_04096"},
+        "first_violating_leg": None,
+        "first_violating_page": None,
     }
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_frozen_derivation_candidates",
@@ -165,32 +199,20 @@ def _frozen(plan_sha: str, slack: int) -> dict[str, Any]:
         "qualified_pages": {"global_map": [1], "tdef": [2]}, "polarity_cross_check": cross,
         "layers": {
             "global_map_record": {"applicable": True, "derivation_survivor_count": 1, "model": {"record": {"page": 1, "start": GLOBAL_START, "end": 2048}, "bit_polarity": "set_means_not_in_use", "zero_suffix_slack_bytes": slack}, "no_outcome_reason": None, "terminal_predicate_id": None},
-            "global_map_conversion_inline": {"applicable": True, "derivation_survivor_count": 0, "model": None, "no_outcome_reason": "growth_polarity_disagreement", "terminal_predicate_id": "A3-POLARITY-CROSSCHECK"},
-            "global_map_extended_base": {"applicable": False, "derivation_survivor_count": 0, "model": None, "no_outcome_reason": None, "terminal_predicate_id": None},
-            "tdef_pointer_pair": {"applicable": True, "derivation_survivor_count": 0, "model": None, "no_outcome_reason": "no_tdef_record_candidate", "terminal_predicate_id": "A3-TDEF-RECORD-NONE"},
+            "global_map_conversion_inline": {"applicable": True, "derivation_survivor_count": 1, "model": {"conversion_checkpoint_id": "P_ABS_04096", "conversion_ordinal": 17, "indirect_tag": 1, "active_slot_count_at_conversion": 2, "active_slot_count_at_h_rel_0904": 2, "inline_boundary": 1914, "slot_reference_pages": [10, 16362]}, "no_outcome_reason": None, "terminal_predicate_id": None},
+            "global_map_extended_base": {"applicable": True, "derivation_survivor_count": 1, "model": {"extended_base_formula": "slot_relative_expected_0_16352"}, "no_outcome_reason": None, "terminal_predicate_id": None},
+            "tdef_pointer_pair": {"applicable": True, "derivation_survivor_count": 1, "model": {"record": {"page": 2, "start": 2039, "end": 2048}, "pointer_layout": "u8_slot_then_u24le_page", "growth_pointer_offset": 2040, "delete_reinsert_pointer_offset": 2044}, "no_outcome_reason": None, "terminal_predicate_id": None},
         },
     }
 
 
 def _report(plan: dict[str, Any], plan_sha: str, frozen: dict[str, Any], frozen_sha: str) -> dict[str, Any]:
-    terminal = {"A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"}
-    not_applicable = {
-        "A3-TDEF-PAGE-MULTIPLE", "A3-TDEF-RECORD-MULTIPLE", "A3-POINTER-MULTIPLE",
-        "A3-POINTER-VALIDITY", "A3-CONVERSION-NONE",
-        "A3-CONVERSION-MULTIPLE", "A3-SLOT-ACTIVATION", "A3-SLOT-FINAL",
-        "A3-INLINE-BOUNDARY-NONE", "A3-INLINE-BOUNDARY-MULTIPLE", "A3-INLINE-SUFFIX",
-        "A3-BASE-DISCRIMINATION", "A3-BASE-NONE", "A3-BASE-MULTIPLE",
-    }
+    terminal: set[str] = set()
     mapping = {item["predicate_id"]: item["layer"] for item in plan["predicate_registry"]["mappings"]}
-    predicates = []
-    for predicate in plan["predicate_registry"]["ids"]:
-        if predicate in terminal:
-            status = "fail"
-        elif predicate in not_applicable:
-            status = "not_applicable"
-        else:
-            status = "pass"
-        predicates.append({"predicate_id": predicate, "status": status, "layer": mapping[predicate]})
+    predicates = [
+        {"predicate_id": predicate, "status": "pass", "layer": mapping[predicate]}
+        for predicate in plan["predicate_registry"]["ids"]
+    ]
     layers = frozen["layers"]
     def report_layer(name: str, status: str, evaluated: bool) -> dict[str, Any]:
         layer = layers[name]
@@ -201,15 +223,15 @@ def _report(plan: dict[str, Any], plan_sha: str, frozen: dict[str, Any], frozen_
         "campaign_id": CAMPAIGN, "producer_commit": PRODUCER, "derivation_replicas": [1, 2],
         "holdout_replica": 3, "input_checkpoint_count": 75,
         "qualified_page_counts": {"global_map": 1, "tdef": 1}, "qualified_pages": frozen["qualified_pages"],
-        "record_candidates_examined": 2 * 2_098_176, "candidate_models_examined": 10,
+        "record_candidates_examined": 4 * 2_098_176, "candidate_models_examined": 10,
         "derivation_survivor_counts": {name: layer["derivation_survivor_count"] for name, layer in layers.items()},
         "derivation_candidate_set_sha256": frozen_sha, "polarity_cross_check": frozen["polarity_cross_check"],
         "analysis_work_units": 10_000_000, "holdout_structurally_validated_after_freeze": True,
         "holdout_opened_after_freeze": True, "holdout_evaluated": True,
         "predicate_results": predicates, "terminal_predicate_ids": [predicate for predicate in plan["predicate_registry"]["ids"] if predicate in terminal],
         "scientific_outcome": "one_or_more_submodels_predict_holdout",
-        "no_outcome_reasons": ["growth_polarity_disagreement", "no_tdef_record_candidate"],
-        "submodels": {"global_map": {"record": report_layer("global_map_record", "decisive_predicts_holdout", True), "conversion_inline": report_layer("global_map_conversion_inline", "no_outcome", False), "extended_base": report_layer("global_map_extended_base", "not_applicable", False)}, "tdef": {"pointer_pair": report_layer("tdef_pointer_pair", "no_outcome", False)}},
+        "no_outcome_reasons": [],
+        "submodels": {"global_map": {"record": report_layer("global_map_record", "decisive_predicts_holdout", True), "conversion_inline": report_layer("global_map_conversion_inline", "decisive_predicts_holdout", True), "extended_base": report_layer("global_map_extended_base", "decisive_predicts_holdout", True)}, "tdef": {"pointer_pair": report_layer("tdef_pointer_pair", "decisive_predicts_holdout", True)}},
         "claims": {"descriptive_provider_observation_only": True, "general_tdef_catalog_row_index_or_lval_layout": False, "unobserved_slot_or_base_behavior": False, "compaction_encryption_or_version_behavior": False, "rust_correctness": False, "dao_compatibility_or_support": False},
     }
 
@@ -240,6 +262,11 @@ def build_bundle(root: Path) -> None:
             hashes[0] = page_zero
             hashes[1] = _page_digest(root, _global_page(checkpoint), known_pages)
             hashes[2] = _page_digest(root, _tdef_page(checkpoint), known_pages)
+            if count > 100:
+                hashes[100] = _page_digest(root, _changed_discriminator_page(checkpoint), known_pages)
+            if CHECKPOINTS.index(checkpoint) >= CHECKPOINTS.index("P_ABS_16480"):
+                hashes[10] = _page_digest(root, _extended_page(0, checkpoint), known_pages)
+                hashes[16362] = _page_digest(root, _extended_page(1, checkpoint), known_pages)
             changed = [page for page in range(max(len(previous), len(hashes))) if (previous[page] if page < len(previous) else None) != (hashes[page] if page < len(hashes) else None)]
             database = hashlib.sha256()
             for digest in hashes:
@@ -347,7 +374,10 @@ def relink(root: Path) -> None:
 
 
 def _set_layer_terminal(report: dict[str, Any], old: str, new: str) -> None:
-    report["terminal_predicate_ids"] = [new if value == old else value for value in report["terminal_predicate_ids"]]
+    if old in report["terminal_predicate_ids"]:
+        report["terminal_predicate_ids"] = [new if value == old else value for value in report["terminal_predicate_ids"]]
+    else:
+        report["terminal_predicate_ids"].append(new)
     for result in report["predicate_results"]:
         if result["predicate_id"] == old:
             result["status"] = "not_applicable"
@@ -369,10 +399,11 @@ def tamper_t2(root: Path) -> None:
     frozen = json.loads((root / "analysis/derivation-candidates.json").read_text())
     report = json.loads((root / "analysis/analysis-report.json").read_text())
     layer = frozen["layers"]["global_map_conversion_inline"]
-    layer["no_outcome_reason"], layer["terminal_predicate_id"] = "missing_inline_to_indirect_conversion", "A3-CONVERSION-NONE"
+    layer.update({"derivation_survivor_count": 0, "model": None, "no_outcome_reason": "missing_inline_to_indirect_conversion", "terminal_predicate_id": "A3-CONVERSION-NONE"})
     report_layer = report["submodels"]["global_map"]["conversion_inline"]
-    report_layer["no_outcome_reasons"], report_layer["terminal_predicate_id"] = ["missing_inline_to_indirect_conversion"], "A3-CONVERSION-NONE"
-    report["no_outcome_reasons"][0] = "missing_inline_to_indirect_conversion"
+    report_layer.update({"status": "no_outcome", "derivation_survivor_count": 0, "holdout_evaluated": False, "no_outcome_reasons": ["missing_inline_to_indirect_conversion"], "terminal_predicate_id": "A3-CONVERSION-NONE", "model": None})
+    report["derivation_survivor_counts"]["global_map_conversion_inline"] = 0
+    report["no_outcome_reasons"] = ["missing_inline_to_indirect_conversion"]
     _set_layer_terminal(report, "A3-POLARITY-CROSSCHECK", "A3-CONVERSION-NONE")
     _write(root / "analysis/derivation-candidates.json", frozen, canonical=True)
     _write(root / "analysis/analysis-report.json", report)
@@ -390,10 +421,11 @@ def tamper_t4(root: Path) -> None:
     frozen = json.loads((root / "analysis/derivation-candidates.json").read_text())
     report = json.loads((root / "analysis/analysis-report.json").read_text())
     layer = frozen["layers"]["tdef_pointer_pair"]
-    layer["no_outcome_reason"], layer["terminal_predicate_id"] = "no_growth_only_pointer_candidate", "A3-GROWTH-POINTER-NONE"
+    layer.update({"derivation_survivor_count": 0, "model": None, "no_outcome_reason": "no_growth_only_pointer_candidate", "terminal_predicate_id": "A3-GROWTH-POINTER-NONE"})
     report_layer = report["submodels"]["tdef"]["pointer_pair"]
-    report_layer["no_outcome_reasons"], report_layer["terminal_predicate_id"] = ["no_growth_only_pointer_candidate"], "A3-GROWTH-POINTER-NONE"
-    report["no_outcome_reasons"][1] = "no_growth_only_pointer_candidate"
+    report_layer.update({"status": "no_outcome", "derivation_survivor_count": 0, "holdout_evaluated": False, "no_outcome_reasons": ["no_growth_only_pointer_candidate"], "terminal_predicate_id": "A3-GROWTH-POINTER-NONE", "model": None})
+    report["derivation_survivor_counts"]["tdef_pointer_pair"] = 0
+    report["no_outcome_reasons"] = ["no_growth_only_pointer_candidate"]
     _set_layer_terminal(report, "A3-TDEF-RECORD-NONE", "A3-GROWTH-POINTER-NONE")
     _write(root / "analysis/derivation-candidates.json", frozen, canonical=True)
     _write(root / "analysis/analysis-report.json", report)
@@ -435,31 +467,25 @@ class IndependentValidatorTests(unittest.TestCase):
         self.assertEqual(code, 0, result)
         self.assertIs(result["accepted"], True)
         self.assertEqual(result["discrepancy_codes"], [])
+        self.assertEqual([item["id"] for item in result["tamper_results"]], ["T1", "T2", "T3", "T4", "T5"])
+        self.assertTrue(all(item["rejected"] for item in result["tamper_results"]))
 
     def test_accepts_terminal_predicate_ids_outside_registry_order(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="a3-terminal-order-") as directory:
-            temporary = Path(directory)
-            reordered = temporary / "bundle"
-            shutil.copytree(self.synthetic_bundle, reordered, copy_function=os.link)
-            report_path = reordered / "analysis" / "analysis-report.json"
-            report = json.loads(report_path.read_text())
-            report["terminal_predicate_ids"].reverse()
-            _write(report_path, report)
-            relink(reordered)
-            code, result = _run(reordered, temporary / "result.json")
-        self.assertEqual(code, 0, result)
-        self.assertIs(result["accepted"], True)
+        _validate_terminal_predicate_ids(
+            ["A3-TDEF-RECORD-NONE", "A3-POLARITY-CROSSCHECK"],
+            {"A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"},
+        )
 
-    def test_binds_published_r2_by_hash(self) -> None:
+    def test_binds_published_r3_by_hash(self) -> None:
         plan_raw = PLAN_PATH.read_bytes()
         plan_sha256 = hashlib.sha256(plan_raw).hexdigest()
         plan = json.loads(plan_raw)
         campaign, sequences = _load_predicate_sequences(
-            R2_PATH,
+            R3_PATH,
             plan_sha256,
             plan["predicate_registry"]["ids"],
         )
-        self.assertEqual(hashlib.sha256(R2_PATH.read_bytes()).hexdigest(), R2_SHA256)
+        self.assertEqual(hashlib.sha256(R3_PATH.read_bytes()).hexdigest(), R3_SHA256)
         self.assertEqual(campaign, ["A3-IDLE-EQUALITY", "A3-SNAPSHOT-RECONSTRUCTION", "A3-RESOURCE-BOUND"])
         self.assertEqual(
             set(sequences),
@@ -471,14 +497,38 @@ class IndependentValidatorTests(unittest.TestCase):
             },
         )
         with tempfile.TemporaryDirectory(prefix="a3-r2-") as directory:
-            mutated = Path(directory) / R2_PATH.name
-            mutated.write_bytes(R2_PATH.read_bytes() + b" ")
+            mutated = Path(directory) / R3_PATH.name
+            mutated.write_bytes(R3_PATH.read_bytes() + b" ")
             with self.assertRaisesRegex(ValidationError, "predicate_revision_hash_mismatch"):
                 _load_predicate_sequences(
                     mutated,
                     plan_sha256,
                     plan["predicate_registry"]["ids"],
                 )
+
+    def test_idle_campaign_terminal_skips_all_layers(self) -> None:
+        bundle = BundleLoader(self.synthetic_bundle, PLAN_PATH).load()
+        idle_index = bundle.replicas[1].indexes["E0R"]["ordered_page_sha256"]
+        idle_index[0] = idle_index[1]
+        derivation = recompute_derivation(bundle)
+        campaign, sequences = _load_predicate_sequences(
+            R3_PATH,
+            hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest(),
+            bundle.plan["predicate_registry"]["ids"],
+        )
+        statuses = _expected_predicate_statuses(
+            bundle,
+            derivation,
+            False,
+            {"A3-IDLE-EQUALITY"},
+            campaign,
+            sequences,
+        )
+        self.assertEqual(derivation["campaign_terminal_predicate_id"], "A3-IDLE-EQUALITY")
+        self.assertTrue(all(not layer["applicable"] for layer in derivation["layers"].values()))
+        self.assertEqual(statuses["A3-IDLE-EQUALITY"], "fail")
+        self.assertEqual(statuses["A3-SNAPSHOT-RECONSTRUCTION"], "not_applicable")
+        self.assertEqual(statuses["A3-GLOBAL-PAGE-NONE"], "not_applicable")
 
     def test_rejects_relinked_tamper_cases(self) -> None:
         cases: list[tuple[str, Callable[[Path], None], str]] = [
@@ -498,6 +548,7 @@ class IndependentValidatorTests(unittest.TestCase):
                 self.assertNotEqual(code, 0)
                 self.assertIs(result["accepted"], False)
                 self.assertEqual(result["discrepancy_codes"], [expected])
+                self.assertTrue(all(not item["rejected"] for item in result["tamper_results"]))
 
 
 if __name__ == "__main__":
