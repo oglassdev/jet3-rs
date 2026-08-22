@@ -831,6 +831,7 @@ Use `not applicable` explicitly rather than omitting a field.
   and are not independent or DAO verification.
 - Usage: `file:crates/jet3/src/page_kind.rs`;
   `file:crates/jet3/src/allocation.rs`;
+  `file:crates/jet3/src/allocation_traverse.rs`;
   `file:crates/jet3/src/database.rs`;
   `file:docs/architecture/SEMANTIC_READER.md`;
   `file:docs/validation/repository-contract.json`;
