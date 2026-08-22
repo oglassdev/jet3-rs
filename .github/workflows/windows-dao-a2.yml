@@ -1,0 +1,537 @@
+name: Windows DAO A2 campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute_a2_campaign:
+        description: Authorize the licensed A2 three-replica acquisition
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-dao-a2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    name: Validate the checked A2 contract
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.7"
+
+      - name: Parse checked A2 PowerShell sources without execution
+        shell: powershell
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSEdition -cne "Desktop" -or
+              $PSVersionTable.PSVersion.Major -ne 5) {
+            throw "A2 contract parsing requires Windows PowerShell 5 Desktop."
+          }
+          $entrypoint = "oracle/windows-dao/scripts/run-a2-replica.ps1"
+          $a2Directory = "oracle/windows-dao/scripts/a2"
+          if (-not (Test-Path -LiteralPath $entrypoint -PathType Leaf) -or
+              -not (Test-Path -LiteralPath $a2Directory -PathType Container)) {
+            throw "The checked A2 PowerShell source inventory is incomplete."
+          }
+          $sourcePaths = @($entrypoint) + @(
+            Get-ChildItem -LiteralPath $a2Directory -Filter "*.ps1" -File |
+              Sort-Object -Property Name |
+              ForEach-Object { $_.FullName }
+          )
+          if ($sourcePaths.Count -lt 2 -or $sourcePaths.Count -gt 32) {
+            throw "The checked A2 PowerShell source count violates its bound."
+          }
+          foreach ($sourcePath in $sourcePaths) {
+            $item = Get-Item -LiteralPath $sourcePath -Force
+            if ($item.PSIsContainer -or $item.Length -lt 1 -or
+                $item.Length -gt 2MB -or
+                ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+              throw "A checked A2 PowerShell source violates its file bound."
+            }
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $item.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -ne 0) {
+              [string]$detail = [Convert]::ToString((@($errors | ForEach-Object {
+                "line $($_.Extent.StartLineNumber): $($_.Message)"
+              }) -join "; "))
+              if ($detail.Length -gt 2000) {
+                $detail = $detail.Substring(0, 2000)
+              }
+              throw "A2 PowerShell parser errors in $sourcePath`: $detail"
+            }
+          }
+
+      - name: Run the checked A2 Python contract tests
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          & python -B oracle/windows-dao/scripts/a2_spec.py `
+            oracle/windows-dao/experiments/a2/a2-allocation-maps.plan.json
+          if ($LASTEXITCODE -ne 0) { throw "The checked A2 plan failed." }
+          & python -B -m unittest `
+            oracle/windows-dao/tests/test_a2_plan_contract.py `
+            oracle/windows-dao/tests/test_a2_spec_generator.py `
+            oracle/windows-dao/tests/test_a2_dryrun.py `
+            oracle/windows-dao/tests/test_a2_powershell_contract.py `
+            oracle/windows-dao/tests/test_a2_bundle.py `
+            oracle/windows-dao/tests/test_windows_dao_a2_workflow.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "The checked A2 contract tests failed."
+          }
+
+  a2-replica:
+    name: Acquire A2 replica ${{ matrix.replica }}
+    needs: contract
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.execute_a2_campaign &&
+      needs.contract.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        replica: [1, 2, 3]
+    runs-on: windows-latest
+    timeout-minutes: 37
+    env:
+      FROZEN_WORKER_TIMEOUT_SECONDS: "1700"
+      HOSTED_REPLICA_TIMEOUT_SECONDS: "2120"
+      FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"
+      REPLICA_MAXIMUM_OUTPUT_BYTES: "1048576"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.7"
+
+      - name: Bind the exact clean pushed producer commit
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:GITHUB_REPOSITORY -cne "oglassdev/jet3-rs") {
+            throw "The workflow repository differs from the canonical repository."
+          }
+          & git remote set-url origin https://github.com/oglassdev/jet3-rs.git
+          if ($LASTEXITCODE -ne 0) { throw "Could not bind the canonical origin." }
+          $head = (& git rev-parse --verify HEAD).Trim()
+          $origin = (& git remote get-url origin).Trim()
+          if ($LASTEXITCODE -ne 0 -or $head -cne $env:GITHUB_SHA -or
+              $origin -cne "https://github.com/oglassdev/jet3-rs.git") {
+            throw "The checkout identity differs from the dispatched commit."
+          }
+          $remoteRows = @(& git ls-remote --exit-code origin refs/heads/main)
+          if ($LASTEXITCODE -ne 0 -or $remoteRows.Count -ne 1) {
+            throw "The pushed main-branch identity is unavailable."
+          }
+          $remoteFields = @($remoteRows[0] -split "\s+")
+          if ($remoteFields.Count -ne 2 -or $remoteFields[0] -cne $env:GITHUB_SHA) {
+            throw "The dispatched producer commit is not the pushed main commit."
+          }
+          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+            throw "The A2 producer checkout is not exact and clean."
+          }
+
+      - name: Run bounded A2 replica ${{ matrix.replica }}
+        id: replica
+        shell: powershell
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Stop"
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+
+          function Get-A2LogBytes {
+            param([Parameter(Mandatory = $true)][string[]]$Paths)
+            [long]$total = 0
+            foreach ($path in $Paths) {
+              if (Test-Path -LiteralPath $path -PathType Leaf) {
+                [long]$length = (Get-Item -LiteralPath $path -Force).Length
+                if ($length -gt ([long]::MaxValue - $total)) {
+                  throw "A2 log byte accounting overflowed."
+                }
+                $total += $length
+              }
+            }
+            return $total
+          }
+
+          $repository = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $replica = [int]${{ matrix.replica }}
+          $replicaName = $replica.ToString("00")
+          $outputRoot = Join-Path $env:RUNNER_TEMP "jet3-a2-output-$replicaName"
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a2-diagnostics-$replicaName"
+          New-Item -ItemType Directory -Path $outputRoot, $diagnostics | Out-Null
+          $stdoutPath = Join-Path $diagnostics "replica.stdout.log"
+          $stderrPath = Join-Path $diagnostics "replica.stderr.log"
+          $hostedRecord = [ordered]@{
+            document_type = "jet3_windows_dao_a2_hosted_replica"
+            producer_commit = $env:GITHUB_SHA
+            campaign_id = "a2-run-$env:GITHUB_RUN_ID"
+            replica = $replica
+            worker_timeout_seconds = [int]$env:FROZEN_WORKER_TIMEOUT_SECONDS
+            hosted_timeout_seconds = [int]$env:HOSTED_REPLICA_TIMEOUT_SECONDS
+            campaign_timeout_seconds = [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
+            started_utc = [DateTimeOffset]::UtcNow.ToString("o")
+          }
+          [IO.File]::WriteAllText(
+            (Join-Path $diagnostics "hosted-replica.json"),
+            ($hostedRecord | ConvertTo-Json -Compress),
+            (New-Object Text.UTF8Encoding($false))
+          )
+          $x86PowerShell = Join-Path $env:WINDIR `
+            "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+          $entrypoint = Join-Path $repository `
+            "oracle/windows-dao/scripts/run-a2-replica.ps1"
+          if (-not (Test-Path -LiteralPath $x86PowerShell -PathType Leaf)) {
+            throw "x86 Windows PowerShell 5 is unavailable."
+          }
+          $process = $null
+          $clock = $null
+          $replicaExit = $null
+          $replicaError = $null
+          $cleanupErrors = New-Object Collections.ArrayList
+          $elapsedSeconds = 0.0
+          try {
+            $process = Start-Process -FilePath $x86PowerShell -PassThru `
+              -RedirectStandardOutput $stdoutPath `
+              -RedirectStandardError $stderrPath `
+              -ArgumentList @(
+                "-NoLogo", "-NoProfile", "-NonInteractive",
+                "-ExecutionPolicy", "Bypass", "-File", $entrypoint,
+                "-RepositoryRoot", $repository,
+                "-OutputRoot", $outputRoot,
+                "-DiagnosticsRoot", $diagnostics,
+                "-GitCommit", $env:GITHUB_SHA,
+                "-RunId", $env:GITHUB_RUN_ID,
+                "-Replica", $replica,
+                "-MatrixJobId", "a2-replica-$replica"
+              )
+            $null = $process.Handle
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            while (-not $process.WaitForExit(1000)) {
+              if ((Get-A2LogBytes -Paths @($stdoutPath, $stderrPath)) -gt
+                  [long]$env:REPLICA_MAXIMUM_OUTPUT_BYTES) {
+                throw "A2 replica output exceeded its byte ceiling."
+              }
+              if ($clock.Elapsed.TotalSeconds -ge
+                  [int]$env:HOSTED_REPLICA_TIMEOUT_SECONDS) {
+                throw "A2 replica exceeded its hosted wall-clock ceiling."
+              }
+            }
+            if ((Get-A2LogBytes -Paths @($stdoutPath, $stderrPath)) -gt
+                [long]$env:REPLICA_MAXIMUM_OUTPUT_BYTES) {
+              throw "A2 replica output exceeded its byte ceiling."
+            }
+            $process.WaitForExit()
+            $process.Refresh()
+            $exitCode = $process.ExitCode
+            if ($null -eq $exitCode) {
+              throw "A2 replica exit code was unavailable after completion."
+            }
+            $replicaExit = [int]$exitCode
+          }
+          catch {
+            $replicaError = $_
+          }
+          finally {
+            if ($null -ne $process) {
+              try {
+                Stop-Jet3BootstrapProcessTree -Process $process `
+                  -Label "A2 hosted replica $replica"
+              }
+              catch { [void]$cleanupErrors.Add($_) }
+            }
+            if ($null -ne $clock) {
+              $clock.Stop()
+              $elapsedSeconds = $clock.Elapsed.TotalSeconds
+            }
+            if ($null -ne $process) {
+              try { $process.Dispose() }
+              catch { [void]$cleanupErrors.Add($_) }
+            }
+            try {
+              $hostedRecord.completed_utc = [DateTimeOffset]::UtcNow.ToString("o")
+              $hostedRecord.elapsed_seconds = [Math]::Round($elapsedSeconds, 3)
+              [IO.File]::WriteAllText(
+                (Join-Path $diagnostics "hosted-replica.json"),
+                ($hostedRecord | ConvertTo-Json -Compress),
+                (New-Object Text.UTF8Encoding($false))
+              )
+            }
+            catch { [void]$cleanupErrors.Add($_) }
+          }
+          if ($null -ne $replicaError) { throw $replicaError }
+          if ($cleanupErrors.Count -ne 0) {
+            throw "A2 hosted replica cleanup failed."
+          }
+          if ($replicaExit -ne 0) {
+            throw "The checked A2 replica worker returned nonzero."
+          }
+          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+            throw "A2 acquisition changed the exact producer checkout."
+          }
+
+      - name: Upload retained A2 replica tree
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-dao-a2-replica-${{ matrix.replica }}
+          path: ${{ runner.temp }}\jet3-a2-output-0${{ matrix.replica }}
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 90
+
+      - name: Upload bounded A2 replica diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-dao-a2-diagnostics-${{ matrix.replica }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\jet3-a2-diagnostics-0${{ matrix.replica }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  fan-in:
+    name: Assemble and analyze the complete A2 bundle
+    needs: [contract, a2-replica]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.execute_a2_campaign &&
+      needs.contract.result == 'success' &&
+      needs.a2-replica.result == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.7"
+
+      - name: Download A2 replica 1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-dao-a2-replica-1
+          path: ${{ runner.temp }}\jet3-a2-replicas\replica-01
+
+      - name: Download A2 replica 2
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-dao-a2-replica-2
+          path: ${{ runner.temp }}\jet3-a2-replicas\replica-02
+
+      - name: Download A2 replica 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-dao-a2-replica-3
+          path: ${{ runner.temp }}\jet3-a2-replicas\replica-03
+
+      - name: Download bounded A2 replica timing diagnostics
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: windows-dao-a2-diagnostics-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\jet3-a2-replica-diagnostics
+
+      - name: Assemble the three checked replica trees
+        id: assemble
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $replicas = Join-Path $env:RUNNER_TEMP "jet3-a2-replicas"
+          $bundle = Join-Path $env:RUNNER_TEMP "jet3-a2-bundle"
+          $campaignId = "a2-run-$env:GITHUB_RUN_ID"
+          & python -B oracle/windows-dao/scripts/a2_bundle.py assemble `
+            --replica-root (Join-Path $replicas "replica-01") `
+            --replica-root (Join-Path $replicas "replica-02") `
+            --replica-root (Join-Path $replicas "replica-03") `
+            --bundle-root $bundle --campaign-id $campaignId `
+            --producer-commit $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "A2 replica assembly failed." }
+
+      - name: Freeze derivation, validate holdout separately, and analyze
+        id: analyze
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = Join-Path $env:RUNNER_TEMP "jet3-a2-bundle"
+          & python -B oracle/windows-dao/scripts/a2_analysis.py `
+            --bundle-root $bundle `
+            --replica (Join-Path $bundle "observations/replica-01.json") `
+            --replica (Join-Path $bundle "observations/replica-02.json") `
+            --replica (Join-Path $bundle "observations/replica-03.json") `
+            --candidate-output (Join-Path $bundle "analysis/derivation-candidates.json") `
+            --holdout-receipt (Join-Path $bundle "analysis/holdout-structure-receipt.json") `
+            --output (Join-Path $bundle "analysis/analysis-report.json")
+          if ($LASTEXITCODE -ne 0) { throw "A2 analysis failed." }
+
+      - name: Finalize the retained A2 bundle manifest
+        id: finalize
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = Join-Path $env:RUNNER_TEMP "jet3-a2-bundle"
+          & python -B oracle/windows-dao/scripts/a2_bundle.py finalize `
+            --bundle-root $bundle `
+            --campaign-id "a2-run-$env:GITHUB_RUN_ID" `
+            --producer-commit $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "A2 bundle finalization failed." }
+
+      - name: Independently validate the complete A2 bundle
+        id: validate
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = Join-Path $env:RUNNER_TEMP "jet3-a2-bundle"
+          & python -B oracle/windows-dao/scripts/a2_bundle.py validate $bundle `
+            --campaign-id "a2-run-$env:GITHUB_RUN_ID" `
+            --producer-commit $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) {
+            throw "Independent complete A2 bundle validation failed."
+          }
+          $dirty = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
+            throw "A2 fan-in changed the exact producer checkout."
+          }
+
+      - name: Record retained A2 fan-in status
+        id: fan_in_status
+        if: always()
+        shell: powershell
+        env:
+          ASSEMBLE_OUTCOME: ${{ steps.assemble.outcome }}
+          ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
+          FINALIZE_OUTCOME: ${{ steps.finalize.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Stop"
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a2-fanin-diagnostics"
+          New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
+          $timingRoot = Join-Path $env:RUNNER_TEMP "jet3-a2-replica-diagnostics"
+          $records = @(Get-ChildItem -LiteralPath $timingRoot `
+            -Filter "hosted-replica.json" -File -Recurse -ErrorAction SilentlyContinue)
+          $timingComplete = $records.Count -eq 3
+          $replicas = @()
+          $earliest = $null
+          foreach ($recordPath in $records) {
+            try {
+              if ($recordPath.Length -lt 1 -or $recordPath.Length -gt 4096) {
+                throw "Replica timing record violates its byte bound."
+              }
+              $record = Get-Content -LiteralPath $recordPath.FullName -Raw |
+                ConvertFrom-Json
+              if ($record.document_type -cne "jet3_windows_dao_a2_hosted_replica" -or
+                  $record.producer_commit -cne $env:GITHUB_SHA -or
+                  $record.campaign_id -cne "a2-run-$env:GITHUB_RUN_ID") {
+                throw "Replica timing record binding mismatch."
+              }
+              $started = [DateTimeOffset]::Parse(
+                [string]$record.started_utc,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind
+              )
+              $replicas += [int]$record.replica
+              if ($null -eq $earliest -or $started -lt $earliest) {
+                $earliest = $started
+              }
+            }
+            catch {
+              $timingComplete = $false
+            }
+          }
+          if ((@($replicas | Sort-Object -Unique) -join ",") -cne "1,2,3") {
+            $timingComplete = $false
+          }
+          $completed = [DateTimeOffset]::UtcNow
+          $campaignElapsed = $null
+          if ($timingComplete) {
+            $campaignElapsed = [Math]::Round(($completed - $earliest).TotalSeconds, 3)
+            if ($campaignElapsed -lt 0) { $timingComplete = $false }
+          }
+          $withinPlan = $timingComplete -and `
+            $campaignElapsed -le [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
+          $validationPassed = (
+            $env:ASSEMBLE_OUTCOME -ceq "success" -and
+            $env:ANALYZE_OUTCOME -ceq "success" -and
+            $env:FINALIZE_OUTCOME -ceq "success" -and
+            $env:VALIDATE_OUTCOME -ceq "success"
+          )
+          $status = [ordered]@{
+            document_type = "jet3_windows_dao_a2_fan_in_status"
+            producer_commit = $env:GITHUB_SHA
+            campaign_id = "a2-run-$env:GITHUB_RUN_ID"
+            assemble = $env:ASSEMBLE_OUTCOME
+            analyze = $env:ANALYZE_OUTCOME
+            finalize = $env:FINALIZE_OUTCOME
+            validate = $env:VALIDATE_OUTCOME
+            independent_validation_passed = $validationPassed
+            timing_records_complete = $timingComplete
+            campaign_elapsed_seconds = $campaignElapsed
+            plan_campaign_timeout_seconds = `
+              [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
+            within_plan_campaign_timeout = $withinPlan
+            completed_utc = $completed.ToString("o")
+            github_run_id = $env:GITHUB_RUN_ID
+            github_run_attempt = $env:GITHUB_RUN_ATTEMPT
+          }
+          $statusJson = ($status | ConvertTo-Json -Compress) + "`n"
+          $statusBytes = [Text.Encoding]::UTF8.GetBytes($statusJson)
+          if ($statusBytes.Length -gt 4096) {
+            throw "A2 fan-in status exceeds its byte ceiling."
+          }
+          [IO.File]::WriteAllBytes(
+            (Join-Path $diagnostics "fan-in-status.json"),
+            $statusBytes
+          )
+
+      - name: Upload retained A2 bundle
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-dao-a2-bundle-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}\jet3-a2-bundle
+            ${{ runner.temp }}\jet3-a2-fanin-diagnostics\fan-in-status.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Upload bounded A2 fan-in diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-dao-a2-fanin-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\jet3-a2-fanin-diagnostics
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

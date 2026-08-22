@@ -734,20 +734,27 @@ def build_analysis(
     return report
 
 
-def _receipt_validator(path: Path, campaign_id: str, producer_commit: str) -> Callable[[str], None]:
+def _receipt_validator(path: Path, bundle_root: Path, candidate_path: Path,
+                       replica: ReplicaInput) -> Callable[[str], None]:
     def validate(frozen_sha256: str) -> None:
+        from a2_holdout import run_holdout_process
+
+        run_holdout_process(bundle_root, candidate_path, frozen_sha256,
+                            replica.campaign_id, replica.producer_commit, path)
         receipt = _bounded_json(path)
         validate_document(receipt, "holdout-structure-receipt.schema.json")
         expected = {
             "plan_sha256": PLAN_SHA256,
-            "campaign_id": campaign_id,
-            "producer_commit": producer_commit,
+            "campaign_id": replica.campaign_id,
+            "producer_commit": replica.producer_commit,
             "derivation_candidate_set_sha256": frozen_sha256,
         }
         for key, value in expected.items():
             if receipt[key] != value:
                 raise ValidationError(f"holdout receipt {key} binding mismatch")
-
+        manifest_path = bundle_root / "replica-artifacts" / "replica-03-manifest.json"
+        if receipt["replica_artifact_manifest_sha256"] != _sha256(manifest_path):
+            raise ValidationError("holdout receipt replica manifest binding mismatch")
     return validate
 
 
@@ -760,23 +767,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args(argv)
     root = arguments.bundle_root
+    artifacts = PLAN["artifacts"]
     replicas = arguments.replica or [
-        root / relative for relative in PLAN["artifacts"]["replica_observations"]
+        root / relative for relative in artifacts["replica_observations"]
     ]
-    candidate_output = (
-        arguments.candidate_output or root / PLAN["artifacts"]["frozen_candidate_set"]
-    )
-    output = arguments.output or root / PLAN["artifacts"]["analysis_report"]
-    receipt_path = (
-        arguments.holdout_receipt
-        or root / PLAN["artifacts"]["holdout_structure_receipt"]
-    )
+    candidate_output = arguments.candidate_output or root / artifacts["frozen_candidate_set"]
+    output = arguments.output or root / artifacts["analysis_report"]
+    receipt_path = arguments.holdout_receipt or root / artifacts["holdout_structure_receipt"]
     try:
         if len(replicas) != 3:
             raise ValidationError("exactly three A2 replica observations are required")
         sources = [BundleReplicaSource(path, root) for path in replicas]
         first = sources[0].open()
-        validator = _receipt_validator(receipt_path, first.campaign_id, first.producer_commit)
+        validator = _receipt_validator(receipt_path, root, candidate_output, first)
         # Re-opening replica 1 below is metadata-only and still precedes the freeze;
         # replica 3 remains unopened until build_analysis persists candidates.
         report = build_analysis(sources, candidate_output, validator)
@@ -786,12 +789,8 @@ def main(argv: list[str] | None = None) -> int:
     except (Abort, OSError, ValidationError) as exc:
         print(f"A2 analysis failed: {exc}", file=sys.stderr)
         return 1
-    print(
-        json.dumps(
-            {"output": str(output), "scientific_outcome": report["scientific_outcome"]},
-            sort_keys=True,
-        )
-    )
+    summary = {"output": str(output), "scientific_outcome": report["scientific_outcome"]}
+    print(json.dumps(summary, sort_keys=True))
     return 0
 
 
