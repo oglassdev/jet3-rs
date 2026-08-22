@@ -14,10 +14,11 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 PLAN_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps.plan.json"
+R2_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r2.plan.json"
 sys.path.insert(0, str(SCRIPTS))
 
-from a3_independent_bundle import canonical_json_bytes  # noqa: E402
-from a3_independent_validator import main  # noqa: E402
+from a3_independent_bundle import ValidationError, canonical_json_bytes  # noqa: E402
+from a3_independent_validator import R2_SHA256, _load_predicate_sequences, main  # noqa: E402
 
 
 CHECKPOINTS = [
@@ -434,6 +435,36 @@ class IndependentValidatorTests(unittest.TestCase):
         self.assertEqual(code, 0, result)
         self.assertIs(result["accepted"], True)
         self.assertEqual(result["discrepancy_codes"], [])
+
+    def test_binds_published_r2_by_hash(self) -> None:
+        plan_raw = PLAN_PATH.read_bytes()
+        plan_sha256 = hashlib.sha256(plan_raw).hexdigest()
+        plan = json.loads(plan_raw)
+        campaign, sequences = _load_predicate_sequences(
+            R2_PATH,
+            plan_sha256,
+            plan["predicate_registry"]["ids"],
+        )
+        self.assertEqual(hashlib.sha256(R2_PATH.read_bytes()).hexdigest(), R2_SHA256)
+        self.assertEqual(campaign, ["A3-IDLE-EQUALITY", "A3-SNAPSHOT-RECONSTRUCTION", "A3-RESOURCE-BOUND"])
+        self.assertEqual(
+            set(sequences),
+            {
+                "global_map_record",
+                "global_map_conversion_inline",
+                "global_map_extended_base",
+                "tdef_pointer_pair",
+            },
+        )
+        with tempfile.TemporaryDirectory(prefix="a3-r2-") as directory:
+            mutated = Path(directory) / R2_PATH.name
+            mutated.write_bytes(R2_PATH.read_bytes() + b" ")
+            with self.assertRaisesRegex(ValidationError, "predicate_revision_hash_mismatch"):
+                _load_predicate_sequences(
+                    mutated,
+                    plan_sha256,
+                    plan["predicate_registry"]["ids"],
+                )
 
     def test_rejects_relinked_tamper_cases(self) -> None:
         cases: list[tuple[str, Callable[[Path], None], str]] = [

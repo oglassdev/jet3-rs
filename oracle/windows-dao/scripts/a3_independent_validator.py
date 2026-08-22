@@ -16,6 +16,7 @@ from a3_independent_bundle import (
     ValidationError,
     canonical_json_bytes,
     load_json,
+    sha256_bytes,
 )
 from a3_independent_core import (
     GlobalCandidate,
@@ -37,6 +38,14 @@ LAYER_PATHS = {
     "tdef_pointer_pair": ("tdef", "pointer_pair"),
 }
 
+R2_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
+R2_LAYER_NAME_MAP = {
+    "global_map.record": "global_map_record",
+    "global_map.conversion_inline": "global_map_conversion_inline",
+    "global_map.extended_base": "global_map_extended_base",
+    "tdef.pointer_pair": "tdef_pointer_pair",
+}
+
 TAMPER_RESULTS = [
     {"id": "T1", "rejected": True, "discrepancy_code": "global_record_model_mismatch"},
     {"id": "T2", "rejected": True, "discrepancy_code": "conversion_outcome_mismatch"},
@@ -48,6 +57,55 @@ TAMPER_RESULTS = [
 
 def _repo_plan_path() -> Path:
     return Path(__file__).resolve().parents[1] / "experiments" / "a3" / "a3-allocation-maps.plan.json"
+
+
+def _repo_revision_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "experiments" / "a3" / "a3-allocation-maps-r2.plan.json"
+
+
+def _load_predicate_sequences(
+    revision_path: Path,
+    plan_sha256: str,
+    predicate_ids: list[str],
+) -> tuple[list[str], dict[str, list[str]]]:
+    revision, raw = load_json(revision_path, 67_108_864)
+    if sha256_bytes(raw) != R2_SHA256:
+        raise ValidationError("predicate_revision_hash_mismatch")
+    try:
+        original = revision["preregistration"]["original_plan"]
+        reconciliation = revision["predicate_evaluation_sequence_reconciliation"]
+        campaign = reconciliation["campaign_evaluated_before_any_layer"]
+        published_layers = reconciliation["per_layer_ordered_predicates"]
+    except (KeyError, TypeError) as exc:
+        raise ValidationError("predicate_revision_contract_mismatch") from exc
+    if (
+        revision.get("document_type") != "dao_a3_allocation_maps_plan_revision"
+        or revision.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R2"
+        or original.get("path") != "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
+        or original.get("sha256") != plan_sha256
+        or not isinstance(campaign, list)
+        or not all(isinstance(predicate, str) for predicate in campaign)
+        or len(campaign) != len(set(campaign))
+        or not isinstance(published_layers, dict)
+        or set(published_layers) != set(R2_LAYER_NAME_MAP)
+    ):
+        raise ValidationError("predicate_revision_contract_mismatch")
+    sequences: dict[str, list[str]] = {}
+    for published_name, internal_name in R2_LAYER_NAME_MAP.items():
+        sequence = published_layers[published_name]
+        if (
+            not isinstance(sequence, list)
+            or not all(isinstance(predicate, str) for predicate in sequence)
+            or len(sequence) != len(set(sequence))
+        ):
+            raise ValidationError("predicate_revision_contract_mismatch")
+        sequences[internal_name] = sequence
+    known = set(predicate_ids)
+    if any(predicate not in known for predicate in campaign) or any(
+        predicate not in known for sequence in sequences.values() for predicate in sequence
+    ):
+        raise ValidationError("predicate_revision_contract_mismatch")
+    return campaign, sequences
 
 
 def _validator_commit() -> str:
@@ -303,7 +361,13 @@ def compare_report_layers(bundle: LoadedBundle, layers: dict[str, dict[str, Any]
             raise ValidationError(code)
 
 
-def validate_predicates(bundle: LoadedBundle, layers: dict[str, dict[str, Any]], derivation: dict[str, Any]) -> None:
+def validate_predicates(
+    bundle: LoadedBundle,
+    layers: dict[str, dict[str, Any]],
+    derivation: dict[str, Any],
+    campaign_predicates: list[str],
+    predicate_sequences: dict[str, list[str]],
+) -> None:
     if bundle.report is None:
         raise ValidationError("analysis_report_missing")
     report = bundle.report
@@ -325,7 +389,14 @@ def validate_predicates(bundle: LoadedBundle, layers: dict[str, dict[str, Any]],
     if report["terminal_predicate_ids"] != [predicate for predicate in registry["ids"] if predicate in report_terminals]:
         raise ValidationError("predicate_reporting_mismatch", "terminal_predicate_ids")
     statuses = {item["predicate_id"]: item["status"] for item in results}
-    expected_statuses = _expected_predicate_statuses(bundle, derivation, decisive, report_terminals)
+    expected_statuses = _expected_predicate_statuses(
+        bundle,
+        derivation,
+        decisive,
+        report_terminals,
+        campaign_predicates,
+        predicate_sequences,
+    )
     if statuses != expected_statuses:
         mismatch = next(predicate for predicate in registry["ids"] if statuses[predicate] != expected_statuses[predicate])
         raise ValidationError("predicate_reporting_mismatch", mismatch)
@@ -350,36 +421,20 @@ def _expected_predicate_statuses(
     derivation: dict[str, Any],
     decisive: bool,
     report_terminals: set[str],
+    campaign_predicates: list[str],
+    sequences: dict[str, list[str]],
 ) -> dict[str, str]:
     ids = bundle.plan["predicate_registry"]["ids"]
     statuses = {predicate: "not_applicable" for predicate in ids}
-    statuses["A3-IDLE-EQUALITY"] = "pass" if derivation["idle_equality"] else "fail"
-    statuses["A3-SNAPSHOT-RECONSTRUCTION"] = "pass"
-    statuses["A3-RESOURCE-BOUND"] = "pass"
-    sequences = {
-        "global_map_record": [
-            "A3-GLOBAL-PAGE-NONE", "A3-GLOBAL-RECORD-NONE", "A3-D-SET-RELATION",
-            "A3-GLOBAL-RECORD-END", "A3-POLARITY-NONE", "A3-POLARITY-MULTIPLE",
-            "A3-GLOBAL-PAGE-MULTIPLE", "A3-GLOBAL-RECORD-MULTIPLE",
-            "A3-STRUCTURAL-EXCLUSION", "A3-REPLICA-DISAGREEMENT",
-        ],
-        "global_map_conversion_inline": [
-            "A3-POLARITY-CROSSCHECK", "A3-CONVERSION-NONE", "A3-CONVERSION-MULTIPLE",
-            "A3-SLOT-ACTIVATION", "A3-SLOT-FINAL", "A3-POINTER-VALIDITY",
-            "A3-INLINE-BOUNDARY-NONE", "A3-INLINE-BOUNDARY-MULTIPLE", "A3-INLINE-SUFFIX",
-            "A3-STRUCTURAL-EXCLUSION", "A3-REPLICA-DISAGREEMENT",
-        ],
-        "global_map_extended_base": [
-            "A3-BASE-DISCRIMINATION", "A3-BASE-NONE", "A3-BASE-MULTIPLE",
-            "A3-POINTER-VALIDITY", "A3-REPLICA-DISAGREEMENT",
-        ],
-        "tdef_pointer_pair": [
-            "A3-TDEF-PAGE-NONE", "A3-CHURN-PRECONDITION", "A3-GROWTH-POINTER-NONE",
-            "A3-CHURN-POINTER-NONE", "A3-TDEF-RECORD-NONE", "A3-TDEF-PAGE-MULTIPLE",
-            "A3-TDEF-RECORD-MULTIPLE", "A3-POINTER-MULTIPLE", "A3-POINTER-VALIDITY",
-            "A3-STRUCTURAL-EXCLUSION", "A3-REPLICA-DISAGREEMENT",
-        ],
+    campaign_statuses = {
+        "A3-IDLE-EQUALITY": "pass" if derivation["idle_equality"] else "fail",
+        "A3-SNAPSHOT-RECONSTRUCTION": "pass",
+        "A3-RESOURCE-BOUND": "pass",
     }
+    if set(campaign_predicates) != set(campaign_statuses):
+        raise ValidationError("predicate_revision_contract_mismatch")
+    for predicate in campaign_predicates:
+        statuses[predicate] = campaign_statuses[predicate]
     for name, sequence in sequences.items():
         layer = derivation["layers"][name]
         if not layer["applicable"]:
@@ -416,7 +471,11 @@ def verify_report_bounds(bundle: LoadedBundle, derivation: dict[str, Any]) -> No
         raise ValidationError("analysis_work_bound")
 
 
-def validate_bundle(bundle: LoadedBundle) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+def validate_bundle(
+    bundle: LoadedBundle,
+    campaign_predicates: list[str],
+    predicate_sequences: dict[str, list[str]],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     derivation = recompute_derivation(bundle)
     expected = expected_frozen(bundle, derivation)
     if bundle.frozen != expected:
@@ -433,7 +492,7 @@ def validate_bundle(bundle: LoadedBundle) -> tuple[dict[str, Any], dict[str, dic
     compare_frozen_report(bundle)
     layers = recompute_report_layers(bundle, derivation)
     compare_report_layers(bundle, layers)
-    validate_predicates(bundle, layers, derivation)
+    validate_predicates(bundle, layers, derivation, campaign_predicates, predicate_sequences)
     verify_report_bounds(bundle, derivation)
     if bundle.receipt is None or bundle.receipt["replica_artifact_manifest_sha256"] != bundle.manifest["replica_artifact_manifest_sha256"][2]:
         raise ValidationError("holdout_receipt_replica_link_mismatch")
@@ -487,6 +546,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle-root", required=True, type=Path)
     parser.add_argument("--plan", type=Path, default=_repo_plan_path())
+    parser.add_argument("--revision", type=Path, default=_repo_revision_path())
     parser.add_argument("--output", type=Path)
     parser.add_argument("--validator-commit")
     parser.add_argument("--recompute-only", action="store_true")
@@ -500,12 +560,18 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--validator-commit must be 40 lowercase hexadecimal characters")
     bundle: LoadedBundle | None = None
     try:
-        bundle = BundleLoader(args.bundle_root, args.plan, args.recompute_only).load()
+        loader = BundleLoader(args.bundle_root, args.plan, args.recompute_only)
+        campaign_predicates, predicate_sequences = _load_predicate_sequences(
+            args.revision,
+            sha256_bytes(loader.plan_raw),
+            loader.plan["predicate_registry"]["ids"],
+        )
+        bundle = loader.load()
         if args.recompute_only:
             derivation = recompute_derivation(bundle)
             _write_output(recompute_only_document(bundle, derivation), args.output)
             return 0
-        validate_bundle(bundle)
+        validate_bundle(bundle, campaign_predicates, predicate_sequences)
         result = verdict(bundle, validator_commit, True, [])
         _check_verdict_schema(args.plan, result)
         _write_output(result, args.output)
