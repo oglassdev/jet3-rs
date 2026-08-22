@@ -436,6 +436,20 @@ class IndependentValidatorTests(unittest.TestCase):
         self.assertIs(result["accepted"], True)
         self.assertEqual(result["discrepancy_codes"], [])
 
+    def test_accepts_terminal_predicate_ids_outside_registry_order(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a3-terminal-order-") as directory:
+            temporary = Path(directory)
+            reordered = temporary / "bundle"
+            shutil.copytree(self.synthetic_bundle, reordered, copy_function=os.link)
+            report_path = reordered / "analysis" / "analysis-report.json"
+            report = json.loads(report_path.read_text())
+            report["terminal_predicate_ids"].reverse()
+            _write(report_path, report)
+            relink(reordered)
+            code, result = _run(reordered, temporary / "result.json")
+        self.assertEqual(code, 0, result)
+        self.assertIs(result["accepted"], True)
+
     def test_binds_published_r2_by_hash(self) -> None:
         plan_raw = PLAN_PATH.read_bytes()
         plan_sha256 = hashlib.sha256(plan_raw).hexdigest()

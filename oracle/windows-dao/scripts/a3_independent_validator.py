@@ -386,7 +386,9 @@ def validate_predicates(
         report_terminals.discard("A3-HOLDOUT-PREDICTION")
     if not derivation["idle_equality"]:
         report_terminals.add("A3-IDLE-EQUALITY")
-    if report["terminal_predicate_ids"] != [predicate for predicate in registry["ids"] if predicate in report_terminals]:
+    reported_terminals = report["terminal_predicate_ids"]
+    reported_terminal_set = set(reported_terminals)
+    if len(reported_terminals) != len(reported_terminal_set) or reported_terminal_set != report_terminals:
         raise ValidationError("predicate_reporting_mismatch", "terminal_predicate_ids")
     statuses = {item["predicate_id"]: item["status"] for item in results}
     expected_statuses = _expected_predicate_statuses(
