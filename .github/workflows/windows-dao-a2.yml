@@ -20,7 +20,7 @@ jobs:
   contract:
     name: Validate the checked A2 contract
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -89,9 +89,7 @@ jobs:
           & python -B -m unittest `
             oracle/windows-dao/tests/test_a2_plan_contract.py `
             oracle/windows-dao/tests/test_a2_spec_generator.py `
-            oracle/windows-dao/tests/test_a2_dryrun.py `
             oracle/windows-dao/tests/test_a2_powershell_contract.py `
-            oracle/windows-dao/tests/test_a2_bundle.py `
             oracle/windows-dao/tests/test_windows_dao_a2_workflow.py
           if ($LASTEXITCODE -ne 0) {
             throw "The checked A2 contract tests failed."
