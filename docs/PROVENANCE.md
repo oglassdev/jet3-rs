@@ -3546,7 +3546,10 @@ Use `not applicable` explicitly rather than omitting a field.
   at pages 1021, 1022, and 1023 in both derivation replicas. The walk stops with
   first violating page 1021, three evaluated legs, and no representation-change
   stop; the later `P_ABS_12288` to `P_ABS_16480` tag change is never reached.
-  These numbers are non-evidential A3 design examples.
+  On EXP-0042-like data, the `global_map_conversion_inline` and
+  `global_map_extended_base` layers are terminal at leg 3 by
+  construction; only `global_map_record` and `tdef_pointer_pair` can reach
+  holdout. These numbers are non-evidential A3 design examples.
 - Freeze and reporting: `derivation-candidates.schema.json` fixes qualified
   page arrays, four layer objects, and the polarity transcript. The validator
   must parse and compare them with independent recomputation and the report;
@@ -3573,7 +3576,7 @@ Use `not applicable` explicitly rather than omitting a field.
   pushed producer commit, and licensed x86 DAO host binding.
 - Artifacts: immutable plan
   `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
-  `6e91c8490f8995d2a87e1e4c55210a700625bb05242d61f049098422a15d3903`; A3-bound plan, analysis, bundle, dry-run,
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`; A3-bound plan, analysis, bundle, dry-run,
   environment, holdout-receipt, page-index, replica-manifest, and observation
   schemas; fixed frozen-candidate and independent-validation-report schemas;
   focused plan contract test

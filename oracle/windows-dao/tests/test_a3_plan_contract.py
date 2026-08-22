@@ -14,7 +14,7 @@ A2_EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a3-allocation-maps.plan.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
-PLAN_SHA256 = "6e91c8490f8995d2a87e1e4c55210a700625bb05242d61f049098422a15d3903"
+PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
     "a2-independent-review-pointer.md": "2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b",
@@ -178,6 +178,16 @@ class A3PlanContractTests(unittest.TestCase):
             "representation_change_stop null in both derivation replicas; never "
             "reinterpret any later leg's tag or u32 bytes as bitmap bits",
         )
+        consequence = (
+            "the `global_map_conversion_inline` and "
+            "`global_map_extended_base` layers are terminal at leg 3 by "
+            "construction; only `global_map_record` and `tdef_pointer_pair` can "
+            "reach holdout"
+        )
+        readme = " ".join(README.read_text(encoding="utf-8").split())
+        provenance = " ".join(PROVENANCE.read_text(encoding="utf-8").split())
+        self.assertIn(consequence, readme)
+        self.assertIn(consequence, provenance)
 
     def test_indirect_layout_is_used_by_every_dependent_rule_and_schema(self) -> None:
         hypotheses = self.plan["hypotheses"]
@@ -192,6 +202,10 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn("[start+1,start+5) as slot-0", survival)
         self.assertIn("[start+5,start+9) as slot-1", survival)
         self.assertIn("[start+9,end)", survival)
+        self.assertIn("capacity 8*(b-(start+5))", survival)
+        self.assertIn("raw 0xFF for set_means_not_in_use", survival)
+        self.assertIn("0x00 for set_means_in_use", survival)
+        self.assertIn("indirect suffix [start+9,end) must be raw 0x00", survival)
         disclosure = self.plan["preregistration"]["origin_disclosure"][
             "prediction_not_rediscovery_disclosure"
         ]
@@ -253,6 +267,12 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn("TDEF layout", pointer)
         self.assertIn("u24 page field", pointer)
         self.assertIn("holdout replica alone", pointer)
+        cross_check = self.plan["hypotheses"]["polarity_cross_check"]
+        self.assertIn(
+            "emit pointer_validity_failure (A3-POINTER-VALIDITY) for the "
+            "global_map.conversion_inline layer",
+            cross_check,
+        )
         terminal = self.plan["decision_rules"]["terminal_disambiguation"]
         self.assertIn("RECORD-MULTIPLE", terminal)
         self.assertIn("PAGE-MULTIPLE", terminal)
@@ -314,6 +334,11 @@ class A3PlanContractTests(unittest.TestCase):
         )
         freeze = self.plan["decision_rules"]["freeze_rule"]
         self.assertIn("equals that layer's terminal predicate id", freeze)
+        self.assertIn("report layer's derivation-time values", freeze)
+        self.assertIn("compares as empty/null against the frozen layer", freeze)
+        self.assertIn(
+            "holdout_prediction_failure is the only reason permitted", freeze
+        )
         report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
         predicates = report["properties"]["predicate_results"]
         self.assertEqual((predicates["minItems"], predicates["maxItems"]), (34, 34))

@@ -8,11 +8,13 @@ workflow implementation.
 
 The actual `EXP-0042` polarity cross-check outcome is a violation on leg 3,
 `L_REL_0512` to `L_REL_0768`, first at page 1021; the later tag-change leg is
-never reached.
+never reached. On EXP-0042-like data, the `global_map_conversion_inline` and
+`global_map_extended_base` layers are terminal at leg 3 by construction; only
+`global_map_record` and `tdef_pointer_pair` can reach holdout.
 
 The immutable plan is
 `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
-`6e91c8490f8995d2a87e1e4c55210a700625bb05242d61f049098422a15d3903`.
+`b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`.
 
 A3 keeps A2's 25 checkpoints, role bindings, row algorithm, page capture,
 bounds, parallel matrix/fan-in design, layered outcomes, freeze/holdout order,
