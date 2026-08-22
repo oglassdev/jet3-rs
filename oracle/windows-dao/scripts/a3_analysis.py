@@ -629,8 +629,12 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
     return report
 
 
-def _receipt_validator(path: Path, campaign: str, producer: str) -> Callable[[str], None]:
+def _receipt_validator(path: Path, bundle_root: Path, candidate_path: Path,
+                       campaign: str, producer: str) -> Callable[[str], None]:
     def validate(frozen_sha: str) -> None:
+        from a3_holdout import run_holdout_process
+
+        run_holdout_process(bundle_root, candidate_path, frozen_sha, campaign, producer, path)
         receipt = load_bounded_json(path, MAX_JSON_BYTES)
         validate_document(receipt)
         expected = {"campaign_id": campaign, "producer_commit": producer, "derivation_candidate_set_sha256": frozen_sha}
@@ -674,7 +678,8 @@ def main(argv: list[str] | None = None) -> int:
             raise ValidationError("exactly three A3 replica observations are required")
         sources = [BundleReplicaSource(path, root) for path in replicas]
         first = sources[0].open()
-        report = build_analysis(sources, candidate, _receipt_validator(receipt, first.campaign_id, first.producer_commit))
+        validator = _receipt_validator(receipt, root, candidate, first.campaign_id, first.producer_commit)
+        report = build_analysis(sources, candidate, validator)
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("xb") as handle:
             handle.write(canonical_json_bytes(report))
