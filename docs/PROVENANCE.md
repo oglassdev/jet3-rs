@@ -3486,6 +3486,114 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: adversarial review complete; A2 closed with no independently
   validated scientific outcome and no capability movement
 
+### EXP-0044 — Preregistered A3 allocation-map prediction campaign
+
+- Recorded: 2026-08-22, OpenAI Codex
+- Kind: additive pre-acquisition experimental design; no A3 worker, workflow,
+  analyzer, generator, independent validator, dry-run result, DAO acquisition,
+  physical-format result, Rust result, or compatibility result
+- Question: Can the disclosed tag/base/bitmap allocation-map representation
+  and separately delimited record-level models derived from two fresh Jet 3
+  databases predict the transitions in a third fresh holdout without refitting?
+- Origin: project-authored `DAO-A3-ALLOCATION-MAPS-001`, informed by
+  `EXP-0040` through `EXP-0043`, the immutable A2 plan and R2 revision, the
+  retained `EXP-0042` bundle, and the adversarial independent-validator review
+  recorded by `EXP-0043`. No external MDB implementation, donated MDB, or
+  Microsoft implementation source was inspected.
+- Design-input pointer identities:
+  `oracle/windows-dao/experiments/a3/design-inputs/a2-preregistration-pointer.md`,
+  SHA-256 `8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632`;
+  `oracle/windows-dao/experiments/a3/design-inputs/a2-independent-review-pointer.md`,
+  SHA-256 `2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b`;
+  and
+  `oracle/windows-dao/experiments/a3/design-inputs/exp-0042-bundle-pointer.md`,
+  SHA-256 `9bcb4b3c7ca2b43abd44a38200042312156d14552908c6d00ec9a25b24178349`.
+  Each pointer records the underlying immutable path or artifact and SHA-256.
+- Exploratory bundle identity: A2 artifact
+  `windows-dao-a2-bundle-1a0585446ac8b0d232ee4c0391cce9d635e7c43a-32587946283-1`,
+  artifact SHA-256
+  `7e58dc5e3c8424110897053cdfeab703b0e1d15fde2dfd4d8235efd62da43dc7`,
+  manifest SHA-256
+  `9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46`.
+  This bundle is an A3 design input only and cannot satisfy an A3 derivation,
+  holdout, predicate, independent validation, or capability result.
+- Prior-observation disclosure: the one-byte inline tag, little-endian u32
+  base, following bitmap, page-count-highwater record-start rule, and tag-1
+  indirect layout were observed in the `EXP-0042` bundle before A3 was frozen.
+  The observed indirect prefix `01 | 00 3A 00 00 | E0 3F 00 00` decodes to tag
+  1, slot-0 u32 14848, and slot-1 u32 16352. A3's decisive claim is therefore a
+  prediction on three new replicas, not rediscovery of either representation.
+- Inherited protocol: A3 keeps A2's 25 closed-file checkpoints, three rotated
+  role bindings, row algorithm, content-addressed page capture, bounds,
+  independent matrix jobs, freeze-before-holdout fan-in, four layered outcomes,
+  and decisive-report retention. The future A2 worker/workflow rebinding may
+  change only the experiment id, plan path, and A3 document/artifact names and
+  must reject any plan whose `experiment_id` is not exactly
+  `DAO-A3-ALLOCATION-MAPS-001`.
+- Record-start rule: decode each interval as tag, u32 base, and LSB-first
+  bitmap. At E0, `D_GROW_0128`, and `D_REGROW_0128`, tag must be zero, every
+  page in `[base,page_count)` must decode in-use, and `page_count` must decode
+  not-in-use within capacity. Apply this within-snapshot representation anchor
+  together with the D set relation, unique polarity, and page-terminal suffix.
+  It is not a cross-checkpoint byte, record, page, or page-count equality rule.
+- Conversion cross-check: on each listed inline leg, only newly appended pages
+  representable by both snapshots must flip not-in-use to in-use. Stop at the
+  first violation or before the first tag change, and retain the first violating
+  leg/page or nulls in both the frozen set and report. In the exploratory bundle,
+  `[1915,2048)` has base
+  zero and capacity 1,024; D highwaters are 29, 157, and 285 pages. The first
+  two cross-check legs pass, but leg 3, `L_REL_0512` to `L_REL_0768`, violates
+  at pages 1021, 1022, and 1023 in both derivation replicas. The walk stops with
+  first violating page 1021, three evaluated legs, and no representation-change
+  stop; the later `P_ABS_12288` to `P_ABS_16480` tag change is never reached.
+  On EXP-0042-like data, the `global_map_conversion_inline` and
+  `global_map_extended_base` layers are terminal at leg 3 by
+  construction; only `global_map_record` and `tdef_pointer_pair` can reach
+  holdout. These numbers are non-evidential A3 design examples.
+- Freeze and reporting: `derivation-candidates.schema.json` fixes qualified
+  page arrays, four layer objects, and the polarity transcript. The validator
+  must parse and compare them with independent recomputation and the report;
+  hash linkage alone does not suffice. All 34 registered predicate ids appear
+  exactly once. Applicable-layer predicate results carry the literal
+  `applicable_layer`; report terminals are deduplicated across layer terminals;
+  and `A3-HOLDOUT-PREDICTION` passes whenever any layer is decisive, even if a
+  different layer records that predicate as its holdout terminal. TDEF terminal
+  stages are ordered precondition, growth windows, churn windows, record, then
+  multiplicity. Pointer validity applies only at named checkpoints at/after
+  activation and only to the tag-1 u32 global slots or TDEF u24 page fields.
+- Independent-validation contract: a future independent validator is written
+  from the plan and schemas without analyzer imports or reads, recomputes every
+  layer and holdout result, parses the frozen set, and rejects T1–T5: polarity,
+  conversion outcome, relinked frozen-set contradiction, TDEF reason ordering,
+  and nonterminal predicate-status tampering. Only its separately provenanced
+  acceptance moves `independent_validation_status`.
+- Dry-run disclosure: `not_run_preregistration_only`. This lane implements no
+  analyzer, independent validator, worker, or workflow, so no dry run or T1–T5
+  suite exists and nothing authorizes hosted dispatch.
+- Execution gate: `BLOCKED` on the checked A3 analyzer/synthetic generator,
+  independent recomputing A3 validator, fail-closed worker/workflow rebinding,
+  additive dry-run disclosure, decisive-report contract validation, exact clean
+  pushed producer commit, and licensed x86 DAO host binding.
+- Artifacts: immutable plan
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`; A3-bound plan, analysis, bundle, dry-run,
+  environment, holdout-receipt, page-index, replica-manifest, and observation
+  schemas; fixed frozen-candidate and independent-validation-report schemas;
+  focused plan contract test
+- Observation: `preregistration.acquisition_started` is `false`; no A3 database,
+  checkpoint, replica observation, candidate set, report, validation receipt,
+  or evidence bundle exists.
+- Interpretation: this entry freezes a prediction protocol only. It assigns no
+  independently validated Jet meaning, proves no Rust behavior or DAO
+  compatibility, changes no support-matrix entry, and satisfies no release gate.
+- Usage: `file:oracle/windows-dao/experiments/a3/README.md`;
+  `file:oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`;
+  future separately reviewed A3 implementation and pre-acquisition dry runs
+- Rights: project-authored plan, schemas, tests, and pointer documents; no DAO
+  binary, MDB, page blob, or retained bundle is committed or redistributed
+- Review: focused A3 plan/schema/hash contracts and repository validation must
+  pass; acquisition remains blocked until every listed requirement is met
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

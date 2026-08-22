@@ -1,0 +1,1024 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a3_allocation_maps_plan",
+  "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
+  "preregistration": {
+    "provenance_entry": "EXP-0044",
+    "recorded_utc_date": "2026-08-22",
+    "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts when the first schema-valid A3 replica observation is retained for inspection",
+    "origin_disclosure": {
+      "entries_read": [
+        "EXP-0040",
+        "EXP-0041",
+        "EXP-0042",
+        "EXP-0043"
+      ],
+      "design_inputs": [
+        {
+          "path": "oracle/windows-dao/experiments/a3/design-inputs/a2-preregistration-pointer.md",
+          "sha256": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
+          "role": "inherited_a2_design_pointer"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a3/design-inputs/a2-independent-review-pointer.md",
+          "sha256": "2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b",
+          "role": "a2_validator_findings_pointer"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a3/design-inputs/exp-0042-bundle-pointer.md",
+          "sha256": "9bcb4b3c7ca2b43abd44a38200042312156d14552908c6d00ec9a25b24178349",
+          "role": "exp_0042_exploratory_bundle_pointer"
+        }
+      ],
+      "exploratory_bundle": "windows-dao-a2-bundle-1a0585446ac8b0d232ee4c0391cce9d635e7c43a-32587946283-1",
+      "exploratory_bundle_artifact_sha256": "7e58dc5e3c8424110897053cdfeab703b0e1d15fde2dfd4d8235efd62da43dc7",
+      "exploratory_bundle_manifest_sha256": "9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46",
+      "prediction_not_rediscovery_disclosure": "the tag/base/bitmap inline layout, record-start highwater rule, and tag-1 indirect layout were observed in the EXP-0042 bundle before this plan was frozen. The observed indirect prefix was 01 | 00 3A 00 00 | E0 3F 00 00: tag 1, slot-0 u32 14848, and slot-1 u32 16352. A3's decisive claim is a prediction test of these disclosed representations on three new replicas, not rediscovery of either representation",
+      "use_limit": "the A2 plans, independent review, and EXP-0042 retained bundle are exploratory A3 design and pre-acquisition dry-run inputs only; they are never A3 evidence and cannot satisfy any A3 derivation, holdout, predicate, or independent-validation result",
+      "external_mdb_implementations_used": false
+    },
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
+  },
+  "execution_gate": {
+    "status": "BLOCKED",
+    "blocking_requirements": [
+      "checked_a3_analyzer_and_synthetic_generator",
+      "independent_recomputing_a3_validator",
+      "a2_worker_and_workflow_rebound_to_a3_with_fail_closed_experiment_id",
+      "passing_a3_dry_runs_disclosed_in_an_additive_provenance_entry",
+      "a3_contract_validator_accepts_decisive_reports",
+      "exact_clean_pushed_producer_commit",
+      "licensed_x86_dao_host_binding"
+    ]
+  },
+  "repository_binding": {
+    "canonical_https_url": "https://github.com/oglassdev/jet3-rs.git",
+    "producer_commit_required": true,
+    "clean_worktree_required": true,
+    "pushed_commit_required": true
+  },
+  "implementation_rebinding": {
+    "source_rule": "reuse the checked A2 worker and matrix/fan-in workflow behavior without scientific, schedule, role-binding, row-algorithm, or page-capture changes; implementation may change only the experiment id, plan path, and A2-to-A3 artifact and document names needed by the schemas",
+    "required_plan_path": "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json",
+    "required_experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
+    "worker_fail_closed_rule": "before provider preflight, database creation, or artifact staging, the rebound worker must parse the selected plan and reject unless experiment_id is exactly DAO-A3-ALLOCATION-MAPS-001 and the selected plan path is the required A3 path; every emitted document must carry that exact id and plan SHA-256",
+    "workflow_fail_closed_rule": "contract, matrix, fan-in, validation, upload, and artifact-name steps must reject an absent or non-A3 experiment_id and must never dispatch an A2 plan through the A3 workflow; artifact names use windows-dao-a3-* and cannot alias windows-dao-a2-*",
+    "allowed_artifact_name_changes": [
+      "windows-dao-a3-replica-1",
+      "windows-dao-a3-replica-2",
+      "windows-dao-a3-replica-3",
+      "windows-dao-a3-bundle-<producer_commit>-<run_id>-<attempt>",
+      "windows-dao-a3-fanin-diagnostics-<run_id>-<attempt>"
+    ],
+    "plan_lane_implementation_status": "not_implemented"
+  },
+  "environment_binding": {
+    "operating_system": "Windows",
+    "process_architecture": "x86",
+    "powershell_major": 5,
+    "python_version": "3.13.x",
+    "dao_prog_id": "DAO.DBEngine.36",
+    "provider_identity_and_binary_hash_required": true,
+    "per_replica_environment_required": true,
+    "cross_replica_exact_fields": [
+      "dao_prog_id",
+      "provider_clsid",
+      "provider_binary_sha256",
+      "process_architecture",
+      "powershell_major"
+    ],
+    "recorded_may_differ_fields": [
+      "windows_version",
+      "python_patch_version"
+    ]
+  },
+  "question": "Can the disclosed tag/base/bitmap allocation-map representation and separately delimited record-level models derived from two fresh Jet 3 databases predict allocation-map transitions in a third fresh holdout database without refitting?",
+  "replicas": {
+    "count": 3,
+    "derivation": [
+      1,
+      2
+    ],
+    "holdout": 3,
+    "acquisition_independence": "each replica is created, mutated, closed, captured, validated, and uploaded by a separate matrix job that reads no other replica and shares no database, page store, output directory, or mutable state",
+    "fan_in_rule": "the fan-in analyzer first validates only replica 1 and 2 artifacts, derives and persists every layered candidate set, records its SHA-256, and closes those inputs. Only after that freeze, a separate holdout structural-validation process validates replica 3 and writes a bounded pass/fail receipt plus artifact hash without exposing page bytes to the analyzer; the analyzer may then open replica 3 and evaluate every frozen layer without refit, candidate addition, deletion, relaxation, or reinterpretation",
+    "environment_identity_rule": "each matrix job produces its own environment document and SHA-256. Across replicas, DAO prog id, provider CLSID and binary SHA-256, x86 process architecture, and PowerShell major must match exactly; Windows image and Python patch version may differ only within the plan bindings and are recorded per replica"
+  },
+  "tables": {
+    "physical_names": [
+      "A2TAB_A",
+      "A2TAB_B",
+      "A2TAB_C",
+      "A2TAB_D"
+    ],
+    "roles": [
+      "D",
+      "L",
+      "P",
+      "H"
+    ],
+    "role_bindings": [
+      {
+        "replica": 1,
+        "D": "A2TAB_A",
+        "L": "A2TAB_B",
+        "P": "A2TAB_C",
+        "H": "A2TAB_D"
+      },
+      {
+        "replica": 2,
+        "D": "A2TAB_B",
+        "L": "A2TAB_C",
+        "P": "A2TAB_D",
+        "H": "A2TAB_A"
+      },
+      {
+        "replica": 3,
+        "D": "A2TAB_C",
+        "L": "A2TAB_D",
+        "P": "A2TAB_A",
+        "H": "A2TAB_B"
+      }
+    ],
+    "definition": {
+      "indexed": false,
+      "fields": [
+        {
+          "name": "Id",
+          "dao_type": "dbLong",
+          "size": 4
+        },
+        {
+          "name": "Payload",
+          "dao_type": "dbText",
+          "size": 240,
+          "fixed_length": true
+        }
+      ]
+    },
+    "row_algorithm": {
+      "id": "positive one-based monotonically increasing signed 32-bit integer within each logical role; deleted Id values are reinserted unchanged",
+      "payload": "repeat the ASCII seed A2|<role>|<Id as ten zero-padded decimal digits>| and truncate to exactly 240 characters",
+      "growth_batch_rows": 32,
+      "reread_order": "Id ascending",
+      "rolling_sha256": "one SHA-256 stream over each row encoded as Id signed little-endian 32-bit, Payload UTF-8 byte length unsigned little-endian 16-bit, then Payload ASCII bytes",
+      "delete_rule": "at L_DELETE_ALL delete every row from L in Id order so its data pages are eligible to become free; at L_REINSERT_SAME reinsert the exact same Id values and payload bytes",
+      "reread_requirement": "after every checkpoint, DAO must return the exact expected count and rolling SHA-256 for every extant table"
+    }
+  },
+  "checkpoint_design": {
+    "count": 25,
+    "adaptive_checkpoints_allowed": false,
+    "all_checkpoints_closed_and_quiescent": true,
+    "d_growth_rule": "D_GROW_0128 is the first closed-file state after a fixed 32-row batch whose page count is at least the post-create D baseline plus 128; record the exact achieved D row count N and overshoot without retuning",
+    "d_regrowth_rule": "after D_DROP, recreate the same empty D definition and capture D_RECREATE_EMPTY; from that closed-file post-recreate baseline, insert fixed 32-row batches until file pages are at least baseline plus 128, record the achieved row count and overshoot, and capture D_REGROW_0128. The D_REGROW_0128 page count must be strictly greater than D_GROW_0128; no row-count replay, truncation, page-count equality, or byte equality is assumed",
+    "relative_growth_rule": "each L_REL or H_REL checkpoint is the first closed-file state after a fixed 32-row batch whose page count is at least that table's post-create baseline plus the named target; record overshoot and do not retune",
+    "absolute_growth_rule": "each P_ABS checkpoint is the first closed-file state after a fixed 32-row batch whose total file page count is at least the named target; record overshoot and do not retune",
+    "checkpoint_ids": [
+      "E0",
+      "E0R",
+      "D_GROW_0128",
+      "D_DROP",
+      "D_RECREATE_EMPTY",
+      "D_REGROW_0128",
+      "L_REL_0064",
+      "L_REL_0512",
+      "L_REL_0768",
+      "L_REL_0896",
+      "L_REL_0904",
+      "L_REL_1024",
+      "L_REL_1088",
+      "L_REL_1280",
+      "L_DELETE_ALL",
+      "L_REINSERT_SAME",
+      "L_IDLE_REOPEN",
+      "P_ABS_04096",
+      "P_ABS_08192",
+      "P_ABS_12288",
+      "P_ABS_16480",
+      "H_REL_0064",
+      "H_REL_0896",
+      "H_REL_0904",
+      "H_IDLE_REOPEN"
+    ],
+    "idle_pairs": [
+      [
+        "E0",
+        "E0R"
+      ],
+      [
+        "L_REINSERT_SAME",
+        "L_IDLE_REOPEN"
+      ],
+      [
+        "H_REL_0904",
+        "H_IDLE_REOPEN"
+      ]
+    ],
+    "transition_coverage": {
+      "global_map_record_set_abac": [
+        "E0",
+        "D_GROW_0128",
+        "D_DROP",
+        "D_RECREATE_EMPTY",
+        "D_REGROW_0128"
+      ],
+      "tdef_low_growth": [
+        "L_REL_0064",
+        "L_REL_0512",
+        "L_REL_0768",
+        "L_REL_0896",
+        "L_REL_0904",
+        "L_REL_1024",
+        "L_REL_1088",
+        "L_REL_1280"
+      ],
+      "tdef_delete_reinsert": [
+        "L_REL_1280",
+        "L_DELETE_ALL",
+        "L_REINSERT_SAME"
+      ],
+      "inline_to_indirect_conversion_window": [
+        "L_REL_0064",
+        "L_REL_0512",
+        "L_REL_0768",
+        "L_REL_0896",
+        "L_REL_0904",
+        "L_REL_1024",
+        "L_REL_1088",
+        "L_REL_1280",
+        "L_REINSERT_SAME",
+        "P_ABS_04096",
+        "P_ABS_08192",
+        "P_ABS_12288",
+        "P_ABS_16480",
+        "H_REL_0064",
+        "H_REL_0896",
+        "H_REL_0904"
+      ],
+      "tdef_high_growth": [
+        "P_ABS_16480",
+        "H_REL_0064",
+        "H_REL_0896",
+        "H_REL_0904"
+      ],
+      "pointer_validity_checkpoints": [
+        "P_ABS_16480",
+        "H_REL_0064",
+        "H_REL_0896",
+        "H_REL_0904",
+        "H_IDLE_REOPEN"
+      ],
+      "polarity_cross_check_legs": [
+        ["D_REGROW_0128", "L_REL_0064"],
+        ["L_REL_0064", "L_REL_0512"],
+        ["L_REL_0512", "L_REL_0768"],
+        ["L_REL_0768", "L_REL_0896"],
+        ["L_REL_0896", "L_REL_0904"],
+        ["L_REL_0904", "L_REL_1024"],
+        ["L_REL_1024", "L_REL_1088"],
+        ["L_REL_1088", "L_REL_1280"],
+        ["L_IDLE_REOPEN", "P_ABS_04096"],
+        ["P_ABS_04096", "P_ABS_08192"],
+        ["P_ABS_08192", "P_ABS_12288"],
+        ["P_ABS_12288", "P_ABS_16480"],
+        ["P_ABS_16480", "H_REL_0064"],
+        ["H_REL_0064", "H_REL_0896"],
+        ["H_REL_0896", "H_REL_0904"]
+      ]
+    },
+    "schedule_minimization_basis": "A3 inherits A2's frozen 25-checkpoint schedule unchanged. The EXP-0042 bundle is disclosed only as an exploratory design input for the new representation and validation predicates; no checkpoint was added, removed, or retuned after inspecting it"
+  },
+  "page_capture": {
+    "page_size": 2048,
+    "checkpoint_representation": "ordered physical-page SHA-256 values from page zero through the final page",
+    "store": "content-addressed distinct 2048-byte blobs named <lowercase-sha256>.page",
+    "duplicate_blobs_stored_once": true,
+    "snapshot_reconstruction_required": true,
+    "companion_ceiling_bytes_per_checkpoint": 65536,
+    "post_close_quiescence_required": true,
+    "companion_bytes_in_physical_analysis": false
+  },
+  "record_candidate_procedure": {
+    "boundary_source": "after page qualification, enumerate every half-open interval [start,end) from the fixed byte-boundary set {0,1,...,2048}, with 0 <= start < end <= 2048; boundaries are never inferred from the minimum or maximum changed byte",
+    "candidate_page_space": "during derivation, the finite page space is the union of every physical page index observed at any checkpoint in either derivation replica. At holdout, candidate_page_space is recomputed from the holdout replica alone as the union of every physical page index observed at any holdout checkpoint; derivation pages are not carried into that computation. Absence is an explicit state and no all-checkpoint intersection or E0R-present filter is permitted",
+    "global_page_qualification": "before any interval enumeration, qualify a global page using hashes only: its explicit presence/hash state must differ across E0 to D_GROW_0128 and across D_GROW_0128 to D_DROP. Absence is a distinct state, absence at both endpoints is equality, and presence to absence is a difference. More than 16 qualifying pages is a resource_bound_breach",
+    "tdef_page_qualification": "before any interval enumeration, qualify a TDEF page using hashes only: it must be present at E0, because the table-definition record exists when the empty tables are created; its explicit presence/hash state must differ on at least one declared L or H growth transition and on both L_REL_1280 to L_DELETE_ALL and L_DELETE_ALL to L_REINSERT_SAME. Absence is a distinct state, absence at both endpoints is equality, and presence to absence is a difference. More than 16 qualifying pages is a resource_bound_breach",
+    "global_record_layout": "for a candidate interval [start,end) with end-start at least 6, byte start is the one-byte representation tag; while inline its required value is 0. Bytes [start+1,start+5) are one unsigned little-endian u32 base page number. Bytes [start+5,end) are the bitmap. Bitmap bit i uses least-significant-bit-first numbering within each byte and represents physical page base+i. Decode an in_use set under each registered polarity; do not skip, insert, or reinterpret any byte inside these three fields",
+    "global_record_indirect_layout": "when byte start (the tag) is 1, bytes [start+1,start+5) are slot-0 and bytes [start+5,start+9) are slot-1, each one unsigned little-endian u32; a slot is active when its u32 is nonzero; the slot's reference is that u32 interpreted as a physical page number; bytes [start+9,end) are the indirect suffix and must decode to zero at every checkpoint at or after the conversion checkpoint. Any tag other than 0 or 1 at a checkpoint in the conversion window classifies that checkpoint as neither inline nor indirect.",
+    "global_record_start_resolution": "page_count is the page index document's page_count field, which must equal len(ordered_page_sha256) and the observation's actual_file_pages or the snapshot is unreconstructable. For each candidate start and polarity, first require the inline layout fields to be in bounds. At each of E0, D_GROW_0128, and D_REGROW_0128 independently, require tag == 0; decode that checkpoint's u32 base; let capacity = 8 * (end-(start+5)); require 0 <= base <= page_count and base <= page_count < base+capacity; require every integer page p with base <= p < page_count to be in_use and require page_count itself to be not-in-use. Then apply the D set relation, the unique-polarity rule, and page-terminal suffix rule without changing start. A start survives if some end in (start+5, 2048] passes; polarity uniqueness is evaluated over the set of surviving (start, polarity) pairs after end resolution. Build the surviving-start set separately for each qualified page and in each derivation replica. A start survives only if all predicates pass in both derivation replicas. global_set_relation_not_satisfied is emitted only when at least one start passes the tag/base/highwater bounds under some polarity on some qualified page but no (start, polarity) satisfies the D set relation; no_global_record_candidate is emitted when no start passes the tag/base/highwater bounds at all. Apply decision_rules.terminal_disambiguation to distinguish page and record multiplicity. This is a representation-anchoring predicate within each snapshot, not a byte-equality, record-equality, page-equality, or page-count-equality predicate between checkpoints",
+    "global_record_start_worked_example": "EXP-0042 design input only: page 1 candidate [1915,2048) (end 2048) has tag offset 1915, base bytes [1916,1920) decoding to 0, bitmap [1920,2048), and capacity 1024 pages. With page counts 29, 157, and 285 at E0, D_GROW_0128, and D_REGROW_0128, respectively, the rule requires in-use pages [0,29), [0,157), and [0,285), and requires pages 29, 157, and 285 not-in-use. Under set_means_not_in_use and with the at-least-16-byte page-terminal suffix rule applied, raw zero bits encode those in-use extents. The former A2 plan-literal procedure left 1,935 starts 0 through 1934; this disclosed rule anchors start 1915 in that exploratory bundle. These values cannot satisfy A3",
+    "global_record_end_resolution": "after D alone has selected the unique polarity, for intervals on one qualified page that share a start and decode the same D relation, retain only the page-terminal interval ending at 2048 when every byte after the last D-flipped byte through byte 2047 decodes entirely to not-in-use under that polarity at every one of the five global-map search checkpoints E0, D_GROW_0128, D_DROP, D_RECREATE_EMPTY, and D_REGROW_0128. A byte is D-flipped when its value is not identical across all five checkpoints. The required raw suffix value is 0xFF for set_means_not_in_use and 0x00 for set_means_in_use. The polarity-relative uniform suffix must be at least 16 bytes long; all shorter equivalent ends are rejected. If the byte property is absent or more than one start survives, emit global_record_end_not_resolved or multiple_global_record_boundaries_survive respectively",
+    "tdef_record_resolution": "a TDEF interval must be inclusion-minimal while wholly containing the two distinct transition-selective four-byte pointer windows plus one byte that is stable at every checkpoint on each available side; extending into a byte that changes outside either pointer signature invalidates the interval. Zero or multiple minimal intervals have distinct outcomes",
+    "tdef_no_outcome_ordering": "after TDEF page qualification and before holdout access, evaluate stages in exactly this order and stop at the first terminal stage: (1) churn precondition: if the L_REL_1280 observation's table_row_counts for role L is 0, or the L_DELETE_ALL dao_reread row_count for role L is not 0, emit legacy_churn_precondition_not_met; (2) growth windows: enumerate both layouts on every qualified page and emit no_growth_only_pointer_candidate if the aggregate set is empty; (3) churn windows: enumerate both layouts on every qualified page and emit no_delete_reinsert_only_pointer_candidate if the aggregate set is empty; (4) records: combine distinct same-layout growth/churn windows and apply tdef_record_resolution, emitting no_tdef_record_candidate if zero minimal records survive; (5) multiplicity: form pointer-pair models across the surviving records, emitting multiple_tdef_record_boundaries_survive if more than one minimal record survives, otherwise multiple_pointer_models_survive if one record contains more than one model. Exactly one model proceeds to holdout. Later-stage predicate ids are not terminal and report not_applicable after an earlier terminal stage",
+    "structural_exclusion_rule": "apply identically on every page: a global-map field may change only with the D set relation, declared post-delimitation global growth transitions, and the declared L_REL_1280 to L_DELETE_ALL to L_REINSERT_SAME delete/reinsert transitions; it may span either neighbour of a declared idle pair only when the idle pair itself is byte-identical. A growth-pointer window must be stable on D, churn, and idle transitions; a churn-pointer window must be stable on D, growth, and idle transitions. Any byte changing outside its field signature rejects that field or window. Bytes are never classified as headers by page number or offset: a byte is eligible only when it satisfies the same field signature, and otherwise is excluded without assigning header meaning. No page number or byte offset is privileged or blacklisted",
+    "prefix_sum_work_model": "for each qualified page and transition class, build fixed 2049-entry prefix sums over byte predicates once, charging one work unit per prefix cell and permitting at most 16 prefix arrays per qualified page. Test each interval, polarity-relative suffix closure, and transition-selectivity property with O(1) prefix-difference queries; charge at most eight work units per enumerated interval across both sub-model searches and never scan interval length. At the 16-page ceiling for each of two submodels, interval queries cost at most 537,133,056 units and prefix construction at most 1,049,088 units, totaling 538,182,144 below the 600,000,000 bound",
+    "multiple_records_on_one_page": "enumerate and score overlapping intervals independently, then apply the preregistered global page-terminal or TDEF inclusion-minimal byte-property resolution. For both global and TDEF searches, RECORD-MULTIPLE is emitted when more than one start survives on a single qualified page; PAGE-MULTIPLE is emitted when exactly one start survives on each of two or more distinct qualified pages; page multiplicity is evaluated before record multiplicity. Deterministic replica agreement cannot replace uniqueness",
+    "per_page_candidate_bound": 2098176,
+    "max_qualified_pages_per_submodel": 16,
+    "combined_record_candidate_bound": 67141632
+  },
+  "inline_boundary_procedure": {
+    "subject": "the D-delimited global_map record after its page, start, and end are frozen",
+    "candidate_source": "enumerate every byte boundary b in the fixed set {global_map.start+5,...,global_map.end}; do not derive candidates from the last nonzero byte, fill level, or an anchor checkpoint",
+    "survival_rule": "evaluate each b against every checkpoint in transition_coverage.inline_to_indirect_conversion_window on the frozen global_map record. Before the conversion checkpoint, require tag 0 and interpret [start+1,start+5) as the u32 base and [start+5,b) as the complete least-significant-bit-first inline bitmap with capacity 8*(b-(start+5)); those bytes and bits must explain the complete declared allocation sequence, and every byte in [b,end) must be the polarity-relative not-in-use byte (raw 0xFF for set_means_not_in_use, 0x00 for set_means_in_use) at every inline checkpoint. At and after the conversion checkpoint, require tag 1 and interpret [start+1,start+5) as slot-0, [start+5,start+9) as slot-1, and [start+9,end) as the indirect suffix exactly as record_candidate_procedure.global_record_indirect_layout specifies; after conversion the indirect suffix [start+9,end) must be raw 0x00. A candidate b survives only when the bytes before b explain the inline phase and the exact tag-1 slots and raw-zero indirect suffix explain the indirect phase at every applicable checkpoint",
+    "ambiguity_rule": "zero surviving boundaries emits no_inline_boundary_candidate and more than one emits multiple_inline_boundary_candidates; deterministic agreement across replicas cannot rescue a boundary selected from anchor fill"
+  },
+  "hypotheses": {
+    "bit_polarity_candidates": [
+      "set_means_in_use",
+      "set_means_not_in_use"
+    ],
+    "bit_polarity_rule": "evaluate both polarities on the D-delimited global_map record only. Let E, G, X, Y, R be in_use at E0, D_GROW_0128, D_DROP, D_RECREATE_EMPTY, D_REGROW_0128. Let Gp = G \\ E. Require Gp ≠ ∅, Gp ∩ X = ∅, Gp ∩ Y = ∅, Gp ⊆ R, and R \\ G ≠ ∅. The selected polarity is the unique candidate satisfying all five requirements; zero candidates emit no_unique_bit_polarity and two candidates emit multiple_bit_polarities_survive",
+    "polarity_cross_check": "after D alone freezes polarity, visit polarity_cross_check_legs in listed order. A leg is inline-checkable only when both record tags are 0 and equal. For each inline-checkable leg, form required_pages as the ascending pages p in [page_count(left),page_count(right)) that are representable by both snapshots' [base,base+capacity) ranges. Any required page p >= 65536 is a validity failure: emit pointer_validity_failure (A3-POINTER-VALIDITY) for the global_map.conversion_inline layer and terminate that layer. Every other required page must decode not-in-use on the left and in-use on the right. An empty required_pages set passes vacuously. At the first leg whose right tag differs from its left tag, record that leg as representation_change_stop and stop before interpreting either tag/base field as bitmap bits; do not evaluate that leg or any later leg. If a checked leg violates the rule, include that violating leg in evaluated_legs, stop, and report growth_polarity_disagreement with the first violating leg in schedule order and the lowest violating page. evaluated_legs is in polarity_cross_check_legs schedule order and contains every checked leg through and including a violating leg, but never contains a representation_change_stop leg. The report and frozen set must carry evaluated legs, representation_change_stop or null, first_violating_leg or null, and first_violating_page or null. This layer outcome never changes D polarity or the global-record layer",
+    "polarity_cross_check_worked_example": "EXP-0042 design input only: the [1915,2048) inline bitmap has base 0 and capacity 1024. D_REGROW_0128 to L_REL_0064 checks pages [285,349) and passes; L_REL_0064 to L_REL_0512 checks [349,797) and passes; L_REL_0512 to L_REL_0768 checks only the capacity intersection [797,1024) and violates at pages 1021, 1022, and 1023, which decode not-in-use on the right in both derivation replicas. The walk therefore stops with first_violating_leg [L_REL_0512, L_REL_0768], first_violating_page 1021, evaluated_legs of length 3, and representation_change_stop null; the P_ABS_12288 to P_ABS_16480 tag change 0 to 1 is never reached and its tag plus u32 bytes are never reinterpreted as bitmap bits. These disclosed observations cannot satisfy A3",
+    "global_map_record_predicate": "decode each candidate interval according to global_record_layout under each polarity; apply global_record_start_resolution and the D-only allocation, release, reallocation, and additional-regrowth relation. D_DROP need not shrink the file. No byte, record, physical page, or page count is required to equal another checkpoint; the within-snapshot tag/base/highwater content predicate is the explicitly registered representation anchor and is not cross-checkpoint equality",
+    "global_map_search": "use only E0, D_GROW_0128, D_DROP, D_RECREATE_EMPTY, and D_REGROW_0128 to qualify and delimit the global_map record. After its page and boundaries are frozen, evaluate conversion, slot activation, inline boundary, polarity agreement, and extended-map bases on that same record with the preregistered L/P/H transitions",
+    "tdef_pointer_layouts": [
+      "u24le_page_then_u8_slot",
+      "u8_slot_then_u24le_page"
+    ],
+    "tdef_record_search": "search a separate tdef record only for the growth-only and churn-only pointer windows. The tdef record carries no conversion, slot-activation, inline-boundary, bit-polarity, or extended-base hypothesis",
+    "growth_only_pointer_predicate": "inside the tdef record, a decoded reference changes on one or more declared L or H growth transitions, resolves to a page in candidate_page_space whose byte-zero tag is 0x05 when active, and is unchanged across L_REL_1280, L_DELETE_ALL, and L_REINSERT_SAME",
+    "delete_reinsert_only_pointer_predicate": "inside the tdef record, a decoded reference is stable through declared L growth, differs at L_DELETE_ALL, returns exactly at L_REINSERT_SAME, and resolves to a page in candidate_page_space whose byte-zero tag is 0x05 whenever active. Enable only when the L_REL_1280 observation's table_row_counts for role L is not 0 and the L_DELETE_ALL dao_reread row_count for role L is 0; if the L_REL_1280 observation's table_row_counts for role L is 0, or the L_DELETE_ALL dao_reread row_count for role L is not 0, emit legacy_churn_precondition_not_met",
+    "pointer_pair_rule": "growth-only and delete/reinsert-only windows must be distinct, use one declared layout, lie wholly inside the same tdef interval, and satisfy the predicates in both derivation replicas before holdout access",
+    "inline_extent_rule": "one exact boundary inside the frozen global_map record must agree across derivation replicas, explain every applicable transition across the full conversion window, and satisfy the all-checkpoint suffix rule; anchor fill is never a boundary source",
+    "type1_conversion_predicate": "classify every checkpoint in transition_coverage.inline_to_indirect_conversion_window on the frozen global_map record. A valid inline checkpoint has tag 0 and satisfies record_candidate_procedure.global_record_start_resolution's tag, base, capacity, page_count, highwater, and bounds requirements for that snapshot. A valid indirect checkpoint has tag 1 and satisfies record_candidate_procedure.global_record_indirect_layout, including its two u32 slots and zero indirect suffix. Any other tag or invalid layout is neither. Derive conversion_checkpoint as the earliest valid indirect checkpoint after at least one valid inline predecessor; require every earlier classified checkpoint to be inline and every checkpoint from conversion_checkpoint onward to be indirect, so exactly one monotone transition exists. Do not require conversion by any phase boundary",
+    "type1_rule": "at conversion_checkpoint, decode slot-0 from [start+1,start+5) and slot-1 from [start+5,start+9) as unsigned little-endian u32 values under record_candidate_procedure.global_record_indirect_layout; each nonzero value is one active reference and zero is inactive. Slot activation at conversion is therefore a measured free parameter 0, 1, or 2. A decisive conversion layer requires at least one active reference at conversion and both slots active by H_REL_0904; one or two at conversion are valid, zero emits no_active_slot_at_conversion, and a final active-slot count other than two emits final_slot_activation_not_two. conversionModel.indirect_tag is 1 and conversionModel.slot_reference_pages contains exactly the two conversion-checkpoint u32 values in slot-0, slot-1 order, retaining zero for an inactive slot",
+    "pointer_validity_rule": "for a global-map slot, decode the reference as the slot's u32 physical page number under record_candidate_procedure.global_record_indirect_layout; for a TDEF layout, decode the reference as that layout's u24 page field. Activation is the earliest checkpoint in the complete 25-checkpoint order where the corresponding u32 slot or u24 page field is nonzero. Evaluate validity only at checkpoints that both occur in transition_coverage.pointer_validity_checkpoints and are at or after activation. At each such checkpoint, a zero reference is skipped; each nonzero reference must be an integer page p with 1 <= p < that checkpoint's page_count, p must belong to the candidate_page_space computed for that evaluation replica, the referenced page must be present in that checkpoint's ordered page index, and byte zero of its hash-verified page blob must equal 0x05. At holdout, candidate_page_space is recomputed from the holdout replica alone. A zero value before or after activation is not by itself a validity failure; checkpoints outside the named window are never validity failures. Signature, slot-count, and transition rules may independently reject a zero value. The first validity failure is reported by schedule order, then pointer offset, then slot number",
+    "extended_base_candidates": [
+      "slot_relative_expected_0_16352",
+      "referenced_page_relative",
+      "slot_relative_off_by_minus_one",
+      "slot_relative_off_by_plus_one",
+      "referenced_page_relative_off_by_minus_one",
+      "referenced_page_relative_off_by_plus_one"
+    ],
+    "extended_base_rule": "at every indirect checkpoint, take slot-0 and slot-1 reference pages from the two u32 fields defined by record_candidate_procedure.global_record_indirect_layout and evaluate the preregistered base formulas against the allocation bitmaps on the 0x05 pages referenced by those active slots, using each observed bit's actual flip direction. H_REL_0064 is the planned slot-0 discriminator: apply every formula in extended_base_candidates to the same slot-0 reference and changed bit, retain only formulas whose computed physical page predicts that flip direction, and require a unique survivor. Failure to produce a discriminating flip yields insufficient_base_discrimination only for the extended_base layer; it cannot erase a decisive global record, conversion layer, or tdef pointer layer. No formula may be added after acquisition"
+  },
+  "analyzer_dry_run_contract": {
+    "must_complete_before_acquisition": true,
+    "dry_run_result_disclosure": "not_run_preregistration_only",
+    "dispatch_gate": "before any A3 matrix job is dispatched, the schedule-derived synthetic analyzer dry run, the EXP-0042 derivation-only exploratory replay, the decisive-report contract-validator case, and the independent-validator T1-T5 tamper suite must produce schema-valid pass reports; every required assertion must be present, inputs must match recorded hashes, EXP-0042 replica 3 and every future A3 holdout artifact must remain unopened during calibration, and results must be disclosed in a committed and pushed additive provenance entry. Any missing implementation, result, disclosure, or rejection leaves acquisition BLOCKED",
+    "retained_exp_0042_input": {
+      "bundle_artifact_sha256": "7e58dc5e3c8424110897053cdfeab703b0e1d15fde2dfd4d8235efd62da43dc7",
+      "bundle_manifest_sha256": "9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46",
+      "required_mode": "retained_a2_exp_0042_exploratory_derivation_only",
+      "holdout_access": "only EXP-0042 replicas 1 and 2 may be opened; EXP-0042 replica 3 and every future A3 holdout are excluded and must not be opened",
+      "required_assertions": [
+        "on each derivation replica, decode page 1 [1915,2048) as tag offset 1915, little-endian base bytes [1916,1920), and bitmap [1920,2048); at E0, D_GROW_0128, and D_REGROW_0128 require tag 0, base 0, capacity 1024, page counts 29, 157, and 285, in-use highwater extents [0,29), [0,157), and [0,285), and first not-in-use pages 29, 157, and 285",
+        "show that with end 2048, polarity set_means_not_in_use, and the at-least-16-byte page-terminal suffix rule applied, the A2 plan-literal relation without global_record_start_resolution leaves exactly 1,935 starts 0 through 1934 and the A3 rule leaves exactly start 1915 in both derivation replicas",
+        "evaluate polarity_cross_check_legs in order, carry the exact evaluated-leg transcript, and stop at the first violating leg [L_REL_0512, L_REL_0768] with first_violating_page 1021 and representation_change_stop null in both derivation replicas; never reinterpret any later leg's tag or u32 bytes as bitmap bits",
+        "parse and validate the EXP-0042 frozen candidate set, then demonstrate that T3's fully hash-relinked contradictory frozen set is rejected",
+        "emit all 34 A3 predicate ids exactly once and demonstrate that T5's nonterminal fail statuses are rejected"
+      ],
+      "scientific_evidence": false
+    },
+    "historical_a1_input_not_required_by_a3": {
+      "required_for_a3_dispatch": false,
+      "note": "this inherited A2 calibration description is retained only to document unchanged schedule ancestry; it cannot satisfy an A3 dry-run gate",
+      "bundle_manifest_sha256": "97c1286624a5e02fc7bcfc7b1047986e8a15e3ac8aec22488a1a5b4bfa444381",
+      "required_mode": "retained_a1_run12_exploratory",
+      "max_input_page_blobs": 55,
+      "holdout_access": "replicas 1 and 2 only; replica 3 and every holdout artifact are excluded and must not be opened",
+      "checkpoint_projection": [
+        {
+          "a2_checkpoint": "E0",
+          "a1_checkpoint": "E0",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "E0R",
+          "a1_checkpoint": "E0R",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "D_GROW_0128",
+          "a1_checkpoint": "D_GROW_0128",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "D_DROP",
+          "a1_checkpoint": "D_DROP",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "D_RECREATE_EMPTY",
+          "a1_checkpoint": null,
+          "status": "not_applicable_missing_a1_checkpoint"
+        },
+        {
+          "a2_checkpoint": "D_REGROW_0128",
+          "a1_checkpoint": "D_REGROW_0128",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0064",
+          "a1_checkpoint": "L_REL_0064",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0512",
+          "a1_checkpoint": "L_REL_0512",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0768",
+          "a1_checkpoint": "L_REL_0768",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0896",
+          "a1_checkpoint": "L_REL_0896",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_0904",
+          "a1_checkpoint": "L_REL_0904",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_1024",
+          "a1_checkpoint": "L_REL_1024",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_1088",
+          "a1_checkpoint": "L_REL_1088",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_REL_1280",
+          "a1_checkpoint": "L_REL_1280",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "L_DELETE_ALL",
+          "a1_checkpoint": "L_DELETE_ALTERNATING",
+          "status": "not_applicable_full_delete_and_churn_pointer"
+        },
+        {
+          "a2_checkpoint": "L_REINSERT_SAME",
+          "a1_checkpoint": "L_REINSERT_SAME",
+          "status": "not_applicable_full_delete_and_churn_pointer"
+        },
+        {
+          "a2_checkpoint": "L_IDLE_REOPEN",
+          "a1_checkpoint": "L_IDLE_REOPEN",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_04096",
+          "a1_checkpoint": "P_ABS_04096",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_08192",
+          "a1_checkpoint": "P_ABS_08192",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_12288",
+          "a1_checkpoint": "P_ABS_12288",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "P_ABS_16480",
+          "a1_checkpoint": "P_ABS_16480",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_REL_0064",
+          "a1_checkpoint": "H_REL_0064",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_REL_0896",
+          "a1_checkpoint": "H_REL_0896",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_REL_0904",
+          "a1_checkpoint": "H_REL_0904",
+          "status": "applicable"
+        },
+        {
+          "a2_checkpoint": "H_IDLE_REOPEN",
+          "a1_checkpoint": "H_IDLE_REOPEN",
+          "status": "applicable"
+        }
+      ],
+      "not_applicable_predicates": [
+        "A3-CHURN-PRECONDITION",
+        "A3-CHURN-POINTER-NONE"
+      ],
+      "schedule_arithmetic_assertion": "assert first D baseline 23 to 151, D_DROP remains 151, post-recreate baseline 151 to 279, 32-row batches and recorded overshoot, and alternating L deletion changes page count by +1 without satisfying the A3 full-delete premise",
+      "candidate_bound_assertion": "derive qualification counts from the retained indexes using the plan rule, then assert the independent re-measurement for both run-12 derivation replicas: 13 global qualifying pages in replica 1 and 13 in replica 2, specifically pages {0,1,2,3,6,9,11,13,18,19,20,21,22} in each. Assert each submodel is at most 16 qualified pages, enumerated intervals are no more than 67,141,632 combined, interval queries are no more than 537,133,056 work units, prefix construction is no more than 1,049,088 work units, total analysis work is no more than 538,182,144 and below the 600,000,000 bound, and no more than 55 page blobs are opened",
+      "record_end_assertion": "after D selects set_means_not_in_use, apply the page-terminal polarity-relative uniform-suffix property and assert the independent re-measurement for both run-12 derivation replicas (A1 run-12 values; EXP-0042 measures 1955/92): last D-flipped byte offset 1954, 93 following bytes through 2047 are raw 0xFF and therefore decode entirely to not-in-use, and one global record survives while shorter equivalent ends are rejected. For the legacy churn transitions, assert exactly one of those suffix bytes changes on L_REL_1280 to L_DELETE_ALTERNATING and zero changes on L_DELETE_ALTERNATING to L_REINSERT_SAME in each replica; the delete change is allowed by the global-map field signature but cannot become a TDEF pointer candidate",
+      "required_behavior": "complete the explicit projection, select set_means_not_in_use uniquely from D alone, check L/H agreement on the frozen global record, report legacy_projection_complete_with_tdef_churn_not_applicable by name, retain layered calibration results, and emit no A3 scientific evidence"
+    },
+    "synthetic_input": {
+      "required_mode": "a3_schedule_synthetic",
+      "generation_rule": "parse checkpoint_design, tables.row_algorithm, record_candidate_procedure, hypotheses, predicate_registry, decision_rules, and bounds from this exact plan and derive every checkpoint, baseline, target, 32-row batch, overshoot, page and row count, page state, qualified-page count, prefix sum, record candidate, work unit, frozen-candidate field, report field, and predicate status with the worker and analyzer arithmetic; hand-typed counts and inherited A1 fixture schedules are forbidden",
+      "free_parameters": {
+        "conversion_ordinal": "generate every A3 noninitial ordinal 1 through 24 plus never",
+        "slot_activation_at_conversion": [
+          0,
+          1,
+          2
+        ],
+        "bit_polarity": [
+          "set_means_in_use",
+          "set_means_not_in_use"
+        ],
+        "anchor_fill_state": [
+          "empty",
+          "partial",
+          "full"
+        ],
+        "record_end_uniform_slack_bytes": [
+          16,
+          32,
+          64
+        ],
+        "global_record_start": [0, 1, 1915, 2042],
+        "global_record_base": [0, 1, 16, 1024],
+        "inline_tag_at_anchor": [0, 1],
+        "first_representation_change_leg": "each polarity_cross_check_legs entry plus never"
+      },
+      "exp_0042_calibration_case": "generate A3 ordinal 20 at P_ABS_16480, set_means_not_in_use, record [1915,2048), tag 0 before conversion, base 0, bitmap capacity 1024, tag 1 at conversion, slot-0 u32 14848, slot-1 u32 16352, the indirect prefix 01 | 00 3A 00 00 | E0 3F 00 00, and the disclosed 29/157/285 D highwaters. The fixture must derive these values from its parameters, not copy bundle bytes, and remains non-evidential",
+      "arithmetic_rule": "prove the D A/B/A/C record-set relation with regrowth strictly larger than first growth, growth-only and full-delete churn-only tdef transitions, and every analyzer checkpoint equality. No equality or count may depend on a hand-authored fixture constant",
+      "record_uniqueness_rule": "the decisive fixture must have exactly one start satisfying tag/base/bitmap bounds, all three within-snapshot highwater predicates, the D set relation, unique polarity, and the page-terminal suffix rule. It must also have at least 32 polarity-relative uniform bytes after its last flipped global-map byte, each decoding entirely to not-in-use under the D-selected polarity: raw 0xFF for set_means_not_in_use and raw 0x00 for set_means_in_use. Generate and reject a wrong tag, truncated u32 base, base above page_count, page_count outside capacity, one missing in-use highwater page, an in-use page_count sentinel, an additional surviving start, and every shorter equivalent endpoint",
+      "polarity_cross_check_rule": "generate every representation-change stop leg plus never, capacity intersections that are full, partial, and empty, both raw bit directions through polarity, one first-page violation and one later-page violation, and assert that the report and frozen set carry exactly the first violating leg/page or nulls",
+      "frozen_set_rule": "emit the exact fixed-shape derivation-candidates document, schema-validate it, byte-hash it before holdout structural validation, and prove strict equality with the report's four layer objects, derivation survivor counts, qualified pages, and polarity-cross-check transcript",
+      "base_discrimination_rule": "the all-layers-decisive fixture must produce a slot-0 flip at H_REL_0064 that leaves exactly one base formula. A second valid fixture with no discriminating flip must retain decisive earlier global layers and report insufficient_base_discrimination only for extended_base",
+      "inline_boundary_rule": "generate empty, partial, and full anchor-fill variants with one invariant global-map inline boundary and recover the same boundary in all variants",
+      "slot_rule": "for conversion fixtures with one or two active slots, recover a decisive conversion layer when exactly two are active by H_REL_0904; zero at conversion and a final count other than two reach their exact named layer outcomes",
+      "abort_reachability_rule": "every Abort or early terminal has one stable predicate_registry mapping and a single named perturbation of a schedule-derived fixture that reaches the exact reason and layer; dead, unnamed, unproducible, duplicate, or omitted predicate results fail the dry run",
+      "required_cases": [
+        "all_layers_decisive",
+        "partial_layer_outcome",
+        "legacy_projection_complete_with_tdef_churn_not_applicable",
+        "no_physical_page_satisfies_global_transition_predicates",
+        "multiple_physical_pages_satisfy_global_transition_predicates",
+        "no_global_record_candidate",
+        "multiple_global_record_boundaries_survive",
+        "global_record_end_not_resolved",
+        "no_physical_page_satisfies_tdef_transition_predicates",
+        "multiple_physical_pages_satisfy_tdef_transition_predicates",
+        "no_tdef_record_candidate",
+        "multiple_tdef_record_boundaries_survive",
+        "structural_field_exclusion_failure",
+        "global_set_relation_not_satisfied",
+        "no_unique_bit_polarity",
+        "multiple_bit_polarities_survive",
+        "growth_polarity_disagreement",
+        "no_active_slot_at_conversion",
+        "final_slot_activation_not_two",
+        "no_growth_only_pointer_candidate",
+        "legacy_churn_precondition_not_met",
+        "no_delete_reinsert_only_pointer_candidate",
+        "multiple_pointer_models_survive",
+        "pointer_validity_failure",
+        "missing_inline_to_indirect_conversion",
+        "multiple_inline_to_indirect_conversions",
+        "no_inline_boundary_candidate",
+        "multiple_inline_boundary_candidates",
+        "unexplained_nonzero_inline_suffix",
+        "insufficient_base_discrimination",
+        "no_extended_base_candidate",
+        "multiple_extended_base_candidates",
+        "idle_volatility",
+        "unreconstructable_snapshot",
+        "resource_bound_breach",
+        "replica_disagreement",
+        "holdout_prediction_failure"
+      ]
+    },
+    "source_contract_checks": [
+      "A3 code does not import, copy, or depend on A1 hand-typed fixture counts, A2 analyzer results, or a hard-coded conversion checkpoint",
+      "every Abort has exactly one stable reason-to-predicate mapping and a schedule-derived reachability case",
+      "page qualification precedes interval enumeration and interval predicates use bounded O(1) prefix-difference queries",
+    "record and pointer exclusions are transition-structural and identical on every page; no page number or byte-offset blacklist exists",
+    "bytes commonly described as page headers receive no positional meaning and enter a record or pointer only if they satisfy the same transition signature as every other byte",
+      "global delimitation uses D only; conversion, slot, inline, polarity agreement, and base evaluation use L/P/H on the frozen global record; tdef carries only pointer predicates",
+      "both D polarities, slot counts 0/1/2, all conversion ordinals plus never, anchor fills, and record-end slack values are exercised",
+      "every checkpoint equality is generator-produced",
+      "every registered predicate id appears exactly once in every report; applicable-layer predicates and the A3-HOLDOUT-PREDICTION exception obey predicate_registry.reporting_rule",
+      "A3-HOLDOUT-PREDICTION is pass whenever any retained layer is decisive",
+      "the frozen candidate set is parsed and compared field-for-field rather than trusted through hash linkage alone",
+      "a schema-valid layered report with at least one decisive submodel passes validate-document and is accepted with bundle status decisive_pending_independent_validation"
+    ],
+    "acceptance_criteria": "the EXP-0042 replay opens only replicas 1 and 2 and reproduces the disclosed record-start, representation-stop, frozen-set, and predicate-reporting assertions without treating them as A3 evidence. The synthetic report covers every parameter, layered and terminal case, recovers an all-layers-decisive model, retains partial outcomes, and records every predicate id exactly once. The decisive report validator and independent-validator T1-T5 tamper cases must pass. Any missing case, hash, bound, mapping, transcript field, assertion, rejection, or generator-produced equality keeps acquisition BLOCKED",
+    "disclosure_rule": "retain both schema-valid dry-run reports, fixtures, hashes, commands, exact commits, layered outcomes, predicate ids, frozen-set comparison result, and decisive and T1-T5 validator results and record them in an additive A3 provenance entry before acquisition; all are non-evidential"
+  },
+  "predicate_registry": {
+    "reporting_rule": "predicate_results has exactly 34 entries in predicate_registry.ids order. Every registered id appears exactly once and no other id appears. Except for A3-HOLDOUT-PREDICTION as specified below, a predicate's status is fail if and only if its id occurs exactly once in terminal_predicate_ids; every such fail is terminal and every such terminal is fail. A nonterminal evaluated predicate is pass and a nonterminal predicate not reached because an earlier terminal made its stage unavailable is not_applicable. For a predicate registered to applicable_layer, the predicate_results layer field is the literal string applicable_layer. Such a predicate is terminal for the report iff it is the terminal of at least one layer; terminal_predicate_ids lists it once. Exception: A3-HOLDOUT-PREDICTION is pass iff at least one of the four layers has status decisive_predicts_holdout; a layer whose frozen model fails holdout prediction carries holdout_prediction_failure in that layer's no_outcome_reasons and terminal_predicate_id while the report-level predicate remains pass; if no layer is decisive and at least one frozen model fails holdout, A3-HOLDOUT-PREDICTION is fail. Per-layer terminal_predicate_id may therefore name A3-HOLDOUT-PREDICTION while its report status is pass; the fail-iff-terminal rule applies to terminal_predicate_ids of the report, which excludes A3-HOLDOUT-PREDICTION whenever any layer is decisive. Any duplicate, omission, extra id, layer mismatch, fail/nonterminal mismatch under these rules, or decisive report without the required holdout pass is a document-validation failure",
+    "ids": [
+      "A3-IDLE-EQUALITY",
+      "A3-D-SET-RELATION",
+      "A3-GLOBAL-PAGE-NONE",
+      "A3-GLOBAL-PAGE-MULTIPLE",
+      "A3-GLOBAL-RECORD-NONE",
+      "A3-GLOBAL-RECORD-MULTIPLE",
+      "A3-GLOBAL-RECORD-END",
+      "A3-TDEF-PAGE-NONE",
+      "A3-TDEF-PAGE-MULTIPLE",
+      "A3-TDEF-RECORD-NONE",
+      "A3-TDEF-RECORD-MULTIPLE",
+      "A3-STRUCTURAL-EXCLUSION",
+      "A3-POLARITY-NONE",
+      "A3-POLARITY-MULTIPLE",
+      "A3-POLARITY-CROSSCHECK",
+      "A3-GROWTH-POINTER-NONE",
+      "A3-CHURN-PRECONDITION",
+      "A3-CHURN-POINTER-NONE",
+      "A3-POINTER-MULTIPLE",
+      "A3-POINTER-VALIDITY",
+      "A3-CONVERSION-NONE",
+      "A3-CONVERSION-MULTIPLE",
+      "A3-SLOT-ACTIVATION",
+      "A3-SLOT-FINAL",
+      "A3-INLINE-BOUNDARY-NONE",
+      "A3-INLINE-BOUNDARY-MULTIPLE",
+      "A3-INLINE-SUFFIX",
+      "A3-BASE-DISCRIMINATION",
+      "A3-BASE-NONE",
+      "A3-BASE-MULTIPLE",
+      "A3-REPLICA-DISAGREEMENT",
+      "A3-SNAPSHOT-RECONSTRUCTION",
+      "A3-RESOURCE-BOUND",
+      "A3-HOLDOUT-PREDICTION"
+    ],
+    "mappings": [
+      {
+        "predicate_id": "A3-IDLE-EQUALITY",
+        "reason": "idle_volatility",
+        "layer": "campaign"
+      },
+      {
+        "predicate_id": "A3-D-SET-RELATION",
+        "reason": "global_set_relation_not_satisfied",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-GLOBAL-PAGE-NONE",
+        "reason": "no_physical_page_satisfies_global_transition_predicates",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-GLOBAL-PAGE-MULTIPLE",
+        "reason": "multiple_physical_pages_satisfy_global_transition_predicates",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-GLOBAL-RECORD-NONE",
+        "reason": "no_global_record_candidate",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-GLOBAL-RECORD-MULTIPLE",
+        "reason": "multiple_global_record_boundaries_survive",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-GLOBAL-RECORD-END",
+        "reason": "global_record_end_not_resolved",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-TDEF-PAGE-NONE",
+        "reason": "no_physical_page_satisfies_tdef_transition_predicates",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-TDEF-PAGE-MULTIPLE",
+        "reason": "multiple_physical_pages_satisfy_tdef_transition_predicates",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-TDEF-RECORD-NONE",
+        "reason": "no_tdef_record_candidate",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-TDEF-RECORD-MULTIPLE",
+        "reason": "multiple_tdef_record_boundaries_survive",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-STRUCTURAL-EXCLUSION",
+        "reason": "structural_field_exclusion_failure",
+        "layer": "applicable_layer"
+      },
+      {
+        "predicate_id": "A3-POLARITY-NONE",
+        "reason": "no_unique_bit_polarity",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-POLARITY-MULTIPLE",
+        "reason": "multiple_bit_polarities_survive",
+        "layer": "global_map.record"
+      },
+      {
+        "predicate_id": "A3-POLARITY-CROSSCHECK",
+        "reason": "growth_polarity_disagreement",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-GROWTH-POINTER-NONE",
+        "reason": "no_growth_only_pointer_candidate",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-CHURN-PRECONDITION",
+        "reason": "legacy_churn_precondition_not_met",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-CHURN-POINTER-NONE",
+        "reason": "no_delete_reinsert_only_pointer_candidate",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-POINTER-MULTIPLE",
+        "reason": "multiple_pointer_models_survive",
+        "layer": "tdef.pointer_pair"
+      },
+      {
+        "predicate_id": "A3-POINTER-VALIDITY",
+        "reason": "pointer_validity_failure",
+        "layer": "applicable_layer"
+      },
+      {
+        "predicate_id": "A3-CONVERSION-NONE",
+        "reason": "missing_inline_to_indirect_conversion",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-CONVERSION-MULTIPLE",
+        "reason": "multiple_inline_to_indirect_conversions",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-SLOT-ACTIVATION",
+        "reason": "no_active_slot_at_conversion",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-SLOT-FINAL",
+        "reason": "final_slot_activation_not_two",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-INLINE-BOUNDARY-NONE",
+        "reason": "no_inline_boundary_candidate",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-INLINE-BOUNDARY-MULTIPLE",
+        "reason": "multiple_inline_boundary_candidates",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-INLINE-SUFFIX",
+        "reason": "unexplained_nonzero_inline_suffix",
+        "layer": "global_map.conversion_inline"
+      },
+      {
+        "predicate_id": "A3-BASE-DISCRIMINATION",
+        "reason": "insufficient_base_discrimination",
+        "layer": "global_map.extended_base"
+      },
+      {
+        "predicate_id": "A3-BASE-NONE",
+        "reason": "no_extended_base_candidate",
+        "layer": "global_map.extended_base"
+      },
+      {
+        "predicate_id": "A3-BASE-MULTIPLE",
+        "reason": "multiple_extended_base_candidates",
+        "layer": "global_map.extended_base"
+      },
+      {
+        "predicate_id": "A3-REPLICA-DISAGREEMENT",
+        "reason": "replica_disagreement",
+        "layer": "applicable_layer"
+      },
+      {
+        "predicate_id": "A3-SNAPSHOT-RECONSTRUCTION",
+        "reason": "unreconstructable_snapshot",
+        "layer": "campaign"
+      },
+      {
+        "predicate_id": "A3-RESOURCE-BOUND",
+        "reason": "resource_bound_breach",
+        "layer": "campaign"
+      },
+      {
+        "predicate_id": "A3-HOLDOUT-PREDICTION",
+        "reason": "holdout_prediction_failure",
+        "layer": "applicable_layer"
+      }
+    ]
+  },
+  "decision_rules": {
+    "layered_outcomes": {
+      "global_map_record": "decisive when one D-delimited record and one D-selected polarity survive derivation and predict the holdout; independent of later conversion, base, and tdef outcomes",
+      "global_map_conversion_inline": "evaluated only on the frozen global record; decisive when one conversion, valid slot schedule, polarity cross-check, and inline boundary predict the holdout",
+      "global_map_extended_base": "evaluated on the frozen global record and conversion; decisive when one base predicts holdout. Insufficient slot-0 discrimination is only this layer's no-outcome",
+      "tdef_pointer_pair": "decisive when one separately delimited tdef record with one growth/churn pointer pair predicts holdout; independent of global conversion and base outcomes"
+    },
+    "freeze_rule": "serialize exactly one schema-valid dao_a3_frozen_derivation_candidates document with the fixed shape in derivation-candidates.schema.json. It contains protocol and campaign bindings, derivation_replicas [1,2], qualified_pages.global_map and qualified_pages.tdef as strictly increasing unique page arrays, exactly the four named layer objects, and the polarity_cross_check transcript. Persist canonical UTF-8 JSON with one trailing LF, compute SHA-256 over those exact bytes, close replica-1/2 inputs, and record that hash in both the analysis report and post-freeze holdout receipt before any replica-3 structural validation or page access. The report qualified_pages and polarity_cross_check must equal the parsed frozen values. For each corresponding layer, model and derivation_survivor_count are identical; frozen applicable is false exactly when report status is not_applicable; frozen no_outcome_reason is null exactly when report no_outcome_reasons is empty and otherwise equals its sole item; frozen terminal_predicate_id is null exactly when that layer has no terminal and otherwise equals that layer's terminal predicate id. The field-for-field comparison uses the report layer's derivation-time values: a report layer whose sole no_outcome_reason is holdout_prediction_failure and whose terminal_predicate_id is A3-HOLDOUT-PREDICTION compares as empty/null against the frozen layer; holdout_prediction_failure is the only reason permitted to appear in the report but not in the frozen set. qualified_page_counts equals array lengths and derivation_survivor_counts equals layer counts. Hash equality alone is insufficient. Holdout evaluation may only attach holdout_evaluated and a post-holdout layer status to these frozen models and cannot add, delete, reorder, relax, or reinterpret them",
+    "frozen_set_canonicalization": "canonical bytes use JSON objects in schema property order, arrays in declared order, integers in shortest decimal form, lowercase true/false/null, no insignificant whitespace, UTF-8 without BOM, and exactly one LF after the closing brace; analyzer and independent validator recompute the SHA-256 from the retained bytes before parsing but compare parsed values, not serialization order",
+    "scientific_outcome": "one_or_more_submodels_predict_holdout when at least one layer is decisive on holdout, otherwise no_submodel_predicts_holdout. An unmet layer never erases another layer's result",
+    "no_scientific_outcome_identifiers": [
+      "idle_volatility",
+      "global_set_relation_not_satisfied",
+      "no_physical_page_satisfies_global_transition_predicates",
+      "multiple_physical_pages_satisfy_global_transition_predicates",
+      "no_global_record_candidate",
+      "multiple_global_record_boundaries_survive",
+      "global_record_end_not_resolved",
+      "no_physical_page_satisfies_tdef_transition_predicates",
+      "multiple_physical_pages_satisfy_tdef_transition_predicates",
+      "no_tdef_record_candidate",
+      "multiple_tdef_record_boundaries_survive",
+      "structural_field_exclusion_failure",
+      "no_unique_bit_polarity",
+      "multiple_bit_polarities_survive",
+      "growth_polarity_disagreement",
+      "no_growth_only_pointer_candidate",
+      "legacy_churn_precondition_not_met",
+      "no_delete_reinsert_only_pointer_candidate",
+      "multiple_pointer_models_survive",
+      "pointer_validity_failure",
+      "missing_inline_to_indirect_conversion",
+      "multiple_inline_to_indirect_conversions",
+      "no_active_slot_at_conversion",
+      "final_slot_activation_not_two",
+      "no_inline_boundary_candidate",
+      "multiple_inline_boundary_candidates",
+      "unexplained_nonzero_inline_suffix",
+      "insufficient_base_discrimination",
+      "no_extended_base_candidate",
+      "multiple_extended_base_candidates",
+      "replica_disagreement",
+      "unreconstructable_snapshot",
+      "resource_bound_breach",
+      "holdout_prediction_failure"
+    ],
+    "terminal_disambiguation": "for both global and TDEF searches, RECORD-MULTIPLE is emitted when more than one start survives on a single qualified page; PAGE-MULTIPLE is emitted when exactly one start survives on each of two or more distinct qualified pages; page multiplicity is evaluated before record multiplicity. The global mappings are multiple_global_record_boundaries_survive for RECORD-MULTIPLE and multiple_physical_pages_satisfy_global_transition_predicates for PAGE-MULTIPLE; the TDEF mappings are multiple_tdef_record_boundaries_survive for RECORD-MULTIPLE and multiple_physical_pages_satisfy_tdef_transition_predicates for PAGE-MULTIPLE. Zero-page, zero-record, record-end, polarity, conversion, slot, pointer, inline, base, campaign, and holdout failures retain their own mapped reasons"
+  },
+  "independent_validator_contract": {
+    "artifact": "validation/independent-validation-report.json",
+    "implementation_independence": "the independent recomputing validator is written from this plan, its schemas, generic JSON/SHA-256 primitives, and the retained A3 bundle contract only. Its authorship lane must not read, import, execute, vendor, or copy any A3 analyzer, generator, model, layer, analysis, worker, or workflow implementation. At runtime its import graph and file reads must exclude those implementations. Sharing the plan schemas and generic protocol validation that contains no A3 scientific derivation is permitted and must be disclosed",
+    "required_recomputation": "validate bundle closure and every schema/hash/path/bound; reconstruct snapshots; independently recompute page qualification, every global start and end, layout fields, highwater predicates, D relation, polarity, polarity-cross-check transcript, conversion/inline/base layers, TDEF stage ordering, pointer validity window, all four derivation layer objects, all 34 predicate results, the holdout predictions, and the scientific outcome. Parse the frozen candidate set and compare it with both this recomputation and the analysis report field-for-field under decision_rules.freeze_rule",
+    "fail_closed_comparison": "any schema, hash, canonicalization, closure, recomputation, frozen-set, report, receipt, predicate, layer, ordering, pointer-window, first-violation, or holdout discrepancy produces accepted=false, independent_validation_status=not_independently_validated, a nonzero exit, and at least one bounded stable discrepancy code; no majority vote or partial acceptance is permitted",
+    "tamper_cases": [
+      {
+        "id": "T1",
+        "mutation": "change the decisive global-record bit_polarity to the opposite registered polarity and correctly relink every affected SHA-256 and manifest reference",
+        "required_result": "reject for independently recomputed global-record model mismatch"
+      },
+      {
+        "id": "T2",
+        "mutation": "replace the conversion no-outcome reason, terminal id, predicate status, frozen layer, receipt hash, and manifest links with a mutually self-consistent but recomputation-unsupported conversion outcome",
+        "required_result": "reject for conversion outcome or first-violating-leg mismatch"
+      },
+      {
+        "id": "T3",
+        "mutation": "replace derivation-candidates.json with a schema-valid contradictory frozen set and correctly relink the report, receipt, and manifest hashes",
+        "required_result": "reject because the parsed frozen set differs from independent recomputation or report layers/qualified pages"
+      },
+      {
+        "id": "T4",
+        "mutation": "replace the TDEF terminal reason and predicate with a different stage-order reason, update the frozen set and predicate results consistently, and correctly relink every hash",
+        "required_result": "reject because independent TDEF precondition-to-multiplicity ordering yields a different first terminal"
+      },
+      {
+        "id": "T5",
+        "mutation": "set one or more nonterminal predicate_results, including A3-HOLDOUT-PREDICTION on a decisive report, to fail and make terminal ids or hashes internally self-consistent",
+        "required_result": "reject because every id must appear once, report-level fail iff report-terminal under the applicable-layer exception, and A3-HOLDOUT-PREDICTION must pass when any layer is decisive"
+      }
+    ],
+    "acceptance_rule": "all untampered recomputations must agree and all T1-T5 variants must be rejected before the validator may emit accepted=true. Only a schema-valid accepted=true report from this independent implementation, recorded in a later additive provenance entry, moves independent_validation_status from not_independently_validated to independently_validated. Analyzer self-validation, producer-workflow validation, dry runs, or rejection tests alone never move it",
+    "plan_lane_implementation_status": "not_implemented"
+  },
+  "decisive_report_handling": {
+    "analysis_report_artifact": "retained_in_bundle",
+    "bundle_status": "decisive_pending_independent_validation",
+    "campaign_behavior": "a schema-valid layered report with one or more decisive holdout-predicting submodels completes the campaign successfully, is inventoried and retained, and must pass the A3 contract validator without being routed through an A1 validator or deletion path",
+    "independent_validation_rule": "structural validation accepts the retained layered result but capability verification and independent_validation_status remain not_independently_validated until the preregistered independent recomputing validator accepts the report and bundle under independent_validator_contract and that acceptance is separately provenanced"
+  },
+  "runtime_design": {
+    "matrix_jobs": 3,
+    "fan_in_jobs": 1,
+    "hosted_wall_clock_target_seconds": 1800,
+    "post_33_timing_inputs": [
+      {
+        "run": 11,
+        "replica": 1,
+        "sha256": "b005ab46ae10144fd27aeef51ebd24d308a0460c0275a1bd7cd004a4df024a8a"
+      },
+      {
+        "run": 11,
+        "replica": 2,
+        "sha256": "f786a9e3616dca89a369130a028333f4a97d597735f6cfc9ae5c9aade46013f7"
+      },
+      {
+        "run": 11,
+        "replica": 3,
+        "sha256": "76fa961bb00d1b3c056dec659eaee6b89046dedb3ac46ba35d1ba01995d0706b"
+      },
+      {
+        "run": 12,
+        "replica": 1,
+        "sha256": "fbc70ccc78490abbb1c8e3cdfd43323242143e7762e374f958d0c5d3a332674a"
+      },
+      {
+        "run": 12,
+        "replica": 2,
+        "sha256": "1ae3013c0a38928e5b7800bef79fad34ea993769c834f7329607941f62d2072d"
+      },
+      {
+        "run": 12,
+        "replica": 3,
+        "sha256": "632d4d86e9e83c80fca395faa8589ba0289c595803b0d700a5eeb93573e726ed"
+      }
+    ],
+    "timing_derivation": "post-PR-33 run 11 reached H_REL_0904 in 400.440-462.513 seconds with final idle costs 26.317-26.654 seconds; run 12 reached it in 543.107-619.412 seconds with final idle costs 35.394-35.901 seconds. The slow observed A2-equivalent prefix plus idle is 654.865 seconds. A 70.135-second allowance for D_RECREATE_EMPTY, full-delete differences, and rounding freezes the per-replica projection at 725 seconds",
+    "per_replica_projection_seconds": 725,
+    "per_replica_headroom": "the 1700-second worker ceiling is 2.34x the 725-second post-PR-33 projection",
+    "campaign_headroom": "independent replicas run concurrently; 725 seconds plus the full 900-second fan-in safety bound yields a 1625-second complete-campaign estimate. The 1800-second figure is a performance target, not a safety bound. The 2700-second campaign timeout exactly covers the 1700-second worker ceiling plus the 900-second fan-in ceiling plus 100 seconds of setup and dispatch allowance, and is 1.66x the estimate",
+    "setup_and_dispatch_allowance_seconds": 100,
+    "estimated_complete_wall_clock_seconds": 1625,
+    "bounds_sanity_basis": "run 12 observed 20,701 changed hash entries over 71 checkpoints versus the 65,536 bound; projected A2 logical reads are about 254 MiB versus 2 GiB; projected inserted rows are about 150,000 versus 524,288. Dry-run boundary cases must accept each exact ceiling and reject one over"
+  },
+  "artifacts": {
+    "plan": "plan/a3-allocation-maps.plan.json",
+    "replica_observations": [
+      "observations/replica-01.json",
+      "observations/replica-02.json",
+      "observations/replica-03.json"
+    ],
+    "replica_artifact_manifests": [
+      "replica-artifacts/replica-01-manifest.json",
+      "replica-artifacts/replica-02-manifest.json",
+      "replica-artifacts/replica-03-manifest.json"
+    ],
+    "page_index_directory": "page-indexes",
+    "page_store_directory": "page-store",
+    "frozen_candidate_set": "analysis/derivation-candidates.json",
+    "analysis_report": "analysis/analysis-report.json",
+    "bundle_manifest": "bundle-manifest.json",
+    "dry_run_reports": [
+      "dry-run/exp-0042-replay-report.json",
+      "dry-run/a3-synthetic-report.json"
+    ],
+    "replica_environments": [
+      "environment/replica-01.json",
+      "environment/replica-02.json",
+      "environment/replica-03.json"
+    ],
+    "holdout_structure_receipt": "analysis/holdout-structure-receipt.json",
+    "independent_validation_report": "validation/independent-validation-report.json"
+  },
+  "bounds": {
+    "page_size": 2048,
+    "replicas": 3,
+    "max_checkpoints_per_replica": 25,
+    "planned_checkpoints_per_replica": 25,
+    "max_final_pages_per_replica": 65536,
+    "max_logical_checkpoint_read_bytes_per_replica": 2147483648,
+    "max_inserted_rows_per_replica": 524288,
+    "max_changed_hash_entries_per_replica": 65536,
+    "max_record_candidates": 67141632,
+    "max_candidate_models": 1000000,
+    "max_analysis_work_units": 600000000,
+    "max_unique_page_blobs": 65536,
+    "max_retained_page_store_bytes": 536870912,
+    "max_bundle_bytes": 805306368,
+    "max_json_bytes": 67108864,
+    "worker_timeout_seconds_per_replica": 1700,
+    "fan_in_timeout_seconds": 900,
+    "campaign_timeout_seconds": 2700,
+    "max_child_log_bytes": 1048576,
+    "max_companion_bytes_per_checkpoint": 65536,
+    "max_qualified_pages_per_submodel": 16,
+    "max_record_candidates_per_page": 2098176
+  },
+  "claims": {
+    "descriptive_provider_observation_only": true,
+    "a2_exploratory_input_is_a3_evidence": false,
+    "exp_0042_bundle_is_a3_evidence": false,
+    "synthetic_dry_run_is_a3_evidence": false,
+    "general_tdef_catalog_row_index_or_lval_layout": false,
+    "unobserved_slot_or_base_behavior": false,
+    "compaction_encryption_or_version_behavior": false,
+    "rust_correctness": false,
+    "dao_compatibility_or_support": false
+  }
+}
