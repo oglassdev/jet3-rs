@@ -3507,7 +3507,7 @@ Use `not applicable` explicitly rather than omitting a field.
   SHA-256 `2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b`;
   and
   `oracle/windows-dao/experiments/a3/design-inputs/exp-0042-bundle-pointer.md`,
-  SHA-256 `c999dcb4624e9f945c966d5e621f0f5f5a44fd21cc9e10b470565ed4afc7d706`.
+  SHA-256 `9bcb4b3c7ca2b43abd44a38200042312156d14552908c6d00ec9a25b24178349`.
   Each pointer records the underlying immutable path or artifact and SHA-256.
 - Exploratory bundle identity: A2 artifact
   `windows-dao-a2-bundle-1a0585446ac8b0d232ee4c0391cce9d635e7c43a-32587946283-1`,
@@ -3518,10 +3518,11 @@ Use `not applicable` explicitly rather than omitting a field.
   This bundle is an A3 design input only and cannot satisfy an A3 derivation,
   holdout, predicate, independent validation, or capability result.
 - Prior-observation disclosure: the one-byte inline tag, little-endian u32
-  base, following bitmap, and page-count-highwater record-start rule were
-  observed in the `EXP-0042` bundle before A3 was frozen. A3's decisive claim
-  is therefore a prediction on three new replicas, not rediscovery of that
-  representation.
+  base, following bitmap, page-count-highwater record-start rule, and tag-1
+  indirect layout were observed in the `EXP-0042` bundle before A3 was frozen.
+  The observed indirect prefix `01 | 00 3A 00 00 | E0 3F 00 00` decodes to tag
+  1, slot-0 u32 14848, and slot-1 u32 16352. A3's decisive claim is therefore a
+  prediction on three new replicas, not rediscovery of either representation.
 - Inherited protocol: A3 keeps A2's 25 closed-file checkpoints, three rotated
   role bindings, row algorithm, content-addressed page capture, bounds,
   independent matrix jobs, freeze-before-holdout fan-in, four layered outcomes,
@@ -3536,21 +3537,27 @@ Use `not applicable` explicitly rather than omitting a field.
   together with the D set relation, unique polarity, and page-terminal suffix.
   It is not a cross-checkpoint byte, record, page, or page-count equality rule.
 - Conversion cross-check: on each listed inline leg, only newly appended pages
-  representable by both snapshots must flip not-in-use to in-use. Stop before
-  the first tag change and retain the first violating leg/page or nulls in both
-  the frozen set and report. In the exploratory bundle, `[1915,2048)` has base
-  zero and capacity 1,024; D highwaters are 29, 157, and 285 pages; and the
-  `P_ABS_12288` to `P_ABS_16480` tag change is the stop leg. These numbers are
-  non-evidential A3 design examples.
+  representable by both snapshots must flip not-in-use to in-use. Stop at the
+  first violation or before the first tag change, and retain the first violating
+  leg/page or nulls in both the frozen set and report. In the exploratory bundle,
+  `[1915,2048)` has base
+  zero and capacity 1,024; D highwaters are 29, 157, and 285 pages. The first
+  two cross-check legs pass, but leg 3, `L_REL_0512` to `L_REL_0768`, violates
+  at pages 1021, 1022, and 1023 in both derivation replicas. The walk stops with
+  first violating page 1021, three evaluated legs, and no representation-change
+  stop; the later `P_ABS_12288` to `P_ABS_16480` tag change is never reached.
+  These numbers are non-evidential A3 design examples.
 - Freeze and reporting: `derivation-candidates.schema.json` fixes qualified
   page arrays, four layer objects, and the polarity transcript. The validator
   must parse and compare them with independent recomputation and the report;
   hash linkage alone does not suffice. All 34 registered predicate ids appear
-  exactly once; `fail` is equivalent to terminal; and
-  `A3-HOLDOUT-PREDICTION` passes whenever any layer is decisive. TDEF terminal
+  exactly once. Applicable-layer predicate results carry the literal
+  `applicable_layer`; report terminals are deduplicated across layer terminals;
+  and `A3-HOLDOUT-PREDICTION` passes whenever any layer is decisive, even if a
+  different layer records that predicate as its holdout terminal. TDEF terminal
   stages are ordered precondition, growth windows, churn windows, record, then
   multiplicity. Pointer validity applies only at named checkpoints at/after
-  activation and only to nonzero references.
+  activation and only to the tag-1 u32 global slots or TDEF u24 page fields.
 - Independent-validation contract: a future independent validator is written
   from the plan and schemas without analyzer imports or reads, recomputes every
   layer and holdout result, parses the frozen set, and rejects T1–T5: polarity,
@@ -3566,7 +3573,7 @@ Use `not applicable` explicitly rather than omitting a field.
   pushed producer commit, and licensed x86 DAO host binding.
 - Artifacts: immutable plan
   `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
-  `08fe1e1336a9567af7530e5db4bb7d0867110c9dd35a07fdba3afb1285ec7750`; A3-bound plan, analysis, bundle, dry-run,
+  `6e91c8490f8995d2a87e1e4c55210a700625bb05242d61f049098422a15d3903`; A3-bound plan, analysis, bundle, dry-run,
   environment, holdout-receipt, page-index, replica-manifest, and observation
   schemas; fixed frozen-candidate and independent-validation-report schemas;
   focused plan contract test

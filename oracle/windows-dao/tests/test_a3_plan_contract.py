@@ -14,11 +14,11 @@ A2_EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a3-allocation-maps.plan.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
-PLAN_SHA256 = "08fe1e1336a9567af7530e5db4bb7d0867110c9dd35a07fdba3afb1285ec7750"
+PLAN_SHA256 = "6e91c8490f8995d2a87e1e4c55210a700625bb05242d61f049098422a15d3903"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
     "a2-independent-review-pointer.md": "2e89bb60aa5ac99d8f384836c75ce54c078817564d579d5411acd3bba8daae3b",
-    "exp-0042-bundle-pointer.md": "c999dcb4624e9f945c966d5e621f0f5f5a44fd21cc9e10b470565ed4afc7d706",
+    "exp-0042-bundle-pointer.md": "9bcb4b3c7ca2b43abd44a38200042312156d14552908c6d00ec9a25b24178349",
 }
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 if str(SCRIPTS) not in sys.path:
@@ -91,6 +91,7 @@ class A3PlanContractTests(unittest.TestCase):
     def test_record_layout_and_start_resolution_are_operational(self) -> None:
         procedure = self.plan["record_candidate_procedure"]
         layout = procedure["global_record_layout"]
+        indirect = procedure["global_record_indirect_layout"]
         start = procedure["global_record_start_resolution"]
         self.assertIn("byte start is the one-byte representation tag", layout)
         self.assertIn("[start+1,start+5)", layout)
@@ -103,6 +104,17 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn("page_count itself to be not-in-use", start)
         self.assertIn("both derivation replicas", start)
         self.assertIn("representation-anchoring predicate", start)
+        self.assertEqual(
+            indirect,
+            "when byte start (the tag) is 1, bytes [start+1,start+5) are "
+            "slot-0 and bytes [start+5,start+9) are slot-1, each one unsigned "
+            "little-endian u32; a slot is active when its u32 is nonzero; the "
+            "slot's reference is that u32 interpreted as a physical page number; "
+            "bytes [start+9,end) are the indirect suffix and must decode to zero "
+            "at every checkpoint at or after the conversion checkpoint. Any tag "
+            "other than 0 or 1 at a checkpoint in the conversion window "
+            "classifies that checkpoint as neither inline nor indirect.",
+        )
 
     def test_exp_0042_record_start_example_is_numeric_and_non_evidential(self) -> None:
         example = self.plan["record_candidate_procedure"][
@@ -141,6 +153,112 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn("stop before interpreting", rule)
         self.assertIn("first violating leg", rule)
         self.assertIn("lowest violating page", rule)
+        self.assertIn("including a violating leg", rule)
+        self.assertIn("never contains a representation_change_stop leg", rule)
+        self.assertIn("required page p >= 65536", rule)
+
+    def test_exp_0042_cross_check_example_and_replay_are_exact(self) -> None:
+        example = self.plan["hypotheses"]["polarity_cross_check_worked_example"]
+        self.assertIn("violates at pages 1021, 1022, and 1023", example)
+        self.assertIn(
+            "first_violating_leg [L_REL_0512, L_REL_0768]", example
+        )
+        self.assertIn("first_violating_page 1021", example)
+        self.assertIn("evaluated_legs of length 3", example)
+        self.assertIn("representation_change_stop null", example)
+        self.assertIn("tag change 0 to 1 is never reached", example)
+        replay = self.plan["analyzer_dry_run_contract"][
+            "retained_exp_0042_input"
+        ]["required_assertions"][2]
+        self.assertEqual(
+            replay,
+            "evaluate polarity_cross_check_legs in order, carry the exact "
+            "evaluated-leg transcript, and stop at the first violating leg "
+            "[L_REL_0512, L_REL_0768] with first_violating_page 1021 and "
+            "representation_change_stop null in both derivation replicas; never "
+            "reinterpret any later leg's tag or u32 bytes as bitmap bits",
+        )
+
+    def test_indirect_layout_is_used_by_every_dependent_rule_and_schema(self) -> None:
+        hypotheses = self.plan["hypotheses"]
+        for name in (
+            "type1_conversion_predicate",
+            "type1_rule",
+            "pointer_validity_rule",
+            "extended_base_rule",
+        ):
+            self.assertIn("global_record_indirect_layout", hypotheses[name])
+        survival = self.plan["inline_boundary_procedure"]["survival_rule"]
+        self.assertIn("[start+1,start+5) as slot-0", survival)
+        self.assertIn("[start+5,start+9) as slot-1", survival)
+        self.assertIn("[start+9,end)", survival)
+        disclosure = self.plan["preregistration"]["origin_disclosure"][
+            "prediction_not_rediscovery_disclosure"
+        ]
+        self.assertIn("01 | 00 3A 00 00 | E0 3F 00 00", disclosure)
+        self.assertIn("14848", disclosure)
+        self.assertIn("16352", disclosure)
+        for schema_name in (
+            "analysis-report.schema.json",
+            "derivation-candidates.schema.json",
+        ):
+            schema = json.loads((EXPERIMENT / schema_name).read_bytes())
+            model = schema["$defs"]["conversionModel"]
+            self.assertIn("indirect_tag", model["required"])
+            self.assertEqual(model["properties"]["indirect_tag"]["const"], 1)
+            slots = model["properties"]["slot_reference_pages"]
+            self.assertEqual((slots["minItems"], slots["maxItems"]), (2, 2))
+            self.assertEqual(slots["items"]["minimum"], 0)
+        dry_run = json.loads((EXPERIMENT / "dry-run-report.schema.json").read_bytes())
+        calibration = dry_run["properties"]["parameter_coverage"]["properties"][
+            "exp_0042_calibration"
+        ]["anyOf"][1]
+        expected_values = {
+            "indirect_tag": 1,
+            "slot_0_reference_page": 14848,
+            "slot_1_reference_page": 16352,
+            "indirect_prefix_hex": "01003a0000e03f0000",
+        }
+        for field, expected in expected_values.items():
+            self.assertIn(field, calibration["required"])
+            self.assertEqual(calibration["properties"][field]["const"], expected)
+
+    def test_reviewed_operational_rules_are_pinned(self) -> None:
+        procedure = self.plan["record_candidate_procedure"]
+        start = procedure["global_record_start_resolution"]
+        self.assertIn("page index document's page_count field", start)
+        self.assertIn("len(ordered_page_sha256)", start)
+        self.assertIn("observation's actual_file_pages", start)
+        self.assertIn("global_set_relation_not_satisfied is emitted only", start)
+        self.assertIn("no_global_record_candidate is emitted when", start)
+        self.assertIn("some end in (start+5, 2048]", start)
+        self.assertIn("after end resolution", start)
+        end = procedure["global_record_end_resolution"]
+        for checkpoint in (
+            "E0",
+            "D_GROW_0128",
+            "D_DROP",
+            "D_RECREATE_EMPTY",
+            "D_REGROW_0128",
+        ):
+            self.assertIn(checkpoint, end)
+        self.assertIn("not identical across all five", end)
+        churn = procedure["tdef_no_outcome_ordering"]
+        self.assertIn("table_row_counts for role L is 0", churn)
+        self.assertIn("dao_reread row_count for role L is not 0", churn)
+        polarity = self.plan["hypotheses"]["bit_polarity_rule"]
+        for relation in ("Gp ∩ X = ∅", "Gp ∩ Y = ∅", "Gp ⊆ R", "R \\ G ≠ ∅"):
+            self.assertIn(relation, polarity)
+        pointer = self.plan["hypotheses"]["pointer_validity_rule"]
+        self.assertIn("TDEF layout", pointer)
+        self.assertIn("u24 page field", pointer)
+        self.assertIn("holdout replica alone", pointer)
+        terminal = self.plan["decision_rules"]["terminal_disambiguation"]
+        self.assertIn("RECORD-MULTIPLE", terminal)
+        self.assertIn("PAGE-MULTIPLE", terminal)
+        self.assertLess(
+            terminal.index("PAGE-MULTIPLE"), terminal.index("page multiplicity")
+        )
 
     def test_cross_check_transcript_is_required_by_both_schemas(self) -> None:
         report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
@@ -178,7 +296,7 @@ class A3PlanContractTests(unittest.TestCase):
         report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
         self.assertIn("qualified_pages", report["required"])
 
-    def test_predicate_reporting_is_total_bijective_and_fail_iff_terminal(self) -> None:
+    def test_predicate_reporting_is_total_and_handles_applicable_layers(self) -> None:
         registry = self.plan["predicate_registry"]
         ids = registry["ids"]
         mappings = registry["mappings"]
@@ -187,11 +305,25 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertEqual({row["predicate_id"] for row in mappings}, set(ids))
         rule = registry["reporting_rule"]
         self.assertIn("exactly 34 entries", rule)
-        self.assertIn("status is fail if and only if", rule)
-        self.assertIn("A3-HOLDOUT-PREDICTION must be pass", rule)
+        self.assertIn("literal string applicable_layer", rule)
+        self.assertIn("terminal_predicate_ids lists it once", rule)
+        self.assertIn("A3-HOLDOUT-PREDICTION is pass iff", rule)
+        self.assertIn("report-level predicate remains pass", rule)
+        self.assertIn(
+            "excludes A3-HOLDOUT-PREDICTION whenever any layer is decisive", rule
+        )
+        freeze = self.plan["decision_rules"]["freeze_rule"]
+        self.assertIn("equals that layer's terminal predicate id", freeze)
         report = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
         predicates = report["properties"]["predicate_results"]
         self.assertEqual((predicates["minItems"], predicates["maxItems"]), (34, 34))
+        for layer in (
+            "globalRecordLayer",
+            "conversionLayer",
+            "baseLayer",
+            "tdefLayer",
+        ):
+            self.assertIn("terminal_predicate_id", report["$defs"][layer]["required"])
 
     def test_tdef_no_outcome_order_is_exact(self) -> None:
         rule = self.plan["record_candidate_procedure"]["tdef_no_outcome_ordering"]
@@ -219,7 +351,7 @@ class A3PlanContractTests(unittest.TestCase):
         for text in (
             "earliest checkpoint in the complete 25-checkpoint order",
             "transition_coverage.pointer_validity_checkpoints",
-            "at or after activation_checkpoint",
+            "at or after activation",
             "a zero reference is skipped",
             "1 <= p < that checkpoint's page_count",
             "candidate_page_space",

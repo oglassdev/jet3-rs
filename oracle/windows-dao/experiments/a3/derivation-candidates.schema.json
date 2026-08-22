@@ -75,14 +75,15 @@
     },
     "conversionModel": {
       "type": "object", "additionalProperties": false,
-      "required": ["conversion_checkpoint_id", "conversion_ordinal", "active_slot_count_at_conversion", "active_slot_count_at_h_rel_0904", "inline_boundary", "slot_reference_pages"],
+      "required": ["conversion_checkpoint_id", "conversion_ordinal", "indirect_tag", "active_slot_count_at_conversion", "active_slot_count_at_h_rel_0904", "inline_boundary", "slot_reference_pages"],
       "properties": {
         "conversion_checkpoint_id": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
         "conversion_ordinal": {"type": "integer", "minimum": 1, "maximum": 24},
+        "indirect_tag": {"const": 1},
         "active_slot_count_at_conversion": {"type": "integer", "minimum": 1, "maximum": 2},
         "active_slot_count_at_h_rel_0904": {"const": 2},
         "inline_boundary": {"type": "integer", "minimum": 5, "maximum": 2048},
-        "slot_reference_pages": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "integer", "minimum": 1, "maximum": 65535}}
+        "slot_reference_pages": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 0, "maximum": 65535}}
       }
     },
     "baseModel": {

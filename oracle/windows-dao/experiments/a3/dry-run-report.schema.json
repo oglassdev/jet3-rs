@@ -165,7 +165,10 @@
                 "source_a2_conversion_ordinal",
                 "conversion_checkpoint_id",
                 "a3_conversion_ordinal",
-                "active_slot_count",
+                "indirect_tag",
+                "slot_0_reference_page",
+                "slot_1_reference_page",
+                "indirect_prefix_hex",
                 "bit_polarity",
                 "delete_page_delta",
                 "scientific_evidence"
@@ -180,8 +183,17 @@
                 "a3_conversion_ordinal": {
                   "const": 20
                 },
-                "active_slot_count": {
-                  "const": 2
+                "indirect_tag": {
+                  "const": 1
+                },
+                "slot_0_reference_page": {
+                  "const": 14848
+                },
+                "slot_1_reference_page": {
+                  "const": 16352
+                },
+                "indirect_prefix_hex": {
+                  "const": "01003a0000e03f0000"
                 },
                 "bit_polarity": {
                   "const": "set_means_not_in_use"
@@ -296,7 +308,7 @@
           "frozen_candidate_set_schema_valid",
           "frozen_candidate_set_parsed_and_compared",
           "every_predicate_id_exactly_once",
-          "predicate_fail_iff_terminal",
+          "predicate_reporting_applicable_layer_exception",
           "decisive_holdout_prediction_predicate_passes",
           "every_abort_has_pinned_reason_mapping",
           "every_required_reachable_abort_reached_by_single_perturbation",
