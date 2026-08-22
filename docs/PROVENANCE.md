@@ -3408,6 +3408,84 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: complete bundle retained and checked-workflow validation passed;
   independent recomputation and scientific interpretation remain pending
 
+### EXP-0043 — A2 record-layer downgrade and closure
+
+- Recorded: 2026-08-22, OpenAI Codex
+- Kind: additive adversarial review record and plan-literal recomputation;
+  corrective interpretation only, not a new acquisition, physical-format
+  result, Rust result, compatibility result, or independent validation
+- Question: Does the independent recomputing validator proposed by PR 50
+  establish that the decisive global-map record layer reported by `EXP-0042`
+  follows from the immutable `EXP-0040` plan as written?
+- Origin: independent validator PR 50, branch `codex/a2-independent-validator`,
+  closed unmerged at commit `24b6d8c`; its validator accepted the exact retained
+  `EXP-0042` report, after which an adversarial review compared the validator
+  and analyzer derivations with the immutable `EXP-0040` plan and exercised
+  contradictory but hash-relinked bundle reports
+- Environment: document and source review of the closed, unmerged validator
+  commit and the checked-in A2 analyzer, plus a local Python 3.13 recomputation
+  over replica 1 page 1 from the retained GitHub Actions run `32587946283`
+  bundle recorded by `EXP-0042`; this review did not run DAO, acquire new
+  databases, or alter the retained bundle
+- Protocol: read the replica 1 `page-indexes` for the plan-declared D
+  checkpoints `E0`, `D_GROW_0128`, `D_DROP`, `D_RECREATE_EMPTY`, and
+  `D_REGROW_0128`; resolve page 1 through each ordered page SHA-256, read and
+  hash-check the corresponding `page-store` blobs, enumerate every candidate
+  start using the review's five-byte-skipped represented-set reading, and apply
+  the D-only allocation, release, reallocation, additional-regrowth, unique
+  polarity, and page-terminal uniform-suffix predicates without applying tag,
+  base, or page-count-highwater content constraints. Separately inspect the
+  validator's frozen-candidate, conversion-cross-check, predicate-reporting,
+  TDEF-reason, and pointer-validity contracts and the adversarial tamper results.
+- Artifacts: verbatim independent review
+  `oracle/windows-dao/experiments/a2/design-inputs/fable-a2-independent-validator-review.md`,
+  13,328 bytes, SHA-256
+  `f17799d60f343aed91e51244ec9211c10596b7f4554ea0c812488fc08fbb58c3`;
+  retained run `32587946283` bundle identity and hashes remain those recorded by
+  `EXP-0042`
+- Observation: the independent recomputing validator accepted the `EXP-0042`
+  report, but both it and `oracle/windows-dao/scripts/a2_model.py` resolve the
+  unique global record start only through the same unpreregistered structural
+  predicate. The analyzer's `polarity_direction` requires tag byte 0 at
+  `start`, a little-endian u32 base at `start+1..start+5`, a bitmap beginning at
+  `start+5`, and inclusion through the `E0`, `D_GROW_0128`, and
+  `D_REGROW_0128` page-count highwaters. Under the `EXP-0040` plan text as
+  written—`record_candidate_procedure`,
+  `hypotheses.global_map_record_predicate`, and
+  `global_record_end_resolution`, including its statement that no byte,
+  record, or page equality between checkpoints is a predicate—the independent
+  local recomputation measured exactly 1,935 starts, offsets 0 through 1934,
+  surviving on replica 1 page 1, all with polarity
+  `set_means_not_in_use`. The plan-literal record-layer outcome is therefore
+  `multiple_global_record_boundaries_survive`, not
+  `decisive_predicts_holdout`.
+- Contract findings to carry into A3: H2, the frozen derivation candidate set is
+  hash-linked but never parsed or compared; H3, the polarity cross-check fires
+  on the inline-to-indirect conversion leg by reinterpreting its tag and base as
+  bitmap bits; M1, non-terminal predicate results are not checked; M2, distinct
+  preregistered TDEF no-outcome reasons are collapsed; and M3, pointer validity
+  is applied at every checkpoint rather than only within the preregistered
+  validity window. These are validator/analyzer contract defects, not accepted
+  evidence.
+- Interpretation: the retained `EXP-0042` report remains retained and
+  unaltered, but its decisive global-map record layer is not supported by the
+  plan as written. Its manifest's `independent_validation_status` remains
+  `not_independently_validated`; the validator's acceptance changes no
+  capability or support-matrix entry. The run `32587946283` bundle and this
+  review are exploratory design inputs only for a successor A3 experiment with
+  a new experiment id. Before acquisition, that plan must explicitly
+  preregister the tag/base/bitmap layout and the E0-extent start-resolution
+  rule, including the applicable `E0`, `D_GROW_0128`, and `D_REGROW_0128`
+  page-count highwater predicate. A2 is closed.
+- Usage: exploratory design input for a successor A3 preregistration only;
+  `file:oracle/windows-dao/experiments/a2/design-inputs/fable-a2-independent-validator-review.md`;
+  `EXP-0040`; `EXP-0041`; `EXP-0042`
+- Rights: project-authored review text and aggregate recomputation over the
+  retained licensed-provider bundle; no provider binary, MDB, page blob, or
+  generated database content is committed or redistributed
+- Review: adversarial review complete; A2 closed with no independently
+  validated scientific outcome and no capability movement
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
