@@ -3276,6 +3276,138 @@ Use `not applicable` explicitly rather than omitting a field.
   an independent review must confirm the additive revision, real analyzer-site
   reachability, hashes, non-evidential classification, and blocked dispatch
 
+### EXP-0042 — First retained A2 acquisition result
+
+- Recorded: 2026-08-22, OpenAI Codex
+- Kind: controlled hosted DAO acquisition with a complete retained bundle and a
+  checked-workflow validation pass; descriptive provider observation only, not
+  an independently recomputed physical-format, Rust, or compatibility result
+- Question: Can the preregistered layered A2 models identify allocation-map
+  records, polarity, conversion boundaries, extended bases, and table-definition
+  pointer pairs from two derivation replicas, then predict the separately opened
+  third-replica holdout?
+- Origin: project-authored `DAO-A2-ALLOCATION-MAPS-001` campaign executed by
+  GitHub Actions run `32587946283` from exact clean pushed producer commit
+  `1a0585446ac8b0d232ee4c0391cce9d635e7c43a`, under the immutable `EXP-0040`
+  plan, SHA-256
+  `804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2`,
+  and its additive R2 reachability revision recorded by `EXP-0041`, SHA-256
+  `977d352b6b7c042cf4d0f0cab793086842b3ad2b7da13b9c217020f00c5193c4`;
+  no donated MDB or third-party implementation was used
+- Environment: `windows-2022` hosted image, recorded runner image `win22` and
+  Windows version `10.0.20348`, x86 Windows PowerShell 5.1.20348.5499, Python
+  3.13.7, and machine-registered `DAO.DBEngine.36` from `dao360.dll` file
+  version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  all three environment records say `status = ready`
+- Protocol and timing: execute 25 closed-file checkpoints in each of three
+  independently hosted replicas, bind replicas 1 and 2 for derivation, freeze
+  the candidate set, structurally validate and then open replica 3 as holdout,
+  analyze the frozen candidates, close the complete content-addressed bundle,
+  and run the checked in-workflow bundle validator. Hosted replica elapsed
+  times were 472.585 seconds for replica 1, 319.722 seconds for replica 2, and
+  346.909 seconds for replica 3. Fan-in recorded `assemble = success`,
+  `analyze = success`, `finalize = success`, `validate = success`, complete
+  timing records, and total campaign elapsed time 803.711 seconds, within the
+  immutable 2,700-second campaign timeout.
+- Artifacts: bundle artifact
+  `windows-dao-a2-bundle-1a0585446ac8b0d232ee4c0391cce9d635e7c43a-32587946283-1`,
+  111,379,714 bytes, SHA-256
+  `7e58dc5e3c8424110897053cdfeab703b0e1d15fde2dfd4d8235efd62da43dc7`;
+  fan-in diagnostics artifact
+  `windows-dao-a2-fanin-diagnostics-32587946283-1`, 666 bytes, SHA-256
+  `a52e82571f9ef1c83499266f3fcd9ad9ae51f90077c1735d55a3b75df9d22813`;
+  replica artifacts `windows-dao-a2-replica-1`, 56,605,180 bytes, SHA-256
+  `37dd9d96f6fa99f3701eb33b2c60924f446ed511471644f20c15bb263d90aefa`,
+  `windows-dao-a2-replica-2`, 57,055,645 bytes, SHA-256
+  `ad474669d34dfcf75789628eb45e74d40350c9b367eee9dc5bc60f0d81a5ce67`,
+  and `windows-dao-a2-replica-3`, 56,592,455 bytes, SHA-256
+  `7fd3171d9bf3b16e90617ae01d828b62a8d90e80057f35ab7a44eddf958a8b2a`;
+  replica diagnostics artifacts 1, 2, and 3 were respectively 7,220, 7,218,
+  and 7,216 bytes with SHA-256 values
+  `ffb964712334d28884a1461cd64026dab876f077b4bde18243153eb5b56e2c6c`,
+  `9b5698baf518fd6235b2f3f8eaa7317ec7cfbd1f7278a22b0eaa52f13d04a144`,
+  and `6b775536cb8faa954141eba635e54210a288f7c2018db8402051c1ef0fe8fa53`
+- Bundle identities and inventory: `bundle-manifest.json` SHA-256
+  `9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46`;
+  `analysis/analysis-report.json` SHA-256
+  `946ab5d4e41bf95ed427110b2b0a737b6b24652de072aa543f6ebf0788cf1640`;
+  `analysis/derivation-candidates.json` SHA-256
+  `32680a47c33f873b7c281f44ca0610b80be2de1926bbb01c6228b3fb25d4f2e4`;
+  `analysis/holdout-structure-receipt.json` SHA-256
+  `97ee3c265e910425447a1242416b38a481b2213b55b005455a17c869b09b6adc`.
+  The manifest closes 28,021 payload entries and 96,620,952 bytes excluding
+  the manifest: three observations, three environment records, three replica
+  manifests, 75 checkpoint page indexes, and 27,933 unique page blobs. Each
+  replica observation contains 25 checkpoints and 124,103 indexed page
+  references, ends at 17,388 pages, records 20,098 changed-page entries and
+  150,016 inserted rows, and reports 254,162,944 logical checkpoint-read bytes.
+- Analysis result: the retained report records
+  `scientific_outcome = one_or_more_submodels_predict_holdout`, 75 input
+  checkpoints, 134,594,025 analysis work units, 16,785,408 record candidates
+  examined, and 37,648 candidate models examined. Derivation survivor counts
+  were one for `global_map_record` and zero for
+  `global_map_conversion_inline`, `global_map_extended_base`, and
+  `tdef_pointer_pair`. The global-map record layer has status
+  `decisive_predicts_holdout` with page 1, record interval `[1915, 2048)`,
+  polarity `set_means_not_in_use`, and 92 zero-suffix slack bytes. The inline
+  conversion layer has status `no_outcome` for
+  `growth_polarity_disagreement`; the extended-base layer is
+  `not_applicable`; and the table-definition pointer-pair layer has status
+  `no_outcome` for `no_tdef_record_candidate`. The report-level no-outcome
+  reasons are exactly `growth_polarity_disagreement` and
+  `no_tdef_record_candidate`.
+- Predicate results: the 13 passing predicate ids are `A2-IDLE-EQUALITY`,
+  `A2-D-SET-RELATION`, `A2-GLOBAL-PAGE-NONE`, `A2-GLOBAL-PAGE-MULTIPLE`,
+  `A2-GLOBAL-RECORD-NONE`, `A2-GLOBAL-RECORD-MULTIPLE`,
+  `A2-GLOBAL-RECORD-END`, `A2-STRUCTURAL-EXCLUSION`, `A2-POLARITY-NONE`,
+  `A2-POLARITY-MULTIPLE`, `A2-POINTER-VALIDITY`,
+  `A2-REPLICA-DISAGREEMENT`, and `A2-HOLDOUT-PREDICTION`. The two failing,
+  terminal predicate ids are `A2-POLARITY-CROSSCHECK` and
+  `A2-TDEF-RECORD-NONE`. The 19 `not_applicable` ids are
+  `A2-TDEF-PAGE-NONE`, `A2-TDEF-PAGE-MULTIPLE`,
+  `A2-TDEF-RECORD-MULTIPLE`, `A2-GROWTH-POINTER-NONE`,
+  `A2-CHURN-PRECONDITION`, `A2-CHURN-POINTER-NONE`, `A2-POINTER-MULTIPLE`,
+  `A2-CONVERSION-NONE`, `A2-CONVERSION-MULTIPLE`, `A2-SLOT-ACTIVATION`,
+  `A2-SLOT-FINAL`, `A2-INLINE-BOUNDARY-NONE`,
+  `A2-INLINE-BOUNDARY-MULTIPLE`, `A2-INLINE-SUFFIX`,
+  `A2-BASE-DISCRIMINATION`, `A2-BASE-NONE`, `A2-BASE-MULTIPLE`,
+  `A2-SNAPSHOT-RECONSTRUCTION`, and `A2-RESOURCE-BOUND`.
+- Prior failed dispatches and workflow-only repairs: three earlier dispatches
+  on 2026-08-22 produced no analyzed A2 result. Run `32582790187` timed out in
+  the contract job before any acquisition; PR 46 limited that workflow job to
+  its intended contract tests. Run `32584974169` reached all three workers,
+  whose preflight refused the Server 2025 `dao360.dll`, before any checkpoint;
+  PR 47 pinned the hosted jobs to `windows-2022`. Run `32586156614` acquired
+  and retained all three replicas, but fan-in stopped on a false artifact-ZIP
+  digest mismatch before assembly or analysis, leaving those replicas
+  retained but unanalysed; PR 48 made the transport ZIP digests advisory while
+  preserving content-level validation. PRs 46, 47, and 48 were workflow-only
+  fixes and did not edit, revise, or otherwise touch the immutable plan or its
+  R2 revision.
+- Independent validation: the fan-in diagnostic field
+  `independent_validation_passed = true` records success of the checked
+  producer-commit validator inside the same hosted workflow. The retained
+  manifest remains authoritative about evidential state:
+  `bundle_status = decisive_pending_independent_validation` and
+  `independent_validation_status = not_independently_validated`. No separate
+  party has recomputed the candidate set, layered analysis, or holdout result
+  from the retained bundle.
+- Interpretation: this first retained A2 result is a descriptive provider
+  observation only. It does not establish a Jet physical-format fact, Rust
+  correctness, DAO compatibility, or product support. It changes no capability
+  or support-matrix entry. No capability may change unless and until a
+  separately provenanced independent recomputing validator accepts this exact
+  retained bundle and analysis result.
+- Usage: future separately provenanced independent A2 recomputation only;
+  `file:docs/validation/DAO_PROVIDER_BLOCKER.md`;
+  `file:oracle/windows-dao/README.md`
+- Rights: project-generated through the licensed Microsoft DAO provider and
+  retained as GitHub Actions artifacts; no provider binary or generated MDB is
+  committed or redistributed by this repository
+- Review: complete bundle retained and checked-workflow validation passed;
+  independent recomputation and scientific interpretation remain pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
