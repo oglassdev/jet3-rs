@@ -3,10 +3,11 @@
 
 A3 rule | implementation
 --- | ---
-Hash-pinned base plan, R2 revision, and schema set | :func:`load_checked_plan`, :func:`load_checked_revision_plan`
-R2 campaign and per-layer predicate sequence | :func:`project_predicate_results`
-Exactly-once predicate reporting and applicable-layer literals | :func:`validate_analysis_report`
-Report-level holdout exception | :func:`validate_analysis_report`
+Base + R2 + R3 hash binding | :func:`load_checked_plan`, :func:`load_checked_revisions`
+R2 order with R3-G03 disagreement reach | :func:`project_predicate_results`
+R3-G08 ordered reasons and holdout fields | :func:`validate_analysis_report`
+R3-M05 campaign-terminal projection | :func:`project_predicate_results`
+R3-G09 report-level holdout exception | :func:`validate_analysis_report`
 Frozen-set field equality, including the holdout-only exception | :func:`compare_frozen_to_report`
 Canonical frozen-set bytes | :func:`validate_frozen_candidates`
 Ordered dry-run parameter and predicate coverage | :func:`validate_dry_run_report`
@@ -30,10 +31,14 @@ DAO_ROOT = Path(__file__).resolve().parents[1]
 A3_ROOT = DAO_ROOT / "experiments" / "a3"
 CHECKED_PLAN = A3_ROOT / "a3-allocation-maps.plan.json"
 PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
-CHECKED_REVISION_PLAN = A3_ROOT / "a3-allocation-maps-r2.plan.json"
-REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
+CHECKED_R2_PLAN = A3_ROOT / "a3-allocation-maps-r2.plan.json"
+R2_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
+CHECKED_R3_PLAN = A3_ROOT / "a3-allocation-maps-r3.plan.json"
+R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
+PAIR_REVIEW = A3_ROOT / "design-inputs" / "fable-a3-pair-review.md"
+PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
+REVISION_PLAN_SHA256 = R3_PLAN_SHA256
 EXPERIMENT_ID = "DAO-A3-ALLOCATION-MAPS-001"
-REVISION_ID = "DAO-A3-ALLOCATION-MAPS-001-R2"
 
 _SCHEMA_FILES = {
     "dao_a3_allocation_maps_plan": "plan.schema.json",
@@ -155,28 +160,32 @@ def load_checked_plan(path: Path = CHECKED_PLAN) -> CheckedPlan:
 PLAN = load_checked_plan()
 
 
-def load_checked_revision_plan(
-    plan: CheckedPlan = PLAN,
-    path: Path = CHECKED_REVISION_PLAN,
-) -> dict[str, Any]:
-    """Load the exact additive R2 sequence contract and verify its base binding."""
-    require_equal(_sha256(path), REVISION_PLAN_SHA256, "R2 revision plan sha256")
+def _load_revision(path: Path, sha256: str, revision_id: str) -> dict[str, Any]:
+    require_equal(_sha256(path), sha256, f"{revision_id} plan sha256")
     document = load_bounded_json(path)
     require_equal(
         document.get("document_type"),
         "dao_a3_allocation_maps_plan_revision",
-        "R2 document type",
+        f"{revision_id} document type",
     )
-    require_equal(document.get("revision_id"), REVISION_ID, "R2 revision id")
+    require_equal(document.get("revision_id"), revision_id, f"{revision_id} id")
     original = document["preregistration"]["original_plan"]
     require_equal(
         original["path"],
         "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json",
-        "R2 original plan path",
+        f"{revision_id} original plan path",
     )
-    require_equal(original["sha256"], PLAN_SHA256, "R2 original plan sha256")
+    require_equal(original["sha256"], PLAN_SHA256, f"{revision_id} original plan sha256")
+    return document
+
+
+def load_checked_revisions(
+    plan: CheckedPlan = PLAN,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load the exact R2 order and R3 operational reconciliation."""
+    r2 = _load_revision(CHECKED_R2_PLAN, R2_PLAN_SHA256, "DAO-A3-ALLOCATION-MAPS-001-R2")
     registry_ids = set(plan.predicate_ids)
-    reconciliation = document["predicate_evaluation_sequence_reconciliation"]
+    reconciliation = r2["predicate_evaluation_sequence_reconciliation"]
     campaign = reconciliation["campaign_evaluated_before_any_layer"]
     require_equal(len(campaign), len(set(campaign)), "R2 campaign sequence uniqueness")
     require_equal(set(campaign) <= registry_ids, True, "R2 campaign predicate registry")
@@ -194,10 +203,21 @@ def load_checked_revision_plan(
     for layer, sequence in sequences.items():
         require_equal(len(sequence), len(set(sequence)), f"R2 {layer} sequence uniqueness")
         require_equal(set(sequence) <= registry_ids, True, f"R2 {layer} predicate registry")
-    return document
+    r3 = _load_revision(CHECKED_R3_PLAN, R3_PLAN_SHA256, "DAO-A3-ALLOCATION-MAPS-001-R3")
+    prior = r3["preregistration"]["prior_revision"]
+    require_equal(prior["revision_id"], r2["revision_id"], "R3 prior revision id")
+    require_equal(prior["sha256"], R2_PLAN_SHA256, "R3 prior revision sha256")
+    design_input = r3["preregistration"]["design_inputs"]
+    require_equal(len(design_input), 1, "R3 design-input count")
+    require_equal(design_input[0]["sha256"], PAIR_REVIEW_SHA256, "R3 pair-review sha256")
+    require_equal(_sha256(PAIR_REVIEW), PAIR_REVIEW_SHA256, "pair-review file sha256")
+    gaps = r3["layer_semantics_reconciliation"]["gaps"]
+    require_equal([row["gap_id"] for row in gaps], [f"R3-G{i:02d}" for i in range(1, 11)], "R3 gap ids")
+    return r2, r3
 
 
-REVISION_PLAN = load_checked_revision_plan()
+R2_PLAN, R3_PLAN = load_checked_revisions()
+REVISION_PLAN = R3_PLAN
 CHECKPOINT_IDS = PLAN.checkpoint_ids
 CHECKPOINT_ORDINALS = PLAN.checkpoint_ordinals
 PREDICATE_IDS = PLAN.predicate_ids
@@ -219,12 +239,16 @@ _REVISION_LAYER_NAMES = MappingProxyType({
     "tdef_pointer_pair": "tdef.pointer_pair",
 })
 _INTERNAL_LAYER_NAMES = MappingProxyType({value: key for key, value in _REVISION_LAYER_NAMES.items()})
-_SEQUENCE_CONTRACT = REVISION_PLAN["predicate_evaluation_sequence_reconciliation"]
+_SEQUENCE_CONTRACT = R2_PLAN["predicate_evaluation_sequence_reconciliation"]
 CAMPAIGN_PREDICATE_SEQUENCE = tuple(_SEQUENCE_CONTRACT["campaign_evaluated_before_any_layer"])
 LAYER_PREDICATE_SEQUENCES: Mapping[str, tuple[str, ...]] = MappingProxyType({
     key: tuple(_SEQUENCE_CONTRACT["per_layer_ordered_predicates"][revision_key])
     for key, revision_key in _REVISION_LAYER_NAMES.items()
 })
+UNREACHABLE_PREDICATE_IDS = frozenset(
+    row["predicate_id"]
+    for row in R3_PLAN["predicate_reachability_reconciliation"]["unreachable_by_construction"]
+)
 
 
 def _schema(document: dict[str, Any], expected: str) -> None:
@@ -260,14 +284,17 @@ def _reached_predicates(
 def project_predicate_results(
     layer_results: Mapping[str, Mapping[str, Any]],
     *,
-    campaign_evaluated: bool = True,
+    campaign_terminal: str | None = None,
+    reached_by_layer: Mapping[str, set[str] | frozenset[str]] | None = None,
 ) -> tuple[list[dict[str, str]], list[str]]:
-    """Project total predicate statuses using the exact R2 evaluation order."""
+    """Project statuses with R2 order and R3 campaign/disagreement stops."""
     terminals = {
         row["terminal_predicate_id"]
         for row in layer_results.values()
         if row["terminal_predicate_id"] is not None
     }
+    if campaign_terminal is not None:
+        terminals.add(campaign_terminal)
     decisive = any(
         row["status"] == "decisive_predicts_holdout"
         for row in layer_results.values()
@@ -275,24 +302,24 @@ def project_predicate_results(
     if decisive:
         terminals.discard("A3-HOLDOUT-PREDICTION")
 
-    campaign_terminal = next(
-        (predicate_id for predicate_id in CAMPAIGN_PREDICATE_SEQUENCE if predicate_id in terminals),
-        None,
-    )
     campaign_reached = _reached_predicates(
         CAMPAIGN_PREDICATE_SEQUENCE,
         campaign_terminal,
-        applicable=campaign_evaluated,
+        applicable=True,
     )
-    reached_by_layer = {
-        key: _reached_predicates(
-            LAYER_PREDICATE_SEQUENCES[key],
-            row["terminal_predicate_id"],
-            applicable=row["status"] != "not_applicable",
-        )
-        for key, row in layer_results.items()
-    }
-    reached_in_any_layer = set().union(*reached_by_layer.values())
+    if reached_by_layer is None:
+        reached = {
+            key: _reached_predicates(
+                LAYER_PREDICATE_SEQUENCES[key],
+                row["terminal_predicate_id"],
+                applicable=campaign_terminal is None
+                and row["status"] != "not_applicable",
+            )
+            for key, row in layer_results.items()
+        }
+    else:
+        reached = {key: set(reached_by_layer[key]) for key in LAYER_KEYS}
+    reached_in_any_layer = set().union(*reached.values())
 
     results: list[dict[str, str]] = []
     for predicate_id in PREDICATE_IDS:
@@ -309,7 +336,7 @@ def project_predicate_results(
             internal_layer = _INTERNAL_LAYER_NAMES[registered_layer]
             status = (
                 "pass"
-                if predicate_id in reached_by_layer[internal_layer]
+                if predicate_id in reached[internal_layer]
                 else "not_applicable"
             )
         results.append({
@@ -447,17 +474,28 @@ def validate_predicate_reporting(
     )
 
 
-def validate_analysis_report(document: dict[str, Any], frozen: dict[str, Any] | None = None) -> dict[str, Any]:
+def validate_analysis_report(
+    document: dict[str, Any],
+    frozen: dict[str, Any] | None = None,
+    *,
+    reached_by_layer: Mapping[str, set[str] | frozenset[str]] | None = None,
+) -> dict[str, Any]:
     _schema(document, "dao_a3_analysis_report")
     results = document["predicate_results"]
     layers = _layer_rows(document)
     decisive = {name for name, row in layers.items() if row["status"] == "decisive_predicts_holdout"}
     holdout_fail = any(row["terminal_predicate_id"] == "A3-HOLDOUT-PREDICTION" for row in layers.values())
     report_terminals = set(document["terminal_predicate_ids"])
-    expected_terminals = {
+    layer_terminals = {
         row["terminal_predicate_id"] for row in layers.values()
         if row["terminal_predicate_id"] is not None
     }
+    campaign_terminals = report_terminals & set(CAMPAIGN_PREDICATE_SEQUENCE)
+    require_equal(len(campaign_terminals) <= 1, True, "campaign terminal count")
+    campaign_terminal = next(iter(campaign_terminals), None)
+    expected_terminals = set(layer_terminals)
+    if campaign_terminal is not None:
+        expected_terminals.add(campaign_terminal)
     if decisive:
         expected_terminals.discard("A3-HOLDOUT-PREDICTION")
     require_equal(report_terminals, expected_terminals, "report terminal ids")
@@ -465,26 +503,52 @@ def validate_analysis_report(document: dict[str, Any], frozen: dict[str, Any] | 
         results, document["terminal_predicate_ids"], any_decisive=bool(decisive),
         any_holdout_failure=holdout_fail,
     )
-    expected_results, _ = project_predicate_results(layers)
-    require_equal(results, expected_results, "R2 predicate status projection")
+    expected_results, _ = project_predicate_results(
+        layers,
+        campaign_terminal=campaign_terminal,
+        reached_by_layer=reached_by_layer,
+    )
+    if reached_by_layer is not None or not any(
+        row["terminal_predicate_id"] == "A3-REPLICA-DISAGREEMENT"
+        for row in layers.values()
+    ):
+        require_equal(results, expected_results, "R2/R3 predicate status projection")
     require_equal(document["scientific_outcome"], "one_or_more_submodels_predict_holdout" if decisive else "no_submodel_predicts_holdout", "scientific outcome")
     require_equal(
         document["qualified_page_counts"],
         {name: len(document["qualified_pages"][name]) for name in ("global_map", "tdef")},
         "qualified page counts",
     )
+    frozen_model_exists = any(row["model"] is not None for row in layers.values())
+    require_equal(document["holdout_evaluated"], frozen_model_exists, "R3-G08 holdout evaluated")
     require_equal(
-        document["holdout_evaluated"],
-        any(row["holdout_evaluated"] for row in layers.values()),
-        "holdout evaluated",
+        document["holdout_opened_after_freeze"],
+        frozen_model_exists,
+        "R3-G08 holdout opened",
     )
-    require_equal(
-        set(document["no_outcome_reasons"]),
-        {reason for row in layers.values() for reason in row["no_outcome_reasons"]},
-        "report no-outcome reasons",
-    )
+    ordered_reasons: list[str] = []
+    if campaign_terminal is not None:
+        ordered_reasons.append(PREDICATES[campaign_terminal][0])
+    for name in LAYER_KEYS:
+        require_equal(
+            len(layers[name]["no_outcome_reasons"]) <= 1,
+            True,
+            f"{name}.reason count",
+        )
+        ordered_reasons.extend(layers[name]["no_outcome_reasons"])
+    ordered_reasons = list(dict.fromkeys(ordered_reasons))
+    require_equal(document["no_outcome_reasons"], ordered_reasons, "R3-G08 reason order")
+    if campaign_terminal is not None:
+        for name, row in layers.items():
+            if row["status"] != "not_applicable":
+                raise ValidationError(f"{name}: campaign terminal must preempt every layer")
     for name, row in layers.items():
         require_equal(row["derivation_survivor_count"], document["derivation_survivor_counts"][name], f"{name}.count")
+        require_equal(
+            row["holdout_evaluated"],
+            row["model"] is not None,
+            f"{name}.R3-G08 holdout evaluated",
+        )
         if row["status"] == "decisive_predicts_holdout":
             if row["model"] is None or row["derivation_survivor_count"] != 1 or not row["holdout_evaluated"] or row["no_outcome_reasons"]:
                 raise ValidationError(f"{name}: malformed decisive layer")
@@ -508,8 +572,16 @@ def validate_dry_run_report(document: dict[str, Any]) -> dict[str, Any]:
         require_equal(coverage["conversion_never"], True, "conversion never")
         for report_key, plan_key in (("slot_activation_counts", "slot_activation_at_conversion"), ("bit_polarities", "bit_polarity"), ("anchor_fill_states", "anchor_fill_state"), ("record_end_uniform_slack_bytes", "record_end_uniform_slack_bytes")):
             require_equal(coverage[report_key], free[plan_key], report_key)
-        require_equal(set(document["predicted_terminal_states"]), set(PLAN.document["analyzer_dry_run_contract"]["synthetic_input"]["required_cases"]), "required cases")
-        require_equal(set(document["terminal_predicate_ids"]), set(PREDICATE_IDS), "predicate reachability")
+        excluded_reasons = {PREDICATES[predicate_id][0] for predicate_id in UNREACHABLE_PREDICATE_IDS}
+        required_cases = set(
+            PLAN.document["analyzer_dry_run_contract"]["synthetic_input"]["required_cases"]
+        ) - excluded_reasons
+        require_equal(set(document["predicted_terminal_states"]), required_cases, "R3 required cases")
+        require_equal(
+            set(document["terminal_predicate_ids"]),
+            set(PREDICATE_IDS) - UNREACHABLE_PREDICATE_IDS,
+            "R3 reachable predicates",
+        )
         if document["source_identity"]["generator_sha256"] is None:
             raise ValidationError("synthetic dry run requires generator hash")
     else:

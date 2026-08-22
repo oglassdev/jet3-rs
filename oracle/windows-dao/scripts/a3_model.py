@@ -3,14 +3,12 @@
 
 A3 rule | implementation
 --- | ---
-Candidate-page union and explicit absence | :func:`candidate_page_space`
+R3-G10 explicit absence vs reconstruction | :meth:`View.page_optional`
 Hash-only page qualification before enumeration | :func:`qualify_global_pages`, :func:`qualify_tdef_pages`
 Tag/u32-base/LSB-first bitmap | :func:`decode_inline`
-Three highwaters and not-in-use sentinels | :func:`inline_highwater_valid`
-Five-set D relation | :func:`d_set_relation`
-End resolution before polarity uniqueness | :func:`derive_global_record`
-Polarity-relative terminal suffix | :func:`terminal_suffix_slack`
-Page-before-record multiplicity | :func:`resolve_page_models`
+R3-G05 three anchors and unbounded D bases | :func:`global_start_candidates`
+R3-G05 full-interval suffix and ordering | :func:`terminal_suffix_slack`, :func:`derive_global_record`
+R3-G06 enumerated L/H/P transitions | :data:`GROWTH_TRANSITIONS`
 Bounded O(1) prefix queries | :class:`Prefix`, :class:`WorkCounter`
 """
 
@@ -124,9 +122,16 @@ class View:
         return hashes[page] if 0 <= page < len(hashes) else None
 
     def page(self, checkpoint: str, page: int) -> bytes:
+        payload = self.page_optional(checkpoint, page)
+        if payload is None:
+            raise IndexError(f"page {page} is absent at {checkpoint}")
+        return payload
+
+    def page_optional(self, checkpoint: str, page: int) -> bytes | None:
+        """Return None for R3-G10 absence; abort only for corrupt listed state."""
         digest = self.hash_at(checkpoint, page)
         if digest is None:
-            raise Abort("A3-SNAPSHOT-RECONSTRUCTION")
+            return None
         self.work.opened(digest)
         try:
             payload = self.source.page_bytes(digest)
@@ -173,7 +178,13 @@ def _pairs(checkpoints: Sequence[str]) -> tuple[tuple[str, str], ...]:
 
 LOW_GROWTH = _pairs(TRANSITIONS["tdef_low_growth"])
 HIGH_GROWTH = _pairs(TRANSITIONS["tdef_high_growth"])
-GROWTH_TRANSITIONS = LOW_GROWTH + HIGH_GROWTH
+P_GROWTH = (
+    ("L_IDLE_REOPEN", "P_ABS_04096"),
+    ("P_ABS_04096", "P_ABS_08192"),
+    ("P_ABS_08192", "P_ABS_12288"),
+    ("P_ABS_12288", "P_ABS_16480"),
+)
+GROWTH_TRANSITIONS = LOW_GROWTH + HIGH_GROWTH + P_GROWTH
 CHURN_TRANSITIONS = (("L_REL_1280", "L_DELETE_ALL"), ("L_DELETE_ALL", "L_REINSERT_SAME"))
 D_TRANSITIONS = _pairs(D_CHECKPOINTS)
 
@@ -281,10 +292,30 @@ def _bits_highwater_valid(state: _InlineBits, page_count: int) -> bool:
 
 
 def _bits_d_relation(states: Mapping[str, _InlineBits]) -> bool:
-    empty, grown = states["E0"].in_use, states["D_GROW_0128"].in_use
-    dropped, recreated, regrown = states["D_DROP"].in_use, states["D_RECREATE_EMPTY"].in_use, states["D_REGROW_0128"].in_use
-    growth = grown & ~empty
-    return bool(growth) and not growth & dropped and not growth & recreated and not growth & ~regrown and bool(regrown & ~grown)
+    empty, grown = states["E0"], states["D_GROW_0128"]
+    dropped, recreated, regrown = (
+        states["D_DROP"], states["D_RECREATE_EMPTY"], states["D_REGROW_0128"]
+    )
+
+    def in_use(state: _InlineBits, page: int) -> bool:
+        relative = page - state.base
+        return 0 <= relative < state.capacity and bool(state.in_use & (1 << relative))
+
+    def pages(state: _InlineBits):
+        bits = state.in_use
+        while bits:
+            relative = (bits & -bits).bit_length() - 1
+            yield state.base + relative
+            bits &= bits - 1
+
+    growth = [page for page in pages(grown) if not in_use(empty, page)]
+    return (
+        bool(growth)
+        and not any(in_use(dropped, page) for page in growth)
+        and not any(in_use(recreated, page) for page in growth)
+        and all(in_use(regrown, page) for page in growth)
+        and any(not in_use(grown, page) for page in pages(regrown))
+    )
 
 
 def inline_highwater_valid(state: InlineState | None, page_count: int) -> bool:
@@ -301,7 +332,11 @@ def d_set_relation(states: Mapping[str, InlineState]) -> bool:
 
 
 def terminal_suffix_slack(records: Mapping[str, bytes], start: int, polarity: str) -> int:
-    changed = [offset for offset in range(start + 5, PAGE_SIZE) if len({record[offset] for record in records.values()}) > 1]
+    changed = [
+        offset
+        for offset in range(start, PAGE_SIZE)
+        if len({record[offset] for record in records.values()}) > 1
+    ]
     if not changed:
         return 0
     suffix_start = changed[-1] + 1
@@ -315,31 +350,61 @@ def global_start_candidates(view: View, page: int, *, enumerate_candidates: bool
     """Return full-end candidates; terminal end selection precedes polarity uniqueness."""
     if enumerate_candidates:
         view.work.enumerate_intervals()
-    records = {checkpoint: view.page(checkpoint, page) for checkpoint in D_CHECKPOINTS}
+    records = {checkpoint: view.page_optional(checkpoint, page) for checkpoint in D_CHECKPOINTS}
+    if any(payload is None for payload in records.values()):
+        return [], {"layout": False, "anchor": False, "relation": False, "suffix": False}
+    checked_records = {name: payload for name, payload in records.items() if payload is not None}
     anchors = ("E0", "D_GROW_0128", "D_REGROW_0128")
     evidence = {"layout": False, "anchor": False, "relation": False, "suffix": False}
     models: list[GlobalRecordModel] = []
     for start in range(PAGE_SIZE - 5):
-        if not all(records[name][start] == 0 for name in anchors):
+        if not all(checked_records[name][start] == 0 for name in anchors):
             continue
         evidence["layout"] = True
         for polarity in POLARITIES:
             view.work.examine_models()
-            states = {name: _decode_inline_bits(payload, start, polarity) for name, payload in records.items()}
-            if any(states[name].tag != 0 for name in D_CHECKPOINTS):
-                continue
+            states = {
+                name: _decode_inline_bits(payload, start, polarity)
+                for name, payload in checked_records.items()
+            }
             if not all(_bits_highwater_valid(states[name], view.page_count(name)) for name in anchors):
                 continue
             evidence["anchor"] = True
             if not _bits_d_relation(states):
                 continue
             evidence["relation"] = True
-            slack = terminal_suffix_slack(records, start, polarity)
+            slack = terminal_suffix_slack(checked_records, start, polarity)
             if slack < 16:
                 continue
             evidence["suffix"] = True
             models.append(GlobalRecordModel(Record(page, start, PAGE_SIZE), polarity, slack))
     return models, evidence
+
+
+def frozen_global_model_holds(view: View, frozen: GlobalRecordModel) -> bool:
+    """R3-G09 re-check one frozen record/polarity without uniqueness refit."""
+    if frozen.record.end != PAGE_SIZE or frozen.bit_polarity not in POLARITIES:
+        return False
+    records = {
+        checkpoint: view.page_optional(checkpoint, frozen.record.page)
+        for checkpoint in D_CHECKPOINTS
+    }
+    if any(payload is None for payload in records.values()):
+        return False
+    checked = {name: payload for name, payload in records.items() if payload is not None}
+    start = frozen.record.start
+    anchors = ("E0", "D_GROW_0128", "D_REGROW_0128")
+    if not all(checked[name][start] == 0 for name in anchors):
+        return False
+    states = {
+        name: _decode_inline_bits(payload, start, frozen.bit_polarity)
+        for name, payload in checked.items()
+    }
+    return (
+        all(_bits_highwater_valid(states[name], view.page_count(name)) for name in anchors)
+        and _bits_d_relation(states)
+        and terminal_suffix_slack(checked, start, frozen.bit_polarity) >= 16
+    )
 
 
 def derive_global_record(view: View, page: int, *, enumerate_candidates: bool = True) -> GlobalRecordModel:

@@ -3,12 +3,13 @@
 
 A3 rule | implementation
 --- | ---
-Replica 1/2 freeze before any holdout open | :func:`build_analysis`
-Qualified-page then record/page disambiguation | :func:`derive_layers`
-Per-leg transcript frozen with all layers | :func:`candidate_document`
-Four independent layered outcomes | :func:`build_analysis`
-Frozen model-only holdout prediction | :func:`build_analysis`
-R2 ordered reporting and holdout exception | :func:`predicate_results`
+R3-G03 per-replica outcomes and agreement | :func:`_combine_replicas`, :func:`derive_layers`
+R3-G03 union-qualified pages | :func:`_qualified_union`
+R3-G05 ordered global terminals | :func:`_global_replica`
+R3-G08 report ordering/open fields | :func:`build_analysis`
+R3-G09 frozen-model-only holdout | :func:`_evaluate_holdout`
+R3-G10/M05/M06 abort isolation | :func:`derive_layers`, :func:`build_analysis`
+R2+R3 predicate projection | :func:`predicate_results`
 Field-for-field frozen/report agreement | :func:`build_analysis`
 CLI compatible with the A2 analyzer shape | :func:`main`
 """
@@ -27,8 +28,7 @@ from typing import Any, Callable, Protocol
 from protocol_validation import ValidationError, canonical_json_bytes
 from a3_layers import (
     BaseModel, ConversionModel, CrossCheckTranscript, TdefModel, derive_base,
-    derive_conversion, derive_tdef_candidates, global_structural_valid,
-    polarity_cross_check,
+    derive_conversion, derive_tdef_candidates, polarity_cross_check,
     predicts_base, predicts_conversion, predicts_global, predicts_tdef,
 )
 from a3_model import (
@@ -37,7 +37,8 @@ from a3_model import (
     qualify_global_pages, qualify_tdef_pages,
 )
 from a3_spec import (
-    BOUNDS, EXPERIMENT_ID, LAYER_KEYS, PLAN, PLAN_SHA256,
+    BOUNDS, EXPERIMENT_ID, LAYER_KEYS, LAYER_PREDICATE_SEQUENCES, PLAN,
+    PLAN_SHA256,
     compare_frozen_to_report, frozen_json_bytes, load_bounded_json,
     project_predicate_results, validate_analysis_report, validate_document,
     validate_frozen_candidates,
@@ -181,66 +182,116 @@ class LayerDraft:
     survivor_count: int
     abort: Abort | None
     applicable: bool = True
+    reached: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class ReplicaLayer:
+    model: GlobalRecordModel | ConversionModel | BaseModel | TdefModel | None
+    survivor_count: int
+    abort: Abort | None
+    transcript: CrossCheckTranscript = CrossCheckTranscript()
 
 
 def _not_applicable() -> LayerDraft:
-    return LayerDraft(None, 0, None, False)
+    return LayerDraft(None, 0, None, False, frozenset())
 
 
 def _validate_inputs(replicas: list[ReplicaInput]) -> None:
     if [row.replica for row in replicas] != list(range(1, len(replicas) + 1)):
-        raise Abort("A3-REPLICA-DISAGREEMENT")
+        raise ValidationError("A3 replica ordinals are not consecutive")
     for attribute in ("campaign_id", "producer_commit", "provider_sha256"):
         if len({getattr(row, attribute) for row in replicas}) != 1:
-            raise Abort("A3-REPLICA-DISAGREEMENT")
+            raise ValidationError(f"A3 replica {attribute} binding mismatch")
 
 
-def _pair(function: Callable[[View, int], Any], views: tuple[View, View]) -> LayerDraft:
-    outcomes: list[Any | Abort] = []
-    for index, view in enumerate(views):
-        try:
-            outcomes.append(function(view, index))
-        except Abort as exc:
-            outcomes.append(exc)
-    if all(isinstance(row, Abort) for row in outcomes):
-        first, second = outcomes
-        assert isinstance(first, Abort) and isinstance(second, Abort)
-        return LayerDraft(None, 0, first if first.predicate_id == second.predicate_id else Abort("A3-REPLICA-DISAGREEMENT"))
-    if any(isinstance(row, Abort) for row in outcomes) or outcomes[0] != outcomes[1]:
-        return LayerDraft(None, 0, Abort("A3-REPLICA-DISAGREEMENT"))
-    return LayerDraft(outcomes[0], 1, None)
+def _is_campaign_abort(abort: Abort) -> bool:
+    return abort.predicate_id in {
+        "A3-IDLE-EQUALITY",
+        "A3-SNAPSHOT-RECONSTRUCTION",
+        "A3-RESOURCE-BOUND",
+    }
 
 
-def _qualify(function: Callable[[View, range], tuple[int, ...]], views: tuple[View, View], pages: range) -> tuple[tuple[int, ...], Abort | None]:
-    outcomes: list[tuple[int, ...] | Abort] = []
-    for view in views:
-        try:
-            outcomes.append(function(view, pages))
-        except Abort as exc:
-            outcomes.append(exc)
-    if all(isinstance(row, Abort) for row in outcomes):
-        first, second = outcomes
-        assert isinstance(first, Abort) and isinstance(second, Abort)
-        return (), first if first.predicate_id == second.predicate_id else Abort("A3-REPLICA-DISAGREEMENT")
-    if any(isinstance(row, Abort) for row in outcomes) or outcomes[0] != outcomes[1]:
-        return (), Abort("A3-REPLICA-DISAGREEMENT")
-    assert isinstance(outcomes[0], tuple)
-    return outcomes[0], None
+def _reached(layer: str, terminal: str | None) -> frozenset[str]:
+    sequence = LAYER_PREDICATE_SEQUENCES[layer]
+    if terminal is None:
+        return frozenset(sequence)
+    return frozenset(sequence[: sequence.index(terminal) + 1])
 
 
-def _global_draft(views: tuple[View, View], pages: tuple[int, ...]) -> LayerDraft:
+def _replica_call(
+    function: Callable[[], GlobalRecordModel | ConversionModel | BaseModel | TdefModel],
+    *,
+    transcript: CrossCheckTranscript = CrossCheckTranscript(),
+) -> ReplicaLayer:
+    try:
+        return ReplicaLayer(function(), 1, None, transcript)
+    except Abort as exc:
+        if _is_campaign_abort(exc):
+            raise
+        return ReplicaLayer(None, 0, exc, transcript)
+
+
+def _same_model(
+    left: GlobalRecordModel | ConversionModel | BaseModel | TdefModel,
+    right: GlobalRecordModel | ConversionModel | BaseModel | TdefModel,
+) -> GlobalRecordModel | ConversionModel | BaseModel | TdefModel | None:
+    if isinstance(left, GlobalRecordModel) and isinstance(right, GlobalRecordModel):
+        if left.record != right.record or left.bit_polarity != right.bit_polarity:
+            return None
+        return GlobalRecordModel(
+            left.record,
+            left.bit_polarity,
+            min(left.zero_suffix_slack_bytes, right.zero_suffix_slack_bytes),
+        )
+    return left if left == right else None
+
+
+def _combine_replicas(
+    layer: str,
+    outcomes: tuple[ReplicaLayer, ReplicaLayer],
+    *,
+    compare_transcripts: bool = False,
+) -> LayerDraft:
+    first, second = outcomes
+    terminals = [
+        outcome.abort.predicate_id
+        for outcome in outcomes
+        if outcome.abort is not None
+    ]
+    if len(terminals) == 2 and terminals[0] == terminals[1]:
+        terminal = terminals[0]
+        return LayerDraft(
+            None,
+            min(first.survivor_count, second.survivor_count),
+            Abort(terminal),
+            True,
+            _reached(layer, terminal),
+        )
+    if first.model is not None and second.model is not None:
+        model = _same_model(first.model, second.model)
+        transcripts_agree = not compare_transcripts or first.transcript == second.transcript
+        if model is not None and transcripts_agree:
+            return LayerDraft(model, 1, None, True, _reached(layer, None))
+
+    sequence = LAYER_PREDICATE_SEQUENCES[layer]
+    cutoff = min(
+        (sequence.index(terminal) for terminal in terminals),
+        default=sequence.index("A3-REPLICA-DISAGREEMENT"),
+    )
+    reached = frozenset((*sequence[:cutoff], "A3-REPLICA-DISAGREEMENT"))
+    return LayerDraft(None, 0, Abort("A3-REPLICA-DISAGREEMENT"), True, reached)
+
+
+def _global_replica(view: View, pages: tuple[int, ...]) -> ReplicaLayer:
     if not pages:
-        return LayerDraft(None, 0, Abort("A3-GLOBAL-PAGE-NONE"))
-    replicas: list[dict[int, tuple[list[GlobalRecordModel], dict[str, bool]]]] = []
-    for replica_index, view in enumerate(views):
-        page_rows = {page: global_start_candidates(view, page, enumerate_candidates=replica_index == 0) for page in pages}
-        replicas.append(page_rows)
-    if replicas[0] != replicas[1]:
-        return LayerDraft(None, 0, Abort("A3-REPLICA-DISAGREEMENT"))
-    rows = replicas[0]
+        return ReplicaLayer(None, 0, Abort("A3-GLOBAL-PAGE-NONE"))
+    rows = {
+        page: global_start_candidates(view, page, enumerate_candidates=True)
+        for page in pages
+    }
     nonempty = {page: models for page, (models, _evidence) in rows.items() if models}
-    if len(nonempty) > 1:
-        return LayerDraft(None, sum(len(models) for models in nonempty.values()), Abort("A3-GLOBAL-PAGE-MULTIPLE"))
     if not nonempty:
         evidence = {key: any(row[1][key] for row in rows.values()) for key in ("anchor", "relation", "suffix")}
         if not evidence["anchor"]:
@@ -249,17 +300,54 @@ def _global_draft(views: tuple[View, View], pages: tuple[int, ...]) -> LayerDraf
             predicate = "A3-D-SET-RELATION"
         else:
             predicate = "A3-GLOBAL-RECORD-END"
-        return LayerDraft(None, 0, Abort(predicate))
-    models = next(iter(nonempty.values()))
+        return ReplicaLayer(None, 0, Abort(predicate))
+    models = [model for values in nonempty.values() for model in values]
     polarities = {model.bit_polarity for model in models}
-    if not polarities:
-        return LayerDraft(None, 0, Abort("A3-POLARITY-NONE"))
     if len(polarities) > 1:
-        return LayerDraft(None, len(models), Abort("A3-POLARITY-MULTIPLE"))
-    starts = {model.record.start for model in models}
-    if len(starts) > 1:
-        return LayerDraft(None, len(starts), Abort("A3-GLOBAL-RECORD-MULTIPLE"))
-    return LayerDraft(models[0], 1, None)
+        return ReplicaLayer(None, len(models), Abort("A3-POLARITY-MULTIPLE"))
+    if len(nonempty) > 1:
+        return ReplicaLayer(None, len(models), Abort("A3-GLOBAL-PAGE-MULTIPLE"))
+    if len(models) > 1:
+        return ReplicaLayer(None, len(models), Abort("A3-GLOBAL-RECORD-MULTIPLE"))
+    return ReplicaLayer(models[0], 1, None)
+
+
+def _conversion_replica(view: View, model: GlobalRecordModel) -> ReplicaLayer:
+    try:
+        transcript = polarity_cross_check(view, model)
+    except Abort as exc:
+        if _is_campaign_abort(exc):
+            raise
+        return ReplicaLayer(None, 0, exc)
+    if transcript.first_violating_leg is not None:
+        return ReplicaLayer(None, 0, Abort("A3-POLARITY-CROSSCHECK"), transcript)
+    return _replica_call(
+        lambda: derive_conversion(view, model, transcript)[0], transcript=transcript
+    )
+
+
+def _qualified_union(per_replica: tuple[tuple[int, ...], tuple[int, ...]]) -> tuple[int, ...]:
+    pages = tuple(sorted(set(per_replica[0]) | set(per_replica[1])))
+    if len(pages) > MAX_QUALIFIED_PAGES:
+        raise Abort("A3-RESOURCE-BOUND")
+    return pages
+
+
+def _tdef_replica(
+    view: View,
+    pages: tuple[int, ...],
+    churn_precondition_met: bool,
+) -> ReplicaLayer:
+    if not pages:
+        return ReplicaLayer(None, 0, Abort("A3-TDEF-PAGE-NONE"))
+    return _replica_call(
+        lambda: derive_tdef_candidates(
+            view,
+            pages,
+            churn_precondition_met,
+            enumerate_candidates=True,
+        )[0]
+    )
 
 
 def derive_layers(derivation: list[ReplicaInput], work: WorkCounter) -> tuple[dict[str, LayerDraft], tuple[int, ...], tuple[int, ...], CrossCheckTranscript]:
@@ -267,43 +355,60 @@ def derive_layers(derivation: list[ReplicaInput], work: WorkCounter) -> tuple[di
     views = (View(derivation[0].data, work), View(derivation[1].data, work))
     empty_transcript = CrossCheckTranscript()
     if not all(view.idle_pairs_identical() for view in views):
-        abort = Abort("A3-IDLE-EQUALITY")
-        return {key: LayerDraft(None, 0, abort) for key in LAYER_KEYS}, (), (), empty_transcript
+        raise Abort("A3-IDLE-EQUALITY")
     pages = candidate_page_space(views)
-    global_pages, global_abort = _qualify(qualify_global_pages, views, pages)
-    global_draft = LayerDraft(None, 0, global_abort) if global_abort else _global_draft(views, global_pages)
+    global_by_replica = tuple(qualify_global_pages(view, pages) for view in views)
+    global_pages = _qualified_union((global_by_replica[0], global_by_replica[1]))
+    global_outcomes = tuple(
+        _global_replica(view, global_by_replica[index])
+        for index, view in enumerate(views)
+    )
+    global_draft = _combine_replicas(
+        "global_map_record", (global_outcomes[0], global_outcomes[1])
+    )
     drafts: dict[str, LayerDraft] = {"global_map_record": global_draft}
     transcript = empty_transcript
     if not isinstance(global_draft.model, GlobalRecordModel):
         drafts["global_map_conversion_inline"] = _not_applicable()
         drafts["global_map_extended_base"] = _not_applicable()
     else:
-        structural = tuple(global_structural_valid(view, global_draft.model) for view in views)
-        transcripts = tuple(polarity_cross_check(view, global_draft.model) for view in views)
-        if structural[0] != structural[1] or transcripts[0] != transcripts[1]:
-            conversion = LayerDraft(None, 0, Abort("A3-REPLICA-DISAGREEMENT"))
-        elif not structural[0]:
-            conversion = LayerDraft(None, 0, Abort("A3-STRUCTURAL-EXCLUSION"))
-        else:
-            transcript = transcripts[0]
-            if transcript.first_violating_leg is not None:
-                conversion = LayerDraft(None, 0, Abort("A3-POLARITY-CROSSCHECK"))
-            else:
-                conversion = _pair(lambda view, _index: derive_conversion(view, global_draft.model)[0], views)
+        conversion_outcomes = tuple(
+            _conversion_replica(view, global_draft.model) for view in views
+        )
+        transcript = conversion_outcomes[0].transcript
+        conversion = _combine_replicas(
+            "global_map_conversion_inline",
+            (conversion_outcomes[0], conversion_outcomes[1]),
+            compare_transcripts=True,
+        )
         drafts["global_map_conversion_inline"] = conversion
         if isinstance(conversion.model, ConversionModel):
-            drafts["global_map_extended_base"] = _pair(lambda view, _index: derive_base(view, global_draft.model, conversion.model), views)
+            base_outcomes = tuple(
+                _replica_call(
+                    lambda view=view: derive_base(
+                        view, global_draft.model, conversion.model
+                    )
+                )
+                for view in views
+            )
+            drafts["global_map_extended_base"] = _combine_replicas(
+                "global_map_extended_base", (base_outcomes[0], base_outcomes[1])
+            )
         else:
             drafts["global_map_extended_base"] = _not_applicable()
-    tdef_pages, tdef_abort = _qualify(qualify_tdef_pages, views, pages)
-    if tdef_abort:
-        drafts["tdef_pointer_pair"] = LayerDraft(None, 0, tdef_abort)
-    elif not tdef_pages:
-        drafts["tdef_pointer_pair"] = LayerDraft(None, 0, Abort("A3-TDEF-PAGE-NONE"))
-    else:
-        drafts["tdef_pointer_pair"] = _pair(
-            lambda view, index: derive_tdef_candidates(view, tdef_pages, derivation[index].churn_precondition_met, enumerate_candidates=index == 0)[0], views,
+    tdef_by_replica = tuple(qualify_tdef_pages(view, pages) for view in views)
+    tdef_pages = _qualified_union((tdef_by_replica[0], tdef_by_replica[1]))
+    tdef_outcomes = tuple(
+        _tdef_replica(
+            view,
+            tdef_by_replica[index],
+            derivation[index].churn_precondition_met,
         )
+        for index, view in enumerate(views)
+    )
+    drafts["tdef_pointer_pair"] = _combine_replicas(
+        "tdef_pointer_pair", (tdef_outcomes[0], tdef_outcomes[1])
+    )
     return drafts, global_pages, tdef_pages, transcript
 
 
@@ -336,12 +441,11 @@ def write_frozen(path: Path, document: dict[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _layer_result(draft: LayerDraft, holdout_match: bool | None, campaign_abort: Abort | None) -> dict[str, Any]:
+def _layer_result(draft: LayerDraft, holdout_match: bool | None) -> dict[str, Any]:
     if not draft.applicable:
         return {"status": "not_applicable", "derivation_survivor_count": 0, "holdout_evaluated": False, "no_outcome_reasons": [], "terminal_predicate_id": None, "model": None}
-    abort = campaign_abort or draft.abort
-    if abort:
-        return {"status": "no_outcome", "derivation_survivor_count": draft.survivor_count, "holdout_evaluated": False, "no_outcome_reasons": [abort.reason], "terminal_predicate_id": abort.predicate_id, "model": None if draft.model is None else draft.model.document()}
+    if draft.abort:
+        return {"status": "no_outcome", "derivation_survivor_count": draft.survivor_count, "holdout_evaluated": False, "no_outcome_reasons": [draft.abort.reason], "terminal_predicate_id": draft.abort.predicate_id, "model": None}
     if holdout_match:
         return {"status": "decisive_predicts_holdout", "derivation_survivor_count": draft.survivor_count, "holdout_evaluated": True, "no_outcome_reasons": [], "terminal_predicate_id": None, "model": draft.model.document() if draft.model else None}
     return {"status": "no_outcome", "derivation_survivor_count": draft.survivor_count, "holdout_evaluated": True, "no_outcome_reasons": ["holdout_prediction_failure"], "terminal_predicate_id": "A3-HOLDOUT-PREDICTION", "model": draft.model.document() if draft.model else None}
@@ -349,8 +453,114 @@ def _layer_result(draft: LayerDraft, holdout_match: bool | None, campaign_abort:
 
 def predicate_results(
     layer_results: dict[str, dict[str, Any]],
+    drafts: dict[str, LayerDraft],
+    campaign_abort: Abort | None,
 ) -> tuple[list[dict[str, str]], list[str]]:
-    return project_predicate_results(layer_results)
+    return project_predicate_results(
+        layer_results,
+        campaign_terminal=None if campaign_abort is None else campaign_abort.predicate_id,
+        reached_by_layer={key: drafts[key].reached for key in LAYER_KEYS},
+    )
+
+
+def _evaluate_holdout(
+    source: ReplicaSource,
+    derivation: list[ReplicaInput],
+    drafts: dict[str, LayerDraft],
+    work: WorkCounter,
+) -> dict[str, bool | None]:
+    matches: dict[str, bool | None] = {key: None for key in LAYER_KEYS}
+    model_keys = [key for key in LAYER_KEYS if drafts[key].model is not None]
+    if not model_keys:
+        return matches
+    try:
+        holdout_input = source.open()
+        _validate_inputs(derivation + [holdout_input])
+        holdout = View(holdout_input.data, work)
+    except (Abort, OSError, ValidationError):
+        return {key: (False if key in model_keys else None) for key in LAYER_KEYS}
+
+    global_draft = drafts["global_map_record"]
+    conversion_draft = drafts["global_map_conversion_inline"]
+    checks: dict[str, Callable[[], bool]] = {}
+    if isinstance(global_draft.model, GlobalRecordModel):
+        checks["global_map_record"] = lambda: predicts_global(holdout, global_draft.model)
+    if (
+        isinstance(global_draft.model, GlobalRecordModel)
+        and isinstance(conversion_draft.model, ConversionModel)
+    ):
+        checks["global_map_conversion_inline"] = lambda: predicts_conversion(
+            holdout, global_draft.model, conversion_draft.model
+        )
+        base = drafts["global_map_extended_base"]
+        if isinstance(base.model, BaseModel):
+            checks["global_map_extended_base"] = lambda: predicts_base(
+                holdout, global_draft.model, conversion_draft.model, base.model
+            )
+    tdef = drafts["tdef_pointer_pair"]
+    if isinstance(tdef.model, TdefModel):
+        checks["tdef_pointer_pair"] = lambda: predicts_tdef(
+            holdout, tdef.model, holdout_input.churn_precondition_met
+        )
+    for key, check in checks.items():
+        try:
+            matches[key] = check()
+        except (Abort, IndexError, OSError, ValidationError):
+            matches[key] = False
+    return matches
+
+
+def _ordered_no_outcome_reasons(
+    layers: dict[str, dict[str, Any]],
+    campaign_abort: Abort | None,
+) -> list[str]:
+    reasons = [] if campaign_abort is None else [campaign_abort.reason]
+    for key in LAYER_KEYS:
+        reasons.extend(layers[key]["no_outcome_reasons"])
+    return list(dict.fromkeys(reasons))
+
+
+def recompute_only(derivation: list[ReplicaInput]) -> dict[str, Any]:
+    """Recompute derivation replicas only; this function has no holdout source."""
+    if len(derivation) != 2:
+        raise ValidationError("A3 recompute-only requires replicas 1 and 2")
+    work, campaign_abort = WorkCounter(), None
+    try:
+        drafts, global_pages, tdef_pages, transcript = derive_layers(derivation, work)
+    except Abort as exc:
+        if not _is_campaign_abort(exc):
+            raise ValidationError(f"layer abort escaped isolation: {exc}") from exc
+        campaign_abort = exc
+        drafts = {key: _not_applicable() for key in LAYER_KEYS}
+        global_pages, tdef_pages, transcript = (), (), CrossCheckTranscript()
+
+    def outcome(draft: LayerDraft) -> dict[str, Any]:
+        if not draft.applicable:
+            status = "not_applicable"
+        elif draft.abort is not None:
+            status = "no_outcome"
+        else:
+            status = "derivation_model"
+        return {
+            "status": status,
+            "terminal_predicate_id": None if draft.abort is None else draft.abort.predicate_id,
+            "model": None if draft.model is None else draft.model.document(),
+        }
+
+    return {
+        "campaign_terminal_predicate_id": (
+            None if campaign_abort is None else campaign_abort.predicate_id
+        ),
+        "qualified_pages": {
+            "global_map": list(global_pages),
+            "tdef": list(tdef_pages),
+        },
+        "polarity_cross_check": transcript.document(),
+        "layers": {key: outcome(drafts[key]) for key in LAYER_KEYS},
+        "record_candidates_examined": work.record_candidates,
+        "candidate_models_examined": work.candidate_models,
+        "analysis_work_units": work.value,
+    }
 
 
 def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validate_holdout_after_freeze: Callable[[str], None]) -> dict[str, Any]:
@@ -361,36 +571,24 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
     try:
         drafts, global_pages, tdef_pages, transcript = derive_layers(derivation, work)
     except Abort as exc:
+        if not _is_campaign_abort(exc):
+            raise ValidationError(f"layer abort escaped isolation: {exc}") from exc
         campaign_abort = exc
-        drafts = {key: LayerDraft(None, 0, exc) for key in LAYER_KEYS}
+        drafts = {key: _not_applicable() for key in LAYER_KEYS}
         global_pages, tdef_pages, transcript = (), (), CrossCheckTranscript()
     frozen = candidate_document(derivation[0].campaign_id, global_pages, tdef_pages, transcript, drafts)
     frozen_sha = write_frozen(candidate_output, frozen)
     validate_holdout_after_freeze(frozen_sha)
-    holdout_opened = False
-    matches: dict[str, bool | None] = {key: None for key in LAYER_KEYS}
-    if campaign_abort is None:
-        try:
-            holdout_input = sources[2].open()
-            holdout_opened = True
-            _validate_inputs(derivation + [holdout_input])
-            holdout = View(holdout_input.data, work)
-            global_draft = drafts["global_map_record"]
-            if isinstance(global_draft.model, GlobalRecordModel):
-                matches["global_map_record"] = predicts_global(holdout, global_draft.model)
-                conversion = drafts["global_map_conversion_inline"]
-                if isinstance(conversion.model, ConversionModel):
-                    matches["global_map_conversion_inline"] = predicts_conversion(holdout, global_draft.model, conversion.model)
-                    base = drafts["global_map_extended_base"]
-                    if isinstance(base.model, BaseModel):
-                        matches["global_map_extended_base"] = predicts_base(holdout, global_draft.model, conversion.model, base.model)
-            tdef = drafts["tdef_pointer_pair"]
-            if isinstance(tdef.model, TdefModel):
-                matches["tdef_pointer_pair"] = predicts_tdef(holdout, tdef.model, holdout_input.churn_precondition_met)
-        except Abort as exc:
-            campaign_abort = exc
-    layers = {key: _layer_result(drafts[key], matches[key], campaign_abort) for key in LAYER_KEYS}
-    predicates, terminal_ids = predicate_results(layers)
+    holdout_opened = campaign_abort is None and any(
+        draft.model is not None for draft in drafts.values()
+    )
+    matches = (
+        _evaluate_holdout(sources[2], derivation, drafts, work)
+        if holdout_opened
+        else {key: None for key in LAYER_KEYS}
+    )
+    layers = {key: _layer_result(drafts[key], matches[key]) for key in LAYER_KEYS}
+    predicates, terminal_ids = predicate_results(layers, drafts, campaign_abort)
     decisive = any(row["status"] == "decisive_predicts_holdout" for row in layers.values())
     report = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_analysis_report", "experiment_id": EXPERIMENT_ID,
@@ -406,11 +604,15 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
         "holdout_evaluated": any(row["holdout_evaluated"] for row in layers.values()),
         "predicate_results": predicates, "terminal_predicate_ids": terminal_ids,
         "scientific_outcome": "one_or_more_submodels_predict_holdout" if decisive else "no_submodel_predicts_holdout",
-        "no_outcome_reasons": sorted({reason for row in layers.values() for reason in row["no_outcome_reasons"]}),
+        "no_outcome_reasons": _ordered_no_outcome_reasons(layers, campaign_abort),
         "submodels": {"global_map": {"record": layers["global_map_record"], "conversion_inline": layers["global_map_conversion_inline"], "extended_base": layers["global_map_extended_base"]}, "tdef": {"pointer_pair": layers["tdef_pointer_pair"]}},
         "claims": CLAIMS,
     }
-    validate_analysis_report(report, frozen)
+    validate_analysis_report(
+        report,
+        frozen,
+        reached_by_layer={key: drafts[key].reached for key in LAYER_KEYS},
+    )
     compare_frozen_to_report(frozen, report)
     return report
 
@@ -432,13 +634,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--candidate-output", type=Path)
     parser.add_argument("--holdout-receipt", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--recompute-only", action="store_true")
     arguments = parser.parse_args(argv)
     root, artifacts = arguments.bundle_root, PLAN.document["artifacts"]
-    replicas = arguments.replica or [root / relative for relative in artifacts["replica_observations"]]
+    default_replicas = [root / relative for relative in artifacts["replica_observations"]]
+    replicas = arguments.replica or (
+        default_replicas[:2] if arguments.recompute_only else default_replicas
+    )
     candidate = arguments.candidate_output or root / artifacts["frozen_candidate_set"]
     receipt = arguments.holdout_receipt or root / artifacts["holdout_structure_receipt"]
     output = arguments.output or root / artifacts["analysis_report"]
     try:
+        if arguments.recompute_only:
+            if len(replicas) != 2:
+                raise ValidationError("recompute-only requires exactly two replica observations")
+            inputs = [BundleReplicaSource(path, root).open() for path in replicas]
+            result = recompute_only(inputs)
+            payload = canonical_json_bytes(result)
+            if arguments.output is not None:
+                arguments.output.parent.mkdir(parents=True, exist_ok=True)
+                with arguments.output.open("xb") as handle:
+                    handle.write(payload)
+            else:
+                sys.stdout.buffer.write(payload)
+            return 0
         if len(replicas) != 3:
             raise ValidationError("exactly three A3 replica observations are required")
         sources = [BundleReplicaSource(path, root) for path in replicas]

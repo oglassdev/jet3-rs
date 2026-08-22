@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -13,17 +14,25 @@ SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from protocol_validation import ValidationError  # noqa: E402
-from a3_analysis import LoadedReplicaSource, ReplicaInput, build_analysis  # noqa: E402
+from a3_analysis import (  # noqa: E402
+    LoadedReplicaSource, ReplicaInput, ReplicaLayer, _combine_replicas,
+    _same_model, build_analysis,
+)
 from a3_generator import (  # noqa: E402
     calibration_parameters, generate_synthetic_bundle, generate_synthetic_bundles,
 )
-from a3_layers import derive_tdef_candidates, polarity_cross_check  # noqa: E402
+from a3_layers import (  # noqa: E402
+    ConversionModel, conversion_index, derive_tdef_candidates,
+    polarity_cross_check,
+)
 from a3_model import (  # noqa: E402
-    Abort, View, WorkCounter, decode_inline, global_start_candidates,
+    Abort, GlobalRecordModel, Record, View, WorkCounter, decode_inline,
+    global_start_candidates,
 )
 from a3_spec import (  # noqa: E402
     LAYER_PREDICATE_SEQUENCES, PLAN_SHA256, PREDICATES, PREDICATE_IDS,
-    REVISION_PLAN_SHA256, compare_frozen_to_report, load_bounded_json,
+    R2_PLAN_SHA256, R3_PLAN_SHA256, REVISION_PLAN_SHA256,
+    compare_frozen_to_report, load_bounded_json,
     project_predicate_results, validate_analysis_report,
     validate_predicate_reporting,
 )
@@ -45,15 +54,8 @@ class A3AnalyzerTests(unittest.TestCase):
         report = build_analysis([source(bundle) for bundle in bundles], frozen_path, lambda _digest: None)
         return report, load_bounded_json(frozen_path), bundles
 
-    def test_all_four_layers_are_decisive_and_frozen_field_for_field(self) -> None:
+    def test_synthetic_report_is_frozen_field_for_field(self) -> None:
         report, frozen, _ = self.analyze()
-        statuses = (
-            report["submodels"]["global_map"]["record"]["status"],
-            report["submodels"]["global_map"]["conversion_inline"]["status"],
-            report["submodels"]["global_map"]["extended_base"]["status"],
-            report["submodels"]["tdef"]["pointer_pair"]["status"],
-        )
-        self.assertEqual(statuses, ("decisive_predicts_holdout",) * 4)
         compare_frozen_to_report(frozen, report)
         validate_analysis_report(report, frozen)
 
@@ -112,11 +114,16 @@ class A3AnalyzerTests(unittest.TestCase):
             "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1",
         )
 
-    def test_r2_hash_and_tdef_sequence_are_bound(self) -> None:
+    def test_r2_r3_hashes_and_tdef_sequence_are_bound(self) -> None:
         self.assertEqual(
-            REVISION_PLAN_SHA256,
+            R2_PLAN_SHA256,
             "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
         )
+        self.assertEqual(
+            R3_PLAN_SHA256,
+            "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a",
+        )
+        self.assertEqual(REVISION_PLAN_SHA256, R3_PLAN_SHA256)
         sequence = LAYER_PREDICATE_SEQUENCES["tdef_pointer_pair"]
         self.assertLess(
             sequence.index("A3-TDEF-RECORD-NONE"),
@@ -153,32 +160,105 @@ class A3AnalyzerTests(unittest.TestCase):
             ["A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"],
         )
 
-    def test_report_validator_rejects_unreached_r2_pass(self) -> None:
-        report, frozen, _ = self.analyze()
-        report["submodels"]["tdef"]["pointer_pair"].update({
-            "status": "no_outcome",
-            "derivation_survivor_count": 0,
-            "holdout_evaluated": False,
-            "no_outcome_reasons": ["no_tdef_record_candidate"],
-            "terminal_predicate_id": "A3-TDEF-RECORD-NONE",
-            "model": None,
-        })
-        report["derivation_survivor_counts"]["tdef_pointer_pair"] = 0
-        report["no_outcome_reasons"] = ["no_tdef_record_candidate"]
-        layers = {
-            "global_map_record": report["submodels"]["global_map"]["record"],
-            "global_map_conversion_inline": report["submodels"]["global_map"]["conversion_inline"],
-            "global_map_extended_base": report["submodels"]["global_map"]["extended_base"],
-            "tdef_pointer_pair": report["submodels"]["tdef"]["pointer_pair"],
-        }
-        report["predicate_results"], report["terminal_predicate_ids"] = (
-            project_predicate_results(layers)
+    def test_r3_global_replica_comparison_uses_minimum_slack(self) -> None:
+        record = Record(1, 1915, 2048)
+        left = GlobalRecordModel(record, "set_means_not_in_use", 92)
+        right = GlobalRecordModel(record, "set_means_not_in_use", 93)
+        self.assertEqual(_same_model(left, right).zero_suffix_slack_bytes, 92)
+
+    def test_r3_g02_conversion_attribution(self) -> None:
+        self.assertEqual(conversion_index(("inline", "inline", "indirect")), 2)
+        with self.assertRaises(Abort) as missing:
+            conversion_index(("indirect", "indirect"))
+        self.assertEqual(missing.exception.predicate_id, "A3-CONVERSION-NONE")
+        with self.assertRaises(Abort) as multiple:
+            conversion_index(("inline", "neither", "indirect"))
+        self.assertEqual(multiple.exception.predicate_id, "A3-CONVERSION-MULTIPLE")
+
+    def test_r3_m1_m2_disagreement_statuses_stop_before_earliest_terminal(self) -> None:
+        model = ConversionModel("P_ABS_16480", 20, 1, 2, 2, 2020, (14848, 16352))
+        cases = (
+            (ReplicaLayer(None, 0, Abort("A3-CONVERSION-NONE")), ReplicaLayer(model, 1, None)),
+            (
+                ReplicaLayer(None, 0, Abort("A3-CONVERSION-NONE")),
+                ReplicaLayer(None, 0, Abort("A3-CONVERSION-MULTIPLE")),
+            ),
         )
-        for row in report["predicate_results"]:
-            if row["predicate_id"] == "A3-TDEF-PAGE-MULTIPLE":
-                row["status"] = "pass"
-        with self.assertRaises(ValidationError):
-            validate_analysis_report(report)
+        for outcomes in cases:
+            with self.subTest(outcomes=outcomes):
+                draft = _combine_replicas("global_map_conversion_inline", outcomes)
+                layers = {
+                    "global_map_record": {"status": "not_applicable", "terminal_predicate_id": None},
+                    "global_map_conversion_inline": {
+                        "status": "no_outcome",
+                        "terminal_predicate_id": "A3-REPLICA-DISAGREEMENT",
+                    },
+                    "global_map_extended_base": {"status": "not_applicable", "terminal_predicate_id": None},
+                    "tdef_pointer_pair": {"status": "not_applicable", "terminal_predicate_id": None},
+                }
+                reached = {key: frozenset() for key in layers}
+                reached["global_map_conversion_inline"] = draft.reached
+                rows, _ = project_predicate_results(layers, reached_by_layer=reached)
+                statuses = {row["predicate_id"]: row["status"] for row in rows}
+                self.assertEqual(statuses["A3-POLARITY-CROSSCHECK"], "pass")
+                self.assertEqual(statuses["A3-CONVERSION-NONE"], "not_applicable")
+                self.assertEqual(statuses["A3-REPLICA-DISAGREEMENT"], "fail")
+
+    def test_r3_absent_page_is_not_snapshot_abort(self) -> None:
+        bundle = generate_synthetic_bundle()
+        view = View(bundle, WorkCounter())
+        self.assertIsNone(view.page_optional("E0", view.page_count("E0")))
+
+    def test_r3_m05_campaign_terminal_preempts_every_layer(self) -> None:
+        layers = {
+            key: {"status": "not_applicable", "terminal_predicate_id": None}
+            for key in (
+                "global_map_record",
+                "global_map_conversion_inline",
+                "global_map_extended_base",
+                "tdef_pointer_pair",
+            )
+        }
+        rows, terminals = project_predicate_results(
+            layers,
+            campaign_terminal="A3-SNAPSHOT-RECONSTRUCTION",
+        )
+        statuses = {row["predicate_id"]: row["status"] for row in rows}
+        self.assertEqual(terminals, ["A3-SNAPSHOT-RECONSTRUCTION"])
+        self.assertEqual(statuses["A3-IDLE-EQUALITY"], "pass")
+        self.assertEqual(statuses["A3-SNAPSHOT-RECONSTRUCTION"], "fail")
+        self.assertEqual(statuses["A3-RESOURCE-BOUND"], "not_applicable")
+        self.assertEqual(statuses["A3-GLOBAL-PAGE-NONE"], "not_applicable")
+
+    def test_r3_m06_holdout_abort_keeps_derivation_terminals(self) -> None:
+        parameters = replace(
+            calibration_parameters(),
+            slot_activation_at_conversion=0,
+        )
+        bundles = generate_synthetic_bundles(parameters)
+        bad_holdout = LoadedReplicaSource(ReplicaInput(
+            bundles[2],
+            3,
+            "different-campaign",
+            bundles[2].producer_commit,
+            bundles[2].provider_sha256,
+            bundles[2].churn_precondition_met,
+        ))
+        temporary = TemporaryDirectory(prefix="a3-holdout-abort-")
+        self.addCleanup(temporary.cleanup)
+        report = build_analysis(
+            [source(bundles[0]), source(bundles[1]), bad_holdout],
+            Path(temporary.name) / "derivation-candidates.json",
+            lambda _digest: None,
+        )
+        record = report["submodels"]["global_map"]["record"]
+        conversion = report["submodels"]["global_map"]["conversion_inline"]
+        self.assertEqual(record["terminal_predicate_id"], "A3-HOLDOUT-PREDICTION")
+        self.assertEqual(conversion["terminal_predicate_id"], "A3-SLOT-ACTIVATION")
+        self.assertEqual(
+            report["submodels"]["global_map"]["extended_base"]["status"],
+            "not_applicable",
+        )
 
 
 if __name__ == "__main__":
