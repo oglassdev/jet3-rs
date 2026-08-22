@@ -27,7 +27,7 @@ enumerated by the joint review committed at
 `70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65`). Acquisition has not
 started. The immutable revision file is
 `oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
-`2f719310ea1f1a9d944f2c1524b2e7ce47078a5e0d6d2a816c4656a1cc91615a`; it binds the
+`bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`; it binds the
 base plan and R2 hashes and inherits R2's sequences unchanged. R3 pins, with
 one rule each: the extended 0x05-page bitmap layout (bytes `[4,2048)`, 16352
 LSB-first bits, slot-relative and referenced-page formulas, discriminator leg
@@ -36,18 +36,24 @@ predicates), under which the EXP-0042 derivation replicas leave the unique
 survivor `slot_relative_expected_0_16352` and refute a 1-byte header;
 conversion attribution by class-change count; per-replica evaluation with
 model-only comparison for `replica_disagreement`; the minimal-extent inline
-boundary `b*` with `A3-INLINE-SUFFIX` evaluated after boundary selection; the
+boundary `b*` (a disclosed departure from the base enumeration, whose
+survivor set is upward-closed) with `A3-INLINE-SUFFIX` evaluated after
+boundary selection; the
 global record stage order with end 2048 only, three tag anchors, and page
 multiplicity on any two pages; TDEF signature-only candidacy with validity and
 structural stability on the surviving model; tag-1-only global slot
 activation; report reason order, holdout opening only when a model exists,
 and enumerated-page candidate counts; structural holdout agreement for slack
-versus exact prediction of slot reference pages; and page absence as
-candidate rejection. `A3-POLARITY-NONE` and `A3-INLINE-BOUNDARY-MULTIPLE` are
-declared unreachable by construction; `A3-STRUCTURAL-EXCLUSION` is reachable
+versus exact prediction of slot reference pages and of `b*` (both
+overshoot-dependent by design), with the cross-check walk and quiet inline
+suffix re-checked on the holdout; and page absence as candidate rejection.
+`A3-POLARITY-NONE`, `A3-INLINE-BOUNDARY-NONE`, and
+`A3-INLINE-BOUNDARY-MULTIPLE` are declared unreachable by construction (under
+R3-G02 every inline-phase checkpoint already passed the frozen-end capacity,
+so `b* <= end` and the reduced-capacity decode passes); `A3-STRUCTURAL-EXCLUSION` is reachable
 only on `tdef.pointer_pair`. On EXP-0042-like data the conversion layer is
 terminal at leg 3 and the extended-base layer is therefore inapplicable. The
-dry-run honesty clause requires executed fixture transcripts for all 32
+dry-run honesty clause requires executed fixture transcripts for all 31
 reachable predicates, a replica 3 with independent overshoot, and full-sweep
 analyzer/validator agreement recorded in retained companion documents.
 

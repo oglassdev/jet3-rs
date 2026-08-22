@@ -3733,23 +3733,35 @@ Use `not applicable` explicitly rather than omitting a field.
   92 uniform `0xFF` bytes through 2047 (slack 92). The conversion window
   classifies as inline ×2 (349, 797 pages), neither ×10 (capacity 1024
   exceeded from 1053 pages), indirect ×4, so the class-change count is 2
-  (`A3-CONVERSION-MULTIPLE` if reached). The minimal inline extent `b*` over
-  the 12 inline-phase checkpoints is 3457 > 2048 (`A3-INLINE-BOUNDARY-NONE` if
-  reached). At `E0` the bytes `[1920,1924)` decode to u32 3758096384 with tag
+  (`A3-CONVERSION-MULTIPLE` if reached). The inline boundary stage is not
+  reached; for calibration only, had the two valid inline checkpoints formed
+  the inline phase, `b*` = 1920 + floor(797/8) + 1 = 2020 ≤ 2048. At `E0` the bytes `[1920,1924)` decode to u32 3758096384 with tag
   0, which is why slot activation is restricted to tag-1 checkpoints; both
   slots activate at `P_ABS_16480`. Replica disagreement, TDEF exclusion,
   holdout opening, and page absence are not exhibited by the bundle and carry
   no worked example.
-- Reachability: `A3-POLARITY-NONE` and `A3-INLINE-BOUNDARY-MULTIPLE` are
-  unreachable by construction with recorded proofs and preempting predicates;
+- Reachability: `A3-POLARITY-NONE`, `A3-INLINE-BOUNDARY-NONE`, and
+  `A3-INLINE-BOUNDARY-MULTIPLE` are unreachable by construction with recorded
+  proofs and preempting predicates (R3-G02 admits into the inline phase only
+  checkpoints that passed the frozen-end capacity, so `b* ≤ end` and the
+  reduced-capacity decode passes);
   `A3-STRUCTURAL-EXCLUSION` is unreachable on both global layers and reachable
   only on `tdef.pointer_pair`; extended-base `A3-POINTER-VALIDITY` is reached
-  but never terminal. 32 predicate ids must be reached by executed fixtures.
+  but never terminal. 31 predicate ids must be reached by executed fixtures.
 - Holdout semantics: frozen models are re-checked on the holdout without
   re-derivation; `zero_suffix_slack_bytes` is frozen as the derivation minimum
   and requires only structural agreement (≥ 16 uniform bytes) on the holdout;
-  `slot_reference_pages` is an exact prediction; holdout uniqueness is not
-  re-established and that limitation is disclosed.
+  `slot_reference_pages` and `b*` are exact predictions although both depend
+  on overshoot (a replica difference is `replica_disagreement`, a holdout
+  difference is `holdout_prediction_failure`, and the synthetic generator may
+  not tune replica-3 overshoot to preserve them); the conversion-layer holdout
+  check also runs the polarity cross-check walk and the `[b*, end)` quiet
+  suffix; holdout uniqueness is not re-established and that limitation is
+  disclosed. R3-G04 discloses its departure from the base boundary
+  enumeration (upward-closed survivor set), R3-G06 restores all-growth churn
+  stability with enumerated L/P/H transitions, R3-G07/G01 narrow bitmap reads
+  to the validated window, and R3-G03 freezes replica 1's cross-check
+  transcript and the union of per-replica `qualified_pages`.
 - Dry-run honesty clause: predicate reachability only by executed fixture
   transcripts (`dry-run/a3-reachability-transcript.json`); synthetic replica 3
   generated with independent overshoot in every phase; analyzer/validator
@@ -3762,7 +3774,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`, SHA-256
   `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`;
   `oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
-  `2f719310ea1f1a9d944f2c1524b2e7ce47078a5e0d6d2a816c4656a1cc91615a`.
+  `bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`.
 - Observation: `preregistration.acquisition_started` remains `false`; this
   revision records no database, checkpoint, replica observation, candidate
   set, report, validation receipt, evidence bundle, or scientific outcome.

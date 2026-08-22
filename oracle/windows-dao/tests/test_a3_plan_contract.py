@@ -18,7 +18,7 @@ PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
 REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 R3_PLAN = EXPERIMENT / "a3-allocation-maps-r3.plan.json"
-R3_PLAN_SHA256 = "2f719310ea1f1a9d944f2c1524b2e7ce47078a5e0d6d2a816c4656a1cc91615a"
+R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
 PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
@@ -234,7 +234,7 @@ class A3PlanContractTests(unittest.TestCase):
         reachability = revision["predicate_reachability_reconciliation"]
         self.assertEqual(
             [row["predicate_id"] for row in reachability["unreachable_by_construction"]],
-            ["A3-POLARITY-NONE", "A3-INLINE-BOUNDARY-MULTIPLE"],
+            ["A3-POLARITY-NONE", "A3-INLINE-BOUNDARY-MULTIPLE", "A3-INLINE-BOUNDARY-NONE"],
         )
         for row in reachability["unreachable_by_construction"]:
             self.assertEqual(row["status"], "unreachable_by_construction")
@@ -245,7 +245,7 @@ class A3PlanContractTests(unittest.TestCase):
             structural["unreachable_layers"],
             ["global_map.record", "global_map.conversion_inline"],
         )
-        self.assertIn("32 ids", reachability["effective_reachability_rule"])
+        self.assertIn("31 ids", reachability["effective_reachability_rule"])
 
         dry_run = revision["dry_run_honesty_clause"]
         self.assertIn("executed fixture transcript", dry_run["reachability_by_transcript"])
