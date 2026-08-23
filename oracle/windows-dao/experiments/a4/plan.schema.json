@@ -19,7 +19,8 @@
     "checkpoint_design",
     "page_capture",
     "record_candidate_procedure",
-    "inline_boundary_procedure",
+    "row_directory_procedure",
+    "candidate_grammars",
     "hypotheses",
     "analyzer_dry_run_contract",
     "predicate_registry",
@@ -29,6 +30,7 @@
     "runtime_design",
     "artifacts",
     "bounds",
+    "work_model",
     "claims"
   ],
   "properties": {
@@ -76,7 +78,10 @@
     "record_candidate_procedure": {
       "type": "object"
     },
-    "inline_boundary_procedure": {
+    "row_directory_procedure": {
+      "type": "object"
+    },
+    "candidate_grammars": {
       "type": "object"
     },
     "hypotheses": {
@@ -105,6 +110,9 @@
     },
     "bounds": {
       "$ref": "#/$defs/bounds"
+    },
+    "work_model": {
+      "type": "object"
     },
     "claims": {
       "$ref": "#/$defs/claims"
@@ -471,7 +479,7 @@
           "const": 100
         },
         "estimated_complete_wall_clock_seconds": {
-          "const": 1625
+          "const": 1725
         },
         "bounds_sanity_basis": {
           "type": "string",
@@ -491,8 +499,11 @@
         "max_logical_checkpoint_read_bytes_per_replica",
         "max_inserted_rows_per_replica",
         "max_changed_hash_entries_per_replica",
-        "max_record_candidates",
+        "max_locator_pairs_per_tdef_page",
+        "max_locator_pairs",
         "max_candidate_models",
+        "max_canonical_candidate_bytes",
+        "max_canonical_candidates_array_bytes",
         "max_analysis_work_units",
         "max_unique_page_blobs",
         "max_retained_page_store_bytes",
@@ -503,8 +514,7 @@
         "campaign_timeout_seconds",
         "max_child_log_bytes",
         "max_companion_bytes_per_checkpoint",
-        "max_qualified_pages_per_submodel",
-        "max_record_candidates_per_page"
+        "max_qualified_pages_per_submodel"
       ],
       "properties": {
         "page_size": {
@@ -531,20 +541,29 @@
         "max_changed_hash_entries_per_replica": {
           "const": 65536
         },
-        "max_record_candidates": {
-          "const": 67141632
+        "max_locator_pairs_per_tdef_page": {
+          "const": 4167722
+        },
+        "max_locator_pairs": {
+          "const": 66683552
         },
         "max_candidate_models": {
-          "const": 1000000
+          "const": 4096
+        },
+        "max_canonical_candidate_bytes": {
+          "const": 8190
+        },
+        "max_canonical_candidates_array_bytes": {
+          "const": 33554432
         },
         "max_analysis_work_units": {
-          "const": 600000000
+          "const": 81099648
         },
         "max_unique_page_blobs": {
           "const": 65536
         },
         "max_retained_page_store_bytes": {
-          "const": 536870912
+          "const": 134217728
         },
         "max_bundle_bytes": {
           "const": 805306368
@@ -569,9 +588,6 @@
         },
         "max_qualified_pages_per_submodel": {
           "const": 16
-        },
-        "max_record_candidates_per_page": {
-          "const": 2098176
         }
       }
     },
@@ -587,7 +603,21 @@
         "unobserved_slot_or_base_behavior",
         "compaction_encryption_or_version_behavior",
         "rust_correctness",
-        "dao_compatibility_or_support"
+        "dao_compatibility_or_support",
+        "support_matrix_advancement",
+        "dao_differential_verification",
+        "dao_exposed_physical_oracle",
+        "exact_allocation_set_equality",
+        "general_jet3_or_jet4_behavior",
+        "general_provider_or_locale_behavior",
+        "physical_column_definition_layout",
+        "physical_index_definition_or_node_layout",
+        "row_value_layout",
+        "relationship_layout",
+        "memo_ole_or_long_value_layout",
+        "writer_or_update_behavior",
+        "free_space_preference",
+        "preservation_behavior"
       ],
       "properties": {
         "descriptive_provider_observation_only": {
@@ -616,7 +646,21 @@
         },
         "dao_compatibility_or_support": {
           "const": false
-        }
+        },
+        "support_matrix_advancement": {"const": false},
+        "dao_differential_verification": {"const": false},
+        "dao_exposed_physical_oracle": {"const": false},
+        "exact_allocation_set_equality": {"const": false},
+        "general_jet3_or_jet4_behavior": {"const": false},
+        "general_provider_or_locale_behavior": {"const": false},
+        "physical_column_definition_layout": {"const": false},
+        "physical_index_definition_or_node_layout": {"const": false},
+        "row_value_layout": {"const": false},
+        "relationship_layout": {"const": false},
+        "memo_ole_or_long_value_layout": {"const": false},
+        "writer_or_update_behavior": {"const": false},
+        "free_space_preference": {"const": false},
+        "preservation_behavior": {"const": false}
       }
     },
     "decisiveReportHandling": {

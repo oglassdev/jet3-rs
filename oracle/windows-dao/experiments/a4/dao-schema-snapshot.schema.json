@@ -21,6 +21,8 @@
     "database_sha256_before_read",
     "database_sha256_after_read",
     "database_unchanged_by_read",
+    "dao_identifier_observable",
+    "identity_oracle",
     "canonicalization",
     "tables"
   ],
@@ -41,8 +43,10 @@
     "database_sha256_before_read": {"$ref": "#/$defs/sha256"},
     "database_sha256_after_read": {"$ref": "#/$defs/sha256"},
     "database_unchanged_by_read": {"const": true},
+    "dao_identifier_observable": {"const": false},
+    "identity_oracle": {"const": "listed_operation_instance_equality_only"},
     "canonicalization": {
-      "const": "include only non-system DAO TableDefs (Name not prefixed MSys and Attributes & dbSystemObject == 0); sort tables, fields, indexes, and index fields by invariant ordinal then Windows-1252 name bytes; emit integers as JSON integers and lowercase SHA-256"
+      "const": "include only non-system DAO TableDefs (Name not prefixed MSys and Attributes & dbSystemObject == 0); preserve each collection's zero-based DAO enumeration ordinal after Refresh; sort tables by ordinal then strict Windows-1252 name bytes and sort fields, indexes, and index fields by their own ordinal then name bytes; retain exact BSTR UTF-16 code units and strict Windows-1252 bytes; emit integers as JSON integers and lowercase SHA-256"
     },
     "tables": {
       "type": "array",
@@ -60,10 +64,12 @@
     "field": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ordinal", "name", "name_windows_1252_hex", "type", "size", "attributes", "required", "allow_zero_length"],
+      "required": ["ordinal", "ordinal_source", "name", "name_utf16_code_units", "name_windows_1252_hex", "type", "size", "attributes", "required", "allow_zero_length"],
       "properties": {
         "ordinal": {"type": "integer", "minimum": 0, "maximum": 255},
+        "ordinal_source": {"const": "Fields zero-based DAO enumeration after Refresh"},
         "name": {"$ref": "#/$defs/name"},
+        "name_utf16_code_units": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "integer", "minimum": 0, "maximum": 65535}},
         "name_windows_1252_hex": {"$ref": "#/$defs/nameBytes"},
         "type": {"type": "integer", "minimum": 0, "maximum": 255},
         "size": {"type": "integer", "minimum": 0, "maximum": 65535},
@@ -75,10 +81,12 @@
     "indexField": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ordinal", "name", "name_windows_1252_hex", "descending"],
+      "required": ["ordinal", "ordinal_source", "name", "name_utf16_code_units", "name_windows_1252_hex", "descending"],
       "properties": {
         "ordinal": {"type": "integer", "minimum": 0, "maximum": 255},
+        "ordinal_source": {"const": "Index.Fields zero-based DAO enumeration after Refresh"},
         "name": {"$ref": "#/$defs/name"},
+        "name_utf16_code_units": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "integer", "minimum": 0, "maximum": 65535}},
         "name_windows_1252_hex": {"$ref": "#/$defs/nameBytes"},
         "descending": {"type": "boolean"}
       }
@@ -86,10 +94,12 @@
     "index": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ordinal", "name", "name_windows_1252_hex", "attributes", "primary", "unique", "ignore_nulls", "fields"],
+      "required": ["ordinal", "ordinal_source", "name", "name_utf16_code_units", "name_windows_1252_hex", "attributes", "primary", "unique", "ignore_nulls", "fields"],
       "properties": {
         "ordinal": {"type": "integer", "minimum": 0, "maximum": 255},
+        "ordinal_source": {"const": "Indexes zero-based DAO enumeration after Refresh"},
         "name": {"$ref": "#/$defs/name"},
+        "name_utf16_code_units": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "integer", "minimum": 0, "maximum": 65535}},
         "name_windows_1252_hex": {"$ref": "#/$defs/nameBytes"},
         "attributes": {"type": "integer", "minimum": -2147483648, "maximum": 2147483647},
         "primary": {"type": "boolean"},
@@ -101,11 +111,14 @@
     "table": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ordinal", "logical_role", "name", "name_windows_1252_hex", "attributes", "row_count", "rolling_row_sha256", "fields", "indexes"],
+      "required": ["ordinal", "ordinal_source", "logical_role", "lifecycle_instance", "name", "name_utf16_code_units", "name_windows_1252_hex", "attributes", "row_count", "rolling_row_sha256", "fields", "indexes"],
       "properties": {
         "ordinal": {"type": "integer", "minimum": 0, "maximum": 3},
+        "ordinal_source": {"const": "TableDefs zero-based user-table enumeration after Refresh"},
         "logical_role": {"type": "string", "enum": ["T1", "T2", "T3", "T4"]},
+        "lifecycle_instance": {"enum": ["T1-v1", "T2-v1", "T2-v2", "T3-v1", "T4-v1"]},
         "name": {"type": "string", "enum": ["A4TAB_A1", "A4TAB_B2", "A4TAB_C3", "A4TAB_É4"]},
+        "name_utf16_code_units": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"type": "integer", "minimum": 0, "maximum": 65535}},
         "name_windows_1252_hex": {"$ref": "#/$defs/nameBytes"},
         "attributes": {"type": "integer", "minimum": -2147483648, "maximum": 2147483647},
         "row_count": {"type": "integer", "minimum": 0, "maximum": 200000},

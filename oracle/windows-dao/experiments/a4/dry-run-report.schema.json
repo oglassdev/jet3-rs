@@ -9,6 +9,7 @@
     "document_type",
     "experiment_id",
     "plan_sha256",
+    "revision_plan_sha256",
     "analyzer_commit",
     "recorded_utc",
     "source_kind",
@@ -36,6 +37,9 @@
       "const": "DAO-A4-ROW-ANCHORED-MAPS-001"
     },
     "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "revision_plan_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "analyzer_commit": {

@@ -92,7 +92,7 @@
     "inserted_rows_total": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 524288
+      "maximum": 200000
     },
     "changed_hash_entries": {
       "type": "integer",
@@ -393,9 +393,10 @@
           "pattern": "^(T1_REL_(0064|0512|0768|1280)|T3_ABS_(04096|08192|12288|16480)|T4_REL_(0064|0896|0904))$"
         },
         "baseline_pages": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 20480
+          "anyOf": [
+            {"type": "null"},
+            {"type": "integer", "minimum": 1, "maximum": 20480}
+          ]
         },
         "target_pages": {
           "type": "integer",

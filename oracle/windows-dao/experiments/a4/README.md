@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`6604b4866b26e3077f351909f7cf85839da7ff75a11600320b21d67d2e98c21c`.
+`ef1e5d150df0c1aead5b1ec516a8c74b268c62167ee42c020364f9fe870cb203`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -21,9 +21,10 @@ layers without allowing a later failure to erase an earlier success:
    for object kind, identifier lifecycle, and name bytes/encoding.
 
 Every layer has an explicit ordered predicate sequence and `no_outcome`
-terminal in the plan. All 40 registered predicate ids occur exactly once in
-the reachability reconciliation, and the R4-S01-style survivor table covers
-every layer predicate. R4-C01-style charging counts each unique qualified
+terminal in the plan. All 40 registered predicate ids have a mandatory
+contract with prerequisites, input candidate set, exact pass/fail rule,
+terminal/count/status behavior, and a constructible unique reachability
+fixture that passes every prior predicate. R4-C01-style charging counts each unique qualified
 page/checkpoint/model identity once across the derivation-replica union.
 
 ## Frozen design
@@ -37,7 +38,8 @@ names rotate across logical roles `T1` through `T4`:
 - `A4TAB_C3`
 - `A4TAB_É4`
 
-The four names have equal character length. `A4TAB_É4` is the only non-ASCII
+The four physical names are eight Unicode scalar values and, under the required
+strict Windows-1252 conversion, eight bytes each. `A4TAB_É4` is the only non-ASCII
 identifier and is pinned to Windows ANSI code page 1252, hexadecimal bytes
 `41 34 54 41 42 5f c9 34`. A host whose `GetACP` result is not 1252 fails
 before database creation. `A4IX_ID` is a nonunique index over the existing
@@ -57,7 +59,11 @@ Only one listed logical schema operation occurs between closed checkpoints.
 Every checkpoint retains a physical page index and a canonical DAO schema
 snapshot of non-system TableDefs, fields, indexes, attributes, row counts, and
 rolling row hashes. The schema snapshot is read-only, and the before/after MDB
-hashes must match.
+hashes must match. Its collection ordinals come from zero-based DAO enumeration
+after `Refresh`; exact BSTR UTF-16 code units and strict Windows-1252 bytes are
+retained, and validators independently reject duplicate roles, names, or
+ordinals and cross-bind every snapshot to its observation, page index,
+manifest entry, and actual bytes.
 
 ## A3 calibration disclosure
 
@@ -69,6 +75,10 @@ its analysis report SHA-256 is
 and its frozen derivation-set SHA-256 is
 `ec7c8d27cc46ef9dfdc8214d025cd2d6493ab089f00fc35dbf0ccb9899cdcc0a`.
 It is never A4 evidence.
+
+The re-derived byte slices and decoder arithmetic are retained at
+`design-inputs/a3-calibration-receipt.json`, SHA-256
+`788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e`.
 
 Concrete calibration values are preregistered in the plan. In retained replica
 1, tag-01 page 24 has two rows; row 0 moves from `[1915,2048)` through
@@ -94,6 +104,11 @@ The base plan incorporates A3's later machinery fixes from the start:
   inapplicable layer.
 - R4-C01-style charging counts union-qualified work once, even when both
   derivation replicas expose it.
+- Canonical locator pairs admit exactly 4,167,722 layout/offset candidates per
+  qualified TDEF page and 66,683,552 across 16 pages. The closed work equation
+  totals 81,099,648 units. The retained page store is limited to 128 MiB for
+  65,536 unique 2,048-byte blobs, and at most 4,096 canonical candidates fit
+  the frozen-set JSON contract.
 - R5-T01-style timing measures from hosted attempt start through successful
   manifest creation. Exactly 2,700 seconds is accepted; 2,701 is rejected
   before manifest creation and produces diagnostics rather than a successful
@@ -109,8 +124,10 @@ The approved scope brief is copied byte-for-byte at
 
 ## Schemas and status
 
-The A3 evidence-schema family is copied and retagged under this directory for
-minimal worker/analyzer/validator rebinding. A4 additionally defines
+The evidence-schema family is A4-specific: frozen layers retain complete
+canonical candidate arrays, H4 has independent root and field results, and the
+analysis report contains A4 row-directory, locator, transition, reference/
+bitmap, catalog-root, and catalog-field transcripts. A4 additionally defines
 `dao-schema-snapshot.schema.json`. No analyzer, validator, worker, or workflow
 implementation is part of this preregistration change, and acquisition remains
 `BLOCKED` until the plan's execution gates are satisfied and disclosed
@@ -120,5 +137,6 @@ The claims block is fail-closed: only
 `descriptive_provider_observation_only` is true. A4 claims no Rust correctness,
 DAO compatibility, product support, support-matrix advancement, general Jet
 behavior, exact allocation-set equality, physical column/index layout, row
-value layout, long-value behavior, writer behavior, or unexercised slot/base
-behavior.
+value layout, relationships, Memo/OLE/long-value behavior, writer/update or
+preservation behavior, free-space preference, DAO-exposed physical oracle,
+`dao_differential`, or unexercised slot/base behavior.
