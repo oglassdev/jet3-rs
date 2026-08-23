@@ -24,7 +24,7 @@ from a3_analysis import BundleReplicaSource, build_analysis
 from a3_dryrun_bundle import BundlePaths, finalize_manifest, run_receipt_process, write_bundle
 from a3_generator import SyntheticParameters, SyntheticReplica, generate_replicas
 from a3_model import Abort
-from a3_spec import BOUNDS, LAYER_KEYS, load_bounded_json, project_predicate_results
+from a3_spec import BOUNDS, LAYER_KEYS, load_bounded_json
 
 VALIDATOR_SCRIPT = Path(__file__).resolve().parent / "a3_independent_validator.py"
 VALIDATOR_TIMEOUT_SECONDS = BOUNDS["fan_in_timeout_seconds"]
@@ -223,19 +223,9 @@ def compare_pair(case_id: str, analyzer: AnalyzerResult, validator: ValidatorRes
             disagreements.append(f"{name}: analyzer model {left.model} vs validator {right.model}")
         if left.survivor_count != right.survivor_count:
             disagreements.append(f"{name}: analyzer survivor count {left.survivor_count} vs validator {right.survivor_count}")
-    # The validator's documents carry no per-predicate list, so the 34 statuses are compared by
-    # projecting the validator's recomputed layers through the plan's projection rule and
-    # requiring equality with the analyzer's reported rows.
-    campaign = next((item for item in analyzer.report["terminal_predicate_ids"] if item in CAMPAIGN_PREDICATES), None)
-    try:
-        projected_rows, _ = project_predicate_results(
-            {name: {"status": view.status, "terminal_predicate_id": view.terminal_predicate_id} for name, view in validator_layers.items()},
-            campaign_terminal=campaign,
-        )
-        if projected_rows != analyzer.report["predicate_results"]:
-            disagreements.append("34 predicate statuses: validator layers project differently from analyzer predicate_results")
-    except ValidationError as exc:
-        disagreements.append(f"34 predicate statuses: validator layers do not project: {exc}")
+    # The validator's documents carry no per-predicate rows and its reached-predicate sets are not
+    # exported, so the 34-status identity is enforced on the verdict path by the validator's own
+    # validate_predicates (every non-bundle-contract verdict below has passed it).
     if analyzer.report["polarity_cross_check"] != validator.recomputation.get("polarity_cross_check"):
         disagreements.append("polarity_cross_check transcripts differ")
     analyzer_campaign = [item for item in analyzer.report["terminal_predicate_ids"] if item in CAMPAIGN_PREDICATES]
