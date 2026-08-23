@@ -3,7 +3,7 @@
 
 A3 rule | implementation
 --- | ---
-Base + R2 + R3 hash binding | :func:`load_checked_plan`, :func:`load_checked_revisions`
+Base + R2 + R3 + R4 hash binding | :func:`load_checked_plan`, :func:`load_checked_revisions`
 R2 order with R3-G03 disagreement reach | :func:`project_predicate_results`
 R3-G08 ordered reasons and holdout fields | :func:`validate_analysis_report`
 R3-M05 campaign-terminal projection | :func:`project_predicate_results`
@@ -35,9 +35,11 @@ CHECKED_R2_PLAN = A3_ROOT / "a3-allocation-maps-r2.plan.json"
 R2_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 CHECKED_R3_PLAN = A3_ROOT / "a3-allocation-maps-r3.plan.json"
 R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
+CHECKED_R4_PLAN = A3_ROOT / "a3-allocation-maps-r4.plan.json"
+R4_PLAN_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
 PAIR_REVIEW = A3_ROOT / "design-inputs" / "fable-a3-pair-review.md"
 PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
-REVISION_PLAN_SHA256 = R3_PLAN_SHA256
+REVISION_PLAN_SHA256 = R4_PLAN_SHA256
 EXPERIMENT_ID = "DAO-A3-ALLOCATION-MAPS-001"
 
 _SCHEMA_FILES = {
@@ -181,8 +183,8 @@ def _load_revision(path: Path, sha256: str, revision_id: str) -> dict[str, Any]:
 
 def load_checked_revisions(
     plan: CheckedPlan = PLAN,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load the exact R2 order and R3 operational reconciliation."""
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Load the exact R2 order and R3/R4 operational reconciliations."""
     r2 = _load_revision(CHECKED_R2_PLAN, R2_PLAN_SHA256, "DAO-A3-ALLOCATION-MAPS-001-R2")
     registry_ids = set(plan.predicate_ids)
     reconciliation = r2["predicate_evaluation_sequence_reconciliation"]
@@ -213,11 +215,31 @@ def load_checked_revisions(
     require_equal(_sha256(PAIR_REVIEW), PAIR_REVIEW_SHA256, "pair-review file sha256")
     gaps = r3["layer_semantics_reconciliation"]["gaps"]
     require_equal([row["gap_id"] for row in gaps], [f"R3-G{i:02d}" for i in range(1, 11)], "R3 gap ids")
-    return r2, r3
+    r4 = _load_revision(CHECKED_R4_PLAN, R4_PLAN_SHA256, "DAO-A3-ALLOCATION-MAPS-001-R4")
+    prior_revisions = r4["preregistration"]["prior_revisions"]
+    require_equal(
+        [(row["revision_id"], row["sha256"]) for row in prior_revisions],
+        [(r2["revision_id"], R2_PLAN_SHA256), (r3["revision_id"], R3_PLAN_SHA256)],
+        "R4 prior revisions",
+    )
+    survivor_rows = r4["survivor_count_reconciliation"]["per_terminal_counts"]
+    require_equal(set(survivor_rows), set(sequences), "R4 survivor-count layer set")
+    for layer, rows in survivor_rows.items():
+        require_equal(
+            [row["predicate_id"] for row in rows],
+            sequences[layer],
+            f"R4 {layer} survivor-count sequence",
+        )
+    require_equal(
+        r4["record_candidate_count_reconciliation"]["gap_id"],
+        "R4-C01",
+        "R4 record-candidate reconciliation",
+    )
+    return r2, r3, r4
 
 
-R2_PLAN, R3_PLAN = load_checked_revisions()
-REVISION_PLAN = R3_PLAN
+R2_PLAN, R3_PLAN, R4_PLAN = load_checked_revisions()
+REVISION_PLAN = R4_PLAN
 CHECKPOINT_IDS = PLAN.checkpoint_ids
 CHECKPOINT_ORDINALS = PLAN.checkpoint_ordinals
 PREDICATE_IDS = PLAN.predicate_ids

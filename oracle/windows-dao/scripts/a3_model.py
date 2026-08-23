@@ -49,12 +49,15 @@ class ReplicaData(Protocol):
 
 class Abort(Exception):
     """One registered A3 terminal with its stable reason and literal layer."""
-    def __init__(self, predicate_id: str) -> None:
+    def __init__(self, predicate_id: str, survivor_count: int = 0) -> None:
         try:
             self.reason, self.registered_layer = PREDICATES[predicate_id]
         except KeyError as exc:
             raise ValueError(f"unregistered A3 predicate {predicate_id!r}") from exc
+        if isinstance(survivor_count, bool) or not isinstance(survivor_count, int) or survivor_count < 0:
+            raise ValueError("A3 survivor count must be a nonnegative integer")
         self.predicate_id = predicate_id
+        self.survivor_count = survivor_count
         super().__init__(f"{predicate_id}: {self.reason}")
 
 
@@ -72,10 +75,18 @@ class WorkCounter:
         self.value += units
 
     def enumerate_intervals(self) -> None:
-        if self.record_candidates + PER_PAGE_CANDIDATES > MAX_RECORD_CANDIDATES:
+        self.enumerate_pages(1)
+
+    def enumerate_pages(self, count: int, *, prefix_arrays_per_page: int = 0) -> None:
+        values = (count, prefix_arrays_per_page)
+        if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
             raise Abort("A3-RESOURCE-BOUND")
-        self.record_candidates += PER_PAGE_CANDIDATES
-        self.charge(PER_PAGE_CANDIDATES * 8)
+        candidates = count * PER_PAGE_CANDIDATES
+        if self.record_candidates + candidates > MAX_RECORD_CANDIDATES:
+            raise Abort("A3-RESOURCE-BOUND")
+        prefix_cells = count * prefix_arrays_per_page * (PAGE_SIZE + 1)
+        self.charge(candidates * 8 + prefix_cells)
+        self.record_candidates += candidates
 
     def examine_models(self, count: int = 1) -> None:
         if count < 0 or self.candidate_models + count > MAX_CANDIDATE_MODELS:
@@ -143,7 +154,6 @@ class View:
 
     def idle_pairs_identical(self) -> bool:
         for left, right in IDLE_PAIRS:
-            self.work.charge(1)
             if self.hashes(left) != self.hashes(right):
                 return False
         return True
@@ -154,13 +164,20 @@ class Prefix:
     cells: tuple[int, ...]
 
     @classmethod
-    def from_flags(cls, flags: Sequence[bool], work: WorkCounter) -> "Prefix":
+    def from_flags(
+        cls,
+        flags: Sequence[bool],
+        work: WorkCounter,
+        *,
+        charge_work: bool = True,
+    ) -> "Prefix":
         if len(flags) != PAGE_SIZE:
             raise Abort("A3-SNAPSHOT-RECONSTRUCTION")
         cells = [0]
         for flag in flags:
             cells.append(cells[-1] + int(flag))
-        work.charge(PAGE_SIZE + 1)
+        if charge_work:
+            work.charge(PAGE_SIZE + 1)
         return cls(tuple(cells))
 
     def count(self, start: int, end: int) -> int:
@@ -198,7 +215,6 @@ def candidate_page_space(views: Sequence[View]) -> range:
 
 def qualify_global_pages(view: View, pages: Sequence[int]) -> tuple[int, ...]:
     qualified = tuple(page for page in pages if view.hash_at("E0", page) != view.hash_at("D_GROW_0128", page) and view.hash_at("D_GROW_0128", page) != view.hash_at("D_DROP", page))
-    view.work.charge(len(pages) * 2)
     if len(qualified) > MAX_QUALIFIED_PAGES:
         raise Abort("A3-RESOURCE-BOUND")
     return qualified
@@ -211,7 +227,6 @@ def qualify_tdef_pages(view: View, pages: Sequence[int]) -> tuple[int, ...]:
             continue
         growth = any(view.hash_at(a, page) != view.hash_at(b, page) for a, b in GROWTH_TRANSITIONS)
         churn = all(view.hash_at(a, page) != view.hash_at(b, page) for a, b in CHURN_TRANSITIONS)
-        view.work.charge(len(GROWTH_TRANSITIONS) + len(CHURN_TRANSITIONS))
         if growth and churn:
             qualified.append(page)
     if len(qualified) > MAX_QUALIFIED_PAGES:
@@ -420,10 +435,10 @@ def derive_global_record(view: View, page: int, *, enumerate_candidates: bool = 
     if not polarities:
         raise Abort("A3-POLARITY-NONE")
     if len(polarities) > 1:
-        raise Abort("A3-POLARITY-MULTIPLE")
+        raise Abort("A3-POLARITY-MULTIPLE", len(pairs))
     starts = {start for start, _ in pairs}
     if len(starts) > 1:
-        raise Abort("A3-GLOBAL-RECORD-MULTIPLE")
+        raise Abort("A3-GLOBAL-RECORD-MULTIPLE", len(starts))
     return models[0]
 
 
@@ -434,12 +449,12 @@ def resolve_page_models(survivors: Mapping[int, Sequence[T]], page_multiple: str
     """Apply the plan's page-multiplicity test before within-page multiplicity."""
     nonempty = {page: tuple(values) for page, values in survivors.items() if values}
     if len(nonempty) > 1:
-        raise Abort(page_multiple)
+        raise Abort(page_multiple, sum(len(values) for values in nonempty.values()))
     if not nonempty:
         return None
     values = next(iter(nonempty.values()))
     if len(values) > 1:
-        raise Abort(record_multiple)
+        raise Abort(record_multiple, len(values))
     return values[0]
 
 

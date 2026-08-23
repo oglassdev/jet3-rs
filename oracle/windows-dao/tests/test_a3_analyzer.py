@@ -18,7 +18,7 @@ sys.path.insert(0, str(SCRIPTS))
 from protocol_validation import ValidationError  # noqa: E402
 from a3_analysis import (  # noqa: E402
     LoadedReplicaSource, ReplicaInput, ReplicaLayer, _combine_replicas,
-    _same_model, build_analysis,
+    _qualified_union, _same_model, build_analysis, recompute_only,
 )
 from a3_generator import (  # noqa: E402
     calibration_parameters, generate_synthetic_bundle, generate_synthetic_bundles,
@@ -28,12 +28,13 @@ from a3_layers import (  # noqa: E402
     pointer_windows, polarity_cross_check,
 )
 from a3_model import (  # noqa: E402
-    CHECKPOINT_IDS, Abort, GlobalRecordModel, Record, View, WorkCounter,
+    CHECKPOINT_IDS, MAX_QUALIFIED_PAGES, MAX_RECORD_CANDIDATES, PAGE_SIZE,
+    PER_PAGE_CANDIDATES, Abort, GlobalRecordModel, Record, View, WorkCounter,
     decode_inline, global_start_candidates,
 )
 from a3_spec import (  # noqa: E402
     LAYER_PREDICATE_SEQUENCES, PLAN_SHA256, PREDICATES, PREDICATE_IDS,
-    R2_PLAN_SHA256, R3_PLAN_SHA256, REVISION_PLAN_SHA256,
+    R2_PLAN_SHA256, R3_PLAN_SHA256, R4_PLAN_SHA256, REVISION_PLAN_SHA256,
     compare_frozen_to_report, load_bounded_json,
     project_predicate_results, validate_analysis_report,
     validate_predicate_reporting,
@@ -60,6 +61,21 @@ class A3AnalyzerTests(unittest.TestCase):
         report, frozen, _ = self.analyze()
         compare_frozen_to_report(frozen, report)
         validate_analysis_report(report, frozen)
+        union_pages = sum(report["qualified_page_counts"].values())
+        self.assertEqual(
+            report["record_candidates_examined"],
+            union_pages * PER_PAGE_CANDIDATES,
+        )
+        self.assertEqual(
+            report["analysis_work_units"],
+            8 * report["record_candidates_examined"]
+            + (PAGE_SIZE + 1) * report["qualified_page_counts"]["tdef"],
+        )
+        self.assertLessEqual(
+            report["analysis_work_units"],
+            8 * report["record_candidates_examined"]
+            + 16 * (PAGE_SIZE + 1) * union_pages,
+        )
 
     def test_global_start_uses_tag_base_highwater_and_sentinel(self) -> None:
         bundle = generate_synthetic_bundle()
@@ -139,6 +155,52 @@ class A3AnalyzerTests(unittest.TestCase):
         with self.assertRaises(Abort) as caught:
             derive_tdef_candidates(view, (modified.tdef_page,), True)
         self.assertEqual(caught.exception.predicate_id, "A3-STRUCTURAL-EXCLUSION")
+        self.assertEqual(caught.exception.survivor_count, 1)
+
+    def test_r4_candidate_charging_accepts_exact_ceiling_and_rejects_one_over(self) -> None:
+        work = WorkCounter()
+        work.enumerate_pages(MAX_QUALIFIED_PAGES)
+        work.enumerate_pages(MAX_QUALIFIED_PAGES, prefix_arrays_per_page=1)
+        self.assertEqual(work.record_candidates, MAX_RECORD_CANDIDATES)
+        self.assertEqual(
+            work.value,
+            MAX_RECORD_CANDIDATES * 8 + MAX_QUALIFIED_PAGES * (PAGE_SIZE + 1),
+        )
+        with self.assertRaises(Abort) as candidate_bound:
+            work.enumerate_pages(1)
+        self.assertEqual(candidate_bound.exception.predicate_id, "A3-RESOURCE-BOUND")
+        with self.assertRaises(Abort) as qualified_bound:
+            pages = tuple(range(MAX_QUALIFIED_PAGES + 1))
+            _qualified_union((pages, pages))
+        self.assertEqual(qualified_bound.exception.predicate_id, "A3-RESOURCE-BOUND")
+
+    def test_r4_tdef_union_is_charged_when_either_precondition_passes(self) -> None:
+        bundles = generate_synthetic_bundles(calibration_parameters())[:2]
+
+        def inputs(preconditions: tuple[bool, bool]) -> list[ReplicaInput]:
+            return [
+                ReplicaInput(
+                    bundle,
+                    bundle.replica,
+                    bundle.campaign_id,
+                    bundle.producer_commit,
+                    bundle.provider_sha256,
+                    precondition,
+                )
+                for bundle, precondition in zip(bundles, preconditions)
+            ]
+
+        neither = recompute_only(inputs((False, False)))
+        either = recompute_only(inputs((True, False)))
+        self.assertEqual(
+            neither["record_candidates_examined"],
+            len(neither["qualified_pages"]["global_map"]) * PER_PAGE_CANDIDATES,
+        )
+        self.assertEqual(
+            either["record_candidates_examined"],
+            sum(len(pages) for pages in either["qualified_pages"].values())
+            * PER_PAGE_CANDIDATES,
+        )
 
     def test_holdout_reporting_exception_and_t5_rejection(self) -> None:
         rows = [
@@ -157,7 +219,7 @@ class A3AnalyzerTests(unittest.TestCase):
             "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1",
         )
 
-    def test_r2_r3_hashes_and_tdef_sequence_are_bound(self) -> None:
+    def test_r2_r3_r4_hashes_and_tdef_sequence_are_bound(self) -> None:
         self.assertEqual(
             R2_PLAN_SHA256,
             "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
@@ -166,7 +228,11 @@ class A3AnalyzerTests(unittest.TestCase):
             R3_PLAN_SHA256,
             "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a",
         )
-        self.assertEqual(REVISION_PLAN_SHA256, R3_PLAN_SHA256)
+        self.assertEqual(
+            R4_PLAN_SHA256,
+            "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea",
+        )
+        self.assertEqual(REVISION_PLAN_SHA256, R4_PLAN_SHA256)
         sequence = LAYER_PREDICATE_SEQUENCES["tdef_pointer_pair"]
         self.assertLess(
             sequence.index("A3-TDEF-RECORD-NONE"),
@@ -217,6 +283,27 @@ class A3AnalyzerTests(unittest.TestCase):
         with self.assertRaises(Abort) as multiple:
             conversion_index(("inline", "neither", "indirect"))
         self.assertEqual(multiple.exception.predicate_id, "A3-CONVERSION-MULTIPLE")
+        self.assertEqual(multiple.exception.survivor_count, 2)
+
+    def test_r4_survivor_count_uses_replica_one_stopping_set(self) -> None:
+        same_terminal = _combine_replicas(
+            "global_map_record",
+            (
+                ReplicaLayer(None, 3, Abort("A3-GLOBAL-RECORD-MULTIPLE", 3)),
+                ReplicaLayer(None, 2, Abort("A3-GLOBAL-RECORD-MULTIPLE", 2)),
+            ),
+        )
+        self.assertEqual(same_terminal.survivor_count, 3)
+        model = ConversionModel("P_ABS_16480", 20, 1, 2, 2, 2020, (14848, 16352))
+        disagreement = _combine_replicas(
+            "global_map_conversion_inline",
+            (
+                ReplicaLayer(model, 1, None),
+                ReplicaLayer(None, 0, Abort("A3-CONVERSION-NONE")),
+            ),
+        )
+        self.assertEqual(disagreement.abort.predicate_id, "A3-REPLICA-DISAGREEMENT")
+        self.assertEqual(disagreement.survivor_count, 1)
 
     def test_r3_m1_m2_disagreement_statuses_stop_before_earliest_terminal(self) -> None:
         model = ConversionModel("P_ABS_16480", 20, 1, 2, 2, 2020, (14848, 16352))
@@ -224,7 +311,7 @@ class A3AnalyzerTests(unittest.TestCase):
             (ReplicaLayer(None, 0, Abort("A3-CONVERSION-NONE")), ReplicaLayer(model, 1, None)),
             (
                 ReplicaLayer(None, 0, Abort("A3-CONVERSION-NONE")),
-                ReplicaLayer(None, 0, Abort("A3-CONVERSION-MULTIPLE")),
+                ReplicaLayer(None, 2, Abort("A3-CONVERSION-MULTIPLE", 2)),
             ),
         )
         for outcomes in cases:
