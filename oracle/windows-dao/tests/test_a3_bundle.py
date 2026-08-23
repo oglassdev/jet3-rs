@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import shutil
@@ -31,6 +32,7 @@ from a3_bundle import (  # noqa: E402
     assemble_bundle,
     finalize_bundle,
     validate_bundle,
+    _validate_target_disclosures,
 )
 from a3_holdout import (  # noqa: E402
     FAN_IN_TIMEOUT_SECONDS,
@@ -40,7 +42,9 @@ from a3_holdout import (  # noqa: E402
     main as holdout_main,
     write_receipt,
 )
-from a3_spec import BOUNDS, EXPERIMENT_ID, PLAN_SHA256  # noqa: E402
+from a3_spec import (  # noqa: E402
+    BOUNDS, EXPERIMENT_ID, PLAN_SHA256, REVISION_CHAIN, REVISION_PLAN_SHA256,
+)
 from a3_test_bundle import write_replica_trees  # noqa: E402
 from protocol_validation import ValidationError, canonical_json_bytes  # noqa: E402
 
@@ -84,7 +88,14 @@ class A3BundleTests(unittest.TestCase):
             "--freeze-state", str(cls.freeze_state),
         ]) != 0:
             raise AssertionError("synthetic A3 analysis did not resume")
-        cls.manifest = finalize_bundle(cls.bundle, cls.campaign_id, cls.producer_commit)
+        cls.pre_finalization = cls.root / "pre-finalization-bundle"
+        shutil.copytree(cls.bundle, cls.pre_finalization)
+        cls.campaign_started_utc = "2026-08-22T11:15:00Z"
+        cls.created_utc = "2026-08-22T12:00:00Z"
+        cls.manifest = finalize_bundle(
+            cls.bundle, cls.campaign_id, cls.producer_commit,
+            cls.campaign_started_utc, created_utc=cls.created_utc,
+        )
         cls.validation = validate_bundle(cls.bundle, cls.campaign_id, cls.producer_commit)
 
     @classmethod
@@ -120,6 +131,10 @@ class A3BundleTests(unittest.TestCase):
         self.assertEqual(manifest["document_type"], "dao_a3_bundle_manifest")
         self.assertEqual(manifest["experiment_id"], EXPERIMENT_ID)
         self.assertEqual(manifest["plan_sha256"], PLAN_SHA256)
+        self.assertEqual(manifest["revision_plan_sha256"], REVISION_PLAN_SHA256)
+        self.assertEqual(manifest["campaign_started_utc"], self.campaign_started_utc)
+        self.assertEqual(manifest["created_utc"], self.created_utc)
+        self.assertEqual(manifest["campaign_elapsed_seconds"], 2_700)
         self.assertEqual(manifest["replica_count"], REPLICA_COUNT)
         self.assertEqual(manifest["checkpoint_count"], 75)
         self.assertRegex(manifest["created_utc"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -127,6 +142,17 @@ class A3BundleTests(unittest.TestCase):
         self.assertEqual(manifest["independent_validation_status"], "not_independently_validated")
         paths = {entry["path"] for entry in manifest["files"]}
         self.assertIn("plan/a3-allocation-maps.plan.json", paths)
+        entries = {entry["path"]: entry for entry in manifest["files"]}
+        for locator, digest in REVISION_CHAIN.items():
+            self.assertEqual(entries[locator]["role"], "revision_plan")
+            self.assertEqual(entries[locator]["media_type"], "application/json")
+            self.assertEqual(entries[locator]["sha256"], digest)
+        for entry in manifest["files"]:
+            if entry["media_type"] == "application/json" and entry["role"] not in {
+                "plan", "revision_plan",
+            }:
+                document = json.loads((self.bundle / entry["path"]).read_bytes())
+                self.assertEqual(document["revision_plan_sha256"], REVISION_PLAN_SHA256)
         discovered = {
             path.relative_to(self.bundle).as_posix()
             for path in self.bundle.rglob("*")
@@ -157,6 +183,24 @@ class A3BundleTests(unittest.TestCase):
         )
         self.assertTrue(receipt["validated_after_candidate_freeze"])
         self.assertFalse(receipt["page_bytes_exposed_to_analyzer"])
+
+    def test_producer_enforces_r5_target_baselines_and_arithmetic(self) -> None:
+        observation = self.validation["replicas"][0]
+        _validate_target_disclosures(observation)
+        for checkpoint_id, field in (
+            ("L_REL_0064", "target_baseline_pages"),
+            ("H_REL_0064", "target_threshold_pages"),
+            ("P_ABS_04096", "target_baseline_pages"),
+        ):
+            with self.subTest(checkpoint=checkpoint_id, field=field):
+                changed = copy.deepcopy(observation)
+                checkpoint = next(
+                    row for row in changed["checkpoints"]
+                    if row["checkpoint_id"] == checkpoint_id
+                )
+                checkpoint[field] = 1 if checkpoint[field] is None else checkpoint[field] + 1
+                with self.assertRaisesRegex(ValidationError, "target"):
+                    _validate_target_disclosures(changed)
 
     def test_holdout_is_grafted_only_after_the_candidate_freeze(self) -> None:
         self.assertTrue(self.holdout_absent_before_analysis)
@@ -263,6 +307,50 @@ class A3BundleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "size|sha256"):
             validate_bundle(corrupted, self.campaign_id, self.producer_commit)
 
+    def test_revision_inventory_and_document_binding_tampering_are_rejected(self) -> None:
+        relabeled = self.root / "relabeled-revision"
+        shutil.copytree(self.bundle, relabeled)
+        manifest_path = relabeled / "bundle-manifest.json"
+        manifest = json.loads(manifest_path.read_bytes())
+        revision = next(
+            entry for entry in manifest["files"]
+            if entry["path"] == "plan/a3-allocation-maps-r5.plan.json"
+        )
+        revision["role"] = "plan"
+        manifest_path.write_bytes(canonical_json_bytes(manifest))
+        with self.assertRaisesRegex(ValidationError, "role"):
+            validate_bundle(relabeled, self.campaign_id, self.producer_commit)
+
+        rebound = self.root / "rebound-receipt"
+        shutil.copytree(self.bundle, rebound)
+        manifest_path = rebound / "bundle-manifest.json"
+        manifest = json.loads(manifest_path.read_bytes())
+        receipt_path = rebound / "analysis/holdout-structure-receipt.json"
+        receipt = json.loads(receipt_path.read_bytes())
+        receipt["revision_plan_sha256"] = "f" * 64
+        receipt_bytes = canonical_json_bytes(receipt)
+        receipt_path.write_bytes(receipt_bytes)
+        entry = next(
+            row for row in manifest["files"]
+            if row["path"] == "analysis/holdout-structure-receipt.json"
+        )
+        entry["sha256"] = hashlib.sha256(receipt_bytes).hexdigest()
+        entry["size_bytes"] = len(receipt_bytes)
+        manifest["holdout_structure_receipt_sha256"] = entry["sha256"]
+        manifest_path.write_bytes(canonical_json_bytes(manifest))
+        with self.assertRaisesRegex(ValidationError, "revision_plan_sha256"):
+            validate_bundle(rebound, self.campaign_id, self.producer_commit)
+
+    def test_overtime_run_cannot_finalize_a_successful_bundle(self) -> None:
+        overtime = self.root / "overtime-bundle"
+        shutil.copytree(self.pre_finalization, overtime)
+        with self.assertRaisesRegex(ValidationError, "retained-evidence bound"):
+            finalize_bundle(
+                overtime, self.campaign_id, self.producer_commit,
+                self.campaign_started_utc, created_utc="2026-08-22T12:00:01Z",
+            )
+        self.assertFalse((overtime / "bundle-manifest.json").exists())
+
     def test_complete_validator_rejects_non_a3_manifest_identity(self) -> None:
         relabeled = self.root / "relabeled-bundle"
         shutil.copytree(self.bundle, relabeled)
@@ -282,7 +370,10 @@ class A3BundleTests(unittest.TestCase):
 
     def test_finalize_refuses_manifest_replacement(self) -> None:
         with self.assertRaisesRegex(ValidationError, "already exists"):
-            finalize_bundle(self.bundle, self.campaign_id, self.producer_commit)
+            finalize_bundle(
+                self.bundle, self.campaign_id, self.producer_commit,
+                self.campaign_started_utc,
+            )
 
 
 if __name__ == "__main__":

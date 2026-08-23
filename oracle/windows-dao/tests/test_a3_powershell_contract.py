@@ -31,6 +31,7 @@ from a3_spec import (  # noqa: E402
     R2_PLAN_SHA256,
     R3_PLAN_SHA256,
     R4_PLAN_SHA256,
+    R5_PLAN_SHA256,
     REVISION_PLAN_SHA256,
     validate_document,
 )
@@ -150,6 +151,22 @@ class A3PowerShellContractTests(unittest.TestCase):
         self.assertIn("-le", schedule)
         self.assertIn("regrowth is not strictly greater", schedule)
         self.assertNotIn("row-count replay", schedule.lower())
+
+    def test_r5_l_and_h_baselines_are_captured_at_the_named_checkpoints(self) -> None:
+        schedule = function_source(self.worker, "Invoke-A3Schedule")
+        self.assertIn('$script:A3Baselines["L"] = [long]$latest.actual_file_pages', schedule)
+        self.assertIn('if ($id -ceq "P_ABS_16480")', schedule)
+        self.assertIn('$script:A3Baselines["H"] = [long]$latest.actual_file_pages', schedule)
+        relative = schedule[schedule.index('if ($id -match "^([LH])_REL_'):]
+        relative = relative[:relative.index('if ($id -match "^P_ABS_')]
+        self.assertNotIn("Get-A3ClosedPageCount", relative)
+        self.assertIn("target_baseline_pages", self.worker)
+        chain = function_source(self.worker, "Assert-A3RevisionChain")
+        self.assertIn(
+            "L baseline = actual_file_pages(D_REGROW_0128); "
+            "H baseline = actual_file_pages(P_ABS_16480)",
+            chain,
+        )
 
     def test_l_full_delete_and_exact_reinsert_are_id_ordered(self) -> None:
         delete = function_source(self.worker, "Remove-A3AllLRows")
@@ -484,10 +501,10 @@ class A3PowerShellContractTests(unittest.TestCase):
         for requirement in self.plan["execution_gate"]["blocking_requirements"]:
             self.assertIn(f'"{requirement}"', gate)
 
-    def test_worker_pins_the_r2_to_r4_revision_chain(self) -> None:
+    def test_worker_pins_the_r2_to_r5_revision_chain(self) -> None:
         self.assertIn(f'"{PLAN_SHA256}"', self.worker)
-        self.assertEqual(REVISION_PLAN_SHA256, R4_PLAN_SHA256)
-        self.assertIn(f'"{R4_PLAN_SHA256}"', self.worker)
+        self.assertEqual(REVISION_PLAN_SHA256, R5_PLAN_SHA256)
+        self.assertIn(f'"{R5_PLAN_SHA256}"', self.worker)
         chain = function_source(self.worker, "Assert-A3RevisionChain")
         self.assertIn('"dao_a3_allocation_maps_plan_revision"', chain)
         self.assertIn("original_plan.sha256 -cne", chain)
@@ -503,13 +520,19 @@ class A3PowerShellContractTests(unittest.TestCase):
         )
         bootstrap = self.entry[self.entry.index("$sources = @("):]
         for revision, digest in (("r2", R2_PLAN_SHA256), ("r3", R3_PLAN_SHA256),
-                                 ("r4", R4_PLAN_SHA256)):
+                                 ("r4", R4_PLAN_SHA256), ("r5", R5_PLAN_SHA256)):
             path = f"oracle/windows-dao/experiments/a3/a3-allocation-maps-{revision}.plan.json"
             with self.subTest(revision=revision):
                 self.assertIn(f'"{path}"', self.worker)
                 self.assertIn(f'"{digest}"', self.worker)
                 self.assertIn(f'"{path}"', bootstrap)
                 self.assertEqual(hashlib.sha256((ROOT.parents[1] / path).read_bytes()).hexdigest(), digest)
+        for document in ("dao_a3_page_index", "dao_a3_replica_observation",
+                         "dao_a3_replica_artifact_manifest"):
+            section = self.worker[self.worker.index(f'"{document}"'):]
+            self.assertIn("revision_plan_sha256", section)
+        environment = function_source(self.entry, "New-A3EnvironmentBytes")
+        self.assertIn("revision_plan_sha256", environment)
 
     def test_identical_capture_and_progress_code_is_dot_sourced_not_copied(self) -> None:
         self.assertIn('"a1/A1.PageStore.ps1"', self.page_store)

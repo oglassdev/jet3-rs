@@ -4056,6 +4056,109 @@ Use `not applicable` explicitly rather than omitting a field.
   binary, MDB, or page blob is committed
 - Review: focused A3 dry-run, generator, analyzer, validator, and plan-contract
   tests plus repository validation must pass
+### EXP-0049 — Hosted A3 acquisition lane rebinding (no acquisition)
+
+- Recorded: 2026-08-23, OpenAI Codex
+- Kind: implementation rebinding of the hosted acquisition lane to the A3 base
+  plan and governing R5 revision; no worker or workflow run, DAO acquisition,
+  replica observation, candidate set, holdout receipt, analysis result,
+  independent-validation result, retained evidence bundle, physical-format
+  result, Rust result, support claim, or compatibility result
+- Origin: the checked A2 lane as permitted by the base plan's
+  `implementation_rebinding.source_rule`; the EXP-0042 operating lessons
+  already recorded in this ledger; the additive R2 through R5 plan chain; and
+  the independent adversarial re-review of PR #56 at
+  `/private/tmp/sol-56-review.md` (not committed). The review and checked
+  project-authored sources were used to locate contract defects. No external
+  MDB implementation, Microsoft implementation source, donated MDB, DAO
+  observation, A3 replica, holdout artifact, or page blob was inspected.
+- Rebound lane: `run-a3-replica.ps1`, `a3/A3.Worker.ps1`, the A3 page-store and
+  progress glue, `a3_bundle.py`, the phase-split analyzer and holdout process,
+  and `.github/workflows/windows-dao-a3.yml` implement one dispatch-only,
+  three-replica `windows-2022` campaign with a single fan-in job. Production
+  documents use the `dao_a3_*` evidence types and the checked A3 experiment,
+  plan, producer, campaign, replica, environment, and provider bindings.
+- Freeze order implemented by checked control flow: fan-in downloads and
+  assembles replicas 1 and 2, derives and canonically retains
+  `analysis/derivation-candidates.json`, and records its SHA-256 and completed
+  freeze marker before the workflow downloads replica 3. A separately spawned
+  holdout process reads the retained freeze state and frozen bytes before it
+  inventories or copies the separately downloaded holdout tree; only after its
+  schema-valid receipt is accepted does the analyzer resume from the retained
+  frozen state and open replica 3. Resume does not rederive or refit the frozen
+  models.
+- Receipt observables implemented fail closed: the freeze state records
+  `replica_3_artifact_existed_before_freeze_phase_completed` and
+  `analyzer_replica_3_opens_before_receipt`; the holdout process derives
+  `validated_after_candidate_freeze` from holdout absence, the retained
+  candidate bytes and digest, the bound completed marker, and zero pre-receipt
+  analyzer opens. It derives `page_bytes_exposed_to_analyzer` from that open
+  count, rejects either exposure or a failed phase binding, and emits the
+  bounded receipt. The analysis report's
+  `holdout_structurally_validated_after_freeze` is accepted only from that
+  receipt and the same zero-open observable. These statements describe checked
+  code paths and tests, not an observed hosted execution.
+- R5 revision binding implemented on the producer side: the governing
+  `revision_plan_sha256` is
+  `03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b`
+  in every environment, replica observation, page index, replica artifact
+  manifest, frozen candidate set, holdout receipt, analysis report, and bundle
+  manifest. The worker verifies the base plan and R2
+  (`3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`),
+  R3 (`bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`),
+  R4 (`939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`),
+  and R5 before DAO database creation, and the bootstrap source inventory pins
+  all four revision files. The closed bundle retains the complete R2-R5 chain
+  under `plan/`, each with role `revision_plan`, media type
+  `application/json`, and its pinned byte hash; the base plan remains role
+  `plan`. Producer validation recomputes the plan bytes, inventory tuple,
+  per-document governing hash, and cross-document bindings. The independent
+  validator is invoked with R5 and independently recomputes the same retained
+  chain and binding contract.
+- R5-L01 baseline implementation: immediately after retaining
+  `D_REGROW_0128`, the worker captures that checkpoint's
+  `actual_file_pages` as the L baseline; immediately after retaining
+  `P_ABS_16480`, it captures that checkpoint's `actual_file_pages` as the H
+  baseline. The worker refuses a relative target before its named capture and
+  discloses `target_baseline_pages`, `target_threshold_pages`, and
+  `target_overshoot_pages` at every L/H checkpoint. P absolute checkpoints
+  disclose a null relative baseline. Producer and independent validation check
+  both named capture identities, threshold arithmetic, overshoot arithmetic,
+  and achieved-page lower bounds against the R5 rule.
+- R5-T01 timeout implementation: before evidence finalization, fan-in reads
+  the hosting service's run-attempt `run_started_at` through the GitHub Actions
+  API for the bound run id and attempt. The producer writes `created_utc` only
+  after the complete payload validates, computes
+  `campaign_elapsed_seconds = floor(created_utc - campaign_started_utc)`, and
+  refuses to write `bundle-manifest.json` unless the elapsed value is within
+  the hard 2700-second retained-evidence bound. Producer and independent
+  validators recompute the identity; focused tests accept exactly 2700 and
+  reject 2701 without a manifest. The successful retained-bundle artifact step
+  runs only on job success, while bounded diagnostics remain `if: always()`.
+  Fan-in `timeout-minutes: 15` equals the base plan's
+  `bounds.fan_in_timeout_seconds = 900` and is asserted by the workflow
+  contract test.
+- Observation: `preregistration.acquisition_started` remains `false`; this
+  entry records source and contract-test behavior only. No schema-valid A3
+  evidence document from DAO, database, checkpoint, replica, candidate set,
+  report, receipt, or retained hosted bundle was acquired or inspected.
+- Interpretation and execution gate: the rebinding assigns no independently
+  validated Jet meaning, proves no Rust behavior or DAO compatibility, changes
+  no support-matrix entry, and does not authorize acquisition. The EXP-0044
+  execution gate remains `BLOCKED` until its separate dispatch requirements
+  are explicitly satisfied.
+- Usage: `file:.github/workflows/windows-dao-a3.yml`;
+  `file:oracle/windows-dao/scripts/run-a3-replica.ps1`;
+  `file:oracle/windows-dao/scripts/a3/A3.Worker.ps1`;
+  `file:oracle/windows-dao/scripts/a3_bundle.py`;
+  `file:oracle/windows-dao/scripts/a3_analysis.py`;
+  `file:oracle/windows-dao/scripts/a3_holdout.py`
+- Rights: project-authored scripts, workflow, tests, and provenance record; no
+  DAO binary, MDB, page blob, replica artifact, or retained bundle is committed
+  or redistributed
+- Review: all `test_a3_*` modules, `test_windows_dao_a3_workflow`,
+  `validate_repository_contract`, and diff hygiene must pass
+
 ### EXP-0050 — A3 pre-acquisition revision binding, baseline, and timeout revision
 
 - Recorded: 2026-08-22, OpenAI Codex

@@ -10,6 +10,7 @@ param(
     [Parameter(Mandatory = $true)][string]$CampaignId,
     [Parameter(Mandatory = $true)][string]$MatrixJobId,
     [Parameter(Mandatory = $true)][string]$PlanSha256,
+    [Parameter(Mandatory = $true)][string]$RevisionPlanSha256,
     [Parameter(Mandatory = $true)][string]$EnvironmentSha256,
     [Parameter(Mandatory = $true)][ValidateRange(1, 3)][int]$Replica
 )
@@ -29,7 +30,7 @@ $script:A3FrozenPlanSha256 = `
 $script:A3RequiredPlanPath = `
     "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
 $script:A3RevisionPlanSha256 = `
-    "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+    "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b"
 $script:A3RevisionPlans = @(
     @{ Id = "DAO-A3-ALLOCATION-MAPS-001-R2"
        Path = "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json"
@@ -39,6 +40,9 @@ $script:A3RevisionPlans = @(
        Sha256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a" },
     @{ Id = "DAO-A3-ALLOCATION-MAPS-001-R4"
        Path = "oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json"
+       Sha256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea" },
+    @{ Id = "DAO-A3-ALLOCATION-MAPS-001-R5"
+       Path = "oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json"
        Sha256 = $script:A3RevisionPlanSha256 }
 )
 $script:A1DbVersion30 = 32
@@ -62,6 +66,11 @@ function Assert-A3RevisionChain {
             [string]$document.preregistration.original_plan.sha256 -cne
                 $script:A3FrozenPlanSha256) {
             throw "A3 revision plan $($revision.Id) differs from its pinned bytes or binding."
+        }
+        if ($revision.Id -ceq "DAO-A3-ALLOCATION-MAPS-001-R5" -and
+            [string]$document.relative_growth_baseline_reconciliation.single_implementation -cne
+                "L baseline = actual_file_pages(D_REGROW_0128); H baseline = actual_file_pages(P_ABS_16480); disclosed per checkpoint and checked by both validators") {
+            throw "A3 R5 baseline capture contract drifted."
         }
     }
 }
@@ -397,6 +406,7 @@ function Add-A3Checkpoint {
     $indexDocument = [ordered]@{
         protocol_version = "1.0.0"; document_type = "dao_a3_page_index"
         experiment_id = $script:A3ExperimentId; plan_sha256 = $script:A3PlanSha256
+        revision_plan_sha256 = $script:A3RevisionPlanSha256
         producer_commit = $script:A3ProducerCommit; campaign_id = $script:A3CampaignId
         environment_sha256 = $script:A3EnvironmentSha256
         provider_sha256 = $script:A3ProviderSha256; replica = $script:A3Replica
@@ -502,16 +512,19 @@ function Invoke-A3Schedule {
                 -BaselinePages $baseline
             $latest = $script:A3Checkpoints[$script:A3Checkpoints.Count - 1]
             if ($id -ceq "D_GROW_0128") { $script:A3FirstGrowth = $latest }
-            elseif ([long]$latest.actual_file_pages -le
-                [long]$script:A3FirstGrowth.actual_file_pages) {
-                throw "A3 D regrowth is not strictly greater than first growth."
+            else {
+                if ([long]$latest.actual_file_pages -le
+                    [long]$script:A3FirstGrowth.actual_file_pages) {
+                    throw "A3 D regrowth is not strictly greater than first growth."
+                }
+                $script:A3Baselines["L"] = [long]$latest.actual_file_pages
             }
             continue
         }
         if ($id -match "^([LH])_REL_([0-9]{4})$") {
             $role = [string]$Matches[1]; $targetPages = [long]$Matches[2]
             if (-not $script:A3Baselines.ContainsKey($role)) {
-                $script:A3Baselines[$role] = Get-A3ClosedPageCount
+                throw "A3 relative baseline was not captured at its R5 checkpoint."
             }
             $baseline = [long]$script:A3Baselines[$role]
             Add-A3UntilTarget -Role $role -ThresholdPages ($baseline + $targetPages)
@@ -525,6 +538,10 @@ function Invoke-A3Schedule {
             Add-A3UntilTarget -Role "P" -ThresholdPages $targetPages
             Add-A3Checkpoint -CheckpointId $id `
                 -Target ([pscustomobject]@{ kind = "absolute"; pages = $targetPages })
+            if ($id -ceq "P_ABS_16480") {
+                $latest = $script:A3Checkpoints[$script:A3Checkpoints.Count - 1]
+                $script:A3Baselines["H"] = [long]$latest.actual_file_pages
+            }
             continue
         }
         throw "A3 checkpoint operation is not implemented: $id"
@@ -610,6 +627,7 @@ function Write-A3ReplicaManifest {
         protocol_version = "1.0.0"
         document_type = "dao_a3_replica_artifact_manifest"
         experiment_id = $script:A3ExperimentId; plan_sha256 = $script:A3PlanSha256
+        revision_plan_sha256 = $script:A3RevisionPlanSha256
         producer_commit = $script:A3ProducerCommit; campaign_id = $script:A3CampaignId
         matrix_job_id = $script:A3MatrixJobId; replica = $script:A3Replica
         environment_sha256 = $script:A3EnvironmentSha256
@@ -637,6 +655,7 @@ function Invoke-A3Worker {
     $planInput = Read-A1CheckedJson -Path $PlanPath -MaximumBytes 1MB
     $environmentInput = Read-A1CheckedJson -Path $EnvironmentPath -MaximumBytes 1MB
     if ($PlanSha256 -cne $script:A3FrozenPlanSha256 -or
+        $RevisionPlanSha256 -cne $script:A3RevisionPlanSha256 -or
         $planInput.sha256 -cne $PlanSha256 -or
         $environmentInput.sha256 -cne $EnvironmentSha256) {
         throw "A3 worker input bytes differ from controller bindings."
@@ -648,6 +667,7 @@ function Invoke-A3Worker {
     if ([string]$environment.document_type -cne "dao_a3_environment" -or
         [string]$environment.experiment_id -cne $script:A3ExperimentId -or
         [string]$environment.plan_sha256 -cne $PlanSha256 -or
+        [string]$environment.revision_plan_sha256 -cne $RevisionPlanSha256 -or
         [string]$environment.producer_commit -cne $ProducerCommit -or
         [string]$environment.repository_url -cne
             "https://github.com/oglassdev/jet3-rs.git" -or
@@ -729,6 +749,7 @@ function Invoke-A3Worker {
     $observation = [ordered]@{
         protocol_version = "1.0.0"; document_type = "dao_a3_replica_observation"
         experiment_id = $script:A3ExperimentId; plan_sha256 = $PlanSha256
+        revision_plan_sha256 = $script:A3RevisionPlanSha256
         producer_commit = $ProducerCommit
         repository_url = "https://github.com/oglassdev/jet3-rs.git"
         campaign_id = $CampaignId

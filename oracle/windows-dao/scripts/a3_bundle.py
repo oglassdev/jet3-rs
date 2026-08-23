@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 import stat
@@ -34,6 +35,8 @@ from a3_spec import (
     EXPERIMENT_ID,
     PLAN,
     PLAN_SHA256,
+    REVISION_CHAIN,
+    REVISION_PLAN_SHA256,
     validate_analysis_report,
     validate_document,
     validate_frozen_candidates,
@@ -51,6 +54,9 @@ MAX_BUNDLE_BYTES = 805_306_368
 REPOSITORY_URL = "https://github.com/oglassdev/jet3-rs.git"
 MANIFEST_PATH = "bundle-manifest.json"
 PLAN_PATH = "plan/a3-allocation-maps.plan.json"
+REVISION_PLAN_PATHS = {
+    locator: CHECKED_PLAN.parent / Path(locator).name for locator in REVISION_CHAIN
+}
 ROLES = ("D", "L", "P", "H")
 ROLE_BINDINGS = tuple(
     {role: row[role] for role in ROLES}
@@ -113,6 +119,7 @@ def _validate_page_index(index: dict[str, Any], observation: dict[str, Any],
     _validate_typed(index, "dao_a3_page_index", checkpoint["page_index"]["path"])
     bindings = {
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "producer_commit": observation["producer_commit"],
         "campaign_id": observation["campaign_id"],
         "environment_sha256": observation["environment_sha256"],
@@ -156,6 +163,22 @@ def _entry_payload(root: Path, tree: dict[str, TreeFile],
     expected_media = "application/octet-stream" if entry["role"] == "page_blob" else "application/json"
     _require(entry["media_type"], expected_media, f"{entry['path']} media type")
     return payload, None if expected_media != "application/json" else _parse_json(payload, entry["path"])
+
+
+def _validate_plan_entries(entries: dict[str, dict[str, Any]]) -> None:
+    expected = {PLAN_PATH: ("plan", PLAN_SHA256)} | {
+        locator: ("revision_plan", digest)
+        for locator, digest in REVISION_CHAIN.items()
+    }
+    for locator, (role, digest) in expected.items():
+        entry = entries.get(locator)
+        if entry is None:
+            raise ValidationError(f"{locator}: missing retained plan inventory entry")
+        _require(entry["role"], role, f"{locator} role")
+        _require(entry["media_type"], "application/json", f"{locator} media type")
+        _require(entry["sha256"], digest, f"{locator} pinned hash")
+
+
 def _validate_replica(
     root: Path,
     tree: dict[str, TreeFile],
@@ -201,6 +224,7 @@ def _validate_replica(
     _require(len(observation["checkpoints"]), CHECKPOINT_COUNT, f"{observation_path} checkpoints")
     expected_binding = {
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "producer_commit": manifest["producer_commit"],
         "campaign_id": manifest["campaign_id"],
         "replica": replica,
@@ -248,6 +272,7 @@ def _validate_replica(
         changed_total += len(index["changed_page_indices"])
         prior_hashes = hashes
     _require(observation["changed_hash_entries"], changed_total, f"replica {replica} changed-hash total")
+    _validate_target_disclosures(observation)
     page_paths = {path for path, entry in entries.items() if entry["role"] == "page_blob"}
     _require(page_paths, referenced_pages, f"replica {replica} page-store closure")
     if len(page_paths) > MAX_PAGE_BLOBS or len(page_paths) * PAGE_SIZE > MAX_PAGE_STORE_BYTES:
@@ -283,11 +308,42 @@ def _validate_environments(replicas: Iterable[ReplicaResult]) -> None:
     for projection in exact:
         if len({projection(row) for row in rows}) != 1:
             raise ValidationError("cross-replica exact environment field differs")
+
+
+def _validate_target_disclosures(observation: dict[str, Any]) -> None:
+    checkpoints = {row["checkpoint_id"]: row for row in observation["checkpoints"]}
+    baselines = {
+        "L": checkpoints["D_REGROW_0128"]["actual_file_pages"],
+        "H": checkpoints["P_ABS_16480"]["actual_file_pages"],
+    }
+    for checkpoint_id, checkpoint in checkpoints.items():
+        role = checkpoint_id[:1]
+        if role in baselines and checkpoint_id.startswith(f"{role}_REL_"):
+            baseline = baselines[role]
+            target = int(checkpoint_id.rsplit("_", 1)[1])
+            threshold = baseline + target
+        elif checkpoint_id.startswith("P_ABS_"):
+            baseline = None
+            threshold = int(checkpoint_id.rsplit("_", 1)[1])
+        else:
+            continue
+        _require(checkpoint["target_baseline_pages"], baseline,
+                 f"{checkpoint_id} target baseline")
+        _require(checkpoint["target_threshold_pages"], threshold,
+                 f"{checkpoint_id} target threshold")
+        _require(checkpoint["target_overshoot_pages"],
+                 checkpoint["actual_file_pages"] - threshold,
+                 f"{checkpoint_id} target overshoot")
+        if checkpoint["actual_file_pages"] < threshold:
+            raise ValidationError(f"{checkpoint_id}: target threshold was not reached")
+
+
 def _validate_frozen(document: dict[str, Any], payload: bytes, campaign_id: str) -> None:
     validate_frozen_candidates(document, payload)
     bindings = {
         "experiment_id": EXPERIMENT_ID,
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "campaign_id": campaign_id,
         "derivation_replicas": [1, 2],
     }
@@ -313,6 +369,7 @@ def _validate_analysis_payload(root: Path, tree: dict[str, TreeFile],
     _require(receipt["result"], "pass", "holdout receipt result")
     bindings = {
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "campaign_id": campaign_id,
         "producer_commit": replicas[0].producer_commit,
         "derivation_candidate_set_sha256": frozen_sha256,
@@ -331,15 +388,21 @@ def _validate_payload(root: Path, *, require_analysis: bool,
                       replica_count: int = REPLICA_COUNT) -> PayloadResult:
     root = root.resolve()
     tree, directories = _inventory(root)
-    plan_payload = _read_checked(root, PLAN_PATH, tree, MAX_JSON_BYTES)
-    _require(hashlib.sha256(plan_payload).hexdigest(), PLAN_SHA256, "retained plan hash")
-    _require(plan_payload, CHECKED_PLAN.read_bytes(), "retained checked plan")
+    retained_plans = {PLAN_PATH: (CHECKED_PLAN, PLAN_SHA256)} | {
+        locator: (REVISION_PLAN_PATHS[locator], digest)
+        for locator, digest in REVISION_CHAIN.items()
+    }
+    for locator, (checked_path, digest) in retained_plans.items():
+        plan_payload = _read_checked(root, locator, tree, MAX_JSON_BYTES)
+        _require(hashlib.sha256(plan_payload).hexdigest(), digest,
+                 f"retained {locator} hash")
+        _require(plan_payload, checked_path.read_bytes(), f"retained checked {locator}")
     replicas = tuple(
         _validate_replica(root, tree, directories, replica, None, closed=False)
         for replica in range(1, replica_count + 1)
     )
     _validate_environments(replicas)
-    expected = {PLAN_PATH}
+    expected = set(retained_plans)
     for replica in replicas:
         expected.add(replica.manifest_path)
         expected.update(replica.entries)
@@ -431,6 +494,8 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
         plan_path = staging.joinpath(*PLAN_PATH.split("/"))
         plan_path.parent.mkdir(parents=True)
         plan_path.write_bytes(CHECKED_PLAN.read_bytes())
+        for locator, checked_path in REVISION_PLAN_PATHS.items():
+            staging.joinpath(*locator.split("/")).write_bytes(checked_path.read_bytes())
         for replica in replicas:
             _copy_replica(replica, staging)
         result = _validate_payload(staging, require_analysis=False,
@@ -470,6 +535,8 @@ def _role_for_path(path: str, replicas: tuple[ReplicaResult, ...]) -> str:
         "analysis/analysis-report.json": "analysis_report",
         "analysis/holdout-structure-receipt.json": "holdout_structure_receipt",
     }
+    if path in REVISION_CHAIN:
+        return "revision_plan"
     if path in fixed:
         return fixed[path]
     for replica in replicas:
@@ -478,8 +545,31 @@ def _role_for_path(path: str, replicas: tuple[ReplicaResult, ...]) -> str:
         if path in replica.entries:
             return replica.entries[path]["role"]
     raise ValidationError(f"{path}: cannot assign bundle role")
-def finalize_bundle(bundle_root: Path, campaign_id: str,
-                    producer_commit: str) -> dict[str, Any]:
+
+
+def _utc_epoch(value: str, label: str) -> float:
+    try:
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        parsed = datetime.fromisoformat(normalized)
+    except (AttributeError, ValueError) as exc:
+        raise ValidationError(f"{label}: invalid UTC timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValidationError(f"{label}: timestamp lacks a UTC offset")
+    return parsed.timestamp()
+
+
+def _campaign_elapsed(campaign_started_utc: str, created_utc: str) -> int:
+    elapsed = math.floor(
+        _utc_epoch(created_utc, "created_utc")
+        - _utc_epoch(campaign_started_utc, "campaign_started_utc")
+    )
+    if elapsed < 0 or elapsed > BOUNDS["campaign_timeout_seconds"]:
+        raise ValidationError("campaign elapsed seconds exceed the retained-evidence bound")
+    return elapsed
+
+
+def finalize_bundle(bundle_root: Path, campaign_id: str, producer_commit: str,
+                    campaign_started_utc: str, *, created_utc: str | None = None) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
     if (bundle_root / MANIFEST_PATH).exists():
         raise ValidationError("bundle manifest already exists")
@@ -487,6 +577,9 @@ def finalize_bundle(bundle_root: Path, campaign_id: str,
     assert payload.analysis is not None and payload.receipt is not None
     _require(payload.replicas[0].campaign_id, campaign_id, "expected campaign")
     _require(payload.replicas[0].producer_commit, producer_commit, "expected producer")
+    created_utc = created_utc or datetime.now(timezone.utc).replace(
+        microsecond=0).isoformat().replace("+00:00", "Z")
+    campaign_elapsed_seconds = _campaign_elapsed(campaign_started_utc, created_utc)
     files = []
     for path in sorted(payload.expected_paths):
         item = payload.tree[path]
@@ -511,8 +604,11 @@ def finalize_bundle(bundle_root: Path, campaign_id: str,
         "campaign_id": payload.replicas[0].campaign_id,
         "producer_commit": payload.replicas[0].producer_commit,
         "repository_url": REPOSITORY_URL,
-        "created_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "created_utc": created_utc,
+        "campaign_started_utc": campaign_started_utc,
+        "campaign_elapsed_seconds": campaign_elapsed_seconds,
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "replica_environment_sha256": [row.environment_sha256 for row in payload.replicas],
         "provider_sha256": payload.replicas[0].provider_sha256,
         "replica_count": REPLICA_COUNT,
@@ -553,7 +649,13 @@ def validate_bundle(bundle_root: Path, campaign_id: str,
     tree, directories = _inventory(bundle_root)
     manifest, manifest_payload = _json_artifact(bundle_root, MANIFEST_PATH, tree)
     _validate_typed(manifest, "dao_a3_bundle_manifest", MANIFEST_PATH)
+    _require(
+        manifest["campaign_elapsed_seconds"],
+        _campaign_elapsed(manifest["campaign_started_utc"], manifest["created_utc"]),
+        "bundle manifest campaign timing",
+    )
     entries = _entry_map(manifest)
+    _validate_plan_entries(entries)
     _require(set(tree), set(entries) | {MANIFEST_PATH}, "complete bundle inventory")
     _require(directories, _expected_directories(entries), "complete bundle directories")
     for entry in entries.values():
@@ -569,6 +671,7 @@ def validate_bundle(bundle_root: Path, campaign_id: str,
         "producer_commit": payload.replicas[0].producer_commit,
         "repository_url": REPOSITORY_URL,
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "replica_environment_sha256": [row.environment_sha256 for row in payload.replicas],
         "provider_sha256": payload.replicas[0].provider_sha256,
         "replica_artifact_manifest_sha256": [row.manifest_sha256 for row in payload.replicas],
@@ -608,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
     finalize.add_argument("--bundle-root", type=Path, required=True)
     finalize.add_argument("--campaign-id", required=True)
     finalize.add_argument("--producer-commit", required=True)
+    finalize.add_argument("--campaign-started-utc", required=True)
     validate = subparsers.add_parser("validate")
     validate.add_argument("bundle", type=Path)
     validate.add_argument("--campaign-id", required=True)
@@ -619,7 +723,8 @@ def main(argv: list[str] | None = None) -> int:
                                      arguments.campaign_id, arguments.producer_commit)
         elif arguments.command == "finalize":
             manifest = finalize_bundle(
-                arguments.bundle_root, arguments.campaign_id, arguments.producer_commit)
+                arguments.bundle_root, arguments.campaign_id, arguments.producer_commit,
+                arguments.campaign_started_utc)
             result = {
                 "bundle_root": str(arguments.bundle_root),
                 "campaign_id": manifest["campaign_id"],

@@ -10,7 +10,13 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from a3_model import CHECKPOINT_IDS, PAGE_SIZE, ReplicaData
-from a3_spec import BOUNDS, PLAN_SHA256, load_bounded_json, validate_document
+from a3_spec import (
+    BOUNDS,
+    PLAN_SHA256,
+    REVISION_PLAN_SHA256,
+    load_bounded_json,
+    validate_document,
+)
 from protocol_validation import ValidationError
 
 
@@ -94,8 +100,11 @@ class BundleReplicaSource:
     def open(self) -> ReplicaInput:
         observation = load_bounded_json(self.observation_path, self.max_json_bytes)
         validate_document(observation)
-        if observation["plan_sha256"] != PLAN_SHA256:
-            raise ValidationError("replica observation is not bound to the A3 plan")
+        if (
+            observation["plan_sha256"] != PLAN_SHA256
+            or observation["revision_plan_sha256"] != REVISION_PLAN_SHA256
+        ):
+            raise ValidationError("replica observation is not bound to the A3 plan chain")
         checkpoints = observation["checkpoints"]
         observed_ids = tuple(row["checkpoint_id"] for row in checkpoints)
         indexes: dict[str, dict[str, Any]] = {}
@@ -110,7 +119,8 @@ class BundleReplicaSource:
             validate_document(index)
             expected_predecessor = CHECKPOINT_IDS[ordinal - 1] if ordinal else None
             bindings = {
-                "plan_sha256": PLAN_SHA256, "producer_commit": observation["producer_commit"],
+                "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
+                "producer_commit": observation["producer_commit"],
                 "campaign_id": observation["campaign_id"], "environment_sha256": observation["environment_sha256"],
                 "provider_sha256": observation["provider_sha256"], "replica": observation["replica"],
                 "checkpoint_id": checkpoint["checkpoint_id"], "ordinal": ordinal,

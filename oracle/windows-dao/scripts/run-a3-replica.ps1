@@ -15,6 +15,8 @@ $script:A3Stage = "bootstrap"
 $script:A3RepositoryUrl = "https://github.com/oglassdev/jet3-rs.git"
 $script:A3PlanSha256 = `
     "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+$script:A3RevisionPlanSha256 = `
+    "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b"
 $script:A3ExperimentId = "DAO-A3-ALLOCATION-MAPS-001"
 $script:A3RequiredPlanPath = `
     "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
@@ -257,7 +259,9 @@ function New-A3EnvironmentBytes {
     $document = [ordered]@{
         protocol_version = "1.0.0"; document_type = "dao_a3_environment"
         experiment_id = $script:A3ExperimentId
-        plan_sha256 = $script:A3PlanSha256; producer_commit = $Context.GitCommit
+        plan_sha256 = $script:A3PlanSha256
+        revision_plan_sha256 = $script:A3RevisionPlanSha256
+        producer_commit = $Context.GitCommit
         repository_url = $script:A3RepositoryUrl; campaign_id = $CampaignId
         replica = $Replica; matrix_job_id = $MatrixJobId; status = "ready"
         host = [ordered]@{
@@ -393,6 +397,8 @@ function Assert-A3ReplicaOutput {
     $observation = (Read-A3JsonInput -Path $observationPath).document
     foreach ($document in @($environment, $observation, $manifest)) {
         if ([string]$document.plan_sha256 -cne $script:A3PlanSha256 -or
+            [string]$document.revision_plan_sha256 -cne
+                $script:A3RevisionPlanSha256 -or
             [string]$document.producer_commit -cne $Context.GitCommit -or
             [string]$document.campaign_id -cne $CampaignId -or
             [int]$document.replica -ne $Replica) {
@@ -430,6 +436,8 @@ function Assert-A3ReplicaOutput {
         }
         $indexDocument = $indexInput.document
         if ([string]$indexDocument.plan_sha256 -cne $script:A3PlanSha256 -or
+            [string]$indexDocument.revision_plan_sha256 -cne
+                $script:A3RevisionPlanSha256 -or
             [string]$indexDocument.producer_commit -cne $Context.GitCommit -or
             [string]$indexDocument.campaign_id -cne $CampaignId -or
             [string]$indexDocument.environment_sha256 -cne $EnvironmentSha256 -or
@@ -602,6 +610,7 @@ function Invoke-A3ReplicaCampaign {
                 "-EnvironmentPath", $environmentPath,
                 "-ProducerCommit", $GitCommit, "-CampaignId", $campaignId,
                 "-MatrixJobId", $MatrixJobId, "-PlanSha256", $script:A3PlanSha256,
+                "-RevisionPlanSha256", $script:A3RevisionPlanSha256,
                 "-EnvironmentSha256", $environmentSha,
                 "-Replica", $Replica.ToString()
             ) -CallerLabel "A3 replica worker" -TimeoutSeconds 1700 `
@@ -695,6 +704,7 @@ try {
         "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json",
         "oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json",
         "oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json",
+        "oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json",
         "oracle/windows-dao/experiments/a3/plan.schema.json",
         "oracle/windows-dao/experiments/a3/replica-observation.schema.json",
         "oracle/windows-dao/experiments/a3/page-index.schema.json",

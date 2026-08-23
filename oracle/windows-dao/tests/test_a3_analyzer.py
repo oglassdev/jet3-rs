@@ -56,6 +56,7 @@ def receipt(bundle, digest: str) -> dict[str, object]:
         "document_type": "dao_a3_holdout_structure_receipt",
         "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "producer_commit": bundle.producer_commit,
         "campaign_id": bundle.campaign_id,
         "derivation_candidate_set_sha256": digest,

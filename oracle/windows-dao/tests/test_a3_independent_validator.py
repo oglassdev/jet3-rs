@@ -171,10 +171,23 @@ def _checkpoint_observation(checkpoint: str, ordinal: int, count: int, index_ent
     else:
         l_rows = 0
     row_counts = {"D": 2048 if ordinal >= 2 and checkpoint not in {"D_DROP", "D_RECREATE_EMPTY"} else 0, "L": l_rows, "P": 0, "H": 0}
+    baseline = threshold = overshoot = None
+    counts = dict(zip(CHECKPOINTS, COUNTS, strict=True))
+    if checkpoint.startswith("L_REL_"):
+        baseline = counts["D_REGROW_0128"]
+        threshold = baseline + int(checkpoint.rsplit("_", 1)[1])
+    elif checkpoint.startswith("H_REL_"):
+        baseline = counts["P_ABS_16480"]
+        threshold = baseline + int(checkpoint.rsplit("_", 1)[1])
+    elif checkpoint.startswith("P_ABS_"):
+        threshold = int(checkpoint.rsplit("_", 1)[1])
+    if threshold is not None:
+        overshoot = count - threshold
     return {
         "checkpoint_id": checkpoint, "ordinal": ordinal,
         "actual_file_pages": count, "actual_size_bytes": count * 2048,
-        "target_baseline_pages": None, "target_threshold_pages": None, "target_overshoot_pages": None,
+        "target_baseline_pages": baseline, "target_threshold_pages": threshold,
+        "target_overshoot_pages": overshoot,
         "inserted_rows_total": 10000, "table_row_counts": row_counts,
         "dao_reread": [_reread(role, rows) for role, rows in row_counts.items()],
         "quiescent": True,
@@ -382,6 +395,24 @@ def relink(root: Path) -> None:
     manifest["bundle_size_bytes_excluding_manifest"] = sum(item["size_bytes"] for item in manifest["files"])
     manifest["holdout_structure_receipt_sha256"] = _digest(receipt_path)
     _write(manifest_path, manifest)
+
+
+def relink_replica(root: Path, replica: int) -> None:
+    observation_relative = f"observations/replica-{replica:02d}.json"
+    replica_relative = f"replica-artifacts/replica-{replica:02d}-manifest.json"
+    replica_path = root / replica_relative
+    replica_manifest = json.loads(replica_path.read_text())
+    observation_entry = _entry(root, observation_relative, "replica_observation")
+    replica_manifest["files"] = [
+        observation_entry if row["path"] == observation_relative else row
+        for row in replica_manifest["files"]
+    ]
+    _write(replica_path, replica_manifest)
+    manifest_path = root / "bundle-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["replica_artifact_manifest_sha256"][replica - 1] = _digest(replica_path)
+    _write(manifest_path, manifest)
+    relink(root)
 
 
 def _set_layer_terminal(report: dict[str, Any], old: str, new: str) -> None:
@@ -657,11 +688,23 @@ class IndependentValidatorTests(unittest.TestCase):
             manifest["campaign_started_utc"] = "2026-08-22T11:14:59Z"
             _write(manifest_path, manifest)
 
+        def wrong_l_baseline(root: Path) -> None:
+            observation_path = root / "observations/replica-01.json"
+            observation = json.loads(observation_path.read_text())
+            checkpoint = next(
+                row for row in observation["checkpoints"]
+                if row["checkpoint_id"] == "L_REL_0064"
+            )
+            checkpoint["target_baseline_pages"] += 1
+            _write(observation_path, observation)
+            relink_replica(root, 1)
+
         cases: list[tuple[str, Callable[[Path], None], str]] = [
             ("missing-revision", drop_r4, "manifest_role_count"),
             ("wrong-document-revision", wrong_receipt_revision, "document_binding_mismatch"),
             ("wrong-revision-media-type", wrong_revision_media_type, "bundle_revision_binding_mismatch"),
             ("campaign-over-by-one", over_time, "campaign_elapsed_mismatch"),
+            ("wrong-l-baseline", wrong_l_baseline, "target_disclosure_mismatch"),
         ]
         for name, tamper, expected in cases:
             with self.subTest(name=name), tempfile.TemporaryDirectory(prefix=f"a3-{name}-") as directory:

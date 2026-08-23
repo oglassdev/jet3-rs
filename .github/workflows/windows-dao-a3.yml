@@ -10,6 +10,7 @@ on:
         default: false
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -120,7 +121,7 @@ jobs:
       FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"
       REPLICA_MAXIMUM_OUTPUT_BYTES: "1048576"
       FROZEN_PLAN_SHA256: "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
-      FROZEN_REVISION_PLAN_SHA256: "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+      FROZEN_REVISION_PLAN_SHA256: "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -336,7 +337,7 @@ jobs:
     env:
       FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"
       FROZEN_PLAN_SHA256: "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
-      FROZEN_REVISION_PLAN_SHA256: "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+      FROZEN_REVISION_PLAN_SHA256: "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -346,6 +347,45 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13.7"
+
+      - name: Bind the hosted run-attempt start observable
+        id: campaign_start
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Stop"
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a3-fanin-diagnostics"
+          New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
+          $uri = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/runs/" +
+            "$env:GITHUB_RUN_ID/attempts/$env:GITHUB_RUN_ATTEMPT"
+          $headers = @{
+            Accept = "application/vnd.github+json"
+            Authorization = "Bearer $env:GH_TOKEN"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $attempt = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers
+          $started = [string]$attempt.run_started_at
+          if ([string]$attempt.id -cne $env:GITHUB_RUN_ID -or
+              [string]$attempt.run_attempt -cne $env:GITHUB_RUN_ATTEMPT -or
+              $started -cnotmatch "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") {
+            throw "The hosted run-attempt start observable is unavailable or unbound."
+          }
+          $record = [ordered]@{
+            document_type = "jet3_windows_dao_a3_campaign_start"
+            producer_commit = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            github_run_attempt = $env:GITHUB_RUN_ATTEMPT
+            run_started_at = $started
+          }
+          [IO.File]::WriteAllText(
+            (Join-Path $diagnostics "campaign-start.json"),
+            (($record | ConvertTo-Json -Compress) + "`n"),
+            (New-Object Text.UTF8Encoding($false))
+          )
+          "run_started_at=$started" | Out-File -FilePath $env:GITHUB_OUTPUT `
+            -Encoding utf8 -Append
 
       - name: Download A3 replica 1
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -410,12 +450,6 @@ jobs:
           # The preceding step has retained and recorded the frozen-set digest.
           digest-mismatch: warn
 
-      - name: Download bounded A3 replica timing diagnostics
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: windows-dao-a3-diagnostics-*-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}\jet3-a3-replica-diagnostics
-
       - name: Graft and structurally validate the holdout against retained frozen bytes
         id: holdout
         shell: powershell
@@ -455,6 +489,8 @@ jobs:
       - name: Finalize the retained A3 bundle manifest
         id: finalize
         shell: powershell
+        env:
+          CAMPAIGN_STARTED_UTC: ${{ steps.campaign_start.outputs.run_started_at }}
         run: |
           $ErrorActionPreference = "Stop"
           $bundle = Join-Path $env:RUNNER_TEMP "jet3-a3-bundle"
@@ -463,7 +499,8 @@ jobs:
           $summary = @(& python -B oracle/windows-dao/scripts/a3_bundle.py finalize `
             --bundle-root $bundle `
             --campaign-id "a3-run-$env:GITHUB_RUN_ID" `
-            --producer-commit $env:GITHUB_SHA)
+            --producer-commit $env:GITHUB_SHA `
+            --campaign-started-utc $env:CAMPAIGN_STARTED_UTC)
           if ($LASTEXITCODE -ne 0) { throw "A3 bundle finalization failed." }
           [IO.File]::WriteAllText(
             (Join-Path $diagnostics "finalize-summary.json"),
@@ -499,7 +536,7 @@ jobs:
           & python -B oracle/windows-dao/scripts/a3_independent_validator.py `
             --bundle-root $bundle `
             --plan oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json `
-            --revision oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json `
+            --revision oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json `
             --validator-commit $env:GITHUB_SHA `
             --output $report
           if ($LASTEXITCODE -ne 0) {
@@ -523,46 +560,40 @@ jobs:
           $ErrorActionPreference = "Stop"
           $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a3-fanin-diagnostics"
           New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
-          $timingRoot = Join-Path $env:RUNNER_TEMP "jet3-a3-replica-diagnostics"
-          $records = @(Get-ChildItem -LiteralPath $timingRoot `
-            -Filter "hosted-replica.json" -File -Recurse -ErrorAction SilentlyContinue)
-          $timingComplete = $records.Count -eq 3
-          $replicas = @()
-          $earliest = $null
-          foreach ($recordPath in $records) {
-            try {
-              if ($recordPath.Length -lt 1 -or $recordPath.Length -gt 4096) {
-                throw "Replica timing record violates its byte bound."
-              }
-              $record = Get-Content -LiteralPath $recordPath.FullName -Raw |
-                ConvertFrom-Json
-              if ($record.document_type -cne "jet3_windows_dao_a3_hosted_replica" -or
-                  $record.producer_commit -cne $env:GITHUB_SHA -or
-                  $record.campaign_id -cne "a3-run-$env:GITHUB_RUN_ID") {
-                throw "Replica timing record binding mismatch."
-              }
-              $started = [DateTimeOffset]::Parse(
-                [string]$record.started_utc,
-                [Globalization.CultureInfo]::InvariantCulture,
-                [Globalization.DateTimeStyles]::RoundtripKind
-              )
-              $replicas += [int]$record.replica
-              if ($null -eq $earliest -or $started -lt $earliest) {
-                $earliest = $started
-              }
-            }
-            catch {
-              $timingComplete = $false
-            }
-          }
-          if ((@($replicas | Sort-Object -Unique) -join ",") -cne "1,2,3") {
-            $timingComplete = $false
-          }
           $completed = [DateTimeOffset]::UtcNow
           $campaignElapsed = $null
-          if ($timingComplete) {
-            $campaignElapsed = [Math]::Round(($completed - $earliest).TotalSeconds, 3)
-            if ($campaignElapsed -lt 0) { $timingComplete = $false }
+          $campaignStarted = $null
+          $bundleCreated = $null
+          $timingComplete = $false
+          try {
+            $startPath = Join-Path $diagnostics "campaign-start.json"
+            $manifestPath = Join-Path $env:RUNNER_TEMP "jet3-a3-bundle\bundle-manifest.json"
+            $startItem = Get-Item -LiteralPath $startPath -Force
+            $manifestItem = Get-Item -LiteralPath $manifestPath -Force
+            if ($startItem.Length -lt 1 -or $startItem.Length -gt 4096 -or
+                $manifestItem.Length -lt 1 -or $manifestItem.Length -gt 64MB) {
+              throw "Campaign timing input violates its byte bound."
+            }
+            $startRecord = Get-Content -LiteralPath $startPath -Raw | ConvertFrom-Json
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            if ([string]$startRecord.producer_commit -cne $env:GITHUB_SHA -or
+                [string]$startRecord.github_run_id -cne $env:GITHUB_RUN_ID -or
+                [string]$startRecord.github_run_attempt -cne $env:GITHUB_RUN_ATTEMPT -or
+                [string]$manifest.campaign_id -cne "a3-run-$env:GITHUB_RUN_ID" -or
+                [string]$manifest.campaign_started_utc -cne
+                  [string]$startRecord.run_started_at) {
+              throw "Campaign timing binding mismatch."
+            }
+            $campaignStarted = [DateTimeOffset]::Parse([string]$manifest.campaign_started_utc)
+            $bundleCreated = [DateTimeOffset]::Parse([string]$manifest.created_utc)
+            $campaignElapsed = [long][Math]::Floor(
+              ($bundleCreated - $campaignStarted).TotalSeconds
+            )
+            $timingComplete = $campaignElapsed -ge 0 -and
+              $campaignElapsed -eq [long]$manifest.campaign_elapsed_seconds
+          }
+          catch {
+            $timingComplete = $false
           }
           $withinPlan = $timingComplete -and `
             $campaignElapsed -le [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
@@ -634,6 +665,12 @@ jobs:
             independent_validation_status = $independentStatus
             independent_validation_discrepancy_codes = $discrepancyCodes
             timing_records_complete = $timingComplete
+            campaign_started_utc = if ($null -eq $campaignStarted) {
+              $null
+            } else { $campaignStarted.ToString("o") }
+            bundle_created_utc = if ($null -eq $bundleCreated) {
+              $null
+            } else { $bundleCreated.ToString("o") }
             campaign_elapsed_seconds = $campaignElapsed
             plan_campaign_timeout_seconds = `
               [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
@@ -656,7 +693,7 @@ jobs:
           }
 
       - name: Upload retained A3 bundle
-        if: always()
+        if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-dao-a3-bundle-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

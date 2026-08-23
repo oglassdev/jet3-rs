@@ -307,7 +307,8 @@ def candidate_document(campaign_id: str, global_pages: tuple[int, ...], tdef_pag
         }
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_frozen_derivation_candidates",
-        "experiment_id": EXPERIMENT_ID, "plan_sha256": PLAN_SHA256, "campaign_id": campaign_id,
+        "experiment_id": EXPERIMENT_ID, "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256, "campaign_id": campaign_id,
         "derivation_replicas": [1, 2],
         "qualified_pages": {"global_map": list(global_pages), "tdef": list(tdef_pages)},
         "polarity_cross_check": transcript.document(),

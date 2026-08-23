@@ -26,7 +26,8 @@ from a3_bundle import (
     validate_holdout_replica,
 )
 from a3_spec import (
-    BOUNDS, EXPERIMENT_ID, PLAN_SHA256, load_bounded_json, validate_document,
+    BOUNDS, EXPERIMENT_ID, PLAN_SHA256, REVISION_CHAIN, REVISION_PLAN_SHA256,
+    load_bounded_json, validate_document,
 )
 from protocol_validation import ValidationError, canonical_json_bytes
 
@@ -64,7 +65,7 @@ def graft_holdout_replica(
         _validate_replica(bundle_root, tree, directories, replica, campaign_id, closed=False)
         for replica in range(1, DERIVATION_REPLICA_COUNT + 1)
     )
-    expected = {PLAN_PATH, candidate_locator}
+    expected = {PLAN_PATH, *REVISION_CHAIN, candidate_locator}
     for replica in derivation:
         expected.add(replica.manifest_path)
         expected.update(replica.entries)
@@ -184,6 +185,7 @@ def write_receipt(
         "document_type": "dao_a3_holdout_structure_receipt",
         "experiment_id": EXPERIMENT_ID,
         "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
         "producer_commit": replica.producer_commit,
         "campaign_id": replica.campaign_id,
         "derivation_candidate_set_sha256": candidate_sha256,

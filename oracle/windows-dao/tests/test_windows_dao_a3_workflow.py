@@ -200,11 +200,12 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("retention-days: 14", diagnostics)
 
     def test_fan_in_downloads_exactly_three_and_runs_contract_order(self) -> None:
-        self.assertEqual(self.fan_in.count("actions/download-artifact@"), 4)
+        self.assertEqual(self.fan_in.count("actions/download-artifact@"), 3)
         for replica in (1, 2, 3):
             self.assertIn(f"name: windows-dao-a3-replica-{replica}", self.fan_in)
             self.assertIn(f"replica-0{replica}", self.fan_in)
         assemble = self.fan_in.index("a3_bundle.py assemble")
+        campaign_start = self.fan_in.index("Bind the hosted run-attempt start observable")
         freeze = self.fan_in.index("--freeze-only", assemble)
         holdout_download = self.fan_in.index("name: windows-dao-a3-replica-3")
         holdout = self.fan_in.index("a3_holdout.py", holdout_download)
@@ -235,6 +236,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         finalize = self.fan_in.index("a3_bundle.py finalize", analysis)
         validate = self.fan_in.index("a3_bundle.py validate", finalize)
         independent = self.fan_in.index("a3_independent_validator.py", validate)
+        self.assertLess(campaign_start, assemble)
         self.assertLess(assemble, analysis)
         self.assertLess(analysis, finalize)
         self.assertLess(finalize, validate)
@@ -248,7 +250,9 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             self.fan_in.count("--producer-commit $env:GITHUB_SHA"), 4
         )
         upload = self.fan_in.split("      - name: Upload retained A3 bundle", 1)[1]
-        self.assertIn("if: always()", upload)
+        self.assertIn("if: success()", upload)
+        self.assertNotIn("if: always()", upload.split(
+            "      - name: Upload bounded A3 fan-in diagnostics", 1)[0])
         self.assertIn("fan-in-status.json", upload)
         self.assertIn("validation\\independent-validation-report.json", upload)
         self.assertIn("if-no-files-found: error", upload)
@@ -266,7 +270,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             step,
         )
         self.assertIn(
-            "--revision oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json",
+            "--revision oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json",
             step,
         )
         self.assertIn("--output $report", step)
@@ -293,6 +297,8 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             "independent_validation_status",
             "independent_validation_discrepancy_codes",
             "campaign_elapsed_seconds",
+            "campaign_started_utc",
+            "bundle_created_utc",
             "within_plan_campaign_timeout",
             "timing_records_complete",
             "plan_sha256 = $env:FROZEN_PLAN_SHA256",
@@ -310,8 +316,16 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             status,
         )
         self.assertIn("$statusBytes.Length -gt 4096", status)
-        self.assertIn("hosted-replica.json", self.fan_in)
-        self.assertIn("started_utc", self.fan_in)
+        self.assertIn("campaign-start.json", self.fan_in)
+        self.assertIn("run_started_at", self.fan_in)
+        self.assertIn("manifest.created_utc", status)
+        self.assertIn("[Math]::Floor", status)
+        finalize = self.fan_in.split(
+            "      - name: Finalize the retained A3 bundle manifest", 1
+        )[1].split("      - name: Validate the complete A3 bundle", 1)[0]
+        self.assertIn("--campaign-started-utc $env:CAMPAIGN_STARTED_UTC", finalize)
+        self.assertIn("steps.campaign_start.outputs.run_started_at", finalize)
+        self.assertIn("actions: read", self.workflow)
         diagnostics = self.fan_in.split(
             "      - name: Upload bounded A3 fan-in diagnostics", 1
         )[1]
@@ -323,7 +337,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         actions = re.findall(
             r"^\s*-?\s*uses:\s*([^\s#]+)", self.workflow, re.MULTILINE
         )
-        self.assertEqual(len(actions), 14)
+        self.assertEqual(len(actions), 13)
         for action in actions:
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
         self.assertEqual(self.workflow.count("persist-credentials: false"), 3)
