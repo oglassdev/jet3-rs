@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import copy
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -13,7 +15,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 from a3_dryrun import DEFAULT_RETAINED_ROOT, _produced_layers, assess_case, CaseResult  # noqa: E402
 from a3_dryrun_cases import DECISIVE, all_cases, conversion_expectation, reachability_targets  # noqa: E402
-from a3_dryrun_pair import run_fixture  # noqa: E402
+from a3_dryrun_pair import compare_pair, run_fixture  # noqa: E402
 from a3_dryrun_replay import RetainedDerivationReplica, run_replay  # noqa: E402
 from a3_generator import FREE, calibration_parameters  # noqa: E402
 from a3_spec import PREDICATE_IDS, UNREACHABLE_PREDICATE_IDS  # noqa: E402
@@ -54,6 +56,39 @@ class A3DryRunTests(unittest.TestCase):
         self.assertEqual(result.failures, [])
         self.assertEqual(result.executed_terminals, ["A3-SNAPSHOT-RECONSTRUCTION"])
         self.assertEqual(_produced_layers(run.pair.analyzer.report)["global_map_record"], "not_applicable")
+        self.assertEqual(len(run.pair.validator.predicate_statuses()), 34)
+
+    def _assert_single_status_mismatch_fails_pair(self, case_id: str) -> None:
+        case = next(case for case in all_cases() if case.case_id == case_id)
+        with tempfile.TemporaryDirectory() as workspace:
+            run = run_fixture(
+                case.case_id,
+                case.parameters,
+                Path(workspace),
+                "0" * 40,
+                "2026-08-22T00:00:00Z",
+                expected_rejection=case.expected_validator_rejection,
+            )
+        recomputation = copy.deepcopy(run.pair.validator.recomputation)
+        self.assertIsNotNone(recomputation)
+        statuses = recomputation["independent_projection"]["predicate_statuses"]
+        statuses[0]["status"] = "fail" if statuses[0]["status"] != "fail" else "pass"
+        validator = replace(run.pair.validator, recomputation=recomputation)
+        pair = compare_pair(
+            case.case_id,
+            run.pair.analyzer,
+            validator,
+            case.expected_validator_rejection,
+        )
+        self.assertFalse(pair.agreed)
+        self.assertEqual(len(pair.disagreements), 1)
+        self.assertIn("predicate status A3-IDLE-EQUALITY", pair.disagreements[0])
+
+    def test_missing_page_blob_single_status_mismatch_fails_pair(self) -> None:
+        self._assert_single_status_mismatch_fails_pair("missing_page_blob")
+
+    def test_seventeen_qualified_pages_single_status_mismatch_fails_pair(self) -> None:
+        self._assert_single_status_mismatch_fails_pair("seventeen_qualified_pages")
 
 
 if __name__ == "__main__":

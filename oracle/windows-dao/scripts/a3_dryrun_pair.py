@@ -63,6 +63,24 @@ class AnalyzerResult:
             for name, row in _report_layers(self.report).items()
         }
 
+    def campaign_terminal(self) -> str | None:
+        if self.report is None:
+            return None
+        terminals = [
+            predicate_id
+            for predicate_id in self.report["terminal_predicate_ids"]
+            if predicate_id in CAMPAIGN_PREDICATES
+        ]
+        return terminals[0] if len(terminals) == 1 else None
+
+    def predicate_statuses(self) -> list[dict[str, str]]:
+        if self.report is None:
+            return []
+        return [
+            {"predicate_id": row["predicate_id"], "status": row["status"]}
+            for row in self.report["predicate_results"]
+        ]
+
 
 @dataclass(frozen=True)
 class ValidatorResult:
@@ -79,19 +97,31 @@ class ValidatorResult:
     def discrepancy_codes(self) -> list[str]:
         return list(self.verdict.get("discrepancy_codes", [])) if self.verdict else ["no_verdict"]
 
-    def layers(self) -> dict[str, LayerView]:
+    @property
+    def projection(self) -> dict[str, Any] | None:
         if self.recomputation is None:
+            return None
+        value = self.recomputation.get("independent_projection")
+        return value if isinstance(value, dict) else None
+
+    def layers(self) -> dict[str, LayerView]:
+        if self.projection is None:
             return {}
-        views = {}
-        for name, row in self.recomputation["layers"].items():
-            if not row["applicable"]:
-                status = "not_applicable"
-            elif row["model"] is not None:
-                status = "derivation_model"
-            else:
-                status = "no_outcome"
-            views[name] = LayerView(status, row["terminal_predicate_id"], row["model"], row["derivation_survivor_count"])
-        return views
+        return {
+            name: LayerView(
+                row["status"],
+                row["terminal_predicate_id"],
+                row["model"],
+                row["derivation_survivor_count"],
+            )
+            for name, row in self.projection["layers"].items()
+        }
+
+    def campaign_terminal(self) -> str | None:
+        return None if self.projection is None else self.projection.get("campaign_terminal_predicate_id")
+
+    def predicate_statuses(self) -> list[dict[str, str]]:
+        return [] if self.projection is None else list(self.projection.get("predicate_statuses", []))
 
 
 @dataclass(frozen=True)
@@ -116,13 +146,17 @@ class PairOutcome:
                 "terminal_predicate_ids": None if self.analyzer.report is None else self.analyzer.report["terminal_predicate_ids"],
                 "layers": analyzer_layers,
                 "polarity_cross_check": None if self.analyzer.report is None else self.analyzer.report["polarity_cross_check"],
+                "campaign_terminal_predicate_id": self.analyzer.campaign_terminal(),
+                "predicate_statuses": self.analyzer.predicate_statuses(),
             },
             "validator": {
                 "accepted": self.validator.accepted,
                 "exit_code": self.validator.exit_code,
                 "discrepancy_codes": self.validator.discrepancy_codes,
                 "layers": validator_layers,
-                "polarity_cross_check": None if self.validator.recomputation is None else self.validator.recomputation.get("polarity_cross_check"),
+                "polarity_cross_check": None if self.validator.projection is None else self.validator.projection.get("polarity_cross_check"),
+                "campaign_terminal_predicate_id": self.validator.campaign_terminal(),
+                "predicate_statuses": self.validator.predicate_statuses(),
                 "tamper_results": None if self.validator.verdict is None else self.validator.verdict.get("tamper_results"),
             },
             "expected_validator_rejection": self.expected_validator_rejection,
@@ -159,30 +193,30 @@ def run_analyzer(paths: BundlePaths) -> AnalyzerResult:
     return AnalyzerResult(report, frozen, None)
 
 
-def _validator_command(root: Path, output: Path, commit: str, *, recompute_only: bool) -> list[str]:
+def _validator_command(root: Path, output: Path, commit: str, *, pair_projection: bool) -> list[str]:
     command = [sys.executable, "-B", str(VALIDATOR_SCRIPT), "--bundle-root", str(root), "--output", str(output), "--validator-commit", commit]
-    if recompute_only:
-        command.append("--recompute-only")
+    if pair_projection:
+        command.append("--pair-projection")
     return command
 
 
 def run_validator(root: Path, commit: str, scratch: Path) -> ValidatorResult:
-    """Run the full verdict and, separately, the derivation-only recomputation."""
+    """Run the full verdict and the pair's independent field projection."""
     scratch.mkdir(parents=True, exist_ok=True)
     verdict_path, recompute_path = scratch / "verdict.json", scratch / "recompute.json"
     try:
         verdict_run = subprocess.run(
-            _validator_command(root, verdict_path, commit, recompute_only=False),
+            _validator_command(root, verdict_path, commit, pair_projection=False),
             capture_output=True, text=True, timeout=VALIDATOR_TIMEOUT_SECONDS, check=False,
         )
         recompute_run = subprocess.run(
-            _validator_command(root, recompute_path, commit, recompute_only=True),
+            _validator_command(root, recompute_path, commit, pair_projection=True),
             capture_output=True, text=True, timeout=VALIDATOR_TIMEOUT_SECONDS, check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return ValidatorResult(None, None, -1, f"validator process failed: {exc}")
     verdict = json.loads(verdict_path.read_bytes()) if verdict_path.exists() else None
-    recomputation = json.loads(recompute_path.read_bytes()) if recompute_run.returncode == 0 and recompute_path.exists() else None
+    recomputation = json.loads(recompute_path.read_bytes()) if recompute_path.exists() else None
     stderr = (verdict_run.stderr or "") + (recompute_run.stderr or "")
     return ValidatorResult(verdict, recomputation, verdict_run.returncode, stderr[-4000:])
 
@@ -196,11 +230,61 @@ def tamper_suite_not_applicable(analyzer: AnalyzerResult, validator: ValidatorRe
     return validator.discrepancy_codes == [TAMPER_SUITE_NOT_APPLICABLE] and not decisive_global
 
 
+def _compare_projection(
+    analyzer: AnalyzerResult,
+    validator: ValidatorResult,
+    disagreements: list[str],
+) -> None:
+    if validator.projection is None:
+        disagreements.append("validator produced no independent projection")
+        return
+    analyzer_layers, validator_layers = analyzer.layers(), validator.layers()
+    if set(validator_layers) != set(LAYER_KEYS):
+        disagreements.append(
+            f"validator projection layer keys {sorted(validator_layers)} vs expected {sorted(LAYER_KEYS)}"
+        )
+        return
+    for name in LAYER_KEYS:
+        left, right = analyzer_layers[name], validator_layers[name]
+        if left.status != right.status:
+            disagreements.append(f"{name}: analyzer status {left.status} vs validator {right.status}")
+        if left.terminal_predicate_id != right.terminal_predicate_id:
+            disagreements.append(f"{name}: analyzer terminal {left.terminal_predicate_id} vs validator {right.terminal_predicate_id}")
+        if left.model != right.model:
+            disagreements.append(f"{name}: analyzer model {left.model} vs validator {right.model}")
+        if left.survivor_count != right.survivor_count:
+            disagreements.append(f"{name}: analyzer survivor count {left.survivor_count} vs validator {right.survivor_count}")
+    analyzer_cross = analyzer.report["polarity_cross_check"] if analyzer.report is not None else None
+    if analyzer_cross != validator.projection.get("polarity_cross_check"):
+        disagreements.append("polarity_cross_check transcripts differ")
+    if analyzer.campaign_terminal() != validator.campaign_terminal():
+        disagreements.append(
+            f"campaign terminal: analyzer {analyzer.campaign_terminal()} vs validator {validator.campaign_terminal()}"
+        )
+    analyzer_statuses = analyzer.predicate_statuses()
+    validator_statuses = validator.predicate_statuses()
+    if len(analyzer_statuses) != 34 or len(validator_statuses) != 34:
+        disagreements.append(
+            f"predicate status count: analyzer {len(analyzer_statuses)} vs validator {len(validator_statuses)}"
+        )
+    elif analyzer_statuses != validator_statuses:
+        mismatch = next(
+            index
+            for index, (left, right) in enumerate(zip(analyzer_statuses, validator_statuses))
+            if left != right
+        )
+        disagreements.append(
+            f"predicate status {analyzer_statuses[mismatch]['predicate_id']}: "
+            f"analyzer {analyzer_statuses[mismatch]} vs validator {validator_statuses[mismatch]}"
+        )
+
+
 def compare_pair(case_id: str, analyzer: AnalyzerResult, validator: ValidatorResult, expected_rejection: str | None) -> PairOutcome:
     disagreements: list[str] = []
     if analyzer.report is None:
         disagreements.append(f"analyzer produced no report: {analyzer.error}")
         return PairOutcome(case_id, analyzer, validator, expected_rejection, disagreements)
+    _compare_projection(analyzer, validator, disagreements)
     if expected_rejection is not None:
         if validator.accepted or validator.discrepancy_codes != [expected_rejection]:
             disagreements.append(
@@ -209,29 +293,6 @@ def compare_pair(case_id: str, analyzer: AnalyzerResult, validator: ValidatorRes
         return PairOutcome(case_id, analyzer, validator, expected_rejection, disagreements)
     if not validator.accepted and not tamper_suite_not_applicable(analyzer, validator):
         disagreements.append(f"validator accepted=false codes={validator.discrepancy_codes}")
-    if validator.recomputation is None:
-        disagreements.append("validator recompute-only produced no document")
-        return PairOutcome(case_id, analyzer, validator, expected_rejection, disagreements)
-    analyzer_layers, validator_layers = analyzer.layers(), validator.layers()
-    for name in LAYER_KEYS:
-        left, right = analyzer_layers[name], validator_layers[name]
-        if left.terminal_predicate_id != right.terminal_predicate_id and not (
-            left.terminal_predicate_id == "A3-HOLDOUT-PREDICTION" and right.terminal_predicate_id is None and right.model == left.model
-        ):
-            disagreements.append(f"{name}: analyzer terminal {left.terminal_predicate_id} vs validator {right.terminal_predicate_id}")
-        if left.model != right.model:
-            disagreements.append(f"{name}: analyzer model {left.model} vs validator {right.model}")
-        if left.survivor_count != right.survivor_count:
-            disagreements.append(f"{name}: analyzer survivor count {left.survivor_count} vs validator {right.survivor_count}")
-    # The validator's documents carry no per-predicate rows and its reached-predicate sets are not
-    # exported, so the 34-status identity is enforced on the verdict path by the validator's own
-    # validate_predicates (every non-bundle-contract verdict below has passed it).
-    if analyzer.report["polarity_cross_check"] != validator.recomputation.get("polarity_cross_check"):
-        disagreements.append("polarity_cross_check transcripts differ")
-    analyzer_campaign = [item for item in analyzer.report["terminal_predicate_ids"] if item in CAMPAIGN_PREDICATES]
-    validator_layers_inapplicable = all(view.status == "not_applicable" for view in validator_layers.values())
-    if bool(analyzer_campaign) != validator_layers_inapplicable:
-        disagreements.append(f"campaign terminal: analyzer {analyzer_campaign} vs validator layers inapplicable={validator_layers_inapplicable}")
     return PairOutcome(case_id, analyzer, validator, expected_rejection, disagreements)
 
 
