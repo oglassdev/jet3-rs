@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -7,6 +8,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -24,6 +26,8 @@ from a3_independent_validator import (  # noqa: E402
     verify_report_bounds,
     _expected_predicate_statuses,
     _load_predicate_sequences,
+    _t5_target,
+    _tamper_t5,
     _validate_terminal_predicate_ids,
     main,
 )
@@ -545,6 +549,32 @@ class IndependentValidatorTests(unittest.TestCase):
         self.assertEqual(layer["terminal_predicate_id"], "A3-GLOBAL-PAGE-MULTIPLE")
         self.assertEqual(layer["derivation_survivor_count"], 2)
         self.assertEqual(derivation["qualified_pages"]["global_map"], [1, 3])
+
+    def test_t5_targets_a_nonterminal_predicate(self) -> None:
+        bundle = BundleLoader(self.synthetic_bundle, PLAN_PATH).load()
+        self.assertEqual(_t5_target(bundle.report), "A3-HOLDOUT-PREDICTION")
+        variant, target = _tamper_t5(bundle)
+        self.assertEqual(target, "A3-HOLDOUT-PREDICTION")
+        self.assertNotEqual(variant.report, bundle.report)
+        # When every layer fails holdout, A3-HOLDOUT-PREDICTION is the legitimate terminal and
+        # T5 must flip some other nonterminal predicate instead of producing a no-op variant.
+        failed = copy.deepcopy(bundle.report)
+        for item in failed["predicate_results"]:
+            if item["predicate_id"] == "A3-HOLDOUT-PREDICTION":
+                item["status"] = "fail"
+        failed["terminal_predicate_ids"].append("A3-HOLDOUT-PREDICTION")
+        target = _t5_target(failed)
+        self.assertNotEqual(target, "A3-HOLDOUT-PREDICTION")
+        self.assertEqual(next(i["status"] for i in failed["predicate_results"] if i["predicate_id"] == target), "pass")
+        variant, chosen = _tamper_t5(replace(bundle, report=failed))
+        self.assertEqual(chosen, target)
+        self.assertNotEqual(variant.report, failed)
+        self.assertIn(target, variant.report["terminal_predicate_ids"])
+        all_fail = copy.deepcopy(bundle.report)
+        for item in all_fail["predicate_results"]:
+            item["status"] = "fail"
+        with self.assertRaisesRegex(ValidationError, "tamper_suite_not_executable"):
+            _t5_target(all_fail)
 
     def test_idle_campaign_terminal_skips_all_layers(self) -> None:
         bundle = BundleLoader(self.synthetic_bundle, PLAN_PATH).load()
