@@ -57,7 +57,7 @@ SCHEMA_SHA256: Mapping[str, str] = MappingProxyType({
     "analysis-report.schema.json": "f15bf39ad703f77fb7749d93214fe43711a9b525376b128f93c898b531db6460",
     "bundle-manifest.schema.json": "9d049c910b4a53da5d3cd3ee71f02c5671fdbb75b94e33587999cf40a91e9727",
     "derivation-candidates.schema.json": "50a9f7a1208969475a89ac3782077cb2bc0e5d3f9635ec51d5a46e8afcacd5b2",
-    "dry-run-report.schema.json": "f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593",
+    "dry-run-report.schema.json": "e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d",
     "environment.schema.json": "6fb863f1c224698b466ba5fd5e10d9869a6b313b7480f02045e70c2e8eb49465",
     "holdout-structure-receipt.schema.json": "c2316f9bf84f7722c93160c354f671d7411c0089bf7f52124237b262f43c50fe",
     "independent-validation-report.schema.json": "2ad90d2b6ade15e815ad9819c09ca28d6b7e77ab6064e3a1139a9acf7e4c6d8c",

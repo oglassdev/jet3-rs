@@ -87,7 +87,7 @@
     "input_page_blob_count": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 55
+      "maximum": 1800
     },
     "holdout_opened": {
       "const": false
