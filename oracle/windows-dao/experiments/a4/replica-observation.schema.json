@@ -87,7 +87,7 @@
     "logical_checkpoint_read_bytes": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 2147483648
+      "maximum": 1048576000
     },
     "inserted_rows_total": {
       "type": "integer",
@@ -394,8 +394,14 @@
         },
         "baseline_pages": {
           "anyOf": [
-            {"type": "null"},
-            {"type": "integer", "minimum": 1, "maximum": 20480}
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20480
+            }
           ]
         },
         "target_pages": {

@@ -238,30 +238,30 @@
         "provider_identity_and_binary_hash_required": {
           "const": true
         },
-      "per_replica_environment_required": {
-        "const": true
-      },
-      "windows_ansi_code_page": {
-        "const": 1252
-      },
-      "ansi_code_page_rule": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 1024
-      },
-      "cross_replica_exact_fields": {
-        "type": "array",
-        "minItems": 6,
-        "maxItems": 6,
+        "per_replica_environment_required": {
+          "const": true
+        },
+        "windows_ansi_code_page": {
+          "const": 1252
+        },
+        "ansi_code_page_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "cross_replica_exact_fields": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
           "uniqueItems": true,
           "items": {
             "enum": [
               "dao_prog_id",
               "provider_clsid",
-            "provider_binary_sha256",
-            "process_architecture",
-            "powershell_major",
-            "windows_ansi_code_page"
+              "provider_binary_sha256",
+              "process_architecture",
+              "powershell_major",
+              "windows_ansi_code_page"
             ]
           }
         },
@@ -557,7 +557,7 @@
           "const": 16781313
         },
         "max_analysis_work_units": {
-          "const": 350000000
+          "const": 700000000
         },
         "max_unique_page_blobs": {
           "const": 65536
@@ -647,20 +647,48 @@
         "dao_compatibility_or_support": {
           "const": false
         },
-        "support_matrix_advancement": {"const": false},
-        "dao_differential_verification": {"const": false},
-        "dao_exposed_physical_oracle": {"const": false},
-        "exact_allocation_set_equality": {"const": false},
-        "general_jet3_or_jet4_behavior": {"const": false},
-        "general_provider_or_locale_behavior": {"const": false},
-        "physical_column_definition_layout": {"const": false},
-        "physical_index_definition_or_node_layout": {"const": false},
-        "row_value_layout": {"const": false},
-        "relationship_layout": {"const": false},
-        "memo_ole_or_long_value_layout": {"const": false},
-        "writer_or_update_behavior": {"const": false},
-        "free_space_preference": {"const": false},
-        "preservation_behavior": {"const": false}
+        "support_matrix_advancement": {
+          "const": false
+        },
+        "dao_differential_verification": {
+          "const": false
+        },
+        "dao_exposed_physical_oracle": {
+          "const": false
+        },
+        "exact_allocation_set_equality": {
+          "const": false
+        },
+        "general_jet3_or_jet4_behavior": {
+          "const": false
+        },
+        "general_provider_or_locale_behavior": {
+          "const": false
+        },
+        "physical_column_definition_layout": {
+          "const": false
+        },
+        "physical_index_definition_or_node_layout": {
+          "const": false
+        },
+        "row_value_layout": {
+          "const": false
+        },
+        "relationship_layout": {
+          "const": false
+        },
+        "memo_ole_or_long_value_layout": {
+          "const": false
+        },
+        "writer_or_update_behavior": {
+          "const": false
+        },
+        "free_space_preference": {
+          "const": false
+        },
+        "preservation_behavior": {
+          "const": false
+        }
       }
     },
     "decisiveReportHandling": {

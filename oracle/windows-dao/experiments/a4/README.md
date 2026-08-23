@@ -3,15 +3,17 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`a3ec6e693a0b07c0697cf5d6d47c69ca070eafc3549b470c85664602cd8d954a`.
+`12e62b89bda97290f441b78a08902acbfe7e5fd10b9b008b1393800f45345356`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
 layers without allowing a later failure to erase an earlier success:
 
-1. `A4-H1` selects one table-definition page and exactly two page/row locators
-   per logical table under one of the two frozen four-byte layouts.
-2. `A4-H2` re-resolves both complete rows at every checkpoint and assigns their
+1. `A4-H1` uses only TDEF lifecycle bytes, syntactic locator decoding, the
+   masked record signature, nonoverlap/identity, and target validity to select
+   one invariant layout and table-relative locator pair.
+2. `A4-H2` re-resolves the separately frozen per-instance bindings and assigns
+   their complete rows at every checkpoint to
    owned/in-use and available roles from lifecycle, growth, churn, and idle
    transitions. Row motion is permitted.
 3. `A4-H3` tests type-1 zero-slot behavior, exact tag-05 references, bitmap
@@ -24,11 +26,13 @@ layers without allowing a later failure to erase an earlier success:
 Every layer has an explicit ordered predicate sequence and `no_outcome`
 terminal in the plan. All 40 registered predicate ids have a mandatory
 contract with prerequisites, input candidate set, exact pass/fail rule,
-terminal/count/status behavior, and a constructible unique reachability
-fixture that passes every prior predicate. The stdlib-only
-`scripts/a4_plan_fixtures.py` evaluator executes the 40 registered fixture rows
-in order and proves first termination and survivor counts without importing
-analyzer logic. R4-C01-style charging counts each unique qualified
+terminal/count/status behavior, and a claimed byte-fixture terminal. These
+registry labels are not proof. Before hosted dispatch, a real byte-level
+reachability harness must construct shared campaigns from exact 2,048-byte
+pages, enumerate only the closed grammar, propagate candidates in normative
+order, report actual survivor counts and first failure, demonstrate every
+claimed-reachable terminal, and assert every unreachable terminal. R4-C01-style
+charging counts each unique qualified
 page/checkpoint/model identity once across the derivation-replica union.
 
 ## Frozen design
@@ -46,7 +50,9 @@ names rotate across logical roles `T1` through `T4`:
 - `A4TAB_É4`
 
 The four physical names are eight Unicode scalar values and, under the required
-DAO snapshot conversion, eight strict Windows-1252 bytes each. `A4TAB_É4` is
+DAO snapshot conversion, eight strict Windows-1252 bytes each. The snapshot
+also produces the strict UTF-8 candidate but compares neither candidate to
+physical bytes. `A4TAB_É4` is
 the only non-ASCII identifier and has Windows-1252 bytes
 `41 34 54 41 42 5f c9 34`; the registered alternate UTF-8 encoding uses
 `c3 89` for U+00C9. Catalog records are located without name bytes. Encoding
@@ -74,7 +80,8 @@ snapshot of non-system TableDefs, fields, indexes, attributes, row counts, and
 rolling row hashes. The schema snapshot is read-only, and the before/after MDB
 hashes must match. It reopens with
 `workspace.OpenDatabase(path, False, True, "")`. Its collection ordinals are
-assigned only after each declared post-`Refresh` filter; exact BSTR UTF-16 code units and strict Windows-1252 bytes are
+assigned only after exact scheduled-name filtering; exact BSTR UTF-16 code units
+plus strict Windows-1252 and UTF-8 expected bytes are
 retained, and validators independently reject duplicate roles, names, or
 ordinals and cross-bind every snapshot to its observation, page index,
 manifest entry, and actual bytes.
@@ -122,22 +129,27 @@ The base plan incorporates A3's later machinery fixes from the start:
   most 4,167,722 raw pairs per qualified TDEF page. Across 16 pages the raw
   pair bound is 66,683,552. On retained A3 page 23, the plan recomputes 1,872
   preserved windows per layout, 3,491,392 raw nonoverlapping pairs, and a
-  3,495,482-unit raw-window/pair charge before one structural pair survives.
+  3,495,482-unit raw-window/pair charge before one structural pair survives
+  under each layout. Only row-then-page is target-valid: page-then-row is valid
+  at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 343,105,669 units under the conservative 350,000,000-unit
+  path is H4 at 670,482,217 units under the conservative 700,000,000-unit
   ceiling; mutually exclusive row-count and row-length maxima are not summed.
   Type-1 rows admit at most 508 complete slots, type-0 rows 16,248 bits, and
-  tag-05 pages 16,352 bits. H4 charges every one of its 262,821,888 possible
-  raw structural tuples on the maximal path.
-- Two and only two full checkpoint-page read passes cost 2,097,152,000 bytes
-  per replica, below the 2 GiB logical-read bound. Candidates are capped at
+  tag-05 pages 16,352 bits. H4 separately charges the encoding-union scan and
+  all bounded name/length tuple attempts. The two registered name patterns
+  cannot overlap at starts less than eight bytes apart, bounding a complete
+  2,038-byte row to 254 compatible occurrences.
+- One producer read plus independent analyzer and validator reads cost at most
+  1,317,011,456 bytes per replica, below the 2 GiB logical-read bound; no
+  analyzer/validator pass is shared. Candidates are globally capped at
   4,096 bytes each, their full array at 16,781,313 bytes, and concrete bounded
   transcript schemas keep the complete frozen JSON below 64 MiB.
 - R5-T01-style timing measures from hosted attempt start through successful
   manifest creation. Exactly 2,700 seconds is accepted; 2,701 is rejected
   before manifest creation and produces diagnostics rather than a successful
   evidence bundle.
-- The dry-run honesty clause requires executed reachability transcripts,
+- The dry-run honesty clause requires executed byte-level reachability transcripts,
   independent replica-3 overshoots, full analyzer/validator agreement, genuine
   tamper execution, and exact-bound/one-over cases. Hand-authored or constant
   rejection results fail the gate.

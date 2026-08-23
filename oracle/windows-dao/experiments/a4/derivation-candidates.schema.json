@@ -104,7 +104,8 @@
       "required": [
         "model_type",
         "canonical_id",
-        "model"
+        "model",
+        "instance_bindings"
       ],
       "properties": {
         "model_type": {
@@ -120,8 +121,7 @@
           "required": [
             "layout",
             "table_signature_id",
-            "locator_offsets",
-            "locator_targets"
+            "locator_offsets"
           ],
           "properties": {
             "layout": {
@@ -143,23 +143,16 @@
                 "minimum": 0,
                 "maximum": 2044
               }
-            },
-            "locator_targets": {
-              "type": "array",
-              "minItems": 2,
-              "maxItems": 2,
-              "uniqueItems": true,
-              "items": {
-                "type": "array",
-                "minItems": 2,
-                "maxItems": 2,
-                "items": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 20479
-                }
-              }
             }
+          }
+        },
+        "instance_bindings": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/h1InstanceBinding"
           }
         }
       }
@@ -319,10 +312,14 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "name_start",
             "kind_start_delta",
             "kind_width",
             "identifier_width",
             "endianness",
+            "name_length_start_delta",
+            "name_length_width",
+            "name_length_endianness",
             "kind_mapping",
             "identifier_lifecycle",
             "encoding_length_equivalence_class"
@@ -354,9 +351,30 @@
               ]
             },
             "kind_mapping": {
-              "type": "string",
-              "pattern": "^bijection-[1-6]$",
-              "maxLength": 11
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "table",
+                "field",
+                "index"
+              ],
+              "properties": {
+                "table": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "field": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                }
+              }
             },
             "identifier_lifecycle": {
               "enum": [
@@ -369,6 +387,29 @@
                 "cp1252_single_byte_per_scalar",
                 "utf8_encoded_byte_count",
                 "utf8_unicode_scalar_or_code_unit_count"
+              ]
+            },
+            "name_start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2037
+            },
+            "name_length_start_delta": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "name_length_width": {
+              "enum": [
+                1,
+                2,
+                4
+              ]
+            },
+            "name_length_endianness": {
+              "enum": [
+                "little",
+                "big"
               ]
             }
           }
@@ -677,7 +718,7 @@
         "tdef_lifecycle_signatures",
         "raw_locator_windows",
         "raw_locator_pairs",
-        "locator_transition_signatures",
+        "h1_target_validity_checks",
         "valid_path_row_directory_entries",
         "type_1_slots",
         "type_0_and_tag_05_bitmap_bits",
@@ -685,7 +726,8 @@
         "base_formula_evaluations",
         "catalog_root_signatures",
         "catalog_raw_rows",
-        "h4_raw_structural_tuples",
+        "encoding_union_anchor_bytes",
+        "h4_name_length_structural_tuples",
         "encoding_length_equivalence_candidates",
         "candidate_serializations",
         "total_work_units"
@@ -706,15 +748,10 @@
           "minimum": 0,
           "maximum": 66683552
         },
-        "locator_transition_signatures": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 224
-        },
         "valid_path_row_directory_entries": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 800
+          "maximum": 271600
         },
         "type_1_slots": {
           "type": "integer",
@@ -746,11 +783,6 @@
           "minimum": 0,
           "maximum": 76048
         },
-        "h4_raw_structural_tuples": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 262821888
-        },
         "encoding_length_equivalence_candidates": {
           "type": "integer",
           "minimum": 0,
@@ -764,7 +796,22 @@
         "total_work_units": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 350000000
+          "maximum": 700000000
+        },
+        "h1_target_validity_checks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1600
+        },
+        "encoding_union_anchor_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 28532
+        },
+        "h4_name_length_structural_tuples": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 589897728
         }
       }
     },
@@ -993,6 +1040,93 @@
                 "pattern": "^[0-9a-f]*$",
                 "maxLength": 256
               }
+            }
+          }
+        }
+      }
+    },
+    "locatorTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page",
+        "row"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20479
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "h1InstanceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replica",
+        "logical_role",
+        "lifecycle_instance",
+        "tdef_page",
+        "locator_targets",
+        "applicable_checkpoint_range"
+      ],
+      "properties": {
+        "replica": {
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "logical_role": {
+          "enum": [
+            "T1",
+            "T2",
+            "T3",
+            "T4"
+          ]
+        },
+        "lifecycle_instance": {
+          "enum": [
+            "T1-v1",
+            "T2-v1",
+            "T2-v2",
+            "T3-v1",
+            "T4-v1"
+          ]
+        },
+        "tdef_page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20479
+        },
+        "locator_targets": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/locatorTarget"
+          }
+        },
+        "applicable_checkpoint_range": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/id"
+            },
+            "end": {
+              "$ref": "#/$defs/id"
             }
           }
         }

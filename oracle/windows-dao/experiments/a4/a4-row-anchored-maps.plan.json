@@ -129,7 +129,7 @@
       "unicode_scalar": "U+00C9",
       "windows_1252_hex": "41345441425fc934",
       "constraint": "this is the only non-ASCII table, field, or index identifier",
-      "name_capture_rule": "Read each DAO Name as a BSTR and record its exact UTF-16 code-unit sequence. Convert that sequence with WideCharToMultiByte(1252, WC_NO_BEST_FIT_CHARS, ...), require usedDefaultChar == FALSE, and record lowercase output hex. Require A4TAB_É4 code units to contain U+00C9 and bytes to equal 41345441425fc934; compare physical name candidates to those recorded bytes byte-for-byte, with no Unicode normalization, case folding, best-fit mapping, or replacement. A mismatch is A4-SCHEMA-SNAPSHOT, not encoding ambiguity."
+      "name_capture_rule": "The DAO snapshot validates only the logical BSTR code units and produces both expected byte candidates: strict Windows-1252 and UTF-8. It does not compare either candidate to physical bytes and cannot terminate A4-SCHEMA-SNAPSHOT because of a physical encoding mismatch. Physical comparison occurs only at H4 encoding evaluation. Read each DAO Name as a BSTR and record its exact UTF-16 code-unit sequence. Convert that sequence both with WideCharToMultiByte(1252, WC_NO_BEST_FIT_CHARS, ...), requiring usedDefaultChar == FALSE, and with strict UTF-8; record both lowercase output hex values with no Unicode normalization, case folding, best-fit mapping, or replacement."
     },
     "role_bindings": [
       {
@@ -155,6 +155,7 @@
       }
     ],
     "definition": {
+      "table_attributes_numeric": 0,
       "fields": [
         {
           "name": "Id",
@@ -186,7 +187,8 @@
         "primary": false,
         "required": false,
         "ignore_nulls": false,
-        "field_order": "Id ascending"
+        "field_order": "Id ascending",
+        "descending": false
       }
     },
     "schema_operation_rule": "exactly one listed logical schema operation occurs between closed checkpoints; a TableDefs.Append may append a preconfigured TableDef with its declared fields, but no second TableDefs, Fields, or Indexes collection mutation occurs in that transition. Every canonical transition comparison asserts that only the listed logical mutation occurred and all unrelated table, field, index, and index-field tuples are byte-identical.",
@@ -227,7 +229,7 @@
     },
     "dao_protocol": {
       "database_creation": "Acquire workspace = DAO.DBEngine.36.Workspaces(0) once per database operation and invoke workspace.CreateDatabase(path, dbLangGeneral, dbVersion30). dbLangGeneral is ;LANGID=0x0409;CP=1252;COUNTRY=0 and dbVersion30 is numeric 32. Any different receiver is a protocol failure.",
-      "object_construction": "Construct every TableDef, Field, and Index with the named DAO CreateTableDef, CreateField, or CreateIndex method. Before append set Id Required=False and record AllowZeroLength=null as not applicable; set Payload Required=False and AllowZeroLength=False; set index Primary=False, Unique=False, Required=False, IgnoreNulls=False and append exactly one ascending Id index field. Record numeric constants and Attributes.",
+      "object_construction": "Construct every TableDef, Field, and Index with the named DAO CreateTableDef, CreateField, or CreateIndex method. Before append set every scheduled TableDef Attributes = 0; set Id.Attributes = 0, Id Required=False, and record AllowZeroLength=null as not applicable; set Payload.Attributes = dbFixedField and require numeric value 1, Payload Required=False, and AllowZeroLength=False; set index Primary=False, Unique=False, Required=False, IgnoreNulls=False and set the sole index field Descending = False. Require every schema snapshot value to equal these construction constants at every applicable checkpoint.",
       "recordset_protocol": "Open one dynaset per insertion/deletion leg with dbOpenDynaset numeric 2 and options numeric 0. For insertion use AddNew, assign Id and Payload, then Update once per row in ascending Id order. For deletion enumerate Id ascending and call Delete once per row.",
       "transaction_policy": "No DAO workspace BeginTrans, CommitTrans, or rollback call is used; every AddNew/Update and Delete autocommits under DAO's default policy.",
       "measurement_loop": "After every fixed 32-row batch, close Recordset, Database, and DBEngine references, poll size and SHA-256 every 250 milliseconds until three consecutive equal observations or 30 seconds, read the closed file page count, and either capture the threshold checkpoint or reopen and continue.",
@@ -235,7 +237,7 @@
       "churn_rule": "T1_DELETE_ALL and T1_REINSERT_SAME use the same absent-transaction policy and ascending Id order. No compact or repair operation occurs.",
       "error_rule": "Any DAO call failure closes all live references, retains diagnostics outside the successful artifact name, and creates no schema-valid evidence manifest.",
       "read_only_reopen": "After close, reopen with exactly workspace.OpenDatabase(path, False, True, \"\"); False is exclusive and True is read-only. Any different receiver or argument tuple is a protocol failure.",
-      "ordinal_filtering": "After TableDefs.Refresh, first filter to Name not prefixed MSys and Attributes & dbSystemObject == 0, then assign table_ordinal as zero-based position in that filtered sequence. Fields are all Fields after Refresh and indexes exclude system/hidden indexes before ordinals; index fields are all fields after Refresh. Assign zero-based ordinals only after each filter and reject duplicate ordinals or names."
+      "ordinal_filtering": "After TableDefs.Refresh, snapshot user tables are exactly the extant scheduled physical names from expected_schema_by_checkpoint; snapshot user indexes are exactly the extant scheduled name A4IX_ID. Any extra or missing scheduled object fails A4-SCHEMA-SNAPSHOT; no implementation-defined hidden/system index test is used. Fields and index fields are all members after Refresh. Assign zero-based ordinals only after each exact declared filter and reject duplicate ordinals or names."
     },
     "expected_schema_by_checkpoint": {
       "EMPTY": [],
@@ -496,7 +498,7 @@
     "post_close_quiescence_required": true,
     "companion_bytes_in_physical_analysis": false,
     "dao_schema_snapshot_rule": "after closing and before physical capture, reopen read-only through DAO, emit one canonical schema snapshot document, close again, assert the MDB hash is unchanged by the read-only observation, then capture physical pages",
-    "schema_snapshot_comparison_rule": "A4-SCHEMA-SNAPSHOT fails iff any of the 75 snapshots is missing, schema-invalid, mapped to the wrong replica/checkpoint/role binding, violates the expected extant schema, row count/hash, code page, name-byte conversion, or before/after hash equality. Each transition must contain only its listed logical mutation; every unrelated canonical table, field, index, and index-field tuple remains byte-identical.",
+    "schema_snapshot_comparison_rule": "A4-SCHEMA-SNAPSHOT fails iff any of the 75 snapshots is missing, schema-invalid, mapped to the wrong replica/checkpoint/role binding, violates the exact scheduled extant schema, construction constants, row count/hash, code page, logical BSTR-to-expected-byte conversions, or before/after hash equality. It never compares an expected encoding candidate with physical bytes. Each transition must contain only its listed logical mutation; every unrelated canonical table, field, index, and index-field tuple remains byte-identical.",
     "snapshot_cross_binding_rule": "For each checkpoint, the producer and independent validator load the referenced snapshot and require equality of experiment, plan, revision, commit, campaign, environment, provider, replica, checkpoint id, and ordinal. Require snapshot database_sha256_before_read == database_sha256_after_read == page_index.database_sha256, and require the manifest entry's path/hash/size to equal the observation reference and actual bytes."
   },
   "record_candidate_procedure": {
@@ -506,7 +508,7 @@
       "u24le_page_then_u8_row",
       "u8_row_then_u24le_page"
     ],
-    "locator_enumeration": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. Before layout or pair cardinality is counted, a locator-pair candidate MUST satisfy the preregistered byte-level table-record signature independent of locator layout, contain two distinct nonoverlapping intervals in canonical offset order, preserve offset identity across all applicable derivation checkpoints, and satisfy the operation-transition truth table that distinguishes the two logical map roles. Apply candidate_grammars.h1.filter_order exactly. Target existence remains outside filtering, so A4-H1-TARGET-ROW-INVALID evaluates the unique surviving pair.",
+    "locator_enumeration": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. H1 applies only the preregistered byte-level table-record signature independent of locator layout, two distinct nonoverlapping intervals in canonical offset order, offset identity across all applicable derivation checkpoints, and target page/tag/row-ordinal validity. Apply candidate_grammars.h1.filter_order exactly. H1 never decodes allocation rows, tests polarity or transitions, or assigns roles. Layout and pair cardinality are computed only from the target-valid set after A4-H1-TARGET-ROW-INVALID passes.",
     "map_row_layouts": {
       "type_0": "For a type-0 row, byte 0 is tag 00, bytes [1,5) are a little-endian u32 base, and bytes [5,row_len) are an LSB-first bitmap. Bit index k refers to absolute page base + k. The registered polarity candidates are set_bit_owned_in_use and clear_bit_owned_in_use; H2 lifecycle legs select exactly one polarity/row-role model, and only bits classified owned/in-use admit pages.",
       "type_1": "For a type-1 row, byte 0 is tag 01 and bytes [1,row_len) must have length divisible by four; otherwise A4-H2-MAP-TAG-UNSUPPORTED fails. Slot ordinal is the zero-based u32 position after the tag. Zero is inactive. A nonzero slot is an exact physical tag-05 page reference. A tag-05 page has header [0,4) and an LSB-first bitmap [4,2048); bit index k maps by the registered base formula, and only set bits of the owned/in-use row admit pages."
@@ -574,7 +576,7 @@
         "u8_row_then_u24le_page"
       ],
       "locator_offset_domain": "0..2044 inclusive; canonical a<b and b-a>=4",
-      "layout_candidate_rule": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. A layout survives only after at least one canonical pair under that layout passes the registered table-record signature, overlap, identity-preservation, and operation-transition filters; target existence is not a filter.",
+      "layout_candidate_rule": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. LOCATOR-LAYOUT-NONE asks whether either layout has any cross-checkpoint syntactically preserved window. Structural pair filtering then applies only the registered table-record signature, nonoverlap, and identity preservation. After TARGET-ROW-INVALID passes, a layout cardinality candidate is a layout containing at least one target-valid pair.",
       "logical_roles": [
         "T1",
         "T2",
@@ -600,33 +602,17 @@
           ]
         ]
       },
-      "operation_transition_truth_table": {
-        "schema_unrelated_or_idle": [
-          "unchanged",
-          "unchanged"
-        ],
-        "grow": [
-          "owned_add_only",
-          "available_remove_only"
-        ],
-        "delete_all": [
-          "owned_remove_only",
-          "available_add_only"
-        ],
-        "reinsert": [
-          "owned_add_only",
-          "available_remove_only"
-        ],
-        "drop": [
-          "absent",
-          "absent"
-        ],
-        "recreate": [
-          "new_instance",
-          "new_instance"
-        ],
-        "rule": "Evaluate both locator-role assignments and both registered bit polarities without using layout endianness. Exactly one assignment must satisfy every applicable leg. Unchanged means byte-identical complete target row; add/remove directions are set relations after applying the candidate polarity. This signature distinguishes owned/in-use from available and is frozen before H2 names the surviving semantic role model."
-      },
+      "h1_semantic_boundary": "H1 uses only TDEF lifecycle bytes, syntactic locator decoding, the masked record signature, nonoverlap/identity, and target page/tag/row-ordinal validity. It does not decode allocation rows, test bit polarity, compare admitted sets, or assign owned/available roles; all such transition work belongs exclusively to H2.",
+      "non_holdout_local_order": [
+        "1. TDEF-NONE",
+        "2. TDEF-MULTIPLE",
+        "3. LOCATOR-LAYOUT-NONE — neither layout has any cross-checkpoint syntactically preserved window",
+        "4. LOCATOR-PAIR-NONE — windows exist but no masked, nonoverlapping, identity-preserved pair exists under either layout",
+        "5. TARGET-ROW-INVALID — structural pairs exist but none has two distinct targets that are extant tag 01 with in-range row ordinals at every applicable checkpoint",
+        "6. LOCATOR-LAYOUT-MULTIPLE — target-valid pairs survive under more than one layout",
+        "7. LOCATOR-PAIR-MULTIPLE — more than one target-valid pair survives under the unique layout",
+        "8. REPLICA-DISAGREEMENT"
+      ],
       "overlap_policy": "Enumerate canonical offsets a<b. Reject b-a<4 before reading the second interval. Adjacent [a,a+4) and [b,b+4) intervals are allowed when b-a=4. Reject duplicate decoded (page,row) targets only at A4-H1-TARGET-ROW-INVALID, not during pair filtering.",
       "filter_order": [
         "enumerate_4090_raw_window_identities",
@@ -634,13 +620,13 @@
         "form_canonical_nonoverlapping_pairs_within_each_layout",
         "apply_table_record_signature_and_exact_locator_holes",
         "require_pair_offset_identity_across_extant_lifecycle_checkpoints",
-        "apply_operation_transition_truth_table_across_both_role_assignments",
-        "count_layout_survivors",
-        "count_pair_survivors_under_unique_layout",
-        "validate_target_existence_tag_uniqueness_and_row_ordinal"
+        "validate_target_existence_tag_uniqueness_and_row_ordinal",
+        "count_target_valid_layout_survivors",
+        "count_target_valid_pair_survivors_under_unique_layout"
       ],
-      "target_existence_in_candidate_filter": false,
+      "target_existence_in_candidate_filter": true,
       "a3_page_23_recomputed_work": {
+        "source_bundle": "/private/tmp/claude-501/-Users-oglass-Development-Misc-access97-rs/77df2993-62f0-4041-97d5-19885072a109/scratchpad/a3run/bundle",
         "checkpoint_count": 25,
         "raw_windows_examined": 4090,
         "syntactically_preserved_page_row": 1872,
@@ -648,8 +634,14 @@
         "raw_nonoverlapping_pairs_examined_page_row": 1745696,
         "raw_nonoverlapping_pairs_examined_row_page": 1745696,
         "raw_interval_and_pair_charge": 3495482,
-        "structural_pair_survivors": 1,
-        "surviving_layout": "u8_row_then_u24le_page",
+        "structural_pairs_page_row": 1,
+        "structural_pairs_row_page": 1,
+        "page_row_target_valid_checkpoints": 7,
+        "row_page_target_valid_checkpoints": 25,
+        "target_valid_pairs_page_row": 0,
+        "target_valid_pairs_row_page": 1,
+        "target_observation": "The signature matches 25/25 page-23 blobs. Under row-then-page, offsets 35/39 resolve page 24 rows 0/1; page 24 is extant tag 01 with row count 2 at 25/25 checkpoints. Under page-then-row, the same bytes resolve pages 6144/6145 row 0; those pages are absent at 18/25 checkpoints.",
+        "target_valid_surviving_layout": "u8_row_then_u24le_page",
         "surviving_offsets": [
           35,
           39
@@ -693,19 +685,22 @@
         "slot_ordinal_times_16352_plus_bit_index_plus_one"
       ],
       "conversion_rule": "H3 conversion candidates describe only the structural type-0-to-type-1/nonzero-slot transition. They do not assert the page tag or referenced-page validity. A4-H3-REFERENCE-INVALID exclusively validates that every required nonzero reference resolves in-range to tag 05. This separation applies to rules and fixtures.",
-      "base_discrimination_rule": "Pass when observations exercise slot ordinal zero and nonzero, referenced-page values distinct from slot ordinals, bit index zero and nonzero, and both sides of a 16,352-bit boundary. Do not require pairwise-distinct formula predictions; BASE-NONE/MULTIPLE count exact-fitting formulas after coverage passes."
+      "base_discrimination_rule": "H3 input-region coverage requires slot zero/nonzero, bit zero/nonzero, and both sides of the 16,352-bit boundary, but does not require a referenced page distinct from the slot ordinal. BASE-NONE/MULTIPLE then count fitting formulas. The BASE-MULTIPLE fixture uses reference == slot for every observation, causing the slot-base and referenced-page-base formulas both to fit; the decisive fixture includes reference != slot and leaves exactly one."
     },
     "h4": {
       "catalog_root_selection_signatures": [
         "operation_delta_non_name_structure"
       ],
       "catalog_root_selection_signature_rules": {
-        "operation_delta_non_name_structure": "Locate candidate records solely by listed-operation before/after deltas, complete row bounds, object-kind raw value relations, identifier stability/distinctness, and field widths/endianness. Do not inspect name bytes or name-length fields while selecting the root, records, or structural field layout."
+        "operation_delta_non_name_structure": "Locate the root and one operation-delta record candidate per instance solely by listed-operation before/after deltas and complete row bounds. Do not inspect name bytes or name-length fields while selecting the root or operation-delta records. Kind, identifier, name, and length fields are enumerated only after record uniqueness."
       },
       "system_tdef_source": "tag-02 pages extant at EMPTY; apply the frozen H1 locator layout, H2 decoder/role model, and H3 traversal independently without refit",
-      "catalog_record_source": "complete SRC-0020 rows only on allocation-admitted tag-01 pages",
-      "name_anchor": "No name anchor is used for root, record, or structural field-layout selection. Name bytes and lengths are evaluated only after exactly one structural field-layout model survives.",
-      "relative_field_delta_domain": "1..16 bytes before the structural name-field start; the tuple chooses kind start delta, kind width, immediately preceding identifier width, endianness, kind mapping, and identifier lifecycle relation. Encoding and name length are excluded.",
+      "catalog_record_source": "After one root survives, SCHEMA-DELTA-OUTSIDE-OWNED compares every isolated physical schema delta with the root-admitted page set before record candidates are restricted to admitted pages. Only if every delta is inside are complete SRC-0020 record candidates restricted to allocation-admitted tag-01 pages.",
+      "h4_ordering_rule": "After one root survives, `SCHEMA-DELTA-OUTSIDE-OWNED` compares every isolated physical schema delta with the root-admitted page set before record candidates are restricted to admitted pages. Only if every delta is inside does `CATALOG-RECORD-NONE` require at least one record for each of the seven operation instances, followed by `CATALOG-RECORD-MULTIPLE` requiring at most one per instance. Field-model predicates follow. The OUTSIDE fixture places one otherwise valid operation delta on a non-admitted page and therefore first fails OUTSIDE.",
+      "name_anchor": "No name anchor is used for root or operation-delta record selection. After exactly one record per operation instance survives, the encoding-neutral union of both registered expected-name byte sequences locates deferred compatible occurrences for bounded structural field-layout enumeration; neither encoding is preferred. Encoding-class fitting is evaluated only after exactly one structural tuple survives.",
+      "encoding_neutral_union_anchor": "After one operation-delta record per instance survives, scan the complete row for every exact occurrence of either registered expected-name byte sequence without preferring an encoding. For every occurrence enumerate kind_start_delta 1..16, kind width 1/2/4, immediately preceding identifier width 1/2/4, endianness little/big, name-length start delta 1..16 before the occurrence, name-length width 1/2/4, and length endianness little/big. Deduplicate identical non-name field-address tuples before structural cardinality, retaining the compatible name occurrences only as deferred encoding evidence. After one structural tuple survives, evaluate the compatible occurrences against the three encoding/length equivalence classes.",
+      "union_anchor_occurrence_bound": "The two exact registered expected-name byte patterns have no proper self-overlap or cross-overlap. Compatible occurrence starts are therefore at least 8 bytes apart. A maximum 2,038-byte complete row contains at most floor(2038/8)=254 compatible occurrences; the analyzer and validator verify this pattern property and reject any attempted charge above the derived bound.",
+      "relative_field_delta_domain": "kind_start_delta and name_length_start_delta are each 1..16 bytes before a compatible encoding-neutral name occurrence; kind, immediately preceding identifier, and name-length widths are each 1/2/4, with registered endianness choices.",
       "kind_widths": [
         1,
         2,
@@ -720,7 +715,7 @@
         "little",
         "big"
       ],
-      "kind_value_mapping": "a bijection from the three observed raw values to table, field, index in lexical object-kind order",
+      "kind_value_mapping": "Sort the three distinct observed kind raw integers ascending. A candidate stores the explicit object {table: value, field: value, index: value}; enumerate the six permutations lexicographically by (table, field, index). Opaque bijection-N ids are forbidden.",
       "expected_kind_relations": "T1_CREATE_ID, T2_CREATE, T2_RECREATE, T3_CREATE, and T4_CREATE anchors map to table; T1_ADD_TEXT maps to field; T1_ADD_INDEX maps to index. Equal kinds require equal raw values and different kinds require distinct raw values.",
       "identifier_lifecycle_relations": [
         "stable_for_same_operation_instance_and_distinct_for_t2_v1_v2",
@@ -763,18 +758,19 @@
           ]
         }
       ],
-      "encoding_length_evaluation_rule": "After exactly one structural field-layout model survives, compare exact bytes for strict Windows-1252 (C9 for U+00C9) and UTF-8 (C3 89), then compare stored length against the registered equivalence classes. The campaign contains no possible within-CP1252 discriminator because strict CP1252 is single-byte for every representable scalar; report cp1252_single_byte_per_scalar rather than selecting one observationally equivalent member.",
-      "structural_raw_tuple": "(operation_instance among 7, admitted complete row identity among at most 16*679, kind_start_delta 1..16, kind_width among 1/2/4, identifier_width among 1/2/4 immediately preceding kind, endianness among little/big, one of 6 kind bijections, one of 2 identifier lifecycle relations). Encoding and length are excluded. Identical byte-address tuples reached by two delta paths are deduplicated before field decoding but every raw Cartesian tuple is charged once before deduplication.",
+      "encoding_length_evaluation_rule": "After exactly one structural field-layout model survives, compare every compatible deferred occurrence against exact strict Windows-1252 (C9 for U+00C9) and UTF-8 (C3 89) bytes and the selected stored length against the registered equivalence classes. Encoding failure records the actual fitting-class count. The zero-fit fixture contains no matching candidate; a multiple fixture, if registered, contains both registered byte occurrences at compatible deferred anchors and never claims two classes fit one É occurrence. The campaign contains no possible within-CP1252 discriminator because strict CP1252 is single-byte for every representable scalar; report cp1252_single_byte_per_scalar rather than selecting one observationally equivalent member.",
+      "structural_raw_tuple": "After one operation-delta record per each of 7 instances survives: compatible name occurrence, kind_start_delta 1..16, kind_width 1/2/4, immediately preceding identifier_width 1/2/4, kind/id endianness little/big, name_length_start_delta 1..16, name_length_width 1/2/4, length endianness little/big, one of 6 explicit kind-value objects, and one of 2 identifier lifecycle relations. Encoding class remains deferred. Identical non-name field-address tuples are deduplicated before structural cardinality while compatible name occurrences remain deferred evidence.",
       "raw_tuple_filter_order": [
-        "enumerate_operation_instance_and_admitted_row",
-        "enumerate_all_3456_structural_tuples",
+        "require_one_operation_delta_record_per_instance",
+        "scan_complete_row_for_union_of_registered_expected_name_bytes",
+        "enumerate_bounded_name_kind_identifier_and_length_tuples",
         "charge_raw_tuple",
         "reject_out_of_row_or_overlapping_fields",
         "deduplicate_identical_byte_address_tuple",
         "test_kind_mapping",
         "test_identifier_lifecycle",
         "count_structural_field_layouts",
-        "if_exactly_one_then_test_three_encoding_length_equivalence_candidates"
+        "if_exactly_one_then_test_compatible_occurrences_against_three_encoding_length_equivalence_candidates"
       ]
     }
   },
@@ -788,7 +784,7 @@
     "A4-H1": {
       "title": "TDEF-to-map-row location",
       "model": "schema lifecycle deltas select one tag-02 TDEF per logical table and exactly two table-relative locators under one frozen layout; both resolve to extant tag-01 pages and valid row slots at every applicable checkpoint",
-      "no_outcome": "no or multiple TDEFs; no or multiple locator layouts or locator pairs; invalid, missing, deleted, or overflow target row; replica disagreement; holdout prediction failure"
+      "no_outcome": "no or multiple TDEFs; no syntactically preserved layout windows; no structural locator pair; no target-valid pair; multiple target-valid layouts or pairs; replica disagreement; holdout prediction failure"
     },
     "A4-H2": {
       "title": "row identity and map role",
@@ -839,9 +835,16 @@
         "campaign_2700_seconds",
         "campaign_2701_seconds"
       ],
-      "reachability_by_transcript": "retain an executed fixture transcript that reaches every predicate id classified reachable; a constant rejection or hand-authored expected status is failure",
+      "reachability_by_transcript": "Before any hosted dispatch, an executed byte-level reachability harness must demonstrate every terminal classified claimed-reachable and assert every terminal classified unreachable. A registry label, constant rejection, hand-authored expected status, or structural unit test is not reachability evidence.",
+      "byte_level_reachability_harness_contract": {
+        "shared_campaign": "A reachability fixture contains one shared synthetic campaign: exact 2,048-byte page blobs, page indexes, checkpoint/lifecycle events, DAO snapshot values, and the expected mutation from the all-pass baseline. It MUST NOT contain `accepted` or `valid` verdict booleans. The evaluator decodes the fixture bytes, enumerates only ids/tuples present in the registered grammar, applies filters in the normative order, propagates each surviving candidate set to the next predicate, and then reports the first failure. A fixture is accepted only if every earlier predicate passes on that same state and the target predicate is its first failure.",
+        "survivor_count_handling": "`exact: n` requires measured count `== n`; `minimum: n` requires measured count `>= n` and stores the actual measured count. `exactly_one_accepted` returns the actual fitting cardinality on both pass and failure. A predicate whose failure permits both zero and multiple candidates declares `allowed_ranges: [{\"exact\": 0}, {\"minimum\": 2}]`; it never substitutes the structural-model count 1 for the encoding-candidate count.",
+        "required_adversarial_cases": "Add direct evaluator cases for MULTIPLE counts 2, 3, and 4, encoding counts 0 and 2, an unregistered candidate id, a malformed page, and a target mutation that also invalidates an earlier predicate. The test must reject every such false fixture except the explicitly legitimate measured outcomes.",
+        "enumeration_and_reporting": "The harness uses grammar-only enumeration, the normative filter order, shared propagated state, first-failure reporting, and measured survivor counts with exact, minimum, and allowed_ranges semantics. It emits the actual count for every evaluated predicate and rejects an unregistered id or tuple before scientific filtering.",
+        "dispatch_gate": "The harness and transcript must be executed, retained, hash-bound, and disclosed additively before any hosted dispatch. Every claimed-reachable terminal must be the measured first failure of its byte fixture; every unreachable terminal must be explicitly asserted unreachable by enumeration."
+      },
       "replica_3_independent_overshoot": "synthetic replica 3 uses independently chosen baseline/threshold overshoot in every growth phase and is not an alias of replica 1 or 2",
-      "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every candidate set, survivor count, ordered predicate status, layer outcome, and holdout result across the full sweep",
+      "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every propagated candidate set, actual survivor count, ordered predicate status, first failure, layer outcome, and holdout result across the full byte-fixture sweep",
       "tamper_suite_execution": "execute and retain rejection of plan binding, frozen set, row locator, schema snapshot, report, and timeout tampering; a constant rejected=true is failure"
     },
     "a3_calibration_use_limit": "only retained A3 replicas 1 and 2 may be opened by calibration replay; no result, including EXP-0051 independent acceptance, is A4 evidence"
@@ -855,10 +858,10 @@
       "A4-H1-TDEF-NONE",
       "A4-H1-TDEF-MULTIPLE",
       "A4-H1-LOCATOR-LAYOUT-NONE",
-      "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
       "A4-H1-LOCATOR-PAIR-NONE",
-      "A4-H1-LOCATOR-PAIR-MULTIPLE",
       "A4-H1-TARGET-ROW-INVALID",
+      "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+      "A4-H1-LOCATOR-PAIR-MULTIPLE",
       "A4-H1-REPLICA-DISAGREEMENT",
       "A4-H2-ROW-DIRECTORY-INVALID",
       "A4-H2-ROW-FLAGS-INVALID",
@@ -876,9 +879,9 @@
       "A4-H3-REPLICA-DISAGREEMENT",
       "A4-H4-CATALOG-ROOT-NONE",
       "A4-H4-CATALOG-ROOT-MULTIPLE",
+      "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
       "A4-H4-CATALOG-RECORD-NONE",
       "A4-H4-CATALOG-RECORD-MULTIPLE",
-      "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
       "A4-H4-FIELD-MODEL-NONE",
       "A4-H4-FIELD-MODEL-MULTIPLE",
       "A4-H4-ENCODING-AMBIGUOUS",
@@ -900,10 +903,10 @@
         "A4-H1-TDEF-NONE",
         "A4-H1-TDEF-MULTIPLE",
         "A4-H1-LOCATOR-LAYOUT-NONE",
-        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
         "A4-H1-LOCATOR-PAIR-NONE",
-        "A4-H1-LOCATOR-PAIR-MULTIPLE",
         "A4-H1-TARGET-ROW-INVALID",
+        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "A4-H1-LOCATOR-PAIR-MULTIPLE",
         "A4-H1-REPLICA-DISAGREEMENT"
       ],
       "h2_row_identity_map_role": [
@@ -927,9 +930,9 @@
       "h4_catalog_bootstrap": [
         "A4-H4-CATALOG-ROOT-NONE",
         "A4-H4-CATALOG-ROOT-MULTIPLE",
+        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
         "A4-H4-CATALOG-RECORD-NONE",
         "A4-H4-CATALOG-RECORD-MULTIPLE",
-        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
         "A4-H4-FIELD-MODEL-NONE",
         "A4-H4-FIELD-MODEL-MULTIPLE",
         "A4-H4-ENCODING-AMBIGUOUS",
@@ -942,12 +945,11 @@
         "A4-H1-TDEF-NONE",
         "A4-H1-TDEF-MULTIPLE",
         "A4-H1-LOCATOR-LAYOUT-NONE",
-        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
         "A4-H1-LOCATOR-PAIR-NONE",
-        "A4-H1-LOCATOR-PAIR-MULTIPLE",
         "A4-H1-TARGET-ROW-INVALID",
-        "A4-H1-REPLICA-DISAGREEMENT",
-        "A4-H1-HOLDOUT-PREDICTION"
+        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "A4-H1-LOCATOR-PAIR-MULTIPLE",
+        "A4-H1-REPLICA-DISAGREEMENT"
       ],
       "h2_row_identity_map_role": [
         "A4-H2-ROW-DIRECTORY-INVALID",
@@ -972,15 +974,13 @@
       "h4_catalog_bootstrap": [
         "A4-H4-CATALOG-ROOT-NONE",
         "A4-H4-CATALOG-ROOT-MULTIPLE",
+        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
         "A4-H4-CATALOG-RECORD-NONE",
         "A4-H4-CATALOG-RECORD-MULTIPLE",
-        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
         "A4-H4-FIELD-MODEL-NONE",
         "A4-H4-FIELD-MODEL-MULTIPLE",
         "A4-H4-ENCODING-AMBIGUOUS",
-        "A4-H4-REPLICA-DISAGREEMENT",
-        "A4-H4-HOLDOUT-ROOT",
-        "A4-H4-HOLDOUT-FIELDS"
+        "A4-H4-REPLICA-DISAGREEMENT"
       ]
     },
     "predicate_contracts": [
@@ -999,25 +999,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R01-IDLE-EQUALITY",
         "reachability_fixture": "All inputs valid except one byte differs in EMPTY_R; no preceding predicate exists and only this predicate fails.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-SCHEMA-SNAPSHOT",
@@ -1036,25 +1018,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R02-SCHEMA-SNAPSHOT",
         "reachability_fixture": "All-pass fixture with one snapshot ordinal changed; A4-IDLE-EQUALITY still passes and only this predicate fails.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-SNAPSHOT-RECONSTRUCTION",
@@ -1073,25 +1037,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R03-SNAPSHOT-RECONSTRUCTION",
         "reachability_fixture": "All prior checks pass but one reconstructed ordered page hash is changed, so only this predicate fails.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-RESOURCE-BOUND",
@@ -1110,25 +1056,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R04-RESOURCE-BOUND",
         "reachability_fixture": "All prior checks pass and one named loop attempts its bound plus one charged identity before manifest creation.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H1-TDEF-NONE",
@@ -1147,20 +1075,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R05-H1-TDEF-NONE",
         "reachability_fixture": "Campaign passes; fixture removes every lifecycle-matching TDEF candidate and changes no earlier input.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H1-TDEF-MULTIPLE",
@@ -1180,29 +1095,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R06-H1-TDEF-MULTIPLE",
         "reachability_fixture": "Campaign and TDEF-NONE pass; fixture provides exactly two lifecycle-matching TDEF candidates.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H1-LOCATOR-LAYOUT-NONE",
@@ -1211,41 +1104,66 @@
         "prerequisites": [
           "A4-H1-TDEF-MULTIPLE"
         ],
-        "input_candidate_set": "layout candidates under the one TDEF",
-        "pass_iff": "candidate cardinality is at least 1",
-        "fail_iff": "candidate cardinality is exactly 0",
+        "input_candidate_set": "the two registered layouts after cross-checkpoint syntactic window preservation",
+        "pass_iff": "at least one layout has at least one cross-checkpoint syntactically preserved window",
+        "fail_iff": "neither layout has any cross-checkpoint syntactically preserved window",
         "terminal_id": "A4-H1-LOCATOR-LAYOUT-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R07-H1-LAYOUT-NONE",
-        "reachability_fixture": "One TDEF survives but neither registered four-byte layout has a locator pair; all preceding predicates pass.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "reachability_fixture": "One TDEF survives but neither registered layout has any syntactically preserved four-byte window across the shared campaign.",
+        "fixture_status": "claimed; executed in dry run"
       },
       {
-        "predicate_id": "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "predicate_id": "A4-H1-LOCATOR-PAIR-NONE",
         "order": 8,
         "scope": "h1_tdef_to_map_row",
         "prerequisites": [
           "A4-H1-LOCATOR-LAYOUT-NONE"
         ],
-        "input_candidate_set": "layout candidates under the one TDEF",
-        "pass_iff": "candidate cardinality is exactly 1",
-        "fail_iff": "candidate cardinality is greater than 1",
+        "input_candidate_set": "masked, nonoverlapping, identity-preserved structural pairs under both layouts",
+        "pass_iff": "at least one structural pair exists under either layout",
+        "fail_iff": "windows exist but no masked, nonoverlapping, identity-preserved pair exists under either layout",
+        "terminal_id": "A4-H1-LOCATOR-PAIR-NONE",
+        "failure_survivor_count": {
+          "exact": 0
+        },
+        "later_status": "not_applicable",
+        "reachability_fixture_id": "A4-R09-H1-PAIR-NONE",
+        "reachability_fixture": "Syntactically preserved windows exist, but no byte-derived pair passes the mask, nonoverlap, and identity filters under either layout.",
+        "fixture_status": "claimed; executed in dry run"
+      },
+      {
+        "predicate_id": "A4-H1-TARGET-ROW-INVALID",
+        "order": 9,
+        "scope": "h1_tdef_to_map_row",
+        "prerequisites": [
+          "A4-H1-LOCATOR-PAIR-NONE"
+        ],
+        "input_candidate_set": "all structural pairs under both layouts",
+        "pass_iff": "at least one structural pair has two distinct targets that are extant tag 01 with in-range row ordinals at every applicable checkpoint",
+        "fail_iff": "structural pairs exist but none has two distinct targets that are extant tag 01 with in-range row ordinals at every applicable checkpoint",
+        "terminal_id": "A4-H1-TARGET-ROW-INVALID",
+        "failure_survivor_count": {
+          "exact": 0
+        },
+        "later_status": "not_applicable",
+        "reachability_fixture_id": "A4-R11-H1-TARGET-INVALID",
+        "reachability_fixture": "Structural pairs survive, but every pair has a missing, non-tag-01, duplicate, or out-of-range target in at least one applicable checkpoint.",
+        "fixture_status": "claimed; executed in dry run"
+      },
+      {
+        "predicate_id": "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "order": 10,
+        "scope": "h1_tdef_to_map_row",
+        "prerequisites": [
+          "A4-H1-TARGET-ROW-INVALID"
+        ],
+        "input_candidate_set": "layouts containing at least one target-valid pair",
+        "pass_iff": "target-valid pairs survive under exactly one layout",
+        "fail_iff": "target-valid pairs survive under more than one layout",
         "terminal_id": "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
         "failure_survivor_count": {
           "minimum": 2,
@@ -1253,73 +1171,19 @@
         },
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R08-H1-LAYOUT-MULTIPLE",
-        "reachability_fixture": "One TDEF survives and each of the two registered layouts has a distinct fitting pair.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
+        "reachability_fixture": "Target-valid byte-derived pairs survive under both registered layouts.",
+        "fixture_status": "claimed; executed in dry run"
       },
       {
-        "predicate_id": "A4-H1-LOCATOR-PAIR-NONE",
-        "order": 9,
+        "predicate_id": "A4-H1-LOCATOR-PAIR-MULTIPLE",
+        "order": 11,
         "scope": "h1_tdef_to_map_row",
         "prerequisites": [
           "A4-H1-LOCATOR-LAYOUT-MULTIPLE"
         ],
-        "input_candidate_set": "canonically ordered distinct-offset pairs under the one layout",
-        "pass_iff": "candidate cardinality is at least 1",
-        "fail_iff": "candidate cardinality is exactly 0",
-        "terminal_id": "A4-H1-LOCATOR-PAIR-NONE",
-        "failure_survivor_count": {
-          "exact": 0
-        },
-        "later_status": "not_applicable",
-        "reachability_fixture_id": "A4-R09-H1-PAIR-NONE",
-        "reachability_fixture": "One layout survives but its TDEF bytes contain no nonoverlapping canonical locator pair.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
-      },
-      {
-        "predicate_id": "A4-H1-LOCATOR-PAIR-MULTIPLE",
-        "order": 10,
-        "scope": "h1_tdef_to_map_row",
-        "prerequisites": [
-          "A4-H1-LOCATOR-PAIR-NONE"
-        ],
-        "input_candidate_set": "canonically ordered distinct-offset pairs under the one layout",
-        "pass_iff": "candidate cardinality is exactly 1",
-        "fail_iff": "candidate cardinality is greater than 1",
+        "input_candidate_set": "target-valid pairs under the unique target-valid layout",
+        "pass_iff": "exactly one target-valid pair survives under the unique layout",
+        "fail_iff": "more than one target-valid pair survives under the unique layout",
         "terminal_id": "A4-H1-LOCATOR-PAIR-MULTIPLE",
         "failure_survivor_count": {
           "minimum": 2,
@@ -1327,74 +1191,15 @@
         },
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R10-H1-PAIR-MULTIPLE",
-        "reachability_fixture": "One layout survives with exactly two nonoverlapping canonical pairs; all earlier predicates pass.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
-      },
-      {
-        "predicate_id": "A4-H1-TARGET-ROW-INVALID",
-        "order": 11,
-        "scope": "h1_tdef_to_map_row",
-        "prerequisites": [
-          "A4-H1-LOCATOR-PAIR-MULTIPLE"
-        ],
-        "input_candidate_set": "the one derivation pair after structural and transition filtering",
-        "pass_iff": "both decoded targets are distinct extant tag-01 pages and each row ordinal is below that page row count",
-        "fail_iff": "the one structurally unique pair decodes to a missing page, non-tag-01 page, duplicate target, or row ordinal outside row_count; target existence is outside candidate filtering",
-        "terminal_id": "A4-H1-TARGET-ROW-INVALID",
-        "failure_survivor_count": {
-          "exact": 1
-        },
-        "later_status": "not_applicable",
-        "reachability_fixture_id": "A4-R11-H1-TARGET-INVALID",
-        "reachability_fixture": "The signature, unique layout, and unique offsets 35/39 pass all earlier filters, but the second synthetic locator has row equal to row_count; no earlier filter consumes target existence.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "reachability_fixture": "Exactly two target-valid byte-derived pairs survive under the unique layout.",
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H1-REPLICA-DISAGREEMENT",
         "order": 12,
         "scope": "h1_tdef_to_map_row",
         "prerequisites": [
-          "A4-H1-TARGET-ROW-INVALID"
+          "A4-H1-LOCATOR-PAIR-MULTIPLE"
         ],
         "input_candidate_set": "one canonical H1 logical-role model from each derivation replica",
         "pass_iff": "replicas 1 and 2 each have one model and their canonical logical-role models are equal",
@@ -1406,17 +1211,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R12-H1-REPLICA",
         "reachability_fixture": "Both replicas independently reach one valid H1 model but replica 2 uses the other registered layout.",
-        "semantic_rule": {
-          "operator": "replicas_equal",
-          "baseline_input": {
-            "replica_1": "model-a",
-            "replica_2": "model-a"
-          }
-        },
-        "reachability_fixture_input": {
-          "replica_1": "model-a",
-          "replica_2": "model-b"
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-ROW-DIRECTORY-INVALID",
@@ -1435,25 +1230,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R14-H2-DIRECTORY",
         "reachability_fixture": "H1 target ordinals are in range, but one directory start overlaps its directory bytes, so H1 passes and only this predicate fails.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-ROW-FLAGS-INVALID",
@@ -1472,25 +1249,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R15-H2-FLAGS",
         "reachability_fixture": "The complete directory is valid but the unique target row has deleted set; all preceding predicates pass.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-MAP-TAG-UNSUPPORTED",
@@ -1509,25 +1268,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R16-H2-TAG",
         "reachability_fixture": "Both rows have valid bounds and flags, but one row begins 02; all prior predicates pass.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-ROLE-NONE",
@@ -1546,20 +1287,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R17-H2-ROLE-NONE",
         "reachability_fixture": "Valid rows contain supported tags but neither registered role/polarity assignment fits their static structure.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-ROLE-MULTIPLE",
@@ -1579,29 +1307,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R18-H2-ROLE-MULTIPLE",
         "reachability_fixture": "Two distinct row-role assignments fit the supported row shapes; all earlier H2 predicates pass.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-TRANSITION-UNEXPLAINED",
@@ -1620,25 +1326,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R19-H2-TRANSITION",
         "reachability_fixture": "One role model fits static rows, but its owned set changes during an idle leg; prior predicates pass.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-REPLICA-DISAGREEMENT",
@@ -1657,17 +1345,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R20-H2-REPLICA",
         "reachability_fixture": "Each replica has one transition-complete model, but their owned locator ordinals differ.",
-        "semantic_rule": {
-          "operator": "replicas_equal",
-          "baseline_input": {
-            "replica_1": "model-a",
-            "replica_2": "model-a"
-          }
-        },
-        "reachability_fixture_input": {
-          "replica_1": "model-a",
-          "replica_2": "model-b"
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-CONVERSION-NONE",
@@ -1686,20 +1364,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R22-H3-CONVERSION",
         "reachability_fixture": "All prior predicates pass but no registered structural type-0-to-type-1 transition fits; reference pages are not inspected.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-INACTIVE-SLOT-NONE",
@@ -1718,25 +1383,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R23-H3-INACTIVE",
         "reachability_fixture": "All nonzero references are valid but every observed slot is nonzero, so only the inactive observation fails.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-REFERENCE-INVALID",
@@ -1755,25 +1402,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R24-H3-REFERENCE",
         "reachability_fixture": "The structural conversion candidate survives, but one nonzero reference resolves to tag 01; only REFERENCE-INVALID consumes that tag.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-BASE-DISCRIMINATION",
@@ -1792,44 +1421,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R25-H3-DISCRIMINATION",
         "reachability_fixture": "All prior checks pass but the boundary-plus-one input region is absent; formula fitting has not begun.",
-        "semantic_rule": {
-          "operator": "coverage",
-          "baseline_input": {
-            "required": [
-              "slot_zero",
-              "slot_nonzero",
-              "reference_differs",
-              "bit_zero",
-              "bit_nonzero",
-              "boundary_both_sides"
-            ],
-            "observed": [
-              "slot_zero",
-              "slot_nonzero",
-              "reference_differs",
-              "bit_zero",
-              "bit_nonzero",
-              "boundary_both_sides"
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "required": [
-            "slot_zero",
-            "slot_nonzero",
-            "reference_differs",
-            "bit_zero",
-            "bit_nonzero",
-            "boundary_both_sides"
-          ],
-          "observed": [
-            "slot_zero",
-            "slot_nonzero",
-            "reference_differs",
-            "bit_zero",
-            "bit_nonzero"
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-BASE-NONE",
@@ -1848,20 +1440,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R26-H3-BASE-NONE",
         "reachability_fixture": "Boundary observations distinguish all formulas but contradict each one, leaving zero fitting formulas.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-BASE-MULTIPLE",
@@ -1880,30 +1459,8 @@
         },
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R27-H3-BASE-MULTIPLE",
-        "reachability_fixture": "Every required input region is exercised, and two formulas make the same exact predictions on those observations and both fit.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
+        "reachability_fixture": "Every required input region is exercised with reference == slot for every observation, causing the slot-base and referenced-page-base formulas both to fit; the decisive baseline includes reference != slot and leaves exactly one.",
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-REPLICA-DISAGREEMENT",
@@ -1922,17 +1479,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R28-H3-REPLICA",
         "reachability_fixture": "Each replica has one base model, but the canonical formulas differ.",
-        "semantic_rule": {
-          "operator": "replicas_equal",
-          "baseline_input": {
-            "replica_1": "model-a",
-            "replica_2": "model-a"
-          }
-        },
-        "reachability_fixture_input": {
-          "replica_1": "model-a",
-          "replica_2": "model-b"
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-CATALOG-ROOT-NONE",
@@ -1951,20 +1498,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R30-H4-ROOT-NONE",
         "reachability_fixture": "H1-H3 pass, but no EMPTY system-TDEF stream follows every schema delta signature.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-CATALOG-ROOT-MULTIPLE",
@@ -1984,36 +1518,33 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R31-H4-ROOT-MULTIPLE",
         "reachability_fixture": "Exactly two system streams satisfy every delta signature while earlier layers remain decisive.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
-        "predicate_id": "A4-H4-CATALOG-RECORD-NONE",
+        "predicate_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
         "order": 29,
         "scope": "h4_catalog_bootstrap",
         "prerequisites": [
           "A4-H4-CATALOG-ROOT-MULTIPLE"
+        ],
+        "input_candidate_set": "one catalog root plus every isolated physical schema delta before record candidates are restricted to admitted pages",
+        "pass_iff": "every isolated physical schema delta lies on a page admitted by the unchanged root traversal",
+        "fail_iff": "any isolated physical schema delta lies outside pages admitted by the root traversal",
+        "terminal_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+        "failure_survivor_count": {
+          "exact": 1
+        },
+        "later_status": "not_applicable",
+        "reachability_fixture_id": "A4-R34-H4-OUTSIDE",
+        "reachability_fixture": "One root survives; one otherwise valid operation delta is on a non-admitted page and first fails OUTSIDE before record restriction.",
+        "fixture_status": "claimed; executed in dry run"
+      },
+      {
+        "predicate_id": "A4-H4-CATALOG-RECORD-NONE",
+        "order": 30,
+        "scope": "h4_catalog_bootstrap",
+        "prerequisites": [
+          "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED"
         ],
         "input_candidate_set": "operation-delta/non-name structural record candidates grouped by listed operation instance",
         "pass_iff": "every listed operation instance has at least one record candidate",
@@ -2025,31 +1556,11 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R32-H4-RECORD-NONE",
         "reachability_fixture": "One root survives; one listed operation has zero delta/non-name structural candidates while every other operation has one.",
-        "semantic_rule": {
-          "operator": "every_group_min_one",
-          "baseline_input": {
-            "groups": {
-              "op-a": [
-                "r1"
-              ],
-              "op-b": [
-                "r2"
-              ]
-            }
-          }
-        },
-        "reachability_fixture_input": {
-          "groups": {
-            "op-a": [
-              "r1"
-            ],
-            "op-b": []
-          }
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-CATALOG-RECORD-MULTIPLE",
-        "order": 30,
+        "order": 31,
         "scope": "h4_catalog_bootstrap",
         "prerequisites": [
           "A4-H4-CATALOG-RECORD-NONE"
@@ -2065,76 +1576,16 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R33-H4-RECORD-MULTIPLE",
         "reachability_fixture": "Every operation has a candidate, but one operation has two delta/non-name structural candidates.",
-        "semantic_rule": {
-          "operator": "every_group_max_one",
-          "baseline_input": {
-            "groups": {
-              "op-a": [
-                "r1"
-              ],
-              "op-b": [
-                "r2"
-              ]
-            }
-          }
-        },
-        "reachability_fixture_input": {
-          "groups": {
-            "op-a": [
-              "r1"
-            ],
-            "op-b": [
-              "r2",
-              "r3"
-            ]
-          }
-        }
-      },
-      {
-        "predicate_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
-        "order": 31,
-        "scope": "h4_catalog_bootstrap",
-        "prerequisites": [
-          "A4-H4-CATALOG-RECORD-MULTIPLE"
-        ],
-        "input_candidate_set": "one catalog root and one record per operation instance",
-        "pass_iff": "every physical byte delta used by the schema prediction lies on a page admitted by the unchanged root traversal",
-        "fail_iff": "any physical byte delta required by the schema prediction lies outside pages admitted by the root traversal",
-        "terminal_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
-        "failure_survivor_count": {
-          "exact": 1
-        },
-        "later_status": "not_applicable",
-        "reachability_fixture_id": "A4-R34-H4-OUTSIDE",
-        "reachability_fixture": "One root and record mapping survive, but one index-create delta occurs only on a non-admitted page.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-FIELD-MODEL-NONE",
         "order": 32,
         "scope": "h4_catalog_bootstrap",
         "prerequisites": [
-          "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED"
+          "A4-H4-CATALOG-RECORD-MULTIPLE"
         ],
-        "input_candidate_set": "closed structural kind/id field-layout candidates excluding text encoding and name length",
+        "input_candidate_set": "closed encoding-neutral kind/id/name-length field-layout candidates",
         "pass_iff": "structural field-layout cardinality is at least 1",
         "fail_iff": "structural field-layout cardinality is exactly 0",
         "terminal_id": "A4-H4-FIELD-MODEL-NONE",
@@ -2144,20 +1595,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R35-H4-FIELD-NONE",
         "reachability_fixture": "Records are decisive but no structural kind/id offset-width-endianness-mapping-lifecycle tuple fits; name bytes are not evaluated.",
-        "semantic_rule": {
-          "operator": "at_least_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": []
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-FIELD-MODEL-MULTIPLE",
@@ -2166,7 +1604,7 @@
         "prerequisites": [
           "A4-H4-FIELD-MODEL-NONE"
         ],
-        "input_candidate_set": "closed structural kind/id field-layout candidates excluding text encoding and name length",
+        "input_candidate_set": "closed encoding-neutral kind/id/name-length field-layout candidates with deferred compatible name occurrences",
         "pass_iff": "structural field-layout cardinality is exactly 1",
         "fail_iff": "structural field-layout cardinality is greater than 1",
         "terminal_id": "A4-H4-FIELD-MODEL-MULTIPLE",
@@ -2176,30 +1614,8 @@
         },
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R36-H4-FIELD-MULTIPLE",
-        "reachability_fixture": "Exactly two structural field layouts fit; neither includes an encoding or length choice.",
-        "semantic_rule": {
-          "operator": "at_most_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "c1",
-                "accepted": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "c1",
-              "accepted": true
-            },
-            {
-              "id": "c2",
-              "accepted": true
-            }
-          ]
-        }
+        "reachability_fixture": "Exactly two structural kind/id/name-length field layouts fit; encoding equivalence remains deferred.",
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-ENCODING-AMBIGUOUS",
@@ -2213,42 +1629,20 @@
         "fail_iff": "zero or more than one encoding/length equivalence class fits after structural uniqueness",
         "terminal_id": "A4-H4-ENCODING-AMBIGUOUS",
         "failure_survivor_count": {
-          "exact": 1
+          "allowed_ranges": [
+            {
+              "exact": 0
+            },
+            {
+              "minimum": 2
+            }
+          ],
+          "source": "measured_encoding_candidate_cardinality"
         },
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R37-H4-ENCODING",
-        "reachability_fixture": "One structural layout survives, but two separately registered encoding/length equivalence classes fit the fixture bytes and length.",
-        "semantic_rule": {
-          "operator": "exactly_one_accepted",
-          "baseline_input": {
-            "raw_candidates": [
-              {
-                "id": "cp1252-class",
-                "accepted": true
-              },
-              {
-                "id": "utf8-bytes",
-                "accepted": false
-              },
-              {
-                "id": "utf8-scalars",
-                "accepted": false
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "raw_candidates": [
-            {
-              "id": "cp1252-class",
-              "accepted": true
-            },
-            {
-              "id": "utf8-scalars",
-              "accepted": true
-            }
-          ]
-        }
+        "reachability_fixture": "One structural layout survives, but the complete synthetic row has zero fitting encoding/length classes; the measured fitting-class count is 0.",
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-REPLICA-DISAGREEMENT",
@@ -2267,17 +1661,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R38-H4-REPLICA",
         "reachability_fixture": "Each replica has one root and field tuple, but the canonical identifier-lifecycle relation differs.",
-        "semantic_rule": {
-          "operator": "replicas_equal",
-          "baseline_input": {
-            "replica_1": "model-a",
-            "replica_2": "model-a"
-          }
-        },
-        "reachability_fixture_input": {
-          "replica_1": "model-a",
-          "replica_2": "model-b"
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H1-HOLDOUT-PREDICTION",
@@ -2296,25 +1680,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R13-H1-HOLDOUT",
         "reachability_fixture": "Derivation pair agrees; holdout changes one valid locator offset while all derivation and campaign predicates pass.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H2-HOLDOUT-PREDICTION",
@@ -2333,25 +1699,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R21-H2-HOLDOUT",
         "reachability_fixture": "Derivation agrees; holdout swaps the two supported row-role transitions without invalidating H1.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H3-HOLDOUT-PREDICTION",
@@ -2370,25 +1718,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R29-H3-HOLDOUT",
         "reachability_fixture": "Derivation agrees; one holdout tag-05 boundary bit contradicts the unchanged formula.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-HOLDOUT-ROOT",
@@ -2407,25 +1737,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R39-H4-HOLDOUT-ROOT",
         "reachability_fixture": "Derivation root and fields agree, but holdout root traversal admits a different page; fields are not evaluated.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       },
       {
         "predicate_id": "A4-H4-HOLDOUT-FIELDS",
@@ -2444,25 +1756,7 @@
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R40-H4-HOLDOUT-FIELDS",
         "reachability_fixture": "Root holdout passes, but one exact holdout name byte differs from the unchanged encoding equivalence class; every prior predicate passes.",
-        "semantic_rule": {
-          "operator": "all_observations_true",
-          "baseline_input": {
-            "observations": [
-              {
-                "id": "o1",
-                "valid": true
-              }
-            ]
-          }
-        },
-        "reachability_fixture_input": {
-          "observations": [
-            {
-              "id": "o1",
-              "valid": false
-            }
-          ]
-        }
+        "fixture_status": "claimed; executed in dry run"
       }
     ],
     "holdout_phase_ordered_predicates": [
@@ -2472,22 +1766,24 @@
       "A4-H4-HOLDOUT-ROOT",
       "A4-H4-HOLDOUT-FIELDS"
     ],
-    "semantic_fixture_format": "Each predicate row is one registered fixture. The evaluator deep-copies every row semantic_rule.baseline_input, replaces only the designated row with reachability_fixture_input, enumerates and filters raw_candidates where applicable, executes predicate rows in exact order with phase/prerequisite gating, and proves the first failure and claimed survivor count. Inputs contain observations/candidate records, never statuses, terminals, or expected predicate projections."
+    "fixture_registry_status": "claimed; executed in dry run",
+    "semantic_fixture_format": "The registry rows are claims, not fixtures and not proof. Before hosted dispatch, the byte-level harness contract in analyzer_dry_run_contract.dry_run_honesty_clause must materialize exact 2,048-byte shared-campaign fixtures, execute them in normative order, and replace the registry status claimed; executed in dry run with a hash-bound transcript disclosure. No accepted or valid verdict boolean is a permitted fixture input."
   },
   "decision_rules": {
     "freeze_rule": "Using replicas 1 and 2 only, evaluate every non-holdout predicate through H4, canonically serialize all four derivation results and transcripts, hash the frozen document, then irreversibly close derivation inputs and analyzer state before replica 3 is acquired or opened.",
     "holdout_rule": "After the frozen-document SHA-256 exists, acquire and structurally validate replica 3 and evaluate H1, H2, H3, H4 root, and H4 fields in that order without refit. Upstream holdout failure gates later holdouts but never changes frozen bytes, candidates, counts, or derivation terminals.",
     "survivor_count_reconciliation": {
       "style": "R4-S01",
-      "rule": "The 40 predicate_contracts are the normative count table. MULTIPLE stores and counts the complete canonical derivation set at cardinality at least 2; cardinality NONE stores and counts zero; a single derivation-invalid terminal stores the unchanged one-model set and count 1; a model stores one candidate and count 1; not_applicable stores an empty set and count 0. Holdout failures are reported separately and do not change the frozen set. Campaign failures count 0.",
+      "rule": "The 40 predicate_contracts are the normative count table. exact: n requires measured count == n; minimum: n requires measured count >= n and stores the actual measured count; allowed_ranges accepts only a listed exact or minimum range and stores the actual measured count. MULTIPLE stores and counts the complete canonical derivation set; cardinality NONE stores and counts zero; a single derivation-invalid terminal stores the unchanged one-model set and count 1; a model stores one candidate and count 1; not_applicable stores an empty set and count 0. Holdout failures are reported separately and do not change the frozen set. Campaign failures count 0.",
       "predicate_contract_source": "predicate_registry.predicate_contracts",
       "covered_predicate_count": 40
     },
     "replica_agreement_rule": "replica 1 and 2 must each independently yield one canonically equivalent logical-role model; physical page numbers, row slots, and identifiers may rotate only where the frozen model declares the mapping",
     "no_outcome_projection": "Report derivation status and holdout status separately. A downstream derivation layer depends only on the previous unique derivation model; a downstream holdout depends on the preceding holdout. Campaign failure prevents all scientific evaluation and yields no successful evidence bundle.",
-    "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, derivation survivor count, canonical candidates, and candidates SHA-256. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the frozen file's actual SHA-256. Its candidate arrays and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes.",
-    "canonicalization_and_uniqueness_rule": "Canonicalize locator offsets ascending; canonicalize table models by logical role T1,T2,T3,T4; canonicalize snapshot tables by declared DAO ordinal then strict CP-1252 name bytes; canonicalize fields/indexes/index fields by their declared DAO ordinal then name bytes. Independently reject duplicate logical roles, names, ordinals, locator targets, predicate ids, and tamper ids. uniqueItems on whole JSON objects does not satisfy these uniqueness rules.",
-    "schema_semantic_validation_rule": "Use a layer-discriminated union: each H1/H2/H3/H4 layer accepts only that layer's registered candidate model type and required fields, with additionalProperties false. Validate scientific_outcome against the ordered predicate projection and holdout statuses. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
+    "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, derivation survivor count, canonical candidates, instance bindings where registered, and candidates SHA-256. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the actual SHA-256 of the complete frozen file bytes, not a layers-only projection. Its candidate arrays, instance bindings, transcripts, charges, and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes.",
+    "h1_frozen_model_rule": "The canonical H1 scientific model contains only replica-invariant fields: layout, masked table-signature id, and ascending table-relative locator offsets. A separate frozen instance_bindings array contains exactly T1-v1, T2-v1, T2-v2, T3-v1, and T4-v1 for each derivation replica, each with logical role, lifecycle instance, TDEF page, two locator targets (page 0..20479, row 0..255), and applicable checkpoint range. Canonical replica agreement compares the invariant model and normalized logical-role behavior, not raw rotating page numbers. Holdout re-derives replica-3 bindings and tests the unchanged invariant model.",
+    "canonicalization_and_uniqueness_rule": "Recompute each canonical_id from canonical JSON of exactly model_type plus model; require equality, ascending locator offsets, unique targets, canonical binding order, exact role/lifecycle coverage, and no duplicate page/row pair. Recompute each candidate-array hash and the actual complete frozen-file SHA-256. Canonicalize snapshot tables by declared DAO ordinal then strict CP-1252 name bytes; canonicalize fields/indexes/index fields by their declared DAO ordinal then name bytes. Independently reject duplicate logical roles, names, ordinals, predicate ids, and tamper ids. uniqueItems on whole JSON objects does not satisfy these uniqueness rules.",
+    "schema_semantic_validation_rule": "Use a layer-discriminated union: each H1/H2/H3/H4 layer accepts only that layer's registered candidate model type and required fields, with additionalProperties false. Project layer status, terminal, count, and downstream not_applicable state from predicate rows and reject any mismatch. Project the five holdout_results entries exactly from predicate rows 36–40 and prerequisite gating. Then derive scientific_outcome from that validated projection. A derivation or holdout result may never disagree with its predicate row. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
     "claims_rule": "a scientific result remains descriptive_provider_observation_only even after independent validation and cannot move a support-matrix capability"
   },
   "independent_validator_contract": {
@@ -2496,7 +1792,7 @@
       "all plan and revision hashes and inventory closure",
       "75 page indexes and 75 canonical DAO schema snapshots",
       "row directories, flags, row bounds, locator candidates, map rows, type-1 slots, tag-05 pages, bitmap bases, and catalog candidates",
-      "union-once charges, exact bounds, ordered predicates, survivor counts, freeze receipt, holdout prediction, claims, and hard timeout"
+      "union-once charges, exact bounds, ordered predicates, actual survivor counts, per-layer and holdout projections, canonical ids and arrays, complete frozen-file SHA-256, freeze receipt, holdout prediction, claims, and hard timeout"
     ],
     "tamper_cases": [
       {
@@ -2523,6 +1819,26 @@
         "id": "T5",
         "mutation": "campaign elapsed 2700 to 2701",
         "required_rejection": "campaign_timeout_exceeded"
+      },
+      {
+        "id": "T6",
+        "mutation": "all predicate rows pass while layer results disagree or retain downstream candidates",
+        "required_rejection": "predicate_layer_projection_mismatch"
+      },
+      {
+        "id": "T7",
+        "mutation": "holdout predicate rows disagree with holdout_results or scientific_outcome",
+        "required_rejection": "holdout_projection_mismatch"
+      },
+      {
+        "id": "T8",
+        "mutation": "candidate model changes without recomputing canonical_id or has reversed locator offsets",
+        "required_rejection": "candidate_canonicalization_mismatch"
+      },
+      {
+        "id": "T9",
+        "mutation": "derivation_candidate_set_sha256 differs from the actual complete frozen-file SHA-256",
+        "required_rejection": "frozen_file_hash_mismatch"
       }
     ],
     "acceptance_rule": "independent acceptance requires all recomputations and tamper rejections; it is recorded separately and additively and never rewrites the immutable manifest"
@@ -2633,7 +1949,7 @@
     "max_candidate_models": 4096,
     "max_canonical_candidate_bytes": 4096,
     "max_canonical_candidates_array_bytes": 16781313,
-    "max_analysis_work_units": 350000000,
+    "max_analysis_work_units": 700000000,
     "max_unique_page_blobs": 65536,
     "max_retained_page_store_bytes": 134217728,
     "max_bundle_bytes": 805306368,
@@ -2646,8 +1962,8 @@
     "max_qualified_pages_per_submodel": 16
   },
   "work_model": {
-    "locator_pair_arithmetic": "Locator offsets are canonical ascending pairs (a,b) with 0 <= a < b <= 2044 and b-a >= 4. One layout has sum(1..2041)=2083861 raw pairs; both layouts have max_locator_pairs_per_tdef_page=4167722 and max_locator_pairs=16*4167722=66683552. Also charge all 4090 raw window identities per qualified page. Retained A3 page 23 examines 4090 windows, forms 3491392 raw pairs after cross-checkpoint syntactic preservation, and charges 3495482 raw window/pair identities before one structural pair survives.",
-    "charge_equation_rule": "Each term is maximum qualified union pages times applicable checkpoint identities times maximum row-directory entries, slots, bits, or registered grammar multiplicity. The terms below are mutually named charged loops and their sum is the exact max_analysis_work_units.",
+    "locator_pair_arithmetic": "Locator offsets are canonical ascending pairs (a,b) with 0 <= a < b <= 2044 and b-a >= 4. One layout has sum(1..2041)=2083861 raw pairs; both layouts have max_locator_pairs_per_tdef_page=4167722 and max_locator_pairs=16*4167722=66683552. Also charge all 4090 raw window identities per qualified page. Retained A3 page 23 examines 4090 windows, forms 3491392 raw pairs after cross-checkpoint syntactic preservation, and charges 3495482 raw window/pair identities before one structural pair survives under each layout; only the row-then-page pair is target-valid.",
+    "charge_equation_rule": "Each term is maximum qualified union pages times applicable checkpoint identities times maximum row-directory entries, slots, bits, or registered grammar multiplicity. The named-loop sum is a conservative terminal-path upper calculation and MUST be <= max_analysis_work_units; it is not equal to that bound.",
     "terms": {
       "tdef_lifecycle_signatures": {
         "equation": "16 * 25 * 2",
@@ -2661,13 +1977,13 @@
         "equation": "16 * 4167722",
         "units": 66683552
       },
-      "locator_transition_signatures": {
-        "equation": "16 * 7 operation legs * 2 role assignments",
-        "units": 224
+      "h1_target_validity_checks": {
+        "equation": "16 qualified TDEF pages * 2 layouts * 2 locator targets * 25 checkpoints",
+        "units": 1600
       },
       "valid_path_row_directory_entries": {
-        "equation": "16 * 25 * 2 located rows",
-        "units": 800
+        "equation": "16 * 25 * 679",
+        "units": 271600
       },
       "type_1_slots": {
         "equation": "16 * 25 * 2 * 508",
@@ -2693,9 +2009,13 @@
         "equation": "7 operation instances * 16 pages * 679 jointly feasible rows",
         "units": 76048
       },
-      "h4_raw_structural_tuples": {
-        "equation": "7 * 16 * 679 * (16 * 3 * 3 * 2 * 6 * 2)",
-        "units": 262821888
+      "encoding_union_anchor_bytes": {
+        "equation": "7 operation instances * 2038 maximum complete-row bytes * 2 registered expected-name byte sequences",
+        "units": 28532
+      },
+      "h4_name_length_structural_tuples": {
+        "equation": "7 operation instances * floor(2038/8)=254 nonoverlapping compatible occurrences * (16 * 3 * 3 * 2 * 16 * 3 * 2 * 6 * 2)",
+        "units": 589897728
       },
       "encoding_length_equivalence_candidates": {
         "equation": "7 operation instances * 3 registered candidates",
@@ -2706,25 +2026,32 @@
         "units": 4096
       }
     },
-    "candidate_json_closure": "Each layer-discriminated candidate has canonical UTF-8 JSON length <=4096 bytes. At 4096 candidates, brackets and separators give <=4096*4096+4097=16781313 bytes. Concrete transcript maxima are row_directories 1024*512, locators 1024*384, map_transitions 1024*512, reference_bitmaps 1024*512, catalog_roots 1024*384, catalog_fields 4096*512: at most 4456448 encoded item bytes plus bounded separators. Candidate array, transcripts, fixed fields, and 1 MiB envelope overhead total <22300000 bytes, below max_json_bytes=67108864.",
+    "candidate_json_closure": "Enforce one global fail-fast maximum of 4,096 retained candidates across H1, H2, H3, H4 root, and H4 field. Each layer-discriminated candidate has canonical UTF-8 JSON length <=4096 bytes. Across all arrays, at most 4096 candidates plus brackets and separators give <=4096*4096+4097=16781313 bytes. Concrete transcript maxima are row_directories 1024*512, locators 1024*384, map_transitions 1024*512, reference_bitmaps 1024*512, catalog_roots 1024*384, catalog_fields 4096*512: at most 4456448 encoded item bytes plus bounded separators. Candidate arrays, transcripts, fixed fields, and 1 MiB envelope overhead total <22300000 bytes, below max_json_bytes=67108864. The report validator rejects downstream candidates after an upstream terminal before applying this JSON proof.",
     "resource_class_rule": "Each resource field is classified as either (a) attainable_exact, with an accepted fixture at exactly the bound and an otherwise identical one-over rejection, or (b) conservative_upper, with proof by inequalities but no claim of attainability. The sum of independent maxima is not an exact attainable ceiling. Fail-fast evaluation charges only work reachable after preceding predicates. Per-page row count and row length are jointly constrained; a valid page with one-byte rows satisfies 10+3n<=2048 and has at most 679 rows.",
     "capacity_maxima": "Type-1 complete u32 slots per maximum tag-01 row: 508. Type-0 bitmap capacity per maximum tag-01 row: 16,248 bits. Tag-05 bitmap capacity: 16,352 bits.",
-    "full_page_read_passes": {
-      "count": 2,
-      "bytes_per_pass_per_replica": 1048576000,
-      "derivation": "25 checkpoints * 20480 pages * 2048 bytes = 1048576000 bytes/pass; two passes = 2097152000 <= 2147483648",
-      "purposes": [
-        "producer page-index reconstruction, ordered hashing, and changed-index validation",
-        "semantic analyzer or independent validator sequential page consumption using the validated page index; all later semantic use is from this pass without a third logical read"
-      ]
+    "logical_read_consumers": {
+      "producer": {
+        "equation": "25 * 20480 * 2048",
+        "bytes_per_replica": 1048576000
+      },
+      "analyzer": {
+        "equation": "65536 * 2048",
+        "bytes_per_replica": 134217728
+      },
+      "independent_validator": {
+        "equation": "65536 * 2048",
+        "bytes_per_replica": 134217728
+      },
+      "total_bytes_per_replica": 1317011456,
+      "rule": "There is one full producer pass: 25*20480*2048 = 1048576000. The analyzer and independent validator each read at most every retained unique page blob once: 65536*2048 = 134217728 each. Total logical reads per replica are therefore at most 1048576000 + 2*134217728 = 1317011456, below 2 GiB. Each consumer records its own subtotal; the validator recomputes all three and their sum. No analyzer/validator pass is shared."
     },
     "terminal_path_maxima": {
-      "h1_latest_derivation_terminal": 66750016,
-      "h2_row_directory_invalid_terminal": "66750016 + 16*25*1019 = 67157616",
-      "h2_latest_derivation_terminal": 80201216,
-      "h3_latest_derivation_terminal": 80202816,
-      "h4_latest_derivation_terminal": 343105669,
-      "proof": "Every value is the sum of the preceding decisive-layer path plus only loops reachable before that terminal. Mutually exclusive invalid-directory and maximum-valid-row/map paths are never added. All are <= max_analysis_work_units=350000000."
+      "h1_latest_derivation_terminal": 66751392,
+      "h2_row_directory_invalid_terminal": "66751392 + 16*25*1019 = 67158992",
+      "h2_latest_derivation_terminal": 80473392,
+      "h3_latest_derivation_terminal": 80474992,
+      "h4_latest_derivation_terminal": 670482217,
+      "proof": "Every value is the sum of the preceding decisive-layer path plus only loops reachable before that terminal. Mutually exclusive invalid-directory and maximum-valid-row/map paths are never added. The two registered expected-name patterns have no proper self-overlap or cross-overlap, so compatible occurrence starts are at least eight bytes apart and a 2,038-byte complete row has at most 254 occurrences. All terminal paths are <= max_analysis_work_units=700000000."
     },
     "bound_classification": {
       "page_size": "conservative_upper",
