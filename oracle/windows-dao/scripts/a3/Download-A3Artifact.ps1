@@ -60,7 +60,7 @@ $downloadUri = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/artifac
     "$($artifact[0].id)/zip"
 
 try {
-    if (Test-Path -LiteralPath $Destination) {
+    if ((Test-Path -LiteralPath $Destination)) {
         Remove-Item -LiteralPath $Destination -Recurse -Force
     }
     $parent = Split-Path -Parent $Destination
@@ -73,10 +73,10 @@ try {
     Move-Item -LiteralPath $staging -Destination $Destination
 }
 finally {
-    if (Test-Path -LiteralPath $archive) {
+    if ((Test-Path -LiteralPath $archive)) {
         Remove-Item -LiteralPath $archive -Force
     }
-    if (Test-Path -LiteralPath $staging) {
+    if ((Test-Path -LiteralPath $staging)) {
         Remove-Item -LiteralPath $staging -Recurse -Force
     }
 }

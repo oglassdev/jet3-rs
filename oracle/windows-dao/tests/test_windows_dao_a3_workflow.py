@@ -302,6 +302,8 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             self.assertIn("throw", check)
 
         source = REST_FALLBACK.read_text(encoding="utf-8")
+        self.assertNotIn("if (Test-Path", source)
+        self.assertNotIn("$input", source)
         self.assertIn("actions/runs/", source)
         self.assertIn("actions/artifacts/", source)
         self.assertIn('"$($artifact[0].id)/zip"', source)
