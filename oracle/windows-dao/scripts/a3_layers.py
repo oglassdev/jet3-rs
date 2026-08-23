@@ -153,7 +153,7 @@ def polarity_cross_check(view: View, model: GlobalRecordModel) -> CrossCheckTran
         evaluated.append(leg)
         for page in required:
             if page >= 65536:
-                raise Abort("A3-POINTER-VALIDITY")
+                raise Abort("A3-POINTER-VALIDITY", 1)
             if _bit(left, page) is not False or _bit(right, page) is not True:
                 return CrossCheckTranscript(tuple(evaluated), None, leg, page)
     return CrossCheckTranscript(tuple(evaluated), None, None, None)
@@ -179,8 +179,16 @@ def _classification(view: View, model: GlobalRecordModel, checkpoint: str) -> st
 
 
 def conversion_checkpoint(view: View, model: GlobalRecordModel) -> str:
-    classes = [_classification(view, model, checkpoint) for checkpoint in CONVERSION_WINDOW]
+    classes = _conversion_classes(view, model)
     return CONVERSION_WINDOW[conversion_index(classes)]
+
+
+def _conversion_classes(view: View, model: GlobalRecordModel) -> tuple[str, ...]:
+    return tuple(_classification(view, model, checkpoint) for checkpoint in CONVERSION_WINDOW)
+
+
+def _class_change_count(classes: Sequence[str]) -> int:
+    return sum(left != right for left, right in zip(classes, classes[1:]))
 
 
 def conversion_index(classes: Sequence[str]) -> int:
@@ -189,9 +197,9 @@ def conversion_index(classes: Sequence[str]) -> int:
     if not indirect or not any(kind == "inline" for kind in classes[: indirect[0]]):
         raise Abort("A3-CONVERSION-NONE")
     at = indirect[0]
-    changes = sum(left != right for left, right in zip(classes, classes[1:]))
+    changes = _class_change_count(classes)
     if changes != 1:
-        raise Abort("A3-CONVERSION-MULTIPLE")
+        raise Abort("A3-CONVERSION-MULTIPLE", changes)
     return at
 
 
@@ -227,7 +235,7 @@ def validate_references(
                 continue
             payload = view.page_optional(checkpoint, record_page)
             if payload is None:
-                raise Abort("A3-POINTER-VALIDITY")
+                raise Abort("A3-POINTER-VALIDITY", 1)
             if indirect_start is not None and payload[indirect_start] != 1:
                 continue
             reference = int.from_bytes(payload[offset:offset + width], "little")
@@ -240,7 +248,7 @@ def validate_references(
                 or referenced is None
                 or referenced[0] != 0x05
             ):
-                raise Abort("A3-POINTER-VALIDITY")
+                raise Abort("A3-POINTER-VALIDITY", 1)
 
 
 def inline_boundary(view: View, model: GlobalRecordModel, conversion: str) -> int:
@@ -250,7 +258,9 @@ def inline_boundary(view: View, model: GlobalRecordModel, conversion: str) -> in
     inline_names = CONVERSION_WINDOW[:at]
     payloads = {name: view.page_optional(name, page) for name in inline_names}
     if any(payload is None for payload in payloads.values()):
-        raise Abort("A3-CONVERSION-MULTIPLE")
+        classes = [_classification(view, model, checkpoint) for checkpoint in CONVERSION_WINDOW]
+        changes = sum(left != right for left, right in zip(classes, classes[1:]))
+        raise Abort("A3-CONVERSION-MULTIPLE", changes)
     checked = {name: payload for name, payload in payloads.items() if payload is not None}
     boundary = max(
         start
@@ -270,7 +280,7 @@ def inline_boundary(view: View, model: GlobalRecordModel, conversion: str) -> in
         for payload in checked.values()
         for value in payload[boundary:end]
     ):
-        raise Abort("A3-INLINE-SUFFIX")
+        raise Abort("A3-INLINE-SUFFIX", 1)
     return boundary
 
 
@@ -291,16 +301,18 @@ def derive_conversion(
     transcript = transcript or polarity_cross_check(view, model)
     if transcript.first_violating_leg is not None:
         raise Abort("A3-POLARITY-CROSSCHECK")
-    conversion = conversion_checkpoint(view, model)
+    classes = _conversion_classes(view, model)
+    changes = _class_change_count(classes)
+    conversion = CONVERSION_WINDOW[conversion_index(classes)]
     payload = view.page_optional(conversion, model.record.page)
     if payload is None:
-        raise Abort("A3-CONVERSION-MULTIPLE")
+        raise Abort("A3-CONVERSION-MULTIPLE", changes)
     state = indirect_state(payload, model.record.start, model.record.end)
     if state is None:
-        raise Abort("A3-CONVERSION-MULTIPLE")
+        raise Abort("A3-CONVERSION-MULTIPLE", changes)
     active = sum(value != 0 for value in state.slots)
     if active == 0:
-        raise Abort("A3-SLOT-ACTIVATION")
+        raise Abort("A3-SLOT-ACTIVATION", 1)
     final_payload = view.page_optional("H_REL_0904", model.record.page)
     final_state = (
         None
@@ -308,7 +320,7 @@ def derive_conversion(
         else indirect_state(final_payload, model.record.start, model.record.end)
     )
     if final_state is None or sum(value != 0 for value in final_state.slots) != 2:
-        raise Abort("A3-SLOT-FINAL")
+        raise Abort("A3-SLOT-FINAL", 1)
     start = model.record.start
     validate_references(
         view, model.record.page, ((start + 1, 4, 0), (start + 5, 4, 1)),
@@ -413,7 +425,6 @@ def formula_holds(
             end_representable = min(EXTENDED_BITS, 65536 - origin)
             if not _zero_range(bits, first_beyond, end_representable):
                 return False
-    view.work.charge(bin(flips).count("1") + len(VALIDITY_CHECKPOINTS))
     return True
 
 
@@ -430,7 +441,7 @@ def derive_base(view: View, model: GlobalRecordModel, conversion: ConversionMode
     if not survivors:
         raise Abort("A3-BASE-NONE")
     if len(survivors) > 1:
-        raise Abort("A3-BASE-MULTIPLE")
+        raise Abort("A3-BASE-MULTIPLE", len(survivors))
     return BaseModel(survivors[0])
 
 
@@ -493,14 +504,24 @@ def _stable_byte(view: View, page: int, offset: int) -> bool:
     }) == 1
 
 
-def tdef_models(view: View, page: int, windows: WindowCandidates) -> tuple[TdefModel, ...]:
+def tdef_models(
+    view: View,
+    page: int,
+    windows: WindowCandidates,
+    *,
+    charge_work: bool = True,
+) -> tuple[TdefModel, ...]:
     payloads = [view.page_optional(checkpoint, page) for checkpoint in CHECKPOINT_IDS]
     if any(payload is None for payload in payloads):
         return ()
-    changed = Prefix.from_flags([
-        len({payload[offset] for payload in payloads if payload is not None}) > 1
-        for offset in range(PAGE_SIZE)
-    ], view.work)
+    changed = Prefix.from_flags(
+        [
+            len({payload[offset] for payload in payloads if payload is not None}) > 1
+            for offset in range(PAGE_SIZE)
+        ],
+        view.work,
+        charge_work=charge_work,
+    )
     models: list[TdefModel] = []
     for layout in POINTER_LAYOUTS:
         for growth in windows.growth[layout]:
@@ -572,22 +593,30 @@ def derive_tdef_candidates(view: View, pages: Sequence[int], churn_precondition_
         raise Abort("A3-GROWTH-POINTER-NONE")
     if not any(any(window.churn.values()) for window in all_windows.values()):
         raise Abort("A3-CHURN-POINTER-NONE")
-    per_page = {page: tdef_models(view, page, window) for page, window in all_windows.items()}
+    per_page = {
+        page: tdef_models(
+            view,
+            page,
+            window,
+            charge_work=enumerate_candidates,
+        )
+        for page, window in all_windows.items()
+    }
     total = [model for models in per_page.values() for model in models]
     if not total:
         raise Abort("A3-TDEF-RECORD-NONE")
     record_pages = {model.record.page for model in total}
     records = {model.record for model in total}
     if len(record_pages) > 1:
-        raise Abort("A3-TDEF-PAGE-MULTIPLE")
+        raise Abort("A3-TDEF-PAGE-MULTIPLE", len(records))
     if len(records) > 1:
-        raise Abort("A3-TDEF-RECORD-MULTIPLE")
+        raise Abort("A3-TDEF-RECORD-MULTIPLE", len(records))
     if len(total) > 1:
-        raise Abort("A3-POINTER-MULTIPLE")
+        raise Abort("A3-POINTER-MULTIPLE", len(total))
     if not _tdef_valid(view, total[0]):
-        raise Abort("A3-POINTER-VALIDITY")
+        raise Abort("A3-POINTER-VALIDITY", 1)
     if not _tdef_structural(view, total[0]):
-        raise Abort("A3-STRUCTURAL-EXCLUSION")
+        raise Abort("A3-STRUCTURAL-EXCLUSION", 1)
     return tuple(total)
 
 
@@ -661,7 +690,7 @@ def predicts_tdef(view: View, frozen: TdefModel, churn_precondition_met: bool) -
         },
     )
     return (
-        tdef_models(view, page, windows) == (frozen,)
+        tdef_models(view, page, windows, charge_work=False) == (frozen,)
         and _tdef_valid(view, frozen)
         and _tdef_structural(view, frozen)
     )

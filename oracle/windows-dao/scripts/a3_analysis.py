@@ -230,7 +230,7 @@ def _replica_call(
     except Abort as exc:
         if _is_campaign_abort(exc):
             raise
-        return ReplicaLayer(None, 0, exc, transcript)
+        return ReplicaLayer(None, exc.survivor_count, exc, transcript)
 
 
 def _same_model(
@@ -264,8 +264,8 @@ def _combine_replicas(
         terminal = terminals[0]
         return LayerDraft(
             None,
-            min(first.survivor_count, second.survivor_count),
-            Abort(terminal),
+            first.survivor_count,
+            Abort(terminal, first.survivor_count),
             True,
             _reached(layer, terminal),
         )
@@ -281,14 +281,20 @@ def _combine_replicas(
         default=sequence.index("A3-REPLICA-DISAGREEMENT"),
     )
     reached = frozenset((*sequence[:cutoff], "A3-REPLICA-DISAGREEMENT"))
-    return LayerDraft(None, 0, Abort("A3-REPLICA-DISAGREEMENT"), True, reached)
+    return LayerDraft(
+        None,
+        first.survivor_count,
+        Abort("A3-REPLICA-DISAGREEMENT", first.survivor_count),
+        True,
+        reached,
+    )
 
 
 def _global_replica(view: View, pages: tuple[int, ...]) -> ReplicaLayer:
     if not pages:
         return ReplicaLayer(None, 0, Abort("A3-GLOBAL-PAGE-NONE"))
     rows = {
-        page: global_start_candidates(view, page, enumerate_candidates=True)
+        page: global_start_candidates(view, page, enumerate_candidates=False)
         for page in pages
     }
     nonempty = {page: models for page, (models, _evidence) in rows.items() if models}
@@ -318,7 +324,7 @@ def _conversion_replica(view: View, model: GlobalRecordModel) -> ReplicaLayer:
     except Abort as exc:
         if _is_campaign_abort(exc):
             raise
-        return ReplicaLayer(None, 0, exc)
+        return ReplicaLayer(None, exc.survivor_count, exc)
     if transcript.first_violating_leg is not None:
         return ReplicaLayer(None, 0, Abort("A3-POLARITY-CROSSCHECK"), transcript)
     return _replica_call(
@@ -345,7 +351,7 @@ def _tdef_replica(
             view,
             pages,
             churn_precondition_met,
-            enumerate_candidates=True,
+            enumerate_candidates=False,
         )[0]
     )
 
@@ -359,6 +365,7 @@ def derive_layers(derivation: list[ReplicaInput], work: WorkCounter) -> tuple[di
     pages = candidate_page_space(views)
     global_by_replica = tuple(qualify_global_pages(view, pages) for view in views)
     global_pages = _qualified_union((global_by_replica[0], global_by_replica[1]))
+    work.enumerate_pages(len(global_pages))
     global_outcomes = tuple(
         _global_replica(view, global_by_replica[index])
         for index, view in enumerate(views)
@@ -398,6 +405,8 @@ def derive_layers(derivation: list[ReplicaInput], work: WorkCounter) -> tuple[di
             drafts["global_map_extended_base"] = _not_applicable()
     tdef_by_replica = tuple(qualify_tdef_pages(view, pages) for view in views)
     tdef_pages = _qualified_union((tdef_by_replica[0], tdef_by_replica[1]))
+    if any(row.churn_precondition_met for row in derivation):
+        work.enumerate_pages(len(tdef_pages), prefix_arrays_per_page=1)
     tdef_outcomes = tuple(
         _tdef_replica(
             view,
