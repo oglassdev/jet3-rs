@@ -36,6 +36,7 @@ from a3_bundle import (  # noqa: E402
     _validate_target_disclosures,
 )
 import a3_bundle  # noqa: E402
+import a3_bundle_io  # noqa: E402
 from a3_holdout import (  # noqa: E402
     FAN_IN_TIMEOUT_SECONDS,
     HOLDOUT_TIMEOUT_SECONDS,
@@ -357,7 +358,7 @@ class A3BundleTests(unittest.TestCase):
         ordered = self.root / "ordered-finalization-bundle"
         shutil.copytree(self.pre_finalization, ordered)
         events = []
-        original_read_checked = a3_bundle._read_checked
+        original_read_checked = a3_bundle_io.read_checked
 
         def instrumented_read(*args, **kwargs):
             events.append(("read", args[1]))
@@ -367,7 +368,7 @@ class A3BundleTests(unittest.TestCase):
             events.append(("clock", None))
             return self.created_utc
 
-        with patch("a3_bundle._read_checked", side_effect=instrumented_read), patch(
+        with patch("a3_bundle_io.read_checked", side_effect=instrumented_read), patch(
             "a3_bundle._created_utc_now", side_effect=instrumented_clock
         ):
             manifest = finalize_bundle(
@@ -381,7 +382,32 @@ class A3BundleTests(unittest.TestCase):
             path for event, path in events[:clock_index] if event == "read"
         }
         self.assertEqual(reads_before_clock, inventory_paths)
+        self.assertEqual(
+            sum(event == "read" for event, _ in events[:clock_index]),
+            len(inventory_paths),
+        )
         self.assertFalse(any(event == "read" for event, _ in events[clock_index + 1:]))
+
+    def test_artifact_cache_reads_and_hashes_each_file_once(self) -> None:
+        cache_root = self.root / "artifact-cache"
+        cache_root.mkdir()
+        artifact = cache_root / "record.json"
+        artifact.write_bytes(b"{}\n")
+        tree, _ = a3_bundle_io.inventory(cache_root)
+        cache = a3_bundle_io.ArtifactCache(cache_root.resolve(), tree, 64)
+        original_sha256 = hashlib.sha256
+        with patch(
+            "a3_bundle_io.read_checked", wraps=a3_bundle_io.read_checked
+        ) as checked, patch(
+            "a3_bundle_io.hashlib.sha256", wraps=original_sha256
+        ) as sha256:
+            self.assertEqual(cache.read("record.json", 64), b"{}\n")
+            self.assertEqual(cache.json("record.json", 64)[0], {})
+            first = cache.sha256("record.json", 64)
+            second = cache.sha256("record.json", 64)
+        self.assertEqual(first, second)
+        self.assertEqual(checked.call_count, 1)
+        self.assertEqual(sha256.call_count, 1)
 
     def test_complete_validator_rejects_non_a3_manifest_identity(self) -> None:
         relabeled = self.root / "relabeled-bundle"

@@ -201,14 +201,20 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("retention-days: 14", diagnostics)
 
     def test_fan_in_downloads_exactly_three_and_runs_contract_order(self) -> None:
-        self.assertEqual(self.fan_in.count("actions/download-artifact@"), 3)
+        self.assertNotIn("actions/download-artifact@", self.fan_in)
+        self.assertEqual(self.fan_in.count("Download-A3Artifact.ps1"), 3)
         for replica in (1, 2, 3):
-            self.assertIn(f"name: windows-dao-a3-replica-{replica}", self.fan_in)
+            self.assertIn(
+                f'-ArtifactName "windows-dao-a3-replica-{replica}"',
+                self.fan_in,
+            )
             self.assertIn(f"replica-0{replica}", self.fan_in)
         assemble = self.fan_in.index("a3_bundle.py assemble")
         campaign_start = self.fan_in.index("Bind the hosted run-attempt start observable")
         freeze = self.fan_in.index("--freeze-only", assemble)
-        holdout_download = self.fan_in.index("name: windows-dao-a3-replica-3")
+        holdout_download = self.fan_in.index(
+            "Download A3 holdout replica 3 through the REST API"
+        )
         holdout = self.fan_in.index("a3_holdout.py", holdout_download)
         analysis = self.fan_in.index("--resume", holdout)
         # Replica 3 is downloaded only after the retained candidate bytes and
@@ -260,7 +266,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("compression-level: 0", upload)
         self.assertIn("retention-days: 90", upload)
 
-    def test_fan_in_downloads_have_fail_closed_rest_fallbacks(self) -> None:
+    def test_fan_in_downloads_use_only_fail_closed_rest_helper(self) -> None:
         permissions = self.workflow.split("permissions:", 1)[1].split(
             "concurrency:", 1
         )[0]
@@ -269,28 +275,20 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             {"actions: read", "contents: read"},
         )
         for replica in (1, 2, 3):
-            primary = self.fan_in.split(
-                f"      - name: Download A3 "
-                f"{'holdout ' if replica == 3 else ''}replica {replica}", 1
-            )[1].split("      - name:", 1)[0]
-            self.assertIn(f"id: download_replica_{replica}", primary)
-            self.assertIn("continue-on-error: true", primary)
-
-            fallback_name = (
+            download_name = (
                 f"Download A3 {'holdout ' if replica == 3 else ''}replica {replica} "
-                "through the REST fallback"
+                "through the REST API"
             )
-            fallback = self.fan_in.split(
-                f"      - name: {fallback_name}", 1
+            download = self.fan_in.split(
+                f"      - name: {download_name}", 1
             )[1].split("      - name:", 1)[0]
+            self.assertNotIn("continue-on-error", download)
+            self.assertNotIn("uses: actions/download-artifact", download)
+            self.assertIn("shell: powershell", download)
+            self.assertIn("GITHUB_TOKEN: ${{ github.token }}", download)
+            self.assertIn("Download-A3Artifact.ps1", download)
             self.assertIn(
-                f"if: steps.download_replica_{replica}.outcome == 'failure'",
-                fallback,
-            )
-            self.assertIn("GITHUB_TOKEN: ${{ github.token }}", fallback)
-            self.assertIn("Download-A3Artifact.ps1", fallback)
-            self.assertIn(
-                f'-ArtifactName "windows-dao-a3-replica-{replica}"', fallback
+                f'-ArtifactName "windows-dao-a3-replica-{replica}"', download
             )
 
             check = self.fan_in.split(
@@ -315,10 +313,10 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("Set-StrictMode -Version Latest", source)
 
         freeze = self.fan_in.index("--freeze-only")
-        holdout_fallback = self.fan_in.index(
-            "Download A3 holdout replica 3 through the REST fallback"
+        holdout_download = self.fan_in.index(
+            "Download A3 holdout replica 3 through the REST API"
         )
-        self.assertLess(freeze, holdout_fallback)
+        self.assertLess(freeze, holdout_download)
 
     def test_independent_validator_is_a_separate_recorded_step(self) -> None:
         step = self.fan_in.split(
@@ -338,7 +336,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("rejected the bundle", step)
         # The report lives outside the closed bundle tree.
         self.assertNotIn("jet3-a3-bundle\\validation", step)
-        self.assertEqual(self.fan_in.count("continue-on-error: true"), 3)
+        self.assertNotIn("continue-on-error: true", self.fan_in)
 
     def test_fan_in_status_is_bounded_timed_and_always_retained(self) -> None:
         for step_id in (
@@ -398,7 +396,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         actions = re.findall(
             r"^\s*-?\s*uses:\s*([^\s#]+)", self.workflow, re.MULTILINE
         )
-        self.assertEqual(len(actions), 13)
+        self.assertEqual(len(actions), 10)
         for action in actions:
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
         self.assertEqual(self.workflow.count("persist-credentials: false"), 3)

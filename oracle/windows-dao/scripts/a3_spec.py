@@ -90,7 +90,9 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load_bounded_json(path: Path, maximum: int = 64 * 1024 * 1024) -> dict[str, Any]:
+def load_bounded_json_with_payload(
+    path: Path, maximum: int = 64 * 1024 * 1024
+) -> tuple[dict[str, Any], bytes]:
     """Load one regular, duplicate-key-free, bounded UTF-8 JSON object."""
     try:
         metadata = path.lstat()
@@ -122,7 +124,11 @@ def load_bounded_json(path: Path, maximum: int = 64 * 1024 * 1024) -> dict[str, 
         raise ValidationError(f"{path}: invalid JSON: {exc}") from exc
     if not isinstance(value, dict):
         raise ValidationError(f"{path}: JSON root must be an object")
-    return value
+    return value, payload
+
+
+def load_bounded_json(path: Path, maximum: int = 64 * 1024 * 1024) -> dict[str, Any]:
+    return load_bounded_json_with_payload(path, maximum)[0]
 
 
 @dataclass(frozen=True)

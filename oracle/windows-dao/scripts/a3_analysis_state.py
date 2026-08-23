@@ -15,7 +15,7 @@ from a3_layers import (
 from a3_model import Abort, GlobalRecordModel, PAGE_SIZE, Record, WorkCounter
 from a3_spec import (
     BOUNDS, LAYER_KEYS, LAYER_PREDICATE_SEQUENCES, frozen_json_bytes,
-    load_bounded_json, validate_frozen_candidates,
+    load_bounded_json, load_bounded_json_with_payload, validate_frozen_candidates,
 )
 from protocol_validation import ValidationError
 
@@ -47,6 +47,7 @@ class FreezeResult:
     frozen_sha256: str
     work: WorkCounter
     campaign_abort: Abort | None
+    observed_candidate_sha256: str | None = None
 
 
 def _leg(document: dict[str, str] | None) -> Leg | None:
@@ -98,9 +99,10 @@ def load_freeze_state(
     candidate_output: Path,
 ) -> tuple[FreezeResult, tuple[str, str, str], int]:
     state = load_bounded_json(path, MAX_JSON_BYTES)
-    frozen = load_bounded_json(candidate_output, MAX_JSON_BYTES)
+    frozen, frozen_payload = load_bounded_json_with_payload(
+        candidate_output, MAX_JSON_BYTES
+    )
     validate_frozen_candidates(frozen)
-    frozen_payload = candidate_output.read_bytes()
     if frozen_json_bytes(frozen) != frozen_payload:
         raise ValidationError("A3 frozen candidate bytes are not canonical")
     frozen_sha = hashlib.sha256(frozen_payload).hexdigest()
@@ -181,7 +183,7 @@ def load_freeze_state(
     result = FreezeResult(
         [], drafts, tuple(frozen["qualified_pages"]["global_map"]),
         tuple(frozen["qualified_pages"]["tdef"]), _transcript(frozen["polarity_cross_check"]),
-        frozen, frozen_sha, work, campaign_abort,
+        frozen, frozen_sha, work, campaign_abort, frozen_sha,
     )
     bindings = (state["campaign_id"], state["producer_commit"], state["provider_sha256"])
     return result, bindings, opens
