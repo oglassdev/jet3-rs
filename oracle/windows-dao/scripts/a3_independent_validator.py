@@ -31,6 +31,14 @@ from a3_independent_core import (
     polarity_cross_check,
     recompute_derivation,
 )
+from a3_independent_projection import (
+    bundle_rejection_projection,
+    expected_predicate_statuses as _expected_predicate_statuses,
+    independent_projection,
+    pair_projection_document,
+    recompute_only_document,
+    rejected_pair_projection_document,
+)
 
 
 LAYER_PATHS = {
@@ -150,20 +158,6 @@ def _validator_commit() -> str:
     except (OSError, subprocess.SubprocessError):
         pass
     raise ValidationError("validator_commit_unavailable")
-
-
-def recompute_only_document(bundle: LoadedBundle, derivation: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "protocol_version": "1.0.0",
-        "document_type": "dao_a3_independent_recomputation",
-        "source_experiment_id": bundle.manifest.get("experiment_id"),
-        "source_bundle_manifest_sha256": bundle.manifest_sha256,
-        "derivation_replicas": [1, 2],
-        "holdout_opened": False,
-        "qualified_pages": derivation["qualified_pages"],
-        "polarity_cross_check": derivation["polarity_cross_check"],
-        "layers": derivation["layers"],
-    }
 
 
 def expected_frozen(bundle: LoadedBundle, derivation: dict[str, Any]) -> dict[str, Any]:
@@ -471,62 +465,6 @@ def validate_predicates(
         raise ValidationError("holdout_opened_flag_mismatch")
 
 
-def _expected_predicate_statuses(
-    bundle: LoadedBundle,
-    derivation: dict[str, Any],
-    decisive: bool,
-    report_terminals: set[str],
-    campaign_predicates: list[str],
-    sequences: dict[str, list[str]],
-) -> dict[str, str]:
-    ids = bundle.plan["predicate_registry"]["ids"]
-    statuses = {predicate: "not_applicable" for predicate in ids}
-    if set(campaign_predicates) != {
-        "A3-IDLE-EQUALITY",
-        "A3-SNAPSHOT-RECONSTRUCTION",
-        "A3-RESOURCE-BOUND",
-    }:
-        raise ValidationError("predicate_revision_contract_mismatch")
-    campaign_terminal = derivation["campaign_terminal_predicate_id"]
-    for predicate in campaign_predicates:
-        statuses[predicate] = "fail" if predicate == campaign_terminal else "pass"
-        if predicate == campaign_terminal:
-            break
-    for name, sequence in sequences.items():
-        layer = derivation["layers"][name]
-        if not layer["applicable"]:
-            continue
-        terminal = layer["terminal_predicate_id"]
-        if terminal == "A3-REPLICA-DISAGREEMENT":
-            replica_terminals = derivation["replica_terminals"][name]
-            terminal_positions = [
-                sequence.index(predicate)
-                for predicate in replica_terminals
-                if predicate is not None
-            ]
-            cutoff = min(terminal_positions, default=sequence.index("A3-REPLICA-DISAGREEMENT"))
-            for predicate in sequence[:cutoff]:
-                if statuses[predicate] != "fail":
-                    statuses[predicate] = "pass"
-            statuses[terminal] = "fail"
-            continue
-        for predicate in sequence:
-            if statuses[predicate] != "fail":
-                statuses[predicate] = "pass"
-            if predicate == terminal:
-                statuses[predicate] = "fail"
-                break
-    for predicate in report_terminals:
-        statuses[predicate] = "fail"
-    if decisive:
-        statuses["A3-HOLDOUT-PREDICTION"] = "pass"
-    elif "A3-HOLDOUT-PREDICTION" in report_terminals:
-        statuses["A3-HOLDOUT-PREDICTION"] = "fail"
-    else:
-        statuses["A3-HOLDOUT-PREDICTION"] = "not_applicable"
-    return statuses
-
-
 def verify_report_bounds(bundle: LoadedBundle, derivation: dict[str, Any]) -> None:
     if bundle.report is None:
         raise ValidationError("analysis_report_missing")
@@ -770,15 +708,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--validator-commit")
     parser.add_argument("--recompute-only", action="store_true")
+    parser.add_argument("--pair-projection", action="store_true")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.recompute_only and args.pair_projection:
+        raise SystemExit("--recompute-only and --pair-projection are mutually exclusive")
     validator_commit = args.validator_commit or _validator_commit()
     if len(validator_commit) != 40 or any(character not in "0123456789abcdef" for character in validator_commit):
         raise SystemExit("--validator-commit must be 40 lowercase hexadecimal characters")
     bundle: LoadedBundle | None = None
+    loader: BundleLoader | None = None
+    campaign_predicates: list[str] = []
+    predicate_sequences: dict[str, list[str]] = {}
     tamper_results = _not_executed_tamper_results()
     try:
         loader = BundleLoader(args.bundle_root, args.plan, args.recompute_only)
@@ -792,6 +736,21 @@ def main(argv: list[str] | None = None) -> int:
             derivation = recompute_derivation(bundle)
             _write_output(recompute_only_document(bundle, derivation), args.output)
             return 0
+        if args.pair_projection:
+            derivation = recompute_derivation(bundle)
+            layers = recompute_report_layers(bundle, derivation)
+            projection = independent_projection(
+                bundle,
+                derivation,
+                layers,
+                campaign_predicates,
+                predicate_sequences,
+            )
+            _write_output(
+                pair_projection_document(bundle, derivation, projection),
+                args.output,
+            )
+            return 0
         validate_bundle(bundle, campaign_predicates, predicate_sequences)
         tamper_results = _execute_tamper_suite(bundle, campaign_predicates, predicate_sequences)
         result = verdict(bundle, validator_commit, True, [], tamper_results)
@@ -799,6 +758,22 @@ def main(argv: list[str] | None = None) -> int:
         _write_output(result, args.output)
         return 0
     except ValidationError as exc:
+        if args.pair_projection and loader is not None:
+            try:
+                projection = bundle_rejection_projection(
+                    loader.plan,
+                    campaign_predicates,
+                    predicate_sequences,
+                    exc.code,
+                )
+            except (KeyError, TypeError, ValueError, ValidationError):
+                projection = None
+            if projection is not None:
+                _write_output(
+                    rejected_pair_projection_document(exc.code, projection),
+                    args.output,
+                )
+                return 1
         result = verdict(bundle, validator_commit, False, [exc.code], tamper_results)
         _write_output(result, args.output)
         return 1

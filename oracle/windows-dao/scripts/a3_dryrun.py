@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
@@ -45,7 +46,7 @@ DEFAULT_RETAINED_ROOT = Path(os.environ.get(
 DEFAULT_OUTPUT = SCRIPTS.parent / "experiments" / "a3" / "dry-run"
 GENERATOR_FILES = ("a3_generator.py", "a3_generator_schedule.py", "a3_dryrun_bundle.py", "a3_dryrun_cases.py")
 CALIBRATION_PREFIX_HEX = "01003a0000e03f0000"
-OVERSHOOT_CHECKPOINTS = ("D_GROW_0128", "L_REL_1280", "P_ABS_16480", "H_REL_0904")
+OVERSHOOT_PHASES = {"D": "D_", "L": "L_REL_", "P": "P_ABS_", "H": "H_REL_"}
 REPLAY_ASSERTIONS = {
     "record_1915_2048_not_in_use_slack_92": ("global_record_start_unique", "global_record_end_unique_with_polarity_relative_uniform_slack"),
     "legacy_relation_leaves_1935_starts": ("legacy_relative_d_is_abac",),
@@ -77,8 +78,26 @@ def _sha256_files(paths: list[Path]) -> str:
     return digest.hexdigest()
 
 
-def _overshoot(replica: SyntheticReplica) -> dict[str, int | None]:
-    return {name: replica.schedule.checkpoint(name).target_overshoot_pages for name in OVERSHOOT_CHECKPOINTS}
+def _overshoot(replica: SyntheticReplica) -> dict[str, int]:
+    """Every target-bearing checkpoint's overshoot (actual pages minus threshold)."""
+    return {
+        row.checkpoint_id: row.target_overshoot_pages
+        for row in replica.schedule.checkpoints if row.target_overshoot_pages is not None
+    }
+
+
+def overshoot_independent(overshoot: dict[int, dict[str, int]]) -> bool:
+    """R3 replica_3_independent_overshoot: in each of D, L, P, H some checkpoint has
+    replica 3's overshoot differing from replica 1's and from replica 2's."""
+    if set(overshoot) != {1, 2, 3}:
+        return False
+    return all(
+        any(
+            overshoot[3][name] != overshoot[1][name] and overshoot[3][name] != overshoot[2][name]
+            for name in overshoot[3] if name.startswith(prefix)
+        )
+        for prefix in OVERSHOOT_PHASES.values()
+    )
 
 
 def _produced_layers(report: dict[str, Any] | None) -> dict[str, str]:
@@ -233,9 +252,7 @@ def run_sweep(workspace: Path, commit: str, created_utc: str, jobs: int, keep: b
 def sweep_checks(results: list[CaseResult]) -> dict[str, bool]:
     by_id = {result.case.case_id: result for result in results}
     checks: dict[str, bool] = {}
-    checks["replica_3_overshoot_independent"] = all(
-        3 in result.overshoot and result.overshoot[3] != result.overshoot[1] and result.overshoot[3] != result.overshoot[2] for result in results
-    )
+    checks["replica_3_overshoot_independent"] = all(overshoot_independent(result.overshoot) for result in results)
     boundaries = {
         name: (_layer_model(by_id[name].report, CONVERSION) or {}).get("inline_boundary")
         for name in ("fill_empty", "fill_partial", "fill_full") if by_id[name].report is not None
@@ -351,7 +368,7 @@ def build_synthetic_report(results: list[CaseResult], checks: dict[str, bool], r
         if checks.get(check):
             assertions.extend(names)
     failed = [result.case.case_id for result in results if result.failures]
-    passed = not failed and all(checks.values())
+    passed = not failed and all(value is True for key, value in checks.items() if key != "generating_commit")
     return {
         **_report_base(commit, recorded_utc), "source_kind": "a3_schedule_synthetic",
         "source_identity": {"manifest_or_fixture_sha256": cases_sha256, "generator_sha256": _sha256_files([SCRIPTS / name for name in GENERATOR_FILES])},
@@ -377,10 +394,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--workspace", type=Path, required=True)
     parser.add_argument("--retained-root", type=Path, default=DEFAULT_RETAINED_ROOT)
-    parser.add_argument("--commit", required=True, help="analyzer commit (40 hex)")
+    parser.add_argument("--commit", default=None, help="analyzer commit to stamp (40 hex); default: git HEAD of this checkout")
     parser.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     parser.add_argument("--keep-bundles", action="store_true")
     arguments = parser.parse_args(argv)
+    if arguments.commit is None:
+        arguments.commit = subprocess.run(
+            ["git", "-C", str(SCRIPTS), "rev-parse", "HEAD"], capture_output=True, text=True, check=True,
+        ).stdout.strip()
     recorded_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     replay = run_replay(arguments.retained_root).document()
@@ -388,9 +409,14 @@ def main(argv: list[str] | None = None) -> int:
     results = run_sweep(arguments.workspace, arguments.commit, recorded_utc, arguments.jobs, arguments.keep_bundles)
     reachability = reachability_transcript(results)
     checks = sweep_checks(results)
+    checks["generating_commit"] = arguments.commit
     checks["every_reachable_predicate_reached"] = reachability["reached_count"] == reachability["reachable_total"]
     checks["unreachable_predicates_nonterminal"] = reachability["unreachable_asserted_nonterminal"]
-    cases_document = {"document_type": "a3_dry_run_case_transcript", "cases": [result.document() for result in results]}
+    cases_document = {
+        "document_type": "a3_dry_run_case_transcript", "generating_commit": arguments.commit,
+        "generating_commit_note": "the commit whose harness, generator, analyzer, and validator sources produced every artefact in this directory",
+        "cases": [result.document() for result in results],
+    }
     cases_sha256 = hashlib.sha256(canonical_json_bytes(cases_document)).hexdigest()
     synthetic = build_synthetic_report(results, checks, reachability, cases_sha256, arguments.commit, recorded_utc)
     checks["all_required_terminal_cases_exercised"] = synthetic["result"] == "pass"
