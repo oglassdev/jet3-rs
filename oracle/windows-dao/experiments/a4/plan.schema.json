@@ -24,6 +24,7 @@
     "hypotheses",
     "analyzer_dry_run_contract",
     "predicate_registry",
+    "harness_ambiguity_resolutions",
     "decision_rules",
     "independent_validator_contract",
     "decisive_report_handling",
@@ -92,6 +93,68 @@
     },
     "predicate_registry": {
       "type": "object"
+    },
+    "harness_ambiguity_resolutions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "rule",
+        "resolutions"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "resolutions": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "topic",
+              "decision",
+              "plan_locations"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^AMB-[0-9]{2}$"
+              },
+              "topic": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "decision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "plan_locations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "decision_rules": {
       "type": "object"
@@ -504,6 +567,8 @@
         "max_candidate_models",
         "max_canonical_candidate_bytes",
         "max_canonical_candidates_array_bytes",
+        "max_h4_occurrence_identities",
+        "max_h4_occurrence_evidence_bytes",
         "max_analysis_work_units",
         "max_unique_page_blobs",
         "max_retained_page_store_bytes",
@@ -555,6 +620,12 @@
         },
         "max_canonical_candidates_array_bytes": {
           "const": 16781313
+        },
+        "max_h4_occurrence_identities": {
+          "const": 1850
+        },
+        "max_h4_occurrence_evidence_bytes": {
+          "const": 524288
         },
         "max_analysis_work_units": {
           "const": 600000000

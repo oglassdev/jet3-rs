@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `550c6e566b8cb14492508cbf6a9b4e3980fe2ecc9729e61b7b9830d4bdd337c3`,
+  `be6cecc23bad7bf25e71543023da074edf944c8f786bcd7703ef995e53708dc9`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4513,9 +4513,12 @@ Use `not applicable` explicitly rather than omitting a field.
   then predict the role-rotated holdout without refit. Retain R5-V01-style
   plan/revision binding, phase-specific R4-S01-style measured survivor counts,
   R4-C01-style union-once work charging with terminal-path maxima, including
-  a 387,467,081-unit H4 path below the exact-accept 600,000,000-unit ceiling,
+  a 387,467,081-unit H4 path below the 600,000,000-unit ceiling (classified
+  `conservative_upper`; only its checked comparator is unit-tested at
+  600,000,000/600,000,001 outside the 40 byte fixtures, and the byte-level
+  resource terminal is a 67,200-entry changed-hash one-over campaign),
   complete frozen candidate arrays, distinct H1 model/physical candidate ids,
-  exact lifecycle ranges, and separate H4 root/structural-field/final-field
+  exact lifecycle ranges, and independent H4 root/structural/encoding
   results, a complete manifest,
   independent recomputation and tamper suite, and the R5-T01-style hard
   2,700-second campaign bound derived from hosted `run_started_at`: accept
@@ -4555,8 +4558,10 @@ Use `not applicable` explicitly rather than omitting a field.
   under each layout; target validation leaves zero page-then-row pairs and one
   row-then-page pair.
   H4 locates records only from operation deltas and non-name structural fields;
-  every structural candidate retains seven ordered operation bindings and
-  their compatible occurrences without an encoding result. After one
+  every structural candidate retains seven ordered per-operation
+  compatible-occurrence bitmaps and references by SHA-256 a separate bounded
+  `analysis/h4-occurrence-evidence.json` (at most 524,288 bytes) so frozen
+  candidates stay within 4,096 bytes, without an encoding result. After one
   structural model survives it compares strict Windows-1252 (`c9`
   for U+00C9) with UTF-8 (`c389`) and reports the observationally equivalent
   CP1252 byte/scalar length hypotheses as one class because no within-CP1252
@@ -4581,10 +4586,23 @@ Use `not applicable` explicitly rather than omitting a field.
   independent validation, and the 2,700-second hard bound. Adversarial review
   pass 1 findings B1--B8, S1--S3, and N1--N2 and pass 2 findings P2-B1--B6
   and P2-S1--S2, plus pass 3 findings P3-B1--P3-B6 and P3-S1--P3-S2 and pass
-  4 findings P4-B1--P4-B3 and P4-S1--P4-S2, were applied to this unmerged
+  4 findings P4-B1--P4-B3 and P4-S1--P4-S2, and pass 5 findings
+  P5-B1--P5-B4 and P5-S1, were applied to this unmerged
   base plan in place. Pass 4 also canonically binds the required, not-yet-
   executed reachability transcript and recomputes the 2,036-byte row, 1,850
-  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms;
+  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms.
+  Pass 5 separates H4 structural and encoding results, makes every terminal
+  serialize only its declared payload (candidate set, grouped operation set,
+  per-replica pair, or invalid observation), fixes the transcript schema
+  positionally for all 40 registry entries with an exact ten-case adversarial
+  set, and records an executed reference reachability harness (draft PR #74,
+  branch `fable/a4-dryrun`, transcript SHA-256
+  `06179c9fdada8cf7a8c3a6ce47919f4f19b4065ebf603b27720250fe9768af21`,
+  built by a different agent against the pass-4 plan) as a design input
+  only; its 17 recorded ambiguities AMB-01--AMB-17 are each resolved by a
+  stated decision in the plan's `harness_ambiguity_resolutions`, including
+  the page-bound decodability rule that reproduces the 1,872-window count and
+  the by-construction unreachability of `A4-H1-LOCATOR-PAIR-MULTIPLE`;
   focused A4
   plan and repository contract checks must pass
 

@@ -40,7 +40,19 @@
         "use_limit": "EXP-0051 and the retained A3 bundle are calibration and design input only. They are never A4 evidence and cannot satisfy an A4 derivation, holdout, predicate, or independent-validation result."
       },
       "prediction_not_rediscovery_disclosure": "A3 observed moving row-directory starts, complete type-0/type-1 row prefixes, tag-05 reference pages, and the slot-relative 16,352-bit candidate before this plan. A4 tests frozen row-anchored predictions on three fresh replicas; it does not claim rediscovery from A3.",
-      "external_mdb_implementations_used": false
+      "external_mdb_implementations_used": false,
+      "executed_reference_harness": {
+        "pull_request": 74,
+        "branch": "origin/fable/a4-dryrun",
+        "head_commit": "b7e3ec027084198680e1f6e3e15916f8deb74831",
+        "harness_commit_in_transcript": "aa06942a19622bef5035fc724fa4812b1914bd63",
+        "reference_transcript_path": "oracle/windows-dao/experiments/a4/dry-run/a4-reference-reachability-transcript.json",
+        "reference_transcript_sha256": "06179c9fdada8cf7a8c3a6ce47919f4f19b4065ebf603b27720250fe9768af21",
+        "reference_transcript_bytes": 641972,
+        "evaluated_plan_sha256": "550c6e566b8cb14492508cbf6a9b4e3980fe2ecc9729e61b7b9830d4bdd337c3",
+        "role": "design input only: a plan-driven reference evaluator built by a different agent against review-pass-4 normative rules; it is not the production analyzer, not the dispatch-gate transcript, and never A4 evidence",
+        "ambiguity_resolution": "every plan ambiguity it recorded (AMB-01..AMB-17) is resolved by a stated decision in harness_ambiguity_resolutions and in the normative text those decisions cite"
+      }
     },
     "amendment_rule": "while this unmerged base plan is under review it is edited in place and re-pinned; after merge and before acquisition every amendment is an additive hash-pinned revision, and after acquisition starts any change requires a new experiment id, plan file, and provenance entry"
   },
@@ -513,12 +525,12 @@
       "type_0": "For a type-0 row, byte 0 is tag 00, bytes [1,5) are a little-endian u32 base, and bytes [5,row_len) are an LSB-first bitmap. Bit index k refers to absolute page base + k. The registered polarity candidates are set_bit_owned_in_use and clear_bit_owned_in_use; H2 lifecycle legs select exactly one polarity/row-role model, and only bits classified owned/in-use admit pages.",
       "type_1": "For a type-1 row, byte 0 is tag 01 and bytes [1,row_len) must have length divisible by four; otherwise A4-H2-MAP-TAG-UNSUPPORTED fails. Slot ordinal is the zero-based u32 position after the tag. Zero is inactive. A nonzero slot is an exact physical tag-05 page reference. A tag-05 page has header [0,4) and an LSB-first bitmap [4,2048); bit index k maps by the registered base formula, and only set bits of the owned/in-use row admit pages."
     },
-    "qualified_page_rule": "schema lifecycle deltas qualify at most 16 tag-02 pages for H1 and allocation-admitted traversal qualifies at most 16 tag-01 or tag-05 pages per later layer; hash-state absence is explicit and a page is charged once across the union of derivation replicas",
+    "qualified_page_rule": "schema lifecycle deltas qualify at most 16 tag-02 pages for H1 and allocation-admitted traversal qualifies at most 16 tag-01 or tag-05 pages per later layer; hash-state absence is explicit and a page is charged once across the union of derivation replicas A qualified page identity is (page number, checkpoint id) in the derivation union (AMB-03).",
     "union_once_charging": {
       "style": "R4-C01",
       "rule": "row slots, locator pairs, references, bitmap bits, catalog rows, and candidate models are counted once per unique qualified page/checkpoint/model identity in the union across derivation replicas however many replicas expose it; replica agreement is a predicate, not a second work charge",
       "resource_units": "charge one unit for each row-directory entry decoded, locator layout/offset pair tested, slot/reference decoded, bitmap bit inspected, catalog field candidate tested, and candidate transition evaluation",
-      "exact_ceiling_rule": "Bounds classified attainable_exact have equality/one-over fixtures. Conservative upper bounds are proved by inequalities and make no attainability claim. Fail-fast evaluation charges only work reached after prior predicates."
+      "exact_ceiling_rule": "Bounds classified attainable_exact have equality/one-over fixtures. Conservative upper bounds are proved by inequalities and make no attainability claim; the work-unit ceiling is conservative and its comparator is tested by injection, not by a byte campaign. Fail-fast evaluation charges only work reached after prior predicates."
     },
     "a3_calibration_worked_examples": [
       {
@@ -557,12 +569,12 @@
     "subject": "each H1-located map row at its checkpoint-specific directory bounds",
     "candidate_source": "the two SRC-0020 offset-mask projections only; no changed-byte, fill, or frozen absolute-offset candidate",
     "survival_rule": "the same offset-mask model must yield valid complete rows and flags in both derivation replicas at every applicable checkpoint, while row start/end values may move",
-    "ambiguity_rule": "an invalid complete directory yields A4-H2-ROW-DIRECTORY-INVALID; deleted or overflow located rows yield A4-H2-ROW-FLAGS-INVALID; multiple masks that produce byte-identical complete bounds for every located row are one canonical model"
+    "ambiguity_rule": "Directory validity and map tags are evaluated per registered row mask: a mask that yields an invalid complete directory or an unsupported tag for any located row at any applicable checkpoint is eliminated, A4-H2-ROW-DIRECTORY-INVALID fails iff no mask yields a valid complete directory, and A4-H2-MAP-TAG-UNSUPPORTED fails iff no surviving mask yields supported tags; deleted or overflow flags are read from the raw entry independent of mask and yield A4-H2-ROW-FLAGS-INVALID; multiple masks that produce byte-identical complete bounds for every located row are one canonical model, and surviving masks carry into the H2 role candidates as the row_mask dimension"
   },
   "candidate_grammars": {
     "closure_rule": "Candidate grammars are closed. The analyzer and validators may enumerate only models listed in this plan. Every nuisance choice (TDEF lifecycle signature, locator ordering, row mask, type-0 polarity/base rule, role transition signature, type-1 suffix rule, slot ordinal, catalog-root selection signature, catalog kind/id/name field width, endianness, length rule, value mapping, and identifier lifecycle relation) is an explicit finite enum or bounded integer domain below. An absent grammar is a preregistration error that blocks acquisition; it is not filled in by implementation and is not a scientific no_outcome.",
     "canonical_enumeration": "Enumerate the cartesian products below lexicographically by the listed enum order and then ascending integer. Canonical candidates omit replica-specific physical names, sort tables by T1,T2,T3,T4, sort locator offsets ascending, and are byte-unique canonical JSON objects.",
-    "phase_specific_candidate_contract": "Separate predicate_measured_survivor_count from final-layer model cardinality. Closed, stage-discriminated candidate schemas exist for every nonzero predicate input set: H1 TDEF, H1 target-valid layout, H1 locator pair; H2 structural decoder and final role model; H3 conversion and final base formula; H4 root, operation record, structural field, and final encoded field. At a terminal, serialize and hash the complete candidates at that predicate's named input stage. Do not manufacture fields selected only by downstream predicates. The frozen layer records its terminal stage and candidate schema; decisive layers alone contain the final model type. The analysis report byte-for-byte reproduces all frozen stage arrays and hashes.",
+    "phase_specific_candidate_contract": "Separate predicate_measured_survivor_count from final-layer model cardinality. Closed, stage-discriminated candidate schemas exist for every stage at which candidates actually exist: H1 TDEF, H1 target-valid layout, H1 locator pair; H2 final role model; H3 conversion and final base formula; H4 root, operation record, structural field, and final encoded field. There is no H2 structural-decoder stage: directory, flag, and tag invalidity occur before any H2 candidate survives and are retained as invalid-observation payloads. Every predicate contract declares counted_set_kind, terminal_payload_schema, and an optional candidate_stage. At a terminal, serialize and hash only the candidates that exist at that predicate's named input stage; never manufacture fields selected only by downstream predicates. terminal_payload_schema candidate_set stores exactly the counted set; grouped_candidate_set stores every complete operation-record candidate in seven ordered operation groups; replica_pair stores the two unequal per-replica models and an empty union candidate array; invalid_observation stores an input_model_id plus a bounded byte-derived observation and no fabricated downstream candidate. The frozen layer records its terminal payload kind, stage, and candidate schema; decisive results alone contain the final model type. The analysis report byte-for-byte reproduces all frozen stage arrays, terminal evidence, and hashes.",
     "h1": {
       "tdef_lifecycle_signatures": [
         "new_tag_02_at_role_create",
@@ -577,7 +589,7 @@
         "u8_row_then_u24le_page"
       ],
       "locator_offset_domain": "0..2044 inclusive; canonical a<b and b-a>=4",
-      "layout_candidate_rule": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. LOCATOR-LAYOUT-NONE asks whether either layout has any cross-checkpoint syntactically preserved window. Structural pair filtering then applies only the registered table-record signature, nonoverlap, and identity preservation. After TARGET-ROW-INVALID passes, a layout cardinality candidate is a layout containing at least one target-valid pair.",
+      "layout_candidate_rule": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. A window at offset o (0..2044) is syntactically decodable under a layout iff at every derivation checkpoint of that replica its u24 little-endian page value is <= 20479; the u8 row byte is unconstrained at this stage (AMB-01). LOCATOR-LAYOUT-NONE asks whether either layout has any such cross-checkpoint syntactically preserved window. Structural pair filtering then applies only the registered table-record signature with its exact locator holes, nonoverlap, and identity preservation, so each layout admits at most the one canonical pair (35,39). After TARGET-ROW-INVALID passes, a layout cardinality candidate is a layout containing at least one target-valid pair.",
       "logical_roles": [
         "T1",
         "T2",
@@ -646,7 +658,8 @@
         "surviving_offsets": [
           35,
           39
-        ]
+        ],
+        "decodability_rule": "u24 page <= 20479 at all 25 checkpoints; offsets 0..2044; row byte unconstrained (AMB-01)"
       }
     },
     "h2": {
@@ -664,13 +677,15 @@
       ],
       "transition_signature": {
         "idle": "both decoded rows and admitted-page sets byte-identical",
-        "grow": "owned/in-use admitted set may add but not remove live-row pages; available set may remove but not add those same pages",
+        "grow": "on the growing role's leg its owned/in-use admitted set may gain pages and may not lose any; its available set may not gain any page the owned set gained on that leg; instances of other roles are unconstrained on that leg (AMB-07)",
         "delete_all": "owned/in-use admitted set may remove and available may add; neither may change outside the T1 allocation span",
         "reinsert": "owned/in-use admitted set may add and available may remove; neither may change outside the T1 allocation span",
         "drop_recreate": "the dropped T2 instance has no owned set after drop; recreated T2-v2 receives a separately traversed set and no equality with T2-v1 is assumed"
       },
       "type_1_suffix_rule": "reject unless row_len minus one is divisible by four",
-      "slot_ordinal_rule": "zero-based u32 position after the tag"
+      "slot_ordinal_rule": "zero-based u32 position after the tag",
+      "static_fit_rule": "A role/polarity/mask candidate fits the static structure iff at every applicable checkpoint every type-0 admitted page lies below that checkpoint's page count, the available set is a subset of the owned/in-use set, and the owned/in-use set is nonempty at every checkpoint where the instance's snapshot row count is greater than zero. A type-1 row is tested at H2 only for tag and u32-multiple validity; H3 decodes its admitted set (AMB-05).",
+      "locator_role_assignments_rule": "ordinal 0 and ordinal 1 are the H1 locator ordinals in ascending offset order, replica-invariant under the H1 model; a replica in which the other located row is owned yields a different canonical H2 model (AMB-15)"
     },
     "h3": {
       "conversion_candidates": [
@@ -686,14 +701,15 @@
         "slot_ordinal_times_16352_plus_bit_index_plus_one"
       ],
       "conversion_rule": "H3 conversion candidates describe only the structural type-0-to-type-1/nonzero-slot transition. They do not assert the page tag or referenced-page validity. A4-H3-REFERENCE-INVALID exclusively validates that every required nonzero reference resolves in-range to tag 05. This separation applies to rules and fixtures.",
-      "base_discrimination_rule": "H3 input-region coverage requires slot zero/nonzero, bit zero/nonzero, and both sides of the 16,352-bit boundary, but does not require a referenced page distinct from the slot ordinal. BASE-NONE/MULTIPLE then count fitting formulas. The BASE-MULTIPLE fixture uses reference == slot for every observation, causing the slot-base and referenced-page-base formulas both to fit; the decisive fixture includes reference != slot and leaves exactly one."
+      "base_discrimination_rule": "H3 input-region coverage requires exactly these six regions: an inactive (zero) slot, an active slot, bit 0 set in a referenced bitmap, a nonzero bit set, bit 16351 set in slot s, and bit 0 set in slot s+1 with both slots active. It does not require a referenced page distinct from the slot ordinal. BASE-NONE/MULTIPLE then count fitting formulas. The BASE-MULTIPLE fixture uses reference == slot for every observation, causing the slot-base and referenced-page-base formulas both to fit; the decisive fixture includes reference != slot and leaves exactly one (AMB-08).",
+      "fit_rule": "A base formula fits iff at every conversion leg the preceding type-0 owned set is contained in the formula-decoded type-1 set and every later leg obeys the H2 transition signatures on formula-decoded sets; no extant-page rule is applied to admitted pages (AMB-08)."
     },
     "h4": {
       "catalog_root_selection_signatures": [
         "operation_delta_non_name_structure"
       ],
       "catalog_root_selection_signature_rules": {
-        "operation_delta_non_name_structure": "Locate the root and one operation-delta record candidate per instance solely by listed-operation before/after deltas and complete row bounds. Do not inspect name bytes or name-length fields while selecting the root or operation-delta records. Kind, identifier, name, and length fields are enumerated only after record uniqueness."
+        "operation_delta_non_name_structure": "A root candidate is a tag-02 page extant at EMPTY whose frozen H1 locator layout, H2 decoder/role model, and H3 traversal are valid at every checkpoint and whose admitted stream (admitted page set or admitted page hashes) changes at every one of the five TableDefs.Append operations (T1_CREATE_ID, T2_CREATE, T2_RECREATE, T3_CREATE, T4_CREATE); changes at T1_ADD_TEXT and T1_ADD_INDEX are recorded but not required for candidacy. The H1 user table-record signature is not applied to system TDEFs. Locate the root and one operation-delta record candidate per instance solely by listed-operation before/after deltas and complete row bounds; do not inspect name bytes or name-length fields while selecting the root or operation-delta records (AMB-09)."
       },
       "system_tdef_source": "tag-02 pages extant at EMPTY; apply the frozen H1 locator layout, H2 decoder/role model, and H3 traversal independently without refit",
       "catalog_record_source": "After one root survives, SCHEMA-DELTA-OUTSIDE-OWNED compares every isolated physical schema delta with the root-admitted page set before record candidates are restricted to admitted pages. Only if every delta is inside are complete SRC-0020 record candidates restricted to allocation-admitted tag-01 pages.",
@@ -716,9 +732,17 @@
         "little",
         "big"
       ],
-      "name_length_endianness": "exactly the candidate endianness; not an independent grammar dimension",
-      "operation_binding_order": ["T1_CREATE_ID", "T1_ADD_TEXT", "T1_ADD_INDEX", "T2_CREATE", "T2_RECREATE", "T3_CREATE", "T4_CREATE"],
-      "field_candidate_shapes": "h4StructuralFieldCandidate contains only the encoding-neutral kind/id/name-length deltas and widths, one shared registered endianness, explicit table/field/index mapping, identifier-lifecycle relation, and an exact seven-entry operation_bindings array in checkpoint-operation order. Every binding contains its operation id, canonical record locator, and a nonempty canonically sorted bounded compatible_name_occurrences array; every occurrence records row-relative name_start, matched registered pattern id, matched bytes, and stored-length field locator/value. It has no encoding/length equivalence class. h4FinalFieldCandidate contains one structural_candidate_id, exactly one registered encoding_length_equivalence_class, and the exact selected occurrence for every operation binding. The global scalar name_start is forbidden.",
+      "name_length_endianness_rule": "exactly the candidate endianness; not an independent grammar dimension and not a candidate field. The sole endianness field governs kind, identifier, and stored name length.",
+      "operation_binding_order": [
+        "T1_CREATE_ID",
+        "T1_ADD_TEXT",
+        "T1_ADD_INDEX",
+        "T2_CREATE",
+        "T2_RECREATE",
+        "T3_CREATE",
+        "T4_CREATE"
+      ],
+      "field_candidate_shapes": "h4StructuralFieldCandidate contains only occurrence_evidence_sha256, the encoding-neutral kind/id/name-length deltas and widths, one shared registered endianness, the explicit table/field/index mapping, the identifier-lifecycle relation, and an exact seven-entry compatible_occurrences_by_operation array in checkpoint-operation order. Each entry holds the operation id, the compatible occurrence count (at least 1), and a fixed-width LSB-first bitmap over that operation's occurrence indexes in the bound h4_occurrence_evidence table: 64 hex characters (256 bits, bits 254..255 zero) for the five eight-byte table operations and 74 hex characters (296 bits, bits 290..295 zero) for Payload and A4IX_ID; the bitmap popcount equals the count. No occurrence object, name_start, stored-length value, or encoding/length equivalence class is stored inside a structural candidate. h4FinalFieldCandidate contains one structural_candidate_id, exactly one registered encoding_length_equivalence_class, and an exact seven-entry selected_operation_occurrences array whose occurrence_index for each operation MUST have its bit set in the referenced structural candidate's bitmap for that operation. The global scalar name_start is forbidden. The candidate also records value_equivalent_tuple_count (1..165888): tuples decoding identical kind, identifier, and length values for every operation record at every applicable checkpoint are one model represented by the first tuple in canonical enumeration order (AMB-12).",
       "kind_value_mapping": "Sort the three distinct observed kind raw integers ascending. A candidate stores the explicit object {table: value, field: value, index: value}; enumerate the six permutations lexicographically by (table, field, index). Opaque bijection-N ids are forbidden.",
       "expected_kind_relations": "T1_CREATE_ID, T2_CREATE, T2_RECREATE, T3_CREATE, and T4_CREATE anchors map to table; T1_ADD_TEXT maps to field; T1_ADD_INDEX maps to index. Equal kinds require equal raw values and different kinds require distinct raw values.",
       "identifier_lifecycle_relations": [
@@ -763,19 +787,24 @@
         }
       ],
       "encoding_length_evaluation_rule": "After exactly one structural field-layout model survives, compare every compatible deferred occurrence against exact strict Windows-1252 (C9 for U+00C9) and UTF-8 (C3 89) bytes and the selected stored length against the registered equivalence classes. Encoding failure records the actual fitting-class count. The zero-fit fixture contains no matching candidate; a multiple fixture, if registered, contains both registered byte occurrences at compatible deferred anchors and never claims two classes fit one É occurrence. The campaign contains no possible within-CP1252 discriminator because strict CP1252 is single-byte for every representable scalar; report cp1252_single_byte_per_scalar rather than selecting one observationally equivalent member.",
-      "structural_raw_tuple": "After one operation-delta record per each of 7 instances survives: compatible name occurrences retained separately for every operation, kind_start_delta 1..16, kind_width 1/2/4, immediately preceding identifier_width 1/2/4, one shared kind/identifier/stored-name-length endianness little/big, name_length_start_delta 1..16, name_length_width 1/2/4, one of 6 explicit kind-value objects, and one of 2 identifier lifecycle relations. The inner grammar is 16*3*3*2*16*3*6*2=165888. Encoding class remains deferred. Identical non-name field-address tuples are deduplicated before structural cardinality while compatible name occurrences remain deferred evidence in the exact seven-entry operation_bindings array.",
+      "structural_raw_tuple": "After one operation-delta record per each of 7 instances survives: compatible name occurrences retained separately for every operation in the bound h4_occurrence_evidence table, kind_start_delta 1..16, kind_width 1/2/4, immediately preceding identifier_width 1/2/4, one shared kind/identifier/stored-name-length endianness little/big, name_length_start_delta 1..16, name_length_width 1/2/4, one of 6 explicit kind-value objects, and one of 2 identifier lifecycle relations. The inner grammar is 16*3*3*2*16*3*6*2=165888. Encoding class remains deferred. Value-equivalent tuples (identical decoded kind/identifier/length values everywhere, including identical-address tuples) are one model before structural cardinality while the compatible occurrence subset of each operation is retained as a bitmap over the evidence table.",
       "raw_tuple_filter_order": [
         "require_one_operation_delta_record_per_instance",
         "scan_complete_row_for_union_of_registered_expected_name_bytes",
         "enumerate_bounded_name_kind_identifier_and_length_tuples",
         "charge_raw_tuple",
         "reject_out_of_row_or_overlapping_fields",
-        "deduplicate_identical_byte_address_tuple",
+        "test_stored_length_plausibility",
+        "deduplicate_value_equivalent_tuples",
         "test_kind_mapping",
         "test_identifier_lifecycle",
         "count_structural_field_layouts",
         "if_exactly_one_then_test_compatible_occurrences_against_three_encoding_length_equivalence_candidates"
-      ]
+      ],
+      "occurrence_evidence_table": "After one operation-delta record per instance survives, the encoding-neutral union scan produces one canonical frozen h4_occurrence_evidence document (artifacts.h4_occurrence_evidence, schema h4-occurrence-evidence.schema.json) bound by SHA-256: the surviving root candidate id and exactly seven operation bindings in checkpoint-operation order, each with the canonical record locator and its deduplicated raw name occurrences (occurrence_index, row-relative name_start, matched registered pattern id, matched bytes), at most 254 for each of the five table operations and 290 for Payload and A4IX_ID, 1,850 in total, canonical UTF-8 JSON at most 524,288 bytes. Every structural candidate references the table by hash instead of inlining occurrences, so a candidate stays under 4,096 bytes and the candidate-array proof closes. The independent validator recomputes every compatible length-field location and value from the bound page bytes and the evidence table, recomputes each bitmap, and verifies final-candidate occurrence membership. The evidence reference is null whenever structural enumeration never began.",
+      "encoding_result_rule": "H4 freezes two independent field results after root_result: structural_result and encoding_result. structural_result always retains the complete operation-record or h4StructuralFieldCandidate set and its hash once record or structural enumeration begins. encoding_result is not_applicable unless structural_result is a one-model result. FIELD-MODEL-MULTIPLE stores two or more structural candidates and no final candidates. ENCODING-AMBIGUOUS with zero or multiple fits retains exactly one structural candidate in structural_result and stores zero or at least two h4FinalFieldCandidate objects in encoding_result. Decisive H4 retains exactly one object in each result. Every final candidate's structural_candidate_id MUST equal the retained structural candidate's canonical_candidate_id, so all final candidates in an encoding-multiple set share one structural id and differ only by registered equivalence class and selected occurrences; for each operation the selected occurrence index MUST be a member of the retained structural candidate's compatible bitmap. Reject an orphan structural id, a selected occurrence absent from the structural bitmap, duplicate equivalence classes, or any final candidate when structural cardinality is not exactly one. H4 REPLICA-DISAGREEMENT retains the per-replica structural pair in structural_result and the per-replica final pair in encoding_result; the final pair must be unequal, the structural pair may be equal.",
+      "isolated_delta_rule": "At a listed operation transition the isolated physical schema delta is the set of changed page indices minus page 0 and page 1, every user instance's TDEF page, every user H1-located map page, and every page admitted by a user instance's frozen H2/H3 traversal at that checkpoint. Page 0 is excluded, not assumed static (AMB-10).",
+      "length_plausibility_rule": "Before deduplication, for every operation record and every compatible occurrence the stored length decoded under the tuple's width and endianness must equal one of the registered encoding-neutral counts for the expected name: strict Windows-1252 byte count, UTF-8 byte count, or Unicode scalar count (8, 9, 8 for A4TAB_É4; all equal for ASCII names). The test selects no class (AMB-11)."
     }
   },
   "hypotheses": {
@@ -811,7 +840,7 @@
       "title": "catalog bootstrap",
       "model": "After one operation-delta/non-name structural catalog-root and field-layout model survives, compare exact strict Windows-1252 and UTF-8 name encodings and report the one surviving length equivalence class; predict root, kind/id relations, exact name bytes, and length class on holdout without refit.",
       "no_outcome": "zero or multiple catalog roots, records, or field models; schema delta outside admitted pages; encoding ambiguity; replica disagreement; holdout root or field prediction failure",
-      "separate_reporting": "catalog root/location and catalog row-field results are reported independently so a field failure cannot erase root success"
+      "separate_reporting": "catalog root/location, structural field-layout, and encoded-field results are reported independently as root_result, structural_result, and encoding_result so a field or encoding failure cannot erase root or structural success"
     },
     "deferred": "physical column/index definition, row values, index nodes, relationships, Memo/OLE/long values, writes, free-space preferences, and preservation are outside A4"
   },
@@ -819,7 +848,7 @@
     "must_complete_before_acquisition": true,
     "dry_run_result_disclosure": "not_run_preregistration_only",
     "dispatch_gate": "before any matrix job, execute schema-valid synthetic, A3-calibration derivation-only replay, decisive-report validator, independent pair, tamper runs, and the complete registry-ordered reachability transcript; independently hash retained transcript bytes and reject a missing, extra, reordered, stale, or disagreeing entry; commit an additive provenance disclosure. A3 holdout data is calibration only and no future A4 holdout may be opened before freeze",
-    "reachability_transcript_binding": "The synthetic dry-run report binds the exact path dry-run/a4-reachability-transcript.json, SHA-256, byte size, harness commit, independent-validator commit, and additive provenance entry id. The transcript contains exactly one entry per predicate in registry order. Each entry binds the baseline fixture hash, mutation hash, page-index and page-blob inventory hashes, enumerated candidate ids by stage, actual survivor counts for every evaluated predicate, first-failure id, analyzer result, independent-validator result, and agreement. It also contains the named adversarial-case outcomes. The dispatch gate independently hashes the retained transcript bytes and rejects any missing, extra, reordered, stale, or disagreeing entry.",
+    "reachability_transcript_binding": "The synthetic dry-run report binds the exact path dry-run/a4-reachability-transcript.json, SHA-256, byte size, harness commit, independent-validator commit, and additive provenance entry id. The transcript schema fixes fixture_entries as exactly 40 positional items (prefixItems in registry order, items false); each position constrains order, predicate_id, and reachability_fixture_id to the corresponding predicate contract and reuses one bounded entry schema. Each entry binds the baseline fixture hash, mutation hash, page-index and page-blob inventory hashes, enumerated candidate ids by stage, actual survivor counts for every evaluated predicate, first-failure id, analyzer result, independent-validator result, and agreement. Each reachable position fixes first_failure_id to its own predicate id and unreachable_assertion to null; the A4-H1-LOCATOR-PAIR-MULTIPLE position fixes first_failure_id to null and requires an unreachable_assertion with the enumeration argument, max measured count 1, and at least one fixture id that evaluated the predicate (AMB-02, AMB-16). Semantically, evaluated_predicates MUST be exactly the ordered applicable registry prefix ending at the entry's predicate, with every earlier status pass and the last status fail (or pass for the unreachable row), the entry's first_failure_id MUST equal both evaluator first-failure ids, and the analyzer and independent-validator first failure, measured terminal count, and candidate-set SHA-256 MUST be equal rather than merely flagged agreement: true. adversarial_case_outcomes is the exact ten-key object of analyzer_dry_run_contract.dry_run_honesty_clause.byte_level_reachability_harness_contract.required_adversarial_cases. The dispatch gate independently hashes the retained transcript bytes and rejects any missing, extra, reordered, stale, or disagreeing entry.",
     "dry_run_honesty_clause": {
       "style": "R3 dry-run honesty clause",
       "required_cases": [
@@ -835,7 +864,7 @@
         "encoding_ambiguity",
         "replica_disagreement",
         "holdout_failure",
-        "resource_exact_ceiling",
+        "work_counter_comparator_equality",
         "resource_one_over",
         "campaign_2700_seconds",
         "campaign_2701_seconds"
@@ -844,13 +873,14 @@
       "byte_level_reachability_harness_contract": {
         "shared_campaign": "A reachability fixture contains one shared synthetic campaign: exact 2,048-byte page blobs, page indexes, checkpoint/lifecycle events, DAO snapshot values, and the expected mutation from the all-pass baseline. It MUST NOT contain `accepted` or `valid` verdict booleans. The evaluator decodes the fixture bytes, enumerates only ids/tuples present in the registered grammar, applies filters in the normative order, propagates each surviving candidate set to the next predicate, and then reports the first failure. A fixture is accepted only if every earlier predicate passes on that same state and the target predicate is its first failure.",
         "survivor_count_handling": "`exact: n` requires measured count `== n`; `minimum: n` requires measured count `>= n` and stores the actual measured count. `exactly_one_accepted` returns the actual fitting cardinality on both pass and failure. A predicate whose failure permits both zero and multiple candidates declares `allowed_ranges: [{\"exact\": 0}, {\"minimum\": 2}]`; it never substitutes the structural-model count 1 for the encoding-candidate count.",
-        "required_adversarial_cases": "Add direct evaluator cases for MULTIPLE counts 2, 3, and 4, encoding counts 0 and 2, an unregistered candidate id, a malformed page, and a target mutation that also invalidates an earlier predicate. The test must reject every such false fixture except the explicitly legitimate measured outcomes.",
+        "required_adversarial_cases": "The transcript's adversarial_case_outcomes is an exact keyed object with ten fixed cases and fixed expectations: multiple_count_2, multiple_count_3, multiple_count_4, encoding_count_0, and encoding_count_2 expect acceptance as legitimate measured outcomes; unregistered_candidate_id, malformed_page, earlier_predicate_invalidated (a target mutation that also invalidates an earlier predicate), and resource_one_over (the byte-level 67,200-changed-entry campaign of the A4-RESOURCE-BOUND fixture) expect rejection; work_counter_comparator_equality injects a measured work counter of exactly 600,000,000 into the checked comparator and expects acceptance, and is a comparator test outside the 40 byte-level fixtures. A duplicate, missing, or renamed case, or a result differing from its fixed expectation, is rejected.",
         "enumeration_and_reporting": "The harness uses grammar-only enumeration, the normative filter order, shared propagated state, first-failure reporting, and measured survivor counts with exact, minimum, and allowed_ranges semantics. It emits the actual count for every evaluated predicate and rejects an unregistered id or tuple before scientific filtering.",
         "dispatch_gate": "The harness and transcript must be executed, retained, hash-bound, and disclosed additively before any hosted dispatch. Every claimed-reachable terminal must be the measured first failure of its byte fixture; every unreachable terminal must be explicitly asserted unreachable by enumeration."
       },
       "replica_3_independent_overshoot": "synthetic replica 3 uses independently chosen baseline/threshold overshoot in every growth phase and is not an alias of replica 1 or 2",
       "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every propagated candidate set, actual survivor count, ordered predicate status, first failure, layer outcome, and holdout result across the full byte-fixture sweep",
-      "tamper_suite_execution": "execute and retain rejection of plan binding, frozen set, row locator, schema snapshot, report, and timeout tampering; a constant rejected=true is failure"
+      "tamper_suite_execution": "execute and retain rejection of plan binding, frozen set, row locator, schema snapshot, report, and timeout tampering; a constant rejected=true is failure",
+      "work_counter_comparator_rule": "max_analysis_work_units is a conservative_upper bound: the latest registered path charges 387,467,081 units and no byte-level campaign can reach 600,000,000. The equality and one-over tests therefore exercise only the checked counter comparator: a unit-test measured-total argument of 600,000,000 is accepted and 600,000,001 is rejected before manifest creation. Neither test claims a constructible campaign at the ceiling; both are comparator tests outside the 40 byte-level reachability fixtures. The byte-level A4-RESOURCE-BOUND terminal is exercised through the constructible one-over changed-hash resource (67,200 recomputed changed page-index entries against the attainable_exact 65,536 cap, built from two alternating blobs over 3,200 pages); a row-count one-over is not used because snapshot and observation schemas already cap row counts at 200,000 and would fail A4-SCHEMA-SNAPSHOT first. There is no charge-injection hook in the production analyzer: the comparator is a pure function under unit test, and the transcript records that unit-test result (AMB-17)."
     },
     "a3_calibration_use_limit": "only retained A3 replicas 1 and 2 may be opened by calibration replay; no result, including EXP-0051 independent acceptance, is A4 evidence"
   },
@@ -944,7 +974,7 @@
         "A4-H4-REPLICA-DISAGREEMENT"
       ]
     },
-    "evaluation_rule": "Evaluation has two phases. Derivation phase: using replicas 1 and 2 only, evaluate every non-holdout predicate for H1, H2, H3, and H4 in dependency order. A downstream derivation layer depends on the previous layer's unique derivation model, never on its holdout result. Canonically serialize and hash all four derivation results, then irreversibly close the derivation inputs and analyzer state. Holdout phase: only after that hash exists, acquire and structurally validate replica 3 and evaluate, without refit, H1 holdout, H2 holdout, H3 holdout, H4 root holdout, and H4 field holdout in that order. An upstream holdout failure makes downstream holdout predicates not_applicable; it does not alter any frozen candidate, derivation count, or derivation terminal. Evaluate campaign predicates first in registered order. For an applicable predicate, pass means and only means its registered pass_iff condition is true; otherwise record fail, use that predicate id as the sole terminal for its scope, and mark every later predicate in that scope not_applicable. After a campaign failure, all 36 scientific predicates are not_applicable and no successful evidence bundle is created. A decisive derivation layer has every derivation predicate pass, terminal id null, survivor count 1, and one frozen candidate. No predicate may infer semantics from its id.",
+    "evaluation_rule": "Evaluation has two phases. Derivation phase: using replicas 1 and 2 only, evaluate every non-holdout predicate for H1, H2, H3, and H4 in dependency order. A downstream derivation layer depends on the previous layer's unique derivation model, never on its holdout result. Canonically serialize and hash all four derivation results, then irreversibly close the derivation inputs and analyzer state. Holdout phase: only after that hash exists, acquire and structurally validate replica 3 and evaluate, without refit, H1 holdout, H2 holdout, H3 holdout, H4 root holdout, and H4 field holdout in that order. An upstream holdout failure makes downstream holdout predicates not_applicable; it does not alter any frozen candidate, derivation count, or derivation terminal. Evaluate campaign predicates first in registered order. For an applicable predicate, pass means and only means its registered pass_iff condition is true; otherwise record fail, use that predicate id as the sole terminal for its scope, and mark every later predicate in that scope not_applicable. After a campaign failure, all 36 scientific predicates are not_applicable and no successful evidence bundle is created. A decisive derivation layer has every derivation predicate pass, terminal id null, survivor count 1, and one frozen candidate. No predicate may infer semantics from its id. Each terminal records its contract's terminal_payload_schema: candidate_set (the counted set), grouped_candidate_set (seven ordered operation groups), replica_pair (two unequal per-replica models), or invalid_observation (an input model reference plus a bounded byte-derived observation). A layer result whose terminal payload is not candidate_set may have a candidate array length that differs from predicate_measured_survivor_count; the count is validated against the declared counted set. A4-RESOURCE-BOUND is evaluated fourth over the campaign-level resources and stays armed: a later attempt to construct candidate 4,097, occurrence identity 1,851, an over-bound JSON document, or (by comparator unit test only) work unit 600,000,001 during layer evaluation is the same terminal, aborts evaluation, and creates no scientific report or successful manifest. Its registered byte-level reachability fixture is campaign-level so that its transcript entry has the exact four-predicate prefix. Cardinality and validity predicates are evaluated on replica 1 and then replica 2; the first violating replica supplies the measured count and the retained candidates (AMB-04). Campaign predicates run per replica as each replica is structurally validated: replicas 1 and 2 before derivation and replica 3 only after the frozen-document hash exists and before any holdout predicate; the report's campaign rows are the conjunction over all three replicas (AMB-13).",
     "no_outcome_terminals": {
       "h1_tdef_to_map_row": [
         "A4-H1-TDEF-NONE",
@@ -995,12 +1025,18 @@
         "scope": "campaign",
         "prerequisites": [],
         "input_candidate_set": "none; campaign bytes and snapshots",
+        "counted_set_kind": "campaign_inputs",
         "pass_iff": "every idle pair has equal reconstructed MDB bytes, page-index sequence, and canonical snapshot tables value",
         "fail_iff": "any idle pair differs in reconstructed MDB bytes, page-index sequence, or canonical snapshot tables value",
         "terminal_id": "A4-IDLE-EQUALITY",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "campaign"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R01-IDLE-EQUALITY",
         "reachability_fixture": "All inputs valid except one byte differs in EMPTY_R; no preceding predicate exists and only this predicate fails.",
@@ -1014,12 +1050,18 @@
           "A4-IDLE-EQUALITY"
         ],
         "input_candidate_set": "75 canonical DAO snapshots",
+        "counted_set_kind": "campaign_inputs",
         "pass_iff": "all 75 snapshots exist, validate, bind to the correct replica/checkpoint/role, match expected schema and row hashes, use code page 1252 and strict name conversion, and preserve before/after hashes",
         "fail_iff": "any snapshot is missing, schema-invalid, wrongly bound, violates expected extant schema, row count/hash, code page, name-byte conversion, or before/after hash equality",
         "terminal_id": "A4-SCHEMA-SNAPSHOT",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "campaign"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R02-SCHEMA-SNAPSHOT",
         "reachability_fixture": "All-pass fixture with one snapshot ordinal changed; A4-IDLE-EQUALITY still passes and only this predicate fails.",
@@ -1033,12 +1075,18 @@
           "A4-SCHEMA-SNAPSHOT"
         ],
         "input_candidate_set": "75 page-index reconstructions",
+        "counted_set_kind": "campaign_inputs",
         "pass_iff": "every reconstruction equals its observation in page count, file size, ordered page hashes, and database SHA-256",
         "fail_iff": "any reconstruction differs in page count, file size, ordered page hash, or database SHA-256",
         "terminal_id": "A4-SNAPSHOT-RECONSTRUCTION",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "campaign"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R03-SNAPSHOT-RECONSTRUCTION",
         "reachability_fixture": "All prior checks pass but one reconstructed ordered page hash is changed, so only this predicate fails.",
@@ -1051,16 +1099,22 @@
         "prerequisites": [
           "A4-SNAPSHOT-RECONSTRUCTION"
         ],
-        "input_candidate_set": "independently recomputed named resource charges",
+        "input_candidate_set": "independently recomputed campaign-level resource charges: inserted rows from the snapshot row counts, changed-hash entries from the 25 page indexes, unique page blobs, page-store and companion bytes, and checkpoint read bytes",
+        "counted_set_kind": "campaign_inputs",
         "pass_iff": "every independently recomputed resource is less than or equal to its named bound; equality passes",
         "fail_iff": "any independently recomputed resource is exactly one or more above its named bound",
         "terminal_id": "A4-RESOURCE-BOUND",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "campaign"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R04-RESOURCE-BOUND",
-        "reachability_fixture": "All prior checks pass and one named loop attempts its bound plus one charged identity before manifest creation.",
+        "reachability_fixture": "All prior checks pass: every idle pair stays byte-identical, every snapshot validates, and every page index reconstructs. The shared campaign alternates 3,200 pages between two distinct 2,048-byte blobs across the 21 non-idle transitions, so the changed-hash entries recomputed from the page indexes are 21 * 3,200 = 67,200, over the attainable_exact 65,536 cap, using only two unique blobs. No byte-level path can charge 600,000,000 work units, so the work counter is exercised only by the comparator case outside the 40 fixtures.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1071,12 +1125,18 @@
           "campaign_pass"
         ],
         "input_candidate_set": "table-relative TDEF candidates",
+        "counted_set_kind": "table_relative_tdef_candidates",
         "pass_iff": "candidate cardinality is at least 1",
         "fail_iff": "candidate cardinality is exactly 0",
         "terminal_id": "A4-H1-TDEF-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_tdef",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R05-H1-TDEF-NONE",
         "reachability_fixture": "Campaign passes; fixture removes every lifecycle-matching TDEF candidate and changes no earlier input.",
@@ -1090,6 +1150,7 @@
           "A4-H1-TDEF-NONE"
         ],
         "input_candidate_set": "table-relative TDEF candidates",
+        "counted_set_kind": "table_relative_tdef_candidates",
         "pass_iff": "candidate cardinality is exactly 1",
         "fail_iff": "candidate cardinality is greater than 1",
         "terminal_id": "A4-H1-TDEF-MULTIPLE",
@@ -1097,6 +1158,11 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_tdef",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R06-H1-TDEF-MULTIPLE",
         "reachability_fixture": "Campaign and TDEF-NONE pass; fixture provides exactly two lifecycle-matching TDEF candidates.",
@@ -1110,12 +1176,18 @@
           "A4-H1-TDEF-MULTIPLE"
         ],
         "input_candidate_set": "the two registered layouts after cross-checkpoint syntactic window preservation",
+        "counted_set_kind": "layouts_with_any_preserved_window",
         "pass_iff": "at least one layout has at least one cross-checkpoint syntactically preserved window",
         "fail_iff": "neither layout has any cross-checkpoint syntactically preserved window",
         "terminal_id": "A4-H1-LOCATOR-LAYOUT-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_target_valid_layout",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R07-H1-LAYOUT-NONE",
         "reachability_fixture": "One TDEF survives but neither registered layout has any syntactically preserved four-byte window across the shared campaign.",
@@ -1129,12 +1201,18 @@
           "A4-H1-LOCATOR-LAYOUT-NONE"
         ],
         "input_candidate_set": "masked, nonoverlapping, identity-preserved structural pairs under both layouts",
+        "counted_set_kind": "structural_pairs_under_both_layouts",
         "pass_iff": "at least one structural pair exists under either layout",
         "fail_iff": "windows exist but no masked, nonoverlapping, identity-preserved pair exists under either layout",
         "terminal_id": "A4-H1-LOCATOR-PAIR-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R09-H1-PAIR-NONE",
         "reachability_fixture": "Syntactically preserved windows exist, but no byte-derived pair passes the mask, nonoverlap, and identity filters under either layout.",
@@ -1148,12 +1226,18 @@
           "A4-H1-LOCATOR-PAIR-NONE"
         ],
         "input_candidate_set": "all structural pairs under both layouts",
+        "counted_set_kind": "target_valid_pairs_under_both_layouts",
         "pass_iff": "at least one structural pair has two distinct targets that are extant tag 01 with in-range row ordinals at every applicable checkpoint",
         "fail_iff": "structural pairs exist but none has two distinct targets that are extant tag 01 with in-range row ordinals at every applicable checkpoint",
         "terminal_id": "A4-H1-TARGET-ROW-INVALID",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R11-H1-TARGET-INVALID",
         "reachability_fixture": "Structural pairs survive, but every pair has a missing, non-tag-01, duplicate, or out-of-range target in at least one applicable checkpoint.",
@@ -1167,6 +1251,7 @@
           "A4-H1-TARGET-ROW-INVALID"
         ],
         "input_candidate_set": "layouts containing at least one target-valid pair",
+        "counted_set_kind": "layouts_with_target_valid_pairs",
         "pass_iff": "target-valid pairs survive under exactly one layout",
         "fail_iff": "target-valid pairs survive under more than one layout",
         "terminal_id": "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
@@ -1174,6 +1259,11 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_target_valid_layout",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R08-H1-LAYOUT-MULTIPLE",
         "reachability_fixture": "Target-valid byte-derived pairs survive under both registered layouts.",
@@ -1187,6 +1277,7 @@
           "A4-H1-LOCATOR-LAYOUT-MULTIPLE"
         ],
         "input_candidate_set": "target-valid pairs under the unique target-valid layout",
+        "counted_set_kind": "target_valid_pairs_under_unique_layout",
         "pass_iff": "exactly one target-valid pair survives under the unique layout",
         "fail_iff": "more than one target-valid pair survives under the unique layout",
         "terminal_id": "A4-H1-LOCATOR-PAIR-MULTIPLE",
@@ -1194,10 +1285,15 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
-        "reachability_fixture_id": "A4-R10-H1-PAIR-MULTIPLE",
-        "reachability_fixture": "Exactly two target-valid byte-derived pairs survive under the unique layout.",
-        "fixture_status": "claimed_reachable; execution_required_before_dispatch"
+        "reachability_fixture_id": null,
+        "reachability_fixture": "Unreachable by construction: structural pairs must sit at the exact registered locator holes [35,39) and [39,43), so one layout admits at most the single canonical pair (35,39) and the pair count under the unique layout can never exceed one. The dispatch-gate harness must assert this by enumeration (max measured count 1 across the full sweep) instead of supplying a fixture (AMB-02).",
+        "fixture_status": "unreachable_by_construction; assertion_by_enumeration_required_before_dispatch"
       },
       {
         "predicate_id": "A4-H1-REPLICA-DISAGREEMENT",
@@ -1207,15 +1303,23 @@
           "A4-H1-LOCATOR-PAIR-MULTIPLE"
         ],
         "input_candidate_set": "one canonical H1 logical-role model from each derivation replica",
+        "counted_set_kind": "per_replica_unique_h1_models",
         "pass_iff": "replicas 1 and 2 each have one model and their canonical logical-role models are equal",
         "fail_iff": "replicas 1 and 2 each have one model but their canonical logical-role models differ",
         "terminal_id": "A4-H1-REPLICA-DISAGREEMENT",
         "failure_survivor_count": {
-          "exact": 1
+          "per_replica_exact": 1,
+          "replica_count": 2,
+          "total_exact": 2
         },
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R12-H1-REPLICA",
-        "reachability_fixture": "Both replicas independently reach one valid H1 model but replica 2 uses the other registered layout.",
+        "reachability_fixture": "Both replicas independently reach one valid H1 model but replica 2 uses the other registered layout; the frozen layer retains the two unequal per-replica models as a replica pair and no union candidate.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1225,16 +1329,22 @@
         "prerequisites": [
           "h1_tdef_to_map_row_derivation_model"
         ],
-        "input_candidate_set": "one H1 model with complete located page directories",
-        "pass_iff": "complete SRC-0020 directory validation succeeds for every located derivation row",
-        "fail_iff": "complete SRC-0020 directory validation fails for any located derivation page",
+        "input_candidate_set": "one H1 model with complete located page directories under each registered row mask",
+        "counted_set_kind": "decisive_h1_input_model",
+        "pass_iff": "for every located derivation page at every applicable checkpoint, at least one registered row mask yields a complete valid SRC-0020 directory (10+2*row_count <= start < end <= 2048 and nonoverlap in directory order); masks that yield byte-identical bounds are one model",
+        "fail_iff": "some located derivation page at some applicable checkpoint has no registered row mask yielding a complete valid SRC-0020 directory",
         "terminal_id": "A4-H2-ROW-DIRECTORY-INVALID",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R14-H2-DIRECTORY",
-        "reachability_fixture": "H1 target ordinals are in range, but one directory start overlaps its directory bytes, so H1 passes and only this predicate fails.",
+        "reachability_fixture": "H1 target ordinals are in range, but one directory start overlaps its directory bytes under both registered masks, so H1 passes and only this predicate fails; the frozen layer retains the decisive H1 candidate id and the invalid-directory observation with both masked starts, and no H2 candidate exists.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1244,16 +1354,22 @@
         "prerequisites": [
           "A4-H2-ROW-DIRECTORY-INVALID"
         ],
-        "input_candidate_set": "one H1 model with valid complete row bounds",
+        "input_candidate_set": "one H1 model with valid complete row bounds under at least one mask; flags are read from the raw directory entry and are mask-independent",
+        "counted_set_kind": "decisive_h1_input_model",
         "pass_iff": "neither located row has deleted or overflow set",
         "fail_iff": "either located row has deleted or overflow set",
         "terminal_id": "A4-H2-ROW-FLAGS-INVALID",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R15-H2-FLAGS",
-        "reachability_fixture": "The complete directory is valid but the unique target row has deleted set; all preceding predicates pass.",
+        "reachability_fixture": "The complete directory is valid but the unique target row has deleted set; all preceding predicates pass. The frozen layer retains the decisive H1 candidate id and the flagged-entry observation, and no H2 candidate exists.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1263,16 +1379,22 @@
         "prerequisites": [
           "A4-H2-ROW-FLAGS-INVALID"
         ],
-        "input_candidate_set": "two complete unflagged located rows",
-        "pass_iff": "each row tag is 00 or 01 and every type-1 payload length is divisible by four",
-        "fail_iff": "either complete row has a tag other than 00 or 01 or a type-1 payload is not an integral sequence of u32 slots",
+        "input_candidate_set": "two complete unflagged located rows under each surviving mask",
+        "counted_set_kind": "decisive_h1_input_model",
+        "pass_iff": "under at least one surviving mask each row tag is 00 or 01 and every type-1 payload length is divisible by four; masks failing this test are eliminated before ROLE-NONE",
+        "fail_iff": "under every surviving mask either complete row has a tag other than 00 or 01 or a type-1 payload is not an integral sequence of u32 slots",
         "terminal_id": "A4-H2-MAP-TAG-UNSUPPORTED",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R16-H2-TAG",
-        "reachability_fixture": "Both rows have valid bounds and flags, but one row begins 02; all prior predicates pass.",
+        "reachability_fixture": "Both rows have valid bounds and flags, but one row begins 02; all prior predicates pass. The frozen layer retains the decisive H1 candidate id and the tag observation, and no H2 candidate exists.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1283,15 +1405,21 @@
           "A4-H2-MAP-TAG-UNSUPPORTED"
         ],
         "input_candidate_set": "registered locator-role, polarity, and row-mask candidates before lifecycle checks",
-        "pass_iff": "candidate cardinality is at least 1",
+        "counted_set_kind": "static_role_polarity_mask_candidates",
+        "pass_iff": "candidate cardinality is at least 1 under candidate_grammars.h2.static_fit_rule",
         "fail_iff": "candidate cardinality is exactly 0",
         "terminal_id": "A4-H2-ROLE-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R17-H2-ROLE-NONE",
-        "reachability_fixture": "Valid rows contain supported tags but neither registered role/polarity assignment fits their static structure.",
+        "reachability_fixture": "Valid rows contain supported tags but no registered role/polarity/mask assignment fits their static structure: under every assignment the available set is not a subset of the owned set (AMB-05).",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1302,6 +1430,7 @@
           "A4-H2-ROLE-NONE"
         ],
         "input_candidate_set": "registered locator-role, polarity, and row-mask candidates before lifecycle checks",
+        "counted_set_kind": "static_role_polarity_mask_candidates",
         "pass_iff": "candidate cardinality is exactly 1",
         "fail_iff": "candidate cardinality is greater than 1",
         "terminal_id": "A4-H2-ROLE-MULTIPLE",
@@ -1309,6 +1438,11 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R18-H2-ROLE-MULTIPLE",
         "reachability_fixture": "Two distinct row-role assignments fit the supported row shapes; all earlier H2 predicates pass.",
@@ -1322,15 +1456,21 @@
           "A4-H2-ROLE-MULTIPLE"
         ],
         "input_candidate_set": "the one H2 static role model",
+        "counted_set_kind": "unique_static_role_model",
         "pass_iff": "the one model satisfies every registered grow, delete, reinsert, drop/recreate, and idle transition signature",
         "fail_iff": "the one model violates at least one registered transition signature",
         "terminal_id": "A4-H2-TRANSITION-UNEXPLAINED",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R19-H2-TRANSITION",
-        "reachability_fixture": "One role model fits static rows, but its owned set changes during an idle leg; prior predicates pass.",
+        "reachability_fixture": "One role model fits static rows, but during the T1_REL_0512 grow leg its owned/in-use set loses a page; idle legs cannot host this fixture because A4-IDLE-EQUALITY already requires idle pairs to be byte-identical (AMB-06). Prior predicates pass.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1341,15 +1481,23 @@
           "A4-H2-TRANSITION-UNEXPLAINED"
         ],
         "input_candidate_set": "one canonical H2 model from each derivation replica",
+        "counted_set_kind": "per_replica_unique_h2_models",
         "pass_iff": "replicas 1 and 2 each have one model and their canonical logical-role models are equal",
         "fail_iff": "replicas 1 and 2 each have one model but their canonical logical-role models differ",
         "terminal_id": "A4-H2-REPLICA-DISAGREEMENT",
         "failure_survivor_count": {
-          "exact": 1
+          "per_replica_exact": 1,
+          "replica_count": 2,
+          "total_exact": 2
         },
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R20-H2-REPLICA",
-        "reachability_fixture": "Each replica has one transition-complete model, but their owned locator ordinals differ.",
+        "reachability_fixture": "Each replica has one transition-complete model, but replica 2 owns the other H1 locator ordinal, so the canonical H2 models differ while H1 stays replica-invariant (AMB-15); the two unequal per-replica models are retained as a replica pair.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1360,12 +1508,18 @@
           "h2_row_identity_map_role_derivation_model"
         ],
         "input_candidate_set": "structural type-0-to-type-1/nonzero-slot transition candidates",
+        "counted_set_kind": "structural_conversion_candidates",
         "pass_iff": "at least one structural transition candidate fits without testing referenced page tags",
         "fail_iff": "no structural transition candidate fits; page tag and reference validity are not consumed",
         "terminal_id": "A4-H3-CONVERSION-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R22-H3-CONVERSION",
         "reachability_fixture": "All prior predicates pass but no registered structural type-0-to-type-1 transition fits; reference pages are not inspected.",
@@ -1379,12 +1533,18 @@
           "A4-H3-CONVERSION-NONE"
         ],
         "input_candidate_set": "the one conversion model and its decoded slots",
+        "counted_set_kind": "unique_conversion_model",
         "pass_iff": "at least one zero slot is observed in derivation",
         "fail_iff": "no zero slot is observed in derivation",
         "terminal_id": "A4-H3-INACTIVE-SLOT-NONE",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R23-H3-INACTIVE",
         "reachability_fixture": "All nonzero references are valid but every observed slot is nonzero, so only the inactive observation fails.",
@@ -1398,15 +1558,21 @@
           "A4-H3-INACTIVE-SLOT-NONE"
         ],
         "input_candidate_set": "the one structural conversion model and required nonzero references",
+        "counted_set_kind": "unique_conversion_model",
         "pass_iff": "every required nonzero reference resolves in range to tag 05",
         "fail_iff": "any required nonzero reference is missing, out of range, or not tag 05",
         "terminal_id": "A4-H3-REFERENCE-INVALID",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R24-H3-REFERENCE",
-        "reachability_fixture": "The structural conversion candidate survives, but one nonzero reference resolves to tag 01; only REFERENCE-INVALID consumes that tag.",
+        "reachability_fixture": "The structural conversion candidate survives, but one nonzero reference resolves to tag 01; only REFERENCE-INVALID consumes that tag. The frozen layer retains the one conversion candidate and the reference observation.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1417,12 +1583,18 @@
           "A4-H3-REFERENCE-INVALID"
         ],
         "input_candidate_set": "registered formula input-region coverage",
+        "counted_set_kind": "unique_conversion_model",
         "pass_iff": "all registered input regions are exercised",
         "fail_iff": "any required slot/reference/bit/boundary input region is unexercised; pairwise-distinct formula predictions are not required",
         "terminal_id": "A4-H3-BASE-DISCRIMINATION",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R25-H3-DISCRIMINATION",
         "reachability_fixture": "All prior checks pass but the boundary-plus-one input region is absent; formula fitting has not begun.",
@@ -1436,12 +1608,18 @@
           "A4-H3-BASE-DISCRIMINATION"
         ],
         "input_candidate_set": "fitting formulas after discrimination is sufficient",
+        "counted_set_kind": "fitting_base_formulas",
         "pass_iff": "fitting formula cardinality is at least 1",
         "fail_iff": "fitting formula cardinality is exactly 0",
         "terminal_id": "A4-H3-BASE-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_final_base_formula",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R26-H3-BASE-NONE",
         "reachability_fixture": "Boundary observations distinguish all formulas but contradict each one, leaving zero fitting formulas.",
@@ -1455,6 +1633,7 @@
           "A4-H3-BASE-NONE"
         ],
         "input_candidate_set": "exact-fitting formulas after input-region coverage passes",
+        "counted_set_kind": "fitting_base_formulas",
         "pass_iff": "fitting formula cardinality is exactly 1",
         "fail_iff": "fitting formula cardinality is greater than 1",
         "terminal_id": "A4-H3-BASE-MULTIPLE",
@@ -1462,6 +1641,11 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_final_base_formula",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R27-H3-BASE-MULTIPLE",
         "reachability_fixture": "Every required input region is exercised with reference == slot for every observation, causing the slot-base and referenced-page-base formulas both to fit; the decisive baseline includes reference != slot and leaves exactly one.",
@@ -1475,15 +1659,23 @@
           "A4-H3-BASE-MULTIPLE"
         ],
         "input_candidate_set": "one canonical H3 model from each derivation replica",
+        "counted_set_kind": "per_replica_unique_h3_models",
         "pass_iff": "replicas 1 and 2 each have one model and their canonical logical-role models are equal",
         "fail_iff": "replicas 1 and 2 each have one model but their canonical logical-role models differ",
         "terminal_id": "A4-H3-REPLICA-DISAGREEMENT",
         "failure_survivor_count": {
-          "exact": 1
+          "per_replica_exact": 1,
+          "replica_count": 2,
+          "total_exact": 2
         },
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h3_final_base_formula",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R28-H3-REPLICA",
-        "reachability_fixture": "Each replica has one base model, but the canonical formulas differ.",
+        "reachability_fixture": "Each replica has one base model, but the canonical formulas differ; the two unequal per-replica models are retained as a replica pair.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1494,12 +1686,18 @@
           "h3_indirect_traversal_derivation_model"
         ],
         "input_candidate_set": "independently traversed EMPTY system-TDEF object streams after schema-delta prediction",
+        "counted_set_kind": "catalog_root_candidates",
         "pass_iff": "root candidate cardinality is at least 1",
         "fail_iff": "root candidate cardinality is exactly 0",
         "terminal_id": "A4-H4-CATALOG-ROOT-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_catalog_root",
+        "result_slots": [
+          "root_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R30-H4-ROOT-NONE",
         "reachability_fixture": "H1-H3 pass, but no EMPTY system-TDEF stream follows every schema delta signature.",
@@ -1513,6 +1711,7 @@
           "A4-H4-CATALOG-ROOT-NONE"
         ],
         "input_candidate_set": "independently traversed EMPTY system-TDEF object streams after schema-delta prediction",
+        "counted_set_kind": "catalog_root_candidates",
         "pass_iff": "root candidate cardinality is exactly 1",
         "fail_iff": "root candidate cardinality is greater than 1",
         "terminal_id": "A4-H4-CATALOG-ROOT-MULTIPLE",
@@ -1520,6 +1719,11 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_catalog_root",
+        "result_slots": [
+          "root_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R31-H4-ROOT-MULTIPLE",
         "reachability_fixture": "Exactly two system streams satisfy every delta signature while earlier layers remain decisive.",
@@ -1533,15 +1737,21 @@
           "A4-H4-CATALOG-ROOT-MULTIPLE"
         ],
         "input_candidate_set": "one catalog root plus every isolated physical schema delta before record candidates are restricted to admitted pages",
+        "counted_set_kind": "decisive_root_input_model",
         "pass_iff": "every isolated physical schema delta lies on a page admitted by the unchanged root traversal",
         "fail_iff": "any isolated physical schema delta lies outside pages admitted by the root traversal",
         "terminal_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "structural_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R34-H4-OUTSIDE",
-        "reachability_fixture": "One root survives; one otherwise valid operation delta is on a non-admitted page and first fails OUTSIDE before record restriction.",
+        "reachability_fixture": "One root survives because its admitted stream changes at all five TableDefs.Append operations; at T3_CREATE the campaign also changes one page that is neither admitted by the root, page 0 or 1, nor any user TDEF/map/admitted page, so the isolated delta lies outside and first fails OUTSIDE before record restriction (AMB-09, AMB-10). root_result keeps the decisive root; structural_result retains the root candidate id and the isolated-delta observation and no operation-record candidate.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1552,15 +1762,21 @@
           "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED"
         ],
         "input_candidate_set": "operation-delta/non-name structural record candidates grouped by listed operation instance",
+        "counted_set_kind": "operation_record_candidates_grouped_minimum",
         "pass_iff": "every listed operation instance has at least one record candidate",
         "fail_iff": "any listed operation instance has zero record candidates",
         "terminal_id": "A4-H4-CATALOG-RECORD-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "grouped_candidate_set",
+        "candidate_stage": "h4_operation_record",
+        "result_slots": [
+          "structural_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R32-H4-RECORD-NONE",
-        "reachability_fixture": "One root survives; one listed operation has zero delta/non-name structural candidates while every other operation has one.",
+        "reachability_fixture": "One root survives; one listed operation has zero delta/non-name structural candidates while every other operation has one. structural_result retains all seven operation groups with actual cardinalities [0,1,1,1,1,1,1] in operation order, the six existing complete candidates, and measured count 0 (the minimum group cardinality).",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1571,6 +1787,7 @@
           "A4-H4-CATALOG-RECORD-NONE"
         ],
         "input_candidate_set": "operation-delta/non-name structural record candidates grouped by listed operation instance",
+        "counted_set_kind": "operation_record_candidates_grouped_maximum",
         "pass_iff": "every listed operation instance has at most one record candidate",
         "fail_iff": "any listed operation instance has more than one record candidate",
         "terminal_id": "A4-H4-CATALOG-RECORD-MULTIPLE",
@@ -1578,9 +1795,14 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "grouped_candidate_set",
+        "candidate_stage": "h4_operation_record",
+        "result_slots": [
+          "structural_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R33-H4-RECORD-MULTIPLE",
-        "reachability_fixture": "Every operation has a candidate, but one operation has two delta/non-name structural candidates.",
+        "reachability_fixture": "Every operation has a candidate, but one operation has two delta/non-name structural candidates: the minimal group shape is [2,1,1,1,1,1,1], eight complete record candidates, measured count 2 (the maximum group cardinality), never the flat array length.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1591,15 +1813,21 @@
           "A4-H4-CATALOG-RECORD-MULTIPLE"
         ],
         "input_candidate_set": "closed encoding-neutral kind/id/name-length field-layout candidates",
+        "counted_set_kind": "structural_field_layout_candidates",
         "pass_iff": "structural field-layout cardinality is at least 1",
         "fail_iff": "structural field-layout cardinality is exactly 0",
         "terminal_id": "A4-H4-FIELD-MODEL-NONE",
         "failure_survivor_count": {
           "exact": 0
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_structural_field",
+        "result_slots": [
+          "structural_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R35-H4-FIELD-NONE",
-        "reachability_fixture": "Records are decisive but no structural kind/id offset-width-endianness-mapping-lifecycle tuple fits; name bytes are not evaluated.",
+        "reachability_fixture": "Records are decisive but no structural kind/id offset-width-endianness-mapping-lifecycle tuple passes the length-plausibility, kind-mapping, and lifecycle tests (AMB-11); name bytes are not evaluated.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1610,6 +1838,7 @@
           "A4-H4-FIELD-MODEL-NONE"
         ],
         "input_candidate_set": "closed encoding-neutral kind/id/name-length field-layout candidates with deferred compatible name occurrences",
+        "counted_set_kind": "structural_field_layout_candidates",
         "pass_iff": "structural field-layout cardinality is exactly 1",
         "fail_iff": "structural field-layout cardinality is greater than 1",
         "terminal_id": "A4-H4-FIELD-MODEL-MULTIPLE",
@@ -1617,6 +1846,11 @@
           "minimum": 2,
           "source": "measured_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_structural_field",
+        "result_slots": [
+          "structural_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R36-H4-FIELD-MULTIPLE",
         "reachability_fixture": "Exactly two structural kind/id/name-length field layouts fit; encoding equivalence remains deferred.",
@@ -1630,6 +1864,7 @@
           "A4-H4-FIELD-MODEL-MULTIPLE"
         ],
         "input_candidate_set": "one structural field layout plus three registered encoding/length equivalence candidates",
+        "counted_set_kind": "fitting_encoding_length_classes",
         "pass_iff": "exactly one encoding/length equivalence class fits exact bytes and stored length",
         "fail_iff": "zero or more than one encoding/length equivalence class fits after structural uniqueness",
         "terminal_id": "A4-H4-ENCODING-AMBIGUOUS",
@@ -1644,9 +1879,14 @@
           ],
           "source": "measured_encoding_candidate_cardinality"
         },
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_final_encoded_field",
+        "result_slots": [
+          "encoding_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R37-H4-ENCODING",
-        "reachability_fixture": "One structural layout survives, but the complete synthetic row has zero fitting encoding/length classes; the measured fitting-class count is 0.",
+        "reachability_fixture": "One structural layout survives in structural_result, but the complete synthetic row has zero fitting encoding/length classes; encoding_result stores the measured fitting-class count 0 and no final candidate while the structural candidate stays retained.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1657,15 +1897,24 @@
           "A4-H4-ENCODING-AMBIGUOUS"
         ],
         "input_candidate_set": "one canonical root and field model from each derivation replica",
+        "counted_set_kind": "per_replica_unique_h4_models",
         "pass_iff": "replicas 1 and 2 each have one root and field model and their canonical logical-role models are equal",
         "fail_iff": "replicas 1 and 2 each have one root and field model but their canonical field models differ; an earlier root disagreement is reflected by root NONE or MULTIPLE",
         "terminal_id": "A4-H4-REPLICA-DISAGREEMENT",
         "failure_survivor_count": {
-          "exact": 1
+          "per_replica_exact": 1,
+          "replica_count": 2,
+          "total_exact": 2
         },
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h4_final_encoded_field",
+        "result_slots": [
+          "structural_result",
+          "encoding_result"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R38-H4-REPLICA",
-        "reachability_fixture": "Each replica has one root and field tuple, but the canonical identifier-lifecycle relation differs.",
+        "reachability_fixture": "Each replica has one root and field tuple, but the canonical identifier-lifecycle relation differs; structural_result and encoding_result retain the per-replica structural and final pairs.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1676,12 +1925,18 @@
           "derivation_candidate_set_sha256"
         ],
         "input_candidate_set": "unchanged one-model H1 freeze",
+        "counted_set_kind": "unchanged_one_model_freeze",
         "pass_iff": "the unchanged frozen model predicts every replica-3 H1 target under role rotation",
         "fail_iff": "replica 3 is missing, malformed, or differs from the unchanged one-model prediction",
         "terminal_id": "A4-H1-HOLDOUT-PREDICTION",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "holdout"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R13-H1-HOLDOUT",
         "reachability_fixture": "Derivation pair agrees; holdout changes one valid locator offset while all derivation and campaign predicates pass.",
@@ -1695,12 +1950,18 @@
           "A4-H1-HOLDOUT-PREDICTION"
         ],
         "input_candidate_set": "unchanged one-model H2 freeze",
+        "counted_set_kind": "unchanged_one_model_freeze",
         "pass_iff": "the unchanged H2 model predicts every complete replica-3 map row and transition",
         "fail_iff": "replica 3 is missing, malformed, or differs from the unchanged H2 model",
         "terminal_id": "A4-H2-HOLDOUT-PREDICTION",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "holdout"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R21-H2-HOLDOUT",
         "reachability_fixture": "Derivation agrees; holdout swaps the two supported row-role transitions without invalidating H1.",
@@ -1714,12 +1975,18 @@
           "A4-H2-HOLDOUT-PREDICTION"
         ],
         "input_candidate_set": "unchanged one-model H3 freeze",
+        "counted_set_kind": "unchanged_one_model_freeze",
         "pass_iff": "the unchanged model predicts every replica-3 slot, reference, bitmap, and boundary flip",
-        "fail_iff": "replica 3 is missing, malformed, or differs from the unchanged H3 prediction",
+        "fail_iff": "replica 3 is missing, malformed, fails to exercise every registered H3 input region (a vacuous prediction is a failure, AMB-14), or differs from the unchanged H3 prediction",
         "terminal_id": "A4-H3-HOLDOUT-PREDICTION",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "holdout"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R29-H3-HOLDOUT",
         "reachability_fixture": "Derivation agrees; one holdout tag-05 boundary bit contradicts the unchanged formula.",
@@ -1733,12 +2000,18 @@
           "A4-H3-HOLDOUT-PREDICTION"
         ],
         "input_candidate_set": "unchanged one-model catalog-root freeze",
+        "counted_set_kind": "unchanged_one_model_freeze",
         "pass_iff": "the unchanged root predicts replica 3 and its admitted stream",
         "fail_iff": "replica 3 root is missing, malformed, multiple, or differs from the unchanged root prediction",
         "terminal_id": "A4-H4-HOLDOUT-ROOT",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "holdout"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R39-H4-HOLDOUT-ROOT",
         "reachability_fixture": "Derivation root and fields agree, but holdout root traversal admits a different page; fields are not evaluated.",
@@ -1752,12 +2025,18 @@
           "A4-H4-HOLDOUT-ROOT"
         ],
         "input_candidate_set": "unchanged structural field model and encoding/length equivalence class after root holdout passes",
+        "counted_set_kind": "unchanged_one_model_freeze",
         "pass_iff": "the unchanged field model and equivalence class predict every replica-3 kind, lifecycle relation, exact name bytes, and stored length",
         "fail_iff": "root prediction passes but any field or encoding-class comparison is missing, malformed, or differs",
         "terminal_id": "A4-H4-HOLDOUT-FIELDS",
         "failure_survivor_count": {
           "exact": 1
         },
+        "terminal_payload_schema": "none",
+        "candidate_stage": null,
+        "result_slots": [
+          "holdout"
+        ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R40-H4-HOLDOUT-FIELDS",
         "reachability_fixture": "Root holdout passes, but one exact holdout name byte differs from the unchanged encoding equivalence class; every prior predicate passes.",
@@ -1771,57 +2050,245 @@
       "A4-H4-HOLDOUT-ROOT",
       "A4-H4-HOLDOUT-FIELDS"
     ],
-    "terminal_candidate_stage_by_predicate": {
-      "A4-H1-TDEF-NONE": "h1_tdef",
-      "A4-H1-TDEF-MULTIPLE": "h1_tdef",
-      "A4-H1-LOCATOR-LAYOUT-NONE": "h1_target_valid_layout",
-      "A4-H1-LOCATOR-PAIR-NONE": "h1_locator_pair",
-      "A4-H1-TARGET-ROW-INVALID": "h1_locator_pair",
-      "A4-H1-LOCATOR-LAYOUT-MULTIPLE": "h1_target_valid_layout",
-      "A4-H1-LOCATOR-PAIR-MULTIPLE": "h1_locator_pair",
-      "A4-H1-REPLICA-DISAGREEMENT": "h1_locator_pair",
-      "A4-H2-ROW-DIRECTORY-INVALID": "h2_structural_decoder",
-      "A4-H2-ROW-FLAGS-INVALID": "h2_structural_decoder",
-      "A4-H2-MAP-TAG-UNSUPPORTED": "h2_structural_decoder",
-      "A4-H2-ROLE-NONE": "h2_final_role",
-      "A4-H2-ROLE-MULTIPLE": "h2_final_role",
-      "A4-H2-TRANSITION-UNEXPLAINED": "h2_final_role",
-      "A4-H2-REPLICA-DISAGREEMENT": "h2_final_role",
-      "A4-H3-CONVERSION-NONE": "h3_conversion",
-      "A4-H3-INACTIVE-SLOT-NONE": "h3_conversion",
-      "A4-H3-REFERENCE-INVALID": "h3_conversion",
-      "A4-H3-BASE-DISCRIMINATION": "h3_conversion",
-      "A4-H3-BASE-NONE": "h3_final_base_formula",
-      "A4-H3-BASE-MULTIPLE": "h3_final_base_formula",
-      "A4-H3-REPLICA-DISAGREEMENT": "h3_final_base_formula",
-      "A4-H4-CATALOG-ROOT-NONE": "h4_catalog_root",
-      "A4-H4-CATALOG-ROOT-MULTIPLE": "h4_catalog_root",
-      "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED": "h4_operation_record",
-      "A4-H4-CATALOG-RECORD-NONE": "h4_operation_record",
-      "A4-H4-CATALOG-RECORD-MULTIPLE": "h4_operation_record",
-      "A4-H4-FIELD-MODEL-NONE": "h4_structural_field",
-      "A4-H4-FIELD-MODEL-MULTIPLE": "h4_structural_field",
-      "A4-H4-ENCODING-AMBIGUOUS": "h4_final_encoded_field",
-      "A4-H4-REPLICA-DISAGREEMENT": "h4_final_encoded_field"
+    "terminal_payload_by_predicate": {
+      "A4-H1-TDEF-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_tdef",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-TDEF-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_tdef",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-LOCATOR-LAYOUT-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_target_valid_layout",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-LOCATOR-PAIR-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-TARGET-ROW-INVALID": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-LOCATOR-LAYOUT-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_target_valid_layout",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-LOCATOR-PAIR-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H1-REPLICA-DISAGREEMENT": {
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h1_locator_pair",
+        "result_slots": [
+          "h1_tdef_to_map_row"
+        ]
+      },
+      "A4-H2-ROW-DIRECTORY-INVALID": {
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H2-ROW-FLAGS-INVALID": {
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H2-MAP-TAG-UNSUPPORTED": {
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H2-ROLE-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H2-ROLE-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H2-TRANSITION-UNEXPLAINED": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H2-REPLICA-DISAGREEMENT": {
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h2_final_role",
+        "result_slots": [
+          "h2_row_identity_map_role"
+        ]
+      },
+      "A4-H3-CONVERSION-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H3-INACTIVE-SLOT-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H3-REFERENCE-INVALID": {
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H3-BASE-DISCRIMINATION": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_conversion",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H3-BASE-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_final_base_formula",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H3-BASE-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h3_final_base_formula",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H3-REPLICA-DISAGREEMENT": {
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h3_final_base_formula",
+        "result_slots": [
+          "h3_indirect_traversal"
+        ]
+      },
+      "A4-H4-CATALOG-ROOT-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_catalog_root",
+        "result_slots": [
+          "root_result"
+        ]
+      },
+      "A4-H4-CATALOG-ROOT-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_catalog_root",
+        "result_slots": [
+          "root_result"
+        ]
+      },
+      "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED": {
+        "terminal_payload_schema": "invalid_observation",
+        "candidate_stage": null,
+        "result_slots": [
+          "structural_result"
+        ]
+      },
+      "A4-H4-CATALOG-RECORD-NONE": {
+        "terminal_payload_schema": "grouped_candidate_set",
+        "candidate_stage": "h4_operation_record",
+        "result_slots": [
+          "structural_result"
+        ]
+      },
+      "A4-H4-CATALOG-RECORD-MULTIPLE": {
+        "terminal_payload_schema": "grouped_candidate_set",
+        "candidate_stage": "h4_operation_record",
+        "result_slots": [
+          "structural_result"
+        ]
+      },
+      "A4-H4-FIELD-MODEL-NONE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_structural_field",
+        "result_slots": [
+          "structural_result"
+        ]
+      },
+      "A4-H4-FIELD-MODEL-MULTIPLE": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_structural_field",
+        "result_slots": [
+          "structural_result"
+        ]
+      },
+      "A4-H4-ENCODING-AMBIGUOUS": {
+        "terminal_payload_schema": "candidate_set",
+        "candidate_stage": "h4_final_encoded_field",
+        "result_slots": [
+          "encoding_result"
+        ]
+      },
+      "A4-H4-REPLICA-DISAGREEMENT": {
+        "terminal_payload_schema": "replica_pair",
+        "candidate_stage": "h4_final_encoded_field",
+        "result_slots": [
+          "structural_result",
+          "encoding_result"
+        ]
+      }
     },
+    "terminal_payload_rule": "terminal_payload_by_predicate is derived from predicate_contracts, never hand-authored, and the focused contract and validators must rebuild it from the contract rows. result_slots names the frozen result that records the terminal: a layer for H1-H3, or root_result, structural_result, and/or encoding_result for H4. H4 REPLICA-DISAGREEMENT lists both field results. For a terminal result: candidate_set requires candidate array length == predicate_measured_survivor_count; grouped_candidate_set requires every group cardinality == its candidate_ids length, the union of groups == the candidate array, and predicate_measured_survivor_count == the minimum group cardinality for RECORD-NONE and the maximum group cardinality (>= 2) for RECORD-MULTIPLE; replica_pair requires an empty candidate array, two entries in replica order with recomputed ids, unequal canonical models, and predicate_measured_survivor_count == 2; invalid_observation requires input_model_id to reference the decisive upstream candidate (empty candidate array) or the single same-layer input candidate retained in the array, and predicate_measured_survivor_count == 1.",
     "fixture_registry_status": "claimed_reachable; execution_required_before_dispatch",
     "semantic_fixture_format": "The registry rows are claims, not fixtures and not proof. Before hosted dispatch, the byte-level harness contract in analyzer_dry_run_contract.dry_run_honesty_clause must materialize exact 2,048-byte shared-campaign fixtures, execute them in normative order, and retain a separately stateful, hash-bound transcript disclosure. Only that additive dry-run disclosure may report execution success. No accepted or valid verdict boolean is a permitted fixture input."
   },
   "decision_rules": {
     "freeze_rule": "Using replicas 1 and 2 only, evaluate every non-holdout predicate through H4, canonically serialize all four derivation results and transcripts, hash the frozen document, then irreversibly close derivation inputs and analyzer state before replica 3 is acquired or opened.",
-    "holdout_rule": "After the frozen-document SHA-256 exists, acquire and structurally validate replica 3 and evaluate H1, H2, H3, H4 root, and H4 fields in that order without refit. Upstream holdout failure gates later holdouts but never changes frozen bytes, candidates, counts, or derivation terminals.",
+    "holdout_rule": "After the frozen-document SHA-256 exists, acquire and structurally validate replica 3 and evaluate H1, H2, H3, H4 root, and H4 fields in that order without refit. Upstream holdout failure gates later holdouts but never changes frozen bytes, candidates, counts, or derivation terminals. Replica 3's campaign predicates are evaluated only after that hash exists (AMB-13).",
     "survivor_count_reconciliation": {
       "style": "R4-S01",
-      "rule": "The 40 predicate_contracts are the normative count table. exact: n requires predicate_measured_survivor_count == n; minimum: n requires predicate_measured_survivor_count >= n and stores the actual measured count; allowed_ranges accepts only a listed exact or minimum range and stores the actual measured count. At a derivation terminal the candidate array stores the complete canonical set at terminal_candidate_stage and derivation_survivor_count is zero because no final-layer model exists. A decisive model stores one final-stage candidate, predicate_measured_survivor_count 1, derivation_survivor_count 1, and no terminal stage. not_applicable stores both counts zero, an empty set, and no terminal stage. Holdout failures are reported separately and do not change the one-model frozen set. Campaign failures count 0.",
+      "rule": "The 40 predicate_contracts are the normative count table. exact: n requires predicate_measured_survivor_count == n; minimum: n requires predicate_measured_survivor_count >= n and stores the actual measured count; allowed_ranges accepts only a listed exact or minimum range and stores the actual measured count; per_replica_exact 1 / replica_count 2 / total_exact 2 requires a replica pair and measured count 2. At a derivation terminal the frozen result stores the payload declared by terminal_payload_schema (predicate_registry.terminal_payload_rule) and derivation_survivor_count is zero because no final-layer model exists. A decisive model stores one final-stage candidate, predicate_measured_survivor_count 1, derivation_survivor_count 1, and no terminal payload. not_applicable stores both counts zero, an empty set, and no terminal payload. Holdout failures are reported separately and do not change the one-model frozen set. Campaign failures count 0.",
       "predicate_contract_source": "predicate_registry.predicate_contracts",
       "covered_predicate_count": 40
     },
     "replica_agreement_rule": "replica 1 and 2 must each independently yield one canonically equivalent logical-role model; physical page numbers, row slots, and identifiers may rotate only where the frozen model declares the mapping",
     "no_outcome_projection": "Report derivation status and holdout status separately. A downstream derivation layer depends only on the previous unique derivation model; a downstream holdout depends on the preceding holdout. Campaign failure prevents all scientific evaluation and yields no successful evidence bundle.",
-    "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, terminal_candidate_stage, predicate_measured_survivor_count, final-layer derivation_survivor_count, the complete stage-discriminated canonical candidates, instance bindings where registered, and candidates SHA-256. Decisive layers alone contain the final model type. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. H4 FIELD-MODEL-MULTIPLE stores h4StructuralFieldCandidate objects with no encoding class. Only one structural survivor permits construction of h4FinalFieldCandidate objects; encoding failure stores the actual zero or at-least-two final candidates and decisive derivation stores exactly one final candidate. H4 holdout reuses the frozen structural id, per-operation occurrence rules, and final equivalence class without refit. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the actual SHA-256 of the complete frozen file bytes, not a layers-only projection. Its candidate arrays, instance bindings, transcripts, charges, and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes.",
+    "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, terminal_payload_kind, terminal_candidate_stage, predicate_measured_survivor_count, final-layer derivation_survivor_count, the complete stage-discriminated canonical candidates that exist at that stage, terminal_evidence (replica pair, operation groups, or invalid observation) where the contract declares it, instance bindings where registered, and candidates SHA-256. Decisive results alone contain the final model type. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. H4 is frozen as root_result, structural_result, and encoding_result under candidate_grammars.h4.encoding_result_rule, with the frozen h4_occurrence_evidence reference (path, SHA-256, size) that every structural candidate's occurrence_evidence_sha256 must equal. H4 holdout reuses the frozen structural id, evidence table, per-operation bitmap rules, and final equivalence class without refit. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the actual SHA-256 of the complete frozen file bytes, not a layers-only projection. Its candidate arrays, terminal evidence, evidence reference, instance bindings, transcripts, charges, and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes.",
     "h1_frozen_model_rule": "The canonical H1 scientific model contains only replica-invariant fields: layout, masked table-signature id, and ascending table-relative locator offsets. A separate frozen instance_bindings array contains exactly T1-v1, T2-v1, T2-v2, T3-v1, and T4-v1 for each derivation replica, each with logical role, lifecycle instance, TDEF page, two locator targets (page 0..20479, row 0..255), and its exact inclusive applicable checkpoint range. The required ranges are T1-v1 T1_CREATE_ID..T4_IDLE_R; T2-v1 T2_CREATE..T2_CREATE; T2-v2 T2_RECREATE..T4_IDLE_R; T3-v1 T3_CREATE..T4_IDLE_R; T4-v1 T4_CREATE..T4_IDLE_R. logical_role equals the lifecycle prefix, start is not after end in checkpoint order, and no binding may extend outside its lifecycle. Canonical replica agreement compares the invariant model and normalized logical-role behavior, not raw rotating page numbers. Holdout re-derives replica-3 bindings and tests the unchanged invariant model.",
-    "canonicalization_and_uniqueness_rule": "For H1 recompute canonical_model_id as SHA256(canonical_json({model_type, model})) for replica-invariant scientific comparison and canonical_candidate_id as SHA256(canonical_json({model_type, model, instance_bindings})) for storage, sorting, and uniqueness. Distinct physical bindings may share a model id but must have distinct candidate ids. For other candidate stages recompute canonical_candidate_id from their complete registered identity. Require equality, ascending locator offsets, unique targets, canonical binding order, exact role/lifecycle coverage and ranges, and no duplicate page/row pair. Recompute each candidate-array hash and the actual complete frozen-file SHA-256. Canonicalize snapshot tables by declared DAO ordinal then strict CP-1252 name bytes; canonicalize fields/indexes/index fields by their declared DAO ordinal then name bytes. Independently reject duplicate logical roles, names, ordinals, predicate ids, and tamper ids. uniqueItems on whole JSON objects does not satisfy these uniqueness rules.",
-    "schema_semantic_validation_rule": "Use a layer- and terminal-stage-discriminated union: H1 TDEF, target-valid layout, and locator-pair candidates; H2 structural-decoder and final-role candidates; H3 conversion and final-base candidates; and H4 root, operation-record, structural-field, and final-encoded-field candidates all have closed required fields with additionalProperties false. Project layer status, terminal, terminal candidate stage, measured predicate count, final-layer count, and downstream not_applicable state from predicate rows and reject any mismatch. The analysis report must byte-for-byte reproduce every frozen stage array and hash. Project the five holdout_results entries exactly from predicate rows 36–40 and prerequisite gating. Then derive scientific_outcome from that validated projection. A derivation or holdout result may never disagree with its predicate row. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
+    "canonicalization_and_uniqueness_rule": "For H1 recompute canonical_model_id as SHA256(canonical_json({model_type, model})) for replica-invariant scientific comparison and canonical_candidate_id as SHA256(canonical_json({model_type, model, instance_bindings})) for storage, sorting, and uniqueness. Distinct physical bindings may share a model id but must have distinct candidate ids. For other candidate stages recompute canonical_candidate_id from their complete registered identity. A decisive H1 candidate carries exactly the ten replica-1 and replica-2 bindings in canonical order; a terminal candidate-set H1 candidate carries exactly the five bindings of the replica on which the predicate failed (AMB-04); a replica-pair entry's complete H1 candidate carries exactly the five bindings of its own replica. Recompute the h4_occurrence_evidence SHA-256 from the retained file bytes and require every structural candidate's occurrence_evidence_sha256 and every bitmap popcount to agree with it. Require equality, ascending locator offsets, unique targets, canonical binding order, exact role/lifecycle coverage and ranges, and no duplicate page/row pair. Recompute each candidate-array hash and the actual complete frozen-file SHA-256. Canonicalize snapshot tables by declared DAO ordinal then strict CP-1252 name bytes; canonicalize fields/indexes/index fields by their declared DAO ordinal then name bytes. Independently reject duplicate logical roles, names, ordinals, predicate ids, and tamper ids. uniqueItems on whole JSON objects does not satisfy these uniqueness rules.",
+    "schema_semantic_validation_rule": "Use a layer- and terminal-stage-discriminated union: H1 TDEF, target-valid layout, and locator-pair candidates; H2 final-role candidates; H3 conversion and final-base candidates; and H4 root, operation-record, structural-field, and final-encoded-field candidates all have closed required fields with additionalProperties false, and every terminal_evidence payload has a closed schema. Project layer status, terminal, terminal payload kind, terminal candidate stage, measured predicate count, final-layer count, H4 result-slot states, and downstream not_applicable state from predicate rows and the predicate contracts, and reject any mismatch. The analysis report must byte-for-byte reproduce every frozen stage array, terminal evidence, evidence reference, and hash. Project the five holdout_results entries exactly from predicate rows 36–40 and prerequisite gating. Then derive scientific_outcome from that validated projection. A derivation or holdout result may never disagree with its predicate row. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
     "claims_rule": "a scientific result remains descriptive_provider_observation_only even after independent validation and cannot move a support-matrix capability"
   },
   "independent_validator_contract": {
@@ -1929,7 +2396,7 @@
     "campaign_headroom": "campaign_started_utc is the hosted workflow run-attempt start reported by the hosting service for the producing run id and attempt (GitHub Actions: run_started_at). Immediately before manifest creation, compute campaign_elapsed_seconds = floor(created_utc - campaign_started_utc). Accept 2700 and reject 2701. If the start cannot be read, the difference is inconsistent, or the value exceeds 2700, do not create a schema-valid bundle manifest and do not upload under the successful A4 bundle artifact name; retain diagnostics only. Producer and independent validators recompute the floor difference and reject any mismatch or value above 2700.",
     "setup_and_dispatch_allowance_seconds": 100,
     "estimated_complete_wall_clock_seconds": 1725,
-    "bounds_sanity_basis": "Attainable-exact time/resource bounds accept equality and reject one over before manifest creation. Conservative upper bounds are proved by inequalities and make no claim of an all-fields-equal fixture."
+    "bounds_sanity_basis": "Attainable-exact time/resource bounds accept equality and reject one over before manifest creation. Conservative upper bounds are proved by inequalities and make no claim of an all-fields-equal fixture; the 600,000,000-unit work ceiling is conservative and only its checked comparator is exercised at equality and one over."
   },
   "artifacts": {
     "plan": "plan/a4-row-anchored-maps.plan.json",
@@ -1959,6 +2426,7 @@
       "manifest_binding": "each reference has exactly one dao_schema_snapshot inventory entry with identical path, SHA-256, size, and actual bytes"
     },
     "frozen_candidate_set": "analysis/derivation-candidates.json",
+    "h4_occurrence_evidence": "analysis/h4-occurrence-evidence.json",
     "analysis_report": "analysis/analysis-report.json",
     "bundle_manifest": "bundle-manifest.json",
     "dry_run_reports": [
@@ -1988,6 +2456,8 @@
     "max_candidate_models": 4096,
     "max_canonical_candidate_bytes": 4096,
     "max_canonical_candidates_array_bytes": 16781313,
+    "max_h4_occurrence_identities": 1850,
+    "max_h4_occurrence_evidence_bytes": 524288,
     "max_analysis_work_units": 600000000,
     "max_unique_page_blobs": 65536,
     "max_retained_page_store_bytes": 134217728,
@@ -2065,7 +2535,7 @@
         "units": 4096
       }
     },
-    "candidate_json_closure": "Enforce one global fail-fast maximum of 4,096 retained candidates across H1, H2, H3, H4 root, and H4 field. Each layer-discriminated candidate has canonical UTF-8 JSON length <=4096 bytes. Across all arrays, at most 4096 candidates plus brackets and separators give <=4096*4096+4097=16781313 bytes. Concrete transcript maxima are row_directories 1024*512, locators 1024*384, map_transitions 1024*512, reference_bitmaps 1024*512, catalog_roots 1024*384, catalog_fields 4096*512: at most 4456448 encoded item bytes plus bounded separators. Candidate arrays, transcripts, fixed fields, and 1 MiB envelope overhead total <22300000 bytes, below max_json_bytes=67108864. The report validator rejects downstream candidates after an upstream terminal before applying this JSON proof.",
+    "candidate_json_closure": "Enforce one global fail-fast maximum of 4,096 retained candidates across H1, H2, H3, H4 root, H4 structural, and H4 encoding. Each layer-discriminated candidate has canonical UTF-8 JSON length <=4096 bytes; the largest registered shapes are a ten-binding H1 locator-pair candidate and a structural field candidate with seven full-width bitmaps, both far below 4,096 because occurrence objects live only in the separate h4_occurrence_evidence document. Across all arrays, at most 4096 candidates plus brackets and separators give <=4096*4096+4097=16781313 bytes. Terminal evidence is bounded separately: a replica pair holds two candidates (<=8192 bytes plus fixed fields), operation groups hold at most 4096 candidate ids (<=4096*67+1024 bytes), and an invalid observation is <=1024 bytes; charge 300,000 bytes for all terminal evidence. The h4_occurrence_evidence document is at most 524,288 bytes and is counted exactly once. Concrete transcript maxima are row_directories 1024*512, locators 1024*384, map_transitions 1024*512, reference_bitmaps 1024*512, catalog_roots 1024*384, catalog_fields 4096*512: at most 4456448 encoded item bytes plus bounded separators. Candidate arrays, terminal evidence, the evidence document, transcripts, fixed fields, and 1 MiB envelope overhead total <23200000 bytes, below max_json_bytes=67108864. Reject candidate 4,097, candidate byte 4,097, occurrence identity 1,851, evidence byte 524,289, and report byte 67,108,865 before manifest creation. The report validator rejects downstream candidates after an upstream terminal before applying this JSON proof.",
     "resource_class_rule": "Each resource field is classified as either (a) attainable_exact, with an accepted fixture at exactly the bound and an otherwise identical one-over rejection, or (b) conservative_upper, with proof by inequalities but no claim of attainability. The sum of independent maxima is not an exact attainable ceiling. Fail-fast evaluation charges only work reachable after preceding predicates. Per-page row count and row length are jointly constrained; a valid page with one-byte rows satisfies 10+3n<=2048 and has at most 679 rows.",
     "capacity_maxima": "Type-1 complete u32 slots per maximum tag-01 row: 508. Type-0 bitmap capacity per maximum tag-01 row: 16,248 bits. Tag-05 bitmap capacity: 16,352 bits.",
     "logical_read_consumers": {
@@ -2086,17 +2556,104 @@
     },
     "terminal_path_maxima": {
       "term_table": {
-        "h1_latest_derivation_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks"],
-        "h2_row_directory_invalid_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "invalid_path_row_directory_entries"],
-        "h2_latest_derivation_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "valid_path_row_directory_entries", "type_1_slots", "type_0_and_tag_05_bitmap_bits", "role_transition_evaluations"],
-        "h3_latest_derivation_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "valid_path_row_directory_entries", "type_1_slots", "type_0_and_tag_05_bitmap_bits", "role_transition_evaluations", "base_formula_evaluations"],
-        "h4_root_latest_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "valid_path_row_directory_entries", "type_1_slots", "type_0_and_tag_05_bitmap_bits", "role_transition_evaluations", "base_formula_evaluations", "catalog_root_signatures"],
-        "h4_record_latest_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "valid_path_row_directory_entries", "type_1_slots", "type_0_and_tag_05_bitmap_bits", "role_transition_evaluations", "base_formula_evaluations", "catalog_root_signatures", "catalog_raw_rows"],
-        "h4_field_model_latest_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "valid_path_row_directory_entries", "type_1_slots", "type_0_and_tag_05_bitmap_bits", "role_transition_evaluations", "base_formula_evaluations", "catalog_root_signatures", "catalog_raw_rows", "encoding_union_anchor_bytes", "h4_name_length_structural_tuples"],
-        "h4_latest_derivation_terminal": ["tdef_lifecycle_signatures", "raw_locator_windows", "raw_locator_pairs", "h1_target_validity_checks", "valid_path_row_directory_entries", "type_1_slots", "type_0_and_tag_05_bitmap_bits", "role_transition_evaluations", "base_formula_evaluations", "catalog_root_signatures", "catalog_raw_rows", "encoding_union_anchor_bytes", "h4_name_length_structural_tuples", "encoding_length_equivalence_candidates", "candidate_serializations"]
+        "h1_latest_derivation_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks"
+        ],
+        "h2_row_directory_invalid_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "invalid_path_row_directory_entries"
+        ],
+        "h2_latest_derivation_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "valid_path_row_directory_entries",
+          "type_1_slots",
+          "type_0_and_tag_05_bitmap_bits",
+          "role_transition_evaluations"
+        ],
+        "h3_latest_derivation_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "valid_path_row_directory_entries",
+          "type_1_slots",
+          "type_0_and_tag_05_bitmap_bits",
+          "role_transition_evaluations",
+          "base_formula_evaluations"
+        ],
+        "h4_root_latest_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "valid_path_row_directory_entries",
+          "type_1_slots",
+          "type_0_and_tag_05_bitmap_bits",
+          "role_transition_evaluations",
+          "base_formula_evaluations",
+          "catalog_root_signatures"
+        ],
+        "h4_record_latest_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "valid_path_row_directory_entries",
+          "type_1_slots",
+          "type_0_and_tag_05_bitmap_bits",
+          "role_transition_evaluations",
+          "base_formula_evaluations",
+          "catalog_root_signatures",
+          "catalog_raw_rows"
+        ],
+        "h4_field_model_latest_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "valid_path_row_directory_entries",
+          "type_1_slots",
+          "type_0_and_tag_05_bitmap_bits",
+          "role_transition_evaluations",
+          "base_formula_evaluations",
+          "catalog_root_signatures",
+          "catalog_raw_rows",
+          "encoding_union_anchor_bytes",
+          "h4_name_length_structural_tuples"
+        ],
+        "h4_latest_derivation_terminal": [
+          "tdef_lifecycle_signatures",
+          "raw_locator_windows",
+          "raw_locator_pairs",
+          "h1_target_validity_checks",
+          "valid_path_row_directory_entries",
+          "type_1_slots",
+          "type_0_and_tag_05_bitmap_bits",
+          "role_transition_evaluations",
+          "base_formula_evaluations",
+          "catalog_root_signatures",
+          "catalog_raw_rows",
+          "encoding_union_anchor_bytes",
+          "h4_name_length_structural_tuples",
+          "encoding_length_equivalence_candidates",
+          "candidate_serializations"
+        ]
       },
       "alternative_terms": {
-        "invalid_path_row_directory_entries": {"equation": "16 * 25 * 1019", "units": 407600, "mutually_exclusive_with": "valid_path_row_directory_entries and all later H2-H4 terms"}
+        "invalid_path_row_directory_entries": {
+          "equation": "16 * 25 * 1019",
+          "units": 407600,
+          "mutually_exclusive_with": "valid_path_row_directory_entries and all later H2-H4 terms"
+        }
       },
       "computed_units": {
         "h1_latest_derivation_terminal": 66751392,
@@ -2108,7 +2665,7 @@
         "h4_field_model_latest_terminal": 387462964,
         "h4_latest_derivation_terminal": 387467081
       },
-      "proof": "Every maximum is recomputed by summing the named identities in terminal_path_maxima.term_table from work_model.terms, except the explicitly named invalid_path_row_directory_entries alternative, which is mutually exclusive with the valid path and all later terms. A complete row is at most 2,036 bytes. The nine deduplicated pattern/operation scans charge 18,324 starts; the five eight-byte table operations plus two seven-byte field/index operations charge 1,850 occurrence identities; one shared integer-field endianness gives inner grammar 165,888 and tuple term 306,892,800. The latest H4 path is 387,467,081. Every terminal path is <= max_analysis_work_units=600000000. Equality at 600,000,000 passes and an attempt to charge identity 600,000,001 fails before manifest creation."
+      "proof": "Every maximum is recomputed by summing the named identities in terminal_path_maxima.term_table from work_model.terms, except the explicitly named invalid_path_row_directory_entries alternative, which is mutually exclusive with the valid path and all later terms. A complete row is at most 2,036 bytes. The nine deduplicated pattern/operation scans charge 18,324 starts; the five eight-byte table operations plus two seven-byte field/index operations charge 1,850 occurrence identities; one shared integer-field endianness gives inner grammar 165,888 and tuple term 306,892,800. The latest H4 path is 387,467,081. Every terminal path is <= max_analysis_work_units=600000000, and no registered path can charge the remaining 212,532,919 identities, so the bound is conservative_upper. The checked counter comparator accepts a unit-test measured-total argument of exactly 600,000,000 and rejects 600,000,001 before manifest creation; that comparator test is not a byte-level fixture."
     },
     "bound_classification": {
       "page_size": "conservative_upper",
@@ -2124,7 +2681,9 @@
       "max_candidate_models": "conservative_upper",
       "max_canonical_candidate_bytes": "conservative_upper",
       "max_canonical_candidates_array_bytes": "conservative_upper",
-      "max_analysis_work_units": "attainable_exact",
+      "max_h4_occurrence_identities": "conservative_upper",
+      "max_h4_occurrence_evidence_bytes": "conservative_upper",
+      "max_analysis_work_units": "conservative_upper",
       "max_unique_page_blobs": "conservative_upper",
       "max_retained_page_store_bytes": "conservative_upper",
       "max_bundle_bytes": "conservative_upper",
@@ -2136,7 +2695,7 @@
       "max_companion_bytes_per_checkpoint": "attainable_exact",
       "max_qualified_pages_per_submodel": "conservative_upper"
     },
-    "attainable_exact_rule": "For each attainable_exact field, accept equality and reject an otherwise identical one-over before manifest creation. Conservative_upper fields are independently recomputed and rejected only when exceeded; no equality fixture or attainability claim is made."
+    "attainable_exact_rule": "For each attainable_exact field, accept equality and reject an otherwise identical one-over before manifest creation. Conservative_upper fields are independently recomputed and rejected only when exceeded; no equality fixture or attainability claim is made. max_analysis_work_units is conservative_upper: its equality/one-over tests exercise only the checked comparator (analyzer_dry_run_contract.dry_run_honesty_clause.work_counter_comparator_rule)."
   },
   "claims": {
     "descriptive_provider_observation_only": true,
@@ -2162,5 +2721,158 @@
     "writer_or_update_behavior": false,
     "free_space_preference": false,
     "preservation_behavior": false
+  },
+  "harness_ambiguity_resolutions": {
+    "source": "preregistration.origin_disclosure.executed_reference_harness",
+    "rule": "Each recorded ambiguity has exactly one stated decision that is also written into the cited normative text; the analyzer and independent validator implement the decision, never the harness reading, where the two differ.",
+    "resolutions": [
+      {
+        "id": "AMB-01",
+        "topic": "syntactic decodability bound",
+        "decision": "A four-byte window is syntactically decodable at an offset iff, at every derivation checkpoint of that replica, its u24 little-endian page value is <= 20479 (max_final_pages_per_replica - 1); the u8 row byte is unconstrained at this stage and the 2,045 offsets 0..2044 are examined per layout. This frozen page bound, not 65535 and not the per-checkpoint extant page count, is the decodability rule. The focused contract recomputes 1,872 preserved windows per layout on retained A3 page 23 under exactly this rule (<= 65535 gives 1,875 and the extant-page bound gives 1,855), so the recorded count stands.",
+        "plan_locations": [
+          "candidate_grammars.h1.layout_candidate_rule",
+          "candidate_grammars.h1.a3_page_23_recomputed_work"
+        ]
+      },
+      {
+        "id": "AMB-02",
+        "topic": "H1 structural pair multiplicity",
+        "decision": "The exact locator holes [35,39) and [39,43) admit at most one canonical pair (35,39) per layout, so A4-H1-LOCATOR-PAIR-MULTIPLE is unreachable_by_construction. It stays registered and ordered (it always passes when reached) so the count table and holdout gating are unchanged; its contract carries the enumeration proof, and the transcript schema fixes its entry to a null first failure with a mandatory unreachable assertion (max measured count 1 across the sweep).",
+        "plan_locations": [
+          "predicate_registry.predicate_contracts[A4-H1-LOCATOR-PAIR-MULTIPLE]",
+          "analyzer_dry_run_contract.reachability_transcript_binding"
+        ]
+      },
+      {
+        "id": "AMB-03",
+        "topic": "union-once qualified page identity",
+        "decision": "A qualified page identity is (page number, checkpoint id) within the derivation union; a page number exposed by both derivation replicas at the same checkpoint is charged once. Role rotation does not change the identity rule.",
+        "plan_locations": [
+          "record_candidate_procedure.qualified_page_rule",
+          "record_candidate_procedure.union_once_charging.rule"
+        ]
+      },
+      {
+        "id": "AMB-04",
+        "topic": "per-replica cardinality evaluation",
+        "decision": "Every NONE/MULTIPLE/invalid predicate is evaluated independently on replica 1 and then replica 2 in that order; it fails on the first replica violating it and stores that replica's measured count and that replica's candidates (H1 candidates then carry only that replica's five bindings). REPLICA-DISAGREEMENT compares the two replica-invariant canonical models and retains the unequal pair. A decisive candidate merges both replicas' bindings in canonical order.",
+        "plan_locations": [
+          "predicate_registry.evaluation_rule",
+          "decision_rules.canonicalization_and_uniqueness_rule"
+        ]
+      },
+      {
+        "id": "AMB-05",
+        "topic": "H2 static role fit",
+        "decision": "A role/polarity/mask candidate fits the static structure iff at every applicable checkpoint every type-0 admitted page lies below that checkpoint's page count, the available set is a subset of the owned/in-use set, and the owned/in-use set is nonempty at every checkpoint where the instance's snapshot row count is greater than zero. A type-1 row is tested at H2 only for tag and u32-multiple validity; its admitted set is decoded by H3.",
+        "plan_locations": [
+          "candidate_grammars.h2.static_fit_rule"
+        ]
+      },
+      {
+        "id": "AMB-06",
+        "topic": "R19 fixture versus idle equality",
+        "decision": "Idle legs are idle pairs already enforced byte-identical by A4-IDLE-EQUALITY, so the R19 fixture uses a grow-leg violation: during T1_REL_0512 the owned/in-use set of the unique role model loses a page.",
+        "plan_locations": [
+          "predicate_registry.predicate_contracts[A4-H2-TRANSITION-UNEXPLAINED]"
+        ]
+      },
+      {
+        "id": "AMB-07",
+        "topic": "grow signature",
+        "decision": "On a role's grow leg that role's owned/in-use set may gain pages and may not lose any; its available set may not gain any page the owned set gained on that leg; instances of other roles are unconstrained on that leg.",
+        "plan_locations": [
+          "candidate_grammars.h2.transition_signature.grow"
+        ]
+      },
+      {
+        "id": "AMB-08",
+        "topic": "H3 formula fit and input regions",
+        "decision": "A base formula fits iff at every conversion leg the preceding type-0 owned set is contained in the formula-decoded type-1 set and every later leg obeys the H2 transition signatures on formula-decoded sets; no extant-page rule is applied to admitted pages because exact_allocation_set_equality is not claimed. The six required input regions are: an inactive (zero) slot, an active slot, bit 0 set in a referenced bitmap, a nonzero bit set, bit 16351 set in slot s, and bit 0 set in slot s+1 with both slots active.",
+        "plan_locations": [
+          "candidate_grammars.h3.base_discrimination_rule",
+          "candidate_grammars.h3.fit_rule"
+        ]
+      },
+      {
+        "id": "AMB-09",
+        "topic": "root selection strictness",
+        "decision": "A catalog-root candidate is a tag-02 page extant at EMPTY whose frozen H1/H2/H3 traversal is valid at every checkpoint and whose admitted stream (admitted page set or admitted page hashes) changes at every one of the five TableDefs.Append operations; changes at T1_ADD_TEXT and T1_ADD_INDEX are recorded but not required for candidacy. The H1 user table-record signature is not applied to system TDEFs. OUTSIDE remains reachable because a listed operation may change an admitted page and an additional non-admitted page.",
+        "plan_locations": [
+          "candidate_grammars.h4.catalog_root_selection_signature_rules",
+          "predicate_registry.predicate_contracts[A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED]"
+        ]
+      },
+      {
+        "id": "AMB-10",
+        "topic": "isolated delta and page 0",
+        "decision": "At a listed operation transition the isolated physical schema delta is the set of changed page indices minus page 0 and page 1 (file header and global allocation pages per SRC-0020, about which H4 claims nothing), every user instance's TDEF page, every user H1-located map page, and every page admitted by a user instance's frozen H2/H3 traversal at that checkpoint. Page 0 is not assumed static; it is excluded.",
+        "plan_locations": [
+          "candidate_grammars.h4.isolated_delta_rule"
+        ]
+      },
+      {
+        "id": "AMB-11",
+        "topic": "structural length plausibility",
+        "decision": "The structural stage tests stored-length plausibility before deduplication: for every operation record and every compatible occurrence, the stored length decoded under the tuple's width and endianness must equal one of the registered encoding-neutral counts for the expected name, namely its strict Windows-1252 byte count, its UTF-8 byte count, or its Unicode scalar count (8, 9, or 8 for A4TAB_É4; all equal for ASCII names). The test selects no class.",
+        "plan_locations": [
+          "candidate_grammars.h4.raw_tuple_filter_order",
+          "candidate_grammars.h4.length_plausibility_rule"
+        ]
+      },
+      {
+        "id": "AMB-12",
+        "topic": "observational equivalence of tuples",
+        "decision": "Tuples that decode identical kind, identifier, and stored-length values for every operation record at every applicable checkpoint are one canonical model whose representative is the first tuple in canonical enumeration order; the candidate records value_equivalent_tuple_count. Identical-address deduplication is the special case of this rule.",
+        "plan_locations": [
+          "candidate_grammars.h4.raw_tuple_filter_order",
+          "candidate_grammars.h4.field_candidate_shapes"
+        ]
+      },
+      {
+        "id": "AMB-13",
+        "topic": "campaign predicates and replica 3",
+        "decision": "Campaign predicates are evaluated per replica as that replica's artifacts are structurally validated: replicas 1 and 2 before derivation, replica 3 only after the frozen-document SHA-256 exists and before any holdout predicate. A replica-3 campaign failure is a campaign failure that creates no successful bundle; it cannot alter the already-hashed frozen bytes. The report's campaign rows are the conjunction over all three replicas.",
+        "plan_locations": [
+          "predicate_registry.evaluation_rule",
+          "decision_rules.holdout_rule"
+        ]
+      },
+      {
+        "id": "AMB-14",
+        "topic": "H3 holdout vacuity",
+        "decision": "A vacuous H3 holdout is a failure: A4-H3-HOLDOUT-PREDICTION fails unless replica 3 exercises every registered H3 input region; the absolute T3 growth to 16,480 pages is scheduled precisely so that the holdout exposes a type-1 conversion with active and inactive slots on both sides of the 16,352-bit boundary.",
+        "plan_locations": [
+          "predicate_registry.predicate_contracts[A4-H3-HOLDOUT-PREDICTION]"
+        ]
+      },
+      {
+        "id": "AMB-15",
+        "topic": "H2 role assignment binds locator ordinal",
+        "decision": "The H2 owned/available ordinals name H1 locator ordinals (first and second hole in ascending offset order), which are replica-invariant in the H1 model; swapping which located row is owned in one replica changes only the canonical H2 model and is A4-H2-REPLICA-DISAGREEMENT.",
+        "plan_locations": [
+          "candidate_grammars.h2.locator_role_assignments",
+          "predicate_registry.predicate_contracts[A4-H2-REPLICA-DISAGREEMENT]"
+        ]
+      },
+      {
+        "id": "AMB-16",
+        "topic": "transcript schema and asserted-unreachable rows",
+        "decision": "The transcript schema fixes, per registry position, either a non-null first failure equal to the row's predicate id (39 rows) or, for A4-H1-LOCATOR-PAIR-MULTIPLE only, a null first failure with a mandatory unreachable_assertion (enumeration argument, max measured count 1, and the fixture ids that evaluated the predicate).",
+        "plan_locations": [
+          "analyzer_dry_run_contract.reachability_transcript_binding"
+        ]
+      },
+      {
+        "id": "AMB-17",
+        "topic": "resource-ceiling dry-run cases",
+        "decision": "No synthetic campaign is required to reach 600,000,000 work units and no charge-injection hook exists in the production analyzer. The work counter comparator is a pure function unit-tested at exactly 600,000,000 (accept) and 600,000,001 (reject); the transcript records that unit-test result as work_counter_comparator_equality. The byte-level A4-RESOURCE-BOUND fixture is the changed-hash one-over campaign. The dispatch-gate transcript additionally requires the production analyzer and independent-validator commits and an additive provenance entry, which the reference harness correctly did not claim.",
+        "plan_locations": [
+          "analyzer_dry_run_contract.dry_run_honesty_clause.work_counter_comparator_rule",
+          "predicate_registry.predicate_contracts[A4-RESOURCE-BOUND]"
+        ]
+      }
+    ]
   }
 }

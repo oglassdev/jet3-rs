@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`550c6e566b8cb14492508cbf6a9b4e3980fe2ecc9729e61b7b9830d4bdd337c3`.
+`be6cecc23bad7bf25e71543023da074edf944c8f786bcd7703ef995e53708dc9`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -31,7 +31,9 @@ registry labels are not proof. Before hosted dispatch, a real byte-level
 reachability harness must construct shared campaigns from exact 2,048-byte
 pages, enumerate only the closed grammar, propagate candidates in normative
 order, report actual survivor counts and first failure, demonstrate every
-claimed-reachable terminal, and assert every unreachable terminal. R4-C01-style
+claimed-reachable terminal, and assert every unreachable terminal
+(`A4-H1-LOCATOR-PAIR-MULTIPLE` is unreachable by construction because the
+exact locator holes admit one pair per layout). R4-C01-style
 charging counts each unique qualified
 page/checkpoint/model identity once across the derivation-replica union.
 
@@ -136,8 +138,12 @@ The base plan incorporates A3's later machinery fixes from the start:
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 387,467,081 units under the exact-accept 600,000,000-unit
-  ceiling; mutually exclusive row-count and row-length maxima are not summed.
+  path is H4 at 387,467,081 units under the 600,000,000-unit ceiling, which
+  is classified `conservative_upper`: only its checked comparator is tested
+  (600,000,000 accepted, 600,000,001 rejected) as a unit test outside the 40
+  byte fixtures, and the byte-level `A4-RESOURCE-BOUND` terminal is reached by
+  a 67,200-entry changed-hash one-over campaign; mutually exclusive row-count
+  and row-length maxima are not summed.
   Type-1 rows admit at most 508 complete slots, type-0 rows 16,248 bits, and
   tag-05 pages 16,352 bits. H4 separately charges the encoding-union scan and
   all bounded name/length tuple attempts. A complete row is at most 2,036
@@ -148,8 +154,11 @@ The base plan incorporates A3's later machinery fixes from the start:
 - One producer read plus independent analyzer and validator reads cost at most
   1,317,011,456 bytes per replica, below the 2 GiB logical-read bound; no
   analyzer/validator pass is shared. Candidates are globally capped at
-  4,096 bytes each, their full array at 16,781,313 bytes, and concrete bounded
-  transcript schemas keep the complete frozen JSON below 64 MiB.
+  4,096 bytes each (per-operation occurrence evidence lives in a separate
+  hashed `analysis/h4-occurrence-evidence.json` of at most 524,288 bytes,
+  referenced by SHA-256 from structural candidates), their full array at
+  16,781,313 bytes, and concrete bounded transcript schemas keep the complete
+  frozen JSON below 23,200,000 bytes.
 - R5-T01-style timing measures from hosted attempt start through successful
   manifest creation. Exactly 2,700 seconds is accepted; 2,701 is rejected
   before manifest creation and produces diagnostics rather than a successful
@@ -160,7 +169,13 @@ The base plan incorporates A3's later machinery fixes from the start:
   rejection results fail the gate. The canonical
   `dry-run/a4-reachability-transcript.json` artifact and synthetic dry-run
   report bind its bytes, producer identities, and additive provenance entry;
-  all registry fixtures remain claimed and not yet executed until that gate.
+  its schema fixes all 40 entries positionally in registry order. All registry
+  fixtures remain claimed and not yet executed until that gate.
+- An executed reference reachability harness (draft PR #74, branch
+  `fable/a4-dryrun`, built by a different agent against the review-pass-4
+  plan) is recorded as a design input only; the 17 plan ambiguities it
+  surfaced (AMB-01..AMB-17) are each resolved by a stated decision in the
+  plan's `harness_ambiguity_resolutions` and the normative text it cites.
 
 The approved scope brief is copied byte-for-byte at
 `design-inputs/a4-scope-approved.md`, SHA-256
@@ -170,8 +185,10 @@ The approved scope brief is copied byte-for-byte at
 
 The evidence-schema family is A4-specific: frozen layers retain complete
 stage-discriminated canonical candidate arrays, H4 has independent root and
-field results with separate encoding-neutral structural and final encoded
-field candidates and exact seven-operation occurrence bindings, and the
+structural, and encoding results; structural candidates carry per-operation
+compatible-occurrence bitmaps and reference the hashed occurrence-evidence
+document, and final encoded candidates select one occurrence per operation
+under one encoding-length equivalence class. The
 analysis report contains A4 row-directory, locator, transition, reference/
 bitmap, catalog-root, and catalog-field transcripts. A4 additionally defines
 `dao-schema-snapshot.schema.json` and

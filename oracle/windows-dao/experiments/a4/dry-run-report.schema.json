@@ -113,7 +113,7 @@
         "encoding_ambiguity",
         "replica_disagreement",
         "holdout_failure",
-        "resource_exact_ceiling",
+        "work_counter_comparator_equality",
         "resource_one_over",
         "campaign_2700_seconds",
         "campaign_2701_seconds"
@@ -155,7 +155,7 @@
         "holdout_failure": {
           "const": true
         },
-        "resource_exact_ceiling": {
+        "work_counter_comparator_equality": {
           "const": true
         },
         "resource_one_over": {
@@ -189,14 +189,38 @@
     "reachability_transcript": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "sha256", "size_bytes", "harness_commit", "independent_validator_commit", "provenance_entry_id"],
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes",
+        "harness_commit",
+        "independent_validator_commit",
+        "provenance_entry_id"
+      ],
       "properties": {
-        "path": {"const": "dry-run/a4-reachability-transcript.json"},
-        "sha256": {"$ref": "#/$defs/sha256"},
-        "size_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
-        "harness_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "independent_validator_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "provenance_entry_id": {"type": "string", "pattern": "^EXP-[0-9]{4}$"}
+        "path": {
+          "const": "dry-run/a4-reachability-transcript.json"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "harness_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "independent_validator_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "provenance_entry_id": {
+          "type": "string",
+          "pattern": "^EXP-[0-9]{4}$"
+        }
       }
     },
     "result": {
