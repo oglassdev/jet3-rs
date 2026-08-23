@@ -139,8 +139,10 @@ Execution status (`EXP-0048`): the pre-acquisition dry run has been executed
 under R4 and disclosed. The synthetic sweep (100 fixtures, twelve sweep checks,
 result `pass`), the executed reachability transcript (31 of 31 reachable ids,
 3 asserted nonterminal), the analyzer/independent-validator pair gate (100 of
-100 agreeing, `accepted=true` with T1–T5 rejected on every fixture holding a
-frozen global-record model), and the EXP-0042 derivation-only replay (81
+100 agreeing on 400 layer views, 100 polarity transcripts, 100 campaign
+terminals, and all 3,400 ordered predicate statuses; both bundle-contract
+rejections remain fail-closed; `accepted=true` with T1–T5 rejected on every
+fixture holding a frozen global-record model), and the EXP-0042 derivation-only replay (81
 blobs, result `pass`) are retained under `dry-run/` with SHA-256 values in
 `dry-run/checksums.json`. The execution gate remains `BLOCKED` on
 worker/workflow rebinding (PR #56, open blocking findings), an exact clean

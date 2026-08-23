@@ -3929,19 +3929,22 @@ Use `not applicable` explicitly rather than omitting a field.
   derivation-only EXP-0042 replay, the executed predicate-reachability
   transcript, and the full-sweep analyzer/independent-validator pair gate all
   execute and pass under the R4-bound implementations?
-- Execution: `python3 -B oracle/windows-dao/scripts/a3_dryrun.py --jobs 10`
-  at commit `676b3cb226344af31e6a338492f842ece70ec94d` (branch
-  `fable/a3-dryrun-disclosure`, which carries the harness follow-ups of the
-  Pass-6 review and no analyzer, validator, plan, or schema change; the
-  analyzer sources are those merged by PR #62 at
-  `65359a0d1f73e3f7369e37de162ea498bbe5214d` and the validator sources those
-  merged by PR #63 at `5d49e6bcc8a61c9b2c375f28388ed7facece3795`). Every
+- Execution: `python3 -B oracle/windows-dao/scripts/a3_dryrun.py --jobs 10
+  --workspace /private/tmp/access97-a3-dryrun-pOEsTz --retained-root
+  /private/tmp/claude-501/-Users-oglass-Development-Misc-access97-rs/77df2993-62f0-4041-97d5-19885072a109/scratchpad/a2run4/windows-dao-a2-bundle-1a0585446ac8b0d232ee4c0391cce9d635e7c43a-32587946283-1/jet3-a2-bundle
+  --output oracle/windows-dao/experiments/a3/dry-run` at code-only commit
+  `6d1a8ff370f8a8abf8fee6f14f61131638faedc2` (branch
+  `fable/a3-dryrun-disclosure`). The analyzer sources are those merged by PR
+  #62 at `65359a0d1f73e3f7369e37de162ea498bbe5214d`; the validator sources are
+  those merged by PR #63 at `5d49e6bcc8a61c9b2c375f28388ed7facece3795`
+  plus the independent plan-derived pair-projection fix in the stamped commit.
+  Every
   fixture was materialised as a real on-disk bundle in the plan artifact
   layout, analyzed through `a3_analysis.build_analysis` with the spawned
   holdout-structure receipt, then independently validated by
-  `a3_independent_validator.py` (full verdict and `--recompute-only`) as a
+  `a3_independent_validator.py` (full verdict and `--pair-projection`) as a
   separate process on the identical bytes. The artefacts stamp
-  `analyzer_commit = 676b3cb2…`, the commit whose code produced them.
+  `analyzer_commit = 6d1a8ff3…`, the commit whose code produced them.
 - Synthetic sweep: 100 fixtures (baseline; every free-parameter value
   including conversion ordinals 1–24 and never, slot activation 0/1/2, both
   polarities, empty/partial/full anchor fill, slack 16/32/64, starts
@@ -3962,9 +3965,11 @@ Use `not applicable` explicitly rather than omitting a field.
   from analyzer transcripts, never from the registry; `A3-POLARITY-NONE`,
   `A3-INLINE-BOUNDARY-NONE`, and `A3-INLINE-BOUNDARY-MULTIPLE` were never
   terminal in any fixture (asserted nonterminal).
-- Pair gate (`a3-pair-agreement.json`): 100 of 100 fixtures agree on
-  per-layer terminal predicate ids, models, `derivation_survivor_count`
-  (R4-S01), polarity-cross-check transcripts, and campaign terminal. The
+- Pair gate (`a3-pair-agreement.json`): 100 of 100 fixtures carry and agree on
+  400 independent layer views (status, terminal predicate id, model, and
+  `derivation_survivor_count` under R4-S01), 100 polarity-cross-check
+  transcripts, 100 campaign terminals, and all 3,400 ordered predicate
+  statuses (34 per fixture). The
   validator emitted `accepted=true` with T1–T5 rejected on every fixture that
   holds a frozen global-record model; on fixtures without one it stops with
   `tamper_suite_not_executable` after every untampered recomputation,
@@ -3972,9 +3977,11 @@ Use `not applicable` explicitly rather than omitting a field.
   tamper suite being not applicable (`tamper_cases` T1–T4 mutate a decisive
   model). `missing_page_blob` and `seventeen_qualified_pages` are rejected by
   the bundle contract as designed (`snapshot_page_blob_missing`,
-  `resource_bound_breach`). The 34 predicate statuses are enforced by the
-  validator's own `validate_predicates` on that path; the harness does not
-  compare them field-by-field because the validator exports no predicate rows.
+  `resource_bound_breach`) with nonzero validator exits, while each still
+  exports the bounded plan-derived four-layer view, empty cross-check,
+  campaign terminal, and 34-status vector; the pair gate compares every field
+  before accepting the expected rejection. A focused one-status mutation of
+  either rejection fixture fails the pair gate.
 - EXP-0042 replay (`exp-0042-replay-report.json`, result `pass`): replicas 1
   and 2 only (the source type refuses to name replica 3); every observation
   and page index hash-checked against manifest
@@ -3990,17 +3997,17 @@ Use `not applicable` explicitly rather than omitting a field.
 - Artefacts (`oracle/windows-dao/experiments/a3/dry-run/`, SHA-256 from
   `checksums.json`):
   `a3-synthetic-report.json`
-  `f593c12940832ce39f875c98cd33e511d31744fc0baae1a3942e86c65dc3ca52`;
+  `ff91e8637778900b83690ae9ab58bd129f16543048cf7778002d328e9381d378`;
   `a3-synthetic-cases.json`
-  `c18a094171c088067bdd9ede7cdddd76e099da63848f6a5985381e4746865adf`;
+  `2383cfbc59ddb0f34d4321dcfbc119727644190ae47b5fc0e73b2f70fb874b9e`;
   `a3-reachability-transcript.json`
   `a69ff749e3972a0e0dcf1a09ae28aeab28a13599d3068ab403a86a3cdd1af32a`;
   `a3-pair-agreement.json`
   `c05907b53505732e21cc0381e88e4ac52151dcfc2b031895d3d96a8833164084`;
   `a3-sweep-checks.json`
-  `4b5e9ae4b1f5666a98a5080939b129b75fecc5a519321918fa0f5f99148a3a34`;
+  `a92b181d08955a42796fcc7241969cddca87db769789b37df02ba5c7fe72007d`;
   `exp-0042-replay-report.json`
-  `b5197f1b644ff40eba781d197793fe7383efff3b8aac374eb86fc0ef78c059f4`;
+  `7738f65ae0b4a45979a8ed4328244cfdd4d79f4f7066dc6c626491af368d7b75`;
   `exp-0042-replay-transcript.json`
   `92f1687e65161dbb6ebe21ee7844e478ec0b58462092cd5824a44749be51507a`.
   The two reports embed `recorded_utc`; a re-run reproduces every other
