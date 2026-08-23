@@ -42,6 +42,11 @@ LAYER_PATHS = {
 
 R2_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 R3_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
+R4_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+REVISION_PATHS = {
+    "DAO-A3-ALLOCATION-MAPS-001-R2": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json",
+    "DAO-A3-ALLOCATION-MAPS-001-R3": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json",
+}
 R2_LAYER_NAME_MAP = {
     "global_map.record": "global_map_record",
     "global_map.conversion_inline": "global_map_conversion_inline",
@@ -61,7 +66,7 @@ def _repo_plan_path() -> Path:
 
 
 def _repo_revision_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "experiments" / "a3" / "a3-allocation-maps-r3.plan.json"
+    return Path(__file__).resolve().parents[1] / "experiments" / "a3" / "a3-allocation-maps-r4.plan.json"
 
 
 def _load_predicate_sequences(
@@ -70,14 +75,17 @@ def _load_predicate_sequences(
     predicate_ids: list[str],
 ) -> tuple[list[str], dict[str, list[str]]]:
     revision, raw = load_json(revision_path, 67_108_864)
-    if sha256_bytes(raw) != R3_SHA256:
+    if sha256_bytes(raw) != R4_SHA256:
         raise ValidationError("predicate_revision_hash_mismatch")
+    original_path = "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
     try:
         original = revision["preregistration"]["original_plan"]
-        prior = revision["preregistration"]["prior_revision"]
-        prior_path = revision_path.with_name(Path(prior["path"]).name)
-        r2, r2_raw = load_json(prior_path, 67_108_864)
-        r2_original = r2["preregistration"]["original_plan"]
+        priors = {row["revision_id"]: row for row in revision["preregistration"]["prior_revisions"]}
+        r3_row = priors["DAO-A3-ALLOCATION-MAPS-001-R3"]
+        r2_row = priors["DAO-A3-ALLOCATION-MAPS-001-R2"]
+        r3, r3_raw = load_json(revision_path.with_name(Path(r3_row["path"]).name), 67_108_864)
+        r2, r2_raw = load_json(revision_path.with_name(Path(r2_row["path"]).name), 67_108_864)
+        r3_prior = r3["preregistration"]["prior_revision"]
         reconciliation = r2["predicate_evaluation_sequence_reconciliation"]
         campaign = reconciliation["campaign_evaluated_before_any_layer"]
         published_layers = reconciliation["per_layer_ordered_predicates"]
@@ -85,14 +93,22 @@ def _load_predicate_sequences(
         raise ValidationError("predicate_revision_contract_mismatch") from exc
     if (
         revision.get("document_type") != "dao_a3_allocation_maps_plan_revision"
-        or revision.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R3"
-        or original.get("path") != "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
+        or revision.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R4"
+        or original.get("path") != original_path
         or original.get("sha256") != plan_sha256
-        or prior.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R2"
-        or prior.get("sha256") != R2_SHA256
+        or len(priors) != 2
+        or r3_row.get("path") != REVISION_PATHS["DAO-A3-ALLOCATION-MAPS-001-R3"]
+        or r3_row.get("sha256") != R3_SHA256
+        or sha256_bytes(r3_raw) != R3_SHA256
+        or r3.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R3"
+        or r3["preregistration"].get("original_plan") != original
+        or r3_prior.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R2"
+        or r3_prior.get("sha256") != R2_SHA256
+        or r2_row.get("path") != REVISION_PATHS["DAO-A3-ALLOCATION-MAPS-001-R2"]
+        or r2_row.get("sha256") != R2_SHA256
         or sha256_bytes(r2_raw) != R2_SHA256
         or r2.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R2"
-        or r2_original != original
+        or r2["preregistration"].get("original_plan") != original
         or not isinstance(campaign, list)
         or not all(isinstance(predicate, str) for predicate in campaign)
         or len(campaign) != len(set(campaign))
@@ -515,15 +531,22 @@ def verify_report_bounds(bundle: LoadedBundle, derivation: dict[str, Any]) -> No
     if bundle.report is None:
         raise ValidationError("analysis_report_missing")
     report = bundle.report
-    expected_records = (
-        derivation["record_candidate_enumerations"]
-        * bundle.plan["bounds"]["max_record_candidates_per_page"]
-    )
+    bounds = bundle.plan["bounds"]
+    # R4-C01: each union qualified page is charged once across derivation replicas.
+    pages = derivation["record_candidate_enumerations"]
+    expected_records = pages * bounds["max_record_candidates_per_page"]
+    if expected_records > bounds["max_record_candidates"]:
+        raise ValidationError("record_candidate_bound")
     if report["record_candidates_examined"] != expected_records:
         raise ValidationError("record_candidate_count_mismatch")
-    if report["candidate_models_examined"] > bundle.plan["bounds"]["max_candidate_models"]:
+    if report["candidate_models_examined"] > bounds["max_candidate_models"]:
         raise ValidationError("candidate_model_bound")
-    if report["analysis_work_units"] > bundle.plan["bounds"]["max_analysis_work_units"]:
+    # prefix_sum_work_model: at most eight units per enumerated interval and at most
+    # sixteen 2049-cell prefix arrays per union qualified page, charged once.
+    work_ceiling = 8 * expected_records + 16 * (bounds["page_size"] + 1) * pages
+    if work_ceiling > bounds["max_analysis_work_units"]:
+        raise ValidationError("analysis_work_bound")
+    if report["analysis_work_units"] > min(work_ceiling, bounds["max_analysis_work_units"]):
         raise ValidationError("analysis_work_bound")
 
 

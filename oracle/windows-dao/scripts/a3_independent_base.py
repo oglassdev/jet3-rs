@@ -19,10 +19,10 @@ class GlobalModel(Protocol):
     polarity: str
 
 
-def _no_layer(reason: str, predicate: str) -> dict[str, Any]:
+def _no_layer(reason: str, predicate: str, survivors: int = 0) -> dict[str, Any]:
     return {
         "applicable": True,
-        "derivation_survivor_count": 0,
+        "derivation_survivor_count": survivors,
         "model": None,
         "no_outcome_reason": reason,
         "terminal_predicate_id": predicate,
@@ -167,7 +167,7 @@ def _derive_replica(
     if not survivors:
         return _no_layer("no_extended_base_candidate", "A3-BASE-NONE")
     if len(survivors) > 1:
-        return _no_layer("multiple_extended_base_candidates", "A3-BASE-MULTIPLE")
+        return _no_layer("multiple_extended_base_candidates", "A3-BASE-MULTIPLE", len(survivors))
     return _model_layer({"extended_base_formula": next(iter(survivors))})
 
 
@@ -182,7 +182,7 @@ def derive_extended_base(
     if any(terminal is not None for terminal in terminals):
         if len(set(terminals)) == 1:
             return layers[0], terminals
-        return _no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), terminals
+        return _no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT", layers[0]["derivation_survivor_count"]), terminals
     if any(layer["model"] != layers[0]["model"] for layer in layers[1:]):
-        return _no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), terminals
+        return _no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT", 1), terminals
     return _model_layer(layers[0]["model"]), terminals
