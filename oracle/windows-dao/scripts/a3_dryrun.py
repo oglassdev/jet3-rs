@@ -296,7 +296,7 @@ def _coverage(results: list[CaseResult]) -> dict[str, Any]:
         "conversion_ordinals": sorted({p.conversion_ordinal for p in axis("axis:conversion_ordinal") if p.conversion_ordinal is not None}),
         "conversion_never": any(p.conversion_ordinal is None for p in axis("axis:conversion_ordinal")),
         "slot_activation_counts": sorted({p.slot_activation_at_conversion for p in axis("axis:slot_activation_at_conversion")}),
-        "bit_polarities": sorted({p.bit_polarity for p in axis("axis:bit_polarity")}, reverse=True),
+        "bit_polarities": [p.bit_polarity for p in axis("axis:bit_polarity")],
         "anchor_fill_states": [p.anchor_fill_state for p in axis("axis:anchor_fill_state")],
         "record_end_uniform_slack_bytes": sorted({p.record_end_uniform_slack_bytes for p in axis("axis:record_end_uniform_slack_bytes")}),
         "exp_0042_calibration": None if calibration.report is None else {
