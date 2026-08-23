@@ -64,6 +64,29 @@ def recompute_terms(plan: dict[str, Any]) -> tuple[dict[str, int], dict[str, int
     pair_span = locator_starts - inputs["locator_bytes"]
     locator_pairs_one_layout = pair_span * (pair_span + 1) // 2
     locator_pairs_per_page = len(grammar["h1"]["locator_layouts"]) * locator_pairs_one_layout
+    standard_locator_identities = len(grammar["h1"]["table_record_signature"]["locator_holes"])
+    multiple_signature = grammar["h1"]["pair_multiple_reachability_signature"]
+    identity_classes = multiple_signature["locator_identity_classes"]
+    locator_offsets = {hole[0] for hole in multiple_signature["locator_holes"]}
+    classified_offsets = [offset for group in identity_classes for offset in group]
+    if len(classified_offsets) != len(set(classified_offsets)) or set(classified_offsets) != locator_offsets:
+        raise SystemExit(
+            "pair_multiple_reachability_signature.locator_identity_classes "
+            "must partition the locator-hole starts"
+        )
+    multiple_locator_identities = len(identity_classes)
+    registered_multiple_bound = require_int(
+        multiple_signature["maximum_distinct_target_identities_per_layout"],
+        "pair-multiple distinct target identities",
+    )
+    if registered_multiple_bound != multiple_locator_identities:
+        raise SystemExit(
+            "pair-multiple distinct target identity bound "
+            f"{registered_multiple_bound} != recomputed {multiple_locator_identities}"
+        )
+    maximum_locator_identities = max(
+        standard_locator_identities, multiple_locator_identities
+    )
     valid_rows = (page_size - inputs["page_header_bytes"]) // (
         inputs["row_directory_entry_bytes"] + inputs["minimum_row_bytes"]
     )
@@ -95,7 +118,7 @@ def recompute_terms(plan: dict[str, Any]) -> tuple[dict[str, int], dict[str, int
         "raw_locator_pairs": qualified_pages * locator_pairs_per_page,
         "h1_target_validity_checks": qualified_pages
         * len(grammar["h1"]["locator_layouts"])
-        * len(grammar["h1"]["table_record_signature"]["locator_holes"])
+        * maximum_locator_identities
         * checkpoints,
         "valid_path_row_directory_entries": qualified_pages * checkpoints * valid_rows,
         "type_1_slots": qualified_pages * checkpoints * 2 * type_1_slots,

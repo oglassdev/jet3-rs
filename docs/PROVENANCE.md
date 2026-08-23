@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `ce37c90d3f835de7beb9d1480821d803cb2d0a5ecf0c7c521fd5c8909ec754c2`,
+  `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4606,9 +4606,10 @@ Use `not applicable` explicitly rather than omitting a field.
   `06179c9fdada8cf7a8c3a6ce47919f4f19b4065ebf603b27720250fe9768af21`,
   built by a different agent against the pass-4 plan) as a design input
   only; its 17 recorded ambiguities AMB-01--AMB-17 are each resolved by a
-  stated decision in the plan's `harness_ambiguity_resolutions`, including
-  the page-bound decodability rule that reproduces the 1,872-window count and
-  the by-construction unreachability of `A4-H1-LOCATOR-PAIR-MULTIPLE`.
+  stated decision in the plan's `harness_ambiguity_resolutions`; pass 8
+  supersedes the earlier AMB-02/AMB-16 exception as described below while
+  retaining the page-bound decodability rule that reproduces the 1,872-window
+  count.
   Pass 6 finding P6-B1
   splits H4 identity into a replica-invariant `canonical_model_id` and a
   binding-qualified `canonical_candidate_id` (replica agreement compares
@@ -4638,6 +4639,23 @@ Use `not applicable` explicitly rather than omitting a field.
   planning evidence, not an A4 runtime proof. Normative controls remain the
   checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second
   hard campaign timeout;
+  pass 8 finding B1 makes all 40 predicate fixtures claimed-reachable with the
+  exact literal `claimed_reachable; execution_required_before_dispatch` and
+  no exception. `A4-H1-LOCATOR-PAIR-MULTIPLE` now has fixture
+  `A4-R10-H1-PAIR-MULTIPLE`: a closed, mutually exclusive three-hole TDEF
+  signature duplicates the second locator at the third offset, producing two
+  identity-preserved target-valid pairs under only the row-then-page layout.
+  The two pairs reuse the same two decoded targets, so independently
+  recomputed candidate bounds, the 1,600 target-validity checks, all resource
+  bounds, and the 694,378,226-unit total are unchanged. Before/after schema
+  hashes for this pre-acquisition P0 repair are:
+
+  | Schema | SHA-256 before | SHA-256 after |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `3a3903a49a05cedad0b6685ccf194ef598ba4c359aad18adcd1ba2113abcc0db` | `132239732f50872ae3e579b4857a498f2df1aff09ecffc389e08d1756c988104` |
+  | `derivation-candidates.schema.json` | `c6dc3b11a73a6ba4dedb582e01b405aeb8d84cd801b261f41ed6884792a5c1e6` | `f0dec323bb1b1647b0bf093a9692b0a338859ed3b219567b3b4f0751294d69f7` |
+  | `reachability-transcript.schema.json` | `2faec2aed55be8b9274631e15bbf3b58e72036c3ff3896f807a992f3a3c96c4f` | `beaa8179a9c0e5a3d26c1098494f6d0bf32c20ea87d162de65e0637aa3f95bb5` |
+
   focused A4
   plan and repository contract checks must pass
 

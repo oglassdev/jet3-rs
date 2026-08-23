@@ -613,7 +613,7 @@
         "u8_row_then_u24le_page"
       ],
       "locator_offset_domain": "0..2044 inclusive; canonical a<b and b-a>=4",
-      "layout_candidate_rule": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. A window at offset o (0..2044) is syntactically decodable under a layout iff at every derivation checkpoint of that replica its u24 little-endian page value is <= 20479; the u8 row byte is unconstrained at this stage (AMB-01). LOCATOR-LAYOUT-NONE asks whether either layout has any such cross-checkpoint syntactically preserved window. Structural pair filtering then applies only the registered table-record signature with its exact locator holes, nonoverlap, and identity preservation, so each layout admits at most the one canonical pair (35,39). After TARGET-ROW-INVALID passes, a layout cardinality candidate is a layout containing at least one target-valid pair.",
+      "layout_candidate_rule": "Raw syntactically decodable four-byte windows are enumeration work, not scientific candidates. A window at offset o (0..2044) is syntactically decodable under a layout iff at every derivation checkpoint of that replica its u24 little-endian page value is <= 20479; the u8 row byte is unconstrained at this stage (AMB-01). LOCATOR-LAYOUT-NONE asks whether either layout has any such cross-checkpoint syntactically preserved window. Structural pair filtering then applies one of the two mutually exclusive registered table-record signatures with its exact locator holes, nonoverlap, and identity preservation. The standard signature admits one canonical pair per layout. The duplicate-locator signature admits the three canonical hole pairs, of which the pair between the byte-identical second and third locators has duplicate decoded targets and cannot survive target validity; the other two distinct-offset pairs may both survive under one layout. After TARGET-ROW-INVALID passes, a layout cardinality candidate is a layout containing at least one target-valid pair.",
       "logical_roles": [
         "T1",
         "T2",
@@ -621,6 +621,7 @@
         "T4"
       ],
       "table_record_signature": {
+        "signature_id": "a3_page23_masked_record_0_92",
         "record_bounds": [
           0,
           92
@@ -639,6 +640,59 @@
           ]
         ]
       },
+      "pair_multiple_reachability_signature": {
+        "signature_id": "a4_pair_multiple_duplicate_locator_0_92",
+        "base_signature_id": "a3_page23_masked_record_0_92",
+        "record_bounds": [
+          0,
+          92
+        ],
+        "additional_locator_hole": [
+          43,
+          47
+        ],
+        "locator_holes": [
+          [
+            35,
+            39
+          ],
+          [
+            39,
+            43
+          ],
+          [
+            43,
+            47
+          ]
+        ],
+        "mask_rule": "Start from a3_page23_masked_record_0_92, change only mask bytes [43,47) from ff to 00, and apply the base masked comparison. Additionally require bytes [43,47) == bytes [39,43) at every applicable checkpoint and require those duplicated bytes to differ from the base signature's fixed bytes [43,47). The inequality makes the two signature variants mutually exclusive. No fourth locator hole or unregistered equality relation is allowed.",
+        "canonical_pair_rule": "Enumerate the three nonoverlapping canonical offset pairs (35,39), (35,43), and (39,43). Because locators at 39 and 43 are byte-identical, (39,43) decodes to duplicate targets and is rejected by target validity. Pairs (35,39) and (35,43) have distinct offset identities while decoding the same two target identities, so both may survive without increasing the maximum two distinct target identities checked per layout.",
+        "locator_identity_classes": [
+          [
+            35
+          ],
+          [
+            39,
+            43
+          ]
+        ],
+        "maximum_distinct_target_identities_per_layout": 2,
+        "fixture_campaign": {
+          "fixture_id": "A4-R10-H1-PAIR-MULTIPLE",
+          "shared_campaign_rule": "Use the all-pass exact-2,048-byte campaign for both derivation replicas and all 25 checkpoints. Keep exactly one lifecycle-qualified tag-02 TDEF page 23. In its bounded [0,92) record set bytes [35,39)=00180000, [39,43)=01180000, and [43,47)=01180000 at every applicable checkpoint; every other masked byte equals the base signature. Keep exact tag-01 page 24 with row_count 2 and both row ordinals in range; pages 6144 and 6145 are absent. All campaign predicates and H1 predicates through LOCATOR-LAYOUT-MULTIPLE pass on the same state.",
+          "expected_structural_pair_count_per_layout": {
+            "u24le_page_then_u8_row": 3,
+            "u8_row_then_u24le_page": 3
+          },
+          "expected_target_valid_pair_count_per_layout": {
+            "u24le_page_then_u8_row": 0,
+            "u8_row_then_u24le_page": 2
+          },
+          "expected_unique_target_valid_layout_count": 1,
+          "expected_terminal_measured_count": 2,
+          "bounded_identity_proof": "The variant adds one locator window and three structural pairs only inside the already charged all-window/all-pair sweep. Its duplicate-byte equality limits decoded target checks to two identities per layout, equal to the standard signature maximum. It uses one qualified TDEF page, one extant target page, 25 checkpoints, and two derivation replicas, all below existing bounds."
+        }
+      },
       "h1_semantic_boundary": "H1 uses only TDEF lifecycle bytes, syntactic locator decoding, the masked record signature, nonoverlap/identity, and target page/tag/row-ordinal validity. It does not decode allocation rows, test bit polarity, compare admitted sets, or assign owned/available roles; all such transition work belongs exclusively to H2.",
       "non_holdout_local_order": [
         "1. TDEF-NONE",
@@ -655,7 +709,7 @@
         "enumerate_4090_raw_window_identities",
         "decode_page_row_syntax_across_all_derivation_checkpoints",
         "form_canonical_nonoverlapping_pairs_within_each_layout",
-        "apply_table_record_signature_and_exact_locator_holes",
+        "apply_one_mutually_exclusive_table_record_signature_and_its_exact_locator_holes",
         "require_pair_offset_identity_across_extant_lifecycle_checkpoints",
         "validate_target_existence_tag_uniqueness_and_row_ordinal",
         "count_target_valid_layout_survivors",
@@ -924,7 +978,7 @@
     "must_complete_before_acquisition": true,
     "dry_run_result_disclosure": "not_run_preregistration_only",
     "dispatch_gate": "before any matrix job, execute schema-valid synthetic, A3-calibration derivation-only replay, decisive-report validator, independent pair, tamper runs, and the complete registry-ordered reachability transcript; independently hash retained transcript bytes and reject a missing, extra, reordered, stale, or disagreeing entry; commit an additive provenance disclosure. A3 holdout data is calibration only and no future A4 holdout may be opened before freeze",
-    "reachability_transcript_binding": "The synthetic dry-run report binds the exact path dry-run/a4-reachability-transcript.json, SHA-256, byte size, harness commit, independent-validator commit, and additive provenance entry id. The transcript schema fixes fixture_entries as exactly 40 positional items (prefixItems in registry order, items false); each position constrains order, predicate_id, and reachability_fixture_id to the corresponding predicate contract and reuses one bounded entry schema. Each entry binds the baseline fixture hash, mutation hash, page-index and page-blob inventory hashes, enumerated candidate ids by stage, actual survivor counts for every evaluated predicate, first-failure id, analyzer result, independent-validator result, and agreement. Each reachable position fixes first_failure_id to its own predicate id and unreachable_assertion to null; the A4-H1-LOCATOR-PAIR-MULTIPLE position fixes first_failure_id to null and requires an unreachable_assertion with the enumeration argument, max measured count 1, and at least one fixture id that evaluated the predicate (AMB-02, AMB-16). Semantically, evaluated_predicates MUST be exactly the ordered applicable registry prefix ending at the entry's predicate, with every earlier status pass and the last status fail (or pass for the unreachable row), the entry's first_failure_id MUST equal both evaluator first-failure ids, and the analyzer and independent-validator first failure, measured terminal count, and candidate-set SHA-256 MUST be equal rather than merely flagged agreement: true. adversarial_case_outcomes is the exact ten-key object of analyzer_dry_run_contract.dry_run_honesty_clause.byte_level_reachability_harness_contract.required_adversarial_cases. The dispatch gate independently hashes the retained transcript bytes and rejects any missing, extra, reordered, stale, or disagreeing entry.",
+    "reachability_transcript_binding": "The synthetic dry-run report binds the exact path dry-run/a4-reachability-transcript.json, SHA-256, byte size, harness commit, independent-validator commit, and additive provenance entry id. The transcript schema fixes fixture_entries as exactly 40 positional items (prefixItems in registry order, items false); each position constrains order, predicate_id, and non-null reachability_fixture_id to the corresponding predicate contract and reuses one bounded entry schema. Each entry binds the baseline fixture hash, mutation hash, page-index and page-blob inventory hashes, enumerated candidate ids by stage, actual survivor counts for every evaluated predicate, first-failure id, analyzer result, independent-validator result, and agreement. Every position fixes first_failure_id to its own predicate id and unreachable_assertion to null. Semantically, evaluated_predicates MUST be exactly the ordered applicable registry prefix ending at the entry's predicate, with every earlier status pass and the last status fail, the entry's first_failure_id MUST equal both evaluator first-failure ids, and the analyzer and independent-validator first failure, measured terminal count, and candidate-set SHA-256 MUST be equal rather than merely flagged agreement: true. A4-H1-LOCATOR-PAIR-MULTIPLE additionally requires an actual measured terminal count of at least two from the bounded duplicate-locator shared campaign (AMB-02, AMB-16). adversarial_case_outcomes is the exact ten-key object of analyzer_dry_run_contract.dry_run_honesty_clause.byte_level_reachability_harness_contract.required_adversarial_cases. The dispatch gate independently hashes the retained transcript bytes and rejects any missing, extra, reordered, stale, or disagreeing entry.",
     "dry_run_honesty_clause": {
       "style": "R3 dry-run honesty clause",
       "required_cases": [
@@ -945,13 +999,13 @@
         "campaign_2700_seconds",
         "campaign_2701_seconds"
       ],
-      "reachability_by_transcript": "Before any hosted dispatch, an executed byte-level reachability harness must demonstrate every terminal classified claimed-reachable and assert every terminal classified unreachable. A registry label, constant rejection, hand-authored expected status, or structural unit test is not reachability evidence.",
+      "reachability_by_transcript": "Before any hosted dispatch, an executed byte-level reachability harness must demonstrate every one of the 40 claimed-reachable terminals as the measured first failure of its shared byte campaign. A registry label, constant rejection, hand-authored expected status, or structural unit test is not reachability evidence.",
       "byte_level_reachability_harness_contract": {
         "shared_campaign": "A reachability fixture contains one shared synthetic campaign: exact 2,048-byte page blobs, page indexes, checkpoint/lifecycle events, DAO snapshot values, and the expected mutation from the all-pass baseline. It MUST NOT contain `accepted` or `valid` verdict booleans. The evaluator decodes the fixture bytes, enumerates only ids/tuples present in the registered grammar, applies filters in the normative order, propagates each surviving candidate set to the next predicate, and then reports the first failure. A fixture is accepted only if every earlier predicate passes on that same state and the target predicate is its first failure.",
         "survivor_count_handling": "`exact: n` requires measured count `== n`; `minimum: n` requires measured count `>= n` and stores the actual measured count. `exactly_one_accepted` returns the actual fitting cardinality on both pass and failure. A predicate whose failure permits both zero and multiple candidates declares `allowed_ranges: [{\"exact\": 0}, {\"minimum\": 2}]`; it never substitutes the structural-model count 1 for the encoding-candidate count.",
         "required_adversarial_cases": "The transcript's adversarial_case_outcomes is an exact keyed object with ten fixed cases and fixed expectations: multiple_count_2, multiple_count_3, multiple_count_4, encoding_count_0, and encoding_count_2 expect acceptance as legitimate measured outcomes; unregistered_candidate_id, malformed_page, earlier_predicate_invalidated (a target mutation that also invalidates an earlier predicate), and resource_one_over (the byte-level 67,200-changed-entry campaign of the A4-RESOURCE-BOUND fixture) expect rejection; work_counter_comparator_equality injects a measured work counter of exactly 800,000,000 into the checked comparator and expects acceptance, and is a comparator test outside the 40 byte-level fixtures. A duplicate, missing, or renamed case, or a result differing from its fixed expectation, is rejected.",
         "enumeration_and_reporting": "The harness uses grammar-only enumeration, the normative filter order, shared propagated state, first-failure reporting, and measured survivor counts with exact, minimum, and allowed_ranges semantics. It emits the actual count for every evaluated predicate and rejects an unregistered id or tuple before scientific filtering.",
-        "dispatch_gate": "The harness and transcript must be executed, retained, hash-bound, and disclosed additively before any hosted dispatch. Every claimed-reachable terminal must be the measured first failure of its byte fixture; every unreachable terminal must be explicitly asserted unreachable by enumeration."
+        "dispatch_gate": "The harness and transcript must be executed, retained, hash-bound, and disclosed additively before any hosted dispatch. Every one of the 40 claimed-reachable terminals must be the measured first failure of its byte fixture."
       },
       "replica_3_independent_overshoot": "synthetic replica 3 uses independently chosen baseline/threshold overshoot in every growth phase and is not an alias of replica 1 or 2",
       "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every propagated candidate set, actual survivor count, ordered predicate status, first failure, layer outcome, and holdout result across the full byte-fixture sweep",
@@ -1367,9 +1421,9 @@
           "h1_tdef_to_map_row"
         ],
         "later_status": "not_applicable",
-        "reachability_fixture_id": null,
-        "reachability_fixture": "Unreachable by construction: structural pairs must sit at the exact registered locator holes [35,39) and [39,43), so one layout admits at most the single canonical pair (35,39) and the pair count under the unique layout can never exceed one. The dispatch-gate harness must assert this by enumeration (max measured count 1 across the full sweep) instead of supplying a fixture (AMB-02).",
-        "fixture_status": "unreachable_by_construction; assertion_by_enumeration_required_before_dispatch"
+        "reachability_fixture_id": "A4-R10-H1-PAIR-MULTIPLE",
+        "reachability_fixture": "Campaign and all preceding H1 predicates pass on the bounded pair_multiple_reachability_signature shared campaign. One lifecycle-qualified TDEF record has locators [35,39)=00180000, [39,43)=01180000, and duplicate [43,47)=01180000 across all applicable checkpoints. Under u8_row_then_u24le_page, the distinct-offset pairs (35,39) and (35,43) both resolve to extant tag-01 page 24 rows 0 and 1; pair (39,43) has duplicate targets and is invalid. Under u24le_page_then_u8_row, pages 6144 and 6145 are absent, so no pair is target-valid. Exactly one layout survives with actual measured pair count 2, and this predicate is the first failure (AMB-02).",
+        "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
         "predicate_id": "A4-H1-REPLICA-DISAGREEMENT",
@@ -2549,6 +2603,7 @@
   },
   "work_model": {
     "locator_pair_arithmetic": "Locator offsets are canonical ascending pairs (a,b) with 0 <= a < b <= 2044 and b-a >= 4. One layout has sum(1..2041)=2083861 raw pairs; both layouts have max_locator_pairs_per_tdef_page=4167722 and max_locator_pairs=16*4167722=66683552. Also charge all 4090 raw window identities per qualified page. Retained A3 page 23 examines 4090 windows, forms 3491392 raw pairs after cross-checkpoint syntactic preservation, and charges 3495482 raw window/pair identities before one structural pair survives under each layout; only the row-then-page pair is target-valid.",
+    "pair_multiple_bound_reconciliation": "Candidate bound: the raw sweep already enumerates every canonical nonoverlapping offset pair under both layouts, so adding the mutually exclusive three-hole signature changes neither 4,167,722 pairs per TDEF page nor 66,683,552 across 16 pages; its two target-valid pairs remain below max_candidate_models=4,096 and use the existing h1_locator_pair candidate shape with a second registered signature id. Work bound: the duplicated locator partitions offsets [35,39,43] into two decoded target-identity classes [35] and [39,43], so the maximum remains 16 pages * 2 layouts * 2 target identities * 25 checkpoints = 1,600 checks; every later term and the 694,378,226 total are unchanged. Resource bound: the fixture uses one qualified TDEF page, one target page, three locator windows, three structural pairs, two target-valid candidates, 25 checkpoints, and two derivation replicas; exact 2,048-byte pages, candidate count, candidate bytes, JSON bytes, logical reads, retained blobs, and bundle bytes remain strictly below their existing caps. The recomputation script derives the two identity classes and fails if they cease to partition the registered holes or exceed the registered bound.",
     "charge_equation_rule": "Each term is maximum qualified union pages times applicable checkpoint identities times maximum row-directory entries, slots, bits, or registered grammar multiplicity. The named-loop sum is a conservative terminal-path upper calculation and MUST be <= max_analysis_work_units; it is not equal to that bound.",
     "recomputation_inputs": {
       "page_header_bytes": 10,
@@ -2586,7 +2641,7 @@
         "units": 66683552
       },
       "h1_target_validity_checks": {
-        "equation": "16 qualified TDEF pages * 2 layouts * 2 locator targets * 25 checkpoints",
+        "equation": "16 qualified TDEF pages * 2 layouts * max 2 distinct decoded target identities per mutually exclusive signature * 25 checkpoints",
         "units": 1600
       },
       "valid_path_row_directory_entries": {
@@ -2838,7 +2893,7 @@
       {
         "id": "AMB-02",
         "topic": "H1 structural pair multiplicity",
-        "decision": "The exact locator holes [35,39) and [39,43) admit at most one canonical pair (35,39) per layout, so A4-H1-LOCATOR-PAIR-MULTIPLE is unreachable_by_construction. It stays registered and ordered (it always passes when reached) so the count table and holdout gating are unchanged; its contract carries the enumeration proof, and the transcript schema fixes its entry to a null first failure with a mandatory unreachable assertion (max measured count 1 across the sweep).",
+        "decision": "A second, mutually exclusive bounded table-record signature adds locator hole [43,47), requires its four bytes to equal [39,43), and requires those bytes to differ from the standard signature's fixed [43,47) bytes. Its shared campaign fixes locators at offsets 35, 39, and 43 to (page 24,row 0), (page 24,row 1), and (page 24,row 1) under u8_row_then_u24le_page. Therefore pairs (35,39) and (35,43) are target-valid and identity-preserved, pair (39,43) is rejected for duplicate targets, and the other layout has no target-valid pair. The actual measured count is two under exactly one layout. Because the two surviving pairs reuse the same two decoded target identities, the existing 1,600 target-validity checks and every candidate/work/resource bound remain unchanged.",
         "plan_locations": [
           "predicate_registry.predicate_contracts[A4-H1-LOCATOR-PAIR-MULTIPLE]",
           "analyzer_dry_run_contract.reachability_transcript_binding"
@@ -2958,8 +3013,8 @@
       },
       {
         "id": "AMB-16",
-        "topic": "transcript schema and asserted-unreachable rows",
-        "decision": "The transcript schema fixes, per registry position, either a non-null first failure equal to the row's predicate id (39 rows) or, for A4-H1-LOCATOR-PAIR-MULTIPLE only, a null first failure with a mandatory unreachable_assertion (enumeration argument, max measured count 1, and the fixture ids that evaluated the predicate).",
+        "topic": "transcript schema and reachable rows",
+        "decision": "The transcript schema fixes every one of the 40 registry positions to a non-null fixture id, a first failure equal to that row's predicate id, and null unreachable_assertion. The evaluated predicate list is the exact pass-prefix followed by that failure. A4-H1-LOCATOR-PAIR-MULTIPLE uses A4-R10-H1-PAIR-MULTIPLE and records the actual measured count, which must be at least two.",
         "plan_locations": [
           "analyzer_dry_run_contract.reachability_transcript_binding"
         ]

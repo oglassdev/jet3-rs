@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`ce37c90d3f835de7beb9d1480821d803cb2d0a5ecf0c7c521fd5c8909ec754c2`.
+`0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -31,9 +31,12 @@ registry labels are not proof. Before hosted dispatch, a real byte-level
 reachability harness must construct shared campaigns from exact 2,048-byte
 pages, enumerate only the closed grammar, propagate candidates in normative
 order, report actual survivor counts and first failure, demonstrate every
-claimed-reachable terminal, and assert every unreachable terminal
-(`A4-H1-LOCATOR-PAIR-MULTIPLE` is unreachable by construction because the
-exact locator holes admit one pair per layout). R4-C01-style
+claimed-reachable terminal, and retain analyzer/validator agreement for all 40.
+`A4-H1-LOCATOR-PAIR-MULTIPLE` uses a bounded mutually exclusive signature
+variant with a third locator hole whose bytes duplicate the second locator.
+Two distinct-offset pairs therefore resolve the same two valid row targets
+under exactly one layout, while the pair between the duplicate locators is
+rejected for duplicate targets. R4-C01-style
 charging counts each unique qualified
 page/checkpoint/model identity once across the derivation-replica union.
 
@@ -137,6 +140,9 @@ The base plan incorporates A3's later machinery fixes from the start:
   3,495,482-unit raw-window/pair charge before one structural pair survives
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
+  The pair-multiple fixture's two surviving offset pairs reuse those same two
+  decoded target identities, so the existing 1,600 target-validity checks and
+  every candidate, work, and resource bound remain unchanged.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
   path is H4 at 694,378,226 units (both derivation replicas charged for every
   occurrence-dependent term) under the 800,000,000-unit ceiling set by

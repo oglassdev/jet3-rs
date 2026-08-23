@@ -419,7 +419,10 @@
               ]
             },
             "table_signature_id": {
-              "const": "a3_page23_masked_record_0_92"
+              "enum": [
+                "a3_page23_masked_record_0_92",
+                "a4_pair_multiple_duplicate_locator_0_92"
+              ]
             },
             "locator_offsets": {
               "type": "array",

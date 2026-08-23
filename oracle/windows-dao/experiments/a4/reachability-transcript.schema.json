@@ -835,7 +835,7 @@
               "const": "A4-H1-LOCATOR-PAIR-MULTIPLE"
             },
             "reachability_fixture_id": {
-              "const": null
+              "const": "A4-R10-H1-PAIR-MULTIPLE"
             },
             "baseline_fixture_sha256": {
               "$ref": "#/$defs/sha256"
@@ -868,7 +868,7 @@
               }
             },
             "first_failure_id": {
-              "const": null
+              "const": "A4-H1-LOCATOR-PAIR-MULTIPLE"
             },
             "analyzer_result": {
               "$ref": "#/$defs/evaluatorResult"
@@ -880,7 +880,7 @@
               "const": true
             },
             "unreachable_assertion": {
-              "$ref": "#/$defs/unreachableAssertion"
+              "const": null
             }
           }
         },
@@ -3538,35 +3538,6 @@
         },
         "candidate_set_sha256": {
           "$ref": "#/$defs/sha256"
-        }
-      }
-    },
-    "unreachableAssertion": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "enumeration_argument",
-        "max_measured_count_across_sweep",
-        "fixtures_evaluating_predicate"
-      ],
-      "properties": {
-        "enumeration_argument": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 2048
-        },
-        "max_measured_count_across_sweep": {
-          "const": 1
-        },
-        "fixtures_evaluating_predicate": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 40,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "pattern": "^A4-R[0-9]{2}-[A-Z0-9-]+$"
-          }
         }
       }
     }

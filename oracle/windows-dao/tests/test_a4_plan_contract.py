@@ -33,7 +33,7 @@ TIMING_CORRECTION = (
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 
-PLAN_SHA256 = "ce37c90d3f835de7beb9d1480821d803cb2d0a5ecf0c7c521fd5c8909ec754c2"
+PLAN_SHA256 = "0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 TIMING_CORRECTION_SHA256 = "49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d"
@@ -1223,23 +1223,13 @@ def build_transcript(plan: dict[str, Any]) -> dict[str, Any]:
             {"predicate_id": earlier["predicate_id"], "status": "pass", "actual_survivor_count": 0 if earlier["scope"] == "campaign" else 1}
             for earlier in contracts[:index]
         ]
-        unreachable = contract["fixture_status"].startswith("unreachable_by_construction")
-        count = 1 if unreachable else default_failure_count(contract)
-        evaluated.append({"predicate_id": contract["predicate_id"], "status": "pass" if unreachable else "fail", "actual_survivor_count": count})
+        count = default_failure_count(contract)
+        evaluated.append({"predicate_id": contract["predicate_id"], "status": "fail", "actual_survivor_count": count})
         evaluator = {
-            "first_failure_id": None if unreachable else contract["predicate_id"],
+            "first_failure_id": contract["predicate_id"],
             "measured_terminal_count": count,
             "candidate_set_sha256": canonical_sha256([contract["predicate_id"]]),
         }
-        assertion = (
-            {
-                "enumeration_argument": contract["reachability_fixture"],
-                "max_measured_count_across_sweep": 1,
-                "fixtures_evaluating_predicate": [row["reachability_fixture_id"] for row in contracts[index + 1 :] if row["reachability_fixture_id"]],
-            }
-            if unreachable
-            else None
-        )
         entries.append(
             {
                 "order": contract["order"],
@@ -1251,8 +1241,8 @@ def build_transcript(plan: dict[str, Any]) -> dict[str, Any]:
                 "page_blob_inventory_sha256": canonical_sha256("page-blob"),
                 "enumerated_candidate_ids_by_stage": [],
                 "evaluated_predicates": evaluated,
-                "first_failure_id": None if unreachable else contract["predicate_id"],
-                "unreachable_assertion": assertion,
+                "first_failure_id": contract["predicate_id"],
+                "unreachable_assertion": None,
                 "analyzer_result": copy.deepcopy(evaluator),
                 "independent_validator_result": copy.deepcopy(evaluator),
                 "agreement": True,
@@ -1284,7 +1274,6 @@ def build_transcript(plan: dict[str, Any]) -> dict[str, Any]:
 def validate_transcript_semantics(transcript: dict[str, Any], plan: dict[str, Any]) -> None:
     contracts = plan["predicate_registry"]["predicate_contracts"]
     registry_ids = [contract["predicate_id"] for contract in contracts]
-    fixture_ids = {contract["reachability_fixture_id"] for contract in contracts} - {None}
     if transcript["registry_order"] != registry_ids:
         raise AssertionError("transcript registry order differs")
     for index, (entry, contract) in enumerate(zip(transcript["fixture_entries"], contracts, strict=True)):
@@ -1294,24 +1283,16 @@ def validate_transcript_semantics(transcript: dict[str, Any], plan: dict[str, An
         expected_prefix = registry_ids[: index + 1]
         if [row["predicate_id"] for row in evaluated] != expected_prefix:
             raise AssertionError("evaluated predicates are not the exact applicable prefix")
-        unreachable = contract["fixture_status"].startswith("unreachable_by_construction")
-        if (entry["unreachable_assertion"] is None) == unreachable:
-            raise AssertionError("unreachable assertion presence differs from the contract")
-        if [row["status"] for row in evaluated] != ["pass"] * index + ["pass" if unreachable else "fail"]:
+        if entry["unreachable_assertion"] is not None:
+            raise AssertionError("reachable fixture has an unreachable assertion")
+        if [row["status"] for row in evaluated] != ["pass"] * index + ["fail"]:
             raise AssertionError("evaluated statuses are not pass-prefix then fail")
-        if entry["first_failure_id"] != (None if unreachable else contract["predicate_id"]):
+        if entry["first_failure_id"] != contract["predicate_id"]:
             raise AssertionError("first failure differs from the entry predicate")
-        if unreachable:
-            fixtures = entry["unreachable_assertion"]["fixtures_evaluating_predicate"]
-            if not fixtures or any(fixture not in fixture_ids for fixture in fixtures):
-                raise AssertionError("unreachable assertion names unknown fixtures")
-            if evaluated[-1]["actual_survivor_count"] != 1:
-                raise AssertionError("asserted-unreachable predicate must measure exactly one survivor")
         analyzer, validator = entry["analyzer_result"], entry["independent_validator_result"]
         if analyzer != validator or analyzer["first_failure_id"] != entry["first_failure_id"]:
             raise AssertionError("analyzer and validator results differ")
-        if not unreachable:
-            validate_failure_count(contract, analyzer["measured_terminal_count"])
+        validate_failure_count(contract, analyzer["measured_terminal_count"])
         if evaluated[-1]["actual_survivor_count"] != analyzer["measured_terminal_count"]:
             raise AssertionError("terminal count differs from evaluated predicate count")
     outcomes = transcript["adversarial_case_outcomes"]
@@ -1594,11 +1575,13 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(registry["terminal_payload_by_predicate"], derived)
         self.assertEqual(len(derived), 31)
         self.assertEqual(len({item["reachability_fixture_id"] for item in contracts}), 40)
-        unreachable = [item for item in contracts if item["fixture_status"].startswith("unreachable_by_construction")]
-        self.assertEqual([item["predicate_id"] for item in unreachable], ["A4-H1-LOCATOR-PAIR-MULTIPLE"])
-        self.assertIsNone(unreachable[0]["reachability_fixture_id"])
-        for phrase in ("[35,39)", "[39,43)", "at most the single canonical pair", "enumeration"):
-            self.assertIn(phrase, unreachable[0]["reachability_fixture"])
+        self.assertNotIn(None, {item["reachability_fixture_id"] for item in contracts})
+        locator_multiple = next(
+            item for item in contracts if item["predicate_id"] == "A4-H1-LOCATOR-PAIR-MULTIPLE"
+        )
+        self.assertEqual(locator_multiple["reachability_fixture_id"], "A4-R10-H1-PAIR-MULTIPLE")
+        for phrase in ("[43,47)", "actual measured pair count 2", "Exactly one layout"):
+            self.assertIn(phrase, locator_multiple["reachability_fixture"])
         required = {
             "predicate_id", "order", "scope", "prerequisites", "input_candidate_set",
             "counted_set_kind", "pass_iff", "fail_iff", "terminal_id",
@@ -1613,11 +1596,10 @@ class A4PlanContractTests(unittest.TestCase):
             self.assertTrue(contract["pass_iff"])
             self.assertTrue(contract["fail_iff"])
             self.assertTrue(contract["reachability_fixture"])
-            if contract["predicate_id"] != "A4-H1-LOCATOR-PAIR-MULTIPLE":
-                self.assertEqual(
-                    contract["fixture_status"],
-                    "claimed_reachable; execution_required_before_dispatch",
-                )
+            self.assertEqual(
+                contract["fixture_status"],
+                "claimed_reachable; execution_required_before_dispatch",
+            )
             payload = contract["terminal_payload_schema"]
             stage = contract["candidate_stage"]
             if contract["scope"] == "campaign" or "HOLDOUT" in contract["predicate_id"]:
@@ -1636,6 +1618,124 @@ class A4PlanContractTests(unittest.TestCase):
         evaluation = registry["evaluation_rule"]
         for phrase in ("Evaluation has two phases", "Derivation phase", "Holdout phase", "derivation layer depends", "sole terminal", "all 36 scientific predicates", "terminal_payload_schema"):
             self.assertIn(phrase, evaluation)
+
+    def test_h1_locator_pair_multiple_has_a_bounded_byte_construction(self) -> None:
+        h1 = self.plan["candidate_grammars"]["h1"]
+        standard = h1["table_record_signature"]
+        multiple = h1["pair_multiple_reachability_signature"]
+        fixture = multiple["fixture_campaign"]
+
+        expected_record = bytes.fromhex(standard["value_hex"])
+        record = bytearray(expected_record)
+        standard_mask = bytearray.fromhex(standard["mask_hex"])
+        record[35:39] = bytes.fromhex("00180000")
+        record[39:43] = bytes.fromhex("01180000")
+        record[43:47] = bytes.fromhex("01180000")
+        self.assertEqual(len(record), 92)
+        self.assertNotEqual(record[43:47], expected_record[43:47])
+        self.assertFalse(
+            all(
+                (actual & mask) == (expected & mask)
+                for actual, expected, mask in zip(
+                    record,
+                    expected_record,
+                    standard_mask,
+                    strict=True,
+                )
+            )
+        )
+
+        multiple_mask = bytearray(standard_mask)
+        multiple_mask[43:47] = b"\x00" * 4
+        self.assertTrue(
+            all(
+                (actual & mask) == (expected & mask)
+                for actual, expected, mask in zip(
+                    record,
+                    expected_record,
+                    multiple_mask,
+                    strict=True,
+                )
+            )
+        )
+        self.assertEqual(record[39:43], record[43:47])
+
+        offsets = [hole[0] for hole in multiple["locator_holes"]]
+        pairs = [
+            (left, right)
+            for index, left in enumerate(offsets)
+            for right in offsets[index + 1 :]
+            if right - left >= 4
+        ]
+        self.assertEqual(pairs, [(35, 39), (35, 43), (39, 43)])
+        tdef_page = bytearray(self.plan["bounds"]["page_size"])
+        tdef_page[: len(record)] = record
+        target_page = bytearray(self.plan["bounds"]["page_size"])
+        target_page[0] = 1
+        target_page[8:10] = (2).to_bytes(2, "little")
+        page_index = {23: bytes(tdef_page), 24: bytes(target_page)}
+        self.assertTrue(all(len(page) == 2048 for page in page_index.values()))
+        checkpoints = [page_index for _ in range(self.plan["checkpoint_design"]["count"])]
+        self.assertTrue(
+            all(
+                pages[23][left : left + 4] == checkpoints[0][23][left : left + 4]
+                and pages[23][right : right + 4] == checkpoints[0][23][right : right + 4]
+                for pages in checkpoints
+                for left, right in pairs
+            )
+        )
+
+        def decode(locator: bytes, layout: str) -> tuple[int, int]:
+            if layout == "u24le_page_then_u8_row":
+                return int.from_bytes(locator[:3], "little"), locator[3]
+            return int.from_bytes(locator[1:], "little"), locator[0]
+
+        valid_counts: dict[str, int] = {}
+        for layout in h1["locator_layouts"]:
+            valid = []
+            for left, right in pairs:
+                targets = (
+                    decode(page_index[23][left : left + 4], layout),
+                    decode(page_index[23][right : right + 4], layout),
+                )
+                if targets[0] == targets[1]:
+                    continue
+                if all(
+                    page in page_index
+                    and page_index[page][0] == 1
+                    and row < int.from_bytes(page_index[page][8:10], "little")
+                    for page, row in targets
+                ):
+                    valid.append((left, right))
+            valid_counts[layout] = len(valid)
+        self.assertEqual(
+            valid_counts,
+            {"u24le_page_then_u8_row": 0, "u8_row_then_u24le_page": 2},
+        )
+        self.assertEqual(valid_counts, fixture["expected_target_valid_pair_count_per_layout"])
+        self.assertEqual(sum(count > 0 for count in valid_counts.values()), 1)
+        self.assertEqual(max(valid_counts.values()), fixture["expected_terminal_measured_count"])
+
+        classes = multiple["locator_identity_classes"]
+        self.assertEqual({offset for group in classes for offset in group}, set(offsets))
+        self.assertEqual(len(classes), multiple["maximum_distinct_target_identities_per_layout"])
+        target_checks = (
+            self.plan["bounds"]["max_qualified_pages_per_submodel"]
+            * len(h1["locator_layouts"])
+            * max(len(standard["locator_holes"]), len(classes))
+            * self.plan["checkpoint_design"]["count"]
+        )
+        self.assertEqual(target_checks, 1600)
+        self.assertEqual(
+            target_checks,
+            self.plan["work_model"]["terms"]["h1_target_validity_checks"]["units"],
+        )
+        for schema in (self.derivation_schema, self.analysis_schema):
+            table_signature = schema["$defs"]["h1LocatorPairCandidate"]["properties"]["model"]["properties"]["table_signature_id"]
+            self.assertEqual(
+                table_signature["enum"],
+                [standard["signature_id"], multiple["signature_id"]],
+            )
 
     def test_abstract_terminal_reports_validate_schema_shapes(self) -> None:
         for terminal_index in [None, *range(40)]:
@@ -2217,12 +2317,8 @@ class A4PlanContractTests(unittest.TestCase):
             self.assertEqual(position["properties"]["order"]["const"], contract["order"])
             self.assertEqual(position["properties"]["predicate_id"]["const"], contract["predicate_id"])
             self.assertEqual(position["properties"]["reachability_fixture_id"]["const"], contract["reachability_fixture_id"])
-            if contract["predicate_id"] == "A4-H1-LOCATOR-PAIR-MULTIPLE":
-                self.assertIsNone(position["properties"]["first_failure_id"]["const"])
-                self.assertEqual(position["properties"]["unreachable_assertion"], {"$ref": "#/$defs/unreachableAssertion"})
-            else:
-                self.assertEqual(position["properties"]["first_failure_id"]["const"], contract["predicate_id"])
-                self.assertIsNone(position["properties"]["unreachable_assertion"]["const"])
+            self.assertEqual(position["properties"]["first_failure_id"]["const"], contract["predicate_id"])
+            self.assertIsNone(position["properties"]["unreachable_assertion"]["const"])
         outcomes = schema["properties"]["adversarial_case_outcomes"]
         self.assertEqual(outcomes["required"], list(ADVERSARIAL_CASES))
         self.assertFalse(outcomes["additionalProperties"])
@@ -2264,8 +2360,17 @@ class A4PlanContractTests(unittest.TestCase):
         reachable_row = next(
             index for index, entry in enumerate(transcript["fixture_entries"]) if entry["predicate_id"] == "A4-H1-LOCATOR-PAIR-MULTIPLE"
         )
+        locator_entry = transcript["fixture_entries"][reachable_row]
+        self.assertEqual(locator_entry["reachability_fixture_id"], "A4-R10-H1-PAIR-MULTIPLE")
+        self.assertEqual(locator_entry["first_failure_id"], "A4-H1-LOCATOR-PAIR-MULTIPLE")
+        self.assertIsNone(locator_entry["unreachable_assertion"])
+        self.assertEqual(
+            [row["status"] for row in locator_entry["evaluated_predicates"]],
+            ["pass"] * reachable_row + ["fail"],
+        )
+        self.assertGreaterEqual(locator_entry["analyzer_result"]["measured_terminal_count"], 2)
         fabricated = copy.deepcopy(transcript)
-        fabricated["fixture_entries"][reachable_row]["first_failure_id"] = "A4-H1-LOCATOR-PAIR-MULTIPLE"
+        fabricated["fixture_entries"][reachable_row]["first_failure_id"] = None
         with self.assertRaises(ValidationError):
             validate_schema_value(fabricated, schema, schema, "$")
         null_elsewhere = copy.deepcopy(transcript)
@@ -2273,9 +2378,19 @@ class A4PlanContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             validate_schema_value(null_elsewhere, schema, schema, "$")
         silent = copy.deepcopy(transcript)
-        silent["fixture_entries"][reachable_row]["unreachable_assertion"] = None
+        silent["fixture_entries"][reachable_row]["unreachable_assertion"] = {
+            "enumeration_argument": "not permitted"
+        }
         with self.assertRaises(ValidationError):
             validate_schema_value(silent, schema, schema, "$")
+        undercounted = copy.deepcopy(transcript)
+        undercounted_entry = undercounted["fixture_entries"][reachable_row]
+        undercounted_entry["evaluated_predicates"][-1]["actual_survivor_count"] = 1
+        undercounted_entry["analyzer_result"]["measured_terminal_count"] = 1
+        undercounted_entry["independent_validator_result"]["measured_terminal_count"] = 1
+        validate_schema_value(undercounted, schema, schema, "$")
+        with self.assertRaises(AssertionError):
+            validate_transcript_semantics(undercounted, self.plan)
 
         short_prefix = copy.deepcopy(transcript)
         del short_prefix["fixture_entries"][5]["evaluated_predicates"][2]
@@ -2287,6 +2402,7 @@ class A4PlanContractTests(unittest.TestCase):
         validate_schema_value(disagreeing, schema, schema, "$")
         with self.assertRaisesRegex(AssertionError, "analyzer and validator results differ"):
             validate_transcript_semantics(disagreeing, self.plan)
+
     def test_snapshot_uniqueness_and_strict_name_fields_are_semantically_checked(self) -> None:
         schema = json.loads(SCHEMA_SNAPSHOT.read_bytes())
         self.assertFalse(schema["properties"]["dao_identifier_observable"]["const"])
