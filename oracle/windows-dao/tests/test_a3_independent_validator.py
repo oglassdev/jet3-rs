@@ -14,13 +14,14 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 PLAN_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps.plan.json"
-R3_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r3.plan.json"
+R4_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r4.plan.json"
 sys.path.insert(0, str(SCRIPTS))
 
 from a3_independent_bundle import BundleLoader, ValidationError, canonical_json_bytes  # noqa: E402
 from a3_independent_core import recompute_derivation  # noqa: E402
 from a3_independent_validator import (  # noqa: E402
-    R3_SHA256,
+    R4_SHA256,
+    verify_report_bounds,
     _expected_predicate_statuses,
     _load_predicate_sequences,
     _validate_terminal_predicate_ids,
@@ -223,7 +224,7 @@ def _report(plan: dict[str, Any], plan_sha: str, frozen: dict[str, Any], frozen_
         "campaign_id": CAMPAIGN, "producer_commit": PRODUCER, "derivation_replicas": [1, 2],
         "holdout_replica": 3, "input_checkpoint_count": 75,
         "qualified_page_counts": {"global_map": 1, "tdef": 1}, "qualified_pages": frozen["qualified_pages"],
-        "record_candidates_examined": 4 * 2_098_176, "candidate_models_examined": 10,
+        "record_candidates_examined": 2 * 2_098_176, "candidate_models_examined": 10,
         "derivation_survivor_counts": {name: layer["derivation_survivor_count"] for name, layer in layers.items()},
         "derivation_candidate_set_sha256": frozen_sha, "polarity_cross_check": frozen["polarity_cross_check"],
         "analysis_work_units": 10_000_000, "holdout_structurally_validated_after_freeze": True,
@@ -476,16 +477,16 @@ class IndependentValidatorTests(unittest.TestCase):
             {"A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"},
         )
 
-    def test_binds_published_r3_by_hash(self) -> None:
+    def test_binds_published_r4_by_hash(self) -> None:
         plan_raw = PLAN_PATH.read_bytes()
         plan_sha256 = hashlib.sha256(plan_raw).hexdigest()
         plan = json.loads(plan_raw)
         campaign, sequences = _load_predicate_sequences(
-            R3_PATH,
+            R4_PATH,
             plan_sha256,
             plan["predicate_registry"]["ids"],
         )
-        self.assertEqual(hashlib.sha256(R3_PATH.read_bytes()).hexdigest(), R3_SHA256)
+        self.assertEqual(hashlib.sha256(R4_PATH.read_bytes()).hexdigest(), R4_SHA256)
         self.assertEqual(campaign, ["A3-IDLE-EQUALITY", "A3-SNAPSHOT-RECONSTRUCTION", "A3-RESOURCE-BOUND"])
         self.assertEqual(
             set(sequences),
@@ -497,8 +498,8 @@ class IndependentValidatorTests(unittest.TestCase):
             },
         )
         with tempfile.TemporaryDirectory(prefix="a3-r2-") as directory:
-            mutated = Path(directory) / R3_PATH.name
-            mutated.write_bytes(R3_PATH.read_bytes() + b" ")
+            mutated = Path(directory) / R4_PATH.name
+            mutated.write_bytes(R4_PATH.read_bytes() + b" ")
             with self.assertRaisesRegex(ValidationError, "predicate_revision_hash_mismatch"):
                 _load_predicate_sequences(
                     mutated,
@@ -506,13 +507,52 @@ class IndependentValidatorTests(unittest.TestCase):
                     plan["predicate_registry"]["ids"],
                 )
 
+    def test_r4_c01_counts_each_union_page_once_and_enforces_record_bound(self) -> None:
+        bundle = BundleLoader(self.synthetic_bundle, PLAN_PATH).load()
+        derivation = recompute_derivation(bundle)
+        per_replica = derivation["per_replica_qualified_pages"]
+        self.assertEqual(per_replica[1], per_replica[2])
+        self.assertEqual(derivation["record_candidate_enumerations"], 2)
+        per_page = bundle.plan["bounds"]["max_record_candidates_per_page"]
+        verify_report_bounds(bundle, derivation)
+        bundle.report["record_candidates_examined"] = 4 * per_page
+        with self.assertRaisesRegex(ValidationError, "record_candidate_count_mismatch"):
+            verify_report_bounds(bundle, derivation)
+        bundle.report["record_candidates_examined"] = 2 * per_page
+        bundle.report["analysis_work_units"] = 8 * 2 * per_page + 16 * 2049 * 2 + 1
+        with self.assertRaisesRegex(ValidationError, "analysis_work_bound"):
+            verify_report_bounds(bundle, derivation)
+        ceiling = bundle.plan["bounds"]["max_record_candidates"]
+        self.assertEqual(ceiling, 32 * per_page)
+        derivation["record_candidate_enumerations"] = 32
+        bundle.report["record_candidates_examined"] = ceiling
+        bundle.report["analysis_work_units"] = 8 * ceiling + 16 * 2049 * 32
+        verify_report_bounds(bundle, derivation)
+        derivation["record_candidate_enumerations"] = 33
+        with self.assertRaisesRegex(ValidationError, "record_candidate_bound"):
+            verify_report_bounds(bundle, derivation)
+
+    def test_r4_s01_multiple_terminal_carries_multiplicity(self) -> None:
+        bundle = BundleLoader(self.synthetic_bundle, PLAN_PATH).load()
+        # Qualify a second global page whose record is a byte-identical copy of page 1 at every
+        # checkpoint, so two starts survive on two pages and stage 7 fires with two survivors.
+        for replica in (1, 2):
+            for checkpoint_id in CHECKPOINTS:
+                index = bundle.replicas[replica].indexes[checkpoint_id]["ordered_page_sha256"]
+                index[3] = index[1]
+        derivation = recompute_derivation(bundle)
+        layer = derivation["layers"]["global_map_record"]
+        self.assertEqual(layer["terminal_predicate_id"], "A3-GLOBAL-PAGE-MULTIPLE")
+        self.assertEqual(layer["derivation_survivor_count"], 2)
+        self.assertEqual(derivation["qualified_pages"]["global_map"], [1, 3])
+
     def test_idle_campaign_terminal_skips_all_layers(self) -> None:
         bundle = BundleLoader(self.synthetic_bundle, PLAN_PATH).load()
         idle_index = bundle.replicas[1].indexes["E0R"]["ordered_page_sha256"]
         idle_index[0] = idle_index[1]
         derivation = recompute_derivation(bundle)
         campaign, sequences = _load_predicate_sequences(
-            R3_PATH,
+            R4_PATH,
             hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest(),
             bundle.plan["predicate_registry"]["ids"],
         )

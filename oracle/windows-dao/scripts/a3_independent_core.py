@@ -174,14 +174,29 @@ def candidates_for_page(replica: Replica, page_number: int) -> tuple[set[GlobalC
     return candidates, seen
 
 
-def no_layer(reason: str | None, predicate: str | None, applicable: bool = True) -> dict[str, Any]:
+def no_layer(
+    reason: str | None,
+    predicate: str | None,
+    applicable: bool = True,
+    survivors: int = 0,
+) -> dict[str, Any]:
+    """A terminal layer; ``survivors`` is the R4-S01 count of the set the terminal classified."""
     return {
         "applicable": applicable,
-        "derivation_survivor_count": 0,
+        "derivation_survivor_count": survivors,
         "model": None,
         "no_outcome_reason": reason,
         "terminal_predicate_id": predicate,
     }
+
+
+def disagreement_layer(replica_1: dict[str, Any]) -> dict[str, Any]:
+    """A3-REPLICA-DISAGREEMENT carries replica 1's survivor count at its own stop (R4-S01)."""
+    return no_layer(
+        "replica_disagreement",
+        "A3-REPLICA-DISAGREEMENT",
+        survivors=replica_1["derivation_survivor_count"],
+    )
 
 
 def model_layer(model: dict[str, Any]) -> dict[str, Any]:
@@ -220,13 +235,13 @@ def _derive_global_record_replica(
         return no_layer(reason, predicate), None, transcript
     polarities = {candidate.polarity for candidate in found}
     if len(polarities) > 1:
-        return no_layer("multiple_bit_polarities_survive", "A3-POLARITY-MULTIPLE"), None, transcript
+        return no_layer("multiple_bit_polarities_survive", "A3-POLARITY-MULTIPLE", survivors=len(found)), None, transcript
     pages = {candidate.page for candidate in found}
     if len(pages) > 1:
-        return no_layer("multiple_physical_pages_satisfy_global_transition_predicates", "A3-GLOBAL-PAGE-MULTIPLE"), None, transcript
+        return no_layer("multiple_physical_pages_satisfy_global_transition_predicates", "A3-GLOBAL-PAGE-MULTIPLE", survivors=len(found)), None, transcript
     starts = {candidate.start for candidate in found}
     if len(starts) > 1:
-        return no_layer("multiple_global_record_boundaries_survive", "A3-GLOBAL-RECORD-MULTIPLE"), None, transcript
+        return no_layer("multiple_global_record_boundaries_survive", "A3-GLOBAL-RECORD-MULTIPLE", survivors=len(found)), None, transcript
     candidate = next(iter(found))
     return model_layer(candidate.model()), candidate, transcript
 
@@ -248,14 +263,14 @@ def derive_global_record(
     if any(terminal is not None for terminal in terminals):
         if len(set(terminals)) == 1:
             return evaluations[0][0], None, transcript, terminals
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), None, transcript, terminals
+        return disagreement_layer(evaluations[0][0]), None, transcript, terminals
     candidates = [candidate for _, candidate, _ in evaluations]
     concrete = [candidate for candidate in candidates if candidate is not None]
     if len(concrete) != len(replicas) or any(
         _global_comparison_key(candidate) != _global_comparison_key(concrete[0])
         for candidate in concrete[1:]
     ):
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), None, transcript, terminals
+        return disagreement_layer(evaluations[0][0]), None, transcript, terminals
     candidate = GlobalCandidate(
         concrete[0].page,
         concrete[0].start,
@@ -402,15 +417,15 @@ def _derive_conversion_replica(
         return no_layer("missing_inline_to_indirect_conversion", "A3-CONVERSION-NONE"), cross
     class_changes = sum(left != right for left, right in zip(classes, classes[1:]))
     if class_changes != 1:
-        return no_layer("multiple_inline_to_indirect_conversions", "A3-CONVERSION-MULTIPLE"), cross
+        return no_layer("multiple_inline_to_indirect_conversions", "A3-CONVERSION-MULTIPLE", survivors=class_changes), cross
     conversion = window[first_indirect]
     slots = references[conversion]
     if sum(value != 0 for value in slots) == 0:
-        return no_layer("no_active_slot_at_conversion", "A3-SLOT-ACTIVATION"), cross
+        return no_layer("no_active_slot_at_conversion", "A3-SLOT-ACTIVATION", survivors=1), cross
     if sum(value != 0 for value in references["H_REL_0904"]) != 2:
-        return no_layer("final_slot_activation_not_two", "A3-SLOT-FINAL"), cross
+        return no_layer("final_slot_activation_not_two", "A3-SLOT-FINAL", survivors=1), cross
     if not _pointer_valid(replica, plan, references):
-        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY"), cross
+        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY", survivors=1), cross
     inline_phase = window[:first_indirect]
     boundary = _inline_boundary(replica, inline_phase, model)
     expected = 0xFF if model.polarity == "set_means_not_in_use" else 0x00
@@ -418,7 +433,7 @@ def _derive_conversion_replica(
         any(byte != expected for byte in _record_page(replica, checkpoint, model)[boundary:])
         for checkpoint in inline_phase
     ):
-        return no_layer("unexplained_nonzero_inline_suffix", "A3-INLINE-SUFFIX"), cross
+        return no_layer("unexplained_nonzero_inline_suffix", "A3-INLINE-SUFFIX", survivors=1), cross
     conversion_model = {
         "conversion_checkpoint_id": conversion,
         "conversion_ordinal": plan["checkpoint_design"]["checkpoint_ids"].index(conversion),
@@ -449,11 +464,11 @@ def derive_conversion(
     if any(terminal is not None for terminal in terminals):
         if len(set(terminals)) == 1:
             return evaluations[0][0], frozen_cross, terminals
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), frozen_cross, terminals
+        return disagreement_layer(evaluations[0][0]), frozen_cross, terminals
     models = [layer["model"] for layer, _ in evaluations]
     crosses = [cross for _, cross in evaluations]
     if any(value != models[0] for value in models[1:]) or any(value != crosses[0] for value in crosses[1:]):
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), frozen_cross, terminals
+        return disagreement_layer(evaluations[0][0]), frozen_cross, terminals
     return model_layer(models[0]), frozen_cross, terminals
 
 
@@ -628,19 +643,19 @@ def _derive_tdef_replica(replica: Replica, plan: dict[str, Any], qualified: list
     for page, start, _ in record_keys:
         starts_by_page.setdefault(page, set()).add(start)
     if len(starts_by_page) > 1:
-        return no_layer("multiple_physical_pages_satisfy_tdef_transition_predicates", "A3-TDEF-PAGE-MULTIPLE")
+        return no_layer("multiple_physical_pages_satisfy_tdef_transition_predicates", "A3-TDEF-PAGE-MULTIPLE", survivors=len(record_keys))
     if len(record_keys) > 1:
-        return no_layer("multiple_tdef_record_boundaries_survive", "A3-TDEF-RECORD-MULTIPLE")
+        return no_layer("multiple_tdef_record_boundaries_survive", "A3-TDEF-RECORD-MULTIPLE", survivors=len(record_keys))
     if len(models) > 1:
-        return no_layer("multiple_pointer_models_survive", "A3-POINTER-MULTIPLE")
+        return no_layer("multiple_pointer_models_survive", "A3-POINTER-MULTIPLE", survivors=len(models))
     model = next(iter(models))
     page, start, end, layout, growth_offset, churn_offset = model
     if not _reference_valid(replica, plan, page, growth_offset, layout) or not _reference_valid(
         replica, plan, page, churn_offset, layout
     ):
-        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY")
+        return no_layer("pointer_validity_failure", "A3-POINTER-VALIDITY", survivors=1)
     if not _tdef_structural_valid(replica, plan, model):
-        return no_layer("structural_field_exclusion_failure", "A3-STRUCTURAL-EXCLUSION")
+        return no_layer("structural_field_exclusion_failure", "A3-STRUCTURAL-EXCLUSION", survivors=1)
     return model_layer(
         {
             "record": {"page": page, "start": start, "end": end},
@@ -664,9 +679,9 @@ def derive_tdef(
     if any(terminal is not None for terminal in terminals):
         if len(set(terminals)) == 1:
             return layers[0], terminals
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), terminals
+        return disagreement_layer(layers[0]), terminals
     if any(layer["model"] != layers[0]["model"] for layer in layers[1:]):
-        return no_layer("replica_disagreement", "A3-REPLICA-DISAGREEMENT"), terminals
+        return disagreement_layer(layers[0]), terminals
     return model_layer(layers[0]["model"]), terminals
 
 
@@ -717,12 +732,11 @@ def recompute_derivation(bundle: LoadedBundle) -> dict[str, Any]:
     else:
         base_layer, base_terminals = derive_extended_base(replicas, plan, global_model, conversion_layer["model"])
     tdef_layer, tdef_terminals = derive_tdef(replicas, plan, qualifications)
-    enumerations = sum(len(value["global_map"]) for value in qualifications.values())
-    enumerations += sum(
-        len(qualifications[replica.number]["tdef"])
-        for replica in replicas
-        if _tdef_precondition(replica)
-    )
+    # R4-C01: each union qualified page is counted once across derivation replicas;
+    # TDEF pages count when the churn precondition passed in at least one replica.
+    enumerations = len(union_qualified["global_map"])
+    if any(_tdef_precondition(replica) for replica in replicas):
+        enumerations += len(union_qualified["tdef"])
     return {
         "qualified_pages": union_qualified,
         "per_replica_qualified_pages": qualifications,
