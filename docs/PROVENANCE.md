@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `f4443072050df84900fb63948f341054312065695d6d569b60aef8f39c8c8f40`,
+  `6a7fa837fb6429cfa36cd4a63190b9c85de2c44dc5379d3f8bf2d796920859f4`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4513,9 +4513,10 @@ Use `not applicable` explicitly rather than omitting a field.
   then predict the role-rotated holdout without refit. Retain R5-V01-style
   plan/revision binding, phase-specific R4-S01-style measured survivor counts,
   R4-C01-style union-once work charging with terminal-path maxima, including
-  a 115,687,821-unit H4 path below the 600,000,000-unit ceiling (classified
+  a two-replica 150,819,706-unit H4 path below the 800,000,000-unit ceiling
+  of `A4-SCOPE-AMENDMENT-001` (classified
   `conservative_upper`; only its checked comparator is unit-tested at
-  600,000,000/600,000,001 outside the 40 byte fixtures, and the byte-level
+  800,000,000/800,000,001 outside the 40 byte fixtures, and the byte-level
   resource terminal is a 67,200-entry changed-hash one-over campaign),
   complete frozen candidate arrays, distinct H1 model/physical candidate ids,
   exact lifecycle ranges, and independent H4 root/structural/encoding
@@ -4558,9 +4559,11 @@ Use `not applicable` explicitly rather than omitting a field.
   under each layout; target validation leaves zero page-then-row pairs and one
   row-then-page pair.
   H4 locates records only from operation deltas and non-name structural fields;
-  every structural candidate retains seven ordered per-operation
-  compatible-occurrence bitmaps and references by SHA-256 a separate bounded
-  `analysis/h4-occurrence-evidence.json` (at most 524,288 bytes) so frozen
+  every structural candidate carries a replica-invariant model and one
+  replica-qualified binding per bound replica, each with seven ordered
+  per-operation compatible-occurrence bitmaps referencing by SHA-256 a
+  separate bounded two-replica-group
+  `analysis/h4-occurrence-evidence.json` (at most 1,048,576 bytes) so frozen
   candidates stay within 4,096 bytes, without an encoding result. After one
   structural model survives it compares strict Windows-1252 (`c9`
   for U+00C9) with UTF-8 (`c389`) and reports the observationally equivalent
@@ -4609,7 +4612,19 @@ Use `not applicable` explicitly rather than omitting a field.
   per table lifecycle operation instance (five `TableDefs.Append` operations)
   and the `Payload`/`A4IX_ID` appends are a separately reported, non-failing
   `contrast_result` with its own record/occurrence accounting that cannot
-  terminate H4 and claims no field or index layout;
+  terminate H4 and claims no field or index layout. Pass 6 finding P6-B1
+  splits H4 identity into a replica-invariant `canonical_model_id` and a
+  binding-qualified `canonical_candidate_id` (replica agreement compares
+  model ids), freezes both derivation replicas' physical evidence as two
+  replica groups with fourteen bindings on a decisive candidate, recomputes
+  every terminal-path maximum over both replicas (H4 path 150,819,706), and
+  records delegate-approved `A4-SCOPE-AMENDMENT-001`
+  (`oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md`,
+  SHA-256
+  `770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25`)
+  raising `max_analysis_work_units` from the approved brief's 600,000,000 to
+  800,000,000 with `EXP-0051` timing justification (134,291,460 units in a
+  ~17 s analysis step);
   focused A4
   plan and repository contract checks must pass
 

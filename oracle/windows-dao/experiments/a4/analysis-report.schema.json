@@ -568,12 +568,17 @@
       "additionalProperties": false,
       "required": [
         "model_type",
+        "canonical_model_id",
         "canonical_candidate_id",
-        "model"
+        "model",
+        "instance_bindings"
       ],
       "properties": {
         "model_type": {
           "const": "h4_catalog_root"
+        },
+        "canonical_model_id": {
+          "$ref": "#/$defs/sha256"
         },
         "canonical_candidate_id": {
           "$ref": "#/$defs/sha256"
@@ -582,14 +587,12 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "tdef_page",
+            "root_selection_signature",
             "locator_offsets"
           ],
           "properties": {
-            "tdef_page": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 20479
+            "root_selection_signature": {
+              "const": "operation_delta_non_name_structure"
             },
             "locator_offsets": {
               "type": "array",
@@ -600,6 +603,33 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 2044
+              }
+            }
+          }
+        },
+        "instance_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "replica",
+              "tdef_page"
+            ],
+            "properties": {
+              "replica": {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "tdef_page": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20479
               }
             }
           }
@@ -668,11 +698,18 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "replica",
             "root_candidate_id",
             "operation_id",
             "canonical_record_locator"
           ],
           "properties": {
+            "replica": {
+              "enum": [
+                1,
+                2
+              ]
+            },
             "root_candidate_id": {
               "$ref": "#/$defs/sha256"
             },
@@ -691,12 +728,17 @@
       "additionalProperties": false,
       "required": [
         "model_type",
+        "canonical_model_id",
         "canonical_candidate_id",
-        "model"
+        "model",
+        "instance_bindings"
       ],
       "properties": {
         "model_type": {
           "const": "h4_structural_field"
+        },
+        "canonical_model_id": {
+          "$ref": "#/$defs/sha256"
         },
         "canonical_candidate_id": {
           "$ref": "#/$defs/sha256"
@@ -705,7 +747,6 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "occurrence_evidence_sha256",
             "kind_start_delta",
             "kind_width",
             "identifier_width",
@@ -713,14 +754,9 @@
             "name_length_start_delta",
             "name_length_width",
             "kind_mapping",
-            "identifier_lifecycle",
-            "value_equivalent_tuple_count",
-            "compatible_occurrences_by_operation"
+            "identifier_lifecycle"
           ],
           "properties": {
-            "occurrence_evidence_sha256": {
-              "$ref": "#/$defs/sha256"
-            },
             "kind_start_delta": {
               "type": "integer",
               "minimum": 1,
@@ -777,208 +813,235 @@
                 "stable_for_same_operation_instance_and_distinct_for_t2_v1_v2",
                 "stable_for_same_physical_name_including_t2_v1_v2"
               ]
-            },
-            "compatible_occurrences_by_operation": {
-              "type": "array",
-              "minItems": 7,
-              "maxItems": 7,
-              "prefixItems": [
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T1_CREATE_ID"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 254
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "instance_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "replica",
+              "occurrence_evidence_sha256",
+              "value_equivalent_tuple_count",
+              "compatible_occurrences_by_operation"
+            ],
+            "properties": {
+              "replica": {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "occurrence_evidence_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "value_equivalent_tuple_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 27648
+              },
+              "compatible_occurrences_by_operation": {
+                "type": "array",
+                "minItems": 7,
+                "maxItems": 7,
+                "prefixItems": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T1_CREATE_ID"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 254
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T1_ADD_TEXT"
+                      },
+                      "required": {
+                        "const": false
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 290
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{74}$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T1_ADD_INDEX"
+                      },
+                      "required": {
+                        "const": false
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 290
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{74}$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T2_CREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 254
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T2_RECREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 254
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T3_CREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 254
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "compatible_occurrence_count",
+                      "compatible_occurrence_bitmap_hex"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T4_CREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "compatible_occurrence_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 254
+                      },
+                      "compatible_occurrence_bitmap_hex": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
                     }
                   }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T1_ADD_TEXT"
-                    },
-                    "required": {
-                      "const": false
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 290
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{74}$"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T1_ADD_INDEX"
-                    },
-                    "required": {
-                      "const": false
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 290
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{74}$"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T2_CREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 254
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T2_RECREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 254
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T3_CREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 254
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "compatible_occurrence_count",
-                    "compatible_occurrence_bitmap_hex"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T4_CREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "compatible_occurrence_count": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 254
-                    },
-                    "compatible_occurrence_bitmap_hex": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  }
-                }
-              ],
-              "items": false
-            },
-            "value_equivalent_tuple_count": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 27648
+                ],
+                "items": false
+              }
             }
           }
         }
@@ -989,12 +1052,17 @@
       "additionalProperties": false,
       "required": [
         "model_type",
+        "canonical_model_id",
         "canonical_candidate_id",
-        "model"
+        "model",
+        "instance_bindings"
       ],
       "properties": {
         "model_type": {
           "const": "h4_final_encoded_field"
+        },
+        "canonical_model_id": {
+          "$ref": "#/$defs/sha256"
         },
         "canonical_candidate_id": {
           "$ref": "#/$defs/sha256"
@@ -1003,12 +1071,11 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "structural_candidate_id",
-            "encoding_length_equivalence_class",
-            "selected_operation_occurrences"
+            "structural_model_id",
+            "encoding_length_equivalence_class"
           ],
           "properties": {
-            "structural_candidate_id": {
+            "structural_model_id": {
               "$ref": "#/$defs/sha256"
             },
             "encoding_length_equivalence_class": {
@@ -1017,182 +1084,208 @@
                 "utf8_encoded_byte_count",
                 "utf8_unicode_scalar_or_code_unit_count"
               ]
-            },
-            "selected_operation_occurrences": {
-              "type": "array",
-              "minItems": 7,
-              "maxItems": 7,
-              "prefixItems": [
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T1_CREATE_ID"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 253
+            }
+          }
+        },
+        "instance_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "replica",
+              "structural_candidate_id",
+              "selected_operation_occurrences"
+            ],
+            "properties": {
+              "replica": {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "structural_candidate_id": {
+                "$ref": "#/$defs/sha256"
+              },
+              "selected_operation_occurrences": {
+                "type": "array",
+                "minItems": 7,
+                "maxItems": 7,
+                "prefixItems": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T1_CREATE_ID"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "occurrence_index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 253
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T1_ADD_TEXT"
+                      },
+                      "required": {
+                        "const": false
+                      },
+                      "occurrence_index": {
+                        "anyOf": [
+                          {
+                            "const": null
+                          },
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 289
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T1_ADD_INDEX"
+                      },
+                      "required": {
+                        "const": false
+                      },
+                      "occurrence_index": {
+                        "anyOf": [
+                          {
+                            "const": null
+                          },
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 289
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T2_CREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "occurrence_index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 253
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T2_RECREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "occurrence_index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 253
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T3_CREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "occurrence_index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 253
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation_id",
+                      "required",
+                      "occurrence_index"
+                    ],
+                    "properties": {
+                      "operation_id": {
+                        "const": "T4_CREATE"
+                      },
+                      "required": {
+                        "const": true
+                      },
+                      "occurrence_index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 253
+                      }
                     }
                   }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T1_ADD_TEXT"
-                    },
-                    "required": {
-                      "const": false
-                    },
-                    "occurrence_index": {
-                      "anyOf": [
-                        {
-                          "const": null
-                        },
-                        {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 289
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T1_ADD_INDEX"
-                    },
-                    "required": {
-                      "const": false
-                    },
-                    "occurrence_index": {
-                      "anyOf": [
-                        {
-                          "const": null
-                        },
-                        {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 289
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T2_CREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 253
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T2_RECREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 253
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T3_CREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 253
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "required",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T4_CREATE"
-                    },
-                    "required": {
-                      "const": true
-                    },
-                    "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 253
-                    }
-                  }
-                }
-              ],
-              "items": false
+                ],
+                "items": false
+              }
             }
           }
         }
@@ -1477,14 +1570,7 @@
                   "const": 1
                 },
                 "canonical_model_id": {
-                  "anyOf": [
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "$ref": "#/$defs/sha256"
-                    }
-                  ]
+                  "$ref": "#/$defs/sha256"
                 },
                 "canonical_candidate_id": {
                   "$ref": "#/$defs/sha256"
@@ -1508,14 +1594,7 @@
                   "const": 2
                 },
                 "canonical_model_id": {
-                  "anyOf": [
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "$ref": "#/$defs/sha256"
-                    }
-                  ]
+                  "$ref": "#/$defs/sha256"
                 },
                 "canonical_candidate_id": {
                   "$ref": "#/$defs/sha256"
@@ -1560,14 +1639,7 @@
                   "const": 1
                 },
                 "canonical_model_id": {
-                  "anyOf": [
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "$ref": "#/$defs/sha256"
-                    }
-                  ]
+                  "$ref": "#/$defs/sha256"
                 },
                 "canonical_candidate_id": {
                   "$ref": "#/$defs/sha256"
@@ -1591,14 +1663,7 @@
                   "const": 2
                 },
                 "canonical_model_id": {
-                  "anyOf": [
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "$ref": "#/$defs/sha256"
-                    }
-                  ]
+                  "$ref": "#/$defs/sha256"
                 },
                 "canonical_candidate_id": {
                   "$ref": "#/$defs/sha256"
@@ -2863,7 +2928,7 @@
             "size_bytes": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 524288
+              "maximum": 1048576
             }
           }
         }
@@ -2945,7 +3010,7 @@
         "encoding_length_equivalence_candidates": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 21
+          "maximum": 42
         },
         "candidate_serializations": {
           "type": "integer",
@@ -2965,17 +3030,17 @@
         "encoding_union_anchor_bytes": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 18324
+          "maximum": 36648
         },
         "h4_name_length_structural_tuples": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 35112960
+          "maximum": 70225920
         },
         "h4_contrast_occurrence_evaluations": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 580
+          "maximum": 1160
         }
       }
     },

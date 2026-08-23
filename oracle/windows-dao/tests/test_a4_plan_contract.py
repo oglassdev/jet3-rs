@@ -30,7 +30,7 @@ CALIBRATION = EXPERIMENT / "design-inputs" / "a3-calibration-receipt.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 
-PLAN_SHA256 = "f4443072050df84900fb63948f341054312065695d6d569b60aef8f39c8c8f40"
+PLAN_SHA256 = "6a7fa837fb6429cfa36cd4a63190b9c85de2c44dc5379d3f8bf2d796920859f4"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 ZERO_SHA256 = "0" * 64
@@ -200,7 +200,7 @@ def h1_bindings(
     return bindings
 
 
-def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
+def operation_bindings(occurrences_per_operation: int, replica: int) -> list[dict[str, Any]]:
     bindings = []
     for index, operation in enumerate(OPERATION_IDS):
         if operation == "T1_ADD_TEXT":
@@ -214,7 +214,7 @@ def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
                 "operation_id": operation,
                 "required": operation in REQUIRED_OPERATIONS,
                 "canonical_record_locator": {
-                    "page": 100 + index,
+                    "page": 100 + index + 1000 * (replica - 1),
                     "row": 0,
                     "row_start": 12,
                     "row_end": 100 + index,
@@ -222,7 +222,7 @@ def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
                 "occurrences": [
                     {
                         "occurrence_index": occurrence,
-                        "name_start": 20 + index * 11 + occurrence * 40,
+                        "name_start": 20 + index * 11 + occurrence * 40 + replica,
                         "matched_registered_pattern_id": f"{operation}_CP1252",
                         "matched_bytes_hex": matched,
                     }
@@ -230,6 +230,10 @@ def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
                 ],
             }
         )
+    return bindings
+
+
+def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
     return {
         "protocol_version": "1.0.0",
         "document_type": "dao_a4_h4_occurrence_evidence",
@@ -238,7 +242,10 @@ def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
         "revision_plan_sha256": ZERO_SHA256,
         "campaign_id": "synthetic",
         "root_candidate_id": ZERO_SHA256,
-        "operation_bindings": bindings,
+        "replica_groups": [
+            {"replica": replica, "operation_bindings": operation_bindings(occurrences_per_operation, replica)}
+            for replica in (1, 2)
+        ],
     }
 
 
@@ -285,7 +292,7 @@ def candidate(
     binding_variant: int = 0,
     replicas: tuple[int, ...] = (1, 2),
     operation: str | None = None,
-    structural_id: str | None = None,
+    structural_candidate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     instance_bindings: list[dict[str, Any]] | None = None
     if stage == "h1_tdef":
@@ -326,9 +333,11 @@ def candidate(
             "base_formula": formulas[(serial - 1) % len(formulas)],
         }
     elif stage == "h4_catalog_root":
-        model = {"tdef_page": 20 + serial, "locator_offsets": [35, 39]}
+        model = {"root_selection_signature": "operation_delta_non_name_structure", "locator_offsets": [35, 39] if serial % 2 else [39, 43]}
+        instance_bindings = [{"replica": replica, "tdef_page": 20 + serial + 100 * (replica - 1) + binding_variant} for replica in replicas]
     elif stage == "h4_operation_record":
         model = {
+            "replica": replicas[0],
             "root_candidate_id": ZERO_SHA256,
             "operation_id": operation or OPERATION_IDS[(serial - 1) % len(OPERATION_IDS)],
             "canonical_record_locator": {
@@ -340,7 +349,6 @@ def candidate(
         }
     elif stage == "h4_structural_field":
         model = {
-            "occurrence_evidence_sha256": EVIDENCE_SHA256,
             "kind_start_delta": min(serial, 16),
             "kind_width": 1,
             "identifier_width": 4,
@@ -353,19 +361,34 @@ def candidate(
                 if serial % 2
                 else "stable_for_same_physical_name_including_t2_v1_v2"
             ),
-            "value_equivalent_tuple_count": 1 if serial % 2 else 2,
-            "compatible_occurrences_by_operation": structural_bindings(),
         }
+        instance_bindings = [
+            {
+                "replica": replica,
+                "occurrence_evidence_sha256": EVIDENCE_SHA256,
+                "value_equivalent_tuple_count": 1 if serial % 2 else 2,
+                "compatible_occurrences_by_operation": structural_bindings((0, 1) if replica == 1 else (1,)),
+            }
+            for replica in replicas
+        ]
     elif stage == "h4_final_encoded_field":
+        structural = structural_candidate or candidate("h4_structural_field", replicas=replicas)
         model = {
-            "structural_candidate_id": structural_id
-            or candidate("h4_structural_field")["canonical_candidate_id"],
+            "structural_model_id": structural["canonical_model_id"],
             "encoding_length_equivalence_class": EQUIVALENCE_CLASSES[(serial - 1) % 3],
-            "selected_operation_occurrences": [
-                {"operation_id": operation_id, "required": operation_id in REQUIRED_OPERATIONS, "occurrence_index": (serial - 1) % 2}
-                for operation_id in OPERATION_IDS
-            ],
         }
+        instance_bindings = [
+            {
+                "replica": binding["replica"],
+                "structural_candidate_id": structural["canonical_candidate_id"],
+                "selected_operation_occurrences": [
+                    {"operation_id": operation_id, "required": operation_id in REQUIRED_OPERATIONS, "occurrence_index": 0 if binding["replica"] == 1 else 1}
+                    for operation_id in OPERATION_IDS
+                ],
+            }
+            for binding in structural["instance_bindings"]
+            if binding["replica"] in replicas
+        ]
     else:
         raise AssertionError(f"unknown candidate stage {stage}")
     return finish_candidate(stage, model, instance_bindings)
@@ -397,33 +420,48 @@ def maximal_candidate(stage: str) -> dict[str, Any]:
     if stage == "h4_structural_field":
         model = candidate(stage)["model"]
         model["kind_mapping"] = {"table": 4294967295}
-        model["value_equivalent_tuple_count"] = H4_INNER_GRAMMAR
-        model["compatible_occurrences_by_operation"] = [
+        full = [
             {
-                "operation_id": operation,
-                "required": operation in REQUIRED_OPERATIONS,
-                "compatible_occurrence_count": OPERATION_OCCURRENCE_MAX[operation],
-                "compatible_occurrence_bitmap_hex": bitmap_hex(operation, list(range(OPERATION_OCCURRENCE_MAX[operation]))),
+                "replica": replica,
+                "occurrence_evidence_sha256": "f" * 64,
+                "value_equivalent_tuple_count": H4_INNER_GRAMMAR,
+                "compatible_occurrences_by_operation": [
+                    {
+                        "operation_id": operation,
+                        "required": operation in REQUIRED_OPERATIONS,
+                        "compatible_occurrence_count": OPERATION_OCCURRENCE_MAX[operation],
+                        "compatible_occurrence_bitmap_hex": bitmap_hex(operation, list(range(OPERATION_OCCURRENCE_MAX[operation]))),
+                    }
+                    for operation in OPERATION_IDS
+                ],
             }
-            for operation in OPERATION_IDS
+            for replica in (1, 2)
         ]
-        return finish_candidate(stage, model)
+        return finish_candidate(stage, model, full)
     if stage == "h4_final_encoded_field":
-        model = candidate(stage)["model"]
-        model["encoding_length_equivalence_class"] = "utf8_unicode_scalar_or_code_unit_count"
-        model["selected_operation_occurrences"] = [
-            {"operation_id": operation, "required": operation in REQUIRED_OPERATIONS, "occurrence_index": OPERATION_OCCURRENCE_MAX[operation] - 1}
-            for operation in OPERATION_IDS
+        model = {"structural_model_id": "f" * 64, "encoding_length_equivalence_class": "utf8_unicode_scalar_or_code_unit_count"}
+        full = [
+            {
+                "replica": replica,
+                "structural_candidate_id": "f" * 64,
+                "selected_operation_occurrences": [
+                    {"operation_id": operation, "required": operation in REQUIRED_OPERATIONS, "occurrence_index": OPERATION_OCCURRENCE_MAX[operation] - 1}
+                    for operation in OPERATION_IDS
+                ],
+            }
+            for replica in (1, 2)
         ]
-        return finish_candidate(stage, model)
+        return finish_candidate(stage, model, full)
     if stage == "h4_operation_record":
-        return finish_candidate(stage, {"root_candidate_id": "f" * 64, "operation_id": "T1_CREATE_ID", "canonical_record_locator": {"page": page, "row": row, "row_start": 2047, "row_end": 2048}})
+        return finish_candidate(stage, {"replica": 2, "root_candidate_id": "f" * 64, "operation_id": "T1_CREATE_ID", "canonical_record_locator": {"page": page, "row": row, "row_start": 2047, "row_end": 2048}})
+    if stage == "h4_catalog_root":
+        return finish_candidate(stage, {"root_selection_signature": "operation_delta_non_name_structure", "locator_offsets": [2040, 2044]}, [{"replica": replica, "tdef_page": page} for replica in (1, 2)])
     return candidate(stage, 2)
 
 
 def maximal_occurrence_evidence() -> dict[str, Any]:
     document = occurrence_evidence(1)
-    for binding in document["operation_bindings"]:
+    for binding in (binding for group in document["replica_groups"] for binding in group["operation_bindings"]):
         operation = binding["operation_id"]
         binding["canonical_record_locator"] = {"page": 20479, "row": 255, "row_start": 2047, "row_end": 2048}
         binding["occurrences"] = [
@@ -486,13 +524,20 @@ def empty_result(status: str) -> dict[str, Any]:
     }
 
 
+def rebind_candidate(item: dict[str, Any]) -> None:
+    """Recompute split identities after instance bindings changed; the model id is untouched."""
+    identity = {"model_type": item["model_type"], "model": item["model"]}
+    item["canonical_model_id"] = canonical_sha256(identity)
+    item["canonical_candidate_id"] = canonical_sha256({**identity, "instance_bindings": item["instance_bindings"]})
+
+
 def sorted_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(candidates, key=lambda item: item["canonical_candidate_id"])
 
 
-def model_result(stage: str, structural_id: str | None = None) -> dict[str, Any]:
+def model_result(stage: str, structural_candidate: dict[str, Any] | None = None) -> dict[str, Any]:
     result = empty_result("model")
-    result["candidates"] = [candidate(stage, structural_id=structural_id)]
+    result["candidates"] = [candidate(stage, structural_candidate=structural_candidate)]
     result["predicate_measured_survivor_count"] = 1
     result["derivation_survivor_count"] = 1
     result["canonical_candidates_sha256"] = canonical_sha256(result["candidates"])
@@ -504,7 +549,7 @@ def terminal_result(
     count: int,
     slot: str,
     upstream_model_id: str,
-    structural_id: str | None = None,
+    structural_candidate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = contract["terminal_payload_schema"]
     stage = contract["candidate_stage"]
@@ -520,7 +565,7 @@ def terminal_result(
     evidence: dict[str, Any] | None = None
     if payload == "candidate_set":
         candidates = [
-            candidate(stage, serial, binding_variant=serial - 1, replicas=(1,), structural_id=structural_id)
+            candidate(stage, serial, binding_variant=serial - 1, replicas=(1,), structural_candidate=structural_candidate)
             for serial in range(1, count + 1)
         ]
     elif payload == "grouped_candidate_set":
@@ -550,8 +595,10 @@ def terminal_result(
         entries = []
         for replica in (1, 2):
             if pair_stage == "h4_final_encoded_field":
-                structural = candidate("h4_structural_field", replica, replicas=(replica,))
-                item = candidate(pair_stage, replica, structural_id=structural["canonical_candidate_id"])
+                structural = candidate("h4_structural_field", 1, replicas=(replica,))
+                item = candidate(pair_stage, replica, replicas=(replica,), structural_candidate=structural)
+            elif pair_stage == "h4_structural_field":
+                item = candidate(pair_stage, 1, replicas=(replica,))
             else:
                 item = candidate(pair_stage, replica, binding_variant=replica - 1, replicas=(replica,))
             entries.append(
@@ -627,19 +674,19 @@ def build_layers_for_terminal(
     first_terminal_slot = RESULT_SLOTS.index(terminal_slots[0]) if terminal_slots else len(RESULT_SLOTS)
 
     upstream_model_id = ZERO_SHA256
-    structural_id: str | None = None
+    structural_candidate: dict[str, Any] | None = None
     slots: dict[str, dict[str, Any]] = {}
     for position, slot in enumerate(RESULT_SLOTS):
         if campaign_failure:
             slots[slot] = empty_result("not_applicable")
         elif slot in terminal_slots:
             assert terminal is not None and terminal_count is not None
-            slots[slot] = terminal_result(terminal, terminal_count, slot, upstream_model_id, structural_id)
+            slots[slot] = terminal_result(terminal, terminal_count, slot, upstream_model_id, structural_candidate)
         elif position < first_terminal_slot:
-            slots[slot] = model_result(FINAL_STAGES[slot], structural_id)
+            slots[slot] = model_result(FINAL_STAGES[slot], structural_candidate)
             upstream_model_id = slots[slot]["candidates"][0]["canonical_candidate_id"]
             if slot == "structural_result":
-                structural_id = upstream_model_id
+                structural_candidate = slots[slot]["candidates"][0]
         else:
             slots[slot] = empty_result("not_applicable")
     layers = {name: slots[name] for name in LAYERS[:3]}
@@ -711,12 +758,25 @@ def evidence_reference_for(layers: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+SPLIT_IDENTITY_STAGES = {"h1_tdef", "h1_target_valid_layout", "h1_locator_pair", "h4_catalog_root", "h4_structural_field", "h4_final_encoded_field"}
+H4_PHYSICAL_FIELDS = {"replica", "tdef_page", "occurrence_evidence_sha256", "compatible_occurrences_by_operation", "value_equivalent_tuple_count", "selected_operation_occurrences", "structural_candidate_id", "canonical_record_locator", "matched_bytes_hex", "name_start"}
+
+
 def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...]) -> None:
     identity = {"model_type": item["model_type"], "model": item["model"]}
-    if item["model_type"].startswith("h1_"):
+    if item["model_type"] in SPLIT_IDENTITY_STAGES:
         if item["canonical_model_id"] != canonical_sha256(identity):
-            raise AssertionError("canonical H1 model id mismatch")
+            raise AssertionError("canonical model id mismatch")
         identity["instance_bindings"] = item["instance_bindings"]
+        if item["model_type"].startswith("h4_"):
+            if H4_PHYSICAL_FIELDS & set(item["model"]):
+                raise AssertionError("H4 model carries a physical field")
+            bound = [binding["replica"] for binding in item["instance_bindings"]]
+            if bound != list(replicas):
+                raise AssertionError("H4 instance bindings are missing, duplicated, cross-replica, or reordered")
+    elif item["model_type"] == "h4_operation_record":
+        if item["model"]["replica"] not in replicas:
+            raise AssertionError("operation record belongs to another replica")
     if item["canonical_candidate_id"] != canonical_sha256(identity):
         raise AssertionError("canonical candidate id mismatch")
     if item["model_type"] == "h2_final_role":
@@ -753,11 +813,12 @@ def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...])
         for forbidden in ("encoding_length_equivalence_class", "name_length_endianness", "operation_bindings", "name_start"):
             if forbidden in model:
                 raise AssertionError(f"structural H4 candidate carries {forbidden}")
-        bindings = model["compatible_occurrences_by_operation"]
-        if [binding["operation_id"] for binding in bindings] != OPERATION_IDS:
-            raise AssertionError("H4 operation bindings differ from frozen order")
         if set(model["kind_mapping"]) != {"table"}:
             raise AssertionError("structural kind mapping must hold only the table kind value")
+    for physical in item.get("instance_bindings", []) if item["model_type"] == "h4_structural_field" else []:
+        bindings = physical["compatible_occurrences_by_operation"]
+        if [binding["operation_id"] for binding in bindings] != OPERATION_IDS:
+            raise AssertionError("H4 operation bindings differ from frozen order")
         for binding in bindings:
             operation = binding["operation_id"]
             if binding["required"] != (operation in REQUIRED_OPERATIONS):
@@ -772,27 +833,35 @@ def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...])
             if max(indexes) >= OPERATION_OCCURRENCE_MAX[operation]:
                 raise AssertionError("H4 compatible bitmap exceeds the operation occurrence maximum")
     if item["model_type"] == "h4_final_encoded_field":
-        selected = item["model"]["selected_operation_occurrences"]
-        if [row["operation_id"] for row in selected] != OPERATION_IDS:
-            raise AssertionError("H4 selected occurrences differ from frozen order")
+        for physical in item["instance_bindings"]:
+            selected = physical["selected_operation_occurrences"]
+            if [row["operation_id"] for row in selected] != OPERATION_IDS:
+                raise AssertionError("H4 selected occurrences differ from frozen order")
 
 
 def validate_final_against_structural(final: dict[str, Any], structural: dict[str, Any]) -> None:
-    if final["model"]["structural_candidate_id"] != structural["canonical_candidate_id"]:
-        raise AssertionError("final H4 candidate references an orphan structural id")
-    bitmaps = {
-        binding["operation_id"]: binding["compatible_occurrence_bitmap_hex"]
-        for binding in structural["model"]["compatible_occurrences_by_operation"]
-    }
-    for row in final["model"]["selected_operation_occurrences"]:
-        if row["required"] != (row["operation_id"] in REQUIRED_OPERATIONS):
-            raise AssertionError("selected occurrence required flag differs from the frozen operation split")
-        if row["occurrence_index"] is None:
-            if row["required"]:
-                raise AssertionError("required operation lacks a selected occurrence")
-            continue
-        if row["occurrence_index"] not in bitmap_indexes(row["operation_id"], bitmaps[row["operation_id"]]):
-            raise AssertionError("selected occurrence is absent from the structural evidence")
+    if final["model"]["structural_model_id"] != structural["canonical_model_id"]:
+        raise AssertionError("final H4 model references a foreign structural model id")
+    structural_by_replica = {binding["replica"]: binding for binding in structural["instance_bindings"]}
+    final_replicas = [binding["replica"] for binding in final["instance_bindings"]]
+    if not final_replicas or final_replicas != sorted(set(final_replicas)) or not set(final_replicas) <= set(structural_by_replica):
+        raise AssertionError("final H4 candidate binds a replica absent from its structural candidate (cross-replica)")
+    for physical in final["instance_bindings"]:
+        if physical["structural_candidate_id"] != structural["canonical_candidate_id"]:
+            raise AssertionError("final H4 candidate references an orphan structural id")
+        bitmaps = {
+            binding["operation_id"]: binding["compatible_occurrence_bitmap_hex"]
+            for binding in structural_by_replica[physical["replica"]]["compatible_occurrences_by_operation"]
+        }
+        for row in physical["selected_operation_occurrences"]:
+            if row["required"] != (row["operation_id"] in REQUIRED_OPERATIONS):
+                raise AssertionError("selected occurrence required flag differs from the frozen operation split")
+            if row["occurrence_index"] is None:
+                if row["required"]:
+                    raise AssertionError("required operation lacks a selected occurrence")
+                continue
+            if row["occurrence_index"] not in bitmap_indexes(row["operation_id"], bitmaps[row["operation_id"]]):
+                raise AssertionError("selected occurrence is absent from the structural evidence")
 
 
 def validate_frozen_result(value: dict[str, Any], slot: str) -> None:
@@ -880,7 +949,9 @@ def validate_frozen_result(value: dict[str, Any], slot: str) -> None:
             if entry["canonical_model_id"] != item.get("canonical_model_id"):
                 raise AssertionError("replica pair model id mismatch")
         first, second = entries
-        if pair_stage.startswith("h1_"):
+        if pair_stage in SPLIT_IDENTITY_STAGES:
+            if first["canonical_model_id"] is None or second["canonical_model_id"] is None:
+                raise AssertionError("replica pair model id is null")
             unequal = first["canonical_model_id"] != second["canonical_model_id"]
         else:
             unequal = first["canonical_candidate_id"] != second["canonical_candidate_id"]
@@ -937,8 +1008,13 @@ def validate_layer_semantics(
     for item in structural_candidates:
         if item["model_type"] != "h4_structural_field":
             continue
-        if evidence_reference is None or item["model"]["occurrence_evidence_sha256"] != evidence_reference["sha256"]:
-            raise AssertionError("structural candidate evidence hash differs from the frozen reference")
+        for physical in item["instance_bindings"]:
+            if evidence_reference is None or physical["occurrence_evidence_sha256"] != evidence_reference["sha256"]:
+                raise AssertionError("structural candidate evidence hash differs from the frozen reference")
+    for slot_name in H4_SLOTS:
+        value = h4[slot_name]
+        if value["status"] == "model" and [binding["replica"] for binding in value["candidates"][0]["instance_bindings"]] != [1, 2]:
+            raise AssertionError("decisive H4 candidate must bind both replicas in replica order")
     if encoding["status"] == "not_applicable":
         return
     if encoding["terminal_payload_kind"] == "replica_pair":
@@ -958,10 +1034,12 @@ def validate_layer_semantics(
 def validate_evidence_document(document: dict[str, Any], reference: dict[str, Any], actual_bytes: bytes) -> None:
     if hashlib.sha256(actual_bytes).hexdigest() != reference["sha256"] or len(actual_bytes) != reference["size_bytes"]:
         raise AssertionError("h4_occurrence_evidence reference does not bind the retained bytes")
-    if len(actual_bytes) > 524288:
-        raise AssertionError("h4_occurrence_evidence exceeds 524,288 bytes")
+    if len(actual_bytes) > 1048576:
+        raise AssertionError("h4_occurrence_evidence exceeds 1,048,576 bytes")
+    if [group["replica"] for group in document["replica_groups"]] != [1, 2]:
+        raise AssertionError("evidence replica groups are not replica 1 then replica 2")
     total = 0
-    for binding in document["operation_bindings"]:
+    for binding in (binding for group in document["replica_groups"] for binding in group["operation_bindings"]):
         occurrences = binding["occurrences"]
         indexes = [item["occurrence_index"] for item in occurrences]
         if indexes != list(range(len(occurrences))):
@@ -969,8 +1047,8 @@ def validate_evidence_document(document: dict[str, Any], reference: dict[str, An
         if len(occurrences) > OPERATION_OCCURRENCE_MAX[binding["operation_id"]]:
             raise AssertionError("operation occurrence maximum exceeded")
         total += len(occurrences)
-    if total > 1850:
-        raise AssertionError("occurrence identity 1,851 exceeds the registered maximum")
+    if total > 3700:
+        raise AssertionError("occurrence identity 3,701 exceeds the registered maximum")
 
 
 def build_report(
@@ -1197,9 +1275,9 @@ def validate_json_resource_bounds(
     if largest_candidate_bytes > bounds["max_canonical_candidate_bytes"]:
         raise AssertionError("candidate byte 4,097 rejected before manifest creation")
     if occurrence_identities > bounds["max_h4_occurrence_identities"]:
-        raise AssertionError("occurrence identity 1,851 rejected before manifest creation")
+        raise AssertionError("occurrence identity 3,701 rejected before manifest creation")
     if evidence_bytes > bounds["max_h4_occurrence_evidence_bytes"]:
-        raise AssertionError("evidence byte 524,289 rejected before manifest creation")
+        raise AssertionError("evidence byte 1,048,577 rejected before manifest creation")
     if report_bytes > bounds["max_json_bytes"]:
         raise AssertionError("report byte 67,108,865 rejected before manifest creation")
 
@@ -1461,7 +1539,9 @@ class A4PlanContractTests(unittest.TestCase):
             CALIBRATION_SHA256,
         )
         inputs = self.plan["preregistration"]["origin_disclosure"]["design_inputs"]
-        self.assertEqual([item["sha256"] for item in inputs], [BRIEF_SHA256, CALIBRATION_SHA256])
+        amendment = self.plan["preregistration"]["scope_amendments"][0]
+        self.assertEqual([item["sha256"] for item in inputs], [BRIEF_SHA256, CALIBRATION_SHA256, amendment["note_sha256"]])
+        self.assertEqual(inputs[2]["role"], "delegate_approved_scope_amendment_001_work_ceiling")
         self.assertEqual(
             self.plan["record_candidate_procedure"]["calibration_receipt"]["sha256"],
             CALIBRATION_SHA256,
@@ -1662,7 +1742,10 @@ class A4PlanContractTests(unittest.TestCase):
             structural_model = schema["$defs"]["h4StructuralFieldCandidate"]["properties"]["model"]
             self.assertNotIn("name_length_endianness", structural_model["properties"])
             self.assertNotIn("operation_bindings", structural_model["properties"])
-            self.assertIn("occurrence_evidence_sha256", structural_model["required"])
+            self.assertNotIn("occurrence_evidence_sha256", structural_model["properties"])
+            binding = schema["$defs"]["h4StructuralFieldCandidate"]["properties"]["instance_bindings"]["items"]
+            self.assertEqual(binding["required"], ["replica", "occurrence_evidence_sha256", "value_equivalent_tuple_count", "compatible_occurrences_by_operation"])
+            self.assertEqual(schema["$defs"]["h4StructuralFieldCandidate"]["required"], ["model_type", "canonical_model_id", "canonical_candidate_id", "model", "instance_bindings"])
         contracts = self.plan["predicate_registry"]["predicate_contracts"]
         by_id = {row["predicate_id"]: index for index, row in enumerate(contracts)}
 
@@ -1698,7 +1781,9 @@ class A4PlanContractTests(unittest.TestCase):
                 structural_id = structural["candidates"][0]["canonical_candidate_id"]
                 classes = []
                 for item in encoding["candidates"]:
-                    self.assertEqual(item["model"]["structural_candidate_id"], structural_id)
+                    self.assertEqual(item["model"]["structural_model_id"], structural["candidates"][0]["canonical_model_id"])
+                    self.assertEqual([binding["structural_candidate_id"] for binding in item["instance_bindings"]], [structural_id])
+                    self.assertEqual([binding["replica"] for binding in item["instance_bindings"]], [1])
                     classes.append(item["model"]["encoding_length_equivalence_class"])
                 self.assertEqual(len(set(classes)), measured)
 
@@ -1714,16 +1799,14 @@ class A4PlanContractTests(unittest.TestCase):
 
         def rehash(result: dict[str, Any]) -> None:
             for item in result["candidates"]:
-                item["canonical_candidate_id"] = canonical_sha256(
-                    {"model_type": item["model_type"], "model": item["model"]}
-                )
+                rebind_candidate(item)
             result["candidates"] = sorted_candidates(result["candidates"])
             result["canonical_candidates_sha256"] = canonical_sha256(result["candidates"])
 
         # orphan structural id
         orphan = copy.deepcopy(decisive)
         orphan_encoding = h4(orphan)["encoding_result"]
-        orphan_encoding["candidates"][0]["model"]["structural_candidate_id"] = "f" * 64
+        orphan_encoding["candidates"][0]["instance_bindings"][0]["structural_candidate_id"] = "f" * 64
         rehash(orphan_encoding)
         validate_schema_value(orphan, self.analysis_schema, self.analysis_schema, "$")
         with self.assertRaisesRegex(AssertionError, "orphan structural id"):
@@ -1732,7 +1815,7 @@ class A4PlanContractTests(unittest.TestCase):
         # selected occurrence absent from the structural evidence
         absent = copy.deepcopy(decisive)
         absent_encoding = h4(absent)["encoding_result"]
-        absent_encoding["candidates"][0]["model"]["selected_operation_occurrences"][2]["occurrence_index"] = 5
+        absent_encoding["candidates"][0]["instance_bindings"][1]["selected_operation_occurrences"][2]["occurrence_index"] = 5
         rehash(absent_encoding)
         validate_schema_value(absent, self.analysis_schema, self.analysis_schema, "$")
         with self.assertRaisesRegex(AssertionError, "absent from the structural evidence"):
@@ -1744,6 +1827,7 @@ class A4PlanContractTests(unittest.TestCase):
         duplicate_encoding["candidates"][1]["model"]["encoding_length_equivalence_class"] = (
             duplicate_encoding["candidates"][0]["model"]["encoding_length_equivalence_class"]
         )
+        duplicate_encoding["candidates"][1]["instance_bindings"][0]["selected_operation_occurrences"][0]["occurrence_index"] = 1
         rehash(duplicate_encoding)
         with self.assertRaisesRegex(AssertionError, "duplicate encoding equivalence class"):
             validate_report_semantics(duplicate, self.plan)
@@ -1926,10 +2010,13 @@ class A4PlanContractTests(unittest.TestCase):
                 mirrored = copy.deepcopy(equal_entries[0])
                 if predicate_id.startswith("A4-H1"):
                     mirrored["complete_candidate"]["instance_bindings"] = h1_bindings(True, 0, (2,))
-                    mirrored["canonical_candidate_id"] = canonical_sha256(
-                        {"model_type": "h1_locator_pair", "model": mirrored["complete_candidate"]["model"], "instance_bindings": mirrored["complete_candidate"]["instance_bindings"]}
-                    )
-                    mirrored["complete_candidate"]["canonical_candidate_id"] = mirrored["canonical_candidate_id"]
+                    rebind_candidate(mirrored["complete_candidate"])
+                    mirrored["canonical_candidate_id"] = mirrored["complete_candidate"]["canonical_candidate_id"]
+                elif predicate_id.startswith("A4-H4"):
+                    for binding in mirrored["complete_candidate"]["instance_bindings"]:
+                        binding["replica"] = 2
+                    rebind_candidate(mirrored["complete_candidate"])
+                    mirrored["canonical_candidate_id"] = mirrored["complete_candidate"]["canonical_candidate_id"]
                 mirrored["replica"] = 2
                 equal_entries[1] = mirrored
                 validate_schema_value(equal, self.analysis_schema, self.analysis_schema, "$")
@@ -2062,8 +2149,8 @@ class A4PlanContractTests(unittest.TestCase):
 
     def test_candidate_and_evidence_byte_bounds_close_the_json_proof(self) -> None:
         bounds = self.plan["bounds"]
-        self.assertEqual(bounds["max_h4_occurrence_identities"], 1850)
-        self.assertEqual(bounds["max_h4_occurrence_evidence_bytes"], 524288)
+        self.assertEqual(bounds["max_h4_occurrence_identities"], 3700)
+        self.assertEqual(bounds["max_h4_occurrence_evidence_bytes"], 1048576)
         largest = 0
         for stage in STAGE_SLOTS:
             with self.subTest(stage=stage):
@@ -2084,18 +2171,19 @@ class A4PlanContractTests(unittest.TestCase):
                 size = len(canonical_bytes(item))
                 largest = max(largest, size)
                 self.assertLessEqual(size, bounds["max_canonical_candidate_bytes"])
-        self.assertLess(largest, 2600)
+        self.assertLess(largest, 4096)
         evidence_schema = json.loads(EVIDENCE_SCHEMA.read_bytes())
         maximal = maximal_occurrence_evidence()
         validate_schema_value(maximal, evidence_schema, evidence_schema, "$")
         maximal_bytes = canonical_bytes(maximal)
-        identities = sum(len(binding["occurrences"]) for binding in maximal["operation_bindings"])
-        self.assertEqual(identities, 1850)
+        identities = sum(len(binding["occurrences"]) for group in maximal["replica_groups"] for binding in group["operation_bindings"])
+        self.assertEqual(identities, 3700)
         self.assertLessEqual(len(maximal_bytes), bounds["max_h4_occurrence_evidence_bytes"])
         reference = {"path": EVIDENCE_PATH, "sha256": hashlib.sha256(maximal_bytes).hexdigest(), "size_bytes": len(maximal_bytes)}
         validate_evidence_document(maximal, reference, maximal_bytes)
         overflow = copy.deepcopy(maximal)
-        overflow["operation_bindings"][0]["occurrences"].append({**overflow["operation_bindings"][0]["occurrences"][-1], "occurrence_index": 254})
+        first_binding = overflow["replica_groups"][1]["operation_bindings"][0]
+        first_binding["occurrences"].append({**first_binding["occurrences"][-1], "occurrence_index": 254})
         with self.assertRaises(ValidationError):
             validate_schema_value(overflow, evidence_schema, evidence_schema, "$")
         closure_total = (
@@ -2105,17 +2193,17 @@ class A4PlanContractTests(unittest.TestCase):
         )
         self.assertEqual(bounds["max_canonical_candidates_array_bytes"], 4096 * 4096 + 4097)
         self.assertEqual(1024 * 512 * 3 + 1024 * 384 * 2 + 4096 * 512, 4456448)
-        self.assertLess(closure_total, 23200000)
+        self.assertLess(closure_total, 23800000)
         self.assertLess(closure_total, bounds["max_json_bytes"])
-        validate_json_resource_bounds(4096, 4096, 1850, 524288, 67108864, bounds)
+        validate_json_resource_bounds(4096, 4096, 3700, 1048576, 67108864, bounds)
         for kwargs, message in (
             ({"candidate_count": 4097}, "candidate 4,097"),
             ({"largest_candidate_bytes": 4097}, "candidate byte 4,097"),
-            ({"occurrence_identities": 1851}, "occurrence identity 1,851"),
-            ({"evidence_bytes": 524289}, "evidence byte 524,289"),
+            ({"occurrence_identities": 3701}, "occurrence identity 3,701"),
+            ({"evidence_bytes": 1048577}, "evidence byte 1,048,577"),
             ({"report_bytes": 67108865}, "report byte 67,108,865"),
         ):
-            arguments = {"candidate_count": 4096, "largest_candidate_bytes": 4096, "occurrence_identities": 1850, "evidence_bytes": 524288, "report_bytes": 67108864, **kwargs}
+            arguments = {"candidate_count": 4096, "largest_candidate_bytes": 4096, "occurrence_identities": 3700, "evidence_bytes": 1048576, "report_bytes": 67108864, **kwargs}
             with self.assertRaisesRegex(AssertionError, message):
                 validate_json_resource_bounds(bounds=bounds, **arguments)
         self.assertEqual(self.plan["artifacts"]["h4_occurrence_evidence"], EVIDENCE_PATH)
@@ -2126,12 +2214,22 @@ class A4PlanContractTests(unittest.TestCase):
         work = self.plan["work_model"]
         bounds = self.plan["bounds"]
         self.assertEqual(work["bound_classification"]["max_analysis_work_units"], "conservative_upper")
-        self.assertEqual(work["terminal_path_maxima"]["computed_units"]["h4_latest_derivation_terminal"], 115687821)
-        self.assertEqual(600000000 - 115687821, 484312179)
-        self.assertIn("484,312,179", work["terminal_path_maxima"]["proof"])
-        validate_analysis_work_bound(600000000, bounds["max_analysis_work_units"])
+        self.assertEqual(work["terminal_path_maxima"]["computed_units"]["h4_latest_derivation_terminal"], 150819706)
+        self.assertEqual(bounds["max_analysis_work_units"], 800000000)
+        self.assertEqual(800000000 - 150819706, 649180294)
+        self.assertIn("649,180,294", work["terminal_path_maxima"]["proof"])
+        validate_analysis_work_bound(800000000, bounds["max_analysis_work_units"])
         with self.assertRaises(AssertionError):
-            validate_analysis_work_bound(600000001, bounds["max_analysis_work_units"])
+            validate_analysis_work_bound(800000001, bounds["max_analysis_work_units"])
+        amendment = self.plan["preregistration"]["scope_amendments"]
+        self.assertEqual(len(amendment), 1)
+        self.assertEqual((amendment[0]["field"], amendment[0]["from"], amendment[0]["to"]), ("max_analysis_work_units", 600000000, 800000000))
+        note = ROOT / amendment[0]["note_path"]
+        self.assertEqual(hashlib.sha256(note.read_bytes()).hexdigest(), amendment[0]["note_sha256"])
+        note_text = note.read_text(encoding="utf-8")
+        for phrase in ("600,000,000", "800,000,000", "134,291,460", "694,378,226", "150,819,706", "900-second"):
+            self.assertIn(phrase, note_text)
+        self.assertIn("800,000,001", amendment[0]["tests"])
         clause = self.plan["analyzer_dry_run_contract"]["dry_run_honesty_clause"]
         self.assertIn("work_counter_comparator_equality", clause["required_cases"])
         self.assertNotIn("resource_exact_ceiling", clause["required_cases"])
@@ -2451,6 +2549,8 @@ class A4PlanContractTests(unittest.TestCase):
         checkpoints = self.plan["checkpoint_design"]["count"]
         qualified_pages = bounds["max_qualified_pages_per_submodel"]
         operation_instances = 7
+        derivation_replicas = len(self.plan["replicas"]["derivation"])
+        self.assertEqual(derivation_replicas, 2)
         complete_row_bytes = bounds["page_size"] - 10 - 2
         occurrence_ceiling = 5 * (complete_row_bytes // 8) + 2 * (complete_row_bytes // 7)
         required_occurrence_ceiling = 5 * (complete_row_bytes // 8)
@@ -2477,18 +2577,19 @@ class A4PlanContractTests(unittest.TestCase):
             "base_formula_evaluations": len(grammar["h3"]["base_formulas"]) * qualified_pages * checkpoints,
             "catalog_root_signatures": qualified_pages * checkpoints * len(self.plan["replicas"]["derivation"]) * len(grammar["h4"]["catalog_root_selection_signatures"]),
             "catalog_raw_rows": operation_instances * qualified_pages * 679,
-            "encoding_union_anchor_bytes": 9 * complete_row_bytes,
-            "h4_name_length_structural_tuples": required_occurrence_ceiling * h4_inner_grammar,
-            "h4_contrast_occurrence_evaluations": contrast_occurrence_ceiling * 1,
-            "encoding_length_equivalence_candidates": operation_instances * len(grammar["h4"]["name_length_equivalence_classes"]),
+            "encoding_union_anchor_bytes": derivation_replicas * 9 * complete_row_bytes,
+            "h4_name_length_structural_tuples": derivation_replicas * required_occurrence_ceiling * h4_inner_grammar,
+            "h4_contrast_occurrence_evaluations": derivation_replicas * contrast_occurrence_ceiling * 1,
+            "encoding_length_equivalence_candidates": derivation_replicas * operation_instances * len(grammar["h4"]["name_length_equivalence_classes"]),
             "candidate_serializations": bounds["max_candidate_models"],
         }
         terms = self.plan["work_model"]["terms"]
         self.assertEqual({key: value["units"] for key, value in terms.items()}, expected_terms)
         terminal_maximum = sum(expected_terms.values())
-        self.assertEqual(expected_terms["encoding_union_anchor_bytes"], 18324)
-        self.assertEqual(expected_terms["h4_name_length_structural_tuples"], 35112960)
-        self.assertEqual(terminal_maximum, 115687821)
+        self.assertEqual(expected_terms["encoding_union_anchor_bytes"], 36648)
+        self.assertEqual(expected_terms["h4_name_length_structural_tuples"], 70225920)
+        self.assertEqual(terminal_maximum, 150819706)
+        self.assertEqual(bounds["max_h4_occurrence_identities"], derivation_replicas * occurrence_ceiling)
         terminal_paths = self.plan["work_model"]["terminal_path_maxima"]
         all_terms = {key: value["units"] for key, value in terms.items()}
         all_terms.update(
@@ -2501,10 +2602,10 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(recomputed_paths, terminal_paths["computed_units"])
         self.assertEqual(recomputed_paths["h4_latest_derivation_terminal"], terminal_maximum)
         self.assertLessEqual(terminal_maximum, bounds["max_analysis_work_units"])
-        self.assertEqual(bounds["max_analysis_work_units"], 600000000)
-        validate_analysis_work_bound(600000000, bounds["max_analysis_work_units"])
+        self.assertEqual(bounds["max_analysis_work_units"], 800000000)
+        validate_analysis_work_bound(800000000, bounds["max_analysis_work_units"])
         with self.assertRaises(AssertionError):
-            validate_analysis_work_bound(600000001, bounds["max_analysis_work_units"])
+            validate_analysis_work_bound(800000001, bounds["max_analysis_work_units"])
         self.assertEqual(bounds["max_retained_page_store_bytes"], 65536 * 2048)
         self.assertEqual(4096 * 4096 + 4097, bounds["max_canonical_candidates_array_bytes"])
         consumers = self.plan["work_model"]["logical_read_consumers"]
@@ -2763,12 +2864,142 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(outside["layers"]["h4_catalog_bootstrap"]["contrast_result"]["status"], "not_applicable")
         # final candidate with a null contrast occurrence is accepted; null required occurrence is rejected
         structural = candidate("h4_structural_field")
-        final = candidate("h4_final_encoded_field", structural_id=structural["canonical_candidate_id"])
-        final["model"]["selected_operation_occurrences"][1]["occurrence_index"] = None
+        final = candidate("h4_final_encoded_field", structural_candidate=structural)
+        final["instance_bindings"][0]["selected_operation_occurrences"][1]["occurrence_index"] = None
         validate_final_against_structural(final, structural)
-        final["model"]["selected_operation_occurrences"][0]["occurrence_index"] = None
+        final["instance_bindings"][0]["selected_operation_occurrences"][0]["occurrence_index"] = None
         with self.assertRaisesRegex(AssertionError, "required operation lacks"):
             validate_final_against_structural(final, structural)
+
+    def test_h4_identity_is_split_and_replica_evidence_is_frozen_for_both_replicas(self) -> None:
+        """P6-B1 executed counterexample and its replacement rules."""
+        contracts = self.plan["predicate_registry"]["predicate_contracts"]
+        by_id = {row["predicate_id"]: index for index, row in enumerate(contracts)}
+        rule = self.plan["candidate_grammars"]["h4"]["identity_rule"]
+        for phrase in ("canonical_model_id", "MUST exclude replica number", "compares recomputed non-null canonical_model_id"):
+            self.assertIn(phrase, rule)
+        # same scientific tuple, different physical evidence: same model id, different candidate ids, no disagreement
+        first = candidate("h4_structural_field", 1, replicas=(1,))
+        second = candidate("h4_structural_field", 1, replicas=(2,))
+        second["instance_bindings"][0]["occurrence_evidence_sha256"] = "e" * 64
+        second["instance_bindings"][0]["compatible_occurrences_by_operation"] = structural_bindings((0,))
+        rebind_candidate(second)
+        self.assertEqual(first["canonical_model_id"], second["canonical_model_id"])
+        self.assertNotEqual(first["canonical_candidate_id"], second["canonical_candidate_id"])
+        self.assertEqual(first["model"], second["model"])
+        for item in (first, second):
+            self.assertFalse(H4_PHYSICAL_FIELDS & set(item["model"]))
+        report = build_report(self.plan, by_id["A4-H4-REPLICA-DISAGREEMENT"])
+        h4 = report["layers"]["h4_catalog_bootstrap"]
+        structural_entries = h4["structural_result"]["terminal_evidence"]["entries"]
+        self.assertEqual(structural_entries[0]["canonical_model_id"], structural_entries[1]["canonical_model_id"])
+        self.assertNotEqual(structural_entries[0]["canonical_candidate_id"], structural_entries[1]["canonical_candidate_id"])
+        encoding_entries = h4["encoding_result"]["terminal_evidence"]["entries"]
+        self.assertNotEqual(encoding_entries[0]["canonical_model_id"], encoding_entries[1]["canonical_model_id"])
+        validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
+        validate_report_semantics(report, self.plan)
+        # agreement on both model ids (different evidence only) is not a disagreement
+        agreeing = copy.deepcopy(report)
+        second_final = agreeing["layers"]["h4_catalog_bootstrap"]["encoding_result"]["terminal_evidence"]["entries"][1]
+        first_final = agreeing["layers"]["h4_catalog_bootstrap"]["encoding_result"]["terminal_evidence"]["entries"][0]
+        second_final["complete_candidate"]["model"] = copy.deepcopy(first_final["complete_candidate"]["model"])
+        rebind_candidate(second_final["complete_candidate"])
+        second_final["canonical_model_id"] = second_final["complete_candidate"]["canonical_model_id"]
+        second_final["canonical_candidate_id"] = second_final["complete_candidate"]["canonical_candidate_id"]
+        self.assertEqual(second_final["canonical_model_id"], first_final["canonical_model_id"])
+        self.assertNotEqual(second_final["canonical_candidate_id"], first_final["canonical_candidate_id"])
+        with self.assertRaisesRegex(AssertionError, "replica pair models are equal"):
+            validate_report_semantics(agreeing, self.plan)
+        # different scientific model with otherwise identical evidence fails agreement with two non-null model ids
+        differing = copy.deepcopy(report)
+        entries = differing["layers"]["h4_catalog_bootstrap"]["structural_result"]["terminal_evidence"]["entries"]
+        entries[1]["complete_candidate"]["model"]["kind_width"] = 2
+        rebind_candidate(entries[1]["complete_candidate"])
+        entries[1]["canonical_model_id"] = entries[1]["complete_candidate"]["canonical_model_id"]
+        entries[1]["canonical_candidate_id"] = entries[1]["complete_candidate"]["canonical_candidate_id"]
+        self.assertNotEqual(entries[0]["canonical_model_id"], entries[1]["canonical_model_id"])
+        self.assertTrue(all(entry["canonical_model_id"] for entry in entries))
+        encoding = differing["layers"]["h4_catalog_bootstrap"]["encoding_result"]["terminal_evidence"]["entries"][1]
+        encoding["complete_candidate"]["model"]["structural_model_id"] = entries[1]["canonical_model_id"]
+        encoding["complete_candidate"]["instance_bindings"][0]["structural_candidate_id"] = entries[1]["canonical_candidate_id"]
+        rebind_candidate(encoding["complete_candidate"])
+        encoding["canonical_model_id"] = encoding["complete_candidate"]["canonical_model_id"]
+        encoding["canonical_candidate_id"] = encoding["complete_candidate"]["canonical_candidate_id"]
+        validate_schema_value(differing, self.analysis_schema, self.analysis_schema, "$")
+        validate_report_semantics(differing, self.plan)
+        null_model = copy.deepcopy(report)
+        null_model["layers"]["h4_catalog_bootstrap"]["structural_result"]["terminal_evidence"]["entries"][0]["canonical_model_id"] = None
+        with self.assertRaises(ValidationError):
+            validate_schema_value(null_model, self.analysis_schema, self.analysis_schema, "$")
+        # decisive candidate binds both replicas' fourteen operations in replica-then-operation order
+        decisive = build_report(self.plan)
+        h4 = decisive["layers"]["h4_catalog_bootstrap"]
+        for slot in ("root_result", "structural_result", "encoding_result"):
+            self.assertEqual([binding["replica"] for binding in h4[slot]["candidates"][0]["instance_bindings"]], [1, 2])
+        structural = h4["structural_result"]["candidates"][0]
+        evidence = decisive["h4_occurrence_evidence"]
+        groups = EVIDENCE_DOCUMENT["replica_groups"]
+        self.assertEqual([group["replica"] for group in groups], [1, 2])
+        bound_operations = [
+            (group["replica"], binding["operation_id"])
+            for group in groups
+            for binding in group["operation_bindings"]
+        ]
+        self.assertEqual(len(bound_operations), 14)
+        self.assertEqual(bound_operations, [(replica, operation) for replica in (1, 2) for operation in OPERATION_IDS])
+        for binding in structural["instance_bindings"]:
+            self.assertEqual(binding["occurrence_evidence_sha256"], evidence["sha256"])
+            group = groups[binding["replica"] - 1]
+            for bitmap in binding["compatible_occurrences_by_operation"]:
+                operation_binding = next(row for row in group["operation_bindings"] if row["operation_id"] == bitmap["operation_id"])
+                indexes = bitmap_indexes(bitmap["operation_id"], bitmap["compatible_occurrence_bitmap_hex"])
+                self.assertTrue(all(index < len(operation_binding["occurrences"]) for index in indexes))
+                self.assertIsNotNone(operation_binding["canonical_record_locator"])
+        validate_evidence_document(EVIDENCE_DOCUMENT, EVIDENCE_REFERENCE, EVIDENCE_BYTES)
+        # missing replica binding on a decisive candidate
+        missing = copy.deepcopy(decisive)
+        item = missing["layers"]["h4_catalog_bootstrap"]["structural_result"]["candidates"][0]
+        del item["instance_bindings"][1]
+        rebind_candidate(item)
+        missing["layers"]["h4_catalog_bootstrap"]["structural_result"]["canonical_candidates_sha256"] = canonical_sha256([item])
+        with self.assertRaises(AssertionError):
+            validate_report_semantics(missing, self.plan)
+        # cross-replica: a final binding whose replica its structural candidate does not carry
+        cross = copy.deepcopy(decisive)
+        structural_item = cross["layers"]["h4_catalog_bootstrap"]["structural_result"]["candidates"][0]
+        final_item = cross["layers"]["h4_catalog_bootstrap"]["encoding_result"]["candidates"][0]
+        del structural_item["instance_bindings"][1]
+        rebind_candidate(structural_item)
+        for binding in final_item["instance_bindings"]:
+            binding["structural_candidate_id"] = structural_item["canonical_candidate_id"]
+        rebind_candidate(final_item)
+        with self.assertRaisesRegex(AssertionError, "cross-replica"):
+            validate_final_against_structural(final_item, structural_item)
+        # duplicated and reordered replica bindings are rejected
+        for mutate, message in (
+            (lambda bindings: bindings.append(copy.deepcopy(bindings[0])), "missing, duplicated, cross-replica, or reordered"),
+            (lambda bindings: bindings.reverse(), "missing, duplicated, cross-replica, or reordered"),
+        ):
+            item = copy.deepcopy(structural)
+            mutate(item["instance_bindings"])
+            rebind_candidate(item)
+            with self.assertRaisesRegex(AssertionError, message):
+                validate_candidate_identity(item, (1, 2))
+        # evidence groups out of replica order are rejected by schema and by the semantic helper
+        reordered = copy.deepcopy(EVIDENCE_DOCUMENT)
+        reordered["replica_groups"].reverse()
+        evidence_schema = json.loads(EVIDENCE_SCHEMA.read_bytes())
+        with self.assertRaises(ValidationError):
+            validate_schema_value(reordered, evidence_schema, evidence_schema, "$")
+        reordered_bytes = canonical_bytes(reordered)
+        with self.assertRaisesRegex(AssertionError, "replica 1 then replica 2"):
+            validate_evidence_document(reordered, {"path": EVIDENCE_PATH, "sha256": hashlib.sha256(reordered_bytes).hexdigest(), "size_bytes": len(reordered_bytes)}, reordered_bytes)
+        # a physical field leaking into the scientific model is rejected
+        leaked = copy.deepcopy(structural)
+        leaked["model"]["tdef_page"] = 7
+        rebind_candidate(leaked)
+        with self.assertRaisesRegex(AssertionError, "physical field"):
+            validate_candidate_identity(leaked, (1, 2))
 
     def test_harness_ambiguities_are_resolved_by_stated_decisions(self) -> None:
         harness = self.plan["preregistration"]["origin_disclosure"]["executed_reference_harness"]

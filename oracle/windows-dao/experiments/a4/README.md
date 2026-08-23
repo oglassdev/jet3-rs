@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`f4443072050df84900fb63948f341054312065695d6d569b60aef8f39c8c8f40`.
+`6a7fa837fb6429cfa36cd4a63190b9c85de2c44dc5379d3f8bf2d796920859f4`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -138,9 +138,13 @@ The base plan incorporates A3's later machinery fixes from the start:
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 115,687,821 units under the 600,000,000-unit ceiling, which
-  is classified `conservative_upper`: only its checked comparator is tested
-  (600,000,000 accepted, 600,000,001 rejected) as a unit test outside the 40
+  path is H4 at 150,819,706 units (both derivation replicas charged for every
+  occurrence-dependent term) under the 800,000,000-unit ceiling set by
+  `A4-SCOPE-AMENDMENT-001` (`design-inputs/a4-scope-amendment-001.md`, which
+  supersedes the approved brief's 600,000,000 figure with `EXP-0051` timing
+  justification). The ceiling is classified `conservative_upper`: only its
+  checked comparator is tested
+  (800,000,000 accepted, 800,000,001 rejected) as a unit test outside the 40
   byte fixtures, and the byte-level `A4-RESOURCE-BOUND` terminal is reached by
   a 67,200-entry changed-hash one-over campaign; mutually exclusive row-count
   and row-length maxima are not summed.
@@ -148,19 +152,29 @@ The base plan incorporates A3's later machinery fixes from the start:
   tag-05 pages 16,352 bits. H4 separately charges the encoding-union scan and
   all bounded name/length tuple attempts. A complete row is at most 2,036
   bytes. Five eight-byte table operations and two seven-byte field/index
-  operations admit at most 1,850 occurrence identities; nine deduplicated
-  pattern/operation scans charge 18,324 byte starts. One shared integer-field
-  endianness gives the 27,648 inner grammar and, over the 1,270 required
-  table-record occurrences, the 35,112,960 tuple term; the 580 contrast
-  occurrences are evaluated once under the surviving structural model.
+  operations admit at most 1,850 occurrence identities per derivation
+  replica (3,700 in total); nine deduplicated pattern/operation scans charge
+  18,324 byte starts per replica. One shared integer-field endianness gives
+  the 27,648 inner grammar and, over the 1,270 required table-record
+  occurrences per replica, the 70,225,920 two-replica tuple term; the 580
+  contrast occurrences per replica are evaluated once under the surviving
+  structural model.
 - One producer read plus independent analyzer and validator reads cost at most
   1,317,011,456 bytes per replica, below the 2 GiB logical-read bound; no
   analyzer/validator pass is shared. Candidates are globally capped at
   4,096 bytes each (per-operation occurrence evidence lives in a separate
-  hashed `analysis/h4-occurrence-evidence.json` of at most 524,288 bytes,
-  referenced by SHA-256 from structural candidates), their full array at
+  hashed `analysis/h4-occurrence-evidence.json` of at most 1,048,576 bytes
+  holding two replica groups in replica order, referenced by SHA-256 from
+  each replica-qualified structural binding), their full array at
   16,781,313 bytes, and concrete bounded transcript schemas keep the complete
-  frozen JSON below 23,200,000 bytes.
+  frozen JSON below 23,800,000 bytes.
+- H4 identity is split exactly as H1's: `canonical_model_id` hashes only the
+  replica-invariant model (deltas, widths, endianness, table kind, lifecycle
+  relation, and for the encoded model the structural model id plus
+  equivalence class) and `canonical_candidate_id` hashes the model plus its
+  replica-qualified physical bindings. Replica agreement compares model ids,
+  so the same scientific tuple over different physical evidence agrees; a
+  decisive candidate binds both replicas' fourteen operation bindings.
 - R5-T01-style timing measures from hosted attempt start through successful
   manifest creation. Exactly 2,700 seconds is accepted; 2,701 is rejected
   before manifest creation and produces diagnostics rather than a successful
