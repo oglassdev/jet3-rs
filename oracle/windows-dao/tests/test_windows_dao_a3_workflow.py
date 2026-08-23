@@ -309,7 +309,8 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn('"$($artifact[0].id)/zip"', source)
         self.assertIn("Invoke-WebRequest -UseBasicParsing", source)
         self.assertIn("for ($attempt = 1; $attempt -le 5; $attempt++)", source)
-        self.assertIn("Expand-Archive", source)
+        self.assertIn("[IO.Compression.ZipFile]::ExtractToDirectory", source)
+        self.assertNotIn("Expand-Archive", source)
         self.assertIn("Move-Item", source)
         self.assertIn("Set-StrictMode -Version Latest", source)
 
