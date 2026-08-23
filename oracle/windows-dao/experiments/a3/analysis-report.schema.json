@@ -9,6 +9,7 @@
     "document_type",
     "experiment_id",
     "plan_sha256",
+    "revision_plan_sha256",
     "campaign_id",
     "producer_commit",
     "derivation_replicas",
@@ -43,6 +44,9 @@
       "const": "DAO-A3-ALLOCATION-MAPS-001"
     },
     "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "revision_plan_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "campaign_id": {

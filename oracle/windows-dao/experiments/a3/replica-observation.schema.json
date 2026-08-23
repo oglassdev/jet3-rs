@@ -3,10 +3,10 @@
   "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a3/replica-observation.schema.json",
   "title": "DAO A3 independent replica checkpoint observation",
   "type": "object", "additionalProperties": false,
-  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "producer_commit", "repository_url", "campaign_id", "matrix_job", "environment_sha256", "provider_sha256", "replica", "role_binding", "d_growth_observation", "logical_checkpoint_read_bytes", "inserted_rows_total", "changed_hash_entries", "checkpoints"],
+  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "revision_plan_sha256", "producer_commit", "repository_url", "campaign_id", "matrix_job", "environment_sha256", "provider_sha256", "replica", "role_binding", "d_growth_observation", "logical_checkpoint_read_bytes", "inserted_rows_total", "changed_hash_entries", "checkpoints"],
   "properties": {
     "protocol_version": {"const": "1.0.0"}, "document_type": {"const": "dao_a3_replica_observation"},
-    "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"}, "revision_plan_sha256": {"$ref": "#/$defs/sha256"},
     "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "repository_url": {"const": "https://github.com/oglassdev/jet3-rs.git"}, "campaign_id": {"$ref": "#/$defs/id"},
     "matrix_job": {"type": "object", "additionalProperties": false, "required": ["job_id", "replica_only", "shared_mutable_state"], "properties": {"job_id": {"$ref": "#/$defs/id"}, "replica_only": {"const": true}, "shared_mutable_state": {"const": false}}},

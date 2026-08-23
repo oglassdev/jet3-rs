@@ -4056,7 +4056,145 @@ Use `not applicable` explicitly rather than omitting a field.
   binary, MDB, or page blob is committed
 - Review: focused A3 dry-run, generator, analyzer, validator, and plan-contract
   tests plus repository validation must pass
+### EXP-0050 — A3 pre-acquisition revision binding, baseline, and timeout revision
 
+- Recorded: 2026-08-22, OpenAI Codex
+- Kind: additive pre-acquisition evidence-binding and operational-rule
+  reconciliation; no A3 worker run, DAO acquisition, replica observation,
+  candidate set, holdout receipt, analysis result, retained evidence bundle,
+  physical-format result, Rust result, or compatibility result
+- Origin: findings 3, 4, and 5 of the independent adversarial re-review of
+  hosted-lane PR #56 (`/private/tmp/sol-56-review.md`, not committed); the
+  `Revision binding` and `Relative baselines` reasoning in the provisionally
+  numbered hosted-lane provenance entry at
+  `origin/fable/a3-rebind:docs/PROVENANCE.md`; and the L/H baseline capture in
+  the checked A2 worker at `oracle/windows-dao/scripts/a2/A2.Worker.ps1`.
+  These inputs were read to locate unresolved plan semantics. No external MDB
+  implementation, Microsoft implementation source, donated MDB, DAO
+  observation, A3 replica, holdout artifact, or page blob was inspected.
+- Ledger ordering: PR #64 merged as `EXP-0048`; `EXP-0049` is reserved for the
+  still-open PR #56 hosted lane. Renumber this entry before merge if PR #56
+  lands under a different number. Reserving its number now avoids recreating
+  the collision found between those lanes.
+- Additive R5 revision: `DAO-A3-ALLOCATION-MAPS-001-R5` binds the base plan
+  (SHA-256 `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`),
+  R2 (`3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`),
+  R3 (`bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`),
+  and R4 (`939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`).
+  Acquisition has not started, so the base plan's amendment rule permits this
+  revision.
+- `R5-V01` revision binding: every schema-valid A3 evidence document must carry
+  required `revision_plan_sha256` equal to the governing R5 hash. A detached
+  closed bundle must retain the complete revision chain at
+  `plan/a3-allocation-maps-r2.plan.json` through
+  `plan/a3-allocation-maps-r5.plan.json`, each inventoried with role
+  `revision_plan`, media type `application/json`, and its pinned byte hash; the
+  base plan remains role `plan`. The binding is pinned in checked code instead
+  of a schema `const`, because placing the R5 hash in a schema would make the
+  R5 hash depend on the schema hash and the schema hash depend on R5. Producer
+  and independent validation must reject a missing, altered, or mismatched
+  revision document, inventory entry, or document binding.
+- `R5-V02` schema edit inventory: only the following nine evidence schemas
+  change. Each gains required `revision_plan_sha256`; the manifest additionally
+  gains required `campaign_started_utc` and `campaign_elapsed_seconds`, role
+  `revision_plan`, and four slots in its file-count bounds.
+
+  | Schema | SHA-256 before | SHA-256 after |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `f15bf39ad703f77fb7749d93214fe43711a9b525376b128f93c898b531db6460` | `91c75502fcaf404d484db17c5521d8eb9915250b35a290862856387cfc181993` |
+  | `bundle-manifest.schema.json` | `9d049c910b4a53da5d3cd3ee71f02c5671fdbb75b94e33587999cf40a91e9727` | `ebf80361941aeef1dbbb466e396cfb7c6caca463a5e92187b503a83a0e35699c` |
+  | `derivation-candidates.schema.json` | `50a9f7a1208969475a89ac3782077cb2bc0e5d3f9635ec51d5a46e8afcacd5b2` | `071408f3d9e1b1ac5cd99cbd0c2c8a93eaece1adde2d2b97b226b7ebaaa29d7b` |
+  | `environment.schema.json` | `6fb863f1c224698b466ba5fd5e10d9869a6b313b7480f02045e70c2e8eb49465` | `244946f4f7204865775d2329fe0172f6a5c9a4d7bc3ea9d1c9334660307fd565` |
+  | `holdout-structure-receipt.schema.json` | `c2316f9bf84f7722c93160c354f671d7411c0089bf7f52124237b262f43c50fe` | `e79d6c140b9adb31c313090c9ccc02c2ae09a185849554509d25334a0d93fed6` |
+  | `independent-validation-report.schema.json` | `2ad90d2b6ade15e815ad9819c09ca28d6b7e77ab6064e3a1139a9acf7e4c6d8c` | `fa956530661d0fa04844d8a507729a7e1cd5a97e4125b4a88c20a9e8eddf8766` |
+  | `page-index.schema.json` | `5e78e1a4b8d95ca1313c5d7e1df78f033f3791c959cb22a5b464aef581ddbdfd` | `102fc5ad5770eda32603d4494af19218513df22af49a3c19ccffd4ecf08a5428` |
+  | `replica-artifact-manifest.schema.json` | `a60cf012c2ceb8dee55ffd55e4fa21b14759d0d258b0203e14fd583b0b08d197` | `7eb03e03beac3b965473d355c48f0d51106426dceae43743443678caa735cc43` |
+  | `replica-observation.schema.json` | `e0605f67cae502da3b0187c05f9c6ff83b1f7da42a1496af95310dc90d1a2bbf` | `9f0fce53213372258a5783872ccbfa78bcd5ecd8b6436d84513398d3c473a016` |
+
+- Unchanged schemas: `plan.schema.json` remains SHA-256
+  `177fdbdda54b0e0d90383578a9bbea4a398cbcbd74424d522997a8f304113f03`;
+  `dry-run-report.schema.json` remains
+  `e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d`.
+- `R5-V03` supersession: exactly five earlier statements are superseded for
+  the R5-V02 additions and no other purpose: the word `schemas` in R3's
+  `inherited_contract`; R3's `original_schemas_remain_immutable`; the R4-B02
+  sentence that makes the nine evidence schemas byte-identical; the clause
+  `or evidence schema changes` in R4's `revision_scope`; and R4's
+  `original_evidence_schemas_remain_immutable`. The statements continue to
+  hold for `plan.schema.json`; every other R3/R4 rule stands, and the nine
+  evidence schemas are re-frozen at the after-hashes above.
+- `R5-L01` relative baselines: L's baseline is the total closed-file page count
+  recorded as `actual_file_pages` for `D_REGROW_0128`, the immediately
+  preceding state with no intervening operation. H's baseline is
+  `actual_file_pages` for `P_ABS_16480`. For each `L_REL_nnnn` or
+  `H_REL_nnnn`, threshold = baseline + nnnn and overshoot = actual pages -
+  threshold; the three existing disclosure fields must record those values,
+  while P absolute checkpoints keep a null relative baseline. Both validators
+  must reject a wrong capture point or arithmetic identity.
+- Baseline decision rationale: a literal database post-create baseline would
+  put the first L batch at least 256 pages beyond that baseline after the two D
+  growth phases, so `L_REL_0064` would be satisfied by one batch and the first
+  cross-check leg would degenerate. The EXP-0042 design inputs and their
+  calibrated leg-3 violation were produced with the checked A2 worker's lazy,
+  first-relative-batch capture. Fixing the reading to the explicit D-regrow and
+  P-absolute states preserves that preregistered schedule and keeps A3 a
+  prediction rather than silently retuning it.
+- `R5-T01` campaign timeout: 2700 seconds is a hard retained-evidence bound.
+  `campaign_started_utc` is the hosted run attempt's start observable (GitHub
+  `run_started_at` for its run id and attempt), which includes the base plan's
+  setup/dispatch allowance. `campaign_elapsed_seconds` is the floor of
+  `created_utc - campaign_started_utc`. Exactly 2700 is accepted; 2701,
+  missing timing fields, or inconsistent arithmetic is rejected. An attempt
+  that cannot establish the start or exceeds the ceiling may retain diagnostics
+  only; it must not write a schema-valid manifest or upload under the retained
+  successful-bundle identity.
+- Timeout decision rationale: the base plan derives 2700 as the exact sum of
+  ceilings and requires accept-at-ceiling/reject-one-over tests. Advisory
+  semantics would make that the only plan bound no retained evidence can
+  witness. A delayed run can be re-dispatched without losing evidence, whereas
+  an over-time bundle already retained as successful cannot be repaired.
+- Contract implementation and re-pins in this entry: `a3_spec.py` binds R5,
+  the full R2-R5 chain, and all new schema hashes; `a3_analysis.py` emits the
+  governing hash; `a3_dryrun_bundle.py` emits the hash, retains the revision
+  chain, and supplies schema-valid synthetic timing; `a3_independent_bundle.py`
+  verifies the revision inventory, per-document binding, and manifest timing;
+  `a3_independent_validator.py` makes R5 governing and emits its hash; focused
+  analyzer, independent-validator, dry-run, and plan-contract tests are
+  re-pinned to R5 and demonstrate binding/timing rejection.
+- Deferred implementation: the hosted worker/producer-side emission,
+  inventory, and hard pre-finalization timeout enforcement belong to PR #56's
+  lane. R5-L01's per-checkpoint identity enforcement in both validators belongs
+  to the hosted/validator lanes. This preregistration and its local checked
+  consumers do not claim those deferred gates are complete.
+- Plan identities:
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`, SHA-256
+  `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
+  `bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json`, SHA-256
+  `939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json`, SHA-256
+  `03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b`.
+- Observation: `preregistration.acquisition_started` remains `false`; this
+  entry records no database, checkpoint, replica observation, candidate set,
+  report, validation receipt, evidence bundle, or scientific outcome.
+- Interpretation and execution gate: this amendment pins evidence and
+  operational semantics only. It assigns no independently validated Jet
+  meaning, proves no Rust behavior or DAO compatibility, changes no
+  support-matrix entry, and authorizes no A3 acquisition. The `EXP-0044`
+  execution gate remains `BLOCKED`.
+- Usage: `file:oracle/windows-dao/experiments/a3/README.md`;
+  `file:oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json`;
+  the A3 analyzer, dry-run producer, hosted-lane producer, and independent
+  validator contracts that must bind to R5
+- Rights: project-authored revision, schema edits, contract code, and tests;
+  no DAO binary, MDB, page blob, or retained bundle is committed or
+  redistributed
+- Review: focused A3 plan-chain, schema old-to-new hash, revision inventory,
+  document binding, lazy-baseline, campaign-timeout, and unchanged-schema
+  contracts plus repository validation must pass
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

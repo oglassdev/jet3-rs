@@ -3,10 +3,10 @@
   "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a3/page-index.schema.json",
   "title": "DAO A3 ordered checkpoint page index",
   "type": "object", "additionalProperties": false,
-  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "producer_commit", "campaign_id", "environment_sha256", "provider_sha256", "replica", "checkpoint_id", "ordinal", "predecessor_checkpoint_id", "page_count", "file_size_bytes", "database_sha256", "ordered_page_sha256", "changed_page_indices"],
+  "required": ["protocol_version", "document_type", "experiment_id", "plan_sha256", "revision_plan_sha256", "producer_commit", "campaign_id", "environment_sha256", "provider_sha256", "replica", "checkpoint_id", "ordinal", "predecessor_checkpoint_id", "page_count", "file_size_bytes", "database_sha256", "ordered_page_sha256", "changed_page_indices"],
   "properties": {
     "protocol_version": {"const": "1.0.0"}, "document_type": {"const": "dao_a3_page_index"},
-    "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"}, "plan_sha256": {"$ref": "#/$defs/sha256"}, "revision_plan_sha256": {"$ref": "#/$defs/sha256"},
     "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "campaign_id": {"$ref": "#/$defs/id"},
     "environment_sha256": {"$ref": "#/$defs/sha256"}, "provider_sha256": {"$ref": "#/$defs/sha256"},
     "replica": {"type": "integer", "minimum": 1, "maximum": 3},

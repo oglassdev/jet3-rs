@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "protocol_version", "document_type", "experiment_id", "plan_sha256",
+    "revision_plan_sha256",
     "campaign_id", "bundle_manifest_sha256", "validator_commit",
     "implementation_independence_attested", "frozen_set_parsed",
     "frozen_set_matches_recomputation", "frozen_set_matches_report",
@@ -17,6 +18,7 @@
     "document_type": {"const": "dao_a3_independent_validation_report"},
     "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"},
     "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "revision_plan_sha256": {"$ref": "#/$defs/sha256"},
     "campaign_id": {"$ref": "#/$defs/id"},
     "bundle_manifest_sha256": {"$ref": "#/$defs/sha256"},
     "validator_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},

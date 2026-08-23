@@ -21,7 +21,21 @@ R3_PLAN = EXPERIMENT / "a3-allocation-maps-r3.plan.json"
 R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
 R4_PLAN = EXPERIMENT / "a3-allocation-maps-r4.plan.json"
 R4_PLAN_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+R5_PLAN = EXPERIMENT / "a3-allocation-maps-r5.plan.json"
+R5_PLAN_SHA256 = "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b"
+PLAN_SCHEMA_SHA256 = "177fdbdda54b0e0d90383578a9bbea4a398cbcbd74424d522997a8f304113f03"
 DRY_RUN_SCHEMA_SHA256 = "e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d"
+R5_EVIDENCE_SCHEMA_SHA256 = {
+    "analysis-report.schema.json": "91c75502fcaf404d484db17c5521d8eb9915250b35a290862856387cfc181993",
+    "bundle-manifest.schema.json": "ebf80361941aeef1dbbb466e396cfb7c6caca463a5e92187b503a83a0e35699c",
+    "derivation-candidates.schema.json": "071408f3d9e1b1ac5cd99cbd0c2c8a93eaece1adde2d2b97b226b7ebaaa29d7b",
+    "environment.schema.json": "244946f4f7204865775d2329fe0172f6a5c9a4d7bc3ea9d1c9334660307fd565",
+    "holdout-structure-receipt.schema.json": "e79d6c140b9adb31c313090c9ccc02c2ae09a185849554509d25334a0d93fed6",
+    "independent-validation-report.schema.json": "fa956530661d0fa04844d8a507729a7e1cd5a97e4125b4a88c20a9e8eddf8766",
+    "page-index.schema.json": "102fc5ad5770eda32603d4494af19218513df22af49a3c19ccffd4ecf08a5428",
+    "replica-artifact-manifest.schema.json": "7eb03e03beac3b965473d355c48f0d51106426dceae43743443678caa735cc43",
+    "replica-observation.schema.json": "9f0fce53213372258a5783872ccbfa78bcd5ecd8b6436d84513398d3c473a016",
+}
 PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
@@ -377,6 +391,103 @@ class A3PlanContractTests(unittest.TestCase):
         readme = README.read_text(encoding="utf-8")
         self.assertIn("### EXP-0047", provenance)
         for digest in (R4_PLAN_SHA256, DRY_RUN_SCHEMA_SHA256):
+            self.assertIn(digest, provenance)
+            self.assertIn(digest, readme)
+
+    def test_r5_revision_binding_baselines_and_timeout_are_hash_pinned(self) -> None:
+        revision_bytes = R5_PLAN.read_bytes()
+        revision = json.loads(revision_bytes)
+        self.assertEqual(hashlib.sha256(revision_bytes).hexdigest(), R5_PLAN_SHA256)
+        preregistration = revision["preregistration"]
+        self.assertEqual(revision["revision_id"], "DAO-A3-ALLOCATION-MAPS-001-R5")
+        self.assertEqual(preregistration["provenance_entry"], "EXP-0050")
+        self.assertEqual(preregistration["revision_of"], self.plan["experiment_id"])
+        self.assertEqual(preregistration["original_plan"]["sha256"], PLAN_SHA256)
+        self.assertEqual(
+            [row["sha256"] for row in preregistration["prior_revisions"]],
+            [REVISION_PLAN_SHA256, R3_PLAN_SHA256, R4_PLAN_SHA256],
+        )
+        self.assertFalse(preregistration["acquisition_started"])
+        self.assertIn("permitted", preregistration["amendment_permitted"])
+
+        gaps = {
+            gap["gap_id"]: gap
+            for gap in revision["revision_binding_reconciliation"]["gaps"]
+        }
+        self.assertEqual(set(gaps), {"R5-V01", "R5-V02", "R5-V03"})
+        binding = gaps["R5-V01"]["rule"]
+        for text in (
+            "Every A3 evidence document",
+            "revision_plan_sha256",
+            "plan/a3-allocation-maps-r5.plan.json",
+            "role revision_plan",
+            "Retaining the whole chain",
+        ):
+            self.assertIn(text, binding + gaps["R5-V01"]["rationale"])
+
+        schema_rows = gaps["R5-V02"]["schema_hashes"]
+        self.assertEqual(
+            {row["schema"]: row["sha256_after"] for row in schema_rows},
+            R5_EVIDENCE_SCHEMA_SHA256,
+        )
+        for row in schema_rows:
+            self.assertEqual(
+                hashlib.sha256((EXPERIMENT / row["schema"]).read_bytes()).hexdigest(),
+                row["sha256_after"],
+            )
+            self.assertNotEqual(row["sha256_before"], row["sha256_after"])
+        self.assertEqual(
+            hashlib.sha256((EXPERIMENT / "plan.schema.json").read_bytes()).hexdigest(),
+            PLAN_SCHEMA_SHA256,
+        )
+        self.assertEqual(
+            hashlib.sha256((EXPERIMENT / "dry-run-report.schema.json").read_bytes()).hexdigest(),
+            DRY_RUN_SCHEMA_SHA256,
+        )
+        supersession = gaps["R5-V03"]["rule"]
+        for text in (
+            "Those five statements are superseded",
+            "R3's original_schemas_remain_immutable",
+            "R4's original_evidence_schemas_remain_immutable",
+        ):
+            self.assertIn(text, supersession)
+
+        baseline = revision["relative_growth_baseline_reconciliation"]
+        self.assertEqual(baseline["gap_id"], "R5-L01")
+        for text in (
+            "L baseline is the closed-file page count",
+            "actual_file_pages recorded for D_REGROW_0128",
+            "H baseline is the closed-file page count",
+            "actual_file_pages recorded for P_ABS_16480",
+            "target_overshoot_pages is the achieved count minus the threshold",
+        ):
+            self.assertIn(text, baseline["rule"])
+        self.assertIn("literal post-create capture would collapse the L ladder", baseline["rationale"])
+
+        timeout = revision["campaign_timeout_reconciliation"]
+        self.assertEqual(timeout["gap_id"], "R5-T01")
+        for text in (
+            "hard bound on retained evidence",
+            "campaign_started_utc",
+            "campaign_elapsed_seconds",
+            "exactly 2700 is accepted and 2701 is rejected",
+            "must not write a schema-valid bundle manifest",
+        ):
+            self.assertIn(text, timeout["rule"])
+
+        effect = revision["execution_effect"]
+        self.assertTrue(effect["original_plan_remains_immutable"])
+        self.assertFalse(effect["original_evidence_schemas_remain_immutable"])
+        self.assertFalse(effect["dry_run_report_schema_changed"])
+        self.assertTrue(effect["operational_rules_pinned"])
+        self.assertFalse(effect["scientific_projection_changed"])
+        self.assertFalse(effect["acquisition_authorized"])
+        self.assertFalse(effect["bounds_changed"])
+
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+        self.assertIn("### EXP-0050", provenance)
+        for digest in (R5_PLAN_SHA256, *R5_EVIDENCE_SCHEMA_SHA256.values()):
             self.assertIn(digest, provenance)
             self.assertIn(digest, readme)
 
@@ -775,7 +886,7 @@ class A3PlanContractTests(unittest.TestCase):
 
     def test_all_a3_json_documents_parse(self) -> None:
         documents = sorted(EXPERIMENT.glob("*.json"))
-        self.assertEqual(len(documents), 15)
+        self.assertEqual(len(documents), 16)
         for document in documents:
             with self.subTest(document=document.name):
                 json.loads(document.read_bytes())

@@ -23,8 +23,8 @@ from protocol_validation import ValidationError, canonical_json_bytes
 from a3_generator import PROVIDER_SHA256, SyntheticReplica
 from a3_generator_schedule import ROLES, RollingHashes
 from a3_spec import (
-    BOUNDS, CHECKED_PLAN, CHECKPOINT_IDS, EXPERIMENT_ID, PAGE_SIZE, PLAN, PLAN_SHA256,
-    load_bounded_json, validate_document,
+    A3_ROOT, BOUNDS, CHECKED_PLAN, CHECKPOINT_IDS, EXPERIMENT_ID, PAGE_SIZE, PLAN, PLAN_SHA256,
+    REVISION_CHAIN, REVISION_PLAN_SHA256, load_bounded_json, validate_document,
 )
 
 ARTIFACTS = PLAN.document["artifacts"]
@@ -81,7 +81,7 @@ class BundlePaths:
 def _environment(paths: BundlePaths, replica: int) -> dict[str, Any]:
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_environment", "experiment_id": EXPERIMENT_ID,
-        "plan_sha256": PLAN_SHA256, "producer_commit": paths.producer_commit, "repository_url": REPOSITORY_URL,
+        "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256, "producer_commit": paths.producer_commit, "repository_url": REPOSITORY_URL,
         "campaign_id": paths.campaign_id, "status": "ready",
         "host": {
             "windows_version": "synthetic-dry-run", "process_architecture": "x86",
@@ -108,7 +108,7 @@ def _page_index(paths: BundlePaths, replica: SyntheticReplica, ordinal: int, env
     ]
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_page_index", "experiment_id": EXPERIMENT_ID,
-        "plan_sha256": PLAN_SHA256, "producer_commit": paths.producer_commit, "campaign_id": paths.campaign_id,
+        "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256, "producer_commit": paths.producer_commit, "campaign_id": paths.campaign_id,
         "environment_sha256": environment_sha256, "provider_sha256": PROVIDER_SHA256, "replica": replica.replica,
         "checkpoint_id": checkpoint, "ordinal": ordinal,
         "predecessor_checkpoint_id": None if ordinal == 0 else CHECKPOINT_IDS[ordinal - 1],
@@ -148,7 +148,7 @@ def _observation(paths: BundlePaths, replica: SyntheticReplica, environment_sha2
         })
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_replica_observation", "experiment_id": EXPERIMENT_ID,
-        "plan_sha256": PLAN_SHA256, "producer_commit": paths.producer_commit, "repository_url": REPOSITORY_URL,
+        "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256, "producer_commit": paths.producer_commit, "repository_url": REPOSITORY_URL,
         "campaign_id": paths.campaign_id,
         "matrix_job": {"job_id": f"a3-synthetic-replica-{replica.replica}", "replica_only": True, "shared_mutable_state": False},
         "environment_sha256": environment_sha256, "provider_sha256": PROVIDER_SHA256, "replica": replica.replica,
@@ -171,6 +171,11 @@ def write_bundle(root: Path, replicas: tuple[SyntheticReplica, ...], campaign_id
     plan_payload = CHECKED_PLAN.read_bytes()
     (root / ARTIFACTS["plan"]).parent.mkdir(parents=True)
     (root / ARTIFACTS["plan"]).write_bytes(plan_payload)
+    for relative, digest in REVISION_CHAIN.items():
+        payload = (A3_ROOT / Path(relative).name).read_bytes()
+        if hashlib.sha256(payload).hexdigest() != digest:
+            raise ValidationError(f"{relative}: revision plan does not hash to its pinned value")
+        (root / relative).write_bytes(payload)
     written: set[str] = set()
     for replica in replicas:
         number = replica.replica
@@ -202,7 +207,7 @@ def write_bundle(root: Path, replicas: tuple[SyntheticReplica, ...], campaign_id
         entries.append(_entry(observation_relative, "replica_observation", observation_payload))
         manifest = {
             "protocol_version": "1.0.0", "document_type": "dao_a3_replica_artifact_manifest", "experiment_id": EXPERIMENT_ID,
-            "plan_sha256": PLAN_SHA256, "producer_commit": producer_commit, "campaign_id": campaign_id,
+            "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256, "producer_commit": producer_commit, "campaign_id": campaign_id,
             "matrix_job_id": f"a3-synthetic-replica-{number}", "replica": number,
             "environment_sha256": environment_sha256, "provider_sha256": PROVIDER_SHA256,
             "checkpoint_count": len(CHECKPOINT_IDS), "inventory_closed": True, "hashes_verified": True,
@@ -245,7 +250,7 @@ def write_receipt(root: Path, candidate_sha256: str, campaign_id: str, producer_
             raise ValidationError("holdout page index is not bound to its manifest")
     receipt = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_holdout_structure_receipt", "experiment_id": EXPERIMENT_ID,
-        "plan_sha256": PLAN_SHA256, "producer_commit": producer_commit, "campaign_id": campaign_id,
+        "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256, "producer_commit": producer_commit, "campaign_id": campaign_id,
         "derivation_candidate_set_sha256": candidate_sha256, "replica": 3,
         "replica_artifact_manifest_sha256": _sha256_file(manifest_path),
         "validated_after_candidate_freeze": True, "page_bytes_exposed_to_analyzer": False, "result": "pass",
@@ -264,6 +269,8 @@ def finalize_manifest(paths: BundlePaths, report: dict[str, Any], created_utc: s
         ARTIFACTS["plan"]: "plan", ARTIFACTS["frozen_candidate_set"]: "frozen_candidate_set",
         ARTIFACTS["analysis_report"]: "analysis_report", ARTIFACTS["holdout_structure_receipt"]: "holdout_structure_receipt",
     }
+    for relative in REVISION_CHAIN:
+        roles[relative] = "revision_plan"
     for relative in ARTIFACTS["replica_environments"]:
         roles[relative] = "environment"
     for relative in ARTIFACTS["replica_artifact_manifests"]:
@@ -292,7 +299,8 @@ def finalize_manifest(paths: BundlePaths, report: dict[str, Any], created_utc: s
     manifest = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_bundle_manifest", "experiment_id": EXPERIMENT_ID,
         "campaign_id": paths.campaign_id, "producer_commit": paths.producer_commit, "repository_url": REPOSITORY_URL,
-        "created_utc": created_utc, "plan_sha256": PLAN_SHA256, "provider_sha256": PROVIDER_SHA256, "replica_count": 3,
+        "created_utc": created_utc, "campaign_started_utc": created_utc, "campaign_elapsed_seconds": 0,
+        "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256, "provider_sha256": PROVIDER_SHA256, "replica_count": 3,
         "replica_artifact_manifest_sha256": [by_path[relative]["sha256"] for relative in ARTIFACTS["replica_artifact_manifests"]],
         "checkpoint_count": len(CHECKPOINT_IDS) * 3, "page_blob_count": blobs,
         "bundle_size_bytes_excluding_manifest": total, "inventory_closed": True, "hashes_verified": True, "paths_closed": True,
