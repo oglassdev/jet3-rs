@@ -25,7 +25,9 @@ from a3_bundle import (
     _validate_replica,
     validate_holdout_replica,
 )
-from a3_spec import BOUNDS, EXPERIMENT_ID, PLAN_SHA256, validate_document
+from a3_spec import (
+    BOUNDS, EXPERIMENT_ID, PLAN_SHA256, load_bounded_json, validate_document,
+)
 from protocol_validation import ValidationError, canonical_json_bytes
 
 FAN_IN_TIMEOUT_SECONDS = 900
@@ -95,6 +97,7 @@ def run_holdout_process(
     campaign_id: str,
     producer_commit: str,
     output: Path,
+    freeze_state: Path,
 ) -> None:
     command = [
         sys.executable,
@@ -114,6 +117,8 @@ def run_holdout_process(
         producer_commit,
         "--output",
         str(output),
+        "--freeze-state",
+        str(freeze_state),
     ]
     try:
         completed = subprocess.run(
@@ -133,26 +138,46 @@ def write_receipt(
     campaign_id: str,
     producer_commit: str,
     output: Path,
+    freeze_state: Path,
 ) -> dict[str, object]:
-    # Observables, not assertions: the bundle must hold no holdout artifact when this
-    # process starts, and the frozen candidate set must already hash to the requested
-    # digest; only then is the holdout replica grafted and structurally validated.
-    absent_before_graft = holdout_absent(bundle_root)
-    frozen_bytes = candidate_set.read_bytes()
-    frozen_before_holdout_read = (
-        hashlib.sha256(frozen_bytes).hexdigest() == candidate_sha256
+    # Read the workflow's completed freeze marker and retained candidate bytes before
+    # touching the separately downloaded holdout root.
+    state = load_bounded_json(freeze_state, MAX_JSON_BYTES)
+    resolved_bundle = bundle_root.resolve()
+    candidate_locator = candidate_set.resolve().relative_to(resolved_bundle).as_posix()
+    bundle_tree, _ = _inventory(resolved_bundle)
+    absent_before_graft = not any(
+        f"replica-{REPLICA_COUNT:02d}" in path for path in bundle_tree
     )
-    validated_after_candidate_freeze = absent_before_graft and frozen_before_holdout_read
+    frozen_bytes = _read_checked(
+        resolved_bundle, candidate_locator, bundle_tree, MAX_JSON_BYTES
+    )
+    frozen_digest = hashlib.sha256(frozen_bytes).hexdigest()
+    validated_after_candidate_freeze = (
+        absent_before_graft
+        and frozen_digest == candidate_sha256
+        and state.get("document_type") == "dao_a3_internal_freeze_phase"
+        and state.get("campaign_id") == campaign_id
+        and state.get("producer_commit") == producer_commit
+        and state.get("derivation_candidate_set_sha256") == frozen_digest
+        and state.get("freeze_phase_completed") is True
+        and state.get(
+            "replica_3_artifact_existed_before_freeze_phase_completed"
+        ) is False
+    )
+    opens = state.get("analyzer_replica_3_opens_before_receipt")
+    page_bytes_exposed_to_analyzer = (
+        not isinstance(opens, bool) and isinstance(opens, int) and opens > 0
+    )
     if not validated_after_candidate_freeze:
         raise ValidationError("holdout replica reached the bundle before the candidate freeze")
+    if page_bytes_exposed_to_analyzer or opens != 0:
+        raise ValidationError("analyzer opened replica 3 before receipt acceptance")
     grafted = graft_holdout_replica(
         holdout_root, bundle_root, candidate_set, candidate_sha256, campaign_id, producer_commit)
     replica = validate_holdout_replica(
         bundle_root, candidate_set, candidate_sha256, campaign_id, producer_commit)
-    # This process is the only reader of the holdout pages before the analyzer opens
-    # them; the analyzer receives the receipt, never the page bytes.
-    page_bytes_exposed_to_analyzer = replica.manifest_sha256 != grafted.manifest_sha256
-    if page_bytes_exposed_to_analyzer:
+    if replica.manifest_sha256 != grafted.manifest_sha256:
         raise ValidationError("grafted holdout replica changed during structural validation")
     receipt: dict[str, object] = {
         "protocol_version": "1.0.0",
@@ -187,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--producer-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--freeze-state", type=Path, required=True)
     arguments = parser.parse_args(argv)
     try:
         if len(arguments.candidate_sha256) != 64 or any(
@@ -202,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
             arguments.campaign_id,
             arguments.producer_commit,
             arguments.output,
+            arguments.freeze_state,
         )
     except (OSError, ValidationError, ValueError) as exc:
         print(f"A3 holdout validation failed: {exc}", file=sys.stderr)

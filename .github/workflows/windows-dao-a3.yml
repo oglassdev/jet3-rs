@@ -363,12 +363,6 @@ jobs:
           # The closed replica manifest is re-hashed by assemble; the zip digest is advisory.
           digest-mismatch: warn
 
-      - name: Download bounded A3 replica timing diagnostics
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: windows-dao-a3-diagnostics-*-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}\jet3-a3-replica-diagnostics
-
       - name: Assemble the two derivation replica trees
         id: assemble
         shell: powershell
@@ -384,30 +378,77 @@ jobs:
             --producer-commit $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "A3 replica assembly failed." }
 
+      - name: Freeze derivation candidates before any replica 3 artifact download
+        id: freeze
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = Join-Path $env:RUNNER_TEMP "jet3-a3-bundle"
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a3-fanin-diagnostics"
+          $holdoutArtifact = Join-Path $env:RUNNER_TEMP "jet3-a3-holdout\replica-03"
+          New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
+          $summary = @(& python -B oracle/windows-dao/scripts/a3_analysis.py `
+            --freeze-only `
+            --bundle-root $bundle `
+            --replica (Join-Path $bundle "observations/replica-01.json") `
+            --replica (Join-Path $bundle "observations/replica-02.json") `
+            --candidate-output (Join-Path $bundle "analysis/derivation-candidates.json") `
+            --freeze-state (Join-Path $diagnostics "freeze-phase.json") `
+            --holdout-artifact-path $holdoutArtifact)
+          if ($LASTEXITCODE -ne 0) { throw "A3 derivation freeze failed." }
+          [IO.File]::WriteAllText(
+            (Join-Path $diagnostics "freeze-summary.json"),
+            (($summary -join "`n") + "`n"),
+            (New-Object Text.UTF8Encoding($false))
+          )
+
       - name: Download A3 holdout replica 3 outside the bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: windows-dao-a3-replica-3
           path: ${{ runner.temp }}\jet3-a3-holdout\replica-03
-          # Not read or validated here: the analyzer's separate holdout process grafts
-          # and structurally validates this tree only after the derivation freeze.
+          # The preceding step has retained and recorded the frozen-set digest.
           digest-mismatch: warn
 
-      - name: Freeze derivation, graft and validate holdout separately, and analyze
+      - name: Download bounded A3 replica timing diagnostics
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: windows-dao-a3-diagnostics-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\jet3-a3-replica-diagnostics
+
+      - name: Graft and structurally validate the holdout against retained frozen bytes
+        id: holdout
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = Join-Path $env:RUNNER_TEMP "jet3-a3-bundle"
+          $diagnostics = Join-Path $env:RUNNER_TEMP "jet3-a3-fanin-diagnostics"
+          $freezeStatePath = Join-Path $diagnostics "freeze-phase.json"
+          $freezeState = Get-Content -LiteralPath $freezeStatePath -Raw | ConvertFrom-Json
+          & python -B oracle/windows-dao/scripts/a3_holdout.py `
+            --bundle-root $bundle `
+            --holdout-replica-root (Join-Path $env:RUNNER_TEMP "jet3-a3-holdout\replica-03") `
+            --candidate-set (Join-Path $bundle "analysis/derivation-candidates.json") `
+            --candidate-sha256 $freezeState.derivation_candidate_set_sha256 `
+            --campaign-id "a3-run-$env:GITHUB_RUN_ID" `
+            --producer-commit $env:GITHUB_SHA `
+            --freeze-state $freezeStatePath `
+            --output (Join-Path $bundle "analysis/holdout-structure-receipt.json")
+          if ($LASTEXITCODE -ne 0) { throw "A3 holdout structural validation failed." }
+
+      - name: Resume analysis from the retained frozen candidate set
         id: analyze
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $bundle = Join-Path $env:RUNNER_TEMP "jet3-a3-bundle"
-          $holdout = Join-Path $env:RUNNER_TEMP "jet3-a3-holdout\replica-03"
           & python -B oracle/windows-dao/scripts/a3_analysis.py `
+            --resume `
             --bundle-root $bundle `
-            --holdout-replica-root $holdout `
-            --replica (Join-Path $bundle "observations/replica-01.json") `
-            --replica (Join-Path $bundle "observations/replica-02.json") `
             --replica (Join-Path $bundle "observations/replica-03.json") `
             --candidate-output (Join-Path $bundle "analysis/derivation-candidates.json") `
             --holdout-receipt (Join-Path $bundle "analysis/holdout-structure-receipt.json") `
+            --freeze-state (Join-Path $env:RUNNER_TEMP "jet3-a3-fanin-diagnostics\freeze-phase.json") `
             --output (Join-Path $bundle "analysis/analysis-report.json")
           if ($LASTEXITCODE -ne 0) { throw "A3 analysis failed." }
 
@@ -471,6 +512,8 @@ jobs:
         shell: powershell
         env:
           ASSEMBLE_OUTCOME: ${{ steps.assemble.outcome }}
+          FREEZE_OUTCOME: ${{ steps.freeze.outcome }}
+          HOLDOUT_OUTCOME: ${{ steps.holdout.outcome }}
           ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
           FINALIZE_OUTCOME: ${{ steps.finalize.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
@@ -525,6 +568,8 @@ jobs:
             $campaignElapsed -le [int]$env:FROZEN_CAMPAIGN_TIMEOUT_SECONDS
           $contractPassed = (
             $env:ASSEMBLE_OUTCOME -ceq "success" -and
+            $env:FREEZE_OUTCOME -ceq "success" -and
+            $env:HOLDOUT_OUTCOME -ceq "success" -and
             $env:ANALYZE_OUTCOME -ceq "success" -and
             $env:FINALIZE_OUTCOME -ceq "success" -and
             $env:VALIDATE_OUTCOME -ceq "success"
@@ -577,6 +622,8 @@ jobs:
             plan_sha256 = $env:FROZEN_PLAN_SHA256
             revision_plan_sha256 = $env:FROZEN_REVISION_PLAN_SHA256
             assemble = $env:ASSEMBLE_OUTCOME
+            freeze = $env:FREEZE_OUTCOME
+            holdout = $env:HOLDOUT_OUTCOME
             analyze = $env:ANALYZE_OUTCOME
             finalize = $env:FINALIZE_OUTCOME
             validate = $env:VALIDATE_OUTCOME

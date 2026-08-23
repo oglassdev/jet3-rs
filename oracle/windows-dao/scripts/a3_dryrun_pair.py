@@ -177,11 +177,12 @@ def _report_layers(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
 def run_analyzer(paths: BundlePaths) -> AnalyzerResult:
     sources = [BundleReplicaSource(path, paths.root) for path in paths.observations]
 
-    def receipt(frozen_sha256: str) -> None:
+    def receipt(frozen_sha256: str) -> dict[str, Any]:
         run_receipt_process(paths, frozen_sha256)
         document = load_bounded_json(paths.receipt, BOUNDS["max_json_bytes"])
         if document["derivation_candidate_set_sha256"] != frozen_sha256:
             raise ValidationError("spawned receipt is not bound to the frozen set")
+        return document
 
     try:
         report = build_analysis(sources, paths.candidate_set, receipt)

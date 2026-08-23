@@ -205,16 +205,33 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             self.assertIn(f"name: windows-dao-a3-replica-{replica}", self.fan_in)
             self.assertIn(f"replica-0{replica}", self.fan_in)
         assemble = self.fan_in.index("a3_bundle.py assemble")
+        freeze = self.fan_in.index("--freeze-only", assemble)
         holdout_download = self.fan_in.index("name: windows-dao-a3-replica-3")
-        analysis = self.fan_in.index("a3_analysis.py", assemble)
-        # Replica 3 is downloaded outside the bundle only after the derivation
-        # replicas are assembled, and is never passed to assemble.
+        holdout = self.fan_in.index("a3_holdout.py", holdout_download)
+        analysis = self.fan_in.index("--resume", holdout)
+        # Replica 3 is downloaded only after the retained candidate bytes and
+        # digest marker exist, then a separate process grafts and validates it.
         self.assertLess(assemble, holdout_download)
+        self.assertLess(freeze, holdout_download)
         self.assertLess(holdout_download, analysis)
+        self.assertLess(holdout_download, holdout)
+        self.assertLess(holdout, analysis)
         self.assertIn("jet3-a3-holdout\\replica-03", self.fan_in)
-        assemble_step = self.fan_in[assemble:holdout_download]
+        assemble_step = self.fan_in[
+            assemble:self.fan_in.index("- name: Freeze derivation", assemble)
+        ]
         self.assertNotIn("replica-03", assemble_step)
-        self.assertIn("--holdout-replica-root $holdout", self.fan_in)
+        self.assertIn("--holdout-replica-root", self.fan_in)
+        self.assertIn("--freeze-state", self.fan_in)
+        self.assertIn("derivation_candidate_set_sha256", self.fan_in)
+        self.assertIn(
+            "replica_3_artifact_existed_before_freeze_phase_completed",
+            (SCRIPTS / "a3_analysis.py").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "analyzer_replica_3_opens_before_receipt",
+            (SCRIPTS / "a3_holdout.py").read_text(encoding="utf-8"),
+        )
         finalize = self.fan_in.index("a3_bundle.py finalize", analysis)
         validate = self.fan_in.index("a3_bundle.py validate", finalize)
         independent = self.fan_in.index("a3_independent_validator.py", validate)
@@ -228,7 +245,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("--holdout-receipt", self.fan_in)
         self.assertIn('--campaign-id "a3-run-$env:GITHUB_RUN_ID"', self.fan_in)
         self.assertEqual(
-            self.fan_in.count("--producer-commit $env:GITHUB_SHA"), 3
+            self.fan_in.count("--producer-commit $env:GITHUB_SHA"), 4
         )
         upload = self.fan_in.split("      - name: Upload retained A3 bundle", 1)[1]
         self.assertIn("if: always()", upload)
@@ -259,7 +276,10 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertNotIn("continue-on-error", self.fan_in)
 
     def test_fan_in_status_is_bounded_timed_and_always_retained(self) -> None:
-        for step_id in ("assemble", "analyze", "finalize", "validate", "independent"):
+        for step_id in (
+            "assemble", "freeze", "holdout", "analyze", "finalize", "validate",
+            "independent",
+        ):
             self.assertIn(f"id: {step_id}", self.fan_in)
             self.assertIn(f"steps.{step_id}.outcome", self.fan_in)
         status = self.fan_in.split(

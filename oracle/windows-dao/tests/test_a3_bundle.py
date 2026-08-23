@@ -37,6 +37,8 @@ from a3_holdout import (  # noqa: E402
     HOLDOUT_TIMEOUT_SECONDS,
     graft_holdout_replica,
     holdout_absent,
+    main as holdout_main,
+    write_receipt,
 )
 from a3_spec import BOUNDS, EXPERIMENT_ID, PLAN_SHA256  # noqa: E402
 from a3_test_bundle import write_replica_trees  # noqa: E402
@@ -58,10 +60,30 @@ class A3BundleTests(unittest.TestCase):
             cls.derivation_roots, cls.bundle, cls.campaign_id, cls.producer_commit
         )
         cls.holdout_absent_before_analysis = holdout_absent(cls.bundle)
+        cls.freeze_state = cls.root / "freeze-phase.json"
         if analysis_main([
-            "--bundle-root", str(cls.bundle), "--holdout-replica-root", str(cls.holdout_root),
+            "--freeze-only", "--bundle-root", str(cls.bundle),
+            "--freeze-state", str(cls.freeze_state),
+            "--holdout-artifact-path", str(cls.root / "not-downloaded-holdout"),
         ]) != 0:
-            raise AssertionError("synthetic A3 analysis did not complete")
+            raise AssertionError("synthetic A3 freeze did not complete")
+        freeze = json.loads(cls.freeze_state.read_bytes())
+        if holdout_main([
+            "--bundle-root", str(cls.bundle),
+            "--holdout-replica-root", str(cls.holdout_root),
+            "--candidate-set", str(cls.bundle / "analysis" / "derivation-candidates.json"),
+            "--candidate-sha256", freeze["derivation_candidate_set_sha256"],
+            "--campaign-id", cls.campaign_id,
+            "--producer-commit", cls.producer_commit,
+            "--output", str(cls.bundle / "analysis" / "holdout-structure-receipt.json"),
+            "--freeze-state", str(cls.freeze_state),
+        ]) != 0:
+            raise AssertionError("synthetic A3 holdout validation did not complete")
+        if analysis_main([
+            "--resume", "--bundle-root", str(cls.bundle),
+            "--freeze-state", str(cls.freeze_state),
+        ]) != 0:
+            raise AssertionError("synthetic A3 analysis did not resume")
         cls.manifest = finalize_bundle(cls.bundle, cls.campaign_id, cls.producer_commit)
         cls.validation = validate_bundle(cls.bundle, cls.campaign_id, cls.producer_commit)
 
@@ -168,6 +190,46 @@ class A3BundleTests(unittest.TestCase):
                 "0" * 64, self.campaign_id, self.producer_commit,
             )
         self.assertTrue(holdout_absent(unfrozen))
+
+    def test_freeze_marker_observables_each_fail_before_holdout_graft(self) -> None:
+        bundle = self.root / "marker-observable-bundle"
+        assemble_bundle(
+            self.derivation_roots, bundle, self.campaign_id, self.producer_commit
+        )
+        candidate = bundle / "analysis" / "derivation-candidates.json"
+        candidate.parent.mkdir()
+        candidate.write_bytes(
+            (self.bundle / "analysis" / "derivation-candidates.json").read_bytes()
+        )
+        digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        base_state = json.loads(self.freeze_state.read_bytes())
+        cases = (
+            ("freeze_phase_completed", False, "candidate freeze"),
+            (
+                "replica_3_artifact_existed_before_freeze_phase_completed",
+                True,
+                "candidate freeze",
+            ),
+            ("derivation_candidate_set_sha256", "f" * 64, "candidate freeze"),
+            (
+                "analyzer_replica_3_opens_before_receipt",
+                1,
+                "analyzer opened replica 3",
+            ),
+        )
+        for field, value, message in cases:
+            with self.subTest(field=field):
+                state = dict(base_state)
+                state[field] = value
+                marker = self.root / f"marker-{field}.json"
+                marker.write_bytes(canonical_json_bytes(state))
+                with self.assertRaisesRegex(ValidationError, message):
+                    write_receipt(
+                        bundle, self.holdout_root, candidate, digest,
+                        self.campaign_id, self.producer_commit,
+                        self.root / f"receipt-{field}.json", marker,
+                    )
+                self.assertTrue(holdout_absent(bundle))
 
     def test_assemble_rejects_wrong_bindings_without_publication(self) -> None:
         destination = self.root / "wrong-campaign"
