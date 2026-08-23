@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -24,6 +25,82 @@ class TreeFile:
     device: int
     inode: int
     links: int
+
+
+@dataclass
+class ArtifactCache:
+    """Process-local retained bytes, digests, and parsed JSON from checked reads."""
+
+    root: Path
+    tree: dict[str, TreeFile]
+    maximum_bytes: int
+    _payloads: dict[str, bytes] = field(default_factory=dict)
+    _digests: dict[str, str] = field(default_factory=dict)
+    _documents: dict[str, dict[str, Any]] = field(default_factory=dict)
+    _retained_bytes: int = 0
+
+    def read(self, locator: str, maximum: int) -> bytes:
+        payload = self._payloads.get(locator)
+        if payload is None:
+            payload = read_checked(self.root, locator, self.tree, maximum)
+            retained = self._retained_bytes + len(payload)
+            if retained > self.maximum_bytes:
+                raise ValidationError("A3 cached artifacts exceed their byte ceiling")
+            self._payloads[locator] = payload
+            self._retained_bytes = retained
+        elif len(payload) > maximum:
+            raise ValidationError(f"{locator}: artifact violates its byte ceiling")
+        return payload
+
+    def sha256(self, locator: str, maximum: int) -> str:
+        digest = self._digests.get(locator)
+        if digest is None:
+            digest = hashlib.sha256(self.read(locator, maximum)).hexdigest()
+            self._digests[locator] = digest
+        return digest
+
+    def json(self, locator: str, maximum: int) -> tuple[dict[str, Any], bytes]:
+        payload = self.read(locator, maximum)
+        document = self._documents.get(locator)
+        if document is None:
+            document = parse_json(payload, locator)
+            self._documents[locator] = document
+        return document, payload
+
+
+def copy_cached(
+    cache: ArtifactCache,
+    destination_root: Path,
+    locator: str,
+    size: int,
+    digest: str,
+    maximum: int,
+    copied: dict[str, tuple[int, str]],
+) -> None:
+    destination = destination_root.joinpath(*locator.split("/"))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    payload = cache.read(locator, maximum)
+    if len(payload) != size or cache.sha256(locator, maximum) != digest:
+        raise ValidationError(f"{locator}: cached copy binding mismatch")
+    if destination.exists():
+        metadata = destination.lstat()
+        if (
+            destination.is_symlink()
+            or is_reparse(metadata)
+            or not stat.S_ISREG(metadata.st_mode)
+        ):
+            raise ValidationError(f"{locator}: merge collision is not a regular file")
+        if metadata.st_size != size or copied.get(locator) != (size, digest):
+            raise ValidationError(f"{locator}: merge collision differs")
+        return
+    try:
+        with destination.open("xb") as writer:
+            writer.write(payload)
+    except Exception:
+        if destination.exists():
+            destination.unlink()
+        raise
+    copied[locator] = (size, digest)
 
 
 def is_reparse(metadata: os.stat_result) -> bool:

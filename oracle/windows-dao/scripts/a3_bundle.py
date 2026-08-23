@@ -11,7 +11,6 @@ import json
 import math
 import os
 import shutil
-import stat
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -20,12 +19,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from a3_bundle_io import (
+    ArtifactCache,
     TreeFile,
+    copy_cached as _copy_cached,
     expected_directories as _expected_directories,
     inventory as _inventory,
-    is_reparse as _is_reparse,
-    parse_json as _parse_json,
-    read_checked as _read_checked,
     safe_locator as _safe_locator,
 )
 from a3_spec import (
@@ -82,6 +80,7 @@ if PLAN.document["artifacts"]["plan"] != PLAN_PATH:
 @dataclass(frozen=True)
 class ReplicaResult:
     root: Path
+    cache: ArtifactCache
     replica: int
     manifest_path: str
     manifest: dict[str, Any]
@@ -99,14 +98,16 @@ class ReplicaResult:
 class PayloadResult:
     tree: dict[str, TreeFile]
     directories: set[str]
+    cache: ArtifactCache
     replicas: tuple[ReplicaResult, ...]
     expected_paths: frozenset[str]
     analysis: dict[str, Any] | None
     receipt: dict[str, Any] | None
     frozen_sha256: str | None
-def _json_artifact(root: Path, locator: str, tree: dict[str, TreeFile]) -> tuple[dict[str, Any], bytes]:
-    payload = _read_checked(root, locator, tree, MAX_JSON_BYTES)
-    return _parse_json(payload, locator), payload
+def _json_artifact(
+    cache: ArtifactCache, locator: str
+) -> tuple[dict[str, Any], bytes]:
+    return cache.json(locator, MAX_JSON_BYTES)
 def _require(actual: Any, expected: Any, label: str) -> None:
     if actual != expected:
         raise ValidationError(f"{label}: binding mismatch")
@@ -154,15 +155,19 @@ def _entry_map(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
         entries[locator] = entry
         folded.add(locator.casefold())
     return entries
-def _entry_payload(root: Path, tree: dict[str, TreeFile],
-                   entry: dict[str, Any]) -> tuple[bytes, dict[str, Any] | None]:
+def _entry_payload(
+    cache: ArtifactCache, entry: dict[str, Any]
+) -> tuple[bytes, dict[str, Any] | None]:
     maximum = PAGE_SIZE if entry["role"] == "page_blob" else MAX_JSON_BYTES
-    payload = _read_checked(root, entry["path"], tree, maximum)
+    payload = cache.read(entry["path"], maximum)
     _require(len(payload), entry["size_bytes"], f"{entry['path']} size")
-    _require(hashlib.sha256(payload).hexdigest(), entry["sha256"], f"{entry['path']} sha256")
+    _require(cache.sha256(entry["path"], maximum), entry["sha256"], f"{entry['path']} sha256")
     expected_media = "application/octet-stream" if entry["role"] == "page_blob" else "application/json"
     _require(entry["media_type"], expected_media, f"{entry['path']} media type")
-    return payload, None if expected_media != "application/json" else _parse_json(payload, entry["path"])
+    document = None if expected_media != "application/json" else cache.json(
+        entry["path"], maximum
+    )[0]
+    return payload, document
 
 
 def _validate_plan_entries(entries: dict[str, dict[str, Any]]) -> None:
@@ -183,13 +188,14 @@ def _validate_replica(
     root: Path,
     tree: dict[str, TreeFile],
     directories: set[str],
+    cache: ArtifactCache,
     replica: int,
     campaign_id: str | None,
     *,
     closed: bool,
 ) -> ReplicaResult:
     manifest_path = f"replica-artifacts/replica-{replica:02d}-manifest.json"
-    manifest, manifest_payload = _json_artifact(root, manifest_path, tree)
+    manifest, manifest_payload = _json_artifact(cache, manifest_path)
     _validate_typed(manifest, "dao_a3_replica_artifact_manifest", manifest_path)
     _require(manifest["checkpoint_count"], CHECKPOINT_COUNT, f"replica {replica} checkpoint count")
     _require(manifest["replica"], replica, f"replica {replica} manifest replica")
@@ -205,7 +211,7 @@ def _validate_replica(
 
     documents: dict[str, dict[str, Any]] = {}
     for entry in entries.values():
-        _, document = _entry_payload(root, tree, entry)
+        _, document = _entry_payload(cache, entry)
         if document is not None:
             documents[entry["path"]] = document
 
@@ -263,9 +269,9 @@ def _validate_replica(
             page_entry = entries.get(page_path)
             if page_entry is None or page_entry["role"] != "page_blob":
                 raise ValidationError(f"{page_path}: referenced blob is absent")
-            payload = _read_checked(root, page_path, tree, PAGE_SIZE)
+            payload = cache.read(page_path, PAGE_SIZE)
             _require(len(payload), PAGE_SIZE, f"{page_path} page size")
-            _require(hashlib.sha256(payload).hexdigest(), digest, f"{page_path} content address")
+            _require(cache.sha256(page_path, PAGE_SIZE), digest, f"{page_path} content address")
             reconstruction.update(payload)
             referenced_pages.add(page_path)
         _require(reconstruction.hexdigest(), index["database_sha256"], f"{expected_path} database hash")
@@ -279,10 +285,11 @@ def _validate_replica(
         raise ValidationError(f"replica {replica}: page-store bound exceeded")
     return ReplicaResult(
         root,
+        cache,
         replica,
         manifest_path,
         manifest,
-        hashlib.sha256(manifest_payload).hexdigest(),
+        cache.sha256(manifest_path, MAX_JSON_BYTES),
         len(manifest_payload),
         entries,
         environment,
@@ -349,16 +356,17 @@ def _validate_frozen(document: dict[str, Any], payload: bytes, campaign_id: str)
     }
     for key, expected in bindings.items():
         _require(document[key], expected, f"frozen candidate {key}")
-def _validate_analysis_payload(root: Path, tree: dict[str, TreeFile],
-                               replicas: tuple[ReplicaResult, ...]) -> tuple[dict[str, Any], dict[str, Any], str]:
+def _validate_analysis_payload(
+    cache: ArtifactCache, replicas: tuple[ReplicaResult, ...]
+) -> tuple[dict[str, Any], dict[str, Any], str]:
     frozen_path = "analysis/derivation-candidates.json"
     analysis_path = "analysis/analysis-report.json"
     receipt_path = "analysis/holdout-structure-receipt.json"
-    frozen, frozen_payload = _json_artifact(root, frozen_path, tree)
-    report, _ = _json_artifact(root, analysis_path, tree)
-    receipt, _ = _json_artifact(root, receipt_path, tree)
+    frozen, frozen_payload = _json_artifact(cache, frozen_path)
+    report, _ = _json_artifact(cache, analysis_path)
+    receipt, _ = _json_artifact(cache, receipt_path)
     campaign_id = replicas[0].campaign_id
-    frozen_sha256 = hashlib.sha256(frozen_payload).hexdigest()
+    frozen_sha256 = cache.sha256(frozen_path, MAX_JSON_BYTES)
     _validate_frozen(frozen, frozen_payload, campaign_id)
     _require(report.get("document_type"), "dao_a3_analysis_report", f"{analysis_path} document type")
     validate_analysis_report(report, frozen)
@@ -385,20 +393,32 @@ def _validate_analysis_payload(root: Path, tree: dict[str, TreeFile],
     return report, receipt, frozen_sha256
 def _validate_payload(root: Path, *, require_analysis: bool,
                       allow_manifest: bool = False,
-                      replica_count: int = REPLICA_COUNT) -> PayloadResult:
+                      replica_count: int = REPLICA_COUNT,
+                      tree: dict[str, TreeFile] | None = None,
+                      directories: set[str] | None = None,
+                      cache: ArtifactCache | None = None) -> PayloadResult:
     root = root.resolve()
-    tree, directories = _inventory(root)
+    if tree is None or directories is None:
+        if tree is not None or directories is not None or cache is not None:
+            raise ValidationError("partial A3 validation context")
+        tree, directories = _inventory(root)
+    if cache is None:
+        cache = ArtifactCache(root, tree, MAX_BUNDLE_BYTES)
+    elif cache.root != root or cache.tree is not tree:
+        raise ValidationError("A3 validation cache does not match its inventory")
     retained_plans = {PLAN_PATH: (CHECKED_PLAN, PLAN_SHA256)} | {
         locator: (REVISION_PLAN_PATHS[locator], digest)
         for locator, digest in REVISION_CHAIN.items()
     }
     for locator, (checked_path, digest) in retained_plans.items():
-        plan_payload = _read_checked(root, locator, tree, MAX_JSON_BYTES)
-        _require(hashlib.sha256(plan_payload).hexdigest(), digest,
+        plan_payload = cache.read(locator, MAX_JSON_BYTES)
+        _require(cache.sha256(locator, MAX_JSON_BYTES), digest,
                  f"retained {locator} hash")
         _require(plan_payload, checked_path.read_bytes(), f"retained checked {locator}")
     replicas = tuple(
-        _validate_replica(root, tree, directories, replica, None, closed=False)
+        _validate_replica(
+            root, tree, directories, cache, replica, None, closed=False
+        )
         for replica in range(1, replica_count + 1)
     )
     _validate_environments(replicas)
@@ -416,7 +436,7 @@ def _validate_payload(root: Path, *, require_analysis: bool,
             "analysis/holdout-structure-receipt.json",
         }
         expected.update(analysis_paths)
-        report, receipt, frozen_sha256 = _validate_analysis_payload(root, tree, replicas)
+        report, receipt, frozen_sha256 = _validate_analysis_payload(cache, replicas)
     complete_expected = expected | ({MANIFEST_PATH} if allow_manifest else set())
     _require(set(tree), complete_expected, "A3 payload closed inventory")
     _require(directories, _expected_directories(complete_expected),
@@ -426,51 +446,23 @@ def _validate_payload(root: Path, *, require_analysis: bool,
         raise ValidationError("A3 merged page store exceeds its fixed bound")
     if sum(item.size for item in tree.values()) > MAX_BUNDLE_BYTES:
         raise ValidationError("A3 bundle exceeds its fixed byte bound")
-    return PayloadResult(tree, directories, replicas, frozenset(expected),
+    return PayloadResult(tree, directories, cache, replicas, frozenset(expected),
                          report, receipt, frozen_sha256)
-def _copy_verified(
-    source_root: Path,
-    destination_root: Path,
-    locator: str,
-    size: int,
-    digest: str,
+def _copy_replica(
+    replica: ReplicaResult,
+    destination: Path,
+    copied: dict[str, tuple[int, str]],
 ) -> None:
-    source = source_root.joinpath(*locator.split("/"))
-    destination = destination_root.joinpath(*locator.split("/"))
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        if not destination.is_file() or destination.is_symlink():
-            raise ValidationError(f"{locator}: merge collision is not a regular file")
-        payload_digest = hashlib.sha256(destination.read_bytes()).hexdigest()
-        if destination.stat().st_size != size or payload_digest != digest:
-            raise ValidationError(f"{locator}: merge collision differs")
-        return
-    source_metadata = source.lstat()
-    if source.is_symlink() or _is_reparse(source_metadata) or not stat.S_ISREG(source_metadata.st_mode):
-        raise ValidationError(f"{locator}: copy source is unsafe")
-    observed = hashlib.sha256()
-    total = 0
-    try:
-        with source.open("rb") as reader, destination.open("xb") as writer:
-            for chunk in iter(lambda: reader.read(65_536), b""):
-                total += len(chunk)
-                if total > size:
-                    raise ValidationError(f"{locator}: copy source grew")
-                observed.update(chunk)
-                writer.write(chunk)
-    except Exception:
-        if destination.exists():
-            destination.unlink()
-        raise
-    if total != size or observed.hexdigest() != digest:
-        destination.unlink()
-        raise ValidationError(f"{locator}: copy source binding failed")
-def _copy_replica(replica: ReplicaResult, destination: Path) -> None:
-    _copy_verified(replica.root, destination, replica.manifest_path,
-                   replica.manifest_size, replica.manifest_sha256)
+    _copy_cached(
+        replica.cache, destination, replica.manifest_path,
+        replica.manifest_size, replica.manifest_sha256, MAX_JSON_BYTES, copied,
+    )
     for entry in replica.entries.values():
-        _copy_verified(replica.root, destination, entry["path"],
-                       entry["size_bytes"], entry["sha256"])
+        maximum = PAGE_SIZE if entry["role"] == "page_blob" else MAX_JSON_BYTES
+        _copy_cached(
+            replica.cache, destination, entry["path"],
+            entry["size_bytes"], entry["sha256"], maximum, copied,
+        )
 def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
                     campaign_id: str, producer_commit: str) -> dict[str, Any]:
     """Assemble the derivation replicas only; the holdout is grafted after the freeze."""
@@ -482,8 +474,9 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
     validated = []
     for replica, root in enumerate(roots, start=1):
         tree, directories = _inventory(root)
+        cache = ArtifactCache(root, tree, MAX_BUNDLE_BYTES)
         validated.append(_validate_replica(
-            root, tree, directories, replica, campaign_id, closed=True))
+            root, tree, directories, cache, replica, campaign_id, closed=True))
     replicas = tuple(validated)
     _validate_environments(replicas)
     _require(replicas[0].producer_commit, producer_commit, "expected producer commit")
@@ -496,8 +489,9 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
         plan_path.write_bytes(CHECKED_PLAN.read_bytes())
         for locator, checked_path in REVISION_PLAN_PATHS.items():
             staging.joinpath(*locator.split("/")).write_bytes(checked_path.read_bytes())
+        copied: dict[str, tuple[int, str]] = {}
         for replica in replicas:
-            _copy_replica(replica, staging)
+            _copy_replica(replica, staging, copied)
         result = _validate_payload(staging, require_analysis=False,
                                    replica_count=DERIVATION_REPLICA_COUNT)
         os.replace(staging, bundle_root)
@@ -513,19 +507,22 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
 def validate_holdout_replica(bundle_root: Path, candidate_path: Path,
                              candidate_sha256: str, campaign_id: str,
                              producer_commit: str) -> ReplicaResult:
-    tree, directories = _inventory(bundle_root.resolve())
-    replica = _validate_replica(bundle_root.resolve(), tree, directories,
-                                REPLICA_COUNT, None, closed=False)
+    root = bundle_root.resolve()
+    tree, directories = _inventory(root)
+    cache = ArtifactCache(root, tree, MAX_BUNDLE_BYTES)
+    replica = _validate_replica(
+        root, tree, directories, cache, REPLICA_COUNT, None, closed=False
+    )
     _require(replica.campaign_id, campaign_id, "expected holdout campaign")
     _require(replica.producer_commit, producer_commit, "expected holdout producer")
-    payload = _read_checked(
-        bundle_root.resolve(),
-        candidate_path.resolve().relative_to(bundle_root.resolve()).as_posix(),
-        tree,
-        MAX_JSON_BYTES,
+    candidate_locator = candidate_path.resolve().relative_to(root).as_posix()
+    payload = cache.read(candidate_locator, MAX_JSON_BYTES)
+    _require(
+        cache.sha256(candidate_locator, MAX_JSON_BYTES),
+        candidate_sha256,
+        "frozen candidate hash",
     )
-    _require(hashlib.sha256(payload).hexdigest(), candidate_sha256, "frozen candidate hash")
-    frozen = _parse_json(payload, candidate_path.as_posix())
+    frozen = cache.json(candidate_locator, MAX_JSON_BYTES)[0]
     _validate_frozen(frozen, payload, replica.campaign_id)
     return replica
 def _role_for_path(path: str, replicas: tuple[ReplicaResult, ...]) -> str:
@@ -587,8 +584,7 @@ def finalize_bundle(bundle_root: Path, campaign_id: str, producer_commit: str,
         item = payload.tree[path]
         role = _role_for_path(path, payload.replicas)
         maximum = PAGE_SIZE if role == "page_blob" else MAX_JSON_BYTES
-        retained = _read_checked(bundle_root, path, payload.tree, maximum)
-        digest = hashlib.sha256(retained).hexdigest()
+        digest = payload.cache.sha256(path, maximum)
         files.append(
             {
                 "path": path,
@@ -654,7 +650,8 @@ def validate_bundle(bundle_root: Path, campaign_id: str,
                     producer_commit: str) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
     tree, directories = _inventory(bundle_root)
-    manifest, manifest_payload = _json_artifact(bundle_root, MANIFEST_PATH, tree)
+    cache = ArtifactCache(bundle_root, tree, MAX_BUNDLE_BYTES)
+    manifest, _ = _json_artifact(cache, MANIFEST_PATH)
     _validate_typed(manifest, "dao_a3_bundle_manifest", MANIFEST_PATH)
     _require(
         manifest["campaign_elapsed_seconds"],
@@ -666,9 +663,10 @@ def validate_bundle(bundle_root: Path, campaign_id: str,
     _require(set(tree), set(entries) | {MANIFEST_PATH}, "complete bundle inventory")
     _require(directories, _expected_directories(entries), "complete bundle directories")
     for entry in entries.values():
-        _entry_payload(bundle_root, tree, entry)
+        _entry_payload(cache, entry)
     payload = _validate_payload(bundle_root, require_analysis=True,
-                                allow_manifest=True)
+                                allow_manifest=True, tree=tree,
+                                directories=directories, cache=cache)
     assert payload.analysis is not None and payload.receipt is not None
     _require(manifest["campaign_id"], campaign_id, "expected campaign")
     _require(manifest["producer_commit"], producer_commit, "expected producer commit")
@@ -702,7 +700,7 @@ def validate_bundle(bundle_root: Path, campaign_id: str,
     _require(observed_directories, directories, "bundle directory stability")
     return {
         "manifest": manifest,
-        "manifest_sha256": hashlib.sha256(manifest_payload).hexdigest(),
+        "manifest_sha256": cache.sha256(MANIFEST_PATH, MAX_JSON_BYTES),
         "analysis": payload.analysis,
         "replicas": [row.observation for row in payload.replicas],
     }

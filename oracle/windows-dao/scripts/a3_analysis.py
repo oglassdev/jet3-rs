@@ -541,7 +541,11 @@ def resume_analysis(
         if any(receipt.get(key) != value for key, value in expected_receipt.items()):
             raise ValidationError("A3 holdout receipt binding mismatch")
     holdout_validated_after_freeze = _holdout_validated_after_freeze(
-        candidate_output, frozen_sha, receipt, analyzer_holdout_opens_before_receipt
+        candidate_output,
+        frozen_sha,
+        receipt,
+        analyzer_holdout_opens_before_receipt,
+        observed_candidate_sha256=frozen_result.observed_candidate_sha256,
     )
     if not holdout_validated_after_freeze:
         raise ValidationError("holdout structural validation is not bound to the frozen candidate set")
@@ -603,9 +607,12 @@ def _holdout_validated_after_freeze(
     frozen_sha: str,
     receipt: dict[str, Any] | None,
     analyzer_holdout_opens_before_receipt: int = 0,
+    *,
+    observed_candidate_sha256: str | None = None,
 ) -> bool:
     """Derive the report flag from observables: the frozen bytes on disk and the receipt's own bindings."""
-    if sha256_file(candidate_output) != frozen_sha:
+    candidate_sha256 = observed_candidate_sha256 or sha256_file(candidate_output)
+    if candidate_sha256 != frozen_sha:
         return False
     if receipt is None:
         return False

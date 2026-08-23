@@ -68,11 +68,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if len(replicas) != 1 or arguments.freeze_state is None:
             raise ValidationError("resume requires the holdout replica and --freeze-state")
+        receipt_document = load_bounded_json(receipt, MAX_JSON_BYTES)
         frozen_result, bindings, marker_opens = _load_freeze_state(
             arguments.freeze_state, candidate
         )
         counted_holdout = CountingReplicaSource(BundleReplicaSource(replicas[0], root))
-        receipt_document = load_bounded_json(receipt, MAX_JSON_BYTES)
         if counted_holdout.open_count != marker_opens:
             raise ValidationError("A3 analyzer holdout-open count differs from freeze marker")
         report = resume_analysis(

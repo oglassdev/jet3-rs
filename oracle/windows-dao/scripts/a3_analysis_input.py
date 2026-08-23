@@ -15,6 +15,7 @@ from a3_spec import (
     PLAN_SHA256,
     REVISION_PLAN_SHA256,
     load_bounded_json,
+    load_bounded_json_with_payload,
     validate_document,
 )
 from protocol_validation import ValidationError
@@ -113,9 +114,12 @@ class BundleReplicaSource:
         for ordinal, checkpoint in enumerate(checkpoints):
             reference = checkpoint["page_index"]
             path = _safe_path(self.bundle_root, reference["path"])
-            if path.stat().st_size != reference["size_bytes"] or sha256_file(path) != reference["sha256"]:
+            index, payload = load_bounded_json_with_payload(path, self.max_json_bytes)
+            if (
+                len(payload) != reference["size_bytes"]
+                or hashlib.sha256(payload).hexdigest() != reference["sha256"]
+            ):
                 raise ValidationError(f"{path}: page-index binding failed")
-            index = load_bounded_json(path, self.max_json_bytes)
             validate_document(index)
             expected_predecessor = CHECKPOINT_IDS[ordinal - 1] if ordinal else None
             bindings = {
