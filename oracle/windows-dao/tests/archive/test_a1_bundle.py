@@ -13,7 +13,7 @@ from unittest import mock
 from pathlib import Path
 from typing import Any
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[2] / "scripts" / "archive"
 sys.path.insert(0, str(SCRIPTS))
 
 import a1_bundle as bundle_module  # noqa: E402

@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[2] / "scripts" / "archive"
 TESTS = Path(__file__).resolve().parent
 for location in (SCRIPTS, TESTS):
     if str(location) not in sys.path:

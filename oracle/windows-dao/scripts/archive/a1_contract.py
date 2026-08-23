@@ -14,6 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
+SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
+
 from protocol_validation import (
     JSON_SCHEMA_DRAFT,
     ValidationError,
@@ -21,7 +25,7 @@ from protocol_validation import (
     validate_schema_value,
 )
 
-SCHEMA_DIR = Path(__file__).resolve().parent.parent / "experiments" / "a1"
+SCHEMA_DIR = SCRIPTS_ROOT.parent / "experiments" / "a1"
 CHECKED_PLAN = SCHEMA_DIR / "a1-allocation-maps.plan.json"
 PLAN_SHA256 = "a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80"
 MAX_SCHEMA_BYTES = 1_048_576

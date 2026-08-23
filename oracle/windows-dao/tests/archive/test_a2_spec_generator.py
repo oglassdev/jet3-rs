@@ -11,8 +11,8 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+ROOT = Path(__file__).resolve().parents[4]
+SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts" / "archive"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 

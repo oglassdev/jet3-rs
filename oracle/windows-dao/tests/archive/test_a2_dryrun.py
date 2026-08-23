@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+ROOT = Path(__file__).resolve().parents[4]
+SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts" / "archive"
 EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 DRY_RUN = EXPERIMENT / "dry-run"
 if str(SCRIPTS) not in sys.path:

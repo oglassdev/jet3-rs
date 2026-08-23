@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 TESTS = Path(__file__).resolve().parent
-SCRIPTS = TESTS.parent / "scripts"
+SCRIPTS = TESTS.parents[1] / "scripts"
 CONTROLLER = SCRIPTS / "a1" / "A1.Controller.ps1"
 PROGRESS = SCRIPTS / "a1" / "A1.Progress.ps1"
 BOUNDED = SCRIPTS / "shared" / "BoundedProcess.ps1"

@@ -79,12 +79,12 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          & python -B oracle/windows-dao/scripts/a1_spec.py validate-plan
+          & python -B oracle/windows-dao/scripts/archive/a1_spec.py validate-plan
           if ($LASTEXITCODE -ne 0) {
             throw "The frozen A1 plan contract failed."
           }
           & python -B -m unittest `
-            oracle/windows-dao/tests/test_windows_dao_a1_workflow.py
+            oracle/windows-dao/tests/archive/test_windows_dao_a1_workflow.py
           if ($LASTEXITCODE -ne 0) {
             throw "The hosted A1 workflow contract failed."
           }
@@ -549,8 +549,9 @@ jobs:
           $failurePath = Join-Path $diagnostics "validation-failed.json"
           $campaignRecord = $null
           try {
-            $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE `
-              "oracle\windows-dao\scripts"
+            $scripts = Join-Path $env:GITHUB_WORKSPACE "oracle\windows-dao\scripts"
+            $archive = Join-Path $scripts "archive"
+            $env:PYTHONPATH = "$archive$([IO.Path]::PathSeparator)$scripts"
             New-Item -ItemType Directory -Path $pending | Out-Null
             $code = @'
           import hashlib

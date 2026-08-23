@@ -8,7 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 EXPERIMENT = ROOT / "oracle" / "windows-dao" / "experiments" / "a2"
 PLAN = EXPERIMENT / "a2-allocation-maps.plan.json"
 REVISION_PLAN = EXPERIMENT / "a2-allocation-maps-r2.plan.json"
@@ -22,7 +22,7 @@ DESIGN_INPUT_HASHES = {
     "fable-a2-plan-review.md": "342e6cd56963de476639768368b5d187ecc95fb4eccd7b390ec4df5091c8e876",
     "fable-a2-plan-review-2.md": "620aad56198446be88ceeab3b0185e0e24eef1df6b94f365c230ae7305cb764d",
 }
-SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts" / "archive"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
