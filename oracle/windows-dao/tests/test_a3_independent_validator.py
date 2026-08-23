@@ -642,6 +642,15 @@ class IndependentValidatorTests(unittest.TestCase):
             _write(receipt_path, receipt)
             relink(root)
 
+        def wrong_revision_media_type(root: Path) -> None:
+            manifest_path = root / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            revision = next(
+                row for row in manifest["files"] if row["path"] == "plan/a3-allocation-maps-r4.plan.json"
+            )
+            revision["media_type"] = "text/plain"
+            _write(manifest_path, manifest)
+
         def over_time(root: Path) -> None:
             manifest_path = root / "bundle-manifest.json"
             manifest = json.loads(manifest_path.read_text())
@@ -651,6 +660,7 @@ class IndependentValidatorTests(unittest.TestCase):
         cases: list[tuple[str, Callable[[Path], None], str]] = [
             ("missing-revision", drop_r4, "manifest_role_count"),
             ("wrong-document-revision", wrong_receipt_revision, "document_binding_mismatch"),
+            ("wrong-revision-media-type", wrong_revision_media_type, "bundle_revision_binding_mismatch"),
             ("campaign-over-by-one", over_time, "campaign_elapsed_mismatch"),
         ]
         for name, tamper, expected in cases:

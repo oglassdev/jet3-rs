@@ -542,12 +542,23 @@ class BundleLoader:
         for role, count in required_counts.items():
             if len(roles.get(role, [])) != count:
                 raise ValidationError("manifest_role_count", role)
-        plan_relative = roles["plan"][0]
-        if plan_relative != "plan/a3-allocation-maps.plan.json" or entries[plan_relative]["sha256"] != manifest["plan_sha256"]:
+        plan_relative = "plan/a3-allocation-maps.plan.json"
+        plan_entry = entries.get(plan_relative)
+        if (
+            plan_entry is None
+            or plan_entry["role"] != "plan"
+            or plan_entry["media_type"] != "application/json"
+            or plan_entry["sha256"] != manifest["plan_sha256"]
+        ):
             raise ValidationError("bundle_plan_binding_mismatch")
         for relative, expected in REVISION_CHAIN.items():
             entry = entries.get(relative)
-            if entry is None or entry["role"] != "revision_plan" or entry["sha256"] != expected:
+            if (
+                entry is None
+                or entry["role"] != "revision_plan"
+                or entry["media_type"] != "application/json"
+                or entry["sha256"] != expected
+            ):
                 raise ValidationError("bundle_revision_binding_mismatch", relative)
         self._verify_campaign_timing(manifest)
         schema_by_role = {
