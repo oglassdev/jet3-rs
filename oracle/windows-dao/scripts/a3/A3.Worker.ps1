@@ -28,12 +28,43 @@ $script:A3FrozenPlanSha256 = `
     "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
 $script:A3RequiredPlanPath = `
     "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
+$script:A3RevisionPlanSha256 = `
+    "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+$script:A3RevisionPlans = @(
+    @{ Id = "DAO-A3-ALLOCATION-MAPS-001-R2"
+       Path = "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json"
+       Sha256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1" },
+    @{ Id = "DAO-A3-ALLOCATION-MAPS-001-R3"
+       Path = "oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json"
+       Sha256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a" },
+    @{ Id = "DAO-A3-ALLOCATION-MAPS-001-R4"
+       Path = "oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json"
+       Sha256 = $script:A3RevisionPlanSha256 }
+)
 $script:A1DbVersion30 = 32
 $script:A1DbLong = 4
 $script:A1DbText = 10
 $script:A1DbFixedField = 1
 $script:A1DbOpenSnapshot = 4
 $script:A3Locale = ";LANGID=0x0409;CP=1252;COUNTRY=0"
+
+function Assert-A3RevisionChain {
+    param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+    foreach ($revision in $script:A3RevisionPlans) {
+        $checked = Read-A1CheckedJson `
+            -Path (Join-Path $RepositoryRoot $revision.Path) -MaximumBytes 1MB
+        $document = $checked.document
+        if ($checked.sha256 -cne $revision.Sha256 -or
+            [string]$document.document_type -cne "dao_a3_allocation_maps_plan_revision" -or
+            [string]$document.revision_id -cne $revision.Id -or
+            [string]$document.preregistration.original_plan.path -cne
+                $script:A3RequiredPlanPath -or
+            [string]$document.preregistration.original_plan.sha256 -cne
+                $script:A3FrozenPlanSha256) {
+            throw "A3 revision plan $($revision.Id) differs from its pinned bytes or binding."
+        }
+    }
+}
 
 function Assert-A3WorkerPlan {
     param([Parameter(Mandatory = $true)][pscustomobject]$Plan)
@@ -612,6 +643,7 @@ function Invoke-A3Worker {
     }
     $script:A3Plan = $planInput.document
     $roleBinding = Assert-A3WorkerPlan -Plan $script:A3Plan
+    Assert-A3RevisionChain -RepositoryRoot $RepositoryRoot
     $environment = $environmentInput.document
     if ([string]$environment.document_type -cne "dao_a3_environment" -or
         [string]$environment.experiment_id -cne $script:A3ExperimentId -or

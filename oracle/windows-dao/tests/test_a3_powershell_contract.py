@@ -25,7 +25,15 @@ SPEC = SCRIPTS / "a3_spec.py"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from a3_spec import EXPERIMENT_ID, validate_document  # noqa: E402
+from a3_spec import (  # noqa: E402
+    EXPERIMENT_ID,
+    PLAN_SHA256,
+    R2_PLAN_SHA256,
+    R3_PLAN_SHA256,
+    R4_PLAN_SHA256,
+    REVISION_PLAN_SHA256,
+    validate_document,
+)
 from a3_test_bundle import replica_documents  # noqa: E402
 from a3_generator import generate_synthetic_bundle  # noqa: E402
 from protocol_validation import ValidationError  # noqa: E402
@@ -476,6 +484,33 @@ class A3PowerShellContractTests(unittest.TestCase):
         for requirement in self.plan["execution_gate"]["blocking_requirements"]:
             self.assertIn(f'"{requirement}"', gate)
 
+    def test_worker_pins_the_r2_to_r4_revision_chain(self) -> None:
+        self.assertIn(f'"{PLAN_SHA256}"', self.worker)
+        self.assertEqual(REVISION_PLAN_SHA256, R4_PLAN_SHA256)
+        self.assertIn(f'"{R4_PLAN_SHA256}"', self.worker)
+        chain = function_source(self.worker, "Assert-A3RevisionChain")
+        self.assertIn('"dao_a3_allocation_maps_plan_revision"', chain)
+        self.assertIn("original_plan.sha256 -cne", chain)
+        self.assertIn("$script:A3FrozenPlanSha256", chain)
+        worker = function_source(self.worker, "Invoke-A3Worker")
+        self.assertLess(
+            worker.index("Assert-A3WorkerPlan -Plan"),
+            worker.index("Assert-A3RevisionChain -RepositoryRoot"),
+        )
+        self.assertLess(
+            worker.index("Assert-A3RevisionChain -RepositoryRoot"),
+            worker.index("[Activator]::CreateInstance"),
+        )
+        bootstrap = self.entry[self.entry.index("$sources = @("):]
+        for revision, digest in (("r2", R2_PLAN_SHA256), ("r3", R3_PLAN_SHA256),
+                                 ("r4", R4_PLAN_SHA256)):
+            path = f"oracle/windows-dao/experiments/a3/a3-allocation-maps-{revision}.plan.json"
+            with self.subTest(revision=revision):
+                self.assertIn(f'"{path}"', self.worker)
+                self.assertIn(f'"{digest}"', self.worker)
+                self.assertIn(f'"{path}"', bootstrap)
+                self.assertEqual(hashlib.sha256((ROOT.parents[1] / path).read_bytes()).hexdigest(), digest)
+
     def test_identical_capture_and_progress_code_is_dot_sourced_not_copied(self) -> None:
         self.assertIn('"a1/A1.PageStore.ps1"', self.page_store)
         self.assertIn('"a2/A2.Progress.ps1"', self.progress)
@@ -507,7 +542,7 @@ class A3PowerShellContractTests(unittest.TestCase):
         )
 
     def test_worker_shaped_observation_passes_the_a3_schema(self) -> None:
-        artifacts, _ = replica_documents(generate_synthetic_bundle(replica=1))
+        artifacts = replica_documents(generate_synthetic_bundle(replica=1))
         observation = json.loads(artifacts["observations/replica-01.json"])
         self.assertEqual(observation["document_type"], "dao_a3_replica_observation")
         self.assertEqual(observation["experiment_id"], EXPERIMENT_ID)
