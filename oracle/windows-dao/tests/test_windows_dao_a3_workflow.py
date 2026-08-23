@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-dao-a3.yml"
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+REST_FALLBACK = SCRIPTS / "a3" / "Download-A3Artifact.ps1"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
@@ -259,6 +260,65 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("compression-level: 0", upload)
         self.assertIn("retention-days: 90", upload)
 
+    def test_fan_in_downloads_have_fail_closed_rest_fallbacks(self) -> None:
+        permissions = self.workflow.split("permissions:", 1)[1].split(
+            "concurrency:", 1
+        )[0]
+        self.assertEqual(
+            {line.strip() for line in permissions.splitlines() if line.strip()},
+            {"actions: read", "contents: read"},
+        )
+        for replica in (1, 2, 3):
+            primary = self.fan_in.split(
+                f"      - name: Download A3 "
+                f"{'holdout ' if replica == 3 else ''}replica {replica}", 1
+            )[1].split("      - name:", 1)[0]
+            self.assertIn(f"id: download_replica_{replica}", primary)
+            self.assertIn("continue-on-error: true", primary)
+
+            fallback_name = (
+                f"Download A3 {'holdout ' if replica == 3 else ''}replica {replica} "
+                "through the REST fallback"
+            )
+            fallback = self.fan_in.split(
+                f"      - name: {fallback_name}", 1
+            )[1].split("      - name:", 1)[0]
+            self.assertIn(
+                f"if: steps.download_replica_{replica}.outcome == 'failure'",
+                fallback,
+            )
+            self.assertIn("GITHUB_TOKEN: ${{ github.token }}", fallback)
+            self.assertIn("Download-A3Artifact.ps1", fallback)
+            self.assertIn(
+                f'-ArtifactName "windows-dao-a3-replica-{replica}"', fallback
+            )
+
+            check = self.fan_in.split(
+                f"      - name: Require A3 replica {replica} download", 1
+            )[1].split("      - name:", 1)[0]
+            self.assertIn("if: always()", check)
+            self.assertIn("Test-Path", check)
+            self.assertIn("-PathType Container", check)
+            self.assertIn("throw", check)
+
+        source = REST_FALLBACK.read_text(encoding="utf-8")
+        self.assertNotIn("if (Test-Path", source)
+        self.assertNotIn("$input", source)
+        self.assertIn("actions/runs/", source)
+        self.assertIn("actions/artifacts/", source)
+        self.assertIn('"$($artifact[0].id)/zip"', source)
+        self.assertIn("Invoke-WebRequest -UseBasicParsing", source)
+        self.assertIn("for ($attempt = 1; $attempt -le 5; $attempt++)", source)
+        self.assertIn("Expand-Archive", source)
+        self.assertIn("Move-Item", source)
+        self.assertIn("Set-StrictMode -Version Latest", source)
+
+        freeze = self.fan_in.index("--freeze-only")
+        holdout_fallback = self.fan_in.index(
+            "Download A3 holdout replica 3 through the REST fallback"
+        )
+        self.assertLess(freeze, holdout_fallback)
+
     def test_independent_validator_is_a_separate_recorded_step(self) -> None:
         step = self.fan_in.split(
             "      - name: Independently recompute the retained A3 bundle", 1
@@ -277,7 +337,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn("rejected the bundle", step)
         # The report lives outside the closed bundle tree.
         self.assertNotIn("jet3-a3-bundle\\validation", step)
-        self.assertNotIn("continue-on-error", self.fan_in)
+        self.assertEqual(self.fan_in.count("continue-on-error: true"), 3)
 
     def test_fan_in_status_is_bounded_timed_and_always_retained(self) -> None:
         for step_id in (

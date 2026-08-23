@@ -388,6 +388,8 @@ jobs:
             -Encoding utf8 -Append
 
       - name: Download A3 replica 1
+        id: download_replica_1
+        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: windows-dao-a3-replica-1
@@ -395,13 +397,53 @@ jobs:
           # The closed replica manifest is re-hashed by assemble; the zip digest is advisory.
           digest-mismatch: warn
 
+      - name: Download A3 replica 1 through the REST fallback
+        if: steps.download_replica_1.outcome == 'failure'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          & oracle/windows-dao/scripts/a3/Download-A3Artifact.ps1 `
+            -ArtifactName "windows-dao-a3-replica-1" `
+            -Destination (Join-Path $env:RUNNER_TEMP "jet3-a3-replicas\replica-01")
+
+      - name: Require A3 replica 1 download
+        if: always()
+        shell: powershell
+        run: |
+          $replica = Join-Path $env:RUNNER_TEMP "jet3-a3-replicas\replica-01"
+          if (-not (Test-Path -LiteralPath $replica -PathType Container)) {
+            throw "Neither A3 replica 1 download produced its directory."
+          }
+
       - name: Download A3 replica 2
+        id: download_replica_2
+        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: windows-dao-a3-replica-2
           path: ${{ runner.temp }}\jet3-a3-replicas\replica-02
           # The closed replica manifest is re-hashed by assemble; the zip digest is advisory.
           digest-mismatch: warn
+
+      - name: Download A3 replica 2 through the REST fallback
+        if: steps.download_replica_2.outcome == 'failure'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          & oracle/windows-dao/scripts/a3/Download-A3Artifact.ps1 `
+            -ArtifactName "windows-dao-a3-replica-2" `
+            -Destination (Join-Path $env:RUNNER_TEMP "jet3-a3-replicas\replica-02")
+
+      - name: Require A3 replica 2 download
+        if: always()
+        shell: powershell
+        run: |
+          $replica = Join-Path $env:RUNNER_TEMP "jet3-a3-replicas\replica-02"
+          if (-not (Test-Path -LiteralPath $replica -PathType Container)) {
+            throw "Neither A3 replica 2 download produced its directory."
+          }
 
       - name: Assemble the two derivation replica trees
         id: assemble
@@ -443,12 +485,33 @@ jobs:
           )
 
       - name: Download A3 holdout replica 3 outside the bundle
+        id: download_replica_3
+        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: windows-dao-a3-replica-3
           path: ${{ runner.temp }}\jet3-a3-holdout\replica-03
           # The preceding step has retained and recorded the frozen-set digest.
           digest-mismatch: warn
+
+      - name: Download A3 holdout replica 3 through the REST fallback
+        if: steps.download_replica_3.outcome == 'failure'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          & oracle/windows-dao/scripts/a3/Download-A3Artifact.ps1 `
+            -ArtifactName "windows-dao-a3-replica-3" `
+            -Destination (Join-Path $env:RUNNER_TEMP "jet3-a3-holdout\replica-03")
+
+      - name: Require A3 replica 3 download
+        if: always()
+        shell: powershell
+        run: |
+          $replica = Join-Path $env:RUNNER_TEMP "jet3-a3-holdout\replica-03"
+          if (-not (Test-Path -LiteralPath $replica -PathType Container)) {
+            throw "Neither A3 replica 3 download produced its directory."
+          }
 
       - name: Graft and structurally validate the holdout against retained frozen bytes
         id: holdout
