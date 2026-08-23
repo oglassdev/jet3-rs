@@ -1,0 +1,1163 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a4_row_anchored_maps_plan",
+  "experiment_id": "DAO-A4-ROW-ANCHORED-MAPS-001",
+  "preregistration": {
+    "provenance_entry": "EXP-0052",
+    "recorded_utc_date": "2026-08-23",
+    "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts when the first schema-valid A4 replica observation or DAO schema snapshot is retained for inspection",
+    "origin_disclosure": {
+      "format_source": [
+        "SRC-0020"
+      ],
+      "entries_read": [
+        "EXP-0039",
+        "EXP-0042",
+        "EXP-0043",
+        "EXP-0044",
+        "EXP-0046",
+        "EXP-0048",
+        "EXP-0051"
+      ],
+      "design_inputs": [
+        {
+          "path": "oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md",
+          "sha256": "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7",
+          "role": "user_approved_a4_scope"
+        }
+      ],
+      "a3_calibration_bundle": {
+        "local_read_only_path": "/private/tmp/claude-501/-Users-oglass-Development-Misc-access97-rs/77df2993-62f0-4041-97d5-19885072a109/scratchpad/a3run/bundle",
+        "manifest_sha256": "f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab",
+        "analysis_report_sha256": "7587389e4323171aff9b9efcd46bcd5fc8e2ec8273116e8a0360965e4e11faeb",
+        "frozen_derivation_sha256": "ec7c8d27cc46ef9dfdc8214d025cd2d6493ab089f00fc35dbf0ccb9899cdcc0a",
+        "use_limit": "EXP-0051 and the retained A3 bundle are calibration and design input only. They are never A4 evidence and cannot satisfy an A4 derivation, holdout, predicate, or independent-validation result."
+      },
+      "prediction_not_rediscovery_disclosure": "A3 observed moving row-directory starts, complete type-0/type-1 row prefixes, tag-05 reference pages, and the slot-relative 16,352-bit candidate before this plan. A4 tests frozen row-anchored predictions on three fresh replicas; it does not claim rediscovery from A3.",
+      "external_mdb_implementations_used": false
+    },
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry; before acquisition, every amendment is an additive hash-pinned revision and earlier bytes remain immutable"
+  },
+  "execution_gate": {
+    "status": "BLOCKED",
+    "blocking_requirements": [
+      "checked_a4_analyzer_and_synthetic_generator",
+      "independent_recomputing_a4_validator",
+      "a4_worker_and_workflow_with_fail_closed_binding",
+      "passing_a4_dry_runs_disclosed_additively",
+      "a4_contract_validator_accepts_decisive_and_no_outcome_reports",
+      "exact_clean_pushed_producer_commit",
+      "licensed_x86_dao_host_with_ansi_code_page_1252"
+    ]
+  },
+  "repository_binding": {
+    "canonical_https_url": "https://github.com/oglassdev/jet3-rs.git",
+    "producer_commit_required": true,
+    "clean_worktree_required": true,
+    "pushed_commit_required": true
+  },
+  "implementation_rebinding": {
+    "source_rule": "reuse A3 replica, checkpoint capture, content-addressed store, freeze/holdout, resume, manifest, and independent-validation machinery; replace the scientific analyzer and schema-lifecycle worker behavior with this A4 plan only",
+    "required_plan_path": "oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json",
+    "required_experiment_id": "DAO-A4-ROW-ANCHORED-MAPS-001",
+    "worker_fail_closed_rule": "before provider preflight, database creation, or artifact staging, parse the selected plan and reject unless its experiment id and path exactly match A4; every emitted document carries the exact experiment id, base plan SHA-256, and governing revision plan SHA-256",
+    "revision_binding_rule": {
+      "style": "R5-V01",
+      "base_rule": "until an additive revision exists, plan_sha256 and revision_plan_sha256 both equal the SHA-256 of this base plan as pinned in README, EXP-0052, worker, analyzer, producer validator, and independent validator; schemas never contain that hash as a const",
+      "future_revision_rule": "the highest-numbered additive revision recorded before acquisition becomes governing; every evidence document carries its hash while plan_sha256 remains the base hash, and the closed bundle inventories the byte-exact base plus every governing revision in order",
+      "tamper_rule": "producer and independent validators reject any absent, altered, uninventoried, or hash-mismatched plan/revision file or binding field"
+    },
+    "workflow_fail_closed_rule": "contract, matrix, fan-in, validation, and upload reject non-A4 ids, missing plan/revision bindings, wrong code page, or a holdout opened before the derivation freeze",
+    "plan_lane_implementation_status": "not_implemented"
+  },
+  "environment_binding": {
+    "operating_system": "Windows",
+    "process_architecture": "x86",
+    "powershell_major": 5,
+    "python_version": "3.13.x",
+    "dao_prog_id": "DAO.DBEngine.36",
+    "provider_identity_and_binary_hash_required": true,
+    "per_replica_environment_required": true,
+    "windows_ansi_code_page": 1252,
+    "ansi_code_page_rule": "GetACP must equal 1252 before database creation; record locale, ANSI and OEM code pages, and encode the sole non-ASCII identifier A4TAB_É4 as Windows-1252 bytes 41 34 54 41 42 5f c9 34 for the registered discriminator",
+    "cross_replica_exact_fields": [
+      "dao_prog_id",
+      "provider_clsid",
+      "provider_binary_sha256",
+      "process_architecture",
+      "powershell_major",
+      "windows_ansi_code_page"
+    ],
+    "recorded_may_differ_fields": [
+      "windows_version",
+      "python_patch_version"
+    ]
+  },
+  "question": "Can table-relative row-directory locators, complete allocation-map rows, indirect extended-map traversal, and a minimum catalog field model derived from two fresh Jet 3 databases predict a role-rotated third holdout without refitting?",
+  "replicas": {
+    "count": 3,
+    "derivation": [
+      1,
+      2
+    ],
+    "holdout": 3,
+    "acquisition_independence": "each replica is created, mutated, closed, schema-snapshotted, physically captured, validated, and uploaded by a separate matrix job with no shared database, page store, output directory, or mutable state",
+    "fan_in_rule": "validate replicas 1 and 2, derive all four layer candidate sets, canonically freeze them and write their hash; only then download and structurally validate replica 3 without exposing its page bytes to the analyzer, then resume and evaluate frozen models without refit, addition, deletion, relaxation, or reinterpretation",
+    "environment_identity_rule": "provider identity, architecture, PowerShell major, and Windows ANSI code page match exactly across replicas; recorded OS and Python patch may differ only within the bindings"
+  },
+  "tables": {
+    "logical_roles": [
+      "T1",
+      "T2",
+      "T3",
+      "T4"
+    ],
+    "physical_names": [
+      "A4TAB_A1",
+      "A4TAB_B2",
+      "A4TAB_C3",
+      "A4TAB_É4"
+    ],
+    "identifier_discriminator": {
+      "identifier": "A4TAB_É4",
+      "unicode_scalar": "U+00C9",
+      "windows_1252_hex": "41345441425fc934",
+      "constraint": "this is the only non-ASCII table, field, or index identifier"
+    },
+    "role_bindings": [
+      {
+        "replica": 1,
+        "T1": "A4TAB_A1",
+        "T2": "A4TAB_B2",
+        "T3": "A4TAB_C3",
+        "T4": "A4TAB_É4"
+      },
+      {
+        "replica": 2,
+        "T1": "A4TAB_B2",
+        "T2": "A4TAB_C3",
+        "T3": "A4TAB_É4",
+        "T4": "A4TAB_A1"
+      },
+      {
+        "replica": 3,
+        "T1": "A4TAB_C3",
+        "T2": "A4TAB_É4",
+        "T3": "A4TAB_A1",
+        "T4": "A4TAB_B2"
+      }
+    ],
+    "definition": {
+      "fields": [
+        {
+          "name": "Id",
+          "dao_type": "dbLong",
+          "size": 4
+        },
+        {
+          "name": "Payload",
+          "dao_type": "dbText",
+          "size": 240,
+          "fixed_length": true
+        }
+      ],
+      "index": {
+        "name": "A4IX_ID",
+        "fields": [
+          "Id"
+        ],
+        "unique": false,
+        "role": "catalog_object_kind_perturbation_only"
+      }
+    },
+    "schema_operation_rule": "exactly one listed logical schema operation occurs between closed checkpoints; a TableDefs.Append may append a preconfigured TableDef with its declared fields, but no second TableDefs, Fields, or Indexes collection mutation occurs in that transition",
+    "checkpoint_operations": {
+      "EMPTY": "Create a fresh Jet 3 database; make no user schema object.",
+      "EMPTY_R": "Close and reopen without mutation.",
+      "T1_CREATE_ID": "One TableDefs.Append of logical T1 preconfigured with exactly Id dbLong; this is one schema operation.",
+      "T1_ADD_TEXT": "One Fields.Append adding Payload dbText(240), fixed length, to T1.",
+      "T1_ADD_INDEX": "One Indexes.Append adding nonunique A4IX_ID over existing T1.Id; object-kind perturbation only.",
+      "T2_CREATE": "One TableDefs.Append of logical T2 preconfigured with Id and Payload.",
+      "T2_DROP": "One TableDefs.Delete of T2.",
+      "T2_RECREATE": "One TableDefs.Append recreating T2 with the identical name and definition.",
+      "T3_CREATE": "One TableDefs.Append of logical T3 preconfigured with Id and Payload.",
+      "T4_CREATE": "One TableDefs.Append of logical T4 preconfigured with Id and Payload.",
+      "T1_REL_0064": "Insert fixed 32-row batches into T1 to the relative target.",
+      "T1_REL_0512": "Continue T1 fixed-batch growth to the relative target.",
+      "T1_REL_0768": "Continue T1 fixed-batch growth to the relative target.",
+      "T1_REL_1280": "Continue T1 fixed-batch growth to the relative target.",
+      "T1_DELETE_ALL": "Delete every T1 row in ascending Id order.",
+      "T1_REINSERT_SAME": "Reinsert the exact T1 Id and Payload values.",
+      "T1_IDLE_R": "Close and reopen without mutation.",
+      "T3_ABS_04096": "Insert fixed 32-row batches into T3 to the absolute file-page target.",
+      "T3_ABS_08192": "Continue T3 fixed-batch growth to the absolute file-page target.",
+      "T3_ABS_12288": "Continue T3 fixed-batch growth to the absolute file-page target.",
+      "T3_ABS_16480": "Continue T3 fixed-batch growth to the absolute file-page target.",
+      "T4_REL_0064": "Insert fixed 32-row batches into T4 to the relative target.",
+      "T4_REL_0896": "Continue T4 fixed-batch growth to the relative target.",
+      "T4_REL_0904": "Continue T4 fixed-batch growth to the relative target.",
+      "T4_IDLE_R": "Close and reopen without mutation."
+    },
+    "row_algorithm": {
+      "id": "positive one-based monotonically increasing signed 32-bit integer per logical role; deleted T1 ids are reinserted unchanged",
+      "payload": "repeat ASCII A4|<role>|<Id as ten zero-padded decimal digits>| and truncate to exactly 240 characters",
+      "growth_batch_rows": 32,
+      "reread_order": "Id ascending",
+      "rolling_sha256": "one SHA-256 stream over Id signed little-endian u32, Payload UTF-8 length u16 little-endian, then ASCII Payload bytes",
+      "reread_requirement": "at every checkpoint, canonical snapshot row counts and rolling hashes equal the expected values for every extant table"
+    }
+  },
+  "checkpoint_design": {
+    "count": 25,
+    "adaptive_checkpoints_allowed": false,
+    "all_checkpoints_closed_and_quiescent": true,
+    "d_growth_rule": "legacy machinery field: T1 relative growth uses fixed 32-row batches and the immediately preceding closed-file baseline named by the schedule; capture the first state meeting each threshold and disclose overshoot",
+    "d_regrowth_rule": "legacy machinery field: T2 drop/recreate uses the exact same physical identifier and definition but assumes no page, identifier, or byte reuse; capture both closed states",
+    "relative_growth_rule": "T1 baseline is the closed-file page count at T4_CREATE; T4 baseline is the closed-file page count at T3_ABS_16480. Each relative checkpoint is the first closed state after a 32-row batch with pages >= baseline+target; record baseline, threshold, achieved count, and overshoot",
+    "absolute_growth_rule": "each T3_ABS checkpoint is the first closed state after a 32-row batch whose total pages are at least the named target; record threshold, achieved count, and overshoot without retuning",
+    "checkpoint_ids": [
+      "EMPTY",
+      "EMPTY_R",
+      "T1_CREATE_ID",
+      "T1_ADD_TEXT",
+      "T1_ADD_INDEX",
+      "T2_CREATE",
+      "T2_DROP",
+      "T2_RECREATE",
+      "T3_CREATE",
+      "T4_CREATE",
+      "T1_REL_0064",
+      "T1_REL_0512",
+      "T1_REL_0768",
+      "T1_REL_1280",
+      "T1_DELETE_ALL",
+      "T1_REINSERT_SAME",
+      "T1_IDLE_R",
+      "T3_ABS_04096",
+      "T3_ABS_08192",
+      "T3_ABS_12288",
+      "T3_ABS_16480",
+      "T4_REL_0064",
+      "T4_REL_0896",
+      "T4_REL_0904",
+      "T4_IDLE_R"
+    ],
+    "idle_pairs": [
+      [
+        "EMPTY",
+        "EMPTY_R"
+      ],
+      [
+        "T1_REINSERT_SAME",
+        "T1_IDLE_R"
+      ],
+      [
+        "T4_REL_0904",
+        "T4_IDLE_R"
+      ]
+    ],
+    "transition_coverage": {
+      "schema_lifecycle": [
+        "EMPTY_R",
+        "T1_CREATE_ID",
+        "T1_ADD_TEXT",
+        "T1_ADD_INDEX",
+        "T2_CREATE",
+        "T2_DROP",
+        "T2_RECREATE",
+        "T3_CREATE",
+        "T4_CREATE"
+      ],
+      "t1_growth": [
+        "T4_CREATE",
+        "T1_REL_0064",
+        "T1_REL_0512",
+        "T1_REL_0768",
+        "T1_REL_1280"
+      ],
+      "t1_churn": [
+        "T1_REL_1280",
+        "T1_DELETE_ALL",
+        "T1_REINSERT_SAME",
+        "T1_IDLE_R"
+      ],
+      "t2_lifecycle": [
+        "T2_CREATE",
+        "T2_DROP",
+        "T2_RECREATE"
+      ],
+      "t3_absolute": [
+        "T3_CREATE",
+        "T3_ABS_04096",
+        "T3_ABS_08192",
+        "T3_ABS_12288",
+        "T3_ABS_16480"
+      ],
+      "t4_relative": [
+        "T3_ABS_16480",
+        "T4_REL_0064",
+        "T4_REL_0896",
+        "T4_REL_0904",
+        "T4_IDLE_R"
+      ],
+      "schema_snapshot_every_checkpoint": [
+        "EMPTY",
+        "EMPTY_R",
+        "T1_CREATE_ID",
+        "T1_ADD_TEXT",
+        "T1_ADD_INDEX",
+        "T2_CREATE",
+        "T2_DROP",
+        "T2_RECREATE",
+        "T3_CREATE",
+        "T4_CREATE",
+        "T1_REL_0064",
+        "T1_REL_0512",
+        "T1_REL_0768",
+        "T1_REL_1280",
+        "T1_DELETE_ALL",
+        "T1_REINSERT_SAME",
+        "T1_IDLE_R",
+        "T3_ABS_04096",
+        "T3_ABS_08192",
+        "T3_ABS_12288",
+        "T3_ABS_16480",
+        "T4_REL_0064",
+        "T4_REL_0896",
+        "T4_REL_0904",
+        "T4_IDLE_R"
+      ]
+    },
+    "schedule_minimization_basis": "the user-approved brief freezes exactly 25 checkpoints. Schema mutations isolate table creation, field append, index append, and T2 lifecycle; growth, churn, and idle legs reuse A3-equivalent thresholds without adaptive additions or retuning"
+  },
+  "page_capture": {
+    "page_size": 2048,
+    "checkpoint_representation": "ordered physical-page SHA-256 values from page zero through the final page",
+    "store": "content-addressed distinct 2048-byte blobs named <lowercase-sha256>.page",
+    "duplicate_blobs_stored_once": true,
+    "snapshot_reconstruction_required": true,
+    "companion_ceiling_bytes_per_checkpoint": 65536,
+    "post_close_quiescence_required": true,
+    "companion_bytes_in_physical_analysis": false,
+    "dao_schema_snapshot_rule": "after closing and before physical capture, reopen read-only through DAO, emit one canonical schema snapshot document, close again, assert the MDB hash is unchanged by the read-only observation, then capture physical pages"
+  },
+  "record_candidate_procedure": {
+    "row_directory_source": "SRC-0020: tag-01 data page; u16 little-endian row count at bytes [8,10); row-offset entries at [10+2*i,12+2*i); evaluate both offset masks 0x1fff and 0x0fff as frozen nuisance candidates; 0x8000 deleted and 0x4000 overflow flags are explicit",
+    "row_boundary_rule": "for slot i, start = raw_offset & mask; end = 2048 for slot 0, otherwise the preceding slot start. Require 10+2*row_count <= start < end <= 2048, nonoverlap in directory order, and complete in-page bounds. Moving starts across checkpoints are permitted and expected. Deleted or overflow targets fail A4-H1-TARGET-ROW-INVALID unless a later additive experiment explicitly registers traversal.",
+    "locator_layouts": [
+      "u24le_page_then_u8_row",
+      "u8_row_then_u24le_page"
+    ],
+    "locator_enumeration": "on a schema-delta-selected tag-02 TDEF page, enumerate every nonoverlapping pair of four-byte locators under one layout. Each decoded page must be extant and tag 0x01 and each u8 row must be less than that page row count at every applicable checkpoint; the row bytes are always re-resolved from that checkpoint directory, never frozen by absolute offset",
+    "map_row_layouts": {
+      "type_0": "tag 00, u32 little-endian base at row-relative [1,5), then LSB-first bitmap through the complete row end",
+      "type_1": "tag 01, consecutive u32 little-endian slots from row-relative offset 1 through the complete row end; zero slots are candidate inactive and nonzero slots are candidate exact tag-05 page references"
+    },
+    "qualified_page_rule": "schema lifecycle deltas qualify at most 16 tag-02 pages for H1 and allocation-admitted traversal qualifies at most 16 tag-01 or tag-05 pages per later layer; hash-state absence is explicit and a page is charged once across the union of derivation replicas",
+    "union_once_charging": {
+      "style": "R4-C01",
+      "rule": "row slots, locator pairs, references, bitmap bits, catalog rows, and candidate models are counted once per unique qualified page/checkpoint/model identity in the union across derivation replicas however many replicas expose it; replica agreement is a predicate, not a second work charge",
+      "resource_units": "charge one unit for each row-directory entry decoded, locator layout/offset pair tested, slot/reference decoded, bitmap bit inspected, catalog field candidate tested, and candidate transition evaluation",
+      "exact_ceiling_rule": "accept every exact bound and reject one over before manifest creation"
+    },
+    "a3_calibration_worked_examples": [
+      {
+        "id": "A4-W01-MOVING-ROW",
+        "source": "EXP-0051 retained replica 1, tag-01 page 24",
+        "observation": "row_count=2; slot 0 start/end is [1915,2048) through L_REL_0512, [1911,2048) at L_REL_0768, [1895,2048) at L_REL_0896, [1847,2048) at L_REL_1280, and [1843,2048) at L_REINSERT_SAME. All raw offsets have deleted=false and overflow=false. A4 re-resolves the whole row; A3 froze [1915,2048) and its first polarity violation was pages 1021-1023."
+      },
+      {
+        "id": "A4-W02-TYPE1",
+        "source": "EXP-0051 retained replica 1",
+        "observation": "page 26 slot 0 at P_ABS_16480 is [1915,2048) and begins 01 26 06 00 00 e1 3f 00 00, decoding nonzero references 1574 and 16353; page 28 slot 0 at H_REL_0064 begins 01 e5 3f 00 00 e6 3f 00 00, decoding 16357 and 16358; page 1 at P_ABS_16480 begins 01 00 3a 00 00 e0 3f 00 00, decoding 14848 and 16352. These calibrate exact little-endian candidates but cannot satisfy A4."
+      },
+      {
+        "id": "A4-W03-EXTENDED-BASE",
+        "source": "EXP-0046 and EXP-0051 calibration only",
+        "observation": "tag-05 references 14848 and 16352 use header bytes [0,4) and 16,352 LSB-first bitmap bits at [4,2048); only slot_ordinal_times_16352_plus_bit_index survived prior derivation calibration, but A3 never evaluated it on holdout. A4 freezes and predicts it afresh."
+      }
+    ]
+  },
+  "inline_boundary_procedure": {
+    "legacy_field_name": "retained so A3 machinery can be rebound minimally; A4 uses complete row-directory bounds instead of inline absolute intervals",
+    "subject": "each H1-located map row at its checkpoint-specific directory bounds",
+    "candidate_source": "the two SRC-0020 offset-mask projections only; no changed-byte, fill, or frozen absolute-offset candidate",
+    "survival_rule": "the same offset-mask model must yield valid complete rows and flags in both derivation replicas at every applicable checkpoint, while row start/end values may move",
+    "ambiguity_rule": "zero masks yields A4-H2-ROW-DIRECTORY-INVALID; more than one scientifically distinct mask model yields A4-H2-ROLE-MULTIPLE unless both projections produce byte-identical row bounds for every evaluated row and are canonically equivalent"
+  },
+  "hypotheses": {
+    "dependency_order": [
+      "A4-H1",
+      "A4-H2",
+      "A4-H3",
+      "A4-H4"
+    ],
+    "A4-H1": {
+      "title": "TDEF-to-map-row location",
+      "model": "schema lifecycle deltas select one tag-02 TDEF per logical table and exactly two table-relative locators under one frozen layout; both resolve to extant tag-01 pages and valid row slots at every applicable checkpoint",
+      "no_outcome": "no or multiple TDEFs; no or multiple locator layouts or locator pairs; invalid, missing, deleted, or overflow target row; replica disagreement; holdout prediction failure"
+    },
+    "A4-H2": {
+      "title": "row identity and map role",
+      "model": "the two H1 rows independently decode as complete type-0/type-1 rows and exactly one transition model assigns owned/in-use versus available across grow, delete-all, reinsert, drop/recreate, and idle legs; row motion is allowed",
+      "no_outcome": "invalid row directory or flags; unsupported tag; zero or multiple role assignments; unexplained transition; replica disagreement; holdout prediction failure",
+      "layer_independence": "an H2 no_outcome cannot erase a decisive H1 result"
+    },
+    "A4-H3": {
+      "title": "indirect traversal",
+      "model": "conditional on an H2 type-1 row, zero slots are inactive, every nonzero u32 is the exact tag-05 page reference, bitmap bytes are [4,2048), and absolute page = slot_ordinal * 16352 + bit_index; freeze every active/inactive slot and boundary flip before holdout",
+      "no_outcome": "no conversion; no inactive-slot observation; invalid reference; insufficient base discrimination; zero or multiple base formulas; replica disagreement; holdout prediction failure",
+      "base_candidates": [
+        "slot_ordinal_times_16352_plus_bit_index",
+        "referenced_page_times_16352_plus_bit_index",
+        "slot_ordinal_times_16352_plus_bit_index_minus_one",
+        "slot_ordinal_times_16352_plus_bit_index_plus_one"
+      ]
+    },
+    "A4-H4": {
+      "title": "catalog bootstrap",
+      "model": "conditional on H1-H3, exactly one owned object stream predicts every canonical DAO schema delta; within its bounded rows one frozen field model predicts table/field/index kind, identifier lifecycle, and name bytes under Windows-1252 in holdout",
+      "no_outcome": "zero or multiple catalog roots, records, or field models; schema delta outside admitted pages; encoding ambiguity; replica disagreement; holdout root or field prediction failure",
+      "separate_reporting": "catalog root/location and catalog row-field results are reported independently so a field failure cannot erase root success"
+    },
+    "deferred": "physical column/index definition, row values, index nodes, relationships, Memo/OLE/long values, writes, free-space preferences, and preservation are outside A4"
+  },
+  "analyzer_dry_run_contract": {
+    "must_complete_before_acquisition": true,
+    "dry_run_result_disclosure": "not_run_preregistration_only",
+    "dispatch_gate": "before any matrix job, execute schema-valid synthetic, A3-calibration derivation-only replay, decisive-report validator, independent pair, and tamper runs; commit an additive provenance disclosure. A3 holdout data is calibration only and no future A4 holdout may be opened before freeze",
+    "dry_run_honesty_clause": {
+      "style": "R3 dry-run honesty clause",
+      "required_cases": [
+        "moving_row",
+        "deleted_row",
+        "overflow_row",
+        "wrong_locator_target",
+        "zero_slot",
+        "nonzero_slot",
+        "no_inactive_slot",
+        "base_ambiguity",
+        "catalog_multiplicity",
+        "encoding_ambiguity",
+        "replica_disagreement",
+        "holdout_failure",
+        "resource_exact_ceiling",
+        "resource_one_over",
+        "campaign_2700_seconds",
+        "campaign_2701_seconds"
+      ],
+      "reachability_by_transcript": "retain an executed fixture transcript that reaches every predicate id classified reachable; a constant rejection or hand-authored expected status is failure",
+      "replica_3_independent_overshoot": "synthetic replica 3 uses independently chosen baseline/threshold overshoot in every growth phase and is not an alias of replica 1 or 2",
+      "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every candidate set, survivor count, ordered predicate status, layer outcome, and holdout result across the full sweep",
+      "tamper_suite_execution": "execute and retain rejection of plan binding, frozen set, row locator, schema snapshot, report, and timeout tampering; a constant rejected=true is failure"
+    },
+    "a3_calibration_use_limit": "only retained A3 replicas 1 and 2 may be opened by calibration replay; no result, including EXP-0051 independent acceptance, is A4 evidence"
+  },
+  "predicate_registry": {
+    "ids": [
+      "A4-IDLE-EQUALITY",
+      "A4-SCHEMA-SNAPSHOT",
+      "A4-SNAPSHOT-RECONSTRUCTION",
+      "A4-RESOURCE-BOUND",
+      "A4-H1-TDEF-NONE",
+      "A4-H1-TDEF-MULTIPLE",
+      "A4-H1-LOCATOR-LAYOUT-NONE",
+      "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+      "A4-H1-LOCATOR-PAIR-NONE",
+      "A4-H1-LOCATOR-PAIR-MULTIPLE",
+      "A4-H1-TARGET-ROW-INVALID",
+      "A4-H1-REPLICA-DISAGREEMENT",
+      "A4-H1-HOLDOUT-PREDICTION",
+      "A4-H2-ROW-DIRECTORY-INVALID",
+      "A4-H2-ROW-FLAGS-INVALID",
+      "A4-H2-MAP-TAG-UNSUPPORTED",
+      "A4-H2-ROLE-NONE",
+      "A4-H2-ROLE-MULTIPLE",
+      "A4-H2-TRANSITION-UNEXPLAINED",
+      "A4-H2-REPLICA-DISAGREEMENT",
+      "A4-H2-HOLDOUT-PREDICTION",
+      "A4-H3-CONVERSION-NONE",
+      "A4-H3-INACTIVE-SLOT-NONE",
+      "A4-H3-REFERENCE-INVALID",
+      "A4-H3-BASE-DISCRIMINATION",
+      "A4-H3-BASE-NONE",
+      "A4-H3-BASE-MULTIPLE",
+      "A4-H3-REPLICA-DISAGREEMENT",
+      "A4-H3-HOLDOUT-PREDICTION",
+      "A4-H4-CATALOG-ROOT-NONE",
+      "A4-H4-CATALOG-ROOT-MULTIPLE",
+      "A4-H4-CATALOG-RECORD-NONE",
+      "A4-H4-CATALOG-RECORD-MULTIPLE",
+      "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+      "A4-H4-FIELD-MODEL-NONE",
+      "A4-H4-FIELD-MODEL-MULTIPLE",
+      "A4-H4-ENCODING-AMBIGUOUS",
+      "A4-H4-REPLICA-DISAGREEMENT",
+      "A4-H4-HOLDOUT-ROOT",
+      "A4-H4-HOLDOUT-FIELDS"
+    ],
+    "campaign_evaluated_before_any_layer": [
+      "A4-IDLE-EQUALITY",
+      "A4-SCHEMA-SNAPSHOT",
+      "A4-SNAPSHOT-RECONSTRUCTION",
+      "A4-RESOURCE-BOUND"
+    ],
+    "per_layer_ordered_predicates": {
+      "h1_tdef_to_map_row": [
+        "A4-H1-TDEF-NONE",
+        "A4-H1-TDEF-MULTIPLE",
+        "A4-H1-LOCATOR-LAYOUT-NONE",
+        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "A4-H1-LOCATOR-PAIR-NONE",
+        "A4-H1-LOCATOR-PAIR-MULTIPLE",
+        "A4-H1-TARGET-ROW-INVALID",
+        "A4-H1-REPLICA-DISAGREEMENT",
+        "A4-H1-HOLDOUT-PREDICTION"
+      ],
+      "h2_row_identity_map_role": [
+        "A4-H2-ROW-DIRECTORY-INVALID",
+        "A4-H2-ROW-FLAGS-INVALID",
+        "A4-H2-MAP-TAG-UNSUPPORTED",
+        "A4-H2-ROLE-NONE",
+        "A4-H2-ROLE-MULTIPLE",
+        "A4-H2-TRANSITION-UNEXPLAINED",
+        "A4-H2-REPLICA-DISAGREEMENT",
+        "A4-H2-HOLDOUT-PREDICTION"
+      ],
+      "h3_indirect_traversal": [
+        "A4-H3-CONVERSION-NONE",
+        "A4-H3-INACTIVE-SLOT-NONE",
+        "A4-H3-REFERENCE-INVALID",
+        "A4-H3-BASE-DISCRIMINATION",
+        "A4-H3-BASE-NONE",
+        "A4-H3-BASE-MULTIPLE",
+        "A4-H3-REPLICA-DISAGREEMENT",
+        "A4-H3-HOLDOUT-PREDICTION"
+      ],
+      "h4_catalog_bootstrap": [
+        "A4-H4-CATALOG-ROOT-NONE",
+        "A4-H4-CATALOG-ROOT-MULTIPLE",
+        "A4-H4-CATALOG-RECORD-NONE",
+        "A4-H4-CATALOG-RECORD-MULTIPLE",
+        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+        "A4-H4-FIELD-MODEL-NONE",
+        "A4-H4-FIELD-MODEL-MULTIPLE",
+        "A4-H4-ENCODING-AMBIGUOUS",
+        "A4-H4-REPLICA-DISAGREEMENT",
+        "A4-H4-HOLDOUT-ROOT",
+        "A4-H4-HOLDOUT-FIELDS"
+      ]
+    },
+    "evaluation_rule": "evaluate campaign predicates in listed order, then layers in H1-H4 dependency order. Within each applicable layer stop at the first failing predicate and record it as the sole terminal. Later dependent layers are not_applicable; already decisive earlier layers remain decisive.",
+    "no_outcome_terminals": {
+      "h1_tdef_to_map_row": [
+        "A4-H1-TDEF-NONE",
+        "A4-H1-TDEF-MULTIPLE",
+        "A4-H1-LOCATOR-LAYOUT-NONE",
+        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "A4-H1-LOCATOR-PAIR-NONE",
+        "A4-H1-LOCATOR-PAIR-MULTIPLE",
+        "A4-H1-TARGET-ROW-INVALID",
+        "A4-H1-REPLICA-DISAGREEMENT",
+        "A4-H1-HOLDOUT-PREDICTION"
+      ],
+      "h2_row_identity_map_role": [
+        "A4-H2-ROW-DIRECTORY-INVALID",
+        "A4-H2-ROW-FLAGS-INVALID",
+        "A4-H2-MAP-TAG-UNSUPPORTED",
+        "A4-H2-ROLE-NONE",
+        "A4-H2-ROLE-MULTIPLE",
+        "A4-H2-TRANSITION-UNEXPLAINED",
+        "A4-H2-REPLICA-DISAGREEMENT",
+        "A4-H2-HOLDOUT-PREDICTION"
+      ],
+      "h3_indirect_traversal": [
+        "A4-H3-CONVERSION-NONE",
+        "A4-H3-INACTIVE-SLOT-NONE",
+        "A4-H3-REFERENCE-INVALID",
+        "A4-H3-BASE-DISCRIMINATION",
+        "A4-H3-BASE-NONE",
+        "A4-H3-BASE-MULTIPLE",
+        "A4-H3-REPLICA-DISAGREEMENT",
+        "A4-H3-HOLDOUT-PREDICTION"
+      ],
+      "h4_catalog_bootstrap": [
+        "A4-H4-CATALOG-ROOT-NONE",
+        "A4-H4-CATALOG-ROOT-MULTIPLE",
+        "A4-H4-CATALOG-RECORD-NONE",
+        "A4-H4-CATALOG-RECORD-MULTIPLE",
+        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+        "A4-H4-FIELD-MODEL-NONE",
+        "A4-H4-FIELD-MODEL-MULTIPLE",
+        "A4-H4-ENCODING-AMBIGUOUS",
+        "A4-H4-REPLICA-DISAGREEMENT",
+        "A4-H4-HOLDOUT-ROOT",
+        "A4-H4-HOLDOUT-FIELDS"
+      ]
+    },
+    "predicate_reachability_reconciliation": {
+      "rule": "every registered id appears exactly once; conditional means reachable when its preregistered dependency exists, not unreachable by construction",
+      "rows": [
+        {
+          "predicate_id": "A4-IDLE-EQUALITY",
+          "layer": "campaign",
+          "status": "reachable_unconditionally",
+          "basis": "evaluated before any scientific layer"
+        },
+        {
+          "predicate_id": "A4-SCHEMA-SNAPSHOT",
+          "layer": "campaign",
+          "status": "reachable_unconditionally",
+          "basis": "evaluated before any scientific layer"
+        },
+        {
+          "predicate_id": "A4-SNAPSHOT-RECONSTRUCTION",
+          "layer": "campaign",
+          "status": "reachable_unconditionally",
+          "basis": "evaluated before any scientific layer"
+        },
+        {
+          "predicate_id": "A4-RESOURCE-BOUND",
+          "layer": "campaign",
+          "status": "reachable_unconditionally",
+          "basis": "evaluated before any scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-TDEF-NONE",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-TDEF-MULTIPLE",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-LOCATOR-LAYOUT-NONE",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-LOCATOR-PAIR-NONE",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-LOCATOR-PAIR-MULTIPLE",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-TARGET-ROW-INVALID",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-REPLICA-DISAGREEMENT",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H1-HOLDOUT-PREDICTION",
+          "layer": "h1_tdef_to_map_row",
+          "status": "reachable_when_campaign_checks_pass",
+          "basis": "H1 is the first scientific layer"
+        },
+        {
+          "predicate_id": "A4-H2-ROW-DIRECTORY-INVALID",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-ROW-FLAGS-INVALID",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-MAP-TAG-UNSUPPORTED",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-ROLE-NONE",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-ROLE-MULTIPLE",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-TRANSITION-UNEXPLAINED",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-REPLICA-DISAGREEMENT",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H2-HOLDOUT-PREDICTION",
+          "layer": "h2_row_identity_map_role",
+          "status": "reachable_when_h1_model_exists",
+          "basis": "H2 consumes the frozen H1 locators and target rows"
+        },
+        {
+          "predicate_id": "A4-H3-CONVERSION-NONE",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-INACTIVE-SLOT-NONE",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-REFERENCE-INVALID",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-BASE-DISCRIMINATION",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-BASE-NONE",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-BASE-MULTIPLE",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-REPLICA-DISAGREEMENT",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H3-HOLDOUT-PREDICTION",
+          "layer": "h3_indirect_traversal",
+          "status": "reachable_when_h2_type1_model_exists",
+          "basis": "H3 is conditional on H2 observing a type-1 map row; no inactive-slot observation reaches A4-H3-INACTIVE-SLOT-NONE"
+        },
+        {
+          "predicate_id": "A4-H4-CATALOG-ROOT-NONE",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-CATALOG-ROOT-MULTIPLE",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-CATALOG-RECORD-NONE",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-CATALOG-RECORD-MULTIPLE",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-FIELD-MODEL-NONE",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-FIELD-MODEL-MULTIPLE",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-ENCODING-AMBIGUOUS",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-REPLICA-DISAGREEMENT",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-HOLDOUT-ROOT",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        },
+        {
+          "predicate_id": "A4-H4-HOLDOUT-FIELDS",
+          "layer": "h4_catalog_bootstrap",
+          "status": "reachable_when_h1_h2_h3_models_exist",
+          "basis": "H4 consumes only pages admitted by the complete Stage 2 traversal"
+        }
+      ]
+    }
+  },
+  "decision_rules": {
+    "freeze_rule": "derive on replicas 1 and 2 only; serialize canonical candidate sets, per-layer survivor counts, role-rotation-independent model fields, qualified pages, row/locator/reference/bit transcripts, and predicate statuses; hash and close them before replica 3 is downloaded or opened. Holdout evaluation permits no refit, candidate addition/deletion, relaxation, reinterpretation, or uniqueness re-establishment.",
+    "holdout_rule": "a layer predicts holdout only when its frozen model maps the replica-3 physical-name rotation to logical roles and passes every layer predicate on the independently captured third replica without refit; mismatch is that layer holdout terminal and does not erase earlier-layer success",
+    "survivor_count_reconciliation": {
+      "style": "R4-S01",
+      "rule": "derivation_survivor_count is measured in derivation replica 1 after applying cross-replica agreement: MULTIPLE carries its measured multiplicity (at least 2), NONE carries 0, a single-candidate invalid or holdout terminal carries 1, a decisive model carries 1, and an inapplicable layer carries 0",
+      "per_layer_counts": {
+        "h1_tdef_to_map_row": [
+          {
+            "predicate_id": "A4-H1-TDEF-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H1-TDEF-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H1-LOCATOR-LAYOUT-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H1-LOCATOR-PAIR-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H1-LOCATOR-PAIR-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H1-TARGET-ROW-INVALID",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H1-REPLICA-DISAGREEMENT",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H1-HOLDOUT-PREDICTION",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          }
+        ],
+        "h2_row_identity_map_role": [
+          {
+            "predicate_id": "A4-H2-ROW-DIRECTORY-INVALID",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H2-ROW-FLAGS-INVALID",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H2-MAP-TAG-UNSUPPORTED",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H2-ROLE-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H2-ROLE-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H2-TRANSITION-UNEXPLAINED",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H2-REPLICA-DISAGREEMENT",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H2-HOLDOUT-PREDICTION",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          }
+        ],
+        "h3_indirect_traversal": [
+          {
+            "predicate_id": "A4-H3-CONVERSION-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H3-INACTIVE-SLOT-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H3-REFERENCE-INVALID",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H3-BASE-DISCRIMINATION",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H3-BASE-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H3-BASE-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H3-REPLICA-DISAGREEMENT",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H3-HOLDOUT-PREDICTION",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          }
+        ],
+        "h4_catalog_bootstrap": [
+          {
+            "predicate_id": "A4-H4-CATALOG-ROOT-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H4-CATALOG-ROOT-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H4-CATALOG-RECORD-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H4-CATALOG-RECORD-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H4-FIELD-MODEL-NONE",
+            "count": "0 when the candidate set is empty"
+          },
+          {
+            "predicate_id": "A4-H4-FIELD-MODEL-MULTIPLE",
+            "count": "the measured multiplicity, at least 2"
+          },
+          {
+            "predicate_id": "A4-H4-ENCODING-AMBIGUOUS",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H4-REPLICA-DISAGREEMENT",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H4-HOLDOUT-ROOT",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          },
+          {
+            "predicate_id": "A4-H4-HOLDOUT-FIELDS",
+            "count": "1 for the single candidate/model whose validation or prediction failed"
+          }
+        ]
+      }
+    },
+    "replica_agreement_rule": "replica 1 and 2 must each independently yield one canonically equivalent logical-role model; physical page numbers, row slots, and identifiers may rotate only where the frozen model declares the mapping",
+    "no_outcome_projection": "report every layer independently as decisive_predicts_holdout, no_outcome, or not_applicable; campaign failure prevents all layer evaluation and yields no evidential bundle",
+    "claims_rule": "a scientific result remains descriptive_provider_observation_only even after independent validation and cannot move a support-matrix capability"
+  },
+  "independent_validator_contract": {
+    "implementation_independence": "a separate process and module derived from this plan; no analyzer imports, cached analyzer model objects, or analyzer-generated expected values",
+    "required_recomputation": [
+      "all plan and revision hashes and inventory closure",
+      "75 page indexes and 75 canonical DAO schema snapshots",
+      "row directories, flags, row bounds, locator candidates, map rows, type-1 slots, tag-05 pages, bitmap bases, and catalog candidates",
+      "union-once charges, exact bounds, ordered predicates, survivor counts, freeze receipt, holdout prediction, claims, and hard timeout"
+    ],
+    "tamper_cases": [
+      {
+        "id": "T1",
+        "mutation": "plan or revision binding",
+        "required_rejection": "plan_binding_mismatch"
+      },
+      {
+        "id": "T2",
+        "mutation": "frozen locator or row bound",
+        "required_rejection": "frozen_set_recomputation_mismatch"
+      },
+      {
+        "id": "T3",
+        "mutation": "DAO schema snapshot field",
+        "required_rejection": "schema_snapshot_mismatch"
+      },
+      {
+        "id": "T4",
+        "mutation": "layer report or predicate order",
+        "required_rejection": "analysis_report_mismatch"
+      },
+      {
+        "id": "T5",
+        "mutation": "campaign elapsed 2700 to 2701",
+        "required_rejection": "campaign_timeout_exceeded"
+      }
+    ],
+    "acceptance_rule": "independent acceptance requires all recomputations and tamper rejections; it is recorded separately and additively and never rewrites the immutable manifest"
+  },
+  "decisive_report_handling": {
+    "analysis_report_artifact": "retained_in_bundle",
+    "bundle_status": "decisive_pending_independent_validation",
+    "campaign_behavior": "retain a schema-valid decisive or scientific no-outcome report only after all evidence bounds pass; campaign/infrastructure failures retain diagnostics outside a successful bundle",
+    "independent_validation_rule": "only separately provenanced acceptance by the preregistered independent validator may label the physical observation independently_validated; it never establishes DAO compatibility or product support"
+  },
+  "runtime_design": {
+    "matrix_jobs": 3,
+    "fan_in_jobs": 1,
+    "hosted_wall_clock_target_seconds": 1800,
+    "post_33_timing_inputs": [
+      {
+        "run": 11,
+        "replica": 1,
+        "sha256": "b005ab46ae10144fd27aeef51ebd24d308a0460c0275a1bd7cd004a4df024a8a"
+      },
+      {
+        "run": 11,
+        "replica": 2,
+        "sha256": "f786a9e3616dca89a369130a028333f4a97d597735f6cfc9ae5c9aade46013f7"
+      },
+      {
+        "run": 11,
+        "replica": 3,
+        "sha256": "76fa961bb00d1b3c056dec659eaee6b89046dedb3ac46ba35d1ba01995d0706b"
+      },
+      {
+        "run": 12,
+        "replica": 1,
+        "sha256": "fbc70ccc78490abbb1c8e3cdfd43323242143e7762e374f958d0c5d3a332674a"
+      },
+      {
+        "run": 12,
+        "replica": 2,
+        "sha256": "1ae3013c0a38928e5b7800bef79fad34ea993769c834f7329607941f62d2072d"
+      },
+      {
+        "run": 12,
+        "replica": 3,
+        "sha256": "632d4d86e9e83c80fca395faa8589ba0289c595803b0d700a5eeb93573e726ed"
+      }
+    ],
+    "timing_derivation": "A3 historical worker inputs remain design calibration; EXP-0051 retained its manifest after 1,270 seconds. A4 retains the 725-second per-replica projection and 900-second fan-in allowance as planning values but treats only the hard evidence bounds as normative.",
+    "per_replica_projection_seconds": 725,
+    "per_replica_headroom": "1700 seconds is the unchanged hard worker ceiling; exact ceiling accepted and 1701 rejected",
+    "campaign_headroom": "R5-T01 style: elapsed time is measured from hosted run-attempt start through successful manifest creation. The 2700-second hard bound is 1700 worker + 900 fan-in + 100 setup/dispatch; exactly 2700 is accepted, 2701 rejected, and an over-bound attempt emits diagnostics but no successful bundle.",
+    "setup_and_dispatch_allowance_seconds": 100,
+    "estimated_complete_wall_clock_seconds": 1625,
+    "bounds_sanity_basis": "every resource and time bound accepts the exact ceiling and rejects one over; violations are rejected before manifest creation and never converted into scientific no_outcomes"
+  },
+  "artifacts": {
+    "plan": "plan/a4-row-anchored-maps.plan.json",
+    "replica_observations": [
+      "observations/replica-01.json",
+      "observations/replica-02.json",
+      "observations/replica-03.json"
+    ],
+    "replica_artifact_manifests": [
+      "replica-artifacts/replica-01-manifest.json",
+      "replica-artifacts/replica-02-manifest.json",
+      "replica-artifacts/replica-03-manifest.json"
+    ],
+    "page_index_directory": "page-indexes",
+    "page_store_directory": "page-store",
+    "dao_schema_snapshot_directory": "schema-snapshots",
+    "dao_schema_snapshot_pattern": "schema-snapshots/replica-<01..03>/<ordinal>-<checkpoint>.json",
+    "frozen_candidate_set": "analysis/derivation-candidates.json",
+    "analysis_report": "analysis/analysis-report.json",
+    "bundle_manifest": "bundle-manifest.json",
+    "dry_run_reports": [
+      "dry-run/a3-calibration-report.json",
+      "dry-run/a4-synthetic-report.json"
+    ],
+    "replica_environments": [
+      "environment/replica-01.json",
+      "environment/replica-02.json",
+      "environment/replica-03.json"
+    ],
+    "holdout_structure_receipt": "analysis/holdout-structure-receipt.json",
+    "independent_validation_report": "validation/independent-validation-report.json"
+  },
+  "bounds": {
+    "page_size": 2048,
+    "replicas": 3,
+    "max_checkpoints_per_replica": 25,
+    "planned_checkpoints_per_replica": 25,
+    "max_final_pages_per_replica": 20480,
+    "max_logical_checkpoint_read_bytes_per_replica": 2147483648,
+    "max_inserted_rows_per_replica": 200000,
+    "max_changed_hash_entries_per_replica": 65536,
+    "max_record_candidates": 67141632,
+    "max_candidate_models": 1000000,
+    "max_analysis_work_units": 600000000,
+    "max_unique_page_blobs": 65536,
+    "max_retained_page_store_bytes": 536870912,
+    "max_bundle_bytes": 805306368,
+    "max_json_bytes": 67108864,
+    "worker_timeout_seconds_per_replica": 1700,
+    "fan_in_timeout_seconds": 900,
+    "campaign_timeout_seconds": 2700,
+    "max_child_log_bytes": 1048576,
+    "max_companion_bytes_per_checkpoint": 65536,
+    "max_qualified_pages_per_submodel": 16,
+    "max_record_candidates_per_page": 2098176
+  },
+  "claims": {
+    "descriptive_provider_observation_only": true,
+    "a3_calibration_input_is_a4_evidence": false,
+    "exp_0051_bundle_is_a4_evidence": false,
+    "synthetic_dry_run_is_a4_evidence": false,
+    "general_tdef_catalog_row_index_or_lval_layout": false,
+    "unobserved_slot_or_base_behavior": false,
+    "compaction_encryption_or_version_behavior": false,
+    "rust_correctness": false,
+    "dao_compatibility_or_support": false
+  }
+}

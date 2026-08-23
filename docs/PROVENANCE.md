@@ -4477,6 +4477,78 @@ Use `not applicable` explicitly rather than omitting a field.
   hashes, producer validation, and independent recomputation were checked;
   focused A3 plan-contract and repository-contract tests must pass
 
+### EXP-0052 — Preregistered A4 row-anchored allocation and catalog campaign
+
+- Recorded: 2026-08-23, OpenAI Codex
+- Kind: preregistered base plan for a controlled DAO physical-observation
+  campaign; no A4 acquisition, result, analyzer, validator, worker, or workflow
+  is included
+- Question: Can table-relative row-directory locators, complete allocation-map
+  rows, indirect extended-map traversal, and a minimum catalog field model
+  derived from two fresh Jet 3 databases predict a role-rotated third holdout
+  without refitting?
+- Origin: project-authored experiment `DAO-A4-ROW-ANCHORED-MAPS-001`, grounded
+  in the bounded row-directory and allocation-map primitives of `SRC-0020` and
+  the user-approved scope brief copied byte-for-byte at
+  `oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md`,
+  SHA-256
+  `ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7`.
+  The retained A3 result `EXP-0051` and its local read-only bundle were used
+  only as calibration/design input, never as A4 evidence.
+- Environment: planned Windows x86 PowerShell 5 with `DAO.DBEngine.36`; exact
+  provider identity and binary SHA-256 must match across three replicas.
+  Windows ANSI code page 1252 is mandatory and recorded; `A4TAB_É4`, bytes
+  `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
+- Protocol: freeze immutable base plan
+  `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
+  `6604b4866b26e3077f351909f7cf85839da7ff75a11600320b21d67d2e98c21c`,
+  before acquisition. Execute exactly 25 closed, quiescent checkpoints with
+  one listed logical schema mutation per schema transition and canonical DAO
+  user-schema snapshots at every checkpoint. Derive H1--H4 on independent
+  replicas 1 and 2, canonically freeze before replica 3 is downloaded/opened,
+  then predict the role-rotated holdout without refit. Retain R5-V01-style
+  plan/revision binding, R4-S01-style survivor counts, R4-C01-style union-once
+  work charging, a complete manifest, independent recomputation and tamper
+  suite, and the R5-T01-style hard 2,700-second campaign bound: accept 2,700,
+  reject 2,701 before manifest creation.
+- Artifacts: immutable base plan and README under
+  `oracle/windows-dao/experiments/a4/`; copied and retagged A3 schema family;
+  new `dao-schema-snapshot.schema.json`; focused structural contract
+  `oracle/windows-dao/tests/test_a4_plan_contract.py`. The A3 calibration
+  identities recorded in the plan are manifest
+  `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`,
+  analysis report
+  `7587389e4323171aff9b9efcd46bcd5fc8e2ec8273116e8a0360965e4e11faeb`,
+  and frozen derivation set
+  `ec7c8d27cc46ef9dfdc8214d025cd2d6493ab089f00fc35dbf0ccb9899cdcc0a`.
+- Observation: no A4 provider observation exists. The plan preregisters four
+  layered hypotheses: H1 locates exactly two row-directory-anchored map rows
+  from a lifecycle-selected TDEF; H2 assigns complete type-0/type-1 rows to
+  owned/in-use and available roles while permitting row motion; H3 tests zero
+  slots, exact tag-05 references, bitmap bytes `[4,2048)`, and
+  `slot_ordinal * 16352 + bit_index`; H4 tests one allocation-admitted catalog
+  root and a minimal kind/id/name field model. All 40 predicate ids have an
+  explicit sequence, terminal, reachability row, and per-layer survivor-count
+  rule. The schedule includes one nonunique `A4IX_ID` index solely as an
+  object-kind perturbation.
+- Interpretation: A4 is a new base experiment, not an A3 revision or
+  reinterpretation. `EXP-0051` concrete row motion (page-24 row 0 starts
+  1915, 1911, 1895, 1847, then 1843), the pages-1021--1023 A3 boundary
+  violation, type-1 prefixes, and tag-05 references are disclosed calibration
+  inputs only. A future A4 result must arise from three fresh replicas and
+  independent validation. Acquisition remains `BLOCKED` until every execution
+  gate and dry-run honesty requirement is implemented and disclosed.
+- Usage: physical-provenance plan for future Stage 2 map-location,
+  pointer-following, extended-base work and minimum Stage 3 catalog bootstrap;
+  no production implementation or capability movement is authorized
+- Rights: project-authored plan and schemas; future MDBs and page blobs remain
+  uncommitted DAO-generated evidence. No donated MDB, provider binary, or
+  third-party MDB implementation is used or redistributed.
+- Review: user approved combined H1--H4, one code-page discriminator, one
+  nonunique index perturbation, three replicas with freeze/holdout and
+  independent validation, and the 2,700-second hard bound; focused A4 plan and
+  repository contract checks must pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

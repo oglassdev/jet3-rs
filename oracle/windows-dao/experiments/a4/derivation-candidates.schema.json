@@ -1,0 +1,962 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a4/derivation-candidates.schema.json",
+  "title": "DAO A4 frozen derivation candidate set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "experiment_id",
+    "plan_sha256",
+    "revision_plan_sha256",
+    "campaign_id",
+    "derivation_replicas",
+    "qualified_pages",
+    "work_charges",
+    "layers"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0.0"
+    },
+    "document_type": {
+      "const": "dao_a4_frozen_derivation_candidates"
+    },
+    "experiment_id": {
+      "const": "DAO-A4-ROW-ANCHORED-MAPS-001"
+    },
+    "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "revision_plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "campaign_id": {
+      "$ref": "#/$defs/id"
+    },
+    "derivation_replicas": {
+      "const": [
+        1,
+        2
+      ]
+    },
+    "qualified_pages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "h1_tdef",
+        "h1_map_rows",
+        "h3_extended",
+        "h4_catalog"
+      ],
+      "properties": {
+        "h1_tdef": {
+          "$ref": "#/$defs/pages"
+        },
+        "h1_map_rows": {
+          "$ref": "#/$defs/pages"
+        },
+        "h3_extended": {
+          "$ref": "#/$defs/pages"
+        },
+        "h4_catalog": {
+          "$ref": "#/$defs/pages"
+        }
+      }
+    },
+    "layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "h1_tdef_to_map_row",
+        "h2_row_identity_map_role",
+        "h3_indirect_traversal",
+        "h4_catalog_bootstrap"
+      ],
+      "properties": {
+        "h1_tdef_to_map_row": {
+          "$ref": "#/$defs/h1Layer"
+        },
+        "h2_row_identity_map_role": {
+          "$ref": "#/$defs/h2Layer"
+        },
+        "h3_indirect_traversal": {
+          "$ref": "#/$defs/h3Layer"
+        },
+        "h4_catalog_bootstrap": {
+          "$ref": "#/$defs/h4Layer"
+        }
+      }
+    },
+    "work_charges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "row_slots",
+        "locator_pairs",
+        "references",
+        "bitmap_bits",
+        "catalog_candidates",
+        "models",
+        "analysis_work_units"
+      ],
+      "properties": {
+        "row_slots": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        },
+        "locator_pairs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        },
+        "references": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        },
+        "bitmap_bits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        },
+        "catalog_candidates": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        },
+        "models": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        },
+        "analysis_work_units": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000000
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 65535
+      }
+    },
+    "leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_checkpoint_id",
+        "right_checkpoint_id"
+      ],
+      "properties": {
+        "left_checkpoint_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        },
+        "right_checkpoint_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        }
+      }
+    },
+    "nullableLeg": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/leg"
+        }
+      ]
+    },
+    "crossCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluated_legs",
+        "representation_change_stop",
+        "first_violating_leg",
+        "first_violating_page"
+      ],
+      "properties": {
+        "evaluated_legs": {
+          "type": "array",
+          "maxItems": 15,
+          "items": {
+            "$ref": "#/$defs/leg"
+          }
+        },
+        "representation_change_stop": {
+          "$ref": "#/$defs/nullableLeg"
+        },
+        "first_violating_leg": {
+          "$ref": "#/$defs/nullableLeg"
+        },
+        "first_violating_page": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          ]
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2042
+        },
+        "end": {
+          "const": 2048
+        }
+      }
+    },
+    "globalRecordModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record",
+        "bit_polarity",
+        "zero_suffix_slack_bytes"
+      ],
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/record"
+        },
+        "bit_polarity": {
+          "enum": [
+            "set_means_in_use",
+            "set_means_not_in_use"
+          ]
+        },
+        "zero_suffix_slack_bytes": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 2048
+        }
+      }
+    },
+    "conversionModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conversion_checkpoint_id",
+        "conversion_ordinal",
+        "indirect_tag",
+        "active_slot_count_at_conversion",
+        "active_slot_count_at_h_rel_0904",
+        "inline_boundary",
+        "slot_reference_pages"
+      ],
+      "properties": {
+        "conversion_checkpoint_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        },
+        "conversion_ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
+        "indirect_tag": {
+          "const": 1
+        },
+        "active_slot_count_at_conversion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "active_slot_count_at_h_rel_0904": {
+          "const": 2
+        },
+        "inline_boundary": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 2048
+        },
+        "slot_reference_pages": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          }
+        }
+      }
+    },
+    "baseModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extended_base_formula"
+      ],
+      "properties": {
+        "extended_base_formula": {
+          "enum": [
+            "slot_relative_expected_0_16352",
+            "referenced_page_relative",
+            "slot_relative_off_by_minus_one",
+            "slot_relative_off_by_plus_one",
+            "referenced_page_relative_off_by_minus_one",
+            "referenced_page_relative_off_by_plus_one"
+          ]
+        }
+      }
+    },
+    "tdefModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record",
+        "pointer_layout",
+        "growth_pointer_offset",
+        "delete_reinsert_pointer_offset"
+      ],
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/record"
+        },
+        "pointer_layout": {
+          "enum": [
+            "u24le_page_then_u8_slot",
+            "u8_slot_then_u24le_page"
+          ]
+        },
+        "growth_pointer_offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2044
+        },
+        "delete_reinsert_pointer_offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2044
+        }
+      }
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      ]
+    },
+    "predicate": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "A4-IDLE-EQUALITY",
+            "A4-SCHEMA-SNAPSHOT",
+            "A4-SNAPSHOT-RECONSTRUCTION",
+            "A4-RESOURCE-BOUND",
+            "A4-H1-TDEF-NONE",
+            "A4-H1-TDEF-MULTIPLE",
+            "A4-H1-LOCATOR-LAYOUT-NONE",
+            "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+            "A4-H1-LOCATOR-PAIR-NONE",
+            "A4-H1-LOCATOR-PAIR-MULTIPLE",
+            "A4-H1-TARGET-ROW-INVALID",
+            "A4-H1-REPLICA-DISAGREEMENT",
+            "A4-H1-HOLDOUT-PREDICTION",
+            "A4-H2-ROW-DIRECTORY-INVALID",
+            "A4-H2-ROW-FLAGS-INVALID",
+            "A4-H2-MAP-TAG-UNSUPPORTED",
+            "A4-H2-ROLE-NONE",
+            "A4-H2-ROLE-MULTIPLE",
+            "A4-H2-TRANSITION-UNEXPLAINED",
+            "A4-H2-REPLICA-DISAGREEMENT",
+            "A4-H2-HOLDOUT-PREDICTION",
+            "A4-H3-CONVERSION-NONE",
+            "A4-H3-INACTIVE-SLOT-NONE",
+            "A4-H3-REFERENCE-INVALID",
+            "A4-H3-BASE-DISCRIMINATION",
+            "A4-H3-BASE-NONE",
+            "A4-H3-BASE-MULTIPLE",
+            "A4-H3-REPLICA-DISAGREEMENT",
+            "A4-H3-HOLDOUT-PREDICTION",
+            "A4-H4-CATALOG-ROOT-NONE",
+            "A4-H4-CATALOG-ROOT-MULTIPLE",
+            "A4-H4-CATALOG-RECORD-NONE",
+            "A4-H4-CATALOG-RECORD-MULTIPLE",
+            "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+            "A4-H4-FIELD-MODEL-NONE",
+            "A4-H4-FIELD-MODEL-MULTIPLE",
+            "A4-H4-ENCODING-AMBIGUOUS",
+            "A4-H4-REPLICA-DISAGREEMENT",
+            "A4-H4-HOLDOUT-ROOT",
+            "A4-H4-HOLDOUT-FIELDS"
+          ]
+        }
+      ]
+    },
+    "globalRecordLayer": {
+      "$ref": "#/$defs/layerGlobal"
+    },
+    "conversionLayer": {
+      "$ref": "#/$defs/layerConversion"
+    },
+    "baseLayer": {
+      "$ref": "#/$defs/layerBase"
+    },
+    "tdefLayer": {
+      "$ref": "#/$defs/layerTdef"
+    },
+    "layerGlobal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicable",
+        "derivation_survivor_count",
+        "model",
+        "no_outcome_reason",
+        "terminal_predicate_id"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/globalRecordModel"
+            }
+          ]
+        },
+        "no_outcome_reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        }
+      }
+    },
+    "layerConversion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicable",
+        "derivation_survivor_count",
+        "model",
+        "no_outcome_reason",
+        "terminal_predicate_id"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/conversionModel"
+            }
+          ]
+        },
+        "no_outcome_reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        }
+      }
+    },
+    "layerBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicable",
+        "derivation_survivor_count",
+        "model",
+        "no_outcome_reason",
+        "terminal_predicate_id"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/baseModel"
+            }
+          ]
+        },
+        "no_outcome_reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        }
+      }
+    },
+    "layerTdef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicable",
+        "derivation_survivor_count",
+        "model",
+        "no_outcome_reason",
+        "terminal_predicate_id"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/tdefModel"
+            }
+          ]
+        },
+        "no_outcome_reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        }
+      }
+    },
+    "h1Model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator_layout",
+        "row_offset_mask",
+        "tables"
+      ],
+      "properties": {
+        "locator_layout": {
+          "type": "string",
+          "enum": [
+            "u24le_page_then_u8_row",
+            "u8_row_then_u24le_page"
+          ]
+        },
+        "row_offset_mask": {
+          "type": "integer",
+          "enum": [
+            4095,
+            8191
+          ]
+        },
+        "tables": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "logical_role",
+              "tdef_page",
+              "locator_offsets"
+            ],
+            "properties": {
+              "logical_role": {
+                "type": "string",
+                "enum": [
+                  "T1",
+                  "T2",
+                  "T3",
+                  "T4"
+                ]
+              },
+              "tdef_page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20479
+              },
+              "locator_offsets": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 2044
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "h2Model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owned_in_use_locator_ordinal",
+        "available_locator_ordinal",
+        "observed_tags",
+        "row_motion_observed"
+      ],
+      "properties": {
+        "owned_in_use_locator_ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "available_locator_ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "observed_tags": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          }
+        },
+        "row_motion_observed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "h3Model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inactive_slot_observed",
+        "bitmap_start",
+        "mapped_bits",
+        "base_formula"
+      ],
+      "properties": {
+        "inactive_slot_observed": {
+          "const": true
+        },
+        "bitmap_start": {
+          "const": 4
+        },
+        "mapped_bits": {
+          "const": 16352
+        },
+        "base_formula": {
+          "const": "slot_ordinal_times_16352_plus_bit_index"
+        }
+      }
+    },
+    "h4Model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalog_root_location",
+        "catalog_row_fields"
+      ],
+      "properties": {
+        "catalog_root_location": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "logical_role",
+                "tdef_page"
+              ],
+              "properties": {
+                "logical_role": {
+                  "type": "string",
+                  "enum": [
+                    "T1",
+                    "T2",
+                    "T3",
+                    "T4"
+                  ]
+                },
+                "tdef_page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20479
+                }
+              }
+            }
+          ]
+        },
+        "catalog_row_fields": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind_field",
+                "identifier_field",
+                "name_field",
+                "name_encoding"
+              ],
+              "properties": {
+                "kind_field": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 2047
+                },
+                "identifier_field": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 2047
+                },
+                "name_field": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 2047
+                },
+                "name_encoding": {
+                  "const": "windows-1252"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "h1Layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "derivation_survivor_count",
+        "terminal_predicate_id",
+        "model"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "model",
+            "no_outcome",
+            "not_applicable"
+          ]
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/h1Model"
+            }
+          ]
+        }
+      }
+    },
+    "h2Layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "derivation_survivor_count",
+        "terminal_predicate_id",
+        "model"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "model",
+            "no_outcome",
+            "not_applicable"
+          ]
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/h2Model"
+            }
+          ]
+        }
+      }
+    },
+    "h3Layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "derivation_survivor_count",
+        "terminal_predicate_id",
+        "model"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "model",
+            "no_outcome",
+            "not_applicable"
+          ]
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/h3Model"
+            }
+          ]
+        }
+      }
+    },
+    "h4Layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "derivation_survivor_count",
+        "terminal_predicate_id",
+        "model"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "model",
+            "no_outcome",
+            "not_applicable"
+          ]
+        },
+        "derivation_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "terminal_predicate_id": {
+          "$ref": "#/$defs/predicate"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/h4Model"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

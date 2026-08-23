@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a4/independent-validation-report.schema.json",
+  "title": "DAO A4 independent recomputation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version", "document_type", "experiment_id", "plan_sha256",
+    "revision_plan_sha256",
+    "campaign_id", "bundle_manifest_sha256", "validator_commit",
+    "implementation_independence_attested", "frozen_set_parsed",
+    "frozen_set_matches_recomputation", "frozen_set_matches_report",
+    "predicate_registry_recomputed", "holdout_recomputed", "tamper_results",
+    "accepted", "independent_validation_status", "discrepancy_codes"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0.0"},
+    "document_type": {"const": "dao_a4_independent_validation_report"},
+    "experiment_id": {"const": "DAO-A4-ROW-ANCHORED-MAPS-001"},
+    "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "revision_plan_sha256": {"$ref": "#/$defs/sha256"},
+    "campaign_id": {"$ref": "#/$defs/id"},
+    "bundle_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "validator_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "implementation_independence_attested": {"const": true},
+    "frozen_set_parsed": {"const": true},
+    "frozen_set_matches_recomputation": {"type": "boolean"},
+    "frozen_set_matches_report": {"type": "boolean"},
+    "predicate_registry_recomputed": {"type": "boolean"},
+    "holdout_recomputed": {"type": "boolean"},
+    "tamper_results": {
+      "type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "rejected", "discrepancy_code"],
+        "properties": {
+          "id": {"enum": ["T1", "T2", "T3", "T4", "T5"]},
+          "rejected": {"const": true},
+          "discrepancy_code": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9_]+$"}
+        }
+      }
+    },
+    "accepted": {"type": "boolean"},
+    "independent_validation_status": {"enum": ["not_independently_validated", "independently_validated"]},
+    "discrepancy_codes": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9_]+$"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}
+  }
+}
