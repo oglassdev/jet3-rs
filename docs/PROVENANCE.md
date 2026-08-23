@@ -3793,6 +3793,130 @@ Use `not applicable` explicitly rather than omitting a field.
   holdout-semantics, and dry-run-clause contracts plus repository validation
   must pass
 
+### EXP-0047 — A3 pre-acquisition survivor-count and replay blob-bound revision
+
+- Recorded: 2026-08-22, Claude Fable 5
+- Kind: additive pre-acquisition operational-rule reconciliation; no A3 worker,
+  workflow, analyzer result, validator result, dry-run result, DAO acquisition,
+  physical-format result, Rust result, or compatibility result
+- Origin: the executed full-sweep analyzer/validator pair gate of PR #58
+  (`origin/fable/a3-dryrun`, `dry-run/a3-pair-agreement.json`, 100 fixtures,
+  89 disagreeing) and its `dry-run/exp-0042-replay-report.json`, which was
+  schema-rejected solely on `input_page_blob_count` 81 > 55. The two results
+  were read only to locate the gaps; neither rule adopts an implementation for
+  convenience. The ceiling and the 81 were re-measured directly from the
+  retained `EXP-0042` bundle's replica 1 and 2 page indexes (manifest SHA-256
+  `9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46`);
+  `EXP-0042` replica 3 was not opened. No external MDB implementation,
+  Microsoft implementation source, donated MDB, A3 DAO observation, or holdout
+  artifact was inspected.
+- Additive R4 revision: `DAO-A3-ALLOCATION-MAPS-001-R4` binds the base plan
+  (SHA-256 `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`),
+  R2 (`3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`), and
+  R3 (`bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`),
+  inherits their sequences and rules unchanged except the two sentences
+  `R4-C01` supersedes, and pins `R4-S01`, `R4-B01`, `R4-B02`, and `R4-C01`. Acquisition has not started, so the revision is permitted by
+  the base plan's amendment rule.
+- `R4-S01` survivor count: `decision_rules.freeze_rule` says only that
+  `derivation_survivor_counts equals layer counts`; on
+  `second_global_page_opposite_polarity` the analyzer froze 2 at
+  `A3-POLARITY-MULTIPLE` and the validator expected 0. R4 pins the count as
+  the cardinality, in derivation replica 1, of the candidate set the layer's
+  terminal predicate classified: every MULTIPLE terminal carries its
+  multiplicity (at least 2), every NONE/precondition/discrimination/
+  set-relation/record-end/cross-check terminal carries 0, a model or a
+  single-survivor terminal (slot, inline-suffix, pointer-validity, structural
+  exclusion, holdout prediction) carries 1, `A3-REPLICA-DISAGREEMENT` carries
+  replica 1's count at its own stop, and an inapplicable layer carries 0. The
+  table is written for every terminal of every layer. Rationale: a MULTIPLE
+  terminal is the statement that more than one candidate survived, so
+  freezing 0 there would contradict the terminal and collapse the
+  field-for-field freeze comparison to a constant for every non-decisive layer.
+- `R4-B01` replay blob bound: the base plan's 55 lives in
+  `analyzer_dry_run_contract.historical_a1_input_not_required_by_a3`
+  (`max_input_page_blobs`, and `candidate_bound_assertion`'s 13 qualified
+  pages per replica) and is A1 run-12 calibration text, but
+  `dry-run-report.schema.json` copied it as the maximum of
+  `input_page_blob_count`, which binds every A3 dry-run report. R4 pins the
+  ceiling 1800 = 2 derivation replicas x 25 planned checkpoints x (16 + 16
+  `max_qualified_pages_per_submodel` + 4 referenced pages: two global slots and
+  two TDEF pointers), distinct blobs counted once, synthetic runs reporting 0,
+  replica 3 never opened. Re-measured `EXP-0042` values: global qualified pages
+  `{0,1,20,21}` and TDEF qualified pages `{0,1,23,24}` in both replicas; over
+  25 checkpoints x 2 replicas the global pages yield 50 distinct blobs and the
+  TDEF pages 71, sharing pages 0 and 1, union exactly 81; no referenced page is
+  opened because the conversion layer stops at cross-check leg 3 and TDEF at
+  `A3-TDEF-RECORD-NONE`. The replacement `candidate_bound_assertion` asserts
+  those pages, at most 16 per submodel, exactly 81 blobs, and no more than
+  1800.
+- `R4-B02` schema edit: `oracle/windows-dao/experiments/a3/dry-run-report.schema.json`
+  `properties.input_page_blob_count.maximum` 55 -> 1800, SHA-256
+  `f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593` ->
+  `e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d`, and the
+  matching pin in `oracle/windows-dao/scripts/a3_spec.py`. R3 kept every
+  schema immutable; R4 edits this one because the dry-run report is a
+  pre-acquisition calibration artifact the base plan declares non-evidential
+  (`retained_exp_0042_input.scientific_evidence = false`, `disclosure_rule`),
+  never enters a retained evidence bundle, and validates no scientific
+  outcome. The nine evidence schemas and `plan.schema.json` are byte-identical.
+  The single sentence of R3's `pair_acceptance_gate` declaring the dry-run
+  schema unchanged is superseded for this one field.
+- `R4-C01` record candidate count: independent review of this revision ruled
+  the `sixteen_qualified_pages` divergence a plan gap, not an analyzer defect.
+  `R3-G08`/`R3-G03` count `record_candidates_examined` per (derivation
+  replica, qualified page), which at 16 + 16 pages in both replicas gives
+  134,283,264, while the immutable base plan's
+  `combined_record_candidate_bound`, `bounds.max_record_candidates`, and the
+  analysis-report schema maximum are all 67,141,632 = 32 x 2,098,176 with no
+  replica factor, and `prefix_sum_work_model` (537,133,056 + 1,049,088 =
+  538,182,144 < 600,000,000) likewise assumes none. R4 supersedes those two
+  sentences: the field and the work units count each union qualified page
+  once across derivation replicas (a TDEF page when the churn precondition
+  passed in at least one replica), so the exact ceiling 67,141,632 is accepted
+  and one page more (69,239,808) is rejected by schema, bound, and
+  `max_qualified_pages_per_submodel`. The independent validator must
+  recompute the field on that basis and must also enforce
+  `bounds.max_record_candidates`, which the validator lane never does today.
+  `EXP-0042` replay value under the rule: 8 union pages, 16,785,408. No bound,
+  `plan.schema.json` const, or evidence schema changes.
+- Not resolved here: the TDEF u24 pointer-layout disagreement (87 of 89
+  cases: analyzer `tdef_pointer_pair` terminal `A3-POINTER-MULTIPLE` with a
+  null model where the validator derives `u24le_page_then_u8_slot`, offsets
+  0/2044, under `tdef_no_outcome_ordering` and `R3-G06`) is an analyzer
+  defect against existing text, not a plan gap, and is left to the analyzer
+  lane.
+- Independent review: `/private/tmp/fable-59-60-review.md` (sections A.6 and
+  C), not committed; it verified additivity, hash pins, the schema-edit
+  justification, the survivor table, and the 81/1800 derivations, and
+  required the `R4-C01` ruling before merge.
+- Plan identities:
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json`, SHA-256
+  `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
+  `bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`;
+  `oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json`, SHA-256
+  `939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`.
+- Observation: `preregistration.acquisition_started` remains `false`; this
+  revision records no database, checkpoint, replica observation, candidate
+  set, report, validation receipt, evidence bundle, or scientific outcome.
+- Interpretation and execution gate: this amendment resolves implementation
+  contract ambiguities only. It assigns no independently validated Jet
+  meaning, proves no Rust behavior or DAO compatibility, changes no
+  support-matrix entry, and authorizes no A3 acquisition. The `EXP-0044`
+  execution gate remains `BLOCKED`.
+- Usage: `file:oracle/windows-dao/experiments/a3/README.md`;
+  `file:oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json`;
+  `file:oracle/windows-dao/experiments/a3/dry-run-report.schema.json`;
+  the A3 analyzer and independent validator lanes, which must rebind to R4
+- Rights: project-authored revision and tests; no DAO binary, MDB, page blob,
+  or retained bundle is committed or redistributed
+- Review: focused A3 plan hash, R4 binding, survivor-count table, blob-bound
+  derivation, schema-hash, record-candidate-count, and analyzer-defect-exclusion
+  contracts plus
+  repository validation must pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

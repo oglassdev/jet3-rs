@@ -19,6 +19,9 @@ PLAN_SHA256 = "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
 REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 R3_PLAN = EXPERIMENT / "a3-allocation-maps-r3.plan.json"
 R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
+R4_PLAN = EXPERIMENT / "a3-allocation-maps-r4.plan.json"
+R4_PLAN_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+DRY_RUN_SCHEMA_SHA256 = "e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d"
 PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
 DESIGN_INPUT_HASHES = {
     "a2-preregistration-pointer.md": "8f16e79686620e254b0ba98de4d7cb21611f84a3e9b5c84d9fd6428987f51632",
@@ -264,6 +267,116 @@ class A3PlanContractTests(unittest.TestCase):
         readme = README.read_text(encoding="utf-8")
         self.assertIn("### EXP-0046", provenance)
         for digest in (R3_PLAN_SHA256, PAIR_REVIEW_SHA256):
+            self.assertIn(digest, provenance)
+            self.assertIn(digest, readme)
+
+    def test_r4_survivor_count_and_replay_blob_bound_are_hash_pinned(self) -> None:
+        revision_bytes = R4_PLAN.read_bytes()
+        revision = json.loads(revision_bytes)
+        self.assertEqual(hashlib.sha256(revision_bytes).hexdigest(), R4_PLAN_SHA256)
+        preregistration = revision["preregistration"]
+        self.assertEqual(revision["revision_id"], "DAO-A3-ALLOCATION-MAPS-001-R4")
+        self.assertEqual(preregistration["provenance_entry"], "EXP-0047")
+        self.assertEqual(preregistration["revision_of"], self.plan["experiment_id"])
+        self.assertEqual(preregistration["original_plan"]["sha256"], PLAN_SHA256)
+        self.assertEqual(
+            [row["sha256"] for row in preregistration["prior_revisions"]],
+            [REVISION_PLAN_SHA256, R3_PLAN_SHA256],
+        )
+        self.assertFalse(preregistration["acquisition_started"])
+        self.assertIn("permitted", preregistration["amendment_permitted"])
+        self.assertIn("replica 3 was not opened", preregistration["derivation_basis"])
+
+        survivor = revision["survivor_count_reconciliation"]
+        self.assertEqual(survivor["gap_id"], "R4-S01")
+        rule = survivor["rule"]
+        for text in (
+            "measured in derivation replica 1",
+            "the multiplicity (at least 2) for every MULTIPLE terminal",
+            "0 for every terminal that fires on an empty set",
+            "1 for every terminal that fires on the single surviving candidate",
+            "An inapplicable layer counts 0",
+        ):
+            self.assertIn(text, rule)
+        sequences = json.loads(REVISION_PLAN.read_bytes())[
+            "predicate_evaluation_sequence_reconciliation"
+        ]["per_layer_ordered_predicates"]
+        table = survivor["per_terminal_counts"]
+        self.assertEqual(set(table), set(sequences))
+        for layer, ordered in sequences.items():
+            rows = table[layer]
+            self.assertEqual([row["predicate_id"] for row in rows], ordered)
+            for row in rows:
+                if row["predicate_id"].endswith("-MULTIPLE"):
+                    self.assertIn("at least 2", row["count"])
+                elif row["predicate_id"].endswith("-NONE"):
+                    self.assertTrue(row["count"].startswith("0"))
+        self.assertIn("A3-POLARITY-MULTIPLE with derivation_survivor_count 2", survivor["pair_gate_worked_example"])
+
+        gaps = {gap["gap_id"]: gap for gap in revision["replay_blob_bound_reconciliation"]["gaps"]}
+        self.assertEqual(set(gaps), {"R4-B01", "R4-B02"})
+        bound = gaps["R4-B01"]["rule"]
+        self.assertIn("Its ceiling is 1800", bound)
+        self.assertIn("2 derivation replicas x 25 planned checkpoints x (16 + 16 + 4)", bound)
+        self.assertEqual(self.plan["bounds"]["max_qualified_pages_per_submodel"], 16)
+        self.assertEqual(self.plan["bounds"]["planned_checkpoints_per_replica"], 25)
+        self.assertEqual(2 * 25 * (16 + 16 + 4), 1800)
+        example = gaps["R4-B01"]["exp_0042_worked_example"]
+        for text in ("{0, 1, 20, 21}", "{0, 1, 23, 24}", "50 distinct blobs", "71", "exactly 81"):
+            self.assertIn(text, example)
+        self.assertIn("exactly 81 unique page blobs", gaps["R4-B01"]["exp_0042_candidate_bound_assertion"])
+        self.assertEqual(
+            self.plan["analyzer_dry_run_contract"]["historical_a1_input_not_required_by_a3"]["max_input_page_blobs"],
+            55,
+        )
+
+        schema_bytes = (EXPERIMENT / "dry-run-report.schema.json").read_bytes()
+        self.assertEqual(hashlib.sha256(schema_bytes).hexdigest(), DRY_RUN_SCHEMA_SHA256)
+        self.assertEqual(
+            json.loads(schema_bytes)["properties"]["input_page_blob_count"]["maximum"], 1800
+        )
+        schema_rule = gaps["R4-B02"]["rule"]
+        self.assertIn(DRY_RUN_SCHEMA_SHA256, schema_rule)
+        self.assertIn("non-evidential", schema_rule)
+
+        candidates = revision["record_candidate_count_reconciliation"]
+        self.assertEqual(candidates["gap_id"], "R4-C01")
+        per_page = self.plan["bounds"]["max_record_candidates_per_page"]
+        ceiling = self.plan["bounds"]["max_record_candidates"]
+        self.assertEqual(32 * per_page, ceiling)
+        self.assertEqual(
+            self.plan["record_candidate_procedure"]["combined_record_candidate_bound"], ceiling
+        )
+        report_schema = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
+        self.assertEqual(
+            report_schema["properties"]["record_candidates_examined"]["maximum"], ceiling
+        )
+        self.assertLess(8 * ceiling + 32 * 16 * 2049, self.plan["bounds"]["max_analysis_work_units"])
+        for text in (
+            "counted once however many derivation replicas enumerated it",
+            "supersedes the record_candidates_examined sentence of R3-G08",
+            "must additionally enforce bounds.max_record_candidates",
+        ):
+            self.assertIn(text, candidates["rule"])
+        self.assertIn("67,141,632 = combined_record_candidate_bound", candidates["bound_consistency_derivation"])
+        self.assertIn("16,785,408", candidates["exp_0042_worked_example"])
+
+        defects = revision["analyzer_defects_not_resolved_here"]
+        self.assertEqual([row["id"] for row in defects["items"]], ["tdef_u24_pointer_layout"])
+
+        effect = revision["execution_effect"]
+        self.assertTrue(effect["original_plan_remains_immutable"])
+        self.assertTrue(effect["original_evidence_schemas_remain_immutable"])
+        self.assertTrue(effect["dry_run_report_schema_changed"])
+        self.assertFalse(effect["r3_rules_remain_immutable"])
+        self.assertIn("R4-C01", effect["r3_rules_superseded"])
+        self.assertFalse(effect["bounds_changed"])
+        self.assertFalse(effect["acquisition_authorized"])
+
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+        self.assertIn("### EXP-0047", provenance)
+        for digest in (R4_PLAN_SHA256, DRY_RUN_SCHEMA_SHA256):
             self.assertIn(digest, provenance)
             self.assertIn(digest, readme)
 
@@ -662,7 +775,7 @@ class A3PlanContractTests(unittest.TestCase):
 
     def test_all_a3_json_documents_parse(self) -> None:
         documents = sorted(EXPERIMENT.glob("*.json"))
-        self.assertEqual(len(documents), 14)
+        self.assertEqual(len(documents), 15)
         for document in documents:
             with self.subTest(document=document.name):
                 json.loads(document.read_bytes())

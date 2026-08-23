@@ -1,0 +1,290 @@
+{
+  "protocol_version": "1.0.0",
+  "document_type": "dao_a3_allocation_maps_plan_revision",
+  "revision_id": "DAO-A3-ALLOCATION-MAPS-001-R4",
+  "preregistration": {
+    "provenance_entry": "EXP-0047",
+    "recorded_utc_date": "2026-08-22",
+    "acquisition_started": false,
+    "acquisition_start_criterion": "acquisition starts when the first schema-valid A3 replica observation is retained for inspection",
+    "revision_of": "DAO-A3-ALLOCATION-MAPS-001",
+    "original_plan": {
+      "path": "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json",
+      "sha256": "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+    },
+    "prior_revisions": [
+      {
+        "revision_id": "DAO-A3-ALLOCATION-MAPS-001-R2",
+        "path": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json",
+        "sha256": "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
+        "inherited": "campaign order, per-layer ordered predicate sequences, layer evaluation rule, and status projection rules are inherited unchanged"
+      },
+      {
+        "revision_id": "DAO-A3-ALLOCATION-MAPS-001-R3",
+        "path": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json",
+        "sha256": "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a",
+        "inherited": "gap rules R3-G01 through R3-G10, minor readings R3-M01 through R3-M06, the predicate reachability classification, and the dry-run honesty clause are inherited unchanged except for (i) the single sentence of dry_run_honesty_clause.pair_acceptance_gate that declares the dry-run report schema unchanged, which R4-B02 supersedes, and (ii) the record_candidates_examined counting sentences of R3-G08 and R3-G03, which R4-C01 supersedes"
+      }
+    ],
+    "design_inputs": [
+      {
+        "path": "oracle/windows-dao/experiments/a3/dry-run/a3-pair-agreement.json",
+        "location": "origin/fable/a3-dryrun (PR #58), not yet merged; read for the two gaps only, its SHA-256 is not pinned here because that lane may still change before merge",
+        "role": "executed_full_sweep_pair_gate_that_surfaced_the_two_gaps"
+      },
+      {
+        "path": "oracle/windows-dao/experiments/a3/dry-run/exp-0042-replay-report.json",
+        "location": "origin/fable/a3-dryrun (PR #58), not yet merged",
+        "role": "executed_exp_0042_replay_whose_input_page_blob_count_81_was_rejected_by_the_schema_maximum_55"
+      },
+      {
+        "path": "/private/tmp/fable-59-60-review.md",
+        "location": "independent review of PR #60 and PR #59, sections A.6 and C, not committed",
+        "role": "ruling_that_the_sixteen_qualified_pages_divergence_is_a_plan_gap_in_record_candidates_examined_counting"
+      }
+    ],
+    "scientific_design_inherited_unchanged": [
+      "question",
+      "replicas",
+      "tables",
+      "checkpoint_design",
+      "page_capture",
+      "record_candidate_procedure",
+      "inline_boundary_procedure",
+      "hypotheses",
+      "predicate_registry",
+      "decision_rules",
+      "decisive_report_handling",
+      "runtime_design",
+      "artifacts",
+      "bounds",
+      "claims"
+    ],
+    "revision_scope": "pin three items that the executed full-sweep analyzer/validator pair gate (PR #58) showed the base text leaves open or in conflict: the meaning of derivation_survivor_count when a layer terminates at a MULTIPLE predicate; the input_page_blob_count ceiling of the EXP-0042 derivation-only replay, which the base plan and dry-run report schema inherited from the A1 run-12 calibration (55) rather than deriving from A3's own bounds; and the replica factor in record_candidates_examined, where R3-G08's per-(replica, page) counting contradicts the base plan's combined_record_candidate_bound, bounds.max_record_candidates, the analysis-report schema maximum, and the prefix_sum_work_model arithmetic. No predicate id, mapping, sequence, scientific model, bound, acquisition gate, or evidence schema changes",
+    "derivation_basis": "R4-S01 is derived from the immutable base plan's freeze_rule (frozen and report derivation_survivor_count are identical and the frozen set is compared field-for-field), its no_outcome reporting (every terminal predicate names the classification its stage made), and R3-G03's per-replica evaluation. R4-B01 is derived from bounds.max_qualified_pages_per_submodel, bounds.planned_checkpoints_per_replica, the two-replica derivation rule, and the four pointer references a model can hold, and its EXP-0042 value was re-measured directly from the retained EXP-0042 bundle's replica 1 and 2 page indexes (manifest SHA-256 9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46). The PR #58 analyzer and validator results were read only to locate the two divergences; neither rule adopts an implementation because it is convenient. EXP-0042 replica 3 was not opened. R4-C01 is derived from the immutable base plan's record_candidate_procedure.combined_record_candidate_bound, bounds.max_record_candidates, bounds.max_analysis_work_units, prefix_sum_work_model arithmetic, and the analysis-report schema maximum, all of which presuppose no replica factor",
+    "amendment_permitted": "acquisition has not started, so this additive revision is permitted by the original plan's amendment rule",
+    "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
+  },
+  "survivor_count_reconciliation": {
+    "gap_id": "R4-S01",
+    "title": "derivation_survivor_count at a MULTIPLE terminal",
+    "plan_gap": "decision_rules.freeze_rule requires frozen and report derivation_survivor_count to be identical and says only that derivation_survivor_counts equals layer counts; it never says what a layer counts when it stops at a terminal predicate. On the pair gate's second_global_page_opposite_polarity fixtures the analyzer froze 2 at A3-POLARITY-MULTIPLE and the validator expected 0, and the same silence covers every other MULTIPLE terminal",
+    "rule": "derivation_survivor_count of a layer is the cardinality, measured in derivation replica 1, of the candidate set that the layer's evaluation had most recently classified when it stopped. A layer that holds a model counts exactly 1 (its unique survivor). A terminal layer counts the set its terminal predicate classified: 0 for every terminal that fires on an empty set or before any candidate set of that layer exists (every NONE, precondition, discrimination, set-relation, record-end, and polarity-cross-check terminal), the multiplicity (at least 2) for every MULTIPLE terminal, and 1 for every terminal that fires on the single surviving candidate (slot, inline-suffix, pointer-validity, structural-exclusion, and holdout-prediction terminals). A3-REPLICA-DISAGREEMENT counts replica 1's candidate set at replica 1's own stopping point under the same table (1 if replica 1 held a model). An inapplicable layer counts 0. Replica 2's count is computed but, per R3-G03, is not compared across replicas; only the terminal predicate and the model are. The frozen value is the reported value and the independent validator recomputes it from replica 1",
+    "single_implementation": "count of survivors actually found in replica 1; MULTIPLE carries its multiplicity, NONE carries 0, a model or a single-survivor terminal carries 1",
+    "rationale": "the base plan's no_outcome reporting makes every terminal predicate a statement about a classification the stage actually performed; a MULTIPLE terminal is precisely the statement that more than one candidate survived, so the honest count is that multiplicity. Freezing 0 at a MULTIPLE terminal would make the frozen set assert that nothing survived while its terminal asserts the opposite, and would collapse the field-for-field freeze comparison into a constant for every non-decisive layer. Freezing the survivors found also keeps the count monotone with the stage order: it is 0 until candidates exist, greater than 1 exactly at a multiplicity terminal, and 1 from the first single-survivor stage onward",
+    "per_terminal_counts": {
+      "global_map.record": [
+        {
+          "predicate_id": "A3-GLOBAL-PAGE-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-GLOBAL-RECORD-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-D-SET-RELATION",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-GLOBAL-RECORD-END",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-POLARITY-NONE",
+          "count": "0 (unreachable by construction)"
+        },
+        {
+          "predicate_id": "A3-POLARITY-MULTIPLE",
+          "count": "number of stage-4 surviving (page, start, polarity) candidates across every qualified global page, at least 2"
+        },
+        {
+          "predicate_id": "A3-GLOBAL-PAGE-MULTIPLE",
+          "count": "number of stage-6 surviving (page, start) candidates across the two or more pages, at least 2"
+        },
+        {
+          "predicate_id": "A3-GLOBAL-RECORD-MULTIPLE",
+          "count": "number of surviving starts on the single surviving page, at least 2"
+        },
+        {
+          "predicate_id": "A3-STRUCTURAL-EXCLUSION",
+          "count": "1 (unreachable on this layer by construction)"
+        },
+        {
+          "predicate_id": "A3-REPLICA-DISAGREEMENT",
+          "count": "replica 1's count at replica 1's stopping point"
+        }
+      ],
+      "global_map.conversion_inline": [
+        {
+          "predicate_id": "A3-POLARITY-CROSSCHECK",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-CONVERSION-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-CONVERSION-MULTIPLE",
+          "count": "the R3-G02 class-change count, at least 2"
+        },
+        {
+          "predicate_id": "A3-SLOT-ACTIVATION",
+          "count": "1"
+        },
+        {
+          "predicate_id": "A3-SLOT-FINAL",
+          "count": "1"
+        },
+        {
+          "predicate_id": "A3-POINTER-VALIDITY",
+          "count": "1"
+        },
+        {
+          "predicate_id": "A3-INLINE-BOUNDARY-NONE",
+          "count": "0 (unreachable by construction)"
+        },
+        {
+          "predicate_id": "A3-INLINE-BOUNDARY-MULTIPLE",
+          "count": "number of surviving boundaries, at least 2 (unreachable by construction)"
+        },
+        {
+          "predicate_id": "A3-INLINE-SUFFIX",
+          "count": "1"
+        },
+        {
+          "predicate_id": "A3-STRUCTURAL-EXCLUSION",
+          "count": "1 (unreachable on this layer by construction)"
+        },
+        {
+          "predicate_id": "A3-REPLICA-DISAGREEMENT",
+          "count": "replica 1's count at replica 1's stopping point"
+        }
+      ],
+      "global_map.extended_base": [
+        {
+          "predicate_id": "A3-BASE-DISCRIMINATION",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-BASE-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-BASE-MULTIPLE",
+          "count": "number of surviving formulas, at least 2 and at most 6"
+        },
+        {
+          "predicate_id": "A3-POINTER-VALIDITY",
+          "count": "1 (reached, never terminal)"
+        },
+        {
+          "predicate_id": "A3-REPLICA-DISAGREEMENT",
+          "count": "replica 1's count at replica 1's stopping point"
+        }
+      ],
+      "tdef.pointer_pair": [
+        {
+          "predicate_id": "A3-TDEF-PAGE-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-CHURN-PRECONDITION",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-GROWTH-POINTER-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-CHURN-POINTER-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-TDEF-RECORD-NONE",
+          "count": "0"
+        },
+        {
+          "predicate_id": "A3-TDEF-PAGE-MULTIPLE",
+          "count": "number of surviving minimal records across the two or more pages, at least 2"
+        },
+        {
+          "predicate_id": "A3-TDEF-RECORD-MULTIPLE",
+          "count": "number of surviving minimal records on the single surviving page, at least 2"
+        },
+        {
+          "predicate_id": "A3-POINTER-MULTIPLE",
+          "count": "number of pointer-pair models inside the single surviving record, at least 2"
+        },
+        {
+          "predicate_id": "A3-POINTER-VALIDITY",
+          "count": "1"
+        },
+        {
+          "predicate_id": "A3-STRUCTURAL-EXCLUSION",
+          "count": "1"
+        },
+        {
+          "predicate_id": "A3-REPLICA-DISAGREEMENT",
+          "count": "replica 1's count at replica 1's stopping point"
+        }
+      ]
+    },
+    "pair_gate_worked_example": "second_global_page_opposite_polarity: two qualified global pages each carry one stage-4 survivor of opposite polarity, so global_map_record is terminal at A3-POLARITY-MULTIPLE with derivation_survivor_count 2; the frozen count is 2 and the validator must recompute 2, not 0. anchor_highwater_hole: global_map_record is terminal at A3-GLOBAL-RECORD-NONE with count 0. EXP-0042 replay: global_map_record holds a model (count 1), global_map_conversion_inline is terminal at A3-POLARITY-CROSSCHECK (count 0), global_map_extended_base is inapplicable (count 0), tdef_pointer_pair is terminal at A3-TDEF-RECORD-NONE (count 0)"
+  },
+  "replay_blob_bound_reconciliation": {
+    "gaps": [
+      {
+        "gap_id": "R4-B01",
+        "title": "EXP-0042 replay unique page-blob ceiling",
+        "plan_gap": "analyzer_dry_run_contract.historical_a1_input_not_required_by_a3 carries max_input_page_blobs 55 and a candidate_bound_assertion that asserts 13 qualified pages per replica and no more than 55 opened blobs for the A1 run-12 input; dry-run-report.schema.json copied that 55 as the maximum of input_page_blob_count. The base plan marks the A1 section as not required for A3 dispatch, but the schema maximum binds every A3 dry-run report, and analyzer_dry_run_contract.retained_exp_0042_input states no blob bound of its own. The executed EXP-0042 replay (PR #58) opened 81 unique blobs and was rejected by the schema alone",
+        "rule": "A dry-run report's input_page_blob_count is the number of distinct page-blob SHA-256 values the analyzer opened from the page store. Its ceiling is 1800, derived as 2 derivation replicas x 25 planned checkpoints x (16 + 16 + 4) pages per checkpoint: bounds.max_qualified_pages_per_submodel = 16 for the global_map submodel, 16 for the tdef submodel, and at most 4 referenced pages per checkpoint (global slot 0, global slot 1, the TDEF growth pointer, and the TDEF delete/reinsert pointer) read by pointer_validity_rule and R3-G01 on the single surviving model. Replica 3 is never opened in a dry run (holdout_opened is constant false), so it contributes nothing. Every blob counts once however many checkpoints, replicas, or pages share it, and a synthetic run that opens no page store reports 0. A count above 1800 is a dry-run failure and, if reproduced, an analyzer defect against bounds.max_qualified_pages_per_submodel",
+        "single_implementation": "schema maximum 1800; ceiling 2 x 25 x 36",
+        "exp_0042_worked_example": "Re-measured from the retained bundle's replica 1 and 2 page indexes: the global_map qualified pages are {0, 1, 20, 21} and the tdef qualified pages are {0, 1, 23, 24} in both replicas. Over the 25 checkpoints of both replicas the global pages contribute 50 distinct blobs and the tdef pages 71; pages 0 and 1 are shared, so the union is exactly 81 distinct blobs. No referenced page is opened: the conversion layer is terminal at leg 3 of the polarity cross-check before any slot activates, the polarity cross-check itself reads only page 1 at the leg endpoints (already counted), and tdef is terminal at A3-TDEF-RECORD-NONE before pointer validity. 81 exceeds 55 and is below 1800",
+        "exp_0042_candidate_bound_assertion": "The EXP-0042 replay replaces the A1 run-12 figures of candidate_bound_assertion as follows: derive qualification counts from the retained indexes using the plan rule, then assert 4 global qualifying pages {0, 1, 20, 21} and 4 tdef qualifying pages {0, 1, 23, 24} in each of replicas 1 and 2; assert each submodel is at most 16 qualified pages; assert exactly 81 unique page blobs are opened and no more than 1800. The work-unit assertions of the A1 text are not restated: they remain subject to bounds.max_analysis_work_units = 600,000,000 as the plan already requires"
+      },
+      {
+        "gap_id": "R4-B02",
+        "title": "dry-run report schema edit and why it is permitted",
+        "plan_gap": "R3's execution_effect and dry_run_honesty_clause.pair_acceptance_gate state that the dry-run report schema is not changed; the 55 maximum cannot be corrected without editing that file",
+        "rule": "dry-run-report.schema.json is edited in place in exactly one place: properties.input_page_blob_count.maximum changes from 55 to 1800. Before this revision its SHA-256 was f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593; after it, e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d. This is permitted because the dry-run report is a pre-acquisition calibration artifact that the base plan itself declares non-evidential (analyzer_dry_run_contract.retained_exp_0042_input.scientific_evidence = false, disclosure_rule: all are non-evidential); it never enters a retained A3 evidence bundle, carries no DAO observation, and validates no scientific outcome. The evidence schemas (replica-observation, page-index, replica-artifact-manifest, bundle-manifest, analysis-report, holdout-structure-receipt, environment, derivation-candidates, independent-validation-report) and plan.schema.json remain byte-identical. The sentence of R3's pair_acceptance_gate that reads 'The immutable dry-run report schema is not changed' is superseded by this gap for this one field; every other sentence of that clause stands",
+        "single_implementation": "one numeric edit, old and new schema hashes recorded, evidence schemas untouched"
+      }
+    ]
+  },
+  "record_candidate_count_reconciliation": {
+    "gap_id": "R4-C01",
+    "title": "record_candidates_examined and work units count each union qualified page once across derivation replicas",
+    "plan_gap": "R3-G08 defines record_candidates_examined as 2098176 multiplied by the number of (derivation replica, qualified page) enumerations and R3-G03 repeats that each union page is counted once per replica that enumerated it. The immutable base plan fixes record_candidate_procedure.combined_record_candidate_bound = 67,141,632 = 32 x 2,098,176 (16 + 16 qualified pages with no replica factor), bounds.max_record_candidates = 67,141,632, analysis-report.schema.json record_candidates_examined maximum 67,141,632, and prefix_sum_work_model's ceiling arithmetic (interval queries at most 8 x 67,141,632 = 537,133,056 units, prefix construction at most 32 x 16 x 2049 = 1,049,088 units, total 538,182,144 below bounds.max_analysis_work_units = 600,000,000), none of which carries a replica factor. Under R3-G08 the sixteen_qualified_pages fixture (16 global + 16 tdef qualified pages in both replicas, churn precondition met) yields 64 x 2,098,176 = 134,283,264, which no schema-valid analysis report can carry and which exceeds bounds.max_record_candidates; the main analyzer's A3-RESOURCE-BOUND abort and the validator's acceptance are both literal readings of conflicting text, so this is a plan gap",
+    "rule": "record_candidates_examined = 2,098,176 multiplied by the number of pages in the union qualified_pages of R3-G03 (global_map and tdef unions together) that at least one derivation replica actually enumerated: every qualified global page of the union, plus every qualified TDEF page of the union when stage 1 (churn precondition) passed in at least one derivation replica. A page is counted once however many derivation replicas enumerated it; replica 3 is never counted. Work units are charged on the same basis: interval queries at most 8 units per enumerated interval and prefix construction at most 16 x 2049 cells per union qualified page, each charged once across derivation replicas, so the per-replica enumeration of R3-G03 is an evaluation rule and not a charging rule. The independent validator recomputes record_candidates_examined from the union and the per-replica churn precondition, rejects a report whose value differs, and must additionally enforce bounds.max_record_candidates and bounds.max_analysis_work_units on the recomputed values as fail-closed bound checks (the validator on origin/codex/a3-validator enforces max_qualified_pages_per_submodel, max_candidate_models, and max_analysis_work_units but never max_record_candidates; it must). The analyzer raises A3-RESOURCE-BOUND only when the union count exceeds bounds.max_record_candidates or the charged work exceeds bounds.max_analysis_work_units; at the exact ceiling it proceeds. This supersedes the record_candidates_examined sentence of R3-G08 and the sentence of R3-G03 that reads record_candidates_examined counts each page of the union once per replica that enumerated it; every other sentence of R3-G03 and R3-G08 stands",
+    "single_implementation": "one charge per union qualified page across derivation replicas; validator recomputes and enforces max_record_candidates",
+    "bound_consistency_derivation": "bounds.max_qualified_pages_per_submodel = 16 applies to the frozen union arrays (derivation-candidates.schema.json pages maxItems 16), so a union above 16 pages in either submodel is itself an A3-RESOURCE-BOUND abort before any interval is charged, and an enumerated union holds at most 32 pages. Hence record_candidates_examined <= 32 x 2,098,176 = 67,141,632 = combined_record_candidate_bound = bounds.max_record_candidates = analysis-report schema maximum; interval queries <= 8 x 67,141,632 = 537,133,056; prefix construction <= 32 x 16 x 2049 = 1,049,088; total 538,182,144 < 600,000,000, exactly the prefix_sum_work_model arithmetic. bounds_sanity_basis is therefore satisfiable for this field: the exact ceiling 67,141,632 is accepted, and one more page's worth, 69,239,808, is rejected by the schema, by bounds.max_record_candidates, and by max_qualified_pages_per_submodel. No bound, no plan.schema.json const, and no evidence schema changes",
+    "exp_0042_worked_example": "EXP-0042 replay: union qualified pages are global {0, 1, 20, 21} and tdef {0, 1, 23, 24}; the churn precondition passes in both replicas, so 8 enumerated union pages give record_candidates_examined = 8 x 2,098,176 = 16,785,408, against 33,570,816 under the superseded per-replica counting. sixteen_qualified_pages fixture: 32 union pages give exactly 67,141,632, the accepted ceiling",
+    "pair_gate_disposition": "the sixteen_qualified_pages disagreement (analyzer A3-RESOURCE-BOUND versus validator acceptance) is resolved by this rule in favour of acceptance at the ceiling, with the field value 67,141,632; the PR #59 analyzer's cross-replica dedupe matches this rule for the field but the validator must be brought to it as well"
+  },
+  "analyzer_defects_not_resolved_here": {
+    "rule": "the pair gate's remaining disagreement is an analyzer defect against text that already exists and is not a plan gap; R4 does not touch it and the analyzer lane (PR #58 / PR #59) must fix the analyzer to the existing text. The sixteen_qualified_pages disagreement, first listed here as a second analyzer defect, was ruled a plan gap by independent review and is resolved by R4-C01 instead",
+    "items": [
+      {
+        "id": "tdef_u24_pointer_layout",
+        "symptom": "on 87 of the 89 disagreeing sweep cases (100 fixtures) the analyzer reports tdef_pointer_pair terminal A3-POINTER-MULTIPLE (twice A3-CHURN-POINTER-NONE or another id) with a null model while the validator derives the u24le_page_then_u8_slot model with growth pointer offset 0 and delete/reinsert pointer offset 2044",
+        "governing_text": "record_candidate_procedure TDEF layouts, tdef_no_outcome_ordering stages 2-5, and R3-G06 window distinctness"
+      }
+    ]
+  },
+  "execution_effect": {
+    "original_plan_remains_immutable": true,
+    "original_evidence_schemas_remain_immutable": true,
+    "dry_run_report_schema_changed": true,
+    "dry_run_report_schema_change": "properties.input_page_blob_count.maximum 55 -> 1800; sha256 f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593 -> e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d; non-evidential dry-run artifact schema only",
+    "original_predicate_registry_remains_immutable": true,
+    "r2_sequences_remain_immutable": true,
+    "r3_rules_remain_immutable": false,
+    "operational_rules_pinned": true,
+    "scientific_projection_changed": false,
+    "acquisition_authorized": false,
+    "support_claim_changed": false,
+    "r3_rules_superseded": "R3-G08 record_candidates_examined sentence and the matching R3-G03 sentence (R4-C01); one sentence of dry_run_honesty_clause.pair_acceptance_gate (R4-B02); everything else in R3 stands",
+    "bounds_changed": false
+  }
+}
