@@ -12,8 +12,8 @@ from pathlib import Path
 from unittest import mock
 
 
-ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+ROOT = Path(__file__).resolve().parents[4]
+SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts" / "archive"
 sys.path.insert(0, str(SCRIPTS))
 
 import a2_bundle  # noqa: E402

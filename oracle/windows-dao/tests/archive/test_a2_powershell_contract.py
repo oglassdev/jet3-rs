@@ -9,8 +9,9 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
+ARCHIVED_SCRIPTS = SCRIPTS / "archive"
 A2 = SCRIPTS / "a2"
 ENTRY = SCRIPTS / "run-a2-replica.ps1"
 WORKER = A2 / "A2.Worker.ps1"
@@ -18,9 +19,10 @@ PAGE_STORE = A2 / "A2.PageStore.ps1"
 PROGRESS = A2 / "A2.Progress.ps1"
 A1_PAGE_STORE = SCRIPTS / "a1" / "A1.PageStore.ps1"
 PLAN = ROOT / "experiments" / "a2" / "a2-allocation-maps.plan.json"
-SPEC = SCRIPTS / "a2_spec.py"
-if str(SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS))
+SPEC = ARCHIVED_SCRIPTS / "a2_spec.py"
+for location in (ARCHIVED_SCRIPTS, SCRIPTS):
+    if str(location) not in sys.path:
+        sys.path.insert(0, str(location))
 
 from a2_generator_schedule import build_schedule, checkpoint_document  # noqa: E402
 from a2_spec import (  # noqa: E402

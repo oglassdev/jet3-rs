@@ -249,7 +249,7 @@ def verify(root: Path, retained_root: Path) -> None:
 def _git_head() -> str:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
-        cwd=Path(__file__).resolve().parents[3],
+        cwd=Path(__file__).resolve().parents[4],
         check=True,
         capture_output=True,
         text=True,

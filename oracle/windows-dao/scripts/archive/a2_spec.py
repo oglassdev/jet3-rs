@@ -15,10 +15,14 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
+SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
+
 from protocol_validation import ProtocolSchemaSet, ValidationError, sha256
 from a2_revision import EFFECTIVE_REQUIRED_CASES, REQUIRED_REACHABLE_PREDICATE_IDS
 
-DAO_ROOT = Path(__file__).resolve().parents[1]
+DAO_ROOT = SCRIPTS_ROOT.parent
 A2_ROOT = DAO_ROOT / "experiments" / "a2"
 CHECKED_PLAN = A2_ROOT / "a2-allocation-maps.plan.json"
 PLAN_SHA256 = "804e84dace5c423938f32dd350ebc778d43084d41db1da93f26f1777984480c2"

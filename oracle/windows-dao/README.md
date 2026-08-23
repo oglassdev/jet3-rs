@@ -177,7 +177,7 @@ if ($LASTEXITCODE -ne 0) { throw "The A1 provider probe did not pass." }
 if ($LASTEXITCODE -ne 0) { throw "The controlled A1 campaign did not pass." }
 
 $bundle = Join-Path (Join-Path $output $commit) $runId
-python oracle/windows-dao/scripts/a1_contract.py validate-bundle $bundle
+python oracle/windows-dao/scripts/archive/a1_contract.py validate-bundle $bundle
 if ($LASTEXITCODE -ne 0) { throw "Independent A1 bundle validation failed." }
 ```
 

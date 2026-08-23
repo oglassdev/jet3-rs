@@ -550,7 +550,7 @@ function Invoke-A2ReplicaCampaign {
         if ($planInput.sha256 -cne $script:A2PlanSha256) {
             throw "A2 plan bytes differ from the frozen preregistration."
         }
-        $validator = Join-Path $Repository "oracle/windows-dao/scripts/a2_spec.py"
+        $validator = Join-Path $Repository "oracle/windows-dao/scripts/archive/a2_spec.py"
         Invoke-A2PythonValidation -Context $context -Validator $validator `
             -Path $planPath -Label "A2 immutable plan validation"
         Assert-A2RuntimeGate -Plan $planInput.document
@@ -658,8 +658,8 @@ try {
         "oracle/windows-dao/scripts/a2/A2.PageStore.ps1",
         "oracle/windows-dao/scripts/a2/A2.Progress.ps1",
         "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
-        "oracle/windows-dao/scripts/a2_spec.py",
-        "oracle/windows-dao/scripts/a2_revision.py",
+        "oracle/windows-dao/scripts/archive/a2_spec.py",
+        "oracle/windows-dao/scripts/archive/a2_revision.py",
         "oracle/windows-dao/scripts/protocol_validation.py",
         "oracle/windows-dao/scripts/probe-provider.ps1",
         "oracle/windows-dao/scripts/shared/BoundedProcess.ps1",

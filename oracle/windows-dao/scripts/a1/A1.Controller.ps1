@@ -5,8 +5,8 @@ $script:A1RepositoryUrl = "https://github.com/oglassdev/jet3-rs.git"
 $script:A1ExperimentId = "DAO-A1-ALLOCATION-MAPS-001"
 $script:A1PlanRelative = `
     "oracle/windows-dao/experiments/a1/a1-allocation-maps.plan.json"
-$script:A1ContractRelative = "oracle/windows-dao/scripts/a1_contract.py"
-$script:A1AnalysisRelative = "oracle/windows-dao/scripts/a1_analysis.py"
+$script:A1ContractRelative = "oracle/windows-dao/scripts/archive/a1_contract.py"
+$script:A1AnalysisRelative = "oracle/windows-dao/scripts/archive/a1_analysis.py"
 $script:A1FrozenPlanSha256 = `
     "a7fa44cdb24b6f6e0d3884d478d7eef74685aa90ea12eacfff4b459b1da6ab80"
 $script:A1CampaignClock = $null
@@ -241,7 +241,7 @@ function Assert-A1RuntimeGate {
         "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
         "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
         "oracle/windows-dao/scripts/a1/A1.Progress.ps1",
-        "oracle/windows-dao/scripts/a1_contract.py"
+        "oracle/windows-dao/scripts/archive/a1_contract.py"
     )) {
         $path = Join-Path $Repository $relative
         if (-not [IO.File]::Exists($path)) {
@@ -588,10 +588,10 @@ function Invoke-A1Campaign {
         "oracle/windows-dao/scripts/a1/A1.Worker.ps1",
         "oracle/windows-dao/scripts/a1/A1.PageStore.ps1",
         "oracle/windows-dao/scripts/a1/A1.Progress.ps1",
-        "oracle/windows-dao/scripts/a1_contract.py",
-        "oracle/windows-dao/scripts/a1_bundle.py",
-        "oracle/windows-dao/scripts/a1_analysis.py",
-        "oracle/windows-dao/scripts/a1_spec.py",
+        "oracle/windows-dao/scripts/archive/a1_contract.py",
+        "oracle/windows-dao/scripts/archive/a1_bundle.py",
+        "oracle/windows-dao/scripts/archive/a1_analysis.py",
+        "oracle/windows-dao/scripts/archive/a1_spec.py",
         "oracle/windows-dao/experiments/a1/a1-allocation-maps.plan.json",
         "oracle/windows-dao/experiments/a1/plan.schema.json",
         "oracle/windows-dao/experiments/a1/replica-observation.schema.json",

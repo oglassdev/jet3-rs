@@ -42,9 +42,9 @@ or DAO compatibility/support.
 - `analysis-report.schema.json` — strict bounded analysis result
 
 ```text
-python oracle/windows-dao/scripts/a1_spec.py validate-plan
-python oracle/windows-dao/scripts/a1_spec.py validate-observation REPLICA.json
-python oracle/windows-dao/scripts/a1_analysis.py --replica REPLICA1.json --replica REPLICA2.json --replica REPLICA3.json --bundle-root BUNDLE_ROOT --output REPORT.json
+python oracle/windows-dao/scripts/archive/a1_spec.py validate-plan
+python oracle/windows-dao/scripts/archive/a1_spec.py validate-observation REPLICA.json
+python oracle/windows-dao/scripts/archive/a1_analysis.py --replica REPLICA1.json --replica REPLICA2.json --replica REPLICA3.json --bundle-root BUNDLE_ROOT --output REPORT.json
 ```
 
 The execution gate remains blocked until the acquisition, independent bundle

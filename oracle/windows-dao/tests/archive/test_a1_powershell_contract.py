@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
 A1 = SCRIPTS / "a1"
 ENTRY = SCRIPTS / "run-a1-controlled.ps1"

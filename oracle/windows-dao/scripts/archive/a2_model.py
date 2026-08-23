@@ -10,14 +10,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
+
 from protocol_validation import ValidationError
 
-EXPERIMENT_DIR = Path(__file__).resolve().parents[1] / "experiments" / "a2"
+EXPERIMENT_DIR = SCRIPTS_ROOT.parent / "experiments" / "a2"
 PLAN_PATH = EXPERIMENT_DIR / "a2-allocation-maps.plan.json"
 PLAN_BYTES = PLAN_PATH.read_bytes()
 PLAN = json.loads(PLAN_BYTES)
