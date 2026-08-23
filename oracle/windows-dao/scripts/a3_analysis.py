@@ -38,7 +38,7 @@ from a3_model import (
 )
 from a3_spec import (
     BOUNDS, EXPERIMENT_ID, LAYER_KEYS, LAYER_PREDICATE_SEQUENCES, PLAN,
-    PLAN_SHA256,
+    PLAN_SHA256, REVISION_PLAN_SHA256,
     compare_frozen_to_report, frozen_json_bytes, load_bounded_json,
     project_predicate_results, validate_analysis_report, validate_document,
     validate_frozen_candidates,
@@ -144,7 +144,8 @@ class BundleReplicaSource:
             validate_document(index)
             expected_predecessor = CHECKPOINT_IDS[ordinal - 1] if ordinal else None
             bindings = {
-                "plan_sha256": PLAN_SHA256, "producer_commit": observation["producer_commit"],
+                "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
+                "producer_commit": observation["producer_commit"],
                 "campaign_id": observation["campaign_id"], "environment_sha256": observation["environment_sha256"],
                 "provider_sha256": observation["provider_sha256"], "replica": observation["replica"],
                 "checkpoint_id": checkpoint["checkpoint_id"], "ordinal": ordinal,
@@ -431,7 +432,8 @@ def candidate_document(campaign_id: str, global_pages: tuple[int, ...], tdef_pag
         }
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_frozen_derivation_candidates",
-        "experiment_id": EXPERIMENT_ID, "plan_sha256": PLAN_SHA256, "campaign_id": campaign_id,
+        "experiment_id": EXPERIMENT_ID, "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
+        "campaign_id": campaign_id,
         "derivation_replicas": [1, 2],
         "qualified_pages": {"global_map": list(global_pages), "tdef": list(tdef_pages)},
         "polarity_cross_check": transcript.document(),
@@ -601,7 +603,8 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
     decisive = any(row["status"] == "decisive_predicts_holdout" for row in layers.values())
     report = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_analysis_report", "experiment_id": EXPERIMENT_ID,
-        "plan_sha256": PLAN_SHA256, "campaign_id": derivation[0].campaign_id, "producer_commit": derivation[0].producer_commit,
+        "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
+        "campaign_id": derivation[0].campaign_id, "producer_commit": derivation[0].producer_commit,
         "derivation_replicas": [1, 2], "holdout_replica": 3, "input_checkpoint_count": len(CHECKPOINT_IDS) * 3,
         "qualified_page_counts": {"global_map": min(len(global_pages), MAX_QUALIFIED_PAGES), "tdef": min(len(tdef_pages), MAX_QUALIFIED_PAGES)},
         "qualified_pages": {"global_map": list(global_pages), "tdef": list(tdef_pages)},

@@ -19,6 +19,25 @@ from typing import Any
 
 
 EXP_0042_MANIFEST_SHA256 = "9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46"
+# R5-V01: the revision chain retained under plan/ in every closed bundle; the last
+# entry is the governing revision whose hash every evidence document must carry.
+REVISION_CHAIN: dict[str, str] = {
+    "plan/a3-allocation-maps-r2.plan.json": "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
+    "plan/a3-allocation-maps-r3.plan.json": "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a",
+    "plan/a3-allocation-maps-r4.plan.json": "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea",
+    "plan/a3-allocation-maps-r5.plan.json": "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b",
+}
+GOVERNING_REVISION_SHA256 = REVISION_CHAIN["plan/a3-allocation-maps-r5.plan.json"]
+
+
+def _utc_seconds(value: str) -> float:
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError("campaign_timing_unparseable") from exc
+    if moment.tzinfo is None:
+        raise ValidationError("campaign_timing_unparseable")
+    return moment.timestamp()
 
 
 class ValidationError(Exception):
@@ -435,6 +454,8 @@ class BundleLoader:
         plan_sha = sha256_bytes(self.plan_raw)
         if not legacy and manifest.get("plan_sha256") != plan_sha:
             raise ValidationError("plan_hash_mismatch")
+        if not legacy and manifest.get("revision_plan_sha256") != GOVERNING_REVISION_SHA256:
+            raise ValidationError("revision_hash_mismatch")
 
         if legacy:
             if sha256_bytes(manifest_raw) != EXP_0042_MANIFEST_SHA256:
@@ -495,12 +516,21 @@ class BundleLoader:
             legacy,
         )
 
+    def _verify_campaign_timing(self, manifest: dict[str, Any]) -> None:
+        """R5-T01: elapsed = floor(created_utc - campaign_started_utc) within campaign_timeout_seconds."""
+        elapsed = _utc_seconds(manifest["created_utc"]) - _utc_seconds(manifest["campaign_started_utc"])
+        if elapsed < 0 or int(elapsed) != manifest["campaign_elapsed_seconds"]:
+            raise ValidationError("campaign_elapsed_mismatch")
+        if manifest["campaign_elapsed_seconds"] > self.bounds["campaign_timeout_seconds"]:
+            raise ValidationError("campaign_timeout_exceeded")
+
     def _validate_documents(self, manifest: dict[str, Any], entries: dict[str, dict[str, Any]]) -> None:
         roles = {entry["role"]: [] for entry in entries.values()}
         for relative, entry in entries.items():
             roles.setdefault(entry["role"], []).append(relative)
         required_counts = {
             "plan": 1,
+            "revision_plan": len(REVISION_CHAIN),
             "environment": 3,
             "replica_artifact_manifest": 3,
             "replica_observation": 3,
@@ -515,6 +545,11 @@ class BundleLoader:
         plan_relative = roles["plan"][0]
         if plan_relative != "plan/a3-allocation-maps.plan.json" or entries[plan_relative]["sha256"] != manifest["plan_sha256"]:
             raise ValidationError("bundle_plan_binding_mismatch")
+        for relative, expected in REVISION_CHAIN.items():
+            entry = entries.get(relative)
+            if entry is None or entry["role"] != "revision_plan" or entry["sha256"] != expected:
+                raise ValidationError("bundle_revision_binding_mismatch", relative)
+        self._verify_campaign_timing(manifest)
         schema_by_role = {
             "environment": "environment.schema.json",
             "replica_artifact_manifest": "replica-artifact-manifest.schema.json",
@@ -529,7 +564,7 @@ class BundleLoader:
                 value, _ = load_json(self._safe(relative), self.bounds["max_json_bytes"])
                 self._schema(schema, value)
                 if isinstance(value, dict):
-                    for key in ("campaign_id", "producer_commit", "plan_sha256"):
+                    for key in ("campaign_id", "producer_commit", "plan_sha256", "revision_plan_sha256"):
                         if key in value and value[key] != manifest[key]:
                             raise ValidationError("document_binding_mismatch", f"{relative}:{key}")
         frozen_path = roles["frozen_candidate_set"][0]

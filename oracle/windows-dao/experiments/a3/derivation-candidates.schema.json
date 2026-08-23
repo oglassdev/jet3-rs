@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "protocol_version", "document_type", "experiment_id", "plan_sha256",
+    "revision_plan_sha256",
     "campaign_id", "derivation_replicas", "qualified_pages",
     "polarity_cross_check", "layers"
   ],
@@ -14,6 +15,7 @@
     "document_type": {"const": "dao_a3_frozen_derivation_candidates"},
     "experiment_id": {"const": "DAO-A3-ALLOCATION-MAPS-001"},
     "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "revision_plan_sha256": {"$ref": "#/$defs/sha256"},
     "campaign_id": {"$ref": "#/$defs/id"},
     "derivation_replicas": {"const": [1, 2]},
     "qualified_pages": {

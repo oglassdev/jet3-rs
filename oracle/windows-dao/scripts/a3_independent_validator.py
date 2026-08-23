@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from a3_independent_bundle import (
+    GOVERNING_REVISION_SHA256,
     BundleLoader,
     LoadedBundle,
     SchemaChecker,
@@ -51,9 +52,11 @@ LAYER_PATHS = {
 R2_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1"
 R3_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
 R4_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+R5_SHA256 = GOVERNING_REVISION_SHA256
 REVISION_PATHS = {
     "DAO-A3-ALLOCATION-MAPS-001-R2": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r2.plan.json",
     "DAO-A3-ALLOCATION-MAPS-001-R3": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json",
+    "DAO-A3-ALLOCATION-MAPS-001-R4": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json",
 }
 R2_LAYER_NAME_MAP = {
     "global_map.record": "global_map_record",
@@ -74,7 +77,7 @@ def _repo_plan_path() -> Path:
 
 
 def _repo_revision_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "experiments" / "a3" / "a3-allocation-maps-r4.plan.json"
+    return Path(__file__).resolve().parents[1] / "experiments" / "a3" / "a3-allocation-maps-r5.plan.json"
 
 
 def _load_predicate_sequences(
@@ -82,12 +85,15 @@ def _load_predicate_sequences(
     plan_sha256: str,
     predicate_ids: list[str],
 ) -> tuple[list[str], dict[str, list[str]]]:
-    revision, raw = load_json(revision_path, 67_108_864)
-    if sha256_bytes(raw) != R4_SHA256:
+    governing, governing_raw = load_json(revision_path, 67_108_864)
+    if sha256_bytes(governing_raw) != R5_SHA256:
         raise ValidationError("predicate_revision_hash_mismatch")
     original_path = "oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json"
     try:
-        original = revision["preregistration"]["original_plan"]
+        original = governing["preregistration"]["original_plan"]
+        r5_priors = {row["revision_id"]: row for row in governing["preregistration"]["prior_revisions"]}
+        r4_row = r5_priors["DAO-A3-ALLOCATION-MAPS-001-R4"]
+        revision, raw = load_json(revision_path.with_name(Path(r4_row["path"]).name), 67_108_864)
         priors = {row["revision_id"]: row for row in revision["preregistration"]["prior_revisions"]}
         r3_row = priors["DAO-A3-ALLOCATION-MAPS-001-R3"]
         r2_row = priors["DAO-A3-ALLOCATION-MAPS-001-R2"]
@@ -100,8 +106,17 @@ def _load_predicate_sequences(
     except (KeyError, TypeError) as exc:
         raise ValidationError("predicate_revision_contract_mismatch") from exc
     if (
-        revision.get("document_type") != "dao_a3_allocation_maps_plan_revision"
+        governing.get("document_type") != "dao_a3_allocation_maps_plan_revision"
+        or governing.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R5"
+        or len(r5_priors) != 3
+        or r4_row.get("path") != REVISION_PATHS["DAO-A3-ALLOCATION-MAPS-001-R4"]
+        or r4_row.get("sha256") != R4_SHA256
+        or sha256_bytes(raw) != R4_SHA256
+        or r5_priors["DAO-A3-ALLOCATION-MAPS-001-R3"].get("sha256") != R3_SHA256
+        or r5_priors["DAO-A3-ALLOCATION-MAPS-001-R2"].get("sha256") != R2_SHA256
+        or revision.get("document_type") != "dao_a3_allocation_maps_plan_revision"
         or revision.get("revision_id") != "DAO-A3-ALLOCATION-MAPS-001-R4"
+        or revision["preregistration"].get("original_plan") != original
         or original.get("path") != original_path
         or original.get("sha256") != plan_sha256
         or len(priors) != 2
@@ -166,6 +181,7 @@ def expected_frozen(bundle: LoadedBundle, derivation: dict[str, Any]) -> dict[st
         "document_type": "dao_a3_frozen_derivation_candidates",
         "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
         "plan_sha256": bundle.plan_sha256,
+        "revision_plan_sha256": R5_SHA256,
         "campaign_id": bundle.manifest["campaign_id"],
         "derivation_replicas": [1, 2],
         "qualified_pages": derivation["qualified_pages"],
@@ -669,6 +685,7 @@ def verdict(
         "document_type": "dao_a3_independent_validation_report",
         "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
         "plan_sha256": "0" * 64 if bundle is None else bundle.plan_sha256,
+        "revision_plan_sha256": R5_SHA256,
         "campaign_id": manifest.get("campaign_id", "unavailable"),
         "bundle_manifest_sha256": "0" * 64 if bundle is None else bundle.manifest_sha256,
         "validator_commit": validator_commit,

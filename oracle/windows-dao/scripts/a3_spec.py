@@ -3,7 +3,8 @@
 
 A3 rule | implementation
 --- | ---
-Base + R2 + R3 + R4 hash binding | :func:`load_checked_plan`, :func:`load_checked_revisions`
+Base + R2 + R3 + R4 + R5 hash binding | :func:`load_checked_plan`, :func:`load_checked_revisions`
+R5-V01 governing revision hash in every evidence document | :func:`validate_document`
 R2 order with R3-G03 disagreement reach | :func:`project_predicate_results`
 R3-G08 ordered reasons and holdout fields | :func:`validate_analysis_report`
 R3-M05 campaign-terminal projection | :func:`project_predicate_results`
@@ -37,9 +38,18 @@ CHECKED_R3_PLAN = A3_ROOT / "a3-allocation-maps-r3.plan.json"
 R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
 CHECKED_R4_PLAN = A3_ROOT / "a3-allocation-maps-r4.plan.json"
 R4_PLAN_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
+CHECKED_R5_PLAN = A3_ROOT / "a3-allocation-maps-r5.plan.json"
+R5_PLAN_SHA256 = "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b"
 PAIR_REVIEW = A3_ROOT / "design-inputs" / "fable-a3-pair-review.md"
 PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
-REVISION_PLAN_SHA256 = R4_PLAN_SHA256
+REVISION_PLAN_SHA256 = R5_PLAN_SHA256
+# R5-V01: every revision file of the chain, retained under plan/ in a closed bundle.
+REVISION_CHAIN: Mapping[str, str] = MappingProxyType({
+    "plan/a3-allocation-maps-r2.plan.json": R2_PLAN_SHA256,
+    "plan/a3-allocation-maps-r3.plan.json": R3_PLAN_SHA256,
+    "plan/a3-allocation-maps-r4.plan.json": R4_PLAN_SHA256,
+    "plan/a3-allocation-maps-r5.plan.json": R5_PLAN_SHA256,
+})
 EXPERIMENT_ID = "DAO-A3-ALLOCATION-MAPS-001"
 
 _SCHEMA_FILES = {
@@ -56,17 +66,17 @@ _SCHEMA_FILES = {
     "dao_a3_independent_validation_report": "independent-validation-report.schema.json",
 }
 SCHEMA_SHA256: Mapping[str, str] = MappingProxyType({
-    "analysis-report.schema.json": "f15bf39ad703f77fb7749d93214fe43711a9b525376b128f93c898b531db6460",
-    "bundle-manifest.schema.json": "9d049c910b4a53da5d3cd3ee71f02c5671fdbb75b94e33587999cf40a91e9727",
-    "derivation-candidates.schema.json": "50a9f7a1208969475a89ac3782077cb2bc0e5d3f9635ec51d5a46e8afcacd5b2",
+    "analysis-report.schema.json": "91c75502fcaf404d484db17c5521d8eb9915250b35a290862856387cfc181993",
+    "bundle-manifest.schema.json": "ebf80361941aeef1dbbb466e396cfb7c6caca463a5e92187b503a83a0e35699c",
+    "derivation-candidates.schema.json": "071408f3d9e1b1ac5cd99cbd0c2c8a93eaece1adde2d2b97b226b7ebaaa29d7b",
     "dry-run-report.schema.json": "e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d",
-    "environment.schema.json": "6fb863f1c224698b466ba5fd5e10d9869a6b313b7480f02045e70c2e8eb49465",
-    "holdout-structure-receipt.schema.json": "c2316f9bf84f7722c93160c354f671d7411c0089bf7f52124237b262f43c50fe",
-    "independent-validation-report.schema.json": "2ad90d2b6ade15e815ad9819c09ca28d6b7e77ab6064e3a1139a9acf7e4c6d8c",
-    "page-index.schema.json": "5e78e1a4b8d95ca1313c5d7e1df78f033f3791c959cb22a5b464aef581ddbdfd",
+    "environment.schema.json": "244946f4f7204865775d2329fe0172f6a5c9a4d7bc3ea9d1c9334660307fd565",
+    "holdout-structure-receipt.schema.json": "e79d6c140b9adb31c313090c9ccc02c2ae09a185849554509d25334a0d93fed6",
+    "independent-validation-report.schema.json": "fa956530661d0fa04844d8a507729a7e1cd5a97e4125b4a88c20a9e8eddf8766",
+    "page-index.schema.json": "102fc5ad5770eda32603d4494af19218513df22af49a3c19ccffd4ecf08a5428",
     "plan.schema.json": "177fdbdda54b0e0d90383578a9bbea4a398cbcbd74424d522997a8f304113f03",
-    "replica-artifact-manifest.schema.json": "a60cf012c2ceb8dee55ffd55e4fa21b14759d0d258b0203e14fd583b0b08d197",
-    "replica-observation.schema.json": "e0605f67cae502da3b0187c05f9c6ff83b1f7da42a1496af95310dc90d1a2bbf",
+    "replica-artifact-manifest.schema.json": "7eb03e03beac3b965473d355c48f0d51106426dceae43743443678caa735cc43",
+    "replica-observation.schema.json": "9f0fce53213372258a5783872ccbfa78bcd5ecd8b6436d84513398d3c473a016",
 })
 SCHEMAS = ProtocolSchemaSet(A3_ROOT, _SCHEMA_FILES)
 
@@ -183,8 +193,8 @@ def _load_revision(path: Path, sha256: str, revision_id: str) -> dict[str, Any]:
 
 def load_checked_revisions(
     plan: CheckedPlan = PLAN,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Load the exact R2 order and R3/R4 operational reconciliations."""
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Load the exact R2 order and the R3/R4/R5 operational reconciliations."""
     r2 = _load_revision(CHECKED_R2_PLAN, R2_PLAN_SHA256, "DAO-A3-ALLOCATION-MAPS-001-R2")
     registry_ids = set(plan.predicate_ids)
     reconciliation = r2["predicate_evaluation_sequence_reconciliation"]
@@ -235,11 +245,26 @@ def load_checked_revisions(
         "R4-C01",
         "R4 record-candidate reconciliation",
     )
-    return r2, r3, r4
+    r5 = _load_revision(CHECKED_R5_PLAN, R5_PLAN_SHA256, "DAO-A3-ALLOCATION-MAPS-001-R5")
+    require_equal(
+        [(row["revision_id"], row["sha256"]) for row in r5["preregistration"]["prior_revisions"]],
+        [(r2["revision_id"], R2_PLAN_SHA256), (r3["revision_id"], R3_PLAN_SHA256), (r4["revision_id"], R4_PLAN_SHA256)],
+        "R5 prior revisions",
+    )
+    binding = r5["revision_binding_reconciliation"]["gaps"]
+    require_equal([row["gap_id"] for row in binding], ["R5-V01", "R5-V02", "R5-V03"], "R5 binding gap ids")
+    require_equal(
+        {row["schema"]: row["sha256_after"] for row in binding[1]["schema_hashes"]},
+        {name: digest for name, digest in SCHEMA_SHA256.items() if name not in ("plan.schema.json", "dry-run-report.schema.json")},
+        "R5-V02 evidence schema hashes",
+    )
+    require_equal(r5["relative_growth_baseline_reconciliation"]["gap_id"], "R5-L01", "R5 baseline reconciliation")
+    require_equal(r5["campaign_timeout_reconciliation"]["gap_id"], "R5-T01", "R5 campaign-timeout reconciliation")
+    return r2, r3, r4, r5
 
 
-R2_PLAN, R3_PLAN, R4_PLAN = load_checked_revisions()
-REVISION_PLAN = R4_PLAN
+R2_PLAN, R3_PLAN, R4_PLAN, R5_PLAN = load_checked_revisions()
+REVISION_PLAN = R5_PLAN
 CHECKPOINT_IDS = PLAN.checkpoint_ids
 CHECKPOINT_ORDINALS = PLAN.checkpoint_ordinals
 PREDICATE_IDS = PLAN.predicate_ids
@@ -277,6 +302,8 @@ def _schema(document: dict[str, Any], expected: str) -> None:
     require_equal(SCHEMAS.validate(document), expected, "$.document_type")
     if expected != "dao_a3_allocation_maps_plan":
         require_equal(document["plan_sha256"], PLAN_SHA256, "$.plan_sha256")
+    if expected not in ("dao_a3_allocation_maps_plan", "dao_a3_analyzer_dry_run_report"):
+        require_equal(document["revision_plan_sha256"], REVISION_PLAN_SHA256, "$.revision_plan_sha256")
 
 
 def _layer_rows(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -409,6 +436,7 @@ def frozen_json_bytes(document: dict[str, Any]) -> bytes:
         "document_type": document["document_type"],
         "experiment_id": document["experiment_id"],
         "plan_sha256": document["plan_sha256"],
+        "revision_plan_sha256": document["revision_plan_sha256"],
         "campaign_id": document["campaign_id"],
         "derivation_replicas": document["derivation_replicas"],
         "qualified_pages": {

@@ -12,7 +12,10 @@
     "producer_commit",
     "repository_url",
     "created_utc",
+    "campaign_started_utc",
+    "campaign_elapsed_seconds",
     "plan_sha256",
+    "revision_plan_sha256",
     "replica_environment_sha256",
     "provider_sha256",
     "replica_count",
@@ -57,7 +60,20 @@
       "format": "date-time",
       "maxLength": 64
     },
+    "campaign_started_utc": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "campaign_elapsed_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2700
+    },
     "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "revision_plan_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "provider_sha256": {
@@ -125,8 +141,8 @@
     },
     "files": {
       "type": "array",
-      "minItems": 87,
-      "maxItems": 65650,
+      "minItems": 91,
+      "maxItems": 65654,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/file"
@@ -209,6 +225,7 @@
           "type": "string",
           "enum": [
             "plan",
+            "revision_plan",
             "environment",
             "replica_artifact_manifest",
             "replica_observation",

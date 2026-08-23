@@ -90,6 +90,64 @@ exact 16+16 ceiling is accepted, and the validator must also enforce
 is an analyzer defect against existing text, not a plan gap, and is left to
 the analyzer lane.
 
+Before acquisition, additive revision `DAO-A3-ALLOCATION-MAPS-001-R5` was
+recorded as `EXP-0050` to close three gaps identified by the independent
+review of the hosted acquisition lane. Acquisition has not started. The
+immutable revision file is
+`oracle/windows-dao/experiments/a3/a3-allocation-maps-r5.plan.json`, SHA-256
+`03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b`; it binds
+the base, R2, R3, and R4 hashes. R5-V01 requires every evidence document to
+carry that governing revision hash and requires the closed bundle to inventory
+the complete R2-R5 revision chain. R5-V03 supersedes exactly five R3/R4
+schema-immutability statements for the additions enumerated by R5-V02, while
+leaving `plan.schema.json` and `dry-run-report.schema.json` byte-identical.
+R5-L01 fixes the inherited relative-growth reading: L uses the closed-file
+page count at `D_REGROW_0128`, H uses the count at `P_ABS_16480`, and each
+threshold and overshoot is disclosed and checked. A post-create baseline would
+make the first L target already satisfied after the D growth and collapse the
+preregistered L ladder; the lazy capture preserves the checked A2 schedule
+that produced the EXP-0042 prediction inputs. R5-T01 makes 2700 seconds a hard
+closed-evidence bound measured from the hosted run attempt's start through the
+manifest creation time. Exactly 2700 is accepted and 2701 is rejected; an
+over-time attempt produces diagnostics but no retained successful bundle. A
+merely advisory bound would leave the base plan's exact campaign ceiling
+unobservable in retained evidence.
+
+R5-V02 records these evidence-schema SHA-256 changes, and no others:
+
+- `analysis-report.schema.json`:
+  `f15bf39ad703f77fb7749d93214fe43711a9b525376b128f93c898b531db6460` ->
+  `91c75502fcaf404d484db17c5521d8eb9915250b35a290862856387cfc181993`;
+- `bundle-manifest.schema.json`:
+  `9d049c910b4a53da5d3cd3ee71f02c5671fdbb75b94e33587999cf40a91e9727` ->
+  `ebf80361941aeef1dbbb466e396cfb7c6caca463a5e92187b503a83a0e35699c`;
+- `derivation-candidates.schema.json`:
+  `50a9f7a1208969475a89ac3782077cb2bc0e5d3f9635ec51d5a46e8afcacd5b2` ->
+  `071408f3d9e1b1ac5cd99cbd0c2c8a93eaece1adde2d2b97b226b7ebaaa29d7b`;
+- `environment.schema.json`:
+  `6fb863f1c224698b466ba5fd5e10d9869a6b313b7480f02045e70c2e8eb49465` ->
+  `244946f4f7204865775d2329fe0172f6a5c9a4d7bc3ea9d1c9334660307fd565`;
+- `holdout-structure-receipt.schema.json`:
+  `c2316f9bf84f7722c93160c354f671d7411c0089bf7f52124237b262f43c50fe` ->
+  `e79d6c140b9adb31c313090c9ccc02c2ae09a185849554509d25334a0d93fed6`;
+- `independent-validation-report.schema.json`:
+  `2ad90d2b6ade15e815ad9819c09ca28d6b7e77ab6064e3a1139a9acf7e4c6d8c` ->
+  `fa956530661d0fa04844d8a507729a7e1cd5a97e4125b4a88c20a9e8eddf8766`;
+- `page-index.schema.json`:
+  `5e78e1a4b8d95ca1313c5d7e1df78f033f3791c959cb22a5b464aef581ddbdfd` ->
+  `102fc5ad5770eda32603d4494af19218513df22af49a3c19ccffd4ecf08a5428`;
+- `replica-artifact-manifest.schema.json`:
+  `a60cf012c2ceb8dee55ffd55e4fa21b14759d0d258b0203e14fd583b0b08d197` ->
+  `7eb03e03beac3b965473d355c48f0d51106426dceae43743443678caa735cc43`;
+- `replica-observation.schema.json`:
+  `e0605f67cae502da3b0187c05f9c6ff83b1f7da42a1496af95310dc90d1a2bbf` ->
+  `9f0fce53213372258a5783872ccbfa78bcd5ecd8b6436d84513398d3c473a016`.
+
+The unchanged schema hashes are
+`plan.schema.json` `177fdbdda54b0e0d90383578a9bbea4a398cbcbd74424d522997a8f304113f03`
+and `dry-run-report.schema.json`
+`e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d`.
+
 The actual `EXP-0042` polarity cross-check outcome is a violation on leg 3,
 `L_REL_0512` to `L_REL_0768`, first at page 1021; the later tag-change leg is
 never reached. On EXP-0042-like data, the `global_map_conversion_inline` and

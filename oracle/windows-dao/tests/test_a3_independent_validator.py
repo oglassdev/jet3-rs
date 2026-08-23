@@ -16,13 +16,15 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 PLAN_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps.plan.json"
-R4_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r4.plan.json"
+R5_PATH = ROOT / "oracle" / "windows-dao" / "experiments" / "a3" / "a3-allocation-maps-r5.plan.json"
 sys.path.insert(0, str(SCRIPTS))
 
-from a3_independent_bundle import BundleLoader, ValidationError, canonical_json_bytes  # noqa: E402
+from a3_independent_bundle import (  # noqa: E402
+    GOVERNING_REVISION_SHA256, REVISION_CHAIN, BundleLoader, ValidationError, canonical_json_bytes,
+)
 from a3_independent_core import recompute_derivation  # noqa: E402
 from a3_independent_validator import (  # noqa: E402
-    R4_SHA256,
+    R5_SHA256,
     verify_report_bounds,
     _expected_predicate_statuses,
     _load_predicate_sequences,
@@ -148,7 +150,7 @@ def _page_digest(root: Path, raw: bytes, known: dict[str, bytes]) -> str:
 def _environment(replica: int, plan_sha: str) -> dict[str, Any]:
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_environment",
-        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001", "plan_sha256": plan_sha,
+        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001", "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256,
         "producer_commit": PRODUCER, "repository_url": "https://github.com/oglassdev/jet3-rs.git",
         "campaign_id": CAMPAIGN, "replica": replica, "matrix_job_id": f"synthetic-{replica}",
         "status": "ready",
@@ -199,7 +201,7 @@ def _frozen(plan_sha: str, slack: int) -> dict[str, Any]:
     }
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_frozen_derivation_candidates",
-        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001", "plan_sha256": plan_sha,
+        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001", "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256,
         "campaign_id": CAMPAIGN, "derivation_replicas": [1, 2],
         "qualified_pages": {"global_map": [1], "tdef": [2]}, "polarity_cross_check": cross,
         "layers": {
@@ -224,7 +226,7 @@ def _report(plan: dict[str, Any], plan_sha: str, frozen: dict[str, Any], frozen_
         return {"status": status, "derivation_survivor_count": layer["derivation_survivor_count"], "holdout_evaluated": evaluated, "no_outcome_reasons": [] if layer["no_outcome_reason"] is None else [layer["no_outcome_reason"]], "terminal_predicate_id": layer["terminal_predicate_id"], "model": layer["model"]}
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_analysis_report",
-        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001", "plan_sha256": plan_sha,
+        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001", "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256,
         "campaign_id": CAMPAIGN, "producer_commit": PRODUCER, "derivation_replicas": [1, 2],
         "holdout_replica": 3, "input_checkpoint_count": 75,
         "qualified_page_counts": {"global_map": 1, "tdef": 1}, "qualified_pages": frozen["qualified_pages"],
@@ -247,6 +249,8 @@ def build_bundle(root: Path) -> None:
     plan_sha = hashlib.sha256(plan_raw).hexdigest()
     (root / "plan").mkdir(parents=True)
     (root / "plan" / "a3-allocation-maps.plan.json").write_bytes(plan_raw)
+    for relative in REVISION_CHAIN:
+        (root / relative).write_bytes((PLAN_PATH.parent / Path(relative).name).read_bytes())
     known_pages: dict[str, bytes] = {}
     generic = _page_digest(root, bytes([0x05]) + bytes(2047), known_pages)
     page_zero = _page_digest(root, bytes(2048), known_pages)
@@ -278,7 +282,7 @@ def build_bundle(root: Path) -> None:
                 database.update(known_pages[digest])
             index = {
                 "protocol_version": "1.0.0", "document_type": "dao_a3_page_index", "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
-                "plan_sha256": plan_sha, "producer_commit": PRODUCER, "campaign_id": CAMPAIGN,
+                "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256, "producer_commit": PRODUCER, "campaign_id": CAMPAIGN,
                 "environment_sha256": environments[-1]["sha256"], "provider_sha256": PROVIDER, "replica": replica,
                 "checkpoint_id": checkpoint, "ordinal": ordinal, "predecessor_checkpoint_id": None if ordinal == 0 else CHECKPOINTS[ordinal - 1],
                 "page_count": count, "file_size_bytes": count * 2048, "database_sha256": database.hexdigest(),
@@ -295,7 +299,7 @@ def build_bundle(root: Path) -> None:
         bindings = plan["tables"]["role_bindings"][replica - 1]
         observation = {
             "protocol_version": "1.0.0", "document_type": "dao_a3_replica_observation", "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
-            "plan_sha256": plan_sha, "producer_commit": PRODUCER, "repository_url": "https://github.com/oglassdev/jet3-rs.git", "campaign_id": CAMPAIGN,
+            "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256, "producer_commit": PRODUCER, "repository_url": "https://github.com/oglassdev/jet3-rs.git", "campaign_id": CAMPAIGN,
             "matrix_job": {"job_id": f"synthetic-{replica}", "replica_only": True, "shared_mutable_state": False},
             "environment_sha256": environments[-1]["sha256"], "provider_sha256": PROVIDER, "replica": replica,
             "role_binding": {role: bindings[role] for role in ("D", "L", "P", "H")},
@@ -312,7 +316,7 @@ def build_bundle(root: Path) -> None:
         files = artifact_entries[replica] + page_entries
         replica_manifest = {
             "protocol_version": "1.0.0", "document_type": "dao_a3_replica_artifact_manifest", "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
-            "plan_sha256": plan_sha, "producer_commit": PRODUCER, "campaign_id": CAMPAIGN, "matrix_job_id": f"synthetic-{replica}", "replica": replica,
+            "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256, "producer_commit": PRODUCER, "campaign_id": CAMPAIGN, "matrix_job_id": f"synthetic-{replica}", "replica": replica,
             "environment_sha256": environments[replica - 1]["sha256"], "provider_sha256": PROVIDER, "checkpoint_count": 25,
             "inventory_closed": True, "hashes_verified": True, "paths_closed": True, "files": files,
         }
@@ -326,13 +330,14 @@ def build_bundle(root: Path) -> None:
     _write(root / "analysis/analysis-report.json", report)
     receipt = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_holdout_structure_receipt", "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
-        "plan_sha256": plan_sha, "producer_commit": PRODUCER, "campaign_id": CAMPAIGN, "derivation_candidate_set_sha256": frozen_sha,
+        "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256, "producer_commit": PRODUCER, "campaign_id": CAMPAIGN, "derivation_candidate_set_sha256": frozen_sha,
         "replica": 3, "replica_artifact_manifest_sha256": replica_manifests[2]["sha256"], "validated_after_candidate_freeze": True,
         "page_bytes_exposed_to_analyzer": False, "result": "pass",
     }
     _write(root / "analysis/holdout-structure-receipt.json", receipt)
     fixed_entries = [
-        _entry(root, "plan/a3-allocation-maps.plan.json", "plan"), *environments, *replica_manifests, *observations,
+        _entry(root, "plan/a3-allocation-maps.plan.json", "plan"),
+        *[_entry(root, relative, "revision_plan") for relative in REVISION_CHAIN], *environments, *replica_manifests, *observations,
         *[item for replica in artifact_entries.values() for item in replica if item["role"] == "page_index"],
         *page_entries, _entry(root, "analysis/derivation-candidates.json", "frozen_candidate_set"),
         _entry(root, "analysis/analysis-report.json", "analysis_report"),
@@ -343,7 +348,8 @@ def build_bundle(root: Path) -> None:
     manifest = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_bundle_manifest", "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
         "campaign_id": CAMPAIGN, "producer_commit": PRODUCER, "repository_url": "https://github.com/oglassdev/jet3-rs.git", "created_utc": "2026-08-22T12:00:00Z",
-        "plan_sha256": plan_sha, "replica_environment_sha256": [item["sha256"] for item in environments], "provider_sha256": PROVIDER,
+        "campaign_started_utc": "2026-08-22T11:15:00Z", "campaign_elapsed_seconds": 2700,
+        "plan_sha256": plan_sha, "revision_plan_sha256": GOVERNING_REVISION_SHA256, "replica_environment_sha256": [item["sha256"] for item in environments], "provider_sha256": PROVIDER,
         "replica_count": 3, "replica_artifact_manifest_sha256": [item["sha256"] for item in replica_manifests], "checkpoint_count": 75,
         "page_blob_count": len(page_entries), "bundle_size_bytes_excluding_manifest": sum(item["size_bytes"] for item in files),
         "inventory_closed": True, "hashes_verified": True, "paths_closed": True, "execution_status": "analysis_complete", "campaign_failed": False,
@@ -481,16 +487,16 @@ class IndependentValidatorTests(unittest.TestCase):
             {"A3-POLARITY-CROSSCHECK", "A3-TDEF-RECORD-NONE"},
         )
 
-    def test_binds_published_r4_by_hash(self) -> None:
+    def test_binds_published_r5_chain_by_hash(self) -> None:
         plan_raw = PLAN_PATH.read_bytes()
         plan_sha256 = hashlib.sha256(plan_raw).hexdigest()
         plan = json.loads(plan_raw)
         campaign, sequences = _load_predicate_sequences(
-            R4_PATH,
+            R5_PATH,
             plan_sha256,
             plan["predicate_registry"]["ids"],
         )
-        self.assertEqual(hashlib.sha256(R4_PATH.read_bytes()).hexdigest(), R4_SHA256)
+        self.assertEqual(hashlib.sha256(R5_PATH.read_bytes()).hexdigest(), R5_SHA256)
         self.assertEqual(campaign, ["A3-IDLE-EQUALITY", "A3-SNAPSHOT-RECONSTRUCTION", "A3-RESOURCE-BOUND"])
         self.assertEqual(
             set(sequences),
@@ -502,8 +508,8 @@ class IndependentValidatorTests(unittest.TestCase):
             },
         )
         with tempfile.TemporaryDirectory(prefix="a3-r2-") as directory:
-            mutated = Path(directory) / R4_PATH.name
-            mutated.write_bytes(R4_PATH.read_bytes() + b" ")
+            mutated = Path(directory) / R5_PATH.name
+            mutated.write_bytes(R5_PATH.read_bytes() + b" ")
             with self.assertRaisesRegex(ValidationError, "predicate_revision_hash_mismatch"):
                 _load_predicate_sequences(
                     mutated,
@@ -582,7 +588,7 @@ class IndependentValidatorTests(unittest.TestCase):
         idle_index[0] = idle_index[1]
         derivation = recompute_derivation(bundle)
         campaign, sequences = _load_predicate_sequences(
-            R4_PATH,
+            R5_PATH,
             hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest(),
             bundle.plan["predicate_registry"]["ids"],
         )
@@ -619,6 +625,43 @@ class IndependentValidatorTests(unittest.TestCase):
                 self.assertIs(result["accepted"], False)
                 self.assertEqual(result["discrepancy_codes"], [expected])
                 self.assertTrue(all(not item["rejected"] for item in result["tamper_results"]))
+
+    def test_rejects_broken_revision_binding_and_campaign_timeout(self) -> None:
+        def drop_r4(root: Path) -> None:
+            manifest_path = root / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["files"] = [row for row in manifest["files"] if row["path"] != "plan/a3-allocation-maps-r4.plan.json"]
+            manifest["bundle_size_bytes_excluding_manifest"] = sum(row["size_bytes"] for row in manifest["files"])
+            (root / "plan/a3-allocation-maps-r4.plan.json").unlink()
+            _write(manifest_path, manifest)
+
+        def wrong_receipt_revision(root: Path) -> None:
+            receipt_path = root / "analysis/holdout-structure-receipt.json"
+            receipt = json.loads(receipt_path.read_text())
+            receipt["revision_plan_sha256"] = R5_SHA256[:-1] + ("0" if R5_SHA256[-1] != "0" else "1")
+            _write(receipt_path, receipt)
+            relink(root)
+
+        def over_time(root: Path) -> None:
+            manifest_path = root / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["campaign_started_utc"] = "2026-08-22T11:14:59Z"
+            _write(manifest_path, manifest)
+
+        cases: list[tuple[str, Callable[[Path], None], str]] = [
+            ("missing-revision", drop_r4, "manifest_role_count"),
+            ("wrong-document-revision", wrong_receipt_revision, "document_binding_mismatch"),
+            ("campaign-over-by-one", over_time, "campaign_elapsed_mismatch"),
+        ]
+        for name, tamper, expected in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix=f"a3-{name}-") as directory:
+                temporary = Path(directory)
+                mutated = temporary / "bundle"
+                shutil.copytree(self.synthetic_bundle, mutated, copy_function=os.link)
+                tamper(mutated)
+                code, result = _run(mutated, temporary / "result.json")
+                self.assertNotEqual(code, 0)
+                self.assertEqual(result["discrepancy_codes"], [expected])
 
 
 if __name__ == "__main__":

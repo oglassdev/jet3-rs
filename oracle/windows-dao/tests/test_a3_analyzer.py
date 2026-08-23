@@ -34,7 +34,8 @@ from a3_model import (  # noqa: E402
 )
 from a3_spec import (  # noqa: E402
     LAYER_PREDICATE_SEQUENCES, PLAN_SHA256, PREDICATES, PREDICATE_IDS,
-    R2_PLAN_SHA256, R3_PLAN_SHA256, R4_PLAN_SHA256, REVISION_PLAN_SHA256,
+    R2_PLAN_SHA256, R3_PLAN_SHA256, R4_PLAN_SHA256, R5_PLAN_SHA256,
+    REVISION_PLAN_SHA256,
     compare_frozen_to_report, load_bounded_json,
     project_predicate_results, validate_analysis_report,
     validate_predicate_reporting,
@@ -219,7 +220,7 @@ class A3AnalyzerTests(unittest.TestCase):
             "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1",
         )
 
-    def test_r2_r3_r4_hashes_and_tdef_sequence_are_bound(self) -> None:
+    def test_r2_r3_r4_r5_hashes_and_tdef_sequence_are_bound(self) -> None:
         self.assertEqual(
             R2_PLAN_SHA256,
             "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1",
@@ -232,7 +233,11 @@ class A3AnalyzerTests(unittest.TestCase):
             R4_PLAN_SHA256,
             "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea",
         )
-        self.assertEqual(REVISION_PLAN_SHA256, R4_PLAN_SHA256)
+        self.assertEqual(
+            R5_PLAN_SHA256,
+            "03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b",
+        )
+        self.assertEqual(REVISION_PLAN_SHA256, R5_PLAN_SHA256)
         sequence = LAYER_PREDICATE_SEQUENCES["tdef_pointer_pair"]
         self.assertLess(
             sequence.index("A3-TDEF-RECORD-NONE"),
