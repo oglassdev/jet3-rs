@@ -20,7 +20,7 @@ REVISION_PLAN_SHA256 = "3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d
 R3_PLAN = EXPERIMENT / "a3-allocation-maps-r3.plan.json"
 R3_PLAN_SHA256 = "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a"
 R4_PLAN = EXPERIMENT / "a3-allocation-maps-r4.plan.json"
-R4_PLAN_SHA256 = "167b6e10ca2ff7f90070dfd73957e5ea3dc9b02e54d917be9918b273a0e26ce1"
+R4_PLAN_SHA256 = "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
 DRY_RUN_SCHEMA_SHA256 = "e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d"
 PAIR_REVIEW_SHA256 = "70b9717d3b3387cbd2d4f1ceec3c8deff4f7706563af07eb2c5e77a6c05eab65"
 DESIGN_INPUT_HASHES = {
@@ -339,17 +339,38 @@ class A3PlanContractTests(unittest.TestCase):
         self.assertIn(DRY_RUN_SCHEMA_SHA256, schema_rule)
         self.assertIn("non-evidential", schema_rule)
 
-        defects = revision["analyzer_defects_not_resolved_here"]
+        candidates = revision["record_candidate_count_reconciliation"]
+        self.assertEqual(candidates["gap_id"], "R4-C01")
+        per_page = self.plan["bounds"]["max_record_candidates_per_page"]
+        ceiling = self.plan["bounds"]["max_record_candidates"]
+        self.assertEqual(32 * per_page, ceiling)
         self.assertEqual(
-            [row["id"] for row in defects["items"]],
-            ["tdef_u24_pointer_layout", "exact_ceiling_bounds_edge"],
+            self.plan["record_candidate_procedure"]["combined_record_candidate_bound"], ceiling
         )
+        report_schema = json.loads((EXPERIMENT / "analysis-report.schema.json").read_bytes())
+        self.assertEqual(
+            report_schema["properties"]["record_candidates_examined"]["maximum"], ceiling
+        )
+        self.assertLess(8 * ceiling + 32 * 16 * 2049, self.plan["bounds"]["max_analysis_work_units"])
+        for text in (
+            "counted once however many derivation replicas enumerated it",
+            "supersedes the record_candidates_examined sentence of R3-G08",
+            "must additionally enforce bounds.max_record_candidates",
+        ):
+            self.assertIn(text, candidates["rule"])
+        self.assertIn("67,141,632 = combined_record_candidate_bound", candidates["bound_consistency_derivation"])
+        self.assertIn("16,785,408", candidates["exp_0042_worked_example"])
+
+        defects = revision["analyzer_defects_not_resolved_here"]
+        self.assertEqual([row["id"] for row in defects["items"]], ["tdef_u24_pointer_layout"])
 
         effect = revision["execution_effect"]
         self.assertTrue(effect["original_plan_remains_immutable"])
         self.assertTrue(effect["original_evidence_schemas_remain_immutable"])
         self.assertTrue(effect["dry_run_report_schema_changed"])
-        self.assertTrue(effect["r3_rules_remain_immutable"])
+        self.assertFalse(effect["r3_rules_remain_immutable"])
+        self.assertIn("R4-C01", effect["r3_rules_superseded"])
+        self.assertFalse(effect["bounds_changed"])
         self.assertFalse(effect["acquisition_authorized"])
 
         provenance = PROVENANCE.read_text(encoding="utf-8")

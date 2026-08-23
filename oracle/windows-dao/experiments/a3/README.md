@@ -58,12 +58,12 @@ reachable predicates, a replica 3 with independent overshoot, and full-sweep
 analyzer/validator agreement recorded in retained companion documents.
 
 Before acquisition, additive revision `DAO-A3-ALLOCATION-MAPS-001-R4` was
-recorded as `EXP-0047` to pin two items surfaced by the executed full-sweep
+recorded as `EXP-0047` to pin three items surfaced by the executed full-sweep
 analyzer/validator pair gate (PR #58, `dry-run/a3-pair-agreement.json` on
 `origin/fable/a3-dryrun`). Acquisition has not started. The immutable revision
 file is `oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json`,
 SHA-256
-`167b6e10ca2ff7f90070dfd73957e5ea3dc9b02e54d917be9918b273a0e26ce1`; it binds
+`939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`; it binds
 the base, R2, and R3 hashes and inherits their rules unchanged. R4-S01 pins
 `derivation_survivor_count` as the count of survivors actually found in
 derivation replica 1: every MULTIPLE terminal carries its multiplicity, every
@@ -79,9 +79,16 @@ and 1 shared). R4-B02 is the only schema edit in any A3 revision:
 (SHA-256 `f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593` ->
 `e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d`),
 permitted because the dry-run report is a non-evidential calibration artifact;
-every evidence schema is byte-identical. The TDEF u24 and exact-ceiling
-divergences in the same pair gate are analyzer defects against existing text,
-not plan gaps, and are left to PR #58.
+every evidence schema is byte-identical. R4-C01 supersedes the
+`record_candidates_examined` sentences of R3-G08/R3-G03: the field and the
+work units count each union qualified page once across derivation replicas,
+which is the only reading consistent with `combined_record_candidate_bound`,
+`bounds.max_record_candidates`, the analysis-report schema maximum
+(67,141,632 = 32 x 2,098,176) and the `prefix_sum_work_model` arithmetic; the
+exact 16+16 ceiling is accepted, and the validator must also enforce
+`bounds.max_record_candidates`. The TDEF u24 divergence in the same pair gate
+is an analyzer defect against existing text, not a plan gap, and is left to
+the analyzer lane.
 
 The actual `EXP-0042` polarity cross-check outcome is a violation on leg 3,
 `L_REL_0512` to `L_REL_0768`, first at page 1021; the later tag-change leg is

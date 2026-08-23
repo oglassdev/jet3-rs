@@ -23,7 +23,7 @@
         "revision_id": "DAO-A3-ALLOCATION-MAPS-001-R3",
         "path": "oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json",
         "sha256": "bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a",
-        "inherited": "gap rules R3-G01 through R3-G10, minor readings R3-M01 through R3-M06, the predicate reachability classification, and the dry-run honesty clause are inherited unchanged except for the single sentence of dry_run_honesty_clause.pair_acceptance_gate that declares the dry-run report schema unchanged, which R4-B02 supersedes"
+        "inherited": "gap rules R3-G01 through R3-G10, minor readings R3-M01 through R3-M06, the predicate reachability classification, and the dry-run honesty clause are inherited unchanged except for (i) the single sentence of dry_run_honesty_clause.pair_acceptance_gate that declares the dry-run report schema unchanged, which R4-B02 supersedes, and (ii) the record_candidates_examined counting sentences of R3-G08 and R3-G03, which R4-C01 supersedes"
       }
     ],
     "design_inputs": [
@@ -36,6 +36,11 @@
         "path": "oracle/windows-dao/experiments/a3/dry-run/exp-0042-replay-report.json",
         "location": "origin/fable/a3-dryrun (PR #58), not yet merged",
         "role": "executed_exp_0042_replay_whose_input_page_blob_count_81_was_rejected_by_the_schema_maximum_55"
+      },
+      {
+        "path": "/private/tmp/fable-59-60-review.md",
+        "location": "independent review of PR #60 and PR #59, sections A.6 and C, not committed",
+        "role": "ruling_that_the_sixteen_qualified_pages_divergence_is_a_plan_gap_in_record_candidates_examined_counting"
       }
     ],
     "scientific_design_inherited_unchanged": [
@@ -55,8 +60,8 @@
       "bounds",
       "claims"
     ],
-    "revision_scope": "pin two items that the executed full-sweep analyzer/validator pair gate (PR #58) showed the base text leaves open: the meaning of derivation_survivor_count when a layer terminates at a MULTIPLE predicate, and the input_page_blob_count ceiling of the EXP-0042 derivation-only replay, which the base plan and dry-run report schema inherited from the A1 run-12 calibration (55) rather than deriving from A3's own bounds. No predicate id, mapping, sequence, scientific model, acquisition gate, or evidence schema changes",
-    "derivation_basis": "R4-S01 is derived from the immutable base plan's freeze_rule (frozen and report derivation_survivor_count are identical and the frozen set is compared field-for-field), its no_outcome reporting (every terminal predicate names the classification its stage made), and R3-G03's per-replica evaluation. R4-B01 is derived from bounds.max_qualified_pages_per_submodel, bounds.planned_checkpoints_per_replica, the two-replica derivation rule, and the four pointer references a model can hold, and its EXP-0042 value was re-measured directly from the retained EXP-0042 bundle's replica 1 and 2 page indexes (manifest SHA-256 9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46). The PR #58 analyzer and validator results were read only to locate the two divergences; neither rule adopts an implementation because it is convenient. EXP-0042 replica 3 was not opened",
+    "revision_scope": "pin three items that the executed full-sweep analyzer/validator pair gate (PR #58) showed the base text leaves open or in conflict: the meaning of derivation_survivor_count when a layer terminates at a MULTIPLE predicate; the input_page_blob_count ceiling of the EXP-0042 derivation-only replay, which the base plan and dry-run report schema inherited from the A1 run-12 calibration (55) rather than deriving from A3's own bounds; and the replica factor in record_candidates_examined, where R3-G08's per-(replica, page) counting contradicts the base plan's combined_record_candidate_bound, bounds.max_record_candidates, the analysis-report schema maximum, and the prefix_sum_work_model arithmetic. No predicate id, mapping, sequence, scientific model, bound, acquisition gate, or evidence schema changes",
+    "derivation_basis": "R4-S01 is derived from the immutable base plan's freeze_rule (frozen and report derivation_survivor_count are identical and the frozen set is compared field-for-field), its no_outcome reporting (every terminal predicate names the classification its stage made), and R3-G03's per-replica evaluation. R4-B01 is derived from bounds.max_qualified_pages_per_submodel, bounds.planned_checkpoints_per_replica, the two-replica derivation rule, and the four pointer references a model can hold, and its EXP-0042 value was re-measured directly from the retained EXP-0042 bundle's replica 1 and 2 page indexes (manifest SHA-256 9e1dac53e13f0bf765fc41b242b85beb26c8a518f7a15777aa37641af575dd46). The PR #58 analyzer and validator results were read only to locate the two divergences; neither rule adopts an implementation because it is convenient. EXP-0042 replica 3 was not opened. R4-C01 is derived from the immutable base plan's record_candidate_procedure.combined_record_candidate_bound, bounds.max_record_candidates, bounds.max_analysis_work_units, prefix_sum_work_model arithmetic, and the analysis-report schema maximum, all of which presuppose no replica factor",
     "amendment_permitted": "acquisition has not started, so this additive revision is permitted by the original plan's amendment rule",
     "amendment_rule": "after the first acquisition starts, any change requires a new experiment id, plan file, and provenance entry"
   },
@@ -247,18 +252,23 @@
       }
     ]
   },
+  "record_candidate_count_reconciliation": {
+    "gap_id": "R4-C01",
+    "title": "record_candidates_examined and work units count each union qualified page once across derivation replicas",
+    "plan_gap": "R3-G08 defines record_candidates_examined as 2098176 multiplied by the number of (derivation replica, qualified page) enumerations and R3-G03 repeats that each union page is counted once per replica that enumerated it. The immutable base plan fixes record_candidate_procedure.combined_record_candidate_bound = 67,141,632 = 32 x 2,098,176 (16 + 16 qualified pages with no replica factor), bounds.max_record_candidates = 67,141,632, analysis-report.schema.json record_candidates_examined maximum 67,141,632, and prefix_sum_work_model's ceiling arithmetic (interval queries at most 8 x 67,141,632 = 537,133,056 units, prefix construction at most 32 x 16 x 2049 = 1,049,088 units, total 538,182,144 below bounds.max_analysis_work_units = 600,000,000), none of which carries a replica factor. Under R3-G08 the sixteen_qualified_pages fixture (16 global + 16 tdef qualified pages in both replicas, churn precondition met) yields 64 x 2,098,176 = 134,283,264, which no schema-valid analysis report can carry and which exceeds bounds.max_record_candidates; the main analyzer's A3-RESOURCE-BOUND abort and the validator's acceptance are both literal readings of conflicting text, so this is a plan gap",
+    "rule": "record_candidates_examined = 2,098,176 multiplied by the number of pages in the union qualified_pages of R3-G03 (global_map and tdef unions together) that at least one derivation replica actually enumerated: every qualified global page of the union, plus every qualified TDEF page of the union when stage 1 (churn precondition) passed in at least one derivation replica. A page is counted once however many derivation replicas enumerated it; replica 3 is never counted. Work units are charged on the same basis: interval queries at most 8 units per enumerated interval and prefix construction at most 16 x 2049 cells per union qualified page, each charged once across derivation replicas, so the per-replica enumeration of R3-G03 is an evaluation rule and not a charging rule. The independent validator recomputes record_candidates_examined from the union and the per-replica churn precondition, rejects a report whose value differs, and must additionally enforce bounds.max_record_candidates and bounds.max_analysis_work_units on the recomputed values as fail-closed bound checks (the validator on origin/codex/a3-validator enforces max_qualified_pages_per_submodel, max_candidate_models, and max_analysis_work_units but never max_record_candidates; it must). The analyzer raises A3-RESOURCE-BOUND only when the union count exceeds bounds.max_record_candidates or the charged work exceeds bounds.max_analysis_work_units; at the exact ceiling it proceeds. This supersedes the record_candidates_examined sentence of R3-G08 and the sentence of R3-G03 that reads record_candidates_examined counts each page of the union once per replica that enumerated it; every other sentence of R3-G03 and R3-G08 stands",
+    "single_implementation": "one charge per union qualified page across derivation replicas; validator recomputes and enforces max_record_candidates",
+    "bound_consistency_derivation": "bounds.max_qualified_pages_per_submodel = 16 applies to the frozen union arrays (derivation-candidates.schema.json pages maxItems 16), so a union above 16 pages in either submodel is itself an A3-RESOURCE-BOUND abort before any interval is charged, and an enumerated union holds at most 32 pages. Hence record_candidates_examined <= 32 x 2,098,176 = 67,141,632 = combined_record_candidate_bound = bounds.max_record_candidates = analysis-report schema maximum; interval queries <= 8 x 67,141,632 = 537,133,056; prefix construction <= 32 x 16 x 2049 = 1,049,088; total 538,182,144 < 600,000,000, exactly the prefix_sum_work_model arithmetic. bounds_sanity_basis is therefore satisfiable for this field: the exact ceiling 67,141,632 is accepted, and one more page's worth, 69,239,808, is rejected by the schema, by bounds.max_record_candidates, and by max_qualified_pages_per_submodel. No bound, no plan.schema.json const, and no evidence schema changes",
+    "exp_0042_worked_example": "EXP-0042 replay: union qualified pages are global {0, 1, 20, 21} and tdef {0, 1, 23, 24}; the churn precondition passes in both replicas, so 8 enumerated union pages give record_candidates_examined = 8 x 2,098,176 = 16,785,408, against 33,570,816 under the superseded per-replica counting. sixteen_qualified_pages fixture: 32 union pages give exactly 67,141,632, the accepted ceiling",
+    "pair_gate_disposition": "the sixteen_qualified_pages disagreement (analyzer A3-RESOURCE-BOUND versus validator acceptance) is resolved by this rule in favour of acceptance at the ceiling, with the field value 67,141,632; the PR #59 analyzer's cross-replica dedupe matches this rule for the field but the validator must be brought to it as well"
+  },
   "analyzer_defects_not_resolved_here": {
-    "rule": "the pair gate's remaining disagreements are analyzer defects against text that already exists and are not plan gaps; R4 does not touch them and PR #58 must fix the analyzer to the existing text",
+    "rule": "the pair gate's remaining disagreement is an analyzer defect against text that already exists and is not a plan gap; R4 does not touch it and the analyzer lane (PR #58 / PR #59) must fix the analyzer to the existing text. The sixteen_qualified_pages disagreement, first listed here as a second analyzer defect, was ruled a plan gap by independent review and is resolved by R4-C01 instead",
     "items": [
       {
         "id": "tdef_u24_pointer_layout",
         "symptom": "on 87 of the 89 disagreeing sweep cases (100 fixtures) the analyzer reports tdef_pointer_pair terminal A3-POINTER-MULTIPLE (twice A3-CHURN-POINTER-NONE or another id) with a null model while the validator derives the u24le_page_then_u8_slot model with growth pointer offset 0 and delete/reinsert pointer offset 2044",
         "governing_text": "record_candidate_procedure TDEF layouts, tdef_no_outcome_ordering stages 2-5, and R3-G06 window distinctness"
-      },
-      {
-        "id": "exact_ceiling_bounds_edge",
-        "symptom": "on the sixteen_qualified_pages fixture, which sits exactly at bounds.max_qualified_pages_per_submodel = 16, the analyzer raises the campaign terminal A3-RESOURCE-BOUND and derives no layer while the validator accepts the ceiling and derives all four models",
-        "governing_text": "bounds.max_qualified_pages_per_submodel = 16 and analyzer_dry_run_contract.bounds_sanity_basis: dry-run boundary cases must accept each exact ceiling and reject one over"
       }
     ]
   },
@@ -269,10 +279,12 @@
     "dry_run_report_schema_change": "properties.input_page_blob_count.maximum 55 -> 1800; sha256 f88c1f9bf131352311d3e77e70f95d84d015b60c3d50cce40ceed668b390a593 -> e7b054543529f4b2ac38cda7ae15fac80cf20bd6745f4fcd43cec02eabc9f13d; non-evidential dry-run artifact schema only",
     "original_predicate_registry_remains_immutable": true,
     "r2_sequences_remain_immutable": true,
-    "r3_rules_remain_immutable": true,
+    "r3_rules_remain_immutable": false,
     "operational_rules_pinned": true,
     "scientific_projection_changed": false,
     "acquisition_authorized": false,
-    "support_claim_changed": false
+    "support_claim_changed": false,
+    "r3_rules_superseded": "R3-G08 record_candidates_examined sentence and the matching R3-G03 sentence (R4-C01); one sentence of dry_run_honesty_clause.pair_acceptance_gate (R4-B02); everything else in R3 stands",
+    "bounds_changed": false
   }
 }

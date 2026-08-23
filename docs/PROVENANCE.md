@@ -3814,8 +3814,8 @@ Use `not applicable` explicitly rather than omitting a field.
   (SHA-256 `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`),
   R2 (`3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`), and
   R3 (`bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`),
-  inherits their sequences and rules unchanged, and pins `R4-S01`, `R4-B01`,
-  and `R4-B02`. Acquisition has not started, so the revision is permitted by
+  inherits their sequences and rules unchanged except the two sentences
+  `R4-C01` supersedes, and pins `R4-S01`, `R4-B01`, `R4-B02`, and `R4-C01`. Acquisition has not started, so the revision is permitted by
   the base plan's amendment rule.
 - `R4-S01` survivor count: `decision_rules.freeze_rule` says only that
   `derivation_survivor_counts equals layer counts`; on
@@ -3861,14 +3861,34 @@ Use `not applicable` explicitly rather than omitting a field.
   outcome. The nine evidence schemas and `plan.schema.json` are byte-identical.
   The single sentence of R3's `pair_acceptance_gate` declaring the dry-run
   schema unchanged is superseded for this one field.
-- Not resolved here: the pair gate's remaining disagreements are analyzer
-  defects against existing text, not plan gaps: on 87 of 89 cases the analyzer
-  reports `tdef_pointer_pair` terminal `A3-POINTER-MULTIPLE` with a null model
-  where the validator derives the `u24le_page_then_u8_slot` model (offsets
-  0/2044) under `tdef_no_outcome_ordering` and `R3-G06`; on
-  `sixteen_qualified_pages` the analyzer raises `A3-RESOURCE-BOUND` at exactly
-  `max_qualified_pages_per_submodel = 16` where `bounds_sanity_basis` requires
-  the exact ceiling to be accepted. Both are left to PR #58.
+- `R4-C01` record candidate count: independent review of this revision ruled
+  the `sixteen_qualified_pages` divergence a plan gap, not an analyzer defect.
+  `R3-G08`/`R3-G03` count `record_candidates_examined` per (derivation
+  replica, qualified page), which at 16 + 16 pages in both replicas gives
+  134,283,264, while the immutable base plan's
+  `combined_record_candidate_bound`, `bounds.max_record_candidates`, and the
+  analysis-report schema maximum are all 67,141,632 = 32 x 2,098,176 with no
+  replica factor, and `prefix_sum_work_model` (537,133,056 + 1,049,088 =
+  538,182,144 < 600,000,000) likewise assumes none. R4 supersedes those two
+  sentences: the field and the work units count each union qualified page
+  once across derivation replicas (a TDEF page when the churn precondition
+  passed in at least one replica), so the exact ceiling 67,141,632 is accepted
+  and one page more (69,239,808) is rejected by schema, bound, and
+  `max_qualified_pages_per_submodel`. The independent validator must
+  recompute the field on that basis and must also enforce
+  `bounds.max_record_candidates`, which the validator lane never does today.
+  `EXP-0042` replay value under the rule: 8 union pages, 16,785,408. No bound,
+  `plan.schema.json` const, or evidence schema changes.
+- Not resolved here: the TDEF u24 pointer-layout disagreement (87 of 89
+  cases: analyzer `tdef_pointer_pair` terminal `A3-POINTER-MULTIPLE` with a
+  null model where the validator derives `u24le_page_then_u8_slot`, offsets
+  0/2044, under `tdef_no_outcome_ordering` and `R3-G06`) is an analyzer
+  defect against existing text, not a plan gap, and is left to the analyzer
+  lane.
+- Independent review: `/private/tmp/fable-59-60-review.md` (sections A.6 and
+  C), not committed; it verified additivity, hash pins, the schema-edit
+  justification, the survivor table, and the 81/1800 derivations, and
+  required the `R4-C01` ruling before merge.
 - Plan identities:
   `oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json`, SHA-256
   `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`;
@@ -3877,7 +3897,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `oracle/windows-dao/experiments/a3/a3-allocation-maps-r3.plan.json`, SHA-256
   `bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`;
   `oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json`, SHA-256
-  `167b6e10ca2ff7f90070dfd73957e5ea3dc9b02e54d917be9918b273a0e26ce1`.
+  `939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`.
 - Observation: `preregistration.acquisition_started` remains `false`; this
   revision records no database, checkpoint, replica observation, candidate
   set, report, validation receipt, evidence bundle, or scientific outcome.
@@ -3893,7 +3913,8 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: project-authored revision and tests; no DAO binary, MDB, page blob,
   or retained bundle is committed or redistributed
 - Review: focused A3 plan hash, R4 binding, survivor-count table, blob-bound
-  derivation, schema-hash, and analyzer-defect-exclusion contracts plus
+  derivation, schema-hash, record-candidate-count, and analyzer-defect-exclusion
+  contracts plus
   repository validation must pass
 
 ## Fixtures and black-box results
