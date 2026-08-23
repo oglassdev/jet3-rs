@@ -4298,6 +4298,185 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: focused A3 plan-chain, schema old-to-new hash, revision inventory,
   document binding, lazy-baseline, campaign-timeout, and unchanged-schema
   contracts plus repository validation must pass
+
+### EXP-0051 — First hosted A3 result: global-map record predicts holdout
+
+- Recorded: 2026-08-23, OpenAI Codex
+- Kind: controlled hosted DAO acquisition with a complete retained bundle, a
+  preregistered decisive scientific result, and acceptance by the
+  independently recomputing A3 validator; descriptive provider observation
+  only, not a Rust or DAO-compatibility result
+- Question: Can the disclosed tag/base/bitmap allocation-map representation
+  and separately delimited record-level models derived from two fresh Jet 3
+  databases predict allocation-map transitions in a third fresh holdout
+  database without refitting?
+- Origin and binding: project-authored `DAO-A3-ALLOCATION-MAPS-001` campaign
+  `a3-run-32626186825`, executed end to end by GitHub Actions run
+  `32626186825` using `.github/workflows/windows-dao-a3.yml` on `main` from
+  exact clean pushed producer commit
+  `146add25cd6443c3cdae7f3f02e20080014f3ba3`. The evidence binds the immutable
+  base plan SHA-256
+  `b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1`
+  and governing R5 SHA-256
+  `03cdfe0dde1563d386c646d844e9383637547ca0e5321ef29bac264dfcc6bf3b`,
+  which in turn binds R2
+  `3feca409d07bd748954902c51c44f85d7c0708c1af9a99a53f96db2d87ea3bc1`,
+  R3 `bac371167fa67e92e87649e3f28c338ccc6ca57a668da496dfa084c42ce1996a`,
+  and R4 `939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea`.
+  No donated MDB or third-party MDB implementation was used.
+- Environment and timing: all three replicas ran on `windows-2022` (`win22`,
+  Windows `10.0.20348`) in x86 Windows PowerShell `5.1.20348.5499` with Python
+  `3.13.7` and machine-registered `DAO.DBEngine.36` from `dao360.dll` file
+  version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  every environment record says `status = ready`. The hosted run began at
+  `2026-08-23T07:40:26Z`; the manifest was created at
+  `2026-08-23T08:01:36Z`; the retained evidence records 1,270 elapsed seconds,
+  within R5's hard 2,700-second campaign bound. The workflow completed
+  successfully at `2026-08-23T08:02:27Z`.
+- Protocol and freeze order: execute 25 closed-file checkpoints for each of
+  three fresh replicas, use replicas 1 and 2 for derivation, canonically freeze
+  the candidate set, only then download and structurally validate replica 3,
+  resume analysis without refitting, close and producer-validate the bundle,
+  and invoke the independent recomputing validator in a separate process. The
+  report records 75 input checkpoints and all three holdout flags as true:
+  `holdout_opened_after_freeze`,
+  `holdout_structurally_validated_after_freeze`, and `holdout_evaluated`. The
+  holdout receipt records `validated_after_candidate_freeze = true`,
+  `page_bytes_exposed_to_analyzer = false`, and `result = pass`.
+- Retained artifact: GitHub artifact id `9490002226`,
+  `windows-dao-a3-bundle-146add25cd6443c3cdae7f3f02e20080014f3ba3-32626186825-1`,
+  106,941,677 bytes, transport SHA-256
+  `2336bfacc05b4e1cdfeed61afa7a07dcad346a70e192d9c5b6152c6f98e8eacd`.
+  A read-only local copy was inspected at
+  `/private/tmp/claude-501/-Users-oglass-Development-Misc-access97-rs/77df2993-62f0-4041-97d5-19885072a109/scratchpad/a3run/bundle`.
+  The manifest closes 26,259 payload entries and 93,109,888 bytes excluding
+  the manifest, including 26,167 unique page blobs, three observations, three
+  environments, three replica manifests, and 75 checkpoint indexes.
+- Evidence identities: `bundle-manifest.json` is 6,431,127 bytes, SHA-256
+  `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`;
+  `analysis/derivation-candidates.json` is 1,612 bytes, SHA-256
+  `ec7c8d27cc46ef9dfdc8214d025cd2d6493ab089f00fc35dbf0ccb9899cdcc0a`;
+  `analysis/analysis-report.json` is 5,914 bytes, SHA-256
+  `7587389e4323171aff9b9efcd46bcd5fc8e2ec8273116e8a0360965e4e11faeb`;
+  and `analysis/holdout-structure-receipt.json` is SHA-256
+  `f51e4874065f5f31974b1a92e68062345db0a0f516ee7d79515b9462b7aff277`.
+  The separately retained 1,197-byte
+  `validation/independent-validation-report.json` is SHA-256
+  `28297781b8476176f4d7e23675b257029711f7a7c8a856b15fcdfef8973dfe18`;
+  `fan-in-status.json` is SHA-256
+  `1a59f4f642f92dd4c0dc2c24ea354f2c509d85806a24a9ed814b9867fb212d85`.
+- Scientific outcome: the report records
+  `scientific_outcome = one_or_more_submodels_predict_holdout`, 16,785,408
+  record candidates examined, 22,652 candidate models examined, and
+  134,291,460 analysis work units. Qualified global pages are exactly
+  `[0, 1, 20, 21]` and qualified TDEF pages exactly `[0, 1, 23, 24]`.
+  Derivation survivor counts are one for `global_map.record` and zero for
+  `global_map.conversion_inline`, `global_map.extended_base`, and
+  `tdef.pointer_pair`.
+- Layer results: `global_map.record` is `decisive_predicts_holdout` with the
+  sole model `bit_polarity = set_means_not_in_use`, page 1, record interval
+  `[1915, 2048)`, and 92 zero-suffix slack bytes.
+  `global_map.conversion_inline` is `no_outcome` at
+  `A3-POLARITY-CROSSCHECK` for `growth_polarity_disagreement`: the first two
+  growth legs pass and the third, `L_REL_0512` to `L_REL_0768`, first violates
+  at page 1021. `global_map.extended_base` is `not_applicable` because the
+  conversion layer retained no model. `tdef.pointer_pair` is `no_outcome` at
+  `A3-TDEF-RECORD-NONE` for `no_tdef_record_candidate`. The two report
+  terminals are exactly `A3-POLARITY-CROSSCHECK` and
+  `A3-TDEF-RECORD-NONE`; the report-level no-outcome reasons are exactly
+  `growth_polarity_disagreement` and `no_tdef_record_candidate`.
+- Predicate results: 18 ids pass: `A3-IDLE-EQUALITY`,
+  `A3-D-SET-RELATION`, `A3-GLOBAL-PAGE-NONE`,
+  `A3-GLOBAL-PAGE-MULTIPLE`, `A3-GLOBAL-RECORD-NONE`,
+  `A3-GLOBAL-RECORD-MULTIPLE`, `A3-GLOBAL-RECORD-END`,
+  `A3-TDEF-PAGE-NONE`, `A3-STRUCTURAL-EXCLUSION`, `A3-POLARITY-NONE`,
+  `A3-POLARITY-MULTIPLE`, `A3-GROWTH-POINTER-NONE`,
+  `A3-CHURN-PRECONDITION`, `A3-CHURN-POINTER-NONE`,
+  `A3-REPLICA-DISAGREEMENT`, `A3-SNAPSHOT-RECONSTRUCTION`,
+  `A3-RESOURCE-BOUND`, and `A3-HOLDOUT-PREDICTION`. The two terminal ids
+  above fail. Fourteen ids are `not_applicable`: `A3-TDEF-PAGE-MULTIPLE`,
+  `A3-TDEF-RECORD-MULTIPLE`, `A3-POINTER-MULTIPLE`,
+  `A3-POINTER-VALIDITY`, `A3-CONVERSION-NONE`,
+  `A3-CONVERSION-MULTIPLE`, `A3-SLOT-ACTIVATION`, `A3-SLOT-FINAL`,
+  `A3-INLINE-BOUNDARY-NONE`, `A3-INLINE-BOUNDARY-MULTIPLE`,
+  `A3-INLINE-SUFFIX`, `A3-BASE-DISCRIMINATION`, `A3-BASE-NONE`, and
+  `A3-BASE-MULTIPLE`; this accounts for all 34 registered ids in R2 order.
+- Predicted versus observed: the non-evidential `EXP-0048` EXP-0042 replay
+  predicted the same qualified page sets, the same page-1 `[1915, 2048)`
+  `set_means_not_in_use` global record with 92 slack bytes, the same conversion
+  terminal and leg-3/page-1021 disagreement, the same inapplicable
+  extended-base layer, and the same TDEF terminal. That replay did not open a
+  holdout and therefore predicted only the derivation shape. This fresh A3 run
+  reproduced that preregistered shape and, after the freeze, independently
+  observed that the frozen global-record model predicted replica 3 without
+  refitting. Conversion, extended-base, and TDEF made no successful holdout
+  prediction.
+- Independent recomputation: the checked independent validator ran from the
+  same exact commit in a separate process and emitted `accepted = true`,
+  `independent_validation_status = independently_validated`, an empty
+  `discrepancy_codes` array, and true values for frozen-set parsing, agreement
+  with recomputation, agreement with the analysis report, predicate-registry
+  recomputation, and holdout recomputation. It independently rejected T1
+  through T5 with their required discrepancy codes. A read-only local rerun of
+  both producer validation and the independent validator against the retained
+  copy reproduced manifest SHA-256
+  `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`
+  and byte-identical independent-report SHA-256
+  `28297781b8476176f4d7e23675b257029711f7a7c8a856b15fcdfef8973dfe18`.
+  The immutable manifest remains
+  `bundle_status = decisive_pending_independent_validation` and
+  `independent_validation_status = not_independently_validated`; the separate
+  report and this additive entry supply the later provenance required by the
+  base plan to establish the independently validated scientific result without
+  rewriting retained evidence.
+- Prior infrastructure-only attempts: runs `32619652843`, `32620335712`, and
+  `32621021140` failed while `actions/download-artifact` extracted replica
+  artifacts, before fan-in; no scientific analysis ran and no bundle was
+  retained. Runs `32621896162` and `32623259568` exceeded the 900-second fan-in
+  bound and were cancelled before or at independent recomputation; neither
+  retained a bundle. These five attempts are infrastructure failures, not
+  scientific no-outcomes and not contrary observations. PRs #66 and #67 fixed
+  artifact download/extraction before the successful run, and PR #68 made
+  fan-in fit its existing bound; all three merged before run `32626186825`
+  without changing the preregistered scientific rules.
+- Claims and capability decision: the report's claims block has only
+  `descriptive_provider_observation_only = true`; its
+  `general_tdef_catalog_row_index_or_lval_layout`,
+  `unobserved_slot_or_base_behavior`,
+  `compaction_encryption_or_version_behavior`, `rust_correctness`, and
+  `dao_compatibility_or_support` claims are all false. Accordingly this result
+  independently validates only the preregistered DAO-observation prediction.
+  It does not establish general allocation usage, conversion, extended-base,
+  TDEF/catalog, row, index, long-value, compaction, encryption, version, Rust
+  correctness, DAO compatibility, or product support.
+- Governing support-matrix decision: no capability advances.
+  `format.pages_allocation_usage` remains `implementation = partial` and
+  `verification = internal_only`; every other entry remains unchanged. The
+  base plan's `claims.dao_compatibility_or_support = false` and
+  `decisive_report_handling.independent_validation_rule` authorize the
+  separately provenanced `independent_validation_status` movement, not a DAO
+  compatibility claim. `docs/validation/EVIDENCE.md` defines
+  `dao_differential` as agreement between DAO and Rust canonical semantic
+  results for the required scenarios and operation, while this campaign
+  produced no Rust semantic result; it also forbids the “DAO verified” label
+  without such a bundle. The required G3 differential scenario set and G8
+  exact-release evidence are absent, so both gates remain `BLOCKED`. The
+  `docs/PROVENANCE.md` entry is the clean-room evidence-ledger record required
+  by G0; no separate gate-status ledger or support-matrix evidence pointer is
+  permitted for this result.
+- Usage: narrow independently validated experimental input for a future,
+  separately provenanced implementation only;
+  `file:oracle/windows-dao/experiments/a3/README.md`;
+  `file:oracle/windows-dao/experiments/a3/analysis-report.schema.json`;
+  `file:oracle/windows-dao/experiments/a3/independent-validation-report.schema.json`
+- Rights: project-generated through the licensed Microsoft DAO provider and
+  retained as GitHub Actions artifacts; no provider binary, MDB, page blob, or
+  retained bundle is committed or redistributed by this repository
+- Review: hosted workflow success, artifact identity, manifest and frozen-set
+  hashes, producer validation, and independent recomputation were checked;
+  focused A3 plan-contract and repository-contract tests must pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

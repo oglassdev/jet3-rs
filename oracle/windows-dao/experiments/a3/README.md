@@ -1,10 +1,10 @@
 # A3 allocation-map preregistration
 
 `DAO-A3-ALLOCATION-MAPS-001` is the project-authored successor to the closed A2
-campaign. It is preregistered as `EXP-0044` on 2026-08-22. Acquisition has not
-started. This lane contains the plan, A3-bound schemas, and hash-pinned design
-input pointers only; it contains no analyzer, independent validator, worker, or
-workflow implementation.
+campaign. It was preregistered as `EXP-0044` on 2026-08-22, before acquisition
+started. Its first hosted result and independent recomputation are recorded by
+`EXP-0051`; the immutable plan and additive R2 through R5 revisions remain the
+governing scientific contract.
 
 Before acquisition, additive revision `DAO-A3-ALLOCATION-MAPS-001-R2` was
 recorded as `EXP-0045` to pin the previously unstated campaign and per-layer
@@ -187,13 +187,14 @@ holdout predicate passes whenever any layer is decisive even when another
 layer records a holdout terminal. TDEF no-outcomes and pointer-validity windows
 have explicit evaluation order.
 
-The independent recomputing validator is a required future A3 artifact. It is
+The independent recomputing validator is a required A3 artifact. It is
 implemented from the plan text without analyzer imports or reads, parses and
 compares the frozen set, independently recomputes the holdout result, and must
 reject tamper cases T1–T5. Only its separately provenanced acceptance can move
-`independent_validation_status`.
+`independent_validation_status`; `EXP-0051` records that acceptance for the
+first retained hosted result.
 
-Execution status (`EXP-0048`): the pre-acquisition dry run has been executed
+Pre-acquisition status (`EXP-0048`): the dry run was executed
 under R4 and disclosed. The synthetic sweep (100 fixtures, twelve sweep checks,
 result `pass`), the executed reachability transcript (31 of 31 reachable ids,
 3 asserted nonterminal), the analyzer/independent-validator pair gate (100 of
@@ -202,9 +203,29 @@ terminals, and all 3,400 ordered predicate statuses; both bundle-contract
 rejections remain fail-closed; `accepted=true` with T1–T5 rejected on every
 fixture holding a frozen global-record model), and the EXP-0042 derivation-only replay (81
 blobs, result `pass`) are retained under `dry-run/` with SHA-256 values in
-`dry-run/checksums.json`. The execution gate remains `BLOCKED` on
-worker/workflow rebinding (PR #56, open blocking findings), an exact clean
-pushed commit designated for acquisition, and a licensed x86 DAO host.
+`dry-run/checksums.json`.
+
+Hosted execution status (`EXP-0051`): GitHub Actions run `32626186825`
+completed `.github/workflows/windows-dao-a3.yml` end to end on `windows-2022`
+from exact clean `main` commit
+`146add25cd6443c3cdae7f3f02e20080014f3ba3`. Retained artifact
+`windows-dao-a3-bundle-146add25cd6443c3cdae7f3f02e20080014f3ba3-32626186825-1`
+is 106,941,677 bytes; its manifest SHA-256 is
+`f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`
+and frozen derivation-set SHA-256 is
+`ec7c8d27cc46ef9dfdc8214d025cd2d6493ab089f00fc35dbf0ccb9899cdcc0a`.
+The report records `one_or_more_submodels_predict_holdout`: the sole
+`global_map.record` survivor (page 1, `[1915,2048)`,
+`set_means_not_in_use`, 92 slack bytes) predicted the post-freeze holdout.
+Conversion is `no_outcome` at `A3-POLARITY-CROSSCHECK`, extended base is
+`not_applicable`, and TDEF is `no_outcome` at `A3-TDEF-RECORD-NONE`. The
+separate-process independent validator accepted the exact bundle, matched the
+frozen set and report to independent recomputation, recomputed the holdout,
+reported no discrepancies, and rejected T1–T5. This moves the campaign's
+scientific status to `independently_validated`, but advances no product
+capability: the plan permits only a descriptive provider observation, and the
+support-matrix `dao_differential` state requires DAO↔Rust semantic agreement
+that A3 did not test.
 
 Design-input pointers are themselves pinned by the plan and `EXP-0044`:
 
