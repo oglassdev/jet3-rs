@@ -568,6 +568,11 @@ def _campaign_elapsed(campaign_started_utc: str, created_utc: str) -> int:
     return elapsed
 
 
+def _created_utc_now() -> str:
+    return datetime.now(timezone.utc).replace(
+        microsecond=0).isoformat().replace("+00:00", "Z")
+
+
 def finalize_bundle(bundle_root: Path, campaign_id: str, producer_commit: str,
                     campaign_started_utc: str, *, created_utc: str | None = None) -> dict[str, Any]:
     bundle_root = bundle_root.resolve()
@@ -577,9 +582,6 @@ def finalize_bundle(bundle_root: Path, campaign_id: str, producer_commit: str,
     assert payload.analysis is not None and payload.receipt is not None
     _require(payload.replicas[0].campaign_id, campaign_id, "expected campaign")
     _require(payload.replicas[0].producer_commit, producer_commit, "expected producer")
-    created_utc = created_utc or datetime.now(timezone.utc).replace(
-        microsecond=0).isoformat().replace("+00:00", "Z")
-    campaign_elapsed_seconds = _campaign_elapsed(campaign_started_utc, created_utc)
     files = []
     for path in sorted(payload.expected_paths):
         item = payload.tree[path]
@@ -596,6 +598,13 @@ def finalize_bundle(bundle_root: Path, campaign_id: str, producer_commit: str,
                 "media_type": "application/octet-stream" if role == "page_blob" else "application/json",
             }
         )
+    created_utc = created_utc or _created_utc_now()
+    campaign_elapsed_seconds = _campaign_elapsed(campaign_started_utc, created_utc)
+    receipt_sha256 = next(
+        row["sha256"]
+        for row in files
+        if row["path"] == "analysis/holdout-structure-receipt.json"
+    )
     decisive = payload.analysis["scientific_outcome"] == "one_or_more_submodels_predict_holdout"
     manifest = {
         "protocol_version": "1.0.0",
@@ -621,9 +630,7 @@ def finalize_bundle(bundle_root: Path, campaign_id: str, producer_commit: str,
         "paths_closed": True,
         "execution_status": "analysis_complete",
         "campaign_failed": False,
-        "holdout_structure_receipt_sha256": hashlib.sha256(_read_checked(
-            bundle_root, "analysis/holdout-structure-receipt.json",
-            payload.tree, MAX_JSON_BYTES)).hexdigest(),
+        "holdout_structure_receipt_sha256": receipt_sha256,
         "analysis_report_retained": True,
         "analysis_scientific_outcome": payload.analysis["scientific_outcome"],
         "bundle_status": (

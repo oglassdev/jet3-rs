@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -34,6 +35,7 @@ from a3_bundle import (  # noqa: E402
     validate_bundle,
     _validate_target_disclosures,
 )
+import a3_bundle  # noqa: E402
 from a3_holdout import (  # noqa: E402
     FAN_IN_TIMEOUT_SECONDS,
     HOLDOUT_TIMEOUT_SECONDS,
@@ -350,6 +352,36 @@ class A3BundleTests(unittest.TestCase):
                 self.campaign_started_utc, created_utc="2026-08-22T12:00:01Z",
             )
         self.assertFalse((overtime / "bundle-manifest.json").exists())
+
+    def test_finalize_samples_created_utc_after_the_last_inventory_read(self) -> None:
+        ordered = self.root / "ordered-finalization-bundle"
+        shutil.copytree(self.pre_finalization, ordered)
+        events = []
+        original_read_checked = a3_bundle._read_checked
+
+        def instrumented_read(*args, **kwargs):
+            events.append(("read", args[1]))
+            return original_read_checked(*args, **kwargs)
+
+        def instrumented_clock():
+            events.append(("clock", None))
+            return self.created_utc
+
+        with patch("a3_bundle._read_checked", side_effect=instrumented_read), patch(
+            "a3_bundle._created_utc_now", side_effect=instrumented_clock
+        ):
+            manifest = finalize_bundle(
+                ordered, self.campaign_id, self.producer_commit,
+                self.campaign_started_utc,
+            )
+
+        clock_index = events.index(("clock", None))
+        inventory_paths = {entry["path"] for entry in manifest["files"]}
+        reads_before_clock = {
+            path for event, path in events[:clock_index] if event == "read"
+        }
+        self.assertEqual(reads_before_clock, inventory_paths)
+        self.assertFalse(any(event == "read" for event, _ in events[clock_index + 1:]))
 
     def test_complete_validator_rejects_non_a3_manifest_identity(self) -> None:
         relabeled = self.root / "relabeled-bundle"
