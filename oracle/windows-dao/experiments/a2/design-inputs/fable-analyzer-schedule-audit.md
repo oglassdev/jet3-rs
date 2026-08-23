@@ -4,7 +4,7 @@ Read-only audit. Nothing in the repository or the bundle was modified.
 
 ## 0. Scope, inputs, bounded work
 
-- Analyzer: `oracle/windows-dao/scripts/archive/a1_model.py`, `a1_analysis.py` (main @ `9470382`; identical to the run-12 producer commit `9470382…` for these files).
+- Analyzer: `oracle/windows-dao/scripts/a1_model.py`, `a1_analysis.py` (main @ `9470382`; identical to the run-12 producer commit `9470382…` for these files).
 - Schedule: `oracle/windows-dao/scripts/a1/A1.Worker.ps1:493-568` (`Add-A1UntilTarget`, `Invoke-A1Replica`) + plan `checkpoint_design` / `tables.row_algorithm`.
 - Data: run-12 bundle `windows-dao-a1-bundle-947038265f…-20260821T132025Z-a1-gh32486063559-1`. Read: all 213 page indexes (hash lists only), `observations/replica-0{1,2}.json`, and exactly **55 page blobs** — the 38 distinct page-1 blobs of replica 1, the same 38 for replica 2 (byte-identical, so cache hits), and the tag-`0x05` pages referenced from page 1 (15136, 16352) at four checkpoints. No holdout (replica 3) bytes were opened; replica-3 facts below come from its page index only. Every blob was SHA-256-rechecked against its name.
 - Script: `scratchpad/audit.py` (session scratchpad; not in the repo).

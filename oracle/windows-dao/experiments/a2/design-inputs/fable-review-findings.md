@@ -41,7 +41,7 @@ Freeze-before-holdout is correct: `a1_analysis.py:180-204` opens replica 3 only 
 ### 2.1 [High] `_type1_slots` requires the inline→indirect conversion to happen on or before `L_IDLE_REOPEN`; the schedule and the retained data put it in the P ladder
 - `a1_model.py:429-435`: `low_phase = [indirect checkpoints with ordinal <= L_IDLE_REOPEN]`; empty → `Abort(NO_SURVIVING_MODEL)`; then exactly one active slot is required at `low_phase[-1]`.
 - The schedule (`A1.Worker.ps1:541-566`) grows L to baseline+1280 (~1.5k pages, run 12: ~1,560) and only the P ladder crosses 4,096…16,480 pages. A 2,048-byte page-1 record can hold an inline bitmap covering thousands of pages; if conversion happens anywhere in ordinals 37–40 (`P_ABS_*`) — which is where the run-12 diagnosis found the only monotone `0x00→0x01` column (ordinal 40, `P_ABS_16480`) — `low_phase` is empty and derivation aborts unconditionally, *even after the D-ABA predicate is fixed*.
-- The synthetic fixture hides this exactly as it hid D-ABA: `oracle/windows-dao/tests/archive/a1_test_bundle.py:47-49` sets `CONVERSION_CHECKPOINT = "L_REL_0512"` and `INLINE_CAPACITY_PAGES = 320`, i.e. conversion is forced into the L phase.
+- The synthetic fixture hides this exactly as it hid D-ABA: `oracle/windows-dao/tests/a1_test_bundle.py:47-49` sets `CONVERSION_CHECKPOINT = "L_REL_0512"` and `INLINE_CAPACITY_PAGES = 320`, i.e. conversion is forced into the L phase.
 - Consequence: under the frozen analyzer the decisive path is unreachable whenever Jet's inline capacity exceeds the L-phase page count. Must be part of the follow-up experiment ID (diagnosis §"Required follow-up" item 5 — "prove every analyzer equality is arithmetically possible under the checkpoint generator").
 
 ### 2.2 [High] The free-pointer predicate is unsatisfiable under the plan's own delete rule
@@ -66,7 +66,7 @@ Freeze-before-holdout is correct: `a1_analysis.py:180-204` opens replica 3 only 
 ## 3. Hosted workflow, controller, bounded process (#29, #31, #32, #34)
 
 ### 3.1 [High] A decisive analysis report would be destroyed, contradicting the preregistered R2 retention rule
-- `oracle/windows-dao/scripts/archive/a1_contract.py:430-433`: `validate-document` raises for `scientific_outcome == one_joint_model_predicts_holdout`.
+- `oracle/windows-dao/scripts/a1_contract.py:430-433`: `validate-document` raises for `scientific_outcome == one_joint_model_predicts_holdout`.
 - `A1.Controller.ps1:707-711` runs exactly that validator on the fresh report; `Invoke-A1Python` (`A1.Controller.ps1:110-192`) throws on non-zero exit; the campaign `catch` then calls `Remove-A1PrivateStaging` (`A1.Controller.ps1:761`), deleting the staging bundle — analysis report, three observations, 213 page indexes and the page store.
 - What #32 retains on that path is `post-worker-a1-analysis-report-validation.failure.json` with a 32 KiB stderr tail and `campaign-error.json` (`A1.Progress.ps1:207-266`) — not the report.
 - R2 (`a1-allocation-maps-r2.plan.json:98-103`, EXP-0038 Protocol) preregisters: `analysis_report_artifact: "retained"`, bundle status `decisive_pending_independent_validation`, and "that rejection must not discard the retained analysis report". Nothing in #29–#35 implements this; `bundle-manifest.schema.json` still pins `execution_status` to the constant `"pass"` and has no status field that could carry `decisive_pending_independent_validation`.
