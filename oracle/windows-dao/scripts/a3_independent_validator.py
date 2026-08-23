@@ -629,6 +629,29 @@ def _set_tampered_layer(
     bundle.report["derivation_survivor_counts"][name] = 0
 
 
+def _t5_target(report: dict[str, Any]) -> str:
+    """T5 flips a nonterminal predicate result: A3-HOLDOUT-PREDICTION when it is nonterminal
+    (a decisive report), otherwise the first other nonterminal evaluated predicate."""
+    statuses = {item["predicate_id"]: item["status"] for item in report["predicate_results"]}
+    if statuses.get("A3-HOLDOUT-PREDICTION") == "pass":
+        return "A3-HOLDOUT-PREDICTION"
+    for item in report["predicate_results"]:
+        if item["status"] == "pass":
+            return item["predicate_id"]
+    raise ValidationError("tamper_suite_not_executable", "T5")
+
+
+def _tamper_t5(bundle: LoadedBundle) -> tuple[LoadedBundle, str]:
+    if bundle.report is None:
+        raise ValidationError("tamper_suite_not_executable", "T5")
+    t5 = _tamper_bundle(bundle)
+    target = _t5_target(t5.report)
+    next(item for item in t5.report["predicate_results"] if item["predicate_id"] == target)["status"] = "fail"
+    if target not in t5.report["terminal_predicate_ids"]:
+        t5.report["terminal_predicate_ids"].append(target)
+    return t5, target
+
+
 def _execute_tamper_suite(
     bundle: LoadedBundle,
     campaign_predicates: list[str],
@@ -681,13 +704,7 @@ def _execute_tamper_suite(
     _relink_tamper(t4)
     variants.append(("T4", t4))
 
-    t5 = _tamper_bundle(bundle)
-    holdout = next(
-        item for item in t5.report["predicate_results"] if item["predicate_id"] == "A3-HOLDOUT-PREDICTION"
-    )
-    holdout["status"] = "fail"
-    if "A3-HOLDOUT-PREDICTION" not in t5.report["terminal_predicate_ids"]:
-        t5.report["terminal_predicate_ids"].append("A3-HOLDOUT-PREDICTION")
+    t5, _ = _tamper_t5(bundle)
     variants.append(("T5", t5))
 
     results = []
