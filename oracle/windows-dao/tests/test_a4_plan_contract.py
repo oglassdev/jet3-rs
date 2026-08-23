@@ -21,6 +21,7 @@ DERIVATION_SCHEMA = EXPERIMENT / "derivation-candidates.schema.json"
 SCHEMA_SNAPSHOT = EXPERIMENT / "dao-schema-snapshot.schema.json"
 OBSERVATION_SCHEMA = EXPERIMENT / "replica-observation.schema.json"
 DRY_RUN_SCHEMA = EXPERIMENT / "dry-run-report.schema.json"
+REACHABILITY_TRANSCRIPT_SCHEMA = EXPERIMENT / "reachability-transcript.schema.json"
 INDEPENDENT_SCHEMA = EXPERIMENT / "independent-validation-report.schema.json"
 BUNDLE_SCHEMA = EXPERIMENT / "bundle-manifest.schema.json"
 BRIEF = EXPERIMENT / "design-inputs" / "a4-scope-approved.md"
@@ -28,7 +29,7 @@ CALIBRATION = EXPERIMENT / "design-inputs" / "a3-calibration-receipt.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 
-PLAN_SHA256 = "12e62b89bda97290f441b78a08902acbfe7e5fd10b9b008b1393800f45345356"
+PLAN_SHA256 = "550c6e566b8cb14492508cbf6a9b4e3980fe2ecc9729e61b7b9830d4bdd337c3"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 ZERO_SHA256 = "0" * 64
@@ -65,12 +66,61 @@ LAYERS = [
     "h3_indirect_traversal",
     "h4_catalog_bootstrap",
 ]
-MODEL_TYPES = {
-    "h1_tdef_to_map_row": "h1_locator",
-    "h2_row_identity_map_role": "h2_map_role",
-    "h3_indirect_traversal": "h3_traversal",
+FINAL_STAGES = {
+    "h1_tdef_to_map_row": "h1_locator_pair",
+    "h2_row_identity_map_role": "h2_final_role",
+    "h3_indirect_traversal": "h3_final_base_formula",
     "root_result": "h4_catalog_root",
-    "field_result": "h4_catalog_field",
+    "field_result": "h4_final_encoded_field",
+}
+OPERATION_IDS = [
+    "T1_CREATE_ID",
+    "T1_ADD_TEXT",
+    "T1_ADD_INDEX",
+    "T2_CREATE",
+    "T2_RECREATE",
+    "T3_CREATE",
+    "T4_CREATE",
+]
+LIFECYCLE_RANGES = {
+    "T1-v1": {"start": "T1_CREATE_ID", "end": "T4_IDLE_R"},
+    "T2-v1": {"start": "T2_CREATE", "end": "T2_CREATE"},
+    "T2-v2": {"start": "T2_RECREATE", "end": "T4_IDLE_R"},
+    "T3-v1": {"start": "T3_CREATE", "end": "T4_IDLE_R"},
+    "T4-v1": {"start": "T4_CREATE", "end": "T4_IDLE_R"},
+}
+TERMINAL_STAGES = {
+    "A4-H1-TDEF-NONE": "h1_tdef",
+    "A4-H1-TDEF-MULTIPLE": "h1_tdef",
+    "A4-H1-LOCATOR-LAYOUT-NONE": "h1_target_valid_layout",
+    "A4-H1-LOCATOR-LAYOUT-MULTIPLE": "h1_target_valid_layout",
+    "A4-H1-LOCATOR-PAIR-NONE": "h1_locator_pair",
+    "A4-H1-LOCATOR-PAIR-MULTIPLE": "h1_locator_pair",
+    "A4-H1-TARGET-ROW-INVALID": "h1_locator_pair",
+    "A4-H1-REPLICA-DISAGREEMENT": "h1_locator_pair",
+    "A4-H2-ROW-DIRECTORY-INVALID": "h2_structural_decoder",
+    "A4-H2-ROW-FLAGS-INVALID": "h2_structural_decoder",
+    "A4-H2-MAP-TAG-UNSUPPORTED": "h2_structural_decoder",
+    "A4-H2-ROLE-NONE": "h2_final_role",
+    "A4-H2-ROLE-MULTIPLE": "h2_final_role",
+    "A4-H2-TRANSITION-UNEXPLAINED": "h2_final_role",
+    "A4-H2-REPLICA-DISAGREEMENT": "h2_final_role",
+    "A4-H3-CONVERSION-NONE": "h3_conversion",
+    "A4-H3-INACTIVE-SLOT-NONE": "h3_conversion",
+    "A4-H3-REFERENCE-INVALID": "h3_conversion",
+    "A4-H3-BASE-DISCRIMINATION": "h3_conversion",
+    "A4-H3-BASE-NONE": "h3_final_base_formula",
+    "A4-H3-BASE-MULTIPLE": "h3_final_base_formula",
+    "A4-H3-REPLICA-DISAGREEMENT": "h3_final_base_formula",
+    "A4-H4-CATALOG-ROOT-NONE": "h4_catalog_root",
+    "A4-H4-CATALOG-ROOT-MULTIPLE": "h4_catalog_root",
+    "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED": "h4_operation_record",
+    "A4-H4-CATALOG-RECORD-NONE": "h4_operation_record",
+    "A4-H4-CATALOG-RECORD-MULTIPLE": "h4_operation_record",
+    "A4-H4-FIELD-MODEL-NONE": "h4_structural_field",
+    "A4-H4-FIELD-MODEL-MULTIPLE": "h4_structural_field",
+    "A4-H4-ENCODING-AMBIGUOUS": "h4_final_encoded_field",
+    "A4-H4-REPLICA-DISAGREEMENT": "h4_final_encoded_field",
 }
 
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
@@ -95,41 +145,97 @@ def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
-def candidate(model_type: str, serial: int = 1) -> dict[str, Any]:
-    if model_type == "h1_locator":
-        model: dict[str, Any] = {
+def h1_bindings(include_targets: bool, binding_variant: int = 0) -> list[dict[str, Any]]:
+    bindings = []
+    for replica in (1, 2):
+        for binding_serial, lifecycle in enumerate(LIFECYCLE_RANGES):
+            binding = {
+                "replica": replica,
+                "logical_role": lifecycle.split("-")[0],
+                "lifecycle_instance": lifecycle,
+                "tdef_page": 20 + binding_serial + binding_variant,
+                "applicable_checkpoint_range": copy.deepcopy(
+                    LIFECYCLE_RANGES[lifecycle]
+                ),
+            }
+            if include_targets:
+                binding["locator_targets"] = [
+                    {"page": 24 + binding_serial + binding_variant, "row": 0},
+                    {"page": 24 + binding_serial + binding_variant, "row": 1},
+                ]
+            bindings.append(binding)
+    return bindings
+
+
+def compatible_occurrence(operation: str, index: int, serial: int) -> dict[str, Any]:
+    if operation == "T1_ADD_TEXT":
+        matched = "5061796c6f6164"
+    elif operation == "T1_ADD_INDEX":
+        matched = "413449585f4944"
+    else:
+        matched = "41345441425f4131"
+    start = 20 + index * 11 + serial - 1
+    return {
+        "name_start": start,
+        "matched_registered_pattern_id": f"{operation}_CP1252",
+        "matched_bytes_hex": matched,
+        "stored_length_field": {
+            "row_relative_start": start - 1,
+            "width": 1,
+            "value": len(bytes.fromhex(matched)),
+        },
+    }
+
+
+def operation_bindings(serial: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "operation_id": operation,
+            "canonical_record_locator": {
+                "page": 100 + index,
+                "row": 0,
+                "row_start": 12,
+                "row_end": 100 + index,
+            },
+            "compatible_name_occurrences": [
+                compatible_occurrence(operation, index, serial)
+            ],
+        }
+        for index, operation in enumerate(OPERATION_IDS)
+    ]
+
+
+def candidate(stage: str, serial: int = 1, binding_variant: int = 0) -> dict[str, Any]:
+    instance_bindings: list[dict[str, Any]] | None = None
+    if stage == "h1_tdef":
+        model: dict[str, Any] = {"tdef_lifecycle_signature": "new_tag_02_at_role_create"}
+        instance_bindings = h1_bindings(False, binding_variant)
+    elif stage == "h1_target_valid_layout":
+        model = {
+            "layout": "u8_row_then_u24le_page",
+            "table_signature_id": "a3_page23_masked_record_0_92",
+        }
+        instance_bindings = h1_bindings(True, binding_variant)
+    elif stage == "h1_locator_pair":
+        model = {
             "layout": "u8_row_then_u24le_page",
             "table_signature_id": "a3_page23_masked_record_0_92",
             "locator_offsets": [35 + serial - 1, 39 + serial - 1],
         }
-        instance_bindings = [
-            {
-                "replica": replica,
-                "logical_role": lifecycle.split("-")[0],
-                "lifecycle_instance": lifecycle,
-                "tdef_page": 20 + binding_serial,
-                "locator_targets": [
-                    {"page": 24 + binding_serial, "row": 0},
-                    {"page": 24 + binding_serial, "row": 1},
-                ],
-                "applicable_checkpoint_range": {
-                    "start": "T1_CREATE_ID",
-                    "end": "T4_IDLE_R",
-                },
-            }
-            for replica in (1, 2)
-            for binding_serial, lifecycle in enumerate(
-                ("T1-v1", "T2-v1", "T2-v2", "T3-v1", "T4-v1")
-            )
-        ]
-    elif model_type == "h2_map_role":
+        instance_bindings = h1_bindings(True, binding_variant)
+    elif stage == "h2_structural_decoder":
+        model = {"row_mask": 8191 if serial % 2 else 4095}
+    elif stage == "h2_final_role":
+        owned_ordinal = ((serial - 1) // 2) % 2
         model = {
             "row_mask": 8191 if serial % 2 else 4095,
             "polarity": "set_bit_owned_in_use" if serial % 2 else "clear_bit_owned_in_use",
-            "owned_in_use_locator_ordinal": 0,
-            "available_locator_ordinal": 1,
+            "owned_in_use_locator_ordinal": owned_ordinal,
+            "available_locator_ordinal": 1 - owned_ordinal,
         }
-    elif model_type == "h3_traversal":
+    elif stage == "h3_conversion":
+        model = {"conversion": "structural_type_0_to_type_1_with_nonzero_u32_slots"}
+    elif stage == "h3_final_base_formula":
         formulas = [
             "slot_ordinal_times_16352_plus_bit_index",
             "referenced_page_times_16352_plus_bit_index",
@@ -140,11 +246,22 @@ def candidate(model_type: str, serial: int = 1) -> dict[str, Any]:
             "conversion": "structural_type_0_to_type_1_with_nonzero_u32_slots",
             "base_formula": formulas[(serial - 1) % len(formulas)],
         }
-    elif model_type == "h4_catalog_root":
+    elif stage == "h4_catalog_root":
         model = {"tdef_page": 20 + serial, "locator_offsets": [35, 39]}
-    elif model_type == "h4_catalog_field":
+    elif stage == "h4_operation_record":
+        operation = OPERATION_IDS[(serial - 1) % len(OPERATION_IDS)]
         model = {
-            "name_start": 32,
+            "root_candidate_id": ZERO_SHA256,
+            "operation_id": operation,
+            "canonical_record_locator": {
+                "page": 100 + serial,
+                "row": 0,
+                "row_start": 12,
+                "row_end": 100,
+            },
+        }
+    elif stage == "h4_structural_field":
+        model = {
             "kind_start_delta": min(serial, 16),
             "kind_width": 1,
             "identifier_width": 4,
@@ -154,31 +271,62 @@ def candidate(model_type: str, serial: int = 1) -> dict[str, Any]:
             "name_length_endianness": "little",
             "kind_mapping": {"table": 1, "field": 2, "index": 3},
             "identifier_lifecycle": "stable_for_same_operation_instance_and_distinct_for_t2_v1_v2",
-            "encoding_length_equivalence_class": "cp1252_single_byte_per_scalar",
+            "operation_bindings": operation_bindings(serial),
+        }
+    elif stage == "h4_final_encoded_field":
+        structural = candidate("h4_structural_field", serial)
+        selected = [
+            {
+                "operation_id": binding["operation_id"],
+                "selected_occurrence": copy.deepcopy(
+                    binding["compatible_name_occurrences"][0]
+                ),
+            }
+            for binding in structural["model"]["operation_bindings"]
+        ]
+        classes = [
+            "cp1252_single_byte_per_scalar",
+            "utf8_encoded_byte_count",
+            "utf8_unicode_scalar_or_code_unit_count",
+        ]
+        model = {
+            "structural_candidate_id": structural["canonical_candidate_id"],
+            "encoding_length_equivalence_class": classes[(serial - 1) % 3],
+            "selected_operation_occurrences": selected,
         }
     else:
-        raise AssertionError(f"unknown model type {model_type}")
-    value = {"model_type": model_type, "model": model}
-    result = {"canonical_id": canonical_sha256(value), **value}
-    if model_type == "h1_locator":
+        raise AssertionError(f"unknown candidate stage {stage}")
+    value = {"model_type": stage, "model": model}
+    result = {**value}
+    if instance_bindings is not None:
         result["instance_bindings"] = instance_bindings
+        result["canonical_model_id"] = canonical_sha256(value)
+        candidate_identity = {**value, "instance_bindings": instance_bindings}
+    else:
+        candidate_identity = value
+    result["canonical_candidate_id"] = canonical_sha256(candidate_identity)
     return result
 
 
 def frozen_result(
-    model_type: str,
+    stage: str,
     status: str,
     terminal: str | None = None,
     count: int | None = None,
 ) -> dict[str, Any]:
     if count is None:
         count = 1 if status == "model" else 0
-    candidates = [candidate(model_type, serial) for serial in range(1, count + 1)]
-    candidates.sort(key=lambda item: item["canonical_id"])
+    candidates = [
+        candidate(stage, serial, binding_variant=serial - 1)
+        for serial in range(1, count + 1)
+    ]
+    candidates.sort(key=lambda item: item["canonical_candidate_id"])
     return {
         "status": status,
-        "derivation_survivor_count": count,
+        "predicate_measured_survivor_count": count,
+        "derivation_survivor_count": 1 if status == "model" else 0,
         "terminal_predicate_id": terminal,
+        "terminal_candidate_stage": stage if status == "no_outcome" else None,
         "candidates": candidates,
         "canonical_candidates_sha256": canonical_sha256(candidates),
     }
@@ -186,39 +334,51 @@ def frozen_result(
 
 def validate_frozen_result(value: dict[str, Any]) -> None:
     candidates = value["candidates"]
-    count = value["derivation_survivor_count"]
+    count = value["predicate_measured_survivor_count"]
+    final_count = value["derivation_survivor_count"]
     terminal = value["terminal_predicate_id"]
     if len(candidates) != count:
         raise AssertionError("candidate length and survivor count differ")
-    if candidates != sorted(candidates, key=lambda item: item["canonical_id"]):
+    if candidates != sorted(candidates, key=lambda item: item["canonical_candidate_id"]):
         raise AssertionError("candidate order is not canonical")
-    ids = [item["canonical_id"] for item in candidates]
+    ids = [item["canonical_candidate_id"] for item in candidates]
     if len(ids) != len(set(ids)):
         raise AssertionError("duplicate canonical candidate id")
     if canonical_sha256(candidates) != value["canonical_candidates_sha256"]:
         raise AssertionError("canonical candidate hash mismatch")
-    if value["status"] == "model" and (count != 1 or terminal is not None):
+    if value["status"] == "model" and (
+        count != 1 or final_count != 1 or terminal is not None
+        or value["terminal_candidate_stage"] is not None
+    ):
         raise AssertionError("model must have one candidate and no terminal")
     if value["status"] == "not_applicable" and (
-        count != 0 or candidates or terminal is not None
+        count != 0 or final_count != 0 or candidates or terminal is not None
+        or value["terminal_candidate_stage"] is not None
     ):
         raise AssertionError("not_applicable result has retained state")
-    if value["status"] == "no_outcome" and terminal is None:
+    if value["status"] == "no_outcome" and (
+        terminal is None or final_count != 0
+        or value["terminal_candidate_stage"] is None
+    ):
         raise AssertionError("no_outcome requires a terminal")
     for item in candidates:
         identity = {"model_type": item["model_type"], "model": item["model"]}
-        if item["canonical_id"] != canonical_sha256(identity):
+        if item["model_type"].startswith("h1_"):
+            if item["canonical_model_id"] != canonical_sha256(identity):
+                raise AssertionError("canonical H1 model id mismatch")
+            identity["instance_bindings"] = item["instance_bindings"]
+        if item["canonical_candidate_id"] != canonical_sha256(identity):
             raise AssertionError("canonical candidate id mismatch")
-        if item["model_type"] == "h2_map_role":
+        if item["model_type"] == "h2_final_role":
             model = item["model"]
             if (
                 model["owned_in_use_locator_ordinal"]
                 == model["available_locator_ordinal"]
             ):
                 raise AssertionError("H2 locator ordinals must differ")
-        if item["model_type"] == "h1_locator":
-            offsets = item["model"]["locator_offsets"]
-            if offsets != sorted(offsets):
+        if item["model_type"].startswith("h1_"):
+            offsets = item["model"].get("locator_offsets")
+            if offsets is not None and offsets != sorted(offsets):
                 raise AssertionError("locator offsets must be ascending")
             bindings = item["instance_bindings"]
             expected_order = [
@@ -229,33 +389,58 @@ def validate_frozen_result(value: dict[str, Any]) -> None:
             if [(row["replica"], row["lifecycle_instance"]) for row in bindings] != expected_order:
                 raise AssertionError("H1 instance binding order or coverage differs")
             for binding in bindings:
-                targets = [
-                    (target["page"], target["row"])
-                    for target in binding["locator_targets"]
-                ]
-                if len(targets) != len(set(targets)):
-                    raise AssertionError("locator targets must be distinct")
+                lifecycle = binding["lifecycle_instance"]
+                if binding["logical_role"] != lifecycle.split("-")[0]:
+                    raise AssertionError("logical role differs from lifecycle prefix")
+                if binding["applicable_checkpoint_range"] != LIFECYCLE_RANGES[lifecycle]:
+                    raise AssertionError("H1 lifecycle range differs")
+                checkpoint_range = binding["applicable_checkpoint_range"]
+                if CHECKPOINTS.index(checkpoint_range["start"]) > CHECKPOINTS.index(checkpoint_range["end"]):
+                    raise AssertionError("H1 lifecycle range is reversed")
+                if "locator_targets" in binding:
+                    targets = [(target["page"], target["row"]) for target in binding["locator_targets"]]
+                    if len(targets) != len(set(targets)):
+                        raise AssertionError("locator targets must be distinct")
+        if item["model_type"] == "h4_structural_field":
+            model = item["model"]
+            if "encoding_length_equivalence_class" in model:
+                raise AssertionError("structural H4 candidate consumed encoding")
+            if model["name_length_endianness"] != model["endianness"]:
+                raise AssertionError("stored name length has independent endianness")
+            bindings = model["operation_bindings"]
+            if [binding["operation_id"] for binding in bindings] != OPERATION_IDS:
+                raise AssertionError("H4 operation bindings differ from frozen order")
+            for binding in bindings:
+                occurrences = binding["compatible_name_occurrences"]
+                if not occurrences or occurrences != sorted(occurrences, key=canonical_bytes):
+                    raise AssertionError("H4 compatible occurrences are not nonempty and canonical")
+        if item["model_type"] == "h4_final_encoded_field":
+            selected = item["model"]["selected_operation_occurrences"]
+            if [row["operation_id"] for row in selected] != OPERATION_IDS:
+                raise AssertionError("H4 selected occurrences differ from frozen order")
 
 
 def validate_layer_semantics(layers: dict[str, Any]) -> None:
     for name in LAYERS[:3]:
         validate_frozen_result(layers[name])
-        self_type = MODEL_TYPES[name]
-        if any(item["model_type"] != self_type for item in layers[name]["candidates"]):
-            raise AssertionError("layer contains a foreign candidate type")
+        expected_stage = layers[name]["terminal_candidate_stage"] or FINAL_STAGES[name]
+        if any(item["model_type"] != expected_stage for item in layers[name]["candidates"]):
+            raise AssertionError("layer contains a foreign candidate stage")
     root = layers["h4_catalog_bootstrap"]["root_result"]
     field = layers["h4_catalog_bootstrap"]["field_result"]
     validate_frozen_result(root)
     validate_frozen_result(field)
     if root["status"] != "model" and field["status"] != "not_applicable":
         raise AssertionError("H4 fields require a decisive root")
-    if any(item["model_type"] != MODEL_TYPES["root_result"] for item in root["candidates"]):
+    expected_root = root["terminal_candidate_stage"] or FINAL_STAGES["root_result"]
+    if any(item["model_type"] != expected_root for item in root["candidates"]):
         raise AssertionError("H4 root contains a foreign candidate type")
-    if any(item["model_type"] != MODEL_TYPES["field_result"] for item in field["candidates"]):
+    expected_field = field["terminal_candidate_stage"] or FINAL_STAGES["field_result"]
+    if any(item["model_type"] != expected_field for item in field["candidates"]):
         raise AssertionError("H4 field contains a foreign candidate type")
 
 
-def predicate_failure_count(contract: dict[str, Any]) -> int:
+def default_failure_count(contract: dict[str, Any]) -> int:
     rule = contract["failure_survivor_count"]
     if "exact" in rule:
         return rule["exact"]
@@ -265,41 +450,57 @@ def predicate_failure_count(contract: dict[str, Any]) -> int:
     return first_range["exact"] if "exact" in first_range else first_range["minimum"]
 
 
+def validate_failure_count(contract: dict[str, Any], measured: int) -> None:
+    rule = contract["failure_survivor_count"]
+    if "exact" in rule:
+        valid = measured == rule["exact"]
+    elif "minimum" in rule:
+        valid = measured >= rule["minimum"]
+    else:
+        valid = False
+        for allowed in rule["allowed_ranges"]:
+            if "exact" in allowed and measured == allowed["exact"]:
+                valid = True
+            elif "minimum" in allowed and measured >= allowed["minimum"]:
+                valid = True
+    if not valid:
+        raise AssertionError("measured failure count violates predicate contract")
+
+
 def build_layers_for_terminal(
-    contracts: list[dict[str, Any]], terminal_index: int | None
+    contracts: list[dict[str, Any]], terminal_index: int | None,
+    measured_terminal_count: int | None = None,
 ) -> dict[str, Any]:
     layers: dict[str, Any] = {}
     terminal_scope = contracts[terminal_index]["scope"] if terminal_index is not None else None
     terminal_id = contracts[terminal_index]["predicate_id"] if terminal_index is not None else None
-    terminal_count = (
-        predicate_failure_count(contracts[terminal_index])
-        if terminal_index is not None
-        else None
-    )
+    terminal_count = measured_terminal_count
+    if terminal_count is None and terminal_index is not None:
+        terminal_count = default_failure_count(contracts[terminal_index])
     scope_order = ["campaign", *LAYERS]
 
     def ordinary(name: str) -> dict[str, Any]:
-        model_type = MODEL_TYPES[name]
+        final_stage = FINAL_STAGES[name]
         if terminal_scope == "campaign":
-            return frozen_result(model_type, "not_applicable")
+            return frozen_result(final_stage, "not_applicable")
         if terminal_id is not None and "HOLDOUT" in terminal_id:
-            return frozen_result(model_type, "model")
+            return frozen_result(final_stage, "model")
         if terminal_scope is None or scope_order.index(name) < scope_order.index(terminal_scope):
-            return frozen_result(model_type, "model")
+            return frozen_result(final_stage, "model")
         if name == terminal_scope:
             return frozen_result(
-                model_type,
+                TERMINAL_STAGES[terminal_id],
                 "no_outcome",
                 terminal_id,
                 terminal_count,
             )
-        return frozen_result(model_type, "not_applicable")
+        return frozen_result(final_stage, "not_applicable")
 
     for name in LAYERS[:3]:
         layers[name] = ordinary(name)
 
-    root_type = MODEL_TYPES["root_result"]
-    field_type = MODEL_TYPES["field_result"]
+    root_type = FINAL_STAGES["root_result"]
+    field_type = FINAL_STAGES["field_result"]
     if terminal_scope == "campaign" or (
         terminal_scope is not None and terminal_scope != "h4_catalog_bootstrap"
     ):
@@ -332,7 +533,7 @@ def build_layers_for_terminal(
             h4 = {
                 "root_result": frozen_result(root_type, "model"),
                 "field_result": frozen_result(
-                    field_type,
+                    TERMINAL_STAGES[terminal_id],
                     "no_outcome",
                     terminal_id,
                     terminal_count,
@@ -343,7 +544,8 @@ def build_layers_for_terminal(
 
 
 def build_report(
-    plan: dict[str, Any], terminal_index: int | None = None
+    plan: dict[str, Any], terminal_index: int | None = None,
+    measured_terminal_count: int | None = None,
 ) -> dict[str, Any]:
     contracts = plan["predicate_registry"]["predicate_contracts"]
     results = []
@@ -352,15 +554,23 @@ def build_report(
             status, terminal = "pass", None
             count = 0 if contract["scope"] == "campaign" else 1
         else:
-            status = "pass" if index < terminal_index else "fail" if index == terminal_index else "not_applicable"
+            if index < terminal_index:
+                status = "pass"
+            elif index == terminal_index:
+                status = "fail"
+            else:
+                status = "not_applicable"
             terminal = contract["predicate_id"] if index == terminal_index else None
-            count = (
-                predicate_failure_count(contract)
-                if index == terminal_index
-                else 0
-                if status == "not_applicable" or contract["scope"] == "campaign"
-                else 1
-            )
+            if index == terminal_index:
+                count = (
+                    measured_terminal_count
+                    if measured_terminal_count is not None
+                    else default_failure_count(contract)
+                )
+            elif status == "not_applicable" or contract["scope"] == "campaign":
+                count = 0
+            else:
+                count = 1
         results.append(
             {
                 "predicate_id": contract["predicate_id"],
@@ -368,7 +578,14 @@ def build_report(
                 "scope": contract["scope"],
                 "status": status,
                 "terminal_predicate_id": terminal,
-                "derivation_survivor_count": count,
+                "predicate_measured_survivor_count": count,
+                "derivation_survivor_count": 1
+                if (
+                    contract["scope"] != "campaign"
+                    and status != "not_applicable"
+                    and (status == "pass" or "HOLDOUT" in contract["predicate_id"])
+                )
+                else 0,
                 "reachability_fixture_id": contract["reachability_fixture_id"],
             }
         )
@@ -387,7 +604,7 @@ def build_report(
         "holdout_opened_after_freeze": True,
         "analyzer_logical_read_bytes_by_replica": [0, 0, 0],
         "predicate_results": results,
-        "layers": build_layers_for_terminal(contracts, terminal_index),
+        "layers": build_layers_for_terminal(contracts, terminal_index, measured_terminal_count),
         "holdout_results": holdout_results,
         "transcripts": {
             "row_directories": [],
@@ -431,6 +648,25 @@ def build_holdout_results(
     }
 
 
+def build_frozen_document(report: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "protocol_version": "1.0.0",
+        "document_type": "dao_a4_frozen_derivation_candidates",
+        "experiment_id": "DAO-A4-ROW-ANCHORED-MAPS-001",
+        "plan_sha256": ZERO_SHA256,
+        "revision_plan_sha256": ZERO_SHA256,
+        "campaign_id": "synthetic",
+        "derivation_replicas": [1, 2],
+        "qualified_pages": [],
+        "work_charges": {
+            **{key: 0 for key in plan["work_model"]["terms"]},
+            "total_work_units": 0,
+        },
+        "layers": copy.deepcopy(report["layers"]),
+        "transcripts": copy.deepcopy(report["transcripts"]),
+    }
+
+
 def validate_report_semantics(report: dict[str, Any], plan: dict[str, Any]) -> None:
     contracts = plan["predicate_registry"]["predicate_contracts"]
     results = report["predicate_results"]
@@ -450,34 +686,45 @@ def validate_report_semantics(report: dict[str, Any], plan: dict[str, Any]) -> N
             raise AssertionError("predicate scope mismatch")
         if result["reachability_fixture_id"] != contract["reachability_fixture_id"]:
             raise AssertionError("reachability fixture mismatch")
-        expected_status = (
-            "pass"
-            if terminal_index is None or index < terminal_index
-            else "fail"
-            if index == terminal_index
-            else "not_applicable"
-        )
+        if terminal_index is None or index < terminal_index:
+            expected_status = "pass"
+        elif index == terminal_index:
+            expected_status = "fail"
+        else:
+            expected_status = "not_applicable"
         if result["status"] != expected_status:
             raise AssertionError("predicate status projection mismatch")
         expected_terminal = contract["predicate_id"] if index == terminal_index else None
         if result["terminal_predicate_id"] != expected_terminal:
             raise AssertionError("predicate terminal projection mismatch")
-        expected_count = (
-            predicate_failure_count(contract)
-            if index == terminal_index
-            else 0
-            if expected_status == "not_applicable" or contract["scope"] == "campaign"
-            else 1
+        measured_count = result["predicate_measured_survivor_count"]
+        if index == terminal_index:
+            validate_failure_count(contract, measured_count)
+        else:
+            expected_count = 0 if expected_status == "not_applicable" or contract["scope"] == "campaign" else 1
+            if measured_count != expected_count:
+                raise AssertionError("predicate measured survivor projection mismatch")
+        retains_final_model = (
+            contract["scope"] != "campaign"
+            and expected_status != "not_applicable"
+            and (expected_status == "pass" or "HOLDOUT" in contract["predicate_id"])
         )
-        if result["derivation_survivor_count"] != expected_count:
-            raise AssertionError("predicate survivor projection mismatch")
+        expected_final_count = 1 if retains_final_model else 0
+        if result["derivation_survivor_count"] != expected_final_count:
+            raise AssertionError("predicate final survivor projection mismatch")
     validate_layer_semantics(report["layers"])
-    expected_layers = build_layers_for_terminal(contracts, terminal_index)
+    terminal_count = (
+        results[terminal_index]["predicate_measured_survivor_count"]
+        if terminal_index is not None else None
+    )
+    expected_layers = build_layers_for_terminal(contracts, terminal_index, terminal_count)
 
     def result_projection(value: dict[str, Any]) -> tuple[Any, ...]:
         return (
             value["status"],
             value["terminal_predicate_id"],
+            value["terminal_candidate_stage"],
+            value["predicate_measured_survivor_count"],
             value["derivation_survivor_count"],
             len(value["candidates"]),
         )
@@ -508,6 +755,11 @@ def validate_work_charges(charges: dict[str, int]) -> None:
     terms = [value for key, value in charges.items() if key != "total_work_units"]
     if charges["total_work_units"] != sum(terms):
         raise AssertionError("total_work_units mismatch")
+
+
+def validate_analysis_work_bound(attempted_units: int, bound: int) -> None:
+    if attempted_units > bound:
+        raise AssertionError("analysis work bound exceeded before manifest creation")
 
 
 def validate_frozen_file_hash(report: dict[str, Any], frozen_bytes: bytes) -> None:
@@ -742,6 +994,9 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(len(flattened), 40)
         self.assertEqual([item["predicate_id"] for item in contracts], flattened)
         self.assertEqual([item["order"] for item in contracts], list(range(1, 41)))
+        self.assertEqual(
+            registry["terminal_candidate_stage_by_predicate"], TERMINAL_STAGES
+        )
         self.assertEqual(len({item["reachability_fixture_id"] for item in contracts}), 40)
         required = {
             "predicate_id", "order", "scope", "prerequisites", "input_candidate_set",
@@ -756,7 +1011,10 @@ class A4PlanContractTests(unittest.TestCase):
             self.assertTrue(contract["pass_iff"])
             self.assertTrue(contract["fail_iff"])
             self.assertTrue(contract["reachability_fixture"])
-            self.assertEqual(contract["fixture_status"], "claimed; executed in dry run")
+            self.assertEqual(
+                contract["fixture_status"],
+                "claimed_reachable; execution_required_before_dispatch",
+            )
         evaluation = registry["evaluation_rule"]
         for phrase in ("Evaluation has two phases", "Derivation phase", "Holdout phase", "derivation layer depends", "sole terminal", "all 36 scientific predicates"):
             self.assertIn(phrase, evaluation)
@@ -768,6 +1026,139 @@ class A4PlanContractTests(unittest.TestCase):
                 report = build_report(self.plan, terminal_index)
                 validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
                 validate_report_semantics(report, self.plan)
+
+    def test_minimum_counts_use_actual_measurement_not_the_minimum(self) -> None:
+        contracts = self.plan["predicate_registry"]["predicate_contracts"]
+        selected_ids = {
+            "A4-H1-TDEF-MULTIPLE",
+            "A4-H2-ROLE-MULTIPLE",
+            "A4-H3-BASE-MULTIPLE",
+            "A4-H4-FIELD-MODEL-MULTIPLE",
+        }
+        multiple_indexes = [
+            index for index, contract in enumerate(contracts)
+            if contract["predicate_id"] in selected_ids
+        ]
+        self.assertEqual(len(multiple_indexes), 4)
+        for measured in (3, 4):
+            for index in multiple_indexes:
+                with self.subTest(predicate=contracts[index]["predicate_id"], measured=measured):
+                    report = build_report(self.plan, index, measured)
+                    validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
+                    validate_report_semantics(report, self.plan)
+                    layer = report["layers"][contracts[index]["scope"]]
+                    if contracts[index]["scope"] == "h4_catalog_bootstrap":
+                        layer = layer["field_result"]
+                    self.assertEqual(layer["predicate_measured_survivor_count"], measured)
+                    self.assertEqual(len(layer["candidates"]), measured)
+        for index in multiple_indexes:
+            with self.subTest(predicate=contracts[index]["predicate_id"], measured=1):
+                report = build_report(self.plan, index, 1)
+                with self.assertRaises(AssertionError):
+                    validate_report_semantics(report, self.plan)
+
+    def test_h4_structural_and_final_field_candidate_phases_are_distinct(self) -> None:
+        for schema in (self.derivation_schema, self.analysis_schema):
+            self.assertNotIn("h4FieldCandidate", schema["$defs"])
+            self.assertIn("h4StructuralFieldCandidate", schema["$defs"])
+            self.assertIn("h4FinalFieldCandidate", schema["$defs"])
+        contracts = self.plan["predicate_registry"]["predicate_contracts"]
+        by_id = {row["predicate_id"]: index for index, row in enumerate(contracts)}
+        structural = build_report(
+            self.plan, by_id["A4-H4-FIELD-MODEL-MULTIPLE"], 2
+        )
+        structural_result = structural["layers"]["h4_catalog_bootstrap"]["field_result"]
+        validate_schema_value(structural, self.analysis_schema, self.analysis_schema, "$")
+        validate_report_semantics(structural, self.plan)
+        self.assertEqual(structural_result["terminal_candidate_stage"], "h4_structural_field")
+        self.assertEqual(len(structural_result["candidates"]), 2)
+        for item in structural_result["candidates"]:
+            self.assertNotIn("encoding_length_equivalence_class", item["model"])
+            self.assertNotIn("name_start", item["model"])
+            self.assertEqual(
+                item["model"]["name_length_endianness"],
+                item["model"]["endianness"],
+            )
+            self.assertEqual(
+                [binding["operation_id"] for binding in item["model"]["operation_bindings"]],
+                OPERATION_IDS,
+            )
+        distinct_starts = [
+            binding["compatible_name_occurrences"][0]["name_start"]
+            for binding in structural_result["candidates"][0]["model"]["operation_bindings"]
+        ]
+        self.assertEqual(len(set(distinct_starts)), 7)
+
+        for measured in (0, 2):
+            with self.subTest(final_candidates=measured):
+                final = build_report(
+                    self.plan, by_id["A4-H4-ENCODING-AMBIGUOUS"], measured
+                )
+                field_result = final["layers"]["h4_catalog_bootstrap"]["field_result"]
+                validate_schema_value(final, self.analysis_schema, self.analysis_schema, "$")
+                validate_report_semantics(final, self.plan)
+                self.assertEqual(field_result["terminal_candidate_stage"], "h4_final_encoded_field")
+                self.assertEqual(len(field_result["candidates"]), measured)
+
+    def test_h1_physical_ids_and_lifecycle_ranges_are_semantic(self) -> None:
+        required_shapes = {
+            "h1TdefCandidate", "h1TargetValidLayoutCandidate", "h1LocatorPairCandidate",
+            "h2StructuralDecoderCandidate", "h2FinalRoleCandidate",
+            "h3ConversionCandidate", "h3FinalBaseFormulaCandidate",
+            "h4RootCandidate", "h4OperationRecordCandidate",
+            "h4StructuralFieldCandidate", "h4FinalFieldCandidate",
+        }
+        for schema in (self.derivation_schema, self.analysis_schema):
+            self.assertTrue(required_shapes.issubset(schema["$defs"]))
+        first = candidate("h1_locator_pair", binding_variant=0)
+        second = candidate("h1_locator_pair", binding_variant=1)
+        self.assertEqual(first["canonical_model_id"], second["canonical_model_id"])
+        self.assertNotEqual(first["canonical_candidate_id"], second["canonical_candidate_id"])
+        result = frozen_result("h1_locator_pair", "model")
+        result["candidates"] = sorted(
+            [first, second], key=lambda item: item["canonical_candidate_id"]
+        )
+        result["predicate_measured_survivor_count"] = 2
+        result["derivation_survivor_count"] = 0
+        result["status"] = "no_outcome"
+        result["terminal_predicate_id"] = "A4-H1-LOCATOR-PAIR-MULTIPLE"
+        result["terminal_candidate_stage"] = "h1_locator_pair"
+        result["canonical_candidates_sha256"] = canonical_sha256(result["candidates"])
+        validate_frozen_result(result)
+
+        invalid_range = frozen_result("h1_locator_pair", "model")
+        invalid_range["candidates"][0]["instance_bindings"][1]["applicable_checkpoint_range"] = {
+            "start": "T1_CREATE_ID",
+            "end": "T4_IDLE_R",
+        }
+        invalid_range["canonical_candidates_sha256"] = canonical_sha256(
+            invalid_range["candidates"]
+        )
+        with self.assertRaises(AssertionError):
+            validate_frozen_result(invalid_range)
+
+    def test_every_nonzero_early_terminal_serializes_without_downstream_choice(self) -> None:
+        contracts = self.plan["predicate_registry"]["predicate_contracts"]
+        for index, contract in enumerate(contracts[:35]):
+            if contract["scope"] == "campaign" or default_failure_count(contract) == 0:
+                continue
+            report = build_report(self.plan, index)
+            validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
+            validate_report_semantics(report, self.plan)
+            frozen = build_frozen_document(report, self.plan)
+            validate_schema_value(frozen, self.derivation_schema, self.derivation_schema, "$")
+            self.assertEqual(frozen["layers"], report["layers"])
+            if contract["scope"] == "h4_catalog_bootstrap":
+                part = (
+                    "root_result"
+                    if contract["predicate_id"].startswith("A4-H4-CATALOG-ROOT")
+                    else "field_result"
+                )
+                result = report["layers"][contract["scope"]][part]
+            else:
+                result = report["layers"][contract["scope"]]
+            self.assertEqual(result["terminal_candidate_stage"], TERMINAL_STAGES[contract["predicate_id"]])
+            self.assertTrue(all(item["model_type"] == result["terminal_candidate_stage"] for item in result["candidates"]))
 
     def test_freeze_precedes_holdout_and_is_identical_for_pass_and_failure(self) -> None:
         contracts = self.plan["predicate_registry"]["predicate_contracts"]
@@ -896,7 +1287,7 @@ class A4PlanContractTests(unittest.TestCase):
         reversed_offsets = copy.deepcopy(report["layers"]["h1_tdef_to_map_row"])
         candidate_value = reversed_offsets["candidates"][0]
         candidate_value["model"]["locator_offsets"] = [39, 35]
-        candidate_value["canonical_id"] = canonical_sha256(
+        candidate_value["canonical_model_id"] = canonical_sha256(
             {"model_type": candidate_value["model_type"], "model": candidate_value["model"]}
         )
         reversed_offsets["canonical_candidates_sha256"] = canonical_sha256(
@@ -907,7 +1298,7 @@ class A4PlanContractTests(unittest.TestCase):
 
         layer_mismatch = copy.deepcopy(report)
         layer_mismatch["layers"]["h1_tdef_to_map_row"] = frozen_result(
-            "h1_locator", "no_outcome", "A4-H1-TDEF-MULTIPLE", 2
+            "h1_locator_pair", "no_outcome", "A4-H1-TDEF-MULTIPLE", 2
         )
         with self.assertRaises(AssertionError):
             validate_report_semantics(layer_mismatch, self.plan)
@@ -1151,6 +1542,12 @@ class A4PlanContractTests(unittest.TestCase):
         checkpoints = self.plan["checkpoint_design"]["count"]
         qualified_pages = bounds["max_qualified_pages_per_submodel"]
         operation_instances = 7
+        complete_row_bytes = bounds["page_size"] - 10 - 2
+        occurrence_ceiling = 5 * (complete_row_bytes // 8) + 2 * (complete_row_bytes // 7)
+        h4_inner_grammar = 16 * 3 * 3 * 2 * 16 * 3 * 6 * 2
+        self.assertEqual(complete_row_bytes, 2036)
+        self.assertEqual(occurrence_ceiling, 1850)
+        self.assertEqual(h4_inner_grammar, 165888)
         one_layout = sum(range(1, 2042))
         self.assertEqual(one_layout, 2083861)
         self.assertEqual(2 * one_layout, bounds["max_locator_pairs_per_tdef_page"])
@@ -1167,17 +1564,33 @@ class A4PlanContractTests(unittest.TestCase):
             "base_formula_evaluations": len(grammar["h3"]["base_formulas"]) * qualified_pages * checkpoints,
             "catalog_root_signatures": qualified_pages * checkpoints * len(self.plan["replicas"]["derivation"]) * len(grammar["h4"]["catalog_root_selection_signatures"]),
             "catalog_raw_rows": operation_instances * qualified_pages * 679,
-            "encoding_union_anchor_bytes": operation_instances * (bounds["page_size"] - 10) * len(grammar["h4"]["name_encodings"]),
-            "h4_name_length_structural_tuples": operation_instances * ((bounds["page_size"] - 10) // 8) * (16 * 3 * 3 * 2 * 16 * 3 * 2 * 6 * 2),
+            "encoding_union_anchor_bytes": 9 * complete_row_bytes,
+            "h4_name_length_structural_tuples": occurrence_ceiling * h4_inner_grammar,
             "encoding_length_equivalence_candidates": operation_instances * len(grammar["h4"]["name_length_equivalence_classes"]),
             "candidate_serializations": bounds["max_candidate_models"],
         }
         terms = self.plan["work_model"]["terms"]
         self.assertEqual({key: value["units"] for key, value in terms.items()}, expected_terms)
         terminal_maximum = sum(expected_terms.values())
-        self.assertEqual(terminal_maximum, 670482217)
-        self.assertEqual(self.plan["work_model"]["terminal_path_maxima"]["h4_latest_derivation_terminal"], terminal_maximum)
+        self.assertEqual(expected_terms["encoding_union_anchor_bytes"], 18324)
+        self.assertEqual(expected_terms["h4_name_length_structural_tuples"], 306892800)
+        self.assertEqual(terminal_maximum, 387467081)
+        terminal_paths = self.plan["work_model"]["terminal_path_maxima"]
+        all_terms = {key: value["units"] for key, value in terms.items()}
+        all_terms.update(
+            {key: value["units"] for key, value in terminal_paths["alternative_terms"].items()}
+        )
+        recomputed_paths = {
+            name: sum(all_terms[term] for term in term_names)
+            for name, term_names in terminal_paths["term_table"].items()
+        }
+        self.assertEqual(recomputed_paths, terminal_paths["computed_units"])
+        self.assertEqual(recomputed_paths["h4_latest_derivation_terminal"], terminal_maximum)
         self.assertLessEqual(terminal_maximum, bounds["max_analysis_work_units"])
+        self.assertEqual(bounds["max_analysis_work_units"], 600000000)
+        validate_analysis_work_bound(600000000, bounds["max_analysis_work_units"])
+        with self.assertRaises(AssertionError):
+            validate_analysis_work_bound(600000001, bounds["max_analysis_work_units"])
         self.assertEqual(bounds["max_retained_page_store_bytes"], 65536 * 2048)
         self.assertEqual(4096 * 4096 + 4097, bounds["max_canonical_candidates_array_bytes"])
         consumers = self.plan["work_model"]["logical_read_consumers"]
@@ -1191,7 +1604,7 @@ class A4PlanContractTests(unittest.TestCase):
         independent = json.loads(INDEPENDENT_SCHEMA.read_bytes())
         self.assertIn("logical_read_bytes_by_replica", independent["required"])
         self.assertEqual(independent["properties"]["tamper_results"]["minItems"], 9)
-        self.assertEqual(self.plan["work_model"]["bound_classification"]["max_analysis_work_units"], "conservative_upper")
+        self.assertEqual(self.plan["work_model"]["bound_classification"]["max_analysis_work_units"], "attainable_exact")
 
     def test_a3_page_23_raw_window_and_pair_charge_is_recomputed_when_available(self) -> None:
         expected = self.plan["candidate_grammars"]["h1"]["a3_page_23_recomputed_work"]
@@ -1308,6 +1721,24 @@ class A4PlanContractTests(unittest.TestCase):
         plan_index = dry["required"].index("plan_sha256")
         self.assertEqual(dry["required"][plan_index + 1], "revision_plan_sha256")
         self.assertIn("revision_plan_sha256", dry["properties"])
+        transcript_binding = dry["properties"]["reachability_transcript"]
+        self.assertEqual(
+            transcript_binding["properties"]["path"]["const"],
+            self.plan["artifacts"]["reachability_transcript"],
+        )
+        transcript = json.loads(REACHABILITY_TRANSCRIPT_SCHEMA.read_bytes())
+        entries = transcript["properties"]["fixture_entries"]
+        self.assertEqual((entries["minItems"], entries["maxItems"]), (40, 40))
+        registry_ids = [
+            row["predicate_id"]
+            for row in self.plan["predicate_registry"]["predicate_contracts"]
+        ]
+        self.assertEqual(transcript["properties"]["registry_order"]["const"], registry_ids)
+        self.assertIn("reachability_transcript_binding", self.plan["analyzer_dry_run_contract"])
+        self.assertEqual(
+            self.plan["predicate_registry"]["fixture_registry_status"],
+            "claimed_reachable; execution_required_before_dispatch",
+        )
         binding = self.plan["implementation_rebinding"]["revision_binding_rule"]
         self.assertEqual(binding["style"], "R5-V01")
         self.assertIn("both equal", binding["base_rule"])

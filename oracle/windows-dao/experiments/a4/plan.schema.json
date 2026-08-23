@@ -557,7 +557,7 @@
           "const": 16781313
         },
         "max_analysis_work_units": {
-          "const": 700000000
+          "const": 600000000
         },
         "max_unique_page_blobs": {
           "const": 65536

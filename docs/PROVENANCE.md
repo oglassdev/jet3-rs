@@ -4505,16 +4505,18 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `12e62b89bda97290f441b78a08902acbfe7e5fd10b9b008b1393800f45345356`,
+  `550c6e566b8cb14492508cbf6a9b4e3980fe2ecc9729e61b7b9830d4bdd337c3`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
   replicas 1 and 2, canonically freeze before replica 3 is downloaded/opened,
   then predict the role-rotated holdout without refit. Retain R5-V01-style
-  plan/revision binding, R4-S01-style survivor counts, R4-C01-style union-once
-  work charging with terminal-path maxima, including a 670,482,217-unit H4
-  path below the conservative 700,000,000-unit ceiling, complete frozen
-  candidate arrays and separate H4 root/field results, a complete manifest,
+  plan/revision binding, phase-specific R4-S01-style measured survivor counts,
+  R4-C01-style union-once work charging with terminal-path maxima, including
+  a 387,467,081-unit H4 path below the exact-accept 600,000,000-unit ceiling,
+  complete frozen candidate arrays, distinct H1 model/physical candidate ids,
+  exact lifecycle ranges, and separate H4 root/structural-field/final-field
+  results, a complete manifest,
   independent recomputation and tamper suite, and the R5-T01-style hard
   2,700-second campaign bound derived from hosted `run_started_at`: accept
   2,700, reject 2,701 before manifest creation.
@@ -4553,7 +4555,9 @@ Use `not applicable` explicitly rather than omitting a field.
   under each layout; target validation leaves zero page-then-row pairs and one
   row-then-page pair.
   H4 locates records only from operation deltas and non-name structural fields;
-  after one structural model survives it compares strict Windows-1252 (`c9`
+  every structural candidate retains seven ordered operation bindings and
+  their compatible occurrences without an encoding result. After one
+  structural model survives it compares strict Windows-1252 (`c9`
   for U+00C9) with UTF-8 (`c389`) and reports the observationally equivalent
   CP1252 byte/scalar length hypotheses as one class because no within-CP1252
   identifier can discriminate them. The schedule
@@ -4576,8 +4580,12 @@ Use `not applicable` explicitly rather than omitting a field.
   nonunique index perturbation, three replicas with freeze/holdout and
   independent validation, and the 2,700-second hard bound. Adversarial review
   pass 1 findings B1--B8, S1--S3, and N1--N2 and pass 2 findings P2-B1--B6
-  and P2-S1--S2, plus pass 3 findings P3-B1--P3-B6 and P3-S1--P3-S2, were
-  applied to this unmerged base plan in place; focused A4
+  and P2-S1--S2, plus pass 3 findings P3-B1--P3-B6 and P3-S1--P3-S2 and pass
+  4 findings P4-B1--P4-B3 and P4-S1--P4-S2, were applied to this unmerged
+  base plan in place. Pass 4 also canonically binds the required, not-yet-
+  executed reachability transcript and recomputes the 2,036-byte row, 1,850
+  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms;
+  focused A4
   plan and repository contract checks must pass
 
 ## Fixtures and black-box results

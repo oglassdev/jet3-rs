@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`12e62b89bda97290f441b78a08902acbfe7e5fd10b9b008b1393800f45345356`.
+`550c6e566b8cb14492508cbf6a9b4e3980fe2ecc9729e61b7b9830d4bdd337c3`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -121,8 +121,11 @@ The base plan incorporates A3's later machinery fixes from the start:
   additive, becomes the governing revision, and is retained with the entire
   revision chain.
 - R4-S01-style survivor counts retain measured multiplicity for `MULTIPLE`,
-  zero for `NONE`, one for a single failed or decisive model, and zero for an
-  inapplicable layer.
+  distinguish that predicate measurement from final-layer cardinality, retain
+  phase-specific terminal candidates without downstream choices, and store
+  zero final models for a derivation terminal. H1 separately hashes its
+  replica-invariant model and physical instance bindings; the latter use the
+  exact preregistered lifecycle ranges.
 - R4-C01-style charging counts union-qualified work once, even when both
   derivation replicas expose it.
 - Canonical locator enumeration examines 4,090 raw window identities and at
@@ -133,13 +136,15 @@ The base plan incorporates A3's later machinery fixes from the start:
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 670,482,217 units under the conservative 700,000,000-unit
+  path is H4 at 387,467,081 units under the exact-accept 600,000,000-unit
   ceiling; mutually exclusive row-count and row-length maxima are not summed.
   Type-1 rows admit at most 508 complete slots, type-0 rows 16,248 bits, and
   tag-05 pages 16,352 bits. H4 separately charges the encoding-union scan and
-  all bounded name/length tuple attempts. The two registered name patterns
-  cannot overlap at starts less than eight bytes apart, bounding a complete
-  2,038-byte row to 254 compatible occurrences.
+  all bounded name/length tuple attempts. A complete row is at most 2,036
+  bytes. Five eight-byte table operations and two seven-byte field/index
+  operations admit at most 1,850 occurrence identities; nine deduplicated
+  pattern/operation scans charge 18,324 byte starts. One shared integer-field
+  endianness gives the 165,888 inner grammar and 306,892,800 tuple term.
 - One producer read plus independent analyzer and validator reads cost at most
   1,317,011,456 bytes per replica, below the 2 GiB logical-read bound; no
   analyzer/validator pass is shared. Candidates are globally capped at
@@ -152,7 +157,10 @@ The base plan incorporates A3's later machinery fixes from the start:
 - The dry-run honesty clause requires executed byte-level reachability transcripts,
   independent replica-3 overshoots, full analyzer/validator agreement, genuine
   tamper execution, and exact-bound/one-over cases. Hand-authored or constant
-  rejection results fail the gate.
+  rejection results fail the gate. The canonical
+  `dry-run/a4-reachability-transcript.json` artifact and synthetic dry-run
+  report bind its bytes, producer identities, and additive provenance entry;
+  all registry fixtures remain claimed and not yet executed until that gate.
 
 The approved scope brief is copied byte-for-byte at
 `design-inputs/a4-scope-approved.md`, SHA-256
@@ -161,10 +169,13 @@ The approved scope brief is copied byte-for-byte at
 ## Schemas and status
 
 The evidence-schema family is A4-specific: frozen layers retain complete
-canonical candidate arrays, H4 has independent root and field results, and the
+stage-discriminated canonical candidate arrays, H4 has independent root and
+field results with separate encoding-neutral structural and final encoded
+field candidates and exact seven-operation occurrence bindings, and the
 analysis report contains A4 row-directory, locator, transition, reference/
 bitmap, catalog-root, and catalog-field transcripts. A4 additionally defines
-`dao-schema-snapshot.schema.json`. No analyzer, validator, worker, or workflow
+`dao-schema-snapshot.schema.json` and
+`reachability-transcript.schema.json`. No analyzer, validator, worker, or workflow
 implementation is part of this preregistration change, and acquisition remains
 `BLOCKED` until the plan's execution gates are satisfied and disclosed
 additively.

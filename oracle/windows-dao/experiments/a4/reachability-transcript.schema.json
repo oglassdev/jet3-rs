@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a4/reachability-transcript.schema.json",
+  "title": "DAO A4 predicate reachability transcript",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "experiment_id",
+    "plan_sha256",
+    "revision_plan_sha256",
+    "harness_commit",
+    "independent_validator_commit",
+    "provenance_entry_id",
+    "registry_order",
+    "fixture_entries",
+    "adversarial_case_outcomes"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0.0"
+    },
+    "document_type": {
+      "const": "dao_a4_reachability_transcript"
+    },
+    "experiment_id": {
+      "const": "DAO-A4-ROW-ANCHORED-MAPS-001"
+    },
+    "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "revision_plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "harness_commit": {
+      "$ref": "#/$defs/commit"
+    },
+    "independent_validator_commit": {
+      "$ref": "#/$defs/commit"
+    },
+    "provenance_entry_id": {
+      "type": "string",
+      "pattern": "^EXP-[0-9]{4}$"
+    },
+    "fixture_entries": {
+      "type": "array",
+      "minItems": 40,
+      "maxItems": 40,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/fixtureEntry"
+      }
+    },
+    "adversarial_case_outcomes": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/adversarialOutcome"
+      }
+    },
+    "registry_order": {
+      "const": [
+        "A4-IDLE-EQUALITY",
+        "A4-SCHEMA-SNAPSHOT",
+        "A4-SNAPSHOT-RECONSTRUCTION",
+        "A4-RESOURCE-BOUND",
+        "A4-H1-TDEF-NONE",
+        "A4-H1-TDEF-MULTIPLE",
+        "A4-H1-LOCATOR-LAYOUT-NONE",
+        "A4-H1-LOCATOR-PAIR-NONE",
+        "A4-H1-TARGET-ROW-INVALID",
+        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "A4-H1-LOCATOR-PAIR-MULTIPLE",
+        "A4-H1-REPLICA-DISAGREEMENT",
+        "A4-H2-ROW-DIRECTORY-INVALID",
+        "A4-H2-ROW-FLAGS-INVALID",
+        "A4-H2-MAP-TAG-UNSUPPORTED",
+        "A4-H2-ROLE-NONE",
+        "A4-H2-ROLE-MULTIPLE",
+        "A4-H2-TRANSITION-UNEXPLAINED",
+        "A4-H2-REPLICA-DISAGREEMENT",
+        "A4-H3-CONVERSION-NONE",
+        "A4-H3-INACTIVE-SLOT-NONE",
+        "A4-H3-REFERENCE-INVALID",
+        "A4-H3-BASE-DISCRIMINATION",
+        "A4-H3-BASE-NONE",
+        "A4-H3-BASE-MULTIPLE",
+        "A4-H3-REPLICA-DISAGREEMENT",
+        "A4-H4-CATALOG-ROOT-NONE",
+        "A4-H4-CATALOG-ROOT-MULTIPLE",
+        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+        "A4-H4-CATALOG-RECORD-NONE",
+        "A4-H4-CATALOG-RECORD-MULTIPLE",
+        "A4-H4-FIELD-MODEL-NONE",
+        "A4-H4-FIELD-MODEL-MULTIPLE",
+        "A4-H4-ENCODING-AMBIGUOUS",
+        "A4-H4-REPLICA-DISAGREEMENT",
+        "A4-H1-HOLDOUT-PREDICTION",
+        "A4-H2-HOLDOUT-PREDICTION",
+        "A4-H3-HOLDOUT-PREDICTION",
+        "A4-H4-HOLDOUT-ROOT",
+        "A4-H4-HOLDOUT-FIELDS"
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "predicateId": {
+      "type": "string",
+      "enum": [
+        "A4-IDLE-EQUALITY",
+        "A4-SCHEMA-SNAPSHOT",
+        "A4-SNAPSHOT-RECONSTRUCTION",
+        "A4-RESOURCE-BOUND",
+        "A4-H1-TDEF-NONE",
+        "A4-H1-TDEF-MULTIPLE",
+        "A4-H1-LOCATOR-LAYOUT-NONE",
+        "A4-H1-LOCATOR-PAIR-NONE",
+        "A4-H1-TARGET-ROW-INVALID",
+        "A4-H1-LOCATOR-LAYOUT-MULTIPLE",
+        "A4-H1-LOCATOR-PAIR-MULTIPLE",
+        "A4-H1-REPLICA-DISAGREEMENT",
+        "A4-H2-ROW-DIRECTORY-INVALID",
+        "A4-H2-ROW-FLAGS-INVALID",
+        "A4-H2-MAP-TAG-UNSUPPORTED",
+        "A4-H2-ROLE-NONE",
+        "A4-H2-ROLE-MULTIPLE",
+        "A4-H2-TRANSITION-UNEXPLAINED",
+        "A4-H2-REPLICA-DISAGREEMENT",
+        "A4-H3-CONVERSION-NONE",
+        "A4-H3-INACTIVE-SLOT-NONE",
+        "A4-H3-REFERENCE-INVALID",
+        "A4-H3-BASE-DISCRIMINATION",
+        "A4-H3-BASE-NONE",
+        "A4-H3-BASE-MULTIPLE",
+        "A4-H3-REPLICA-DISAGREEMENT",
+        "A4-H4-CATALOG-ROOT-NONE",
+        "A4-H4-CATALOG-ROOT-MULTIPLE",
+        "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
+        "A4-H4-CATALOG-RECORD-NONE",
+        "A4-H4-CATALOG-RECORD-MULTIPLE",
+        "A4-H4-FIELD-MODEL-NONE",
+        "A4-H4-FIELD-MODEL-MULTIPLE",
+        "A4-H4-ENCODING-AMBIGUOUS",
+        "A4-H4-REPLICA-DISAGREEMENT",
+        "A4-H1-HOLDOUT-PREDICTION",
+        "A4-H2-HOLDOUT-PREDICTION",
+        "A4-H3-HOLDOUT-PREDICTION",
+        "A4-H4-HOLDOUT-ROOT",
+        "A4-H4-HOLDOUT-FIELDS"
+      ]
+    },
+    "nullablePredicateId": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/predicateId"
+        }
+      ]
+    },
+    "candidateStage": {
+      "enum": [
+        "h1_tdef",
+        "h1_target_valid_layout",
+        "h1_locator_pair",
+        "h2_structural_decoder",
+        "h2_final_role",
+        "h3_conversion",
+        "h3_final_base_formula",
+        "h4_catalog_root",
+        "h4_operation_record",
+        "h4_structural_field",
+        "h4_final_encoded_field"
+      ]
+    },
+    "stageCandidates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "candidate_ids"
+      ],
+      "properties": {
+        "stage": {
+          "$ref": "#/$defs/candidateStage"
+        },
+        "candidate_ids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 4096,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "measuredPredicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "predicate_id",
+        "status",
+        "actual_survivor_count"
+      ],
+      "properties": {
+        "predicate_id": {
+          "$ref": "#/$defs/predicateId"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "actual_survivor_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        }
+      }
+    },
+    "evaluatorResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_failure_id",
+        "measured_terminal_count",
+        "candidate_set_sha256"
+      ],
+      "properties": {
+        "first_failure_id": {
+          "$ref": "#/$defs/nullablePredicateId"
+        },
+        "measured_terminal_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "candidate_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "fixtureEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "predicate_id",
+        "reachability_fixture_id",
+        "baseline_fixture_sha256",
+        "mutation_sha256",
+        "page_index_inventory_sha256",
+        "page_blob_inventory_sha256",
+        "enumerated_candidate_ids_by_stage",
+        "evaluated_predicates",
+        "first_failure_id",
+        "analyzer_result",
+        "independent_validator_result",
+        "agreement"
+      ],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 40
+        },
+        "predicate_id": {
+          "$ref": "#/$defs/predicateId"
+        },
+        "reachability_fixture_id": {
+          "type": "string",
+          "pattern": "^A4-R[0-9]{2}-[A-Z0-9-]+$",
+          "maxLength": 64
+        },
+        "baseline_fixture_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "mutation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "page_index_inventory_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "page_blob_inventory_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "enumerated_candidate_ids_by_stage": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/stageCandidates"
+          }
+        },
+        "evaluated_predicates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/measuredPredicate"
+          }
+        },
+        "first_failure_id": {
+          "$ref": "#/$defs/predicateId"
+        },
+        "analyzer_result": {
+          "$ref": "#/$defs/evaluatorResult"
+        },
+        "independent_validator_result": {
+          "$ref": "#/$defs/evaluatorResult"
+        },
+        "agreement": {
+          "const": true
+        }
+      }
+    },
+    "adversarialOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "expected",
+        "analyzer_result",
+        "independent_validator_result",
+        "agreement"
+      ],
+      "properties": {
+        "case_id": {
+          "enum": [
+            "multiple_count_2",
+            "multiple_count_3",
+            "multiple_count_4",
+            "encoding_count_0",
+            "encoding_count_2",
+            "unregistered_candidate_id",
+            "malformed_page",
+            "earlier_predicate_invalidated",
+            "resource_exact_ceiling",
+            "resource_one_over"
+          ]
+        },
+        "expected": {
+          "enum": [
+            "accept",
+            "reject"
+          ]
+        },
+        "analyzer_result": {
+          "enum": [
+            "accept",
+            "reject"
+          ]
+        },
+        "independent_validator_result": {
+          "enum": [
+            "accept",
+            "reject"
+          ]
+        },
+        "agreement": {
+          "const": true
+        }
+      }
+    }
+  }
+}

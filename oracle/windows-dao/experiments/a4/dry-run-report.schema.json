@@ -20,6 +20,7 @@
     "parameter_coverage",
     "predicted_terminal_states",
     "terminal_predicate_ids",
+    "reachability_transcript",
     "result",
     "assertions",
     "scientific_evidence",
@@ -183,6 +184,19 @@
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/predicateId"
+      }
+    },
+    "reachability_transcript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "harness_commit", "independent_validator_commit", "provenance_entry_id"],
+      "properties": {
+        "path": {"const": "dry-run/a4-reachability-transcript.json"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "harness_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "independent_validator_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "provenance_entry_id": {"type": "string", "pattern": "^EXP-[0-9]{4}$"}
       }
     },
     "result": {
