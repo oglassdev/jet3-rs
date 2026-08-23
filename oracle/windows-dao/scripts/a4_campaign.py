@@ -27,7 +27,8 @@ from typing import Any
 
 from a4_spec import (
     CHECKPOINTS, EVENTS, EXPECTED_SCHEMA, EXPERIMENT_ID, FIELD_DEFS, INDEX_DEF, INSTANCE_BY_ID, ORDINAL, PAGE_SIZE,
-    PLAN_SHA256, REVISION_PLAN_SHA256, ROLE_BINDINGS, canonical_json_bytes, rolling_sha256, sha256_hex,
+    PLAN_SHA256, REVISION_PLAN_SHA256, ROLE_BINDINGS, SCHEMA_SNAPSHOT_CANONICALIZATION, canonical_json_bytes,
+    rolling_sha256, sha256_hex,
 )
 
 ZERO_COMMIT = "0" * 40
@@ -137,7 +138,7 @@ def snapshot_document(replica: int, checkpoint: str, database_sha256: str, row_c
         "database_unchanged_by_read": True,
         "dao_identifier_observable": False,
         "identity_oracle": "listed_operation_instance_equality_only",
-        "canonicalization": "synthetic dry-run snapshot canonicalized per dao-schema-snapshot.schema.json",
+        "canonicalization": SCHEMA_SNAPSHOT_CANONICALIZATION,
         "tables": snapshot_tables(replica, checkpoint, row_counts),
     }
 

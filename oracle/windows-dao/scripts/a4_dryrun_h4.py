@@ -318,21 +318,26 @@ def evaluate_replica(ctx: Context, replica: int, models: Models, h1_bindings: di
     if len(classes) != 1:
         return out.fail(H4[7], len(classes), f"fitting encoding/length classes: {classes}")
     out.ok(H4[7], 1)
-    root_model = {"root_tdef_page": root_page, "catalog_root_selection_signature": ROOT_SIGNATURES[0]}
+    root_model = {"catalog_root_selection_signature": ROOT_SIGNATURES[0]}
     field_model = canonical_field_model(candidates[0], classes[0])
     model = {"root": root_model, "fields": field_model}
     out.model = {"model_type": "h4_catalog_model", "model": model, "canonical_model_id": canonical_id({"model_type": "h4_catalog_model", "model": model})}
-    out.bindings = {"admitted": {cp: sorted(s) for cp, s in admitted_by_cp.items()}, "records": {cp: list(v[0][:2]) for cp, v in records.items()}}
+    out.bindings = {"replica": replica, "root_tdef_page": root_page,
+                    "admitted": {cp: sorted(s) for cp, s in admitted_by_cp.items()},
+                    "records": {cp: list(v[0][:2]) for cp, v in records.items()}}
+    out.model["canonical_candidate_id"] = canonical_id({**out.model, "instance_bindings": out.bindings})
+    out.stages.update({"root_tdef_page": root_page, "canonical_model_id": out.model["canonical_model_id"],
+                       "canonical_candidate_id": out.model["canonical_candidate_id"]})
     return out
 
 
 def holdout_root(ctx: Context, replica: int, models: Models, h1_bindings: dict[str, Any]) -> tuple[bool, str, dict[str, set[int]] | None]:
-    page = models["h4"]["model"]["root"]["root_tdef_page"]
-    traversal = traverse(ctx, replica, page, models)
-    if isinstance(traversal, str):
-        return False, traversal, None
-    if not any(stream_changes(ctx, replica, traversal, cp) for cp in OP_CHECKPOINTS):
-        return False, "frozen root follows no listed operation on replica 3", traversal
+    if models["h4"]["model"]["root"] != {"catalog_root_selection_signature": ROOT_SIGNATURES[0]}:
+        return False, "frozen root-selection signature is not registered", None
+    roots, reasons = root_candidates(ctx, replica, models)
+    if len(roots) != 1:
+        return False, f"frozen root signature selects {len(roots)} holdout roots: {reasons[:2]}", None
+    _, traversal = roots[0]
     problem = isolated_delta_outside(ctx, replica, traversal, h1_bindings)
     return problem is None, problem or "", traversal
 

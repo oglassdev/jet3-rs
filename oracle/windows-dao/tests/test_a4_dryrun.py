@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 
@@ -85,6 +86,30 @@ class A4GeneratorTests(unittest.TestCase):
         self.assertIsNone(evaluation.first_failure)
         self.assertIsNotNone(evaluation.derivation_sha256)
 
+    def test_schema_snapshot_requires_full_schema_and_exact_campaign(self) -> None:
+        for field in ("document_type", "database_unchanged_by_read", "producer_commit", "environment_sha256"):
+            campaign = generate()
+            del campaign.replicas[1].snapshots["T2_CREATE"][field]
+            self.assertEqual(evaluate(campaign).first_failure, "A4-SCHEMA-SNAPSHOT", field)
+
+        for replicas in ((1, 2), (1, 3)):
+            campaign = generate()
+            campaign.replicas = {replica: campaign.replicas[replica] for replica in replicas}
+            self.assertEqual(evaluate(campaign).first_failure, "A4-SCHEMA-SNAPSHOT", replicas)
+
+        campaign = generate()
+        campaign.replicas[4] = deepcopy(campaign.replicas[3])
+        campaign.replicas[4].number = 4
+        self.assertEqual(evaluate(campaign).first_failure, "A4-SCHEMA-SNAPSHOT")
+
+    def test_h4_model_identity_excludes_replica_physical_root_page(self) -> None:
+        evaluation = evaluate(generate(Params(system_prefix_pages_by_replica={2: 1, 3: 2})))
+        self.assertIsNone(evaluation.first_failure)
+        stages = evaluation.stages["h4_catalog_bootstrap"]
+        self.assertNotEqual(stages["1"]["root_tdef_page"], stages["2"]["root_tdef_page"])
+        self.assertEqual(stages["1"]["canonical_model_id"], stages["2"]["canonical_model_id"])
+        self.assertNotEqual(stages["1"]["canonical_candidate_id"], stages["2"]["canonical_candidate_id"])
+
 
 class A4HarnessTests(unittest.TestCase):
     def test_adversarial_cases_are_handled_as_registered(self) -> None:
@@ -107,6 +132,14 @@ class A4HarnessTests(unittest.TestCase):
         campaign.blobs[digest] = campaign.blobs[digest][:-1]
         with self.assertRaises(FixtureRejected):
             evaluate(campaign)
+
+    def test_adversarial_rejection_reason_must_match(self) -> None:
+        fixture = replace(_fixture("A4-ADV-MALFORMED-PAGE"),
+                          grammar_selection={"base_formula": ["not-a-registered-formula"]})
+        entry = run_fixture(fixture)
+        self.assertTrue(entry["rejected"])
+        self.assertEqual(entry["rejection_code"], "unregistered_candidate_id")
+        self.assertFalse(entry["accepted"])
 
     def test_earlier_predicate_wins_and_fixture_is_rejected(self) -> None:
         entry = run_fixture(_fixture("A4-ADV-EARLIER-PREDICATE"))

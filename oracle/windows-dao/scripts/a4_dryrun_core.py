@@ -32,6 +32,10 @@ PASS, FAIL, NOT_APPLICABLE = "pass", "fail", "not_applicable"
 class FixtureRejected(Exception):
     """The fixture is not a legitimate campaign (malformed page, unregistered id, ...)."""
 
+    def __init__(self, code: str, detail: str) -> None:
+        self.code = code
+        super().__init__(detail)
+
 
 @dataclass
 class PredicateRow:
@@ -70,7 +74,7 @@ REGISTERED: dict[str, tuple[Any, ...]] = {
 
 def require_registered(kind: str, value: Any) -> None:
     if kind not in REGISTERED or value not in REGISTERED[kind]:
-        raise FixtureRejected(f"unregistered candidate id for {kind}: {value!r}")
+        raise FixtureRejected("unregistered_candidate_id", f"unregistered candidate id for {kind}: {value!r}")
 
 
 def require_all_registered(selection: dict[str, list[Any]] | None) -> None:

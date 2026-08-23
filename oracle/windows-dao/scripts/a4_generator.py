@@ -61,6 +61,7 @@ class Params:
     """Every knob is a synthetic free choice; none encodes an expected predicate status."""
 
     profiles: dict[int, Profile] = field(default_factory=lambda: dict(DEFAULT_PROFILES))
+    system_prefix_pages_by_replica: dict[int, int] = field(default_factory=dict)
     layout_by_replica: dict[int, str] = field(default_factory=dict)
     locator_offsets_by_replica: dict[int, tuple[int, int]] = field(default_factory=dict)
     owned_ordinal_by_replica: dict[int, int] = field(default_factory=dict)
@@ -204,6 +205,8 @@ class ReplicaBuilder:
             self.reserved_tag05 = (self._append(tag05_page(set())), self._append(tag05_page(set())))
         else:
             self._append(empty_data_page())  # page 1: static global page, not used by A4
+        for _ in range(self.params.system_prefix_pages_by_replica.get(self.replica, 0)):
+            self._append(empty_data_page())
         root_tdef = self._append(b"")
         root_map = self._append(b"")
         record = self._append(b"")

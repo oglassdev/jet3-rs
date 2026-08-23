@@ -17,8 +17,9 @@ from a4_pages import TAG_TDEF
 from a4_spec import (
     BOUNDS, CHECKPOINTS, DERIVATION_REPLICAS, EVENT_BY_CHECKPOINT, EXPECTED_SCHEMA, EXPERIMENT_ID, FIELD_DEFS, IDLE_PAIRS,
     INDEX_DEF, MAX_QUALIFIED_PAGES, MAX_ROWS, ORDINAL, PAGE_SIZE, PLAN_SHA256, REVISION_PLAN_SHA256, ROLE_BINDINGS,
-    ROW_BATCH, SCHEMA_LIFECYCLE, rolling_sha256, sha256_hex,
+    ROW_BATCH, SCHEMA_LIFECYCLE, SCHEMA_SNAPSHOT, rolling_sha256, sha256_hex,
 )
+from protocol_validation import ValidationError, validate_schema_value
 
 P_IDLE, P_SNAPSHOT, P_RECON, P_RESOURCE = (
     "A4-IDLE-EQUALITY", "A4-SCHEMA-SNAPSHOT", "A4-SNAPSHOT-RECONSTRUCTION", "A4-RESOURCE-BOUND",
@@ -29,11 +30,7 @@ def reject_malformed(ctx: Context) -> None:
     """Malformed blobs are rejected before any predicate; they are not a scientific outcome."""
     bad = ctx.campaign.malformed_blobs()
     if bad:
-        raise FixtureRejected(f"malformed page blob(s): {bad[:3]}")
-    for replica in ctx.replicas():
-        data = ctx.campaign.replicas[replica]
-        if tuple(data.pages) != CHECKPOINTS:
-            raise FixtureRejected(f"replica {replica} does not expose the 25 scheduled checkpoints")
+        raise FixtureRejected("malformed_page", f"malformed page blob(s): {bad[:3]}")
 
 
 def idle_equality(ctx: Context) -> bool:
@@ -41,9 +38,13 @@ def idle_equality(ctx: Context) -> bool:
     for replica in ctx.replicas():
         data = ctx.campaign.replicas[replica]
         for left, right in IDLE_PAIRS:
-            if data.pages[left] != data.pages[right]:
+            left_pages = data.pages.get(left)
+            right_pages = data.pages.get(right)
+            if left_pages is None or right_pages is None:
+                continue  # A4-SCHEMA-SNAPSHOT owns incomplete campaign cardinality.
+            if left_pages != right_pages:
                 failures.append(f"replica {replica} {left}/{right} page-index sequence differs")
-            elif ctx.campaign.database_sha256(data.pages[left]) != ctx.campaign.database_sha256(data.pages[right]):
+            elif ctx.campaign.database_sha256(left_pages) != ctx.campaign.database_sha256(right_pages):
                 failures.append(f"replica {replica} {left}/{right} reconstructed bytes differ")
             if data.snapshots.get(left, {}).get("tables") != data.snapshots.get(right, {}).get("tables"):
                 failures.append(f"replica {replica} {left}/{right} canonical snapshot tables differ")
@@ -111,14 +112,28 @@ def _table_problem(table: dict, token: str, replica: int, previous_counts: dict[
 
 def schema_snapshot(ctx: Context) -> bool:
     problems = []
-    for replica in ctx.replicas():
+    expected_replicas = {1, 2, 3}
+    actual_replicas = set(ctx.replicas())
+    if actual_replicas != expected_replicas:
+        problems.append(f"replicas {sorted(actual_replicas)} != [1, 2, 3]")
+    for replica in sorted(expected_replicas & actual_replicas):
         data = ctx.campaign.replicas[replica]
+        for label, documents in (("page indexes", data.page_indexes), ("page sequences", data.pages),
+                                 ("schema snapshots", data.snapshots)):
+            if len(documents) != len(CHECKPOINTS) or set(documents) != set(CHECKPOINTS):
+                problems.append(f"replica {replica} {label} do not expose exactly the 25 scheduled checkpoints")
         previous_counts: dict[str, int] = {}
         for checkpoint in CHECKPOINTS:
             snapshot = data.snapshots.get(checkpoint)
             index = data.page_indexes.get(checkpoint)
             if snapshot is None or index is None:
                 problems.append(f"replica {replica} {checkpoint} snapshot missing")
+                continue
+            try:
+                validate_schema_value(snapshot, SCHEMA_SNAPSHOT, SCHEMA_SNAPSHOT,
+                                      f"replica {replica} checkpoint {checkpoint}")
+            except ValidationError as error:
+                problems.append(str(error))
                 continue
             binding_ok = (snapshot.get("experiment_id") == EXPERIMENT_ID and snapshot.get("plan_sha256") == PLAN_SHA256
                           and snapshot.get("revision_plan_sha256") == REVISION_PLAN_SHA256 and snapshot.get("replica") == replica

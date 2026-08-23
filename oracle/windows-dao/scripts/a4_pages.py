@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SRC-0020 page byte codec for the A4 dry run: encoders for the generator, decoders for the evaluator.
+"""A4 page codec using the checked provenance entry "Secondary documentation of Jet page, row-slot, and usage-map primitives".
 
 Encoders build exact 2,048-byte pages; decoders read bytes back under the
 plan's registered rules (row_directory_source, row_boundary_rule,
@@ -132,7 +132,7 @@ def decode_directory(page: bytes, mask: int) -> list[Slot]:
 
 
 def validate_directory(slots: list[Slot]) -> str | None:
-    """Complete SRC-0020 directory validation; returns the first violation or None."""
+    """Complete checked row-directory validation; returns the first violation or None."""
     floor = DIRECTORY_START + 2 * len(slots)
     previous_start = PAGE_SIZE
     for slot in slots:

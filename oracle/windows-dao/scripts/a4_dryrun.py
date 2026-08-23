@@ -87,8 +87,8 @@ def run_fixture(fixture: Fixture) -> dict[str, Any]:
         entry["campaign"] = campaign.inventory()
         evaluation = evaluate(campaign, fixture.grammar_selection)
     except FixtureRejected as error:
-        entry.update({"rejected": True, "rejection": str(error), "accepted": fixture.expect_rejection is not None
-                      and fixture.expect_rejection in ("unregistered_candidate_id", "malformed_page")})
+        entry.update({"rejected": True, "rejection_code": error.code, "rejection": str(error),
+                      "accepted": fixture.expect_rejection == error.code})
         return entry
     rows = [r.__dict__ for r in evaluation.rows]
     first = evaluation.first_failure

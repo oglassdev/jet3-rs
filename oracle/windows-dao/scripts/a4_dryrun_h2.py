@@ -3,7 +3,7 @@
 
 A4 rule | implementation
 --- | ---
-Complete SRC-0020 directory validation under both offset masks, byte-identical masks merged | :func:`locate_rows`
+Complete checked row-directory validation under both offset masks, byte-identical masks merged | :func:`locate_rows`
 Deleted/overflow flags explicit | :func:`evaluate_replica`
 Tag 00/01 with type-1 payload divisible by four | :func:`evaluate_replica`
 Static role/polarity fit (AMB-05) then registered transition signatures (AMB-07) | :func:`static_fit`, :func:`transitions_hold`

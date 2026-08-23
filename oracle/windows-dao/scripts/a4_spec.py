@@ -29,6 +29,7 @@ DAO_ROOT = Path(__file__).resolve().parents[1]
 A4_ROOT = DAO_ROOT / "experiments" / "a4"
 PLAN_PATH = A4_ROOT / "a4-row-anchored-maps.plan.json"
 README_PATH = A4_ROOT / "README.md"
+SCHEMA_SNAPSHOT_PATH = A4_ROOT / "dao-schema-snapshot.schema.json"
 EXPERIMENT_ID = "DAO-A4-ROW-ANCHORED-MAPS-001"
 PAGE_SIZE = 2048
 DERIVATION_REPLICAS = (1, 2)
@@ -74,6 +75,8 @@ def load_plan() -> tuple[dict[str, Any], str]:
 PLAN, PLAN_SHA256 = load_plan()
 # Until an additive revision exists both bindings equal the base hash (revision_binding_rule).
 REVISION_PLAN_SHA256 = PLAN_SHA256
+SCHEMA_SNAPSHOT = json.loads(SCHEMA_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+SCHEMA_SNAPSHOT_CANONICALIZATION = SCHEMA_SNAPSHOT["properties"]["canonicalization"]["const"]
 
 CHECKPOINTS: tuple[str, ...] = tuple(PLAN["checkpoint_design"]["checkpoint_ids"])
 ORDINAL: Mapping[str, int] = MappingProxyType({cp: i for i, cp in enumerate(CHECKPOINTS)})
