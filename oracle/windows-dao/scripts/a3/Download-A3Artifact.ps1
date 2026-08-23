@@ -69,7 +69,8 @@ try {
         Invoke-WebRequest -UseBasicParsing -Uri $downloadUri -Headers $headers `
             -OutFile $archive
     }
-    Expand-Archive -LiteralPath $archive -DestinationPath $staging
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($archive, $staging)
     Move-Item -LiteralPath $staging -Destination $Destination
 }
 finally {
