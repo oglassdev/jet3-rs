@@ -11,21 +11,22 @@ R3-G09 frozen-model-only holdout | :func:`_evaluate_holdout`
 R3-G10/M05/M06 abort isolation | :func:`derive_layers`, :func:`build_analysis`
 R2+R3 predicate projection | :func:`predicate_results`
 Field-for-field frozen/report agreement | :func:`build_analysis`
-CLI compatible with the A2 analyzer shape | :func:`main`
+Freeze/recompute/resume phase driver | :func:`main`
 """
 
 from __future__ import annotations
 
-import argparse
 import hashlib
-import json
-import stat
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable
 
 from protocol_validation import ValidationError, canonical_json_bytes
+from a3_analysis_input import (
+    BundleReplicaSource, LoadedReplicaSource, ReplicaInput, ReplicaSource,
+    sha256_file,
+)
+from a3_analysis_state import FreezeResult, LayerDraft, load_freeze_state
 from a3_layers import (
     BaseModel, ConversionModel, CrossCheckTranscript, TdefModel, derive_base,
     derive_conversion, derive_tdef_candidates, polarity_cross_check,
@@ -33,7 +34,7 @@ from a3_layers import (
 )
 from a3_model import (
     CHECKPOINT_IDS, MAX_QUALIFIED_PAGES, PAGE_SIZE, Abort, GlobalRecordModel,
-    ReplicaData, View, WorkCounter, candidate_page_space, global_start_candidates,
+    View, WorkCounter, candidate_page_space, global_start_candidates,
     qualify_global_pages, qualify_tdef_pages,
 )
 from a3_spec import (
@@ -50,140 +51,14 @@ CLAIMS = {key: PLAN.document["claims"][key] for key in (
     "unobserved_slot_or_base_behavior", "compaction_encryption_or_version_behavior",
     "rust_correctness", "dao_compatibility_or_support",
 )}
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _safe_path(root: Path, relative: str) -> Path:
-    candidate = Path(relative)
-    if candidate.is_absolute() or ".." in candidate.parts or not candidate.parts or "\\" in relative:
-        raise ValidationError(f"unsafe A3 artifact path {relative!r}")
-    resolved_root, resolved = root.resolve(), (root / candidate).resolve()
-    if resolved != resolved_root and resolved_root not in resolved.parents:
-        raise ValidationError(f"A3 artifact escapes bundle root: {relative!r}")
-    return resolved
-
-
-@dataclass(frozen=True)
-class ReplicaInput:
-    data: ReplicaData
-    replica: int
-    campaign_id: str
-    producer_commit: str
-    provider_sha256: str
-    churn_precondition_met: bool
-
-
-class ReplicaSource(Protocol):
-    def open(self) -> ReplicaInput: ...
-
-
-@dataclass(frozen=True)
-class LoadedReplicaSource:
-    replica: ReplicaInput
-    def open(self) -> ReplicaInput:
-        return self.replica
-
-
-class BundleReplicaData:
-    def __init__(self, root: Path, indexes: dict[str, dict[str, Any]], checkpoint_ids: tuple[str, ...] = CHECKPOINT_IDS) -> None:
-        self.root, self.indexes, self._checkpoint_ids = root, indexes, checkpoint_ids
-        self._cache: dict[str, bytes] = {}
-
-    @property
-    def checkpoint_ids(self) -> tuple[str, ...]:
-        return self._checkpoint_ids
-
-    @property
-    def page_count(self) -> dict[str, int]:
-        return {name: int(index["page_count"]) for name, index in self.indexes.items()}
-
-    @property
-    def ordered_page_sha256(self) -> dict[str, tuple[str, ...]]:
-        return {name: tuple(index["ordered_page_sha256"]) for name, index in self.indexes.items()}
-
-    def page_bytes(self, digest: str) -> bytes:
-        if digest in self._cache:
-            return self._cache[digest]
-        path = self.root / "page-store" / f"{digest}.page"
-        metadata = path.lstat()
-        if path.is_symlink() or not stat.S_ISREG(metadata.st_mode) or metadata.st_size != PAGE_SIZE:
-            raise OSError(f"unsafe A3 page blob {path}")
-        payload = path.read_bytes()
-        if hashlib.sha256(payload).hexdigest() != digest:
-            raise ValueError(f"A3 page blob hash mismatch {path}")
-        self._cache[digest] = payload
-        return payload
-
-
-@dataclass(frozen=True)
-class BundleReplicaSource:
-    observation_path: Path
-    bundle_root: Path
+@dataclass
+class CountingReplicaSource:
+    source: ReplicaSource
+    open_count: int = 0
 
     def open(self) -> ReplicaInput:
-        observation = load_bounded_json(self.observation_path, MAX_JSON_BYTES)
-        validate_document(observation)
-        if observation["plan_sha256"] != PLAN_SHA256:
-            raise ValidationError("replica observation is not bound to the A3 plan")
-        checkpoints = observation["checkpoints"]
-        observed_ids = tuple(row["checkpoint_id"] for row in checkpoints)
-        indexes: dict[str, dict[str, Any]] = {}
-        prior: list[str] = []
-        changed_total = 0
-        for ordinal, checkpoint in enumerate(checkpoints):
-            reference = checkpoint["page_index"]
-            path = _safe_path(self.bundle_root, reference["path"])
-            if path.stat().st_size != reference["size_bytes"] or _sha256(path) != reference["sha256"]:
-                raise ValidationError(f"{path}: page-index binding failed")
-            index = load_bounded_json(path, MAX_JSON_BYTES)
-            validate_document(index)
-            expected_predecessor = CHECKPOINT_IDS[ordinal - 1] if ordinal else None
-            bindings = {
-                "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
-                "producer_commit": observation["producer_commit"],
-                "campaign_id": observation["campaign_id"], "environment_sha256": observation["environment_sha256"],
-                "provider_sha256": observation["provider_sha256"], "replica": observation["replica"],
-                "checkpoint_id": checkpoint["checkpoint_id"], "ordinal": ordinal,
-                "predecessor_checkpoint_id": expected_predecessor,
-                "page_count": checkpoint["actual_file_pages"],
-            }
-            if any(index[key] != value for key, value in bindings.items()):
-                raise ValidationError(f"{path}: page-index metadata binding mismatch")
-            hashes = index["ordered_page_sha256"]
-            expected_changed = []
-            for page in range(max(len(prior), len(hashes))):
-                prior_hash = prior[page] if page < len(prior) else None
-                current_hash = hashes[page] if page < len(hashes) else None
-                if prior_hash != current_hash:
-                    expected_changed.append(page)
-            if index["changed_page_indices"] != expected_changed:
-                raise ValidationError(f"{path}: changed-page reconstruction failed")
-            changed_total += len(expected_changed)
-            prior, indexes[checkpoint["checkpoint_id"]] = hashes, index
-        if changed_total != observation["changed_hash_entries"]:
-            raise ValidationError("replica changed-hash total mismatch")
-        by_id = {row["checkpoint_id"]: row for row in checkpoints}
-        before, deleted = by_id["L_REL_1280"], by_id["L_DELETE_ALL"]
-        reread = next((row["row_count"] for row in deleted["dao_reread"] if row["role"] == "L"), None)
-        churn = before["table_row_counts"]["L"] != 0 and reread == 0
-        return ReplicaInput(
-            BundleReplicaData(self.bundle_root, indexes, observed_ids), observation["replica"],
-            observation["campaign_id"], observation["producer_commit"], observation["provider_sha256"], churn,
-        )
-
-
-@dataclass(frozen=True)
-class LayerDraft:
-    model: GlobalRecordModel | ConversionModel | BaseModel | TdefModel | None
-    survivor_count: int
-    abort: Abort | None
-    applicable: bool = True
-    reached: frozenset[str] = frozenset()
+        self.open_count += 1
+        return self.source.open()
 
 
 @dataclass(frozen=True)
@@ -432,8 +307,8 @@ def candidate_document(campaign_id: str, global_pages: tuple[int, ...], tdef_pag
         }
     return {
         "protocol_version": "1.0.0", "document_type": "dao_a3_frozen_derivation_candidates",
-        "experiment_id": EXPERIMENT_ID, "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
-        "campaign_id": campaign_id,
+        "experiment_id": EXPERIMENT_ID, "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256, "campaign_id": campaign_id,
         "derivation_replicas": [1, 2],
         "qualified_pages": {"global_map": list(global_pages), "tdef": list(tdef_pages)},
         "polarity_cross_check": transcript.document(),
@@ -476,7 +351,7 @@ def predicate_results(
 
 def _evaluate_holdout(
     source: ReplicaSource,
-    derivation: list[ReplicaInput],
+    expected_bindings: tuple[str, str, str],
     drafts: dict[str, LayerDraft],
     work: WorkCounter,
 ) -> dict[str, bool | None]:
@@ -486,7 +361,12 @@ def _evaluate_holdout(
         return matches
     try:
         holdout_input = source.open()
-        _validate_inputs(derivation + [holdout_input])
+        if holdout_input.replica != 3 or (
+            holdout_input.campaign_id,
+            holdout_input.producer_commit,
+            holdout_input.provider_sha256,
+        ) != expected_bindings:
+            raise ValidationError("A3 holdout replica binding mismatch")
         holdout = View(holdout_input.data, work)
     except (Abort, OSError, ValidationError):
         return {key: (False if key in model_keys else None) for key in LAYER_KEYS}
@@ -574,10 +454,10 @@ def recompute_only(derivation: list[ReplicaInput]) -> dict[str, Any]:
     }
 
 
-def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validate_holdout_after_freeze: Callable[[str], None]) -> dict[str, Any]:
-    if len(sources) != 3:
-        raise ValidationError("A3 analysis requires exactly three replica sources")
-    derivation = [sources[0].open(), sources[1].open()]
+def freeze_analysis(sources: list[ReplicaSource], candidate_output: Path) -> FreezeResult:
+    if len(sources) != 2:
+        raise ValidationError("A3 freeze requires exactly two derivation replica sources")
+    derivation = [source.open() for source in sources]
     work, campaign_abort = WorkCounter(), None
     try:
         drafts, global_pages, tdef_pages, transcript = derive_layers(derivation, work)
@@ -589,12 +469,87 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
         global_pages, tdef_pages, transcript = (), (), CrossCheckTranscript()
     frozen = candidate_document(derivation[0].campaign_id, global_pages, tdef_pages, transcript, drafts)
     frozen_sha = write_frozen(candidate_output, frozen)
-    validate_holdout_after_freeze(frozen_sha)
+    return FreezeResult(
+        derivation, drafts, global_pages, tdef_pages, transcript, frozen,
+        frozen_sha, work, campaign_abort,
+    )
+
+
+def _freeze_state(result: FreezeResult, holdout_artifact: Path) -> dict[str, Any]:
+    if holdout_artifact.exists() or holdout_artifact.is_symlink():
+        raise ValidationError("replica-3 artifact existed before freeze phase completed")
+    first = result.derivation[0]
+    return {
+        "document_type": "dao_a3_internal_freeze_phase",
+        "campaign_id": first.campaign_id,
+        "producer_commit": first.producer_commit,
+        "provider_sha256": first.provider_sha256,
+        "derivation_candidate_set_sha256": result.frozen_sha256,
+        "freeze_phase_completed": True,
+        "replica_3_artifact_existed_before_freeze_phase_completed": False,
+        "analyzer_replica_3_opens_before_receipt": 0,
+        "campaign_terminal_predicate_id": (
+            None if result.campaign_abort is None else result.campaign_abort.predicate_id
+        ),
+        "reached_by_layer": {
+            key: [predicate for predicate in LAYER_PREDICATE_SEQUENCES[key]
+                  if predicate in result.drafts[key].reached]
+            for key in LAYER_KEYS
+        },
+        "work": {
+            "value": result.work.value,
+            "record_candidates": result.work.record_candidates,
+            "candidate_models": result.work.candidate_models,
+            "page_digests": sorted(result.work.page_digests),
+        },
+    }
+
+
+def write_freeze_state(path: Path, result: FreezeResult, holdout_artifact: Path) -> dict[str, Any]:
+    state = _freeze_state(result, holdout_artifact)
+    payload = canonical_json_bytes(state)
+    if len(payload) > MAX_JSON_BYTES:
+        raise ValidationError("A3 freeze state exceeds JSON ceiling")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as handle:
+        handle.write(payload)
+    return state
+
+
+_load_freeze_state = load_freeze_state
+
+
+def resume_analysis(
+    frozen_result: FreezeResult,
+    holdout_source: ReplicaSource,
+    candidate_output: Path,
+    receipt: dict[str, Any] | None,
+    expected_bindings: tuple[str, str, str],
+    analyzer_holdout_opens_before_receipt: int = 0,
+) -> dict[str, Any]:
+    drafts, work, campaign_abort = (
+        frozen_result.drafts, frozen_result.work, frozen_result.campaign_abort
+    )
+    frozen, frozen_sha = frozen_result.frozen, frozen_result.frozen_sha256
+    if receipt is not None:
+        validate_document(receipt)
+        expected_receipt = {
+            "campaign_id": expected_bindings[0],
+            "producer_commit": expected_bindings[1],
+            "derivation_candidate_set_sha256": frozen_sha,
+        }
+        if any(receipt.get(key) != value for key, value in expected_receipt.items()):
+            raise ValidationError("A3 holdout receipt binding mismatch")
+    holdout_validated_after_freeze = _holdout_validated_after_freeze(
+        candidate_output, frozen_sha, receipt, analyzer_holdout_opens_before_receipt
+    )
+    if not holdout_validated_after_freeze:
+        raise ValidationError("holdout structural validation is not bound to the frozen candidate set")
     holdout_opened = campaign_abort is None and any(
         draft.model is not None for draft in drafts.values()
     )
     matches = (
-        _evaluate_holdout(sources[2], derivation, drafts, work)
+        _evaluate_holdout(holdout_source, expected_bindings, drafts, work)
         if holdout_opened
         else {key: None for key in LAYER_KEYS}
     )
@@ -604,14 +559,14 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
     report = {
         "protocol_version": "1.0.0", "document_type": "dao_a3_analysis_report", "experiment_id": EXPERIMENT_ID,
         "plan_sha256": PLAN_SHA256, "revision_plan_sha256": REVISION_PLAN_SHA256,
-        "campaign_id": derivation[0].campaign_id, "producer_commit": derivation[0].producer_commit,
+        "campaign_id": expected_bindings[0], "producer_commit": expected_bindings[1],
         "derivation_replicas": [1, 2], "holdout_replica": 3, "input_checkpoint_count": len(CHECKPOINT_IDS) * 3,
-        "qualified_page_counts": {"global_map": min(len(global_pages), MAX_QUALIFIED_PAGES), "tdef": min(len(tdef_pages), MAX_QUALIFIED_PAGES)},
-        "qualified_pages": {"global_map": list(global_pages), "tdef": list(tdef_pages)},
+        "qualified_page_counts": {"global_map": min(len(frozen_result.global_pages), MAX_QUALIFIED_PAGES), "tdef": min(len(frozen_result.tdef_pages), MAX_QUALIFIED_PAGES)},
+        "qualified_pages": {"global_map": list(frozen_result.global_pages), "tdef": list(frozen_result.tdef_pages)},
         "record_candidates_examined": work.record_candidates, "candidate_models_examined": work.candidate_models,
         "derivation_survivor_counts": {key: drafts[key].survivor_count for key in LAYER_KEYS},
-        "derivation_candidate_set_sha256": frozen_sha, "polarity_cross_check": transcript.document(),
-        "analysis_work_units": work.value, "holdout_structurally_validated_after_freeze": True,
+        "derivation_candidate_set_sha256": frozen_sha, "polarity_cross_check": frozen_result.transcript.document(),
+        "analysis_work_units": work.value, "holdout_structurally_validated_after_freeze": holdout_validated_after_freeze,
         "holdout_opened_after_freeze": holdout_opened,
         "holdout_evaluated": any(row["holdout_evaluated"] for row in layers.values()),
         "predicate_results": predicates, "terminal_predicate_ids": terminal_ids,
@@ -629,60 +584,44 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
     return report
 
 
-def _receipt_validator(path: Path, campaign: str, producer: str) -> Callable[[str], None]:
-    def validate(frozen_sha: str) -> None:
-        receipt = load_bounded_json(path, MAX_JSON_BYTES)
-        validate_document(receipt)
-        expected = {"campaign_id": campaign, "producer_commit": producer, "derivation_candidate_set_sha256": frozen_sha}
-        if any(receipt[key] != value for key, value in expected.items()):
-            raise ValidationError("A3 holdout receipt binding mismatch")
-    return validate
+def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validate_holdout_after_freeze: Callable[[str], dict[str, Any] | None]) -> dict[str, Any]:
+    if len(sources) != 3:
+        raise ValidationError("A3 analysis requires exactly three replica sources")
+    frozen_result = freeze_analysis(sources[:2], candidate_output)
+    counted_holdout = CountingReplicaSource(sources[2])
+    receipt = validate_holdout_after_freeze(frozen_result.frozen_sha256)
+    first = frozen_result.derivation[0]
+    return resume_analysis(
+        frozen_result, counted_holdout, candidate_output, receipt,
+        (first.campaign_id, first.producer_commit, first.provider_sha256),
+        counted_holdout.open_count,
+    )
+
+
+def _holdout_validated_after_freeze(
+    candidate_output: Path,
+    frozen_sha: str,
+    receipt: dict[str, Any] | None,
+    analyzer_holdout_opens_before_receipt: int = 0,
+) -> bool:
+    """Derive the report flag from observables: the frozen bytes on disk and the receipt's own bindings."""
+    if sha256_file(candidate_output) != frozen_sha:
+        return False
+    if receipt is None:
+        return False
+    return (
+        receipt.get("derivation_candidate_set_sha256") == frozen_sha
+        and receipt.get("validated_after_candidate_freeze") is True
+        and receipt.get("page_bytes_exposed_to_analyzer")
+        is (analyzer_holdout_opens_before_receipt > 0)
+        and analyzer_holdout_opens_before_receipt == 0
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bundle-root", type=Path, required=True)
-    parser.add_argument("--replica", action="append", type=Path)
-    parser.add_argument("--candidate-output", type=Path)
-    parser.add_argument("--holdout-receipt", type=Path)
-    parser.add_argument("--output", type=Path)
-    parser.add_argument("--recompute-only", action="store_true")
-    arguments = parser.parse_args(argv)
-    root, artifacts = arguments.bundle_root, PLAN.document["artifacts"]
-    default_replicas = [root / relative for relative in artifacts["replica_observations"]]
-    replicas = arguments.replica or (
-        default_replicas[:2] if arguments.recompute_only else default_replicas
-    )
-    candidate = arguments.candidate_output or root / artifacts["frozen_candidate_set"]
-    receipt = arguments.holdout_receipt or root / artifacts["holdout_structure_receipt"]
-    output = arguments.output or root / artifacts["analysis_report"]
-    try:
-        if arguments.recompute_only:
-            if len(replicas) != 2:
-                raise ValidationError("recompute-only requires exactly two replica observations")
-            inputs = [BundleReplicaSource(path, root).open() for path in replicas]
-            result = recompute_only(inputs)
-            payload = canonical_json_bytes(result)
-            if arguments.output is not None:
-                arguments.output.parent.mkdir(parents=True, exist_ok=True)
-                with arguments.output.open("xb") as handle:
-                    handle.write(payload)
-            else:
-                sys.stdout.buffer.write(payload)
-            return 0
-        if len(replicas) != 3:
-            raise ValidationError("exactly three A3 replica observations are required")
-        sources = [BundleReplicaSource(path, root) for path in replicas]
-        first = sources[0].open()
-        report = build_analysis(sources, candidate, _receipt_validator(receipt, first.campaign_id, first.producer_commit))
-        output.parent.mkdir(parents=True, exist_ok=True)
-        with output.open("xb") as handle:
-            handle.write(canonical_json_bytes(report))
-    except (Abort, OSError, ValidationError) as exc:
-        print(f"A3 analysis failed: {exc}", file=sys.stderr)
-        return 1
-    print(json.dumps({"output": str(output), "scientific_outcome": report["scientific_outcome"]}, sort_keys=True))
-    return 0
+    from a3_analysis_cli import main as cli_main
+
+    return cli_main(argv)
 
 
 if __name__ == "__main__":

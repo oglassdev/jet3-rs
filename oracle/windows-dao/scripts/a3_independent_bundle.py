@@ -415,6 +415,33 @@ class BundleLoader:
                 or growth["regrowth_rows"] % 32
             ):
                 raise ValidationError("d_growth_arithmetic_mismatch", str(number))
+            checkpoints = {
+                row["checkpoint_id"]: row for row in observation["checkpoints"]
+            }
+            baselines = {
+                "L": checkpoints["D_REGROW_0128"]["actual_file_pages"],
+                "H": checkpoints["P_ABS_16480"]["actual_file_pages"],
+            }
+            for checkpoint_id, checkpoint in checkpoints.items():
+                role = checkpoint_id[:1]
+                if role in baselines and checkpoint_id.startswith(f"{role}_REL_"):
+                    baseline = baselines[role]
+                    threshold = baseline + int(checkpoint_id.rsplit("_", 1)[1])
+                elif checkpoint_id.startswith("P_ABS_"):
+                    baseline = None
+                    threshold = int(checkpoint_id.rsplit("_", 1)[1])
+                else:
+                    continue
+                if (
+                    checkpoint["target_baseline_pages"] != baseline
+                    or checkpoint["target_threshold_pages"] != threshold
+                    or checkpoint["target_overshoot_pages"]
+                    != checkpoint["actual_file_pages"] - threshold
+                    or checkpoint["actual_file_pages"] < threshold
+                ):
+                    raise ValidationError(
+                        "target_disclosure_mismatch", f"{number}:{checkpoint_id}"
+                    )
             logical = sum(index["file_size_bytes"] for index in indexes.values())
             changed_total = sum(len(index["changed_page_indices"]) for index in indexes.values())
             if observation["logical_checkpoint_read_bytes"] != logical or observation["changed_hash_entries"] != changed_total:

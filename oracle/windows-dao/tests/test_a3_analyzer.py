@@ -18,7 +18,8 @@ sys.path.insert(0, str(SCRIPTS))
 from protocol_validation import ValidationError  # noqa: E402
 from a3_analysis import (  # noqa: E402
     LoadedReplicaSource, ReplicaInput, ReplicaLayer, _combine_replicas,
-    _qualified_union, _same_model, build_analysis, recompute_only,
+    _holdout_validated_after_freeze, _qualified_union, _same_model,
+    build_analysis, recompute_only,
 )
 from a3_generator import (  # noqa: E402
     calibration_parameters, generate_synthetic_bundle, generate_synthetic_bundles,
@@ -49,14 +50,74 @@ def source(bundle):
     ))
 
 
+def receipt(bundle, digest: str) -> dict[str, object]:
+    return {
+        "protocol_version": "1.0.0",
+        "document_type": "dao_a3_holdout_structure_receipt",
+        "experiment_id": "DAO-A3-ALLOCATION-MAPS-001",
+        "plan_sha256": PLAN_SHA256,
+        "revision_plan_sha256": REVISION_PLAN_SHA256,
+        "producer_commit": bundle.producer_commit,
+        "campaign_id": bundle.campaign_id,
+        "derivation_candidate_set_sha256": digest,
+        "replica": 3,
+        "replica_artifact_manifest_sha256": "0" * 64,
+        "validated_after_candidate_freeze": True,
+        "page_bytes_exposed_to_analyzer": False,
+        "result": "pass",
+    }
+
+
 class A3AnalyzerTests(unittest.TestCase):
     def analyze(self):
         bundles = generate_synthetic_bundles(calibration_parameters())
         temporary = TemporaryDirectory(prefix="a3-test-")
         self.addCleanup(temporary.cleanup)
         frozen_path = Path(temporary.name) / "derivation-candidates.json"
-        report = build_analysis([source(bundle) for bundle in bundles], frozen_path, lambda _digest: None)
+        report = build_analysis(
+            [source(bundle) for bundle in bundles], frozen_path,
+            lambda digest: receipt(bundles[0], digest),
+        )
         return report, load_bounded_json(frozen_path), bundles
+
+    def test_evidence_analysis_requires_a_receipt(self) -> None:
+        bundles = generate_synthetic_bundles(calibration_parameters())
+        with TemporaryDirectory(prefix="a3-missing-receipt-") as directory:
+            with self.assertRaisesRegex(ValidationError, "structural validation"):
+                build_analysis(
+                    [source(bundle) for bundle in bundles],
+                    Path(directory) / "derivation-candidates.json",
+                    lambda _digest: None,
+                )
+
+    def test_each_holdout_order_observable_fails_independently(self) -> None:
+        bundles = generate_synthetic_bundles(calibration_parameters())
+        with TemporaryDirectory(prefix="a3-receipt-fields-") as directory:
+            candidate = Path(directory) / "derivation-candidates.json"
+            report = build_analysis(
+                [source(bundle) for bundle in bundles], candidate,
+                lambda digest: receipt(bundles[0], digest),
+            )
+            digest = report["derivation_candidate_set_sha256"]
+            valid = receipt(bundles[0], digest)
+            self.assertTrue(_holdout_validated_after_freeze(candidate, digest, valid))
+            for field, value in (
+                ("validated_after_candidate_freeze", False),
+                ("page_bytes_exposed_to_analyzer", True),
+                ("derivation_candidate_set_sha256", "f" * 64),
+            ):
+                with self.subTest(field=field):
+                    changed = dict(valid)
+                    changed[field] = value
+                    self.assertFalse(
+                        _holdout_validated_after_freeze(candidate, digest, changed)
+                    )
+            self.assertFalse(_holdout_validated_after_freeze(candidate, digest, None))
+            exposed = dict(valid)
+            exposed["page_bytes_exposed_to_analyzer"] = True
+            self.assertFalse(
+                _holdout_validated_after_freeze(candidate, digest, exposed, 1)
+            )
 
     def test_synthetic_report_is_frozen_field_for_field(self) -> None:
         report, frozen, _ = self.analyze()
@@ -384,7 +445,7 @@ class A3AnalyzerTests(unittest.TestCase):
         report = build_analysis(
             [source(bundles[0]), source(bundles[1]), bad_holdout],
             Path(temporary.name) / "derivation-candidates.json",
-            lambda _digest: None,
+            lambda digest: receipt(bundles[0], digest),
         )
         record = report["submodels"]["global_map"]["record"]
         conversion = report["submodels"]["global_map"]["conversion_inline"]
