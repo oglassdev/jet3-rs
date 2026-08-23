@@ -135,9 +135,16 @@ compares the frozen set, independently recomputes the holdout result, and must
 reject tamper cases T1–T5. Only its separately provenanced acceptance can move
 `independent_validation_status`.
 
-The execution gate remains `BLOCKED` on the A3 analyzer, independent validator,
-worker/workflow rebinding, pre-acquisition dry-run disclosure, decisive-report
-contract validation, exact clean pushed commit, and licensed x86 DAO host.
+Execution status (`EXP-0048`): the pre-acquisition dry run has been executed
+under R4 and disclosed. The synthetic sweep (100 fixtures, twelve sweep checks,
+result `pass`), the executed reachability transcript (31 of 31 reachable ids,
+3 asserted nonterminal), the analyzer/independent-validator pair gate (100 of
+100 agreeing, `accepted=true` with T1–T5 rejected on every fixture holding a
+frozen global-record model), and the EXP-0042 derivation-only replay (81
+blobs, result `pass`) are retained under `dry-run/` with SHA-256 values in
+`dry-run/checksums.json`. The execution gate remains `BLOCKED` on
+worker/workflow rebinding (PR #56, open blocking findings), an exact clean
+pushed commit designated for acquisition, and a licensed x86 DAO host.
 
 Design-input pointers are themselves pinned by the plan and `EXP-0044`:
 
