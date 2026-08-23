@@ -21,6 +21,7 @@ for location in (SCRIPTS, TESTS):
 from a3_analysis import main as analysis_main  # noqa: E402
 from a3_bundle import (  # noqa: E402
     CHECKPOINT_COUNT,
+    DERIVATION_REPLICA_COUNT,
     MAX_BUNDLE_BYTES,
     MAX_JSON_BYTES,
     MAX_PAGE_BLOBS,
@@ -31,7 +32,12 @@ from a3_bundle import (  # noqa: E402
     finalize_bundle,
     validate_bundle,
 )
-from a3_holdout import FAN_IN_TIMEOUT_SECONDS, HOLDOUT_TIMEOUT_SECONDS  # noqa: E402
+from a3_holdout import (  # noqa: E402
+    FAN_IN_TIMEOUT_SECONDS,
+    HOLDOUT_TIMEOUT_SECONDS,
+    graft_holdout_replica,
+    holdout_absent,
+)
 from a3_spec import BOUNDS, EXPERIMENT_ID, PLAN_SHA256  # noqa: E402
 from a3_test_bundle import write_replica_trees  # noqa: E402
 from protocol_validation import ValidationError, canonical_json_bytes  # noqa: E402
@@ -45,11 +51,16 @@ class A3BundleTests(unittest.TestCase):
         cls.replica_roots, cls.campaign_id, cls.producer_commit = write_replica_trees(
             cls.root / "replicas"
         )
+        cls.derivation_roots = cls.replica_roots[:DERIVATION_REPLICA_COUNT]
+        cls.holdout_root = cls.replica_roots[DERIVATION_REPLICA_COUNT]
         cls.bundle = cls.root / "complete-bundle"
         cls.assembly = assemble_bundle(
-            cls.replica_roots, cls.bundle, cls.campaign_id, cls.producer_commit
+            cls.derivation_roots, cls.bundle, cls.campaign_id, cls.producer_commit
         )
-        if analysis_main(["--bundle-root", str(cls.bundle)]) != 0:
+        cls.holdout_absent_before_analysis = holdout_absent(cls.bundle)
+        if analysis_main([
+            "--bundle-root", str(cls.bundle), "--holdout-replica-root", str(cls.holdout_root),
+        ]) != 0:
             raise AssertionError("synthetic A3 analysis did not complete")
         cls.manifest = finalize_bundle(cls.bundle, cls.campaign_id, cls.producer_commit)
         cls.validation = validate_bundle(cls.bundle, cls.campaign_id, cls.producer_commit)
@@ -61,6 +72,7 @@ class A3BundleTests(unittest.TestCase):
     def test_fixed_bounds_match_the_checked_a3_plan(self) -> None:
         self.assertEqual(PAGE_SIZE, 2_048)
         self.assertEqual(REPLICA_COUNT, 3)
+        self.assertEqual(DERIVATION_REPLICA_COUNT, 2)
         self.assertEqual(CHECKPOINT_COUNT, 25)
         self.assertEqual(MAX_JSON_BYTES, 67_108_864)
         self.assertEqual(MAX_PAGE_BLOBS, 65_536)
@@ -124,14 +136,47 @@ class A3BundleTests(unittest.TestCase):
         self.assertTrue(receipt["validated_after_candidate_freeze"])
         self.assertFalse(receipt["page_bytes_exposed_to_analyzer"])
 
+    def test_holdout_is_grafted_only_after_the_candidate_freeze(self) -> None:
+        self.assertTrue(self.holdout_absent_before_analysis)
+        self.assertFalse(holdout_absent(self.bundle))
+        report = json.loads((self.bundle / "analysis" / "analysis-report.json").read_bytes())
+        self.assertTrue(report["holdout_structurally_validated_after_freeze"])
+        with self.assertRaisesRegex(ValidationError, "exactly the two derivation"):
+            assemble_bundle(self.replica_roots, self.root / "three-root-bundle",
+                            self.campaign_id, self.producer_commit)
+        self.assertFalse((self.root / "three-root-bundle").exists())
+        candidate = self.bundle / "analysis" / "derivation-candidates.json"
+        with self.assertRaisesRegex(ValidationError, "already present before graft"):
+            graft_holdout_replica(
+                self.holdout_root, self.bundle, candidate,
+                hashlib.sha256(candidate.read_bytes()).hexdigest(),
+                self.campaign_id, self.producer_commit,
+            )
+        unfrozen = self.root / "unfrozen-bundle"
+        assemble_bundle(self.derivation_roots, unfrozen, self.campaign_id, self.producer_commit)
+        unfrozen_candidate = unfrozen / "analysis" / "derivation-candidates.json"
+        with self.assertRaisesRegex(ValidationError, "more than the plan"):
+            graft_holdout_replica(
+                self.holdout_root, unfrozen, unfrozen_candidate,
+                "0" * 64, self.campaign_id, self.producer_commit,
+            )
+        unfrozen_candidate.parent.mkdir()
+        unfrozen_candidate.write_bytes(candidate.read_bytes())
+        with self.assertRaisesRegex(ValidationError, "frozen candidate hash"):
+            graft_holdout_replica(
+                self.holdout_root, unfrozen, unfrozen_candidate,
+                "0" * 64, self.campaign_id, self.producer_commit,
+            )
+        self.assertTrue(holdout_absent(unfrozen))
+
     def test_assemble_rejects_wrong_bindings_without_publication(self) -> None:
         destination = self.root / "wrong-campaign"
         with self.assertRaisesRegex(ValidationError, "campaign"):
-            assemble_bundle(self.replica_roots, destination, "a3-wrong-campaign", self.producer_commit)
+            assemble_bundle(self.derivation_roots, destination, "a3-wrong-campaign", self.producer_commit)
         self.assertFalse(destination.exists())
         destination = self.root / "wrong-producer"
         with self.assertRaisesRegex(ValidationError, "expected producer commit"):
-            assemble_bundle(self.replica_roots, destination, self.campaign_id, "f" * 40)
+            assemble_bundle(self.derivation_roots, destination, self.campaign_id, "f" * 40)
         self.assertFalse(destination.exists())
 
     def test_assemble_rejects_extra_replica_inventory(self) -> None:
@@ -141,7 +186,7 @@ class A3BundleTests(unittest.TestCase):
         destination = self.root / "extra-inventory-bundle"
         with self.assertRaisesRegex(ValidationError, "closed inventory"):
             assemble_bundle(
-                (replica_copy, *self.replica_roots[1:]),
+                (replica_copy, *self.derivation_roots[1:]),
                 destination,
                 self.campaign_id,
                 self.producer_commit,

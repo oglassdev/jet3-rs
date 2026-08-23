@@ -33,6 +33,7 @@ from protocol_validation import ValidationError, canonical_json_bytes
 
 PAGE_SIZE = 2_048
 REPLICA_COUNT = 3
+DERIVATION_REPLICA_COUNT = 2
 CHECKPOINT_COUNT = 25
 MAX_JSON_BYTES = 67_108_864
 MAX_PAGE_BLOBS = 65_536
@@ -476,7 +477,8 @@ def _validate_analysis_payload(root: Path, tree: dict[str, TreeFile],
     )
     return report, receipt, frozen_sha256
 def _validate_payload(root: Path, *, require_analysis: bool,
-                      allow_manifest: bool = False) -> PayloadResult:
+                      allow_manifest: bool = False,
+                      replica_count: int = REPLICA_COUNT) -> PayloadResult:
     root = root.resolve()
     tree, directories = _inventory(root)
     plan_payload = _read_checked(root, PLAN_PATH, tree, MAX_JSON_BYTES)
@@ -484,7 +486,7 @@ def _validate_payload(root: Path, *, require_analysis: bool,
     _require(plan_payload, CHECKED_PLAN.read_bytes(), "retained checked plan")
     replicas = tuple(
         _validate_replica(root, tree, directories, replica, None, closed=False)
-        for replica in range(1, REPLICA_COUNT + 1)
+        for replica in range(1, replica_count + 1)
     )
     _validate_environments(replicas)
     expected = {PLAN_PATH}
@@ -550,11 +552,18 @@ def _copy_verified(
     if total != size or observed.hexdigest() != digest:
         destination.unlink()
         raise ValidationError(f"{locator}: copy source binding failed")
+def _copy_replica(replica: ReplicaResult, destination: Path) -> None:
+    _copy_verified(replica.root, destination, replica.manifest_path,
+                   replica.manifest_size, replica.manifest_sha256)
+    for entry in replica.entries.values():
+        _copy_verified(replica.root, destination, entry["path"],
+                       entry["size_bytes"], entry["sha256"])
 def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
                     campaign_id: str, producer_commit: str) -> dict[str, Any]:
+    """Assemble the derivation replicas only; the holdout is grafted after the freeze."""
     roots = tuple(Path(root).resolve() for root in replica_roots)
-    if len(roots) != REPLICA_COUNT:
-        raise ValidationError("assemble requires exactly three replica roots")
+    if len(roots) != DERIVATION_REPLICA_COUNT:
+        raise ValidationError("assemble requires exactly the two derivation replica roots")
     if bundle_root.exists():
         raise ValidationError("bundle root already exists")
     validated = []
@@ -573,22 +582,9 @@ def assemble_bundle(replica_roots: Iterable[Path], bundle_root: Path,
         plan_path.parent.mkdir(parents=True)
         plan_path.write_bytes(CHECKED_PLAN.read_bytes())
         for replica in replicas:
-            _copy_verified(
-                replica.root,
-                staging,
-                replica.manifest_path,
-                replica.manifest_size,
-                replica.manifest_sha256,
-            )
-            for entry in replica.entries.values():
-                _copy_verified(
-                    replica.root,
-                    staging,
-                    entry["path"],
-                    entry["size_bytes"],
-                    entry["sha256"],
-                )
-        result = _validate_payload(staging, require_analysis=False)
+            _copy_replica(replica, staging)
+        result = _validate_payload(staging, require_analysis=False,
+                                   replica_count=DERIVATION_REPLICA_COUNT)
         os.replace(staging, bundle_root)
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
