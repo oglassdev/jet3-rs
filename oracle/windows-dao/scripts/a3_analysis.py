@@ -574,7 +574,7 @@ def recompute_only(derivation: list[ReplicaInput]) -> dict[str, Any]:
     }
 
 
-def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validate_holdout_after_freeze: Callable[[str], None]) -> dict[str, Any]:
+def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validate_holdout_after_freeze: Callable[[str], dict[str, Any] | None]) -> dict[str, Any]:
     if len(sources) != 3:
         raise ValidationError("A3 analysis requires exactly three replica sources")
     derivation = [sources[0].open(), sources[1].open()]
@@ -589,7 +589,10 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
         global_pages, tdef_pages, transcript = (), (), CrossCheckTranscript()
     frozen = candidate_document(derivation[0].campaign_id, global_pages, tdef_pages, transcript, drafts)
     frozen_sha = write_frozen(candidate_output, frozen)
-    validate_holdout_after_freeze(frozen_sha)
+    receipt = validate_holdout_after_freeze(frozen_sha)
+    holdout_validated_after_freeze = _holdout_validated_after_freeze(candidate_output, frozen_sha, receipt)
+    if not holdout_validated_after_freeze:
+        raise ValidationError("holdout structural validation is not bound to the frozen candidate set")
     holdout_opened = campaign_abort is None and any(
         draft.model is not None for draft in drafts.values()
     )
@@ -611,7 +614,7 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
         "record_candidates_examined": work.record_candidates, "candidate_models_examined": work.candidate_models,
         "derivation_survivor_counts": {key: drafts[key].survivor_count for key in LAYER_KEYS},
         "derivation_candidate_set_sha256": frozen_sha, "polarity_cross_check": transcript.document(),
-        "analysis_work_units": work.value, "holdout_structurally_validated_after_freeze": True,
+        "analysis_work_units": work.value, "holdout_structurally_validated_after_freeze": holdout_validated_after_freeze,
         "holdout_opened_after_freeze": holdout_opened,
         "holdout_evaluated": any(row["holdout_evaluated"] for row in layers.values()),
         "predicate_results": predicates, "terminal_predicate_ids": terminal_ids,
@@ -629,17 +632,31 @@ def build_analysis(sources: list[ReplicaSource], candidate_output: Path, validat
     return report
 
 
-def _receipt_validator(path: Path, bundle_root: Path, candidate_path: Path,
-                       campaign: str, producer: str) -> Callable[[str], None]:
-    def validate(frozen_sha: str) -> None:
+def _holdout_validated_after_freeze(candidate_output: Path, frozen_sha: str, receipt: dict[str, Any] | None) -> bool:
+    """Derive the report flag from observables: the frozen bytes on disk and the receipt's own bindings."""
+    if _sha256(candidate_output) != frozen_sha:
+        return False
+    if receipt is None:
+        return True
+    return (
+        receipt.get("derivation_candidate_set_sha256") == frozen_sha
+        and receipt.get("validated_after_candidate_freeze") is True
+        and receipt.get("page_bytes_exposed_to_analyzer") is False
+    )
+
+
+def _receipt_validator(path: Path, bundle_root: Path, holdout_root: Path, candidate_path: Path,
+                       campaign: str, producer: str) -> Callable[[str], dict[str, Any]]:
+    def validate(frozen_sha: str) -> dict[str, Any]:
         from a3_holdout import run_holdout_process
 
-        run_holdout_process(bundle_root, candidate_path, frozen_sha, campaign, producer, path)
+        run_holdout_process(bundle_root, holdout_root, candidate_path, frozen_sha, campaign, producer, path)
         receipt = load_bounded_json(path, MAX_JSON_BYTES)
         validate_document(receipt)
         expected = {"campaign_id": campaign, "producer_commit": producer, "derivation_candidate_set_sha256": frozen_sha}
         if any(receipt[key] != value for key, value in expected.items()):
             raise ValidationError("A3 holdout receipt binding mismatch")
+        return receipt
     return validate
 
 
@@ -649,6 +666,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--replica", action="append", type=Path)
     parser.add_argument("--candidate-output", type=Path)
     parser.add_argument("--holdout-receipt", type=Path)
+    parser.add_argument("--holdout-replica-root", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--recompute-only", action="store_true")
     arguments = parser.parse_args(argv)
@@ -676,9 +694,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if len(replicas) != 3:
             raise ValidationError("exactly three A3 replica observations are required")
+        if arguments.holdout_replica_root is None:
+            raise ValidationError("--holdout-replica-root is required: the holdout is grafted only after the freeze")
         sources = [BundleReplicaSource(path, root) for path in replicas]
         first = sources[0].open()
-        validator = _receipt_validator(receipt, root, candidate, first.campaign_id, first.producer_commit)
+        validator = _receipt_validator(receipt, root, arguments.holdout_replica_root, candidate,
+                                       first.campaign_id, first.producer_commit)
         report = build_analysis(sources, candidate, validator)
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("xb") as handle:
