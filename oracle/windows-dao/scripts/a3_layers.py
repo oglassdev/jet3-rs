@@ -16,7 +16,7 @@ R3-G10 candidate-local absence | :func:`_window_values`, :func:`_classification`
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TypeVar
 
 from a3_model import (
     CHECKPOINT_IDS, CHURN_TRANSITIONS, D_TRANSITIONS, HIGH_GROWTH,
@@ -32,6 +32,7 @@ VALIDITY_CHECKPOINTS = tuple(TRANSITIONS["pointer_validity_checkpoints"])
 CROSS_CHECK_LEGS = tuple(tuple(pair) for pair in TRANSITIONS["polarity_cross_check_legs"])
 EXTENDED_HEADER_BYTES = 4
 EXTENDED_BITS = (PAGE_SIZE - EXTENDED_HEADER_BYTES) * 8
+ValueT = TypeVar("ValueT")
 
 
 @dataclass(frozen=True)
@@ -448,8 +449,12 @@ def _window_values(
     return values
 
 
-def _stable(values: Mapping[str, tuple[int, int]], pairs: Sequence[tuple[str, str]]) -> bool:
+def _stable(values: Mapping[str, ValueT], pairs: Sequence[tuple[str, str]]) -> bool:
     return all(values[left] == values[right] for left, right in pairs)
+
+
+def _references(values: Mapping[str, tuple[int, int]]) -> dict[str, int]:
+    return {checkpoint: value[0] for checkpoint, value in values.items()}
 
 
 @dataclass(frozen=True)
@@ -463,9 +468,10 @@ def pointer_windows(view: View, page: int) -> WindowCandidates:
     churn = {layout: [] for layout in POINTER_LAYOUTS}
     for offset in range(PAGE_SIZE - 3):
         for layout in POINTER_LAYOUTS:
-            values = _window_values(view, page, offset, layout)
-            if values is None:
+            window_values = _window_values(view, page, offset, layout)
+            if window_values is None:
                 continue
+            values = _references(window_values)
             grows = any(values[a] != values[b] for a, b in LOW_GROWTH + HIGH_GROWTH)
             churns = values["L_REL_1280"] != values["L_DELETE_ALL"] and values["L_REL_1280"] == values["L_REINSERT_SAME"]
             growth_shape = grows and _stable(values, CHURN_TRANSITIONS)
@@ -620,14 +626,16 @@ def predicts_tdef(view: View, frozen: TdefModel, churn_precondition_met: bool) -
     page = frozen.record.page
     if qualify_tdef_pages(view, (page,)) != (page,):
         return False
-    growth_values = _window_values(
+    growth_window = _window_values(
         view, page, frozen.growth_pointer_offset, frozen.pointer_layout
     )
-    churn_values = _window_values(
+    churn_window = _window_values(
         view, page, frozen.delete_reinsert_pointer_offset, frozen.pointer_layout
     )
-    if growth_values is None or churn_values is None:
+    if growth_window is None or churn_window is None:
         return False
+    growth_values = _references(growth_window)
+    churn_values = _references(churn_window)
     growth_holds = (
         any(
             growth_values[left] != growth_values[right]

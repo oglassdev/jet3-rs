@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import sys
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import MappingProxyType
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
@@ -23,11 +25,11 @@ from a3_generator import (  # noqa: E402
 )
 from a3_layers import (  # noqa: E402
     ConversionModel, conversion_index, derive_tdef_candidates,
-    polarity_cross_check,
+    pointer_windows, polarity_cross_check,
 )
 from a3_model import (  # noqa: E402
-    Abort, GlobalRecordModel, Record, View, WorkCounter, decode_inline,
-    global_start_candidates,
+    CHECKPOINT_IDS, Abort, GlobalRecordModel, Record, View, WorkCounter,
+    decode_inline, global_start_candidates,
 )
 from a3_spec import (  # noqa: E402
     LAYER_PREDICATE_SEQUENCES, PLAN_SHA256, PREDICATES, PREDICATE_IDS,
@@ -96,6 +98,47 @@ class A3AnalyzerTests(unittest.TestCase):
         with self.assertRaises(Abort) as caught:
             derive_tdef_candidates(view, (bundle.tdef_page,), False)
         self.assertEqual(caught.exception.predicate_id, "A3-CHURN-PRECONDITION")
+
+    def test_tdef_signatures_compare_the_layout_page_field(self) -> None:
+        bundle = generate_synthetic_bundle()
+        windows = pointer_windows(View(bundle, WorkCounter()), bundle.tdef_page)
+        self.assertEqual(
+            windows.growth,
+            {
+                "u24le_page_then_u8_slot": (0,),
+                "u8_slot_then_u24le_page": (),
+            },
+        )
+
+    def test_tdef_slot_change_is_structural_exclusion(self) -> None:
+        bundle = generate_synthetic_bundle()
+        payloads = dict(bundle._payloads)
+        ordered = {checkpoint: list(hashes) for checkpoint, hashes in bundle.ordered_page_sha256.items()}
+        for checkpoint in CHECKPOINT_IDS:
+            payload = bytearray(bundle.page_bytes(ordered[checkpoint][bundle.tdef_page]))
+            churn_page = 24 + ((1 << 16) if checkpoint == "L_DELETE_ALL" else 0)
+            payload[2044:2047] = churn_page.to_bytes(3, "little")
+            if checkpoint == "D_DROP":
+                payload[3] += 1
+            encoded = bytes(payload)
+            digest = hashlib.sha256(encoded).hexdigest()
+            payloads[digest] = encoded
+            ordered[checkpoint][bundle.tdef_page] = digest
+        modified = replace(
+            bundle,
+            ordered_page_sha256=MappingProxyType({
+                checkpoint: tuple(hashes) for checkpoint, hashes in ordered.items()
+            }),
+            _payloads=MappingProxyType(payloads),
+        )
+        view = View(modified, WorkCounter())
+        windows = pointer_windows(view, modified.tdef_page)
+        layout = "u24le_page_then_u8_slot"
+        self.assertIn(0, windows.growth[layout])
+        self.assertIn(2044, windows.churn[layout])
+        with self.assertRaises(Abort) as caught:
+            derive_tdef_candidates(view, (modified.tdef_page,), True)
+        self.assertEqual(caught.exception.predicate_id, "A3-STRUCTURAL-EXCLUSION")
 
     def test_holdout_reporting_exception_and_t5_rejection(self) -> None:
         rows = [
