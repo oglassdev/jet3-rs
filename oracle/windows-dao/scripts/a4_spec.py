@@ -264,9 +264,19 @@ def rolling_sha256(role: str, row_count: int) -> str:
 
 
 def count_satisfies(contract: dict[str, Any], measured: int) -> bool:
-    """R4-S01 semantics: exact equality, minimum >=, or membership in one allowed range."""
+    """R4-S01 semantics for scalar and replica-qualified survivor counts."""
     if "allowed_ranges" in contract:
         return any(count_satisfies(r, measured) for r in contract["allowed_ranges"])
+    if "per_replica_exact" in contract:
+        required = {"per_replica_exact", "replica_count", "total_exact"}
+        if not required <= contract.keys():
+            raise SpecError(f"incomplete replica-qualified survivor count contract {contract}")
+        per_replica = int(contract["per_replica_exact"])
+        replica_count = int(contract["replica_count"])
+        total = int(contract["total_exact"])
+        if per_replica < 0 or replica_count < 1 or per_replica * replica_count != total:
+            raise SpecError(f"inconsistent replica-qualified survivor count contract {contract}")
+        return measured == total
     if "exact" in contract:
         return measured == int(contract["exact"])
     if "minimum" in contract:

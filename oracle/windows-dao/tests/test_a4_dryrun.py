@@ -46,8 +46,19 @@ class A4SpecTests(unittest.TestCase):
         self.assertFalse(count_satisfies({"exact": 0}, 1))
         self.assertTrue(count_satisfies({"minimum": 2}, 3))
         self.assertFalse(count_satisfies({"minimum": 2}, 1))
+        replica_contract = {"per_replica_exact": 1, "replica_count": 2, "total_exact": 2}
+        self.assertTrue(count_satisfies(replica_contract, 2))
+        self.assertFalse(count_satisfies(replica_contract, 1))
         for contract in (c["failure_survivor_count"] for c in PREDICATE_CONTRACTS.values()):
-            self.assertTrue({"exact", "minimum", "allowed_range", "allowed_ranges"} & set(contract), contract)
+            if "per_replica_exact" in contract:
+                self.assertTrue({"per_replica_exact", "replica_count", "total_exact"} <= set(contract), contract)
+                self.assertEqual(
+                    int(contract["per_replica_exact"]) * int(contract["replica_count"]),
+                    int(contract["total_exact"]),
+                    contract,
+                )
+            else:
+                self.assertTrue({"exact", "minimum", "allowed_range", "allowed_ranges"} & set(contract), contract)
 
 
 class A4PageCodecTests(unittest.TestCase):
