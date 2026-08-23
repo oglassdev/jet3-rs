@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`,
+  `a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4655,6 +4655,43 @@ Use `not applicable` explicitly rather than omitting a field.
   | `analysis-report.schema.json` | `3a3903a49a05cedad0b6685ccf194ef598ba4c359aad18adcd1ba2113abcc0db` | `132239732f50872ae3e579b4857a498f2df1aff09ecffc389e08d1756c988104` |
   | `derivation-candidates.schema.json` | `c6dc3b11a73a6ba4dedb582e01b405aeb8d84cd801b261f41ed6884792a5c1e6` | `f0dec323bb1b1647b0bf093a9692b0a338859ed3b219567b3b4f0751294d69f7` |
   | `reachability-transcript.schema.json` | `2faec2aed55be8b9274631e15bbf3b58e72036c3ff3896f807a992f3a3c96c4f` | `beaa8179a9c0e5a3d26c1098494f6d0bf32c20ea87d162de65e0637aa3f95bb5` |
+
+  Pass 9 findings P9-B1 and P9-B2 are applied additively to the same unmerged,
+  pre-acquisition P0 base. H1 target-layout candidates now admit exactly the
+  standard and duplicate-locator signatures. H1 locator-pair candidates are a
+  closed signature-discriminated union: the standard signature admits only
+  `[35,39]`, while the duplicate signature admits `[35,39]`, `[35,43]`, or
+  `[39,43]`; semantic evaluation still rejects duplicate decoded targets and
+  any layout whose decoded page/tag/row targets fail against the bound page
+  bytes. The duplicate grammar now records exact structured mask derivation,
+  `[39,43) == [43,47)` equality, and inequality against the base signature's
+  fixed `[43,47)` value. The work script validates every four-byte hole,
+  derives equality classes rather than trusting their recorded output, proves
+  the standard/duplicate intersection empty, and rejects altered equality,
+  partition, hole, inequality, or base mask/value before summing. The Pass-8
+  plan hash
+  `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`
+  is superseded by the current plan hash above. Pass-9 changed-file identities
+  are:
+
+  | File | SHA-256 before Pass 9 | SHA-256 after Pass 9 |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `132239732f50872ae3e579b4857a498f2df1aff09ecffc389e08d1756c988104` | `d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0` |
+  | `derivation-candidates.schema.json` | `f0dec323bb1b1647b0bf093a9692b0a338859ed3b219567b3b4f0751294d69f7` | `2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245` |
+  | `a4-row-anchored-maps.plan.json` | `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597` | `a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314` |
+  | `README.md` | `2af4f607607d1b26c16b68395c7ed7a9c5ebf375e6e6760d9ef5876932bdccf9` | `e15bb743ce4f3f550691210efb47b732d40028e67fe1dc76a69df8f25338735e` |
+  | `design-inputs/recompute_a4_work_terms.py` | `c1772790010981f80f9eb44e280af970129d27f3a0d7863f7cafa5ae7f9ac6b9` | `d120aae59b2f8fd5aa46a2b0f09f5049cdb84f80199c7ff34febec2480aa4f36` |
+  | `tests/test_a4_plan_contract.py` | `7488b5b615a11ba8a96b16fd3a0dcccebbf2d4f08905d45d67e00e6d35bbea05` | `8210eefc9411433f19716a212187d62c6bf2bf367089fd710aacbff28957f058` |
+
+  Focused complete-report falsification accepts both registered signatures and
+  rejects overlapping `[35,37]`, standard-plus-`[35,43]`, duplicate-plus-
+  `[100,104]`, duplicate candidates, duplicate target tuples, and the
+  page-then-row interpretation of the exact R10 bytes. CLI/module mutation
+  cases cover registered units, the H4 dimension, removed/cross-hole/extra
+  equality, conflicting derived grouping, a fourth hole, missing/changed
+  mutual exclusion, and base mask/value. The derived target-validity term
+  remains 1,600 and the complete work total remains 694,378,226; acquisition,
+  capability movement, and final P0 closure remain blocked.
 
   focused A4
   plan and repository contract checks must pass

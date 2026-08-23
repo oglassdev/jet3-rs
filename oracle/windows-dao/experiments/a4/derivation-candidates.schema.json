@@ -331,7 +331,10 @@
               ]
             },
             "table_signature_id": {
-              "const": "a3_page23_masked_record_0_92"
+              "enum": [
+                "a3_page23_masked_record_0_92",
+                "a4_pair_multiple_duplicate_locator_0_92"
+              ]
             }
           }
         },
@@ -367,38 +370,70 @@
           "$ref": "#/$defs/sha256"
         },
         "model": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "layout",
-            "table_signature_id",
-            "locator_offsets"
-          ],
-          "properties": {
-            "layout": {
-              "enum": [
-                "u24le_page_then_u8_row",
-                "u8_row_then_u24le_page"
-              ]
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "layout",
+                "table_signature_id",
+                "locator_offsets"
+              ],
+              "properties": {
+                "layout": {
+                  "enum": [
+                    "u24le_page_then_u8_row",
+                    "u8_row_then_u24le_page"
+                  ]
+                },
+                "table_signature_id": {
+                  "const": "a3_page23_masked_record_0_92"
+                },
+                "locator_offsets": {
+                  "const": [
+                    35,
+                    39
+                  ]
+                }
+              }
             },
-            "table_signature_id": {
-              "enum": [
-                "a3_page23_masked_record_0_92",
-                "a4_pair_multiple_duplicate_locator_0_92"
-              ]
-            },
-            "locator_offsets": {
-              "type": "array",
-              "minItems": 2,
-              "maxItems": 2,
-              "uniqueItems": true,
-              "items": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 2044
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "layout",
+                "table_signature_id",
+                "locator_offsets"
+              ],
+              "properties": {
+                "layout": {
+                  "enum": [
+                    "u24le_page_then_u8_row",
+                    "u8_row_then_u24le_page"
+                  ]
+                },
+                "table_signature_id": {
+                  "const": "a4_pair_multiple_duplicate_locator_0_92"
+                },
+                "locator_offsets": {
+                  "enum": [
+                    [
+                      35,
+                      39
+                    ],
+                    [
+                      35,
+                      43
+                    ],
+                    [
+                      39,
+                      43
+                    ]
+                  ]
+                }
               }
             }
-          }
+          ]
         },
         "instance_bindings": {
           "type": "array",

@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`.
+`a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -218,6 +218,25 @@ The approved scope brief is copied byte-for-byte at
 `design-inputs/recompute_a4_work_terms.py` independently sums every registered
 work term, checks the latest H4 total, and exercises the 800,000,000 /
 800,000,001 comparator boundary from the immutable plan JSON.
+
+The Pass-9 P0 repair supersedes the Pass-8 plan hash
+`0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`
+with the current hash above. It closes H1 candidates by signature, makes the
+duplicate-locator equality and standard-signature inequality structured, and
+derives the target-identity partition before work is summed. The changed
+schema inventory is:
+
+| Schema | SHA-256 before Pass 9 | SHA-256 after Pass 9 |
+| --- | --- | --- |
+| `analysis-report.schema.json` | `132239732f50872ae3e579b4857a498f2df1aff09ecffc389e08d1756c988104` | `d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0` |
+| `derivation-candidates.schema.json` | `f0dec323bb1b1647b0bf093a9692b0a338859ed3b219567b3b4f0751294d69f7` | `2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245` |
+
+The Pass-9 recomputation script SHA-256 is
+`d120aae59b2f8fd5aa46a2b0f09f5049cdb84f80199c7ff34febec2480aa4f36`;
+the focused contract test SHA-256 is
+`8210eefc9411433f19716a212187d62c6bf2bf367089fd710aacbff28957f058`.
+The derived work total remains 694,378,226 under the unchanged approved
+800,000,000 ceiling.
 
 ## Schemas and status
 

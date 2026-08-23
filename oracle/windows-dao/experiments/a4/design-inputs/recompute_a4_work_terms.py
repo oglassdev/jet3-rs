@@ -30,6 +30,218 @@ def require_int_map(value: Any, label: str) -> dict[str, int]:
     return {key: require_int(item, f"{label}.{key}") for key, item in value.items()}
 
 
+def require_object(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise SystemExit(f"{label} must be an object")
+    return value
+
+
+def require_interval(
+    value: Any, label: str, *, record_start: int, record_end: int, page_size: int
+) -> tuple[int, int]:
+    if not isinstance(value, list) or len(value) != 2:
+        raise SystemExit(f"{label} must be one [start,end) interval")
+    start = require_int(value[0], f"{label}[0]")
+    end = require_int(value[1], f"{label}[1]")
+    if end - start != 4:
+        raise SystemExit(f"{label} must be exactly four bytes")
+    if start < record_start or end > record_end or end > page_size:
+        raise SystemExit(f"{label} is outside its record/page domain")
+    return start, end
+
+
+def require_hex(value: Any, label: str, expected_bytes: int) -> bytes:
+    if not isinstance(value, str):
+        raise SystemExit(f"{label} must be lowercase hexadecimal")
+    try:
+        decoded = bytes.fromhex(value)
+    except ValueError as error:
+        raise SystemExit(f"{label} must be lowercase hexadecimal") from error
+    if value != decoded.hex() or len(decoded) != expected_bytes:
+        raise SystemExit(f"{label} must encode exactly {expected_bytes} bytes")
+    return decoded
+
+
+def validate_holes(
+    signature: dict[str, Any], label: str, page_size: int
+) -> tuple[list[tuple[int, int]], tuple[int, int]]:
+    bounds = signature.get("record_bounds")
+    if not isinstance(bounds, list) or len(bounds) != 2:
+        raise SystemExit(f"{label}.record_bounds must be [start,end)")
+    record_start = require_int(bounds[0], f"{label}.record_bounds[0]")
+    record_end = require_int(bounds[1], f"{label}.record_bounds[1]")
+    if record_start >= record_end or record_end > page_size:
+        raise SystemExit(f"{label}.record_bounds is invalid")
+    raw_holes = signature.get("locator_holes")
+    if not isinstance(raw_holes, list) or not raw_holes:
+        raise SystemExit(f"{label}.locator_holes must be a non-empty array")
+    holes = [
+        require_interval(
+            hole,
+            f"{label}.locator_holes[{index}]",
+            record_start=record_start,
+            record_end=record_end,
+            page_size=page_size,
+        )
+        for index, hole in enumerate(raw_holes)
+    ]
+    if holes != sorted(holes) or len(set(holes)) != len(holes):
+        raise SystemExit(f"{label}.locator_holes must be distinct and ascending")
+    if any(left[1] > right[0] for left, right in zip(holes, holes[1:])):
+        raise SystemExit(f"{label}.locator_holes must not overlap")
+    return holes, (record_start, record_end)
+
+
+def derive_pair_multiple_identity_classes(
+    standard: dict[str, Any], multiple: dict[str, Any], page_size: int
+) -> list[list[int]]:
+    standard_holes, standard_bounds = validate_holes(
+        standard, "candidate_grammars.h1.table_record_signature", page_size
+    )
+    multiple_holes, multiple_bounds = validate_holes(
+        multiple,
+        "candidate_grammars.h1.pair_multiple_reachability_signature",
+        page_size,
+    )
+    if standard_bounds != multiple_bounds:
+        raise SystemExit("pair-multiple record bounds differ from the base signature")
+    additional = require_interval(
+        multiple.get("additional_locator_hole"),
+        "pair_multiple_reachability_signature.additional_locator_hole",
+        record_start=multiple_bounds[0],
+        record_end=multiple_bounds[1],
+        page_size=page_size,
+    )
+    if multiple_holes != [*standard_holes, additional]:
+        raise SystemExit(
+            "pair-multiple locator holes must be exactly the base holes plus one additional hole"
+        )
+
+    base_id = standard.get("signature_id")
+    if not isinstance(base_id, str) or multiple.get("base_signature_id") != base_id:
+        raise SystemExit("pair-multiple base signature id mismatch")
+
+    relationships = multiple.get("equal_byte_intervals")
+    if not isinstance(relationships, list) or len(relationships) != 1:
+        raise SystemExit("pair-multiple requires exactly one registered equality")
+    equality = require_object(relationships[0], "equal_byte_intervals[0]")
+    if set(equality) != {"left", "right", "relation"} or equality["relation"] != "equal":
+        raise SystemExit("pair-multiple equality is removed, altered, or unregistered")
+    left = require_interval(
+        equality["left"],
+        "equal_byte_intervals[0].left",
+        record_start=multiple_bounds[0],
+        record_end=multiple_bounds[1],
+        page_size=page_size,
+    )
+    right = require_interval(
+        equality["right"],
+        "equal_byte_intervals[0].right",
+        record_start=multiple_bounds[0],
+        record_end=multiple_bounds[1],
+        page_size=page_size,
+    )
+    if left != standard_holes[-1] or right != additional:
+        raise SystemExit(
+            "registered equality must join the immediately preceding base hole to the additional hole"
+        )
+
+    starts = [hole[0] for hole in multiple_holes]
+    parents = {start: start for start in starts}
+
+    def find(start: int) -> int:
+        while parents[start] != start:
+            parents[start] = parents[parents[start]]
+            start = parents[start]
+        return start
+
+    left_root, right_root = find(left[0]), find(right[0])
+    parents[right_root] = left_root
+    groups: dict[int, list[int]] = {}
+    for start in starts:
+        groups.setdefault(find(start), []).append(start)
+    derived_classes = sorted((sorted(group) for group in groups.values()), key=lambda group: group[0])
+    if multiple.get("derived_locator_identity_classes") != derived_classes:
+        raise SystemExit(
+            "pair-multiple derived_locator_identity_classes conflicts with structured equality"
+        )
+
+    record_bytes = multiple_bounds[1] - multiple_bounds[0]
+    base_value = require_hex(standard.get("value_hex"), "base signature value_hex", record_bytes)
+    base_mask = require_hex(standard.get("mask_hex"), "base signature mask_hex", record_bytes)
+    derivation = require_object(multiple.get("mask_derivation"), "pair-multiple mask_derivation")
+    overrides = derivation.get("overrides")
+    if derivation.get("base_signature_id") != base_id or not isinstance(overrides, list) or len(overrides) != 1:
+        raise SystemExit("pair-multiple mask derivation must contain exactly the registered override")
+    override = require_object(overrides[0], "mask_derivation.overrides[0]")
+    override_interval = require_interval(
+        override.get("interval"),
+        "mask_derivation.overrides[0].interval",
+        record_start=multiple_bounds[0],
+        record_end=multiple_bounds[1],
+        page_size=page_size,
+    )
+    if override_interval != additional or require_hex(
+        override.get("mask_hex"), "mask_derivation.overrides[0].mask_hex", 4
+    ) != b"\x00" * 4:
+        raise SystemExit("pair-multiple mask override differs from the additional locator hole")
+
+    inequality = require_object(
+        multiple.get("mutual_exclusion_inequality"),
+        "pair-multiple mutual_exclusion_inequality",
+    )
+    if set(inequality) != {"left", "relation", "right"} or inequality["relation"] != "not_equal":
+        raise SystemExit("pair-multiple mutual-exclusion inequality is missing or changed")
+    inequality_left = require_interval(
+        inequality["left"],
+        "mutual_exclusion_inequality.left",
+        record_start=multiple_bounds[0],
+        record_end=multiple_bounds[1],
+        page_size=page_size,
+    )
+    inequality_right = require_object(
+        inequality["right"], "mutual_exclusion_inequality.right"
+    )
+    if set(inequality_right) != {
+        "signature_id",
+        "interval",
+        "fixed_value_hex",
+        "fixed_mask_hex",
+    }:
+        raise SystemExit("pair-multiple mutual-exclusion right operand is not closed")
+    base_interval = require_interval(
+        inequality_right["interval"],
+        "mutual_exclusion_inequality.right.interval",
+        record_start=standard_bounds[0],
+        record_end=standard_bounds[1],
+        page_size=page_size,
+    )
+    start, end = additional
+    relative_start, relative_end = start - standard_bounds[0], end - standard_bounds[0]
+    fixed_value = base_value[relative_start:relative_end]
+    fixed_mask = base_mask[relative_start:relative_end]
+    if (
+        inequality_left != additional
+        or base_interval != additional
+        or inequality_right["signature_id"] != base_id
+        or require_hex(
+            inequality_right["fixed_value_hex"],
+            "mutual_exclusion_inequality.right.fixed_value_hex",
+            4,
+        )
+        != fixed_value
+        or require_hex(
+            inequality_right["fixed_mask_hex"],
+            "mutual_exclusion_inequality.right.fixed_mask_hex",
+            4,
+        )
+        != fixed_mask
+        or fixed_mask != b"\xff" * 4
+    ):
+        raise SystemExit("pair-multiple base signature mask/value mismatch")
+    return derived_classes
+
+
 def recompute_terms(plan: dict[str, Any]) -> tuple[dict[str, int], dict[str, int]]:
     bounds = plan["bounds"]
     grammar = plan["candidate_grammars"]
@@ -64,16 +276,15 @@ def recompute_terms(plan: dict[str, Any]) -> tuple[dict[str, int], dict[str, int
     pair_span = locator_starts - inputs["locator_bytes"]
     locator_pairs_one_layout = pair_span * (pair_span + 1) // 2
     locator_pairs_per_page = len(grammar["h1"]["locator_layouts"]) * locator_pairs_one_layout
-    standard_locator_identities = len(grammar["h1"]["table_record_signature"]["locator_holes"])
+    standard_signature = grammar["h1"]["table_record_signature"]
+    standard_holes, _ = validate_holes(
+        standard_signature, "candidate_grammars.h1.table_record_signature", page_size
+    )
+    standard_locator_identities = len(standard_holes)
     multiple_signature = grammar["h1"]["pair_multiple_reachability_signature"]
-    identity_classes = multiple_signature["locator_identity_classes"]
-    locator_offsets = {hole[0] for hole in multiple_signature["locator_holes"]}
-    classified_offsets = [offset for group in identity_classes for offset in group]
-    if len(classified_offsets) != len(set(classified_offsets)) or set(classified_offsets) != locator_offsets:
-        raise SystemExit(
-            "pair_multiple_reachability_signature.locator_identity_classes "
-            "must partition the locator-hole starts"
-        )
+    identity_classes = derive_pair_multiple_identity_classes(
+        standard_signature, multiple_signature, page_size
+    )
     multiple_locator_identities = len(identity_classes)
     registered_multiple_bound = require_int(
         multiple_signature["maximum_distinct_target_identities_per_layout"],

@@ -7,7 +7,9 @@ import datetime as dt
 import hashlib
 import json
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -32,8 +34,11 @@ TIMING_CORRECTION = (
 )
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
+RECOMPUTE = EXPERIMENT / "design-inputs" / "recompute_a4_work_terms.py"
 
-PLAN_SHA256 = "0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597"
+PLAN_SHA256 = "a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314"
+ANALYSIS_SCHEMA_SHA256 = "d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0"
+DERIVATION_SCHEMA_SHA256 = "2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 TIMING_CORRECTION_SHA256 = "49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d"
@@ -140,12 +145,18 @@ ADVERSARIAL_CASES = {
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
+DESIGN_INPUTS = EXPERIMENT / "design-inputs"
+if str(DESIGN_INPUTS) not in sys.path:
+    sys.path.insert(0, str(DESIGN_INPUTS))
 
 from protocol_validation import (  # noqa: E402
     ValidationError,
     lint_schema,
     validate_schema_value,
 )
+from recompute_a4_work_terms import recompute_terms  # noqa: E402
+
+REGISTERED_PLAN = json.loads(PLAN.read_bytes())
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -159,6 +170,155 @@ def canonical_bytes(value: Any) -> bytes:
 
 def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
+
+
+def h1_signature(plan: dict[str, Any], signature_id: str) -> dict[str, Any]:
+    h1 = plan["candidate_grammars"]["h1"]
+    signatures = {
+        h1["table_record_signature"]["signature_id"]: h1["table_record_signature"],
+        h1["pair_multiple_reachability_signature"]["signature_id"]: h1[
+            "pair_multiple_reachability_signature"
+        ],
+    }
+    if signature_id not in signatures:
+        raise AssertionError("unregistered H1 table signature")
+    return signatures[signature_id]
+
+
+def h1_registered_pairs(
+    plan: dict[str, Any], signature_id: str
+) -> list[tuple[int, int]]:
+    signature = h1_signature(plan, signature_id)
+    record_start, record_end = signature["record_bounds"]
+    holes = [tuple(hole) for hole in signature["locator_holes"]]
+    if any(
+        len(hole) != 2
+        or hole[1] - hole[0] != 4
+        or hole[0] < record_start
+        or hole[1] > record_end
+        for hole in holes
+    ):
+        raise AssertionError("locator holes must be four-byte in-record intervals")
+    if holes != sorted(holes) or len(set(holes)) != len(holes):
+        raise AssertionError("locator holes must be ascending and distinct")
+    if any(left[1] > right[0] for left, right in zip(holes, holes[1:])):
+        raise AssertionError("locator holes must not overlap")
+    starts = [hole[0] for hole in holes]
+    return [
+        (left, right)
+        for index, left in enumerate(starts)
+        for right in starts[index + 1 :]
+        if right - left >= 4
+    ]
+
+
+def decode_h1_locator(raw: bytes, layout: str) -> tuple[int, int]:
+    if len(raw) != 4:
+        raise AssertionError("locator must be exactly four bytes")
+    if layout == "u24le_page_then_u8_row":
+        return int.from_bytes(raw[:3], "little"), raw[3]
+    if layout == "u8_row_then_u24le_page":
+        return int.from_bytes(raw[1:], "little"), raw[0]
+    raise AssertionError("unregistered H1 locator layout")
+
+
+def h1_signature_matches(
+    page: bytes, signature: dict[str, Any], plan: dict[str, Any]
+) -> bool:
+    h1 = plan["candidate_grammars"]["h1"]
+    standard = h1["table_record_signature"]
+    start, end = signature["record_bounds"]
+    record = page[start:end]
+    value = bytes.fromhex(standard["value_hex"])
+    mask = bytearray.fromhex(standard["mask_hex"])
+    if signature["signature_id"] != standard["signature_id"]:
+        for override in signature["mask_derivation"]["overrides"]:
+            override_start, override_end = override["interval"]
+            mask[override_start:override_end] = bytes.fromhex(override["mask_hex"])
+    if not all(
+        (actual & keep) == (expected & keep)
+        for actual, expected, keep in zip(record, value, mask, strict=True)
+    ):
+        return False
+    if signature["signature_id"] == standard["signature_id"]:
+        return True
+    for equality in signature["equal_byte_intervals"]:
+        left_start, left_end = equality["left"]
+        right_start, right_end = equality["right"]
+        if (
+            equality["relation"] != "equal"
+            or page[left_start:left_end] != page[right_start:right_end]
+        ):
+            return False
+    inequality = signature["mutual_exclusion_inequality"]
+    left_start, left_end = inequality["left"]
+    fixed = bytes.fromhex(inequality["right"]["fixed_value_hex"])
+    return inequality["relation"] == "not_equal" and page[left_start:left_end] != fixed
+
+
+def evaluate_h1_candidate_from_pages(
+    item: dict[str, Any], page_index: dict[int, bytes], plan: dict[str, Any]
+) -> dict[tuple[int, int], tuple[tuple[int, int], tuple[int, int]]]:
+    model = item["model"]
+    signature = h1_signature(plan, model["table_signature_id"])
+    page_size = plan["bounds"]["page_size"]
+    valid_by_offsets: dict[
+        tuple[int, int], tuple[tuple[int, int], tuple[int, int]]
+    ] = {}
+    for binding in item["instance_bindings"]:
+        tdef_page = page_index.get(binding["tdef_page"])
+        if tdef_page is None or len(tdef_page) != page_size or tdef_page[0] != 2:
+            raise AssertionError("candidate TDEF page is absent, mis-sized, or not tag 02")
+        if not h1_signature_matches(tdef_page, signature, plan):
+            raise AssertionError("candidate TDEF page does not match its registered signature")
+        binding_valid: dict[
+            tuple[int, int], tuple[tuple[int, int], tuple[int, int]]
+        ] = {}
+        for offsets in h1_registered_pairs(plan, model["table_signature_id"]):
+            targets = tuple(
+                decode_h1_locator(tdef_page[offset : offset + 4], model["layout"])
+                for offset in offsets
+            )
+            if len(set(targets)) != 2:
+                continue
+            targets_valid = True
+            for page_number, row in targets:
+                target_page = page_index.get(page_number)
+                if (
+                    page_number >= plan["bounds"]["max_final_pages_per_replica"]
+                    or target_page is None
+                    or len(target_page) != page_size
+                    or target_page[0] != 1
+                    or row >= int.from_bytes(target_page[8:10], "little")
+                ):
+                    targets_valid = False
+                    break
+            if targets_valid:
+                binding_valid[offsets] = targets
+        if not binding_valid:
+            raise AssertionError("layout has no byte-derived target-valid locator pair")
+        if item["model_type"] == "h1_locator_pair":
+            selected = tuple(model["locator_offsets"])
+            if selected not in binding_valid:
+                raise AssertionError("selected locator pair fails bound page/tag/row checks")
+            serialized = tuple(
+                (target["page"], target["row"])
+                for target in binding["locator_targets"]
+            )
+            if serialized != binding_valid[selected]:
+                raise AssertionError("serialized locator targets differ from decoded bytes")
+        else:
+            serialized = tuple(
+                (target["page"], target["row"])
+                for target in binding["locator_targets"]
+            )
+            if serialized not in binding_valid.values():
+                raise AssertionError("layout binding targets differ from decoded bytes")
+        if not valid_by_offsets:
+            valid_by_offsets = binding_valid
+        elif valid_by_offsets != binding_valid:
+            raise AssertionError("candidate target-valid pairs differ across bindings")
+    return valid_by_offsets
 
 
 def bitmap_hex(operation: str, indexes: list[int]) -> str:
@@ -306,9 +466,13 @@ def candidate(
         instance_bindings = h1_bindings(True, binding_variant, replicas)
     elif stage == "h1_locator_pair":
         model = {
-            "layout": "u8_row_then_u24le_page" if serial % 2 else "u24le_page_then_u8_row",
-            "table_signature_id": "a3_page23_masked_record_0_92",
-            "locator_offsets": [35 + serial - 1, 39 + serial - 1],
+            "layout": "u8_row_then_u24le_page",
+            "table_signature_id": (
+                "a3_page23_masked_record_0_92"
+                if serial % 2
+                else "a4_pair_multiple_duplicate_locator_0_92"
+            ),
+            "locator_offsets": [35, 39] if serial % 2 else [35, 43],
         }
         instance_bindings = h1_bindings(True, binding_variant, replicas)
     elif stage == "h2_final_role":
@@ -416,7 +580,7 @@ def maximal_candidate(stage: str) -> dict[str, Any]:
     if stage == "h1_target_valid_layout":
         return finish_candidate(stage, {"layout": "u24le_page_then_u8_row", "table_signature_id": "a3_page23_masked_record_0_92"}, bindings)
     if stage == "h1_locator_pair":
-        return finish_candidate(stage, {"layout": "u24le_page_then_u8_row", "table_signature_id": "a3_page23_masked_record_0_92", "locator_offsets": [2040, 2044]}, bindings)
+        return finish_candidate(stage, {"layout": "u24le_page_then_u8_row", "table_signature_id": "a3_page23_masked_record_0_92", "locator_offsets": [35, 39]}, bindings)
     if stage == "h4_structural_field":
         model = candidate(stage)["model"]
         model["kind_mapping"] = {"table": 4294967295, "field": 4294967294, "index": 4294967293}
@@ -528,6 +692,25 @@ def rebind_candidate(item: dict[str, Any]) -> None:
     identity = {"model_type": item["model_type"], "model": item["model"]}
     item["canonical_model_id"] = canonical_sha256(identity)
     item["canonical_candidate_id"] = canonical_sha256({**identity, "instance_bindings": item["instance_bindings"]})
+
+
+def rehash_report_layers(report: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    frozen = build_frozen_document(report, plan)
+    report["derivation_candidate_set_sha256"] = hashlib.sha256(
+        canonical_bytes(frozen)
+    ).hexdigest()
+    return frozen
+
+
+def bind_h1_candidate_to_page_fixture(
+    item: dict[str, Any], targets: tuple[tuple[int, int], tuple[int, int]]
+) -> None:
+    for binding in item["instance_bindings"]:
+        binding["tdef_page"] = 23
+        binding["locator_targets"] = [
+            {"page": page, "row": row} for page, row in targets
+        ]
+    rebind_candidate(item)
 
 
 def sorted_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -705,7 +888,12 @@ SPLIT_IDENTITY_STAGES = {"h1_tdef", "h1_target_valid_layout", "h1_locator_pair",
 H4_PHYSICAL_FIELDS = {"replica", "tdef_page", "occurrence_evidence_sha256", "compatible_occurrences_by_operation", "value_equivalent_tuple_count", "selected_operation_occurrences", "structural_candidate_id", "canonical_record_locator", "matched_bytes_hex", "name_start"}
 
 
-def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...]) -> None:
+def validate_candidate_identity(
+    item: dict[str, Any],
+    replicas: tuple[int, ...],
+    plan: dict[str, Any] = REGISTERED_PLAN,
+    h1_page_index: dict[int, bytes] | None = None,
+) -> None:
     identity = {"model_type": item["model_type"], "model": item["model"]}
     if item["model_type"] in SPLIT_IDENTITY_STAGES:
         if item["canonical_model_id"] != canonical_sha256(identity):
@@ -728,8 +916,35 @@ def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...])
             raise AssertionError("H2 locator ordinals must differ")
     if item["model_type"].startswith("h1_"):
         offsets = item["model"].get("locator_offsets")
-        if offsets is not None and offsets != sorted(offsets):
-            raise AssertionError("locator offsets must be ascending")
+        if item["model_type"] in {"h1_target_valid_layout", "h1_locator_pair"}:
+            h1_signature(plan, item["model"]["table_signature_id"])
+        if offsets is not None:
+            if (
+                len(offsets) != 2
+                or offsets != sorted(offsets)
+                or len(set(offsets)) != 2
+                or offsets[1] - offsets[0] < 4
+            ):
+                raise AssertionError(
+                    "locator intervals must be ascending, distinct, and nonoverlapping"
+                )
+            registered_pairs = h1_registered_pairs(
+                plan, item["model"]["table_signature_id"]
+            )
+            if tuple(offsets) not in registered_pairs:
+                raise AssertionError(
+                    "locator intervals are not exact members of the selected signature holes"
+                )
+            multiple = plan["candidate_grammars"]["h1"][
+                "pair_multiple_reachability_signature"
+            ]
+            if item["model"]["table_signature_id"] == multiple["signature_id"]:
+                equality = multiple["equal_byte_intervals"][0]
+                duplicate_pair = (equality["left"][0], equality["right"][0])
+                if tuple(offsets) == duplicate_pair:
+                    raise AssertionError(
+                        "equal locator holes decode to duplicate targets at target-valid stage"
+                    )
         bindings = item["instance_bindings"]
         expected_order = [
             (replica, lifecycle)
@@ -751,6 +966,17 @@ def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...])
                 targets = [(target["page"], target["row"]) for target in binding["locator_targets"]]
                 if len(targets) != len(set(targets)):
                     raise AssertionError("locator targets must be distinct")
+                if any(
+                    page >= plan["bounds"]["max_final_pages_per_replica"]
+                    or row > 255
+                    for page, row in targets
+                ):
+                    raise AssertionError("locator target exceeds the registered page/row bounds")
+        if h1_page_index is not None and item["model_type"] in {
+            "h1_target_valid_layout",
+            "h1_locator_pair",
+        }:
+            evaluate_h1_candidate_from_pages(item, h1_page_index, plan)
     if item["model_type"] == "h4_structural_field":
         model = item["model"]
         for forbidden in ("encoding_length_equivalence_class", "name_length_endianness", "operation_bindings", "name_start"):
@@ -801,7 +1027,12 @@ def validate_final_against_structural(final: dict[str, Any], structural: dict[st
                 raise AssertionError("selected occurrence is absent from the structural evidence")
 
 
-def validate_frozen_result(value: dict[str, Any], slot: str) -> None:
+def validate_frozen_result(
+    value: dict[str, Any],
+    slot: str,
+    plan: dict[str, Any] = REGISTERED_PLAN,
+    h1_page_index: dict[int, bytes] | None = None,
+) -> None:
     candidates = value["candidates"]
     count = value["predicate_measured_survivor_count"]
     final_count = value["derivation_survivor_count"]
@@ -829,7 +1060,7 @@ def validate_frozen_result(value: dict[str, Any], slot: str) -> None:
             raise AssertionError("terminal candidate set mixes replicas (AMB-04)")
         replicas = tuple(failing) or (1,)
     for item in candidates:
-        validate_candidate_identity(item, replicas)
+        validate_candidate_identity(item, replicas, plan, h1_page_index)
     if value["status"] == "model":
         if count != 1 or final_count != 1 or len(candidates) != 1 or terminal is not None:
             raise AssertionError("model must have one candidate and no terminal")
@@ -906,12 +1137,15 @@ def validate_frozen_result(value: dict[str, Any], slot: str) -> None:
 
 
 def validate_layer_semantics(
-    layers: dict[str, Any], evidence_reference: dict[str, Any] | None
+    layers: dict[str, Any],
+    evidence_reference: dict[str, Any] | None,
+    plan: dict[str, Any] = REGISTERED_PLAN,
+    h1_page_index: dict[int, bytes] | None = None,
 ) -> None:
     upstream_ids: dict[str, str] = {}
     for slot in RESULT_SLOTS:
         result = layers[slot] if slot in layers else layers["h4_catalog_bootstrap"][slot]
-        validate_frozen_result(result, slot)
+        validate_frozen_result(result, slot, plan, h1_page_index)
         if result["status"] == "model":
             upstream_ids[slot] = result["candidates"][0]["canonical_candidate_id"]
     h2 = layers["h2_row_identity_map_role"]
@@ -1124,7 +1358,11 @@ def result_projection(value: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def validate_report_semantics(report: dict[str, Any], plan: dict[str, Any]) -> None:
+def validate_report_semantics(
+    report: dict[str, Any],
+    plan: dict[str, Any],
+    h1_page_index: dict[int, bytes] | None = None,
+) -> None:
     contracts = plan["predicate_registry"]["predicate_contracts"]
     results = report["predicate_results"]
     expected_ids = [contract["predicate_id"] for contract in contracts]
@@ -1169,7 +1407,9 @@ def validate_report_semantics(report: dict[str, Any], plan: dict[str, Any]) -> N
         expected_final_count = 1 if retains_final_model else 0
         if result["derivation_survivor_count"] != expected_final_count:
             raise AssertionError("predicate final survivor projection mismatch")
-    validate_layer_semantics(report["layers"], report["h4_occurrence_evidence"])
+    validate_layer_semantics(
+        report["layers"], report["h4_occurrence_evidence"], plan, h1_page_index
+    )
     terminal_count = (
         results[terminal_index]["predicate_measured_survivor_count"]
         if terminal_index is not None else None
@@ -1445,6 +1685,17 @@ class A4PlanContractTests(unittest.TestCase):
         ids = [int(value) for value in re.findall(r"^### EXP-(\d{4})", provenance, re.M)]
         self.assertEqual(max(ids), 52)
         self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(
+            hashlib.sha256(ANALYSIS_SCHEMA.read_bytes()).hexdigest(),
+            ANALYSIS_SCHEMA_SHA256,
+        )
+        self.assertEqual(
+            hashlib.sha256(DERIVATION_SCHEMA.read_bytes()).hexdigest(),
+            DERIVATION_SCHEMA_SHA256,
+        )
+        for digest in (ANALYSIS_SCHEMA_SHA256, DERIVATION_SCHEMA_SHA256):
+            self.assertIn(digest, readme)
+            self.assertIn(digest, provenance)
 
     def test_approved_brief_and_calibration_receipt_are_hash_bound(self) -> None:
         self.assertEqual(hashlib.sha256(BRIEF.read_bytes()).hexdigest(), BRIEF_SHA256)
@@ -1646,7 +1897,9 @@ class A4PlanContractTests(unittest.TestCase):
         )
 
         multiple_mask = bytearray(standard_mask)
-        multiple_mask[43:47] = b"\x00" * 4
+        for override in multiple["mask_derivation"]["overrides"]:
+            start, end = override["interval"]
+            multiple_mask[start:end] = bytes.fromhex(override["mask_hex"])
         self.assertTrue(
             all(
                 (actual & mask) == (expected & mask)
@@ -1658,7 +1911,15 @@ class A4PlanContractTests(unittest.TestCase):
                 )
             )
         )
-        self.assertEqual(record[39:43], record[43:47])
+        equality = multiple["equal_byte_intervals"]
+        self.assertEqual(len(equality), 1)
+        left, right = equality[0]["left"], equality[0]["right"]
+        self.assertEqual(record[slice(*left)], record[slice(*right)])
+        inequality = multiple["mutual_exclusion_inequality"]
+        self.assertNotEqual(
+            record[slice(*inequality["left"])],
+            bytes.fromhex(inequality["right"]["fixed_value_hex"]),
+        )
 
         offsets = [hole[0] for hole in multiple["locator_holes"]]
         pairs = [
@@ -1716,7 +1977,7 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(sum(count > 0 for count in valid_counts.values()), 1)
         self.assertEqual(max(valid_counts.values()), fixture["expected_terminal_measured_count"])
 
-        classes = multiple["locator_identity_classes"]
+        classes = multiple["derived_locator_identity_classes"]
         self.assertEqual({offset for group in classes for offset in group}, set(offsets))
         self.assertEqual(len(classes), multiple["maximum_distinct_target_identities_per_layout"])
         target_checks = (
@@ -1731,11 +1992,238 @@ class A4PlanContractTests(unittest.TestCase):
             self.plan["work_model"]["terms"]["h1_target_validity_checks"]["units"],
         )
         for schema in (self.derivation_schema, self.analysis_schema):
-            table_signature = schema["$defs"]["h1LocatorPairCandidate"]["properties"]["model"]["properties"]["table_signature_id"]
+            target_signature = schema["$defs"]["h1TargetValidLayoutCandidate"]["properties"]["model"]["properties"]["table_signature_id"]
             self.assertEqual(
-                table_signature["enum"],
+                target_signature["enum"],
                 [standard["signature_id"], multiple["signature_id"]],
             )
+            models = schema["$defs"]["h1LocatorPairCandidate"]["properties"]["model"]["anyOf"]
+            self.assertEqual(
+                [model["properties"]["table_signature_id"]["const"] for model in models],
+                [standard["signature_id"], multiple["signature_id"]],
+            )
+            self.assertEqual(models[0]["properties"]["locator_offsets"]["const"], [35, 39])
+            self.assertEqual(
+                models[1]["properties"]["locator_offsets"]["enum"],
+                [[35, 39], [35, 43], [39, 43]],
+            )
+
+    def test_h1_closed_candidates_and_byte_validity_reject_forged_reports(self) -> None:
+        contracts = self.plan["predicate_registry"]["predicate_contracts"]
+        by_id = {contract["predicate_id"]: index for index, contract in enumerate(contracts)}
+        standard_id = self.plan["candidate_grammars"]["h1"]["table_record_signature"]["signature_id"]
+        duplicate_id = self.plan["candidate_grammars"]["h1"]["pair_multiple_reachability_signature"]["signature_id"]
+
+        def replace_candidates(
+            report: dict[str, Any], candidates: list[dict[str, Any]]
+        ) -> dict[str, Any]:
+            result = report["layers"]["h1_tdef_to_map_row"]
+            result["candidates"] = sorted_candidates(candidates)
+            result["canonical_candidates_sha256"] = canonical_sha256(
+                result["candidates"]
+            )
+            return rehash_report_layers(report, self.plan)
+
+        target_report = build_report(
+            self.plan, by_id["A4-H1-LOCATOR-LAYOUT-MULTIPLE"], 2
+        )
+        standard_target = candidate("h1_target_valid_layout", replicas=(1,))
+        duplicate_target = candidate(
+            "h1_target_valid_layout", binding_variant=1, replicas=(1,)
+        )
+        duplicate_target["model"]["table_signature_id"] = duplicate_id
+        rebind_candidate(duplicate_target)
+        target_frozen = replace_candidates(
+            target_report, [standard_target, duplicate_target]
+        )
+        validate_schema_value(
+            target_report, self.analysis_schema, self.analysis_schema, "$"
+        )
+        validate_schema_value(
+            target_frozen,
+            self.derivation_schema,
+            self.derivation_schema,
+            "$",
+        )
+        validate_report_semantics(target_report, self.plan)
+
+        pair_report = build_report(
+            self.plan, by_id["A4-H1-LOCATOR-PAIR-MULTIPLE"], 2
+        )
+        pair_frozen = rehash_report_layers(pair_report, self.plan)
+        validate_schema_value(
+            pair_report, self.analysis_schema, self.analysis_schema, "$"
+        )
+        validate_schema_value(
+            pair_frozen,
+            self.derivation_schema,
+            self.derivation_schema,
+            "$",
+        )
+        validate_report_semantics(pair_report, self.plan)
+        self.assertEqual(
+            {
+                item["model"]["table_signature_id"]
+                for item in pair_report["layers"]["h1_tdef_to_map_row"]["candidates"]
+            },
+            {standard_id, duplicate_id},
+        )
+
+        for signature_id, offsets in (
+            (standard_id, [35, 37]),
+            (standard_id, [35, 43]),
+            (duplicate_id, [100, 104]),
+        ):
+            with self.subTest(signature=signature_id, offsets=offsets):
+                forged = copy.deepcopy(pair_report)
+                result = forged["layers"]["h1_tdef_to_map_row"]
+                item = result["candidates"][0]
+                item["model"]["table_signature_id"] = signature_id
+                item["model"]["locator_offsets"] = offsets
+                rebind_candidate(item)
+                forged_frozen = replace_candidates(forged, result["candidates"])
+                with self.assertRaises(ValidationError):
+                    validate_schema_value(
+                        forged, self.analysis_schema, self.analysis_schema, "$"
+                    )
+                with self.assertRaises(ValidationError):
+                    validate_schema_value(
+                        forged_frozen,
+                        self.derivation_schema,
+                        self.derivation_schema,
+                        "$",
+                    )
+                with self.assertRaises(AssertionError):
+                    validate_report_semantics(forged, self.plan)
+
+        duplicate_candidates = copy.deepcopy(pair_report)
+        duplicated_result = duplicate_candidates["layers"]["h1_tdef_to_map_row"]
+        duplicated_item = copy.deepcopy(duplicated_result["candidates"][0])
+        duplicate_frozen = replace_candidates(
+            duplicate_candidates, [duplicated_item, copy.deepcopy(duplicated_item)]
+        )
+        with self.assertRaises(ValidationError):
+            validate_schema_value(
+                duplicate_candidates,
+                self.analysis_schema,
+                self.analysis_schema,
+                "$",
+            )
+        with self.assertRaises(ValidationError):
+            validate_schema_value(
+                duplicate_frozen,
+                self.derivation_schema,
+                self.derivation_schema,
+                "$",
+            )
+        with self.assertRaises(AssertionError):
+            validate_report_semantics(duplicate_candidates, self.plan)
+
+        duplicate_targets = copy.deepcopy(target_report)
+        target_result = duplicate_targets["layers"]["h1_tdef_to_map_row"]
+        target_item = target_result["candidates"][0]
+        target_item["instance_bindings"][0]["locator_targets"] = [
+            {"page": 24, "row": 0},
+            {"page": 24, "row": 0},
+        ]
+        rebind_candidate(target_item)
+        duplicate_target_frozen = replace_candidates(
+            duplicate_targets, target_result["candidates"]
+        )
+        with self.assertRaises(ValidationError):
+            validate_schema_value(
+                duplicate_targets,
+                self.analysis_schema,
+                self.analysis_schema,
+                "$",
+            )
+        with self.assertRaises(ValidationError):
+            validate_schema_value(
+                duplicate_target_frozen,
+                self.derivation_schema,
+                self.derivation_schema,
+                "$",
+            )
+        with self.assertRaises(AssertionError):
+            validate_report_semantics(duplicate_targets, self.plan)
+
+        standard = self.plan["candidate_grammars"]["h1"]["table_record_signature"]
+        standard_page = bytearray(self.plan["bounds"]["page_size"])
+        standard_page[:92] = bytes.fromhex(standard["value_hex"])
+        target_page = bytearray(self.plan["bounds"]["page_size"])
+        target_page[0] = 1
+        target_page[8:10] = (2).to_bytes(2, "little")
+        standard_pages = {23: bytes(standard_page), 24: bytes(target_page)}
+        decisive = build_report(self.plan)
+        decisive_item = decisive["layers"]["h1_tdef_to_map_row"]["candidates"][0]
+        bind_h1_candidate_to_page_fixture(decisive_item, ((24, 0), (24, 1)))
+        decisive_result = decisive["layers"]["h1_tdef_to_map_row"]
+        decisive_result["canonical_candidates_sha256"] = canonical_sha256(
+            decisive_result["candidates"]
+        )
+        decisive_frozen = rehash_report_layers(decisive, self.plan)
+        validate_schema_value(
+            decisive, self.analysis_schema, self.analysis_schema, "$"
+        )
+        validate_schema_value(
+            decisive_frozen,
+            self.derivation_schema,
+            self.derivation_schema,
+            "$",
+        )
+        validate_report_semantics(decisive, self.plan, standard_pages)
+
+        duplicate_page = bytearray(standard_page)
+        duplicate_page[35:39] = bytes.fromhex("00180000")
+        duplicate_page[39:43] = bytes.fromhex("01180000")
+        duplicate_page[43:47] = bytes.fromhex("01180000")
+        duplicate_pages = {23: bytes(duplicate_page), 24: bytes(target_page)}
+        exact_r10 = build_report(
+            self.plan, by_id["A4-H1-LOCATOR-PAIR-MULTIPLE"], 2
+        )
+        exact_candidates = []
+        for offsets in ([35, 39], [35, 43]):
+            item = candidate("h1_locator_pair", replicas=(1,))
+            item["model"].update(
+                {
+                    "layout": "u8_row_then_u24le_page",
+                    "table_signature_id": duplicate_id,
+                    "locator_offsets": offsets,
+                }
+            )
+            bind_h1_candidate_to_page_fixture(item, ((24, 0), (24, 1)))
+            exact_candidates.append(item)
+        exact_frozen = replace_candidates(exact_r10, exact_candidates)
+        validate_schema_value(
+            exact_r10, self.analysis_schema, self.analysis_schema, "$"
+        )
+        validate_schema_value(
+            exact_frozen,
+            self.derivation_schema,
+            self.derivation_schema,
+            "$",
+        )
+        validate_report_semantics(exact_r10, self.plan, duplicate_pages)
+
+        page_then_row = copy.deepcopy(exact_r10)
+        invalid_candidates = page_then_row["layers"]["h1_tdef_to_map_row"][
+            "candidates"
+        ]
+        for item in invalid_candidates:
+            item["model"]["layout"] = "u24le_page_then_u8_row"
+            bind_h1_candidate_to_page_fixture(item, ((6144, 0), (6145, 0)))
+        invalid_frozen = replace_candidates(page_then_row, invalid_candidates)
+        validate_schema_value(
+            page_then_row, self.analysis_schema, self.analysis_schema, "$"
+        )
+        validate_schema_value(
+            invalid_frozen,
+            self.derivation_schema,
+            self.derivation_schema,
+            "$",
+        )
+        with self.assertRaises(AssertionError):
+            validate_report_semantics(page_then_row, self.plan, duplicate_pages)
 
     def test_abstract_terminal_reports_validate_schema_shapes(self) -> None:
         for terminal_index in [None, *range(40)]:
@@ -2690,6 +3178,135 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertIn("logical_read_bytes_by_replica", independent["required"])
         self.assertEqual(independent["properties"]["tamper_results"]["minItems"], 9)
         self.assertEqual(self.plan["work_model"]["bound_classification"]["max_analysis_work_units"], "conservative_upper")
+
+    def test_work_recomputation_rejects_every_pass_9_grammar_forgery(self) -> None:
+        def run_cli(plan: dict[str, Any]) -> subprocess.CompletedProcess[str]:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "forged-plan.json"
+                path.write_text(json.dumps(plan), encoding="utf-8")
+                return subprocess.run(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(RECOMPUTE),
+                        "--plan",
+                        str(path),
+                        "--assert-plan-total",
+                        "--expect-ceiling",
+                        "800000000",
+                        "--reject-ceiling",
+                        "800000001",
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+
+        def multiple(plan: dict[str, Any]) -> dict[str, Any]:
+            return plan["candidate_grammars"]["h1"][
+                "pair_multiple_reachability_signature"
+            ]
+
+        def replace_base_signature_byte(
+            plan: dict[str, Any], field: str, offset: int, replacement: str
+        ) -> None:
+            signature = plan["candidate_grammars"]["h1"]["table_record_signature"]
+            value = signature[field]
+            start = offset * 2
+            signature[field] = value[:start] + replacement + value[start + 2 :]
+
+        for label, mutate, module_must_fail in (
+            (
+                "registered_unit",
+                lambda plan: plan["work_model"]["terms"][
+                    "raw_locator_pairs"
+                ].__setitem__(
+                    "units",
+                    plan["work_model"]["terms"]["raw_locator_pairs"]["units"]
+                    + 1,
+                ),
+                False,
+            ),
+            (
+                "h4_dimension",
+                lambda plan: plan["candidate_grammars"]["h4"][
+                    "kind_widths"
+                ].append(8),
+                True,
+            ),
+            (
+                "equality_removed",
+                lambda plan: multiple(plan).__setitem__(
+                    "equal_byte_intervals", []
+                ),
+                True,
+            ),
+            (
+                "cross_hole_equality",
+                lambda plan: multiple(plan)["equal_byte_intervals"][0].__setitem__(
+                    "left", [35, 39]
+                ),
+                True,
+            ),
+            (
+                "unregistered_equality",
+                lambda plan: multiple(plan)["equal_byte_intervals"].append(
+                    {
+                        "left": [35, 39],
+                        "right": [43, 47],
+                        "relation": "equal",
+                    }
+                ),
+                True,
+            ),
+            (
+                "conflicting_equality_grouping",
+                lambda plan: multiple(plan).__setitem__(
+                    "derived_locator_identity_classes", [[35, 39], [43]]
+                ),
+                True,
+            ),
+            (
+                "extra_locator_hole",
+                lambda plan: multiple(plan)["locator_holes"].append([47, 51]),
+                True,
+            ),
+            (
+                "missing_mutual_exclusion_inequality",
+                lambda plan: multiple(plan).pop("mutual_exclusion_inequality"),
+                True,
+            ),
+            (
+                "changed_mutual_exclusion_inequality",
+                lambda plan: multiple(plan)[
+                    "mutual_exclusion_inequality"
+                ].__setitem__("relation", "equal"),
+                True,
+            ),
+            (
+                "base_mask",
+                lambda plan: replace_base_signature_byte(
+                    plan, "mask_hex", 43, "00"
+                ),
+                True,
+            ),
+            (
+                "base_value",
+                lambda plan: replace_base_signature_byte(
+                    plan, "value_hex", 43, "05"
+                ),
+                True,
+            ),
+        ):
+            with self.subTest(forgery=label):
+                forged = copy.deepcopy(self.plan)
+                mutate(forged)
+                if module_must_fail:
+                    with self.assertRaises(SystemExit):
+                        recompute_terms(forged)
+                process = run_cli(forged)
+                self.assertNotEqual(process.returncode, 0, process.stdout)
+                self.assertNotIn("recomputed_total=694378226", process.stdout)
 
     def test_a3_page_23_raw_window_and_pair_charge_is_recomputed_when_available(self) -> None:
         expected = self.plan["candidate_grammars"]["h1"]["a3_page_23_recomputed_work"]
