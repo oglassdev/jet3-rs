@@ -128,7 +128,7 @@ class A3AnalyzerTests(unittest.TestCase):
 
     def test_tdef_slot_change_is_structural_exclusion(self) -> None:
         bundle = generate_synthetic_bundle()
-        payloads = dict(bundle._payloads)
+        payloads = dict(bundle.payloads)
         ordered = {checkpoint: list(hashes) for checkpoint, hashes in bundle.ordered_page_sha256.items()}
         for checkpoint in CHECKPOINT_IDS:
             payload = bytearray(bundle.page_bytes(ordered[checkpoint][bundle.tdef_page]))
@@ -145,7 +145,7 @@ class A3AnalyzerTests(unittest.TestCase):
             ordered_page_sha256=MappingProxyType({
                 checkpoint: tuple(hashes) for checkpoint, hashes in ordered.items()
             }),
-            _payloads=MappingProxyType(payloads),
+            payloads=MappingProxyType(payloads),
         )
         view = View(modified, WorkCounter())
         windows = pointer_windows(view, modified.tdef_page)
