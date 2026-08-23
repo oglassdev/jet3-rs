@@ -35,6 +35,11 @@
           "path": "oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md",
           "sha256": "770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25",
           "role": "delegate_approved_scope_amendment_001_work_ceiling"
+        },
+        {
+          "path": "oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001-timing-correction.md",
+          "sha256": "49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d",
+          "role": "additive_scope_amendment_001_timing_correction"
         }
       ],
       "a3_calibration_bundle": {
@@ -70,7 +75,7 @@
         "approved_by": "user's delegate, review pass 6 (P6-B1)",
         "note_path": "oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md",
         "note_sha256": "770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25",
-        "justification": "EXP-0051 charged 134,291,460 work units inside a ~17 s analysis step (~7.9M units/s); 800,000,000 units take ~101 s, far inside the unchanged 900 s fan-in and 2,700 s campaign bounds. The two-replica H4 correction under the pass-4 grammar would have charged 694,378,226 units; the honestly recomputed two-replica maximum under the contrast grammar is 150,819,706, so the raise is preregistered headroom.",
+        "justification": "Timing calibration, non-normative: the retained EXP-0051 analysis report records 134,291,460 work units. GitHub Actions run 32626186825, fan-in job 97163239067, records approximately 3.84 seconds for derivation freeze, 0.67 seconds for analyzer resume, and 16.81 seconds for the independent recomputing validator. Using the slower independent-recomputation observation gives 800,000,000 / 134,291,460 * 16.81 ~= 100.1 seconds. This is coarse hosted-run planning evidence only because A3 and A4 charge different work mixes; it does not prove A4 runtime. The normative controls remain the checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second hard campaign timeout. Restoring the approved seven-record grammar charges a two-replica maximum of 694,378,226 units, so the approved ceiling remains sufficient.",
         "tests": "comparator unit test accepts exactly 800,000,000 and rejects 800,000,001 before manifest creation; the bound stays conservative_upper"
       }
     ]
@@ -732,11 +737,29 @@
       },
       "system_tdef_source": "tag-02 pages extant at EMPTY; apply the frozen H1 locator layout, H2 decoder/role model, and H3 traversal independently without refit",
       "catalog_record_source": "After one root survives, SCHEMA-DELTA-OUTSIDE-OWNED compares every isolated physical schema delta with the root-admitted page set before record candidates are restricted to admitted pages. Only if every delta is inside are complete SRC-0020 record candidates restricted to allocation-admitted tag-01 pages.",
-      "h4_ordering_rule": "After one root survives, `SCHEMA-DELTA-OUTSIDE-OWNED` compares every isolated physical schema delta with the root-admitted page set before record candidates are restricted to admitted pages. Only if every delta is inside does `CATALOG-RECORD-NONE` require at least one record for each of the five required table operation instances, followed by `CATALOG-RECORD-MULTIPLE` requiring at most one per required instance; the two contrast operations are grouped and counted in the same payload but never tested. Field-model predicates follow. The OUTSIDE fixture keeps every admitted delta and adds one non-admitted, non-user page change and therefore first fails OUTSIDE.",
-      "name_anchor": "No name anchor is used for root or operation-delta record selection. After exactly one record per required table instance survives, the encoding-neutral union of both registered expected-name byte sequences locates deferred compatible occurrences for bounded structural field-layout enumeration; neither encoding is preferred. Encoding-class fitting is evaluated only after exactly one structural tuple survives.",
-      "encoding_neutral_union_anchor": "After one operation-delta record per required table instance survives (contrast records are scanned when present), scan each complete row for every exact occurrence of each registered expected-name byte sequence without preferring an encoding, deduplicating identical CP1252/UTF-8 byte sequences within that operation before the union scan. For every occurrence enumerate kind_start_delta 1..16, kind width 1/2/4, immediately preceding identifier width 1/2/4, one shared integer-field endianness little/big for kind, identifier, and stored name length, name-length start delta 1..16 before the occurrence, and name-length width 1/2/4. Deduplicate identical non-name field-address tuples before structural cardinality, retaining the compatible name occurrences per operation only as deferred encoding evidence. After one structural tuple survives, evaluate the compatible occurrences against the three encoding/length equivalence classes.",
+      "h4_ordering_rule": "After one root survives, `SCHEMA-DELTA-OUTSIDE-OWNED` compares every isolated physical schema delta with the root-admitted page set before record candidates are restricted to admitted pages. Only if every delta is inside does `CATALOG-RECORD-NONE` require at least one record for each of the seven operation instances, followed by `CATALOG-RECORD-MULTIPLE` requiring at most one per instance. Field-model predicates follow. The OUTSIDE fixture places one otherwise valid operation delta on a non-admitted page and therefore first fails OUTSIDE.",
+      "name_anchor": "No name anchor is used for root or operation-delta record selection. After exactly one record per operation instance survives, the encoding-neutral union of both registered expected-name byte sequences locates deferred compatible occurrences for bounded structural field-layout enumeration; neither encoding is preferred. Encoding-class fitting is evaluated only after exactly one structural tuple survives.",
+      "encoding_neutral_union_anchor": "After one operation-delta record per instance survives on each derivation replica, scan each complete row for every exact occurrence of each registered expected-name byte sequence without preferring an encoding, deduplicating identical CP1252/UTF-8 byte sequences within that operation before the union scan. For every occurrence enumerate kind_start_delta 1..16, kind width 1/2/4, immediately preceding identifier width 1/2/4, one shared integer-field endianness little/big for kind, identifier, and stored name length, name-length start delta 1..16 before the occurrence, and name-length width 1/2/4. Deduplicate identical non-name field-address tuples before structural cardinality, retaining the compatible name occurrences per operation only as deferred encoding evidence. After one structural tuple survives, evaluate the compatible occurrences against the three encoding/length equivalence classes.",
       "union_anchor_occurrence_bound": "A complete row has at most 2,036 bytes because a valid one-row page requires the ten-byte header and one two-byte row-directory entry. For each operation, deduplicate identical CP1252/UTF-8 expected byte sequences before the union scan. The maximum distinct-pattern scan is nine complete-row scans, 9*2036=18,324 byte-start charges per derivation replica, 36,648 over both. Compatible occurrences are charged per operation: each of five table operations contributes at most floor(2036/8)=254, and each of the Payload and A4IX_ID operations contributes at most floor(2036/7)=290, for a total of 1,850 occurrence identities per derivation replica and 3,700 over both.",
       "relative_field_delta_domain": "kind_start_delta and name_length_start_delta are each 1..16 bytes before a compatible encoding-neutral name occurrence; kind, immediately preceding identifier, and name-length widths are each 1/2/4, with registered endianness choices.",
+      "kind_start_deltas": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
       "kind_widths": [
         1,
         2,
@@ -751,6 +774,29 @@
         "little",
         "big"
       ],
+      "name_length_start_deltas": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "name_length_widths": [
+        1,
+        2,
+        4
+      ],
       "name_length_endianness_rule": "exactly the candidate endianness; not an independent grammar dimension and not a candidate field. The sole endianness field governs kind, identifier, and stored name length.",
       "operation_binding_order": [
         "T1_CREATE_ID",
@@ -761,16 +807,16 @@
         "T3_CREATE",
         "T4_CREATE"
       ],
-      "field_candidate_shapes": "h4StructuralFieldCandidate contains canonical_model_id, canonical_candidate_id, a replica-invariant model (the encoding-neutral kind/id/name-length deltas and widths, one shared registered endianness, the table kind value {table: value}, and the identifier-lifecycle relation), and instance_bindings: one binding per bound replica (one for a per-replica terminal or pair entry, two in replica order for a decisive candidate), each holding the replica, occurrence_evidence_sha256, value_equivalent_tuple_count (1..27648, the count of tuples on that replica decoding identical values everywhere, represented by the first tuple in canonical enumeration order, AMB-12), and an exact seven-entry compatible_occurrences_by_operation array in checkpoint-operation order. Each entry holds the operation id, the required flag, the compatible occurrence count (at least 1 for the five required operations, 0 or more for the two contrast operations), and a fixed-width LSB-first bitmap over that replica's occurrence indexes in the bound evidence group: 64 hex characters (256 bits, bits 254..255 zero) for the five eight-byte table operations and 74 hex characters (296 bits, bits 290..295 zero) for Payload and A4IX_ID; the bitmap popcount equals the count. No occurrence object, name_start, stored-length value, or encoding/length equivalence class is stored inside a structural candidate. h4FinalFieldCandidate contains canonical_model_id, canonical_candidate_id, a model {structural_model_id, encoding_length_equivalence_class}, and instance_bindings of {replica, structural_candidate_id, selected_operation_occurrences[7]} with one selected occurrence index per required operation and a nullable index per contrast operation.",
-      "kind_value_mapping": "The kind field is a 1/2/4-byte integer that decodes to one equal raw value across all five required table records at every applicable checkpoint; the candidate stores {table: value}. No field or index kind value is required: the raw kind value of a present contrast record and whether it differs from the table value are contrast observations only. Opaque bijection ids are forbidden.",
-      "expected_kind_relations": "T1_CREATE_ID, T2_CREATE, T2_RECREATE, T3_CREATE, and T4_CREATE records map to one equal table kind value. Contrast records, when present, are expected but not required to carry a kind value distinct from the table value; the observation is reported, never tested.",
+      "field_candidate_shapes": "h4StructuralFieldCandidate contains canonical_model_id, canonical_candidate_id, a replica-invariant model with the encoding-neutral deltas and widths, shared endianness, explicit table/field/index mapping, and identifier-lifecycle relation, plus one instance_binding per bound replica. Each binding holds replica, occurrence_evidence_sha256, value_equivalent_tuple_count (1..165888), and seven checkpoint-ordered compatible-occurrence bitmaps with count at least 1. h4FinalFieldCandidate contains canonical_model_id, canonical_candidate_id, a model {structural_model_id, encoding_length_equivalence_class}, and replica-qualified instance_bindings with one non-null selected occurrence for every operation.",
+      "kind_value_mapping": "Sort the three distinct observed kind raw integers ascending. A candidate stores the explicit object {table: value, field: value, index: value}; enumerate the six permutations lexicographically by (table, field, index). Opaque bijection-N ids are forbidden.",
+      "expected_kind_relations": "T1_CREATE_ID, T2_CREATE, T2_RECREATE, T3_CREATE, and T4_CREATE anchors map to table; T1_ADD_TEXT maps to field; T1_ADD_INDEX maps to index. Equal kinds require equal raw values and different kinds require distinct raw values.",
       "identifier_lifecycle_relations": [
         "stable_for_same_operation_instance_and_distinct_for_t2_v1_v2",
         "stable_for_same_physical_name_including_t2_v1_v2"
       ],
       "identifier_oracle": "No DAO physical identifier is claimed. Expected identity is the listed operation instance (T2-v1 differs from T2-v2); H4 predicts only equality/inequality of the physical candidate across those instances.",
       "expected_identifier_relations": "The physical identifier candidate is stable for an operation instance across unrelated schema mutations, growth, churn, and idle checkpoints. T2-v1 and T2-v2 are required different only under stable_for_same_operation_instance_and_distinct_for_t2_v1_v2; they are required equal only under stable_for_same_physical_name_including_t2_v1_v2. All simultaneously extant object instances have distinct identifier values.",
-      "expected_name_relations": "Each located structural record is compared only at the encoding stage. Exact bytes must match one registered encoding with no normalization, folding, best-fit, or replacement; stored length must match one reported equivalence class. Table, field, and index names occur only for their extant listed operation instances. Contrast names are compared under the decisive class for reporting only.",
+      "expected_name_relations": "Each located structural record is compared only at the encoding stage. Exact bytes must match one registered encoding with no normalization, folding, best-fit, or replacement; stored length must match one reported equivalence class. Table, field, and index names occur only for their extant listed operation instances.",
       "candidate_overflow_rule": "canonical enumeration stops only after constructing candidate 4097; that event is A4-RESOURCE-BOUND and creates no scientific report or successful manifest",
       "field_layout_excludes_encoding": true,
       "name_encodings": [
@@ -805,47 +851,36 @@
           ]
         }
       ],
-      "encoding_length_evaluation_rule": "After exactly one structural field-layout model survives, compare every compatible deferred occurrence of the five required records against exact strict Windows-1252 (C9 for U+00C9) and UTF-8 (C3 89) bytes and the selected stored length against the registered equivalence classes. Encoding failure records the actual fitting-class count. The zero-fit fixture contains no matching candidate; a multiple fixture, if registered, contains both registered byte occurrences at compatible deferred anchors and never claims two classes fit one É occurrence. The campaign contains no possible within-CP1252 discriminator because strict CP1252 is single-byte for every representable scalar; report cp1252_single_byte_per_scalar rather than selecting one observationally equivalent member.",
-      "structural_raw_tuple": "After one operation-delta record per each of the 5 required table instances survives: compatible name occurrences retained separately for every operation in the bound h4_occurrence_evidence table, kind_start_delta 1..16, kind_width 1/2/4, immediately preceding identifier_width 1/2/4, one shared kind/identifier/stored-name-length endianness little/big, name_length_start_delta 1..16, name_length_width 1/2/4, and one of 2 identifier lifecycle relations. The inner grammar is 16*3*3*2*16*3*2=27648; the kind test is equality across the five required records, so no kind permutation dimension exists. Encoding class remains deferred. Value-equivalent tuples (identical decoded kind/identifier/length values everywhere, including identical-address tuples) are one model before structural cardinality while the compatible occurrence subset of each operation is retained as a bitmap over the evidence table. Structural tests evaluate tuples against required-record occurrences only (at most 5*254=1,270 identities per replica, enumerated independently on each derivation replica); contrast occurrences (at most 2*290=580 per replica) are evaluated once under the single surviving structural model.",
+      "encoding_length_evaluation_rule": "After exactly one structural field-layout model survives, compare every compatible deferred occurrence of all seven required records against exact strict Windows-1252 (C9 for U+00C9) and UTF-8 (C3 89) bytes and the selected stored length against the registered equivalence classes. Encoding failure records the actual fitting-class count. The zero-fit fixture contains no matching candidate; a multiple fixture, if registered, contains both registered byte occurrences at compatible deferred anchors and never claims two classes fit one É occurrence. The campaign contains no possible within-CP1252 discriminator because strict CP1252 is single-byte for every representable scalar; report cp1252_single_byte_per_scalar rather than selecting one observationally equivalent member.",
+      "structural_raw_tuple": "After one operation-delta record per each of 7 instances survives: compatible name occurrences retained separately for every operation in the bound h4_occurrence_evidence table, kind_start_delta 1..16, kind_width 1/2/4, immediately preceding identifier_width 1/2/4, one shared kind/identifier/stored-name-length endianness little/big, name_length_start_delta 1..16, name_length_width 1/2/4, one of 6 explicit kind-value objects, and one of 2 identifier lifecycle relations. The inner grammar is 16*3*3*2*16*3*6*2=165888. Encoding class remains deferred. Value-equivalent tuples are one model before structural cardinality while the compatible occurrence subset of each operation is retained as a bitmap over the evidence table. Structural tests evaluate all 1,850 operation-record occurrence identities per replica.",
       "raw_tuple_filter_order": [
-        "require_one_operation_delta_record_per_required_table_instance",
-        "locate_contrast_records_without_testing_cardinality",
+        "require_one_operation_delta_record_per_instance",
         "scan_complete_row_for_union_of_registered_expected_name_bytes",
-        "enumerate_bounded_name_kind_identifier_and_length_tuples_over_required_occurrences",
+        "enumerate_bounded_name_kind_identifier_and_length_tuples",
         "charge_raw_tuple",
         "reject_out_of_row_or_overlapping_fields",
         "test_stored_length_plausibility",
         "deduplicate_value_equivalent_tuples",
-        "test_kind_equality_across_required_records",
+        "test_kind_mapping",
         "test_identifier_lifecycle",
         "count_structural_field_layouts",
-        "if_exactly_one_then_evaluate_contrast_occurrences_and_test_required_occurrences_against_three_encoding_length_equivalence_candidates"
+        "if_exactly_one_then_test_compatible_occurrences_against_three_encoding_length_equivalence_candidates"
       ],
-      "occurrence_evidence_table": "After one operation-delta record per required table instance survives on a replica, the encoding-neutral union scan produces that replica's group of the single canonical frozen h4_occurrence_evidence document (artifacts.h4_occurrence_evidence, schema h4-occurrence-evidence.schema.json) bound by SHA-256. The document holds the surviving root candidate id and exactly two replica groups in replica order (replica 1 then replica 2); each group holds exactly seven operation bindings in checkpoint-operation order (five required, two contrast whose locator is null and whose occurrence list is empty when no unique contrast record exists), each with the canonical record locator and its deduplicated raw name occurrences (occurrence_index, row-relative name_start, matched registered pattern id, matched bytes), at most 254 for each of the five table operations and 290 for Payload and A4IX_ID per replica, 1,850 per replica and 3,700 in total, canonical UTF-8 JSON at most 1,048,576 bytes. Every structural binding references the document by hash instead of inlining occurrences, so a candidate stays under 4,096 bytes and the candidate-array proof closes. The independent validator recomputes every compatible length-field location and value from each replica's bound page bytes and evidence group, recomputes each bitmap, and verifies final-binding occurrence membership per replica. The evidence reference is null whenever structural enumeration never began on either replica. A replica group whose records never survived is absent only when the layer terminated before that replica's enumeration; a decisive result requires both groups.",
-      "encoding_result_rule": "H4 freezes two independent field results after root_result: structural_result and encoding_result. structural_result always retains the complete operation-record or h4StructuralFieldCandidate set and its hash once record or structural enumeration begins. encoding_result is not_applicable unless structural_result is a one-model result. FIELD-MODEL-MULTIPLE stores two or more structural candidates and no final candidates. ENCODING-AMBIGUOUS with zero or multiple fits retains exactly one structural candidate in structural_result and stores zero or at least two h4FinalFieldCandidate objects in encoding_result. Decisive H4 retains exactly one object in each result. Every final binding's structural_candidate_id MUST equal the retained structural candidate's canonical_candidate_id and every final model's structural_model_id MUST equal its canonical_model_id, so all final candidates in an encoding-multiple set share one structural candidate and differ only by registered equivalence class and selected occurrences; for each binding and each required operation the selected occurrence index MUST be a member of the retained structural candidate's compatible bitmap for the same replica. Reject an orphan structural id, a selected occurrence absent from the structural bitmap, duplicate equivalence classes, or any final candidate when structural cardinality is not exactly one. H4 REPLICA-DISAGREEMENT retains the per-replica structural pair in structural_result and the per-replica final pair in encoding_result; the final pair's canonical_model_id values must be unequal, the structural pair's may be equal (P6-B1). Contrast operations carry a nullable selected occurrence that is reported, never tested.",
+      "occurrence_evidence_table": "After one operation-delta record per instance survives on a replica, the encoding-neutral union scan produces that replica's group in one canonical h4_occurrence_evidence document. The document holds exactly two replica groups in replica order, each with all seven required operation bindings in checkpoint order, a non-null locator, complete retained page binding, and deduplicated raw occurrences. Limits are 254 occurrences for each table operation and 290 for Payload and A4IX_ID: 1,850 per replica, 3,700 total, and 1,048,576 canonical JSON bytes. Structural candidates bind the document hash and replica-qualified bitmaps; final candidates select matching bitmap members. Reject missing, duplicated, reordered, cross-replica, or unbound records. The evidence reference is null only when structural enumeration never began; a decisive result requires both groups.",
+      "encoding_result_rule": "H4 freezes two independent field results after root_result: structural_result and encoding_result. structural_result always retains the complete operation-record or h4StructuralFieldCandidate set and its hash once record or structural enumeration begins. encoding_result is not_applicable unless structural_result is a one-model result. FIELD-MODEL-MULTIPLE stores two or more structural candidates and no final candidates. ENCODING-AMBIGUOUS with zero or multiple fits retains exactly one structural candidate in structural_result and stores zero or at least two h4FinalFieldCandidate objects in encoding_result. Decisive H4 retains exactly one object in each result. Every final binding's structural_candidate_id MUST equal the retained structural candidate's canonical_candidate_id and every final model's structural_model_id MUST equal its canonical_model_id, so all final candidates in an encoding-multiple set share one structural candidate and differ only by registered equivalence class and selected occurrences; for each binding and each required operation the selected occurrence index MUST be a member of the retained structural candidate's compatible bitmap for the same replica. Reject an orphan structural id, a selected occurrence absent from the structural bitmap, duplicate equivalence classes, or any final candidate when structural cardinality is not exactly one. H4 REPLICA-DISAGREEMENT retains the per-replica structural pair in structural_result and the per-replica final pair in encoding_result; the final pair's canonical_model_id values must be unequal, the structural pair's may be equal (P6-B1). Every one of the seven required operations carries a non-null selected occurrence.",
       "isolated_delta_rule": "At a listed operation transition the isolated physical schema delta is the set of changed page indices minus page 0 and page 1, every user instance's TDEF page, every user H1-located map page, and every page admitted by a user instance's frozen H2/H3 traversal at that checkpoint. Page 0 is excluded, not assumed static (AMB-10).",
       "length_plausibility_rule": "Before deduplication, for every operation record and every compatible occurrence the stored length decoded under the tuple's width and endianness must equal one of the registered encoding-neutral counts for the expected name: strict Windows-1252 byte count, UTF-8 byte count, or Unicode scalar count (8, 9, 8 for A4TAB_É4; all equal for ASCII names). The test selects no class (AMB-11).",
-      "required_table_operations": [
+      "required_operations": [
         "T1_CREATE_ID",
+        "T1_ADD_TEXT",
+        "T1_ADD_INDEX",
         "T2_CREATE",
         "T2_RECREATE",
         "T3_CREATE",
         "T4_CREATE"
       ],
-      "contrast_operations": [
-        "T1_ADD_TEXT",
-        "T1_ADD_INDEX"
-      ],
-      "table_operation_record_rule": "Catalog-root record predicates require exactly one operation-delta record per TABLE lifecycle operation instance: the five TableDefs.Append operations T1_CREATE_ID, T2_CREATE, T2_RECREATE, T3_CREATE, and T4_CREATE. T2_DROP is not a record-producing operation: it is covered by the identifier-lifecycle and name-extant relations (the T2-v1 record ceases to be extant at T2_DROP and T2-v2 is a fresh instance at T2_RECREATE). H4 does not bet on field or index names appearing in the catalog root.",
-      "contrast_rule": "T1_ADD_TEXT (Payload) and T1_ADD_INDEX (A4IX_ID) are contrast operations. They are located by the same operation-delta rule, scanned with the same encoding-neutral union scan, and reported in h4_catalog_bootstrap.contrast_result as a non-failing sub-result: for each contrast operation, record_candidate_count (measured, never tested against 1), record_present, the complete record bytes if exactly one record is present, compatible_occurrence_count, the raw kind value and whether it differs from the table kind, the selected occurrence under the surviving structural model, and whether the exact name bytes and stored length fit the decisive encoding class. No contrast value can terminate the layer, change a survivor count, or alter a structural or final candidate id. contrast_result is not_applicable until record enumeration begins; contrast fields that depend on a unique structural model or a decisive encoding class are null until that stage exists. Contrast observations are descriptive_provider_observation_only and claim nothing about physical column or index definition layout.",
-      "operation_binding_cardinality": {
-        "total": 7,
-        "required": 5,
-        "contrast": 2,
-        "rule": "operation bindings, occurrence-evidence bindings, compatible-occurrence bitmaps, operation groups, and selected occurrences keep the seven-entry checkpoint order; the five required entries obey the table-record predicates and the two contrast entries are optional (count or locator may be zero/null) and never counted"
-      },
-      "identity_rule": "H4 separates scientific model identity from physical instance binding exactly as H1 does. canonical_model_id is SHA-256 of canonical_json({model_type, model}) over only the replica-invariant registered fields: for the root, the selection signature and ascending locator offsets; for the structural model, kind_start_delta, kind_width, identifier_width, shared endianness, name_length_start_delta, name_length_width, the table kind mapping, and the identifier-lifecycle relation; for the encoded model, the structural canonical_model_id and the registered encoding/length equivalence class. It MUST exclude replica number, TDEF page, record locator, occurrence-evidence hash, occurrence bitmap, value-equivalent tuple count, selected occurrence index, and physical name bytes. canonical_candidate_id is SHA-256 of canonical_json({model_type, model, instance_bindings}) and hashes the complete model plus its physical instance bindings. H4 replica agreement compares recomputed non-null canonical_model_id values; storage, sorting, linkage, and uniqueness use recomputed canonical_candidate_id values. Operation-record candidates are physical and carry their replica.",
-      "instance_binding_rule": "Every H4 physical binding is replica-qualified. A root binding is {replica, tdef_page}. A structural binding is {replica, occurrence_evidence_sha256, value_equivalent_tuple_count, compatible_occurrences_by_operation[7]} whose bitmaps index that replica's group of the evidence document. A final binding is {replica, structural_candidate_id, selected_operation_occurrences[7]}. A per-replica terminal or replica-pair candidate binds exactly its own replica's seven operations (five required, two optional contrast); a decisive frozen candidate binds both replicas' fourteen operations in replica-then-operation order (replica 1 bindings then replica 2 bindings, seven operations each in checkpoint-operation order). A final candidate links through each binding's structural_candidate_id to the complete structural candidate that carries exactly the same replica set, its model's structural_model_id equals that candidate's canonical_model_id, and every selected occurrence must be present in the matching replica/operation bitmap. Reject a missing, duplicated, cross-replica (a binding whose replica is absent from the evidence group or whose structural candidate lacks that replica), reordered, or unbound (an evidence hash or structural id that no frozen object carries) operation record."
+      "identity_rule": "H4 separates scientific model identity from physical instance binding exactly as H1 does. canonical_model_id is SHA-256 of canonical_json({model_type, model}) over only the replica-invariant registered fields: for the root, the selection signature and ascending locator offsets; for the structural model, kind_start_delta, kind_width, identifier_width, shared endianness, name_length_start_delta, name_length_width, the explicit table/field/index kind mapping, and the identifier-lifecycle relation; for the encoded model, the structural canonical_model_id and the registered encoding/length equivalence class. It MUST exclude replica number, TDEF page, record locator, occurrence-evidence hash, occurrence bitmap, value-equivalent tuple count, selected occurrence index, and physical name bytes. canonical_candidate_id is SHA-256 of canonical_json({model_type, model, instance_bindings}) and hashes the complete model plus its physical instance bindings. H4 replica agreement compares recomputed non-null canonical_model_id values; storage, sorting, linkage, and uniqueness use recomputed canonical_candidate_id values. Operation-record candidates are physical and carry their replica.",
+      "instance_binding_rule": "Every H4 physical binding is replica-qualified. A root binding is {replica, tdef_page}. A structural binding is {replica, occurrence_evidence_sha256, value_equivalent_tuple_count, compatible_occurrences_by_operation[7]} whose bitmaps index that replica's group of the evidence document. A final binding is {replica, structural_candidate_id, selected_operation_occurrences[7]}. A per-replica terminal or replica-pair candidate binds exactly its own replica's seven required operations; a decisive frozen candidate binds both replicas' fourteen operations in replica-then-operation order (replica 1 bindings then replica 2 bindings, seven operations each in checkpoint-operation order). A final candidate links through each binding's structural_candidate_id to the complete structural candidate that carries exactly the same replica set, its model's structural_model_id equals that candidate's canonical_model_id, and every selected occurrence must be present in the matching replica/operation bitmap. Reject a missing, duplicated, cross-replica (a binding whose replica is absent from the evidence group or whose structural candidate lacks that replica), reordered, or unbound (an evidence hash or structural id that no frozen object carries) operation record."
     }
   },
   "hypotheses": {
@@ -879,9 +914,9 @@
     },
     "A4-H4": {
       "title": "catalog bootstrap",
-      "model": "After one operation-delta/non-name structural catalog-root and a table-record field-layout model (five TableDefs.Append instances) survive, compare exact strict Windows-1252 and UTF-8 name encodings and report the one surviving length equivalence class; predict root, kind/id relations, exact table-name bytes, and length class on holdout without refit. Field and index appends are a reported, non-failing contrast.",
+      "model": "After one operation-delta/non-name structural catalog-root and one required record for each of the seven listed operations survive, one field-layout model predicts table/field/index kind, identifier lifecycle, and exact registered name bytes. Compare exact strict Windows-1252 and UTF-8 name encodings and report the one surviving length equivalence class; predict the unchanged root and field model on holdout without refit. Field/index creation remains a catalog-object perturbation only and does not claim physical column-definition or index-node layout.",
       "no_outcome": "zero or multiple catalog roots, records, or field models; schema delta outside admitted pages; encoding ambiguity; replica disagreement; holdout root or field prediction failure",
-      "separate_reporting": "catalog root/location, structural field-layout, and encoded-field results are reported independently as root_result, structural_result, and encoding_result so a field or encoding failure cannot erase root or structural success; contrast_result reports the T1_ADD_TEXT/T1_ADD_INDEX observations and can never terminate the layer"
+      "separate_reporting": "catalog root/location, structural field-layout, and encoded-field results are reported independently as root_result, structural_result, and encoding_result so a field or encoding failure cannot erase root or structural success"
     },
     "deferred": "physical column/index definition, row values, index nodes, relationships, Memo/OLE/long values, writes, free-space preferences, and preservation are outside A4"
   },
@@ -921,7 +956,7 @@
       "replica_3_independent_overshoot": "synthetic replica 3 uses independently chosen baseline/threshold overshoot in every growth phase and is not an alias of replica 1 or 2",
       "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every propagated candidate set, actual survivor count, ordered predicate status, first failure, layer outcome, and holdout result across the full byte-fixture sweep",
       "tamper_suite_execution": "execute and retain rejection of plan binding, frozen set, row locator, schema snapshot, report, and timeout tampering; a constant rejected=true is failure",
-      "work_counter_comparator_rule": "max_analysis_work_units is a conservative_upper bound: the latest registered path charges 150,819,706 units and no byte-level campaign can reach 800,000,000. The equality and one-over tests therefore exercise only the checked counter comparator: a unit-test measured-total argument of 800,000,000 is accepted and 800,000,001 is rejected before manifest creation. Neither test claims a constructible campaign at the ceiling; both are comparator tests outside the 40 byte-level reachability fixtures. The byte-level A4-RESOURCE-BOUND terminal is exercised through the constructible one-over changed-hash resource (67,200 recomputed changed page-index entries against the attainable_exact 65,536 cap, built from two alternating blobs over 3,200 pages); a row-count one-over is not used because snapshot and observation schemas already cap row counts at 200,000 and would fail A4-SCHEMA-SNAPSHOT first. There is no charge-injection hook in the production analyzer: the comparator is a pure function under unit test, and the transcript records that unit-test result (AMB-17)."
+      "work_counter_comparator_rule": "max_analysis_work_units is a conservative_upper bound: the latest registered path charges 694,378,226 units and no byte-level campaign can reach 800,000,000. The equality and one-over tests therefore exercise only the checked counter comparator: a unit-test measured-total argument of 800,000,000 is accepted and 800,000,001 is rejected before manifest creation. Neither test claims a constructible campaign at the ceiling; both are comparator tests outside the 40 byte-level reachability fixtures. The byte-level A4-RESOURCE-BOUND terminal is exercised through the constructible one-over changed-hash resource (67,200 recomputed changed page-index entries against the attainable_exact 65,536 cap, built from two alternating blobs over 3,200 pages); a row-count one-over is not used because snapshot and observation schemas already cap row counts at 200,000 and would fail A4-SCHEMA-SNAPSHOT first. There is no charge-injection hook in the production analyzer: the comparator is a pure function under unit test, and the transcript records that unit-test result (AMB-17)."
     },
     "a3_calibration_use_limit": "only retained A3 replicas 1 and 2 may be opened by calibration replay; no result, including EXP-0051 independent acceptance, is A4 evidence"
   },
@@ -1802,10 +1837,10 @@
         "prerequisites": [
           "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED"
         ],
-        "input_candidate_set": "operation-delta/non-name structural record candidates grouped by listed operation instance; only the five required table instances are tested, the two contrast groups are recorded",
+        "input_candidate_set": "operation-delta/non-name structural record candidates grouped by all seven listed operation instances",
         "counted_set_kind": "operation_record_candidates_grouped_minimum",
-        "pass_iff": "every required table operation instance has at least one record candidate",
-        "fail_iff": "any required table operation instance has zero record candidates",
+        "pass_iff": "every listed operation instance has at least one record candidate",
+        "fail_iff": "any listed operation instance has zero record candidates",
         "terminal_id": "A4-H4-CATALOG-RECORD-NONE",
         "failure_survivor_count": {
           "exact": 0
@@ -1817,7 +1852,7 @@
         ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R32-H4-RECORD-NONE",
-        "reachability_fixture": "One root survives; one required table operation has zero delta/non-name structural candidates while every other operation has one. structural_result retains all seven operation groups with actual cardinalities [0,1,1,1,1,1,1] in operation order (required flag true for the five table groups), the six existing complete candidates, and measured count 0 (the minimum required-group cardinality). A contrast group with zero candidates does not fail this predicate.",
+        "reachability_fixture": "One root survives; one of the seven operation groups has zero delta/non-name structural candidates while every other operation has one. structural_result retains all seven operation groups with actual cardinalities [0,1,1,1,1,1,1] in operation order, the six existing complete candidates, and measured count 0 (the minimum group cardinality).",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1827,10 +1862,10 @@
         "prerequisites": [
           "A4-H4-CATALOG-RECORD-NONE"
         ],
-        "input_candidate_set": "operation-delta/non-name structural record candidates grouped by listed operation instance; only the five required table instances are tested, the two contrast groups are recorded",
+        "input_candidate_set": "operation-delta/non-name structural record candidates grouped by all seven listed operation instances",
         "counted_set_kind": "operation_record_candidates_grouped_maximum",
-        "pass_iff": "every required table operation instance has at most one record candidate",
-        "fail_iff": "any required table operation instance has more than one record candidate",
+        "pass_iff": "every listed operation instance has at most one record candidate",
+        "fail_iff": "any listed operation instance has more than one record candidate",
         "terminal_id": "A4-H4-CATALOG-RECORD-MULTIPLE",
         "failure_survivor_count": {
           "minimum": 2,
@@ -1843,7 +1878,7 @@
         ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R33-H4-RECORD-MULTIPLE",
-        "reachability_fixture": "Every required operation has a candidate, but one required table operation has two delta/non-name structural candidates: the minimal group shape is [2,1,1,1,1,1,1], eight complete record candidates, measured count 2 (the maximum required-group cardinality), never the flat array length. A contrast group with two candidates is recorded and does not fail this predicate.",
+        "reachability_fixture": "Every listed operation has a candidate, but one operation has two delta/non-name structural candidates: the minimal group shape is [2,1,1,1,1,1,1], eight complete record candidates, measured count 2 (the maximum group cardinality), never the flat array length.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1868,7 +1903,7 @@
         ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R35-H4-FIELD-NONE",
-        "reachability_fixture": "Required records are decisive but no structural kind/id offset-width-endianness-lifecycle tuple passes the length-plausibility, kind-equality, and lifecycle tests over the five required records (AMB-11); name bytes and contrast records are not evaluated.",
+          "reachability_fixture": "All seven required records are decisive, but T1_ADD_TEXT carries the raw table kind instead of the field kind and T1_ADD_INDEX carries the raw field kind instead of the index kind. No structural kind/id/name offset-width-endianness-lifecycle tuple passes the explicit table/field/index kind-mapping test, so FIELD-MODEL-NONE is reached before encoding classes are evaluated.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -1927,7 +1962,7 @@
         ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R37-H4-ENCODING",
-        "reachability_fixture": "One structural layout survives in structural_result, but the complete synthetic row has zero fitting encoding/length classes; encoding_result stores the measured fitting-class count 0 and no final candidate while the structural candidate stays retained.",
+          "reachability_fixture": "One structural layout survives in structural_result, but T1_ADD_INDEX has the wrong exact name bytes and stored length, so the complete synthetic row has zero fitting encoding/length classes. encoding_result stores measured fitting-class count 0 and no final candidate while the structural candidate stays retained.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       },
       {
@@ -2080,7 +2115,7 @@
         ],
         "later_status": "not_applicable",
         "reachability_fixture_id": "A4-R40-H4-HOLDOUT-FIELDS",
-        "reachability_fixture": "Root holdout passes, but one exact holdout name byte differs from the unchanged encoding equivalence class; every prior predicate passes.",
+          "reachability_fixture": "Root holdout passes, but T1_ADD_TEXT has one wrong exact holdout name byte under the unchanged encoding equivalence class; every prior predicate passes and H4-HOLDOUT-FIELDS fails.",
         "fixture_status": "claimed_reachable; execution_required_before_dispatch"
       }
     ],
@@ -2326,7 +2361,7 @@
     },
     "replica_agreement_rule": "replica 1 and 2 must each independently yield one canonically equivalent logical-role model; physical page numbers, row slots, and identifiers may rotate only where the frozen model declares the mapping",
     "no_outcome_projection": "Report derivation status and holdout status separately. A downstream derivation layer depends only on the previous unique derivation model; a downstream holdout depends on the preceding holdout. Campaign failure prevents all scientific evaluation and yields no successful evidence bundle.",
-    "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, terminal_payload_kind, terminal_candidate_stage, predicate_measured_survivor_count, final-layer derivation_survivor_count, the complete stage-discriminated canonical candidates that exist at that stage, terminal_evidence (replica pair, operation groups, or invalid observation) where the contract declares it, instance bindings where registered, and candidates SHA-256. Decisive results alone contain the final model type. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. H4 is frozen as root_result, structural_result, and encoding_result under candidate_grammars.h4.encoding_result_rule, with the frozen h4_occurrence_evidence reference (path, SHA-256, size) that every structural candidate's occurrence_evidence_sha256 must equal. H4 holdout reuses the frozen structural id, evidence table, per-operation bitmap rules, and final equivalence class without refit. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the actual SHA-256 of the complete frozen file bytes, not a layers-only projection. Its candidate arrays, terminal evidence, evidence reference, instance bindings, transcripts, charges, and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes. The H4 contrast_result is a non-failing reported observation with its own measured counts; it is not a result slot, has no terminal, and carries no candidates. H4 root, structural, and final candidates carry canonical_model_id and replica-qualified instance_bindings.",
+    "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, terminal_payload_kind, terminal_candidate_stage, predicate_measured_survivor_count, final-layer derivation_survivor_count, the complete stage-discriminated canonical candidates that exist at that stage, terminal_evidence (replica pair, operation groups, or invalid observation) where the contract declares it, instance bindings where registered, and candidates SHA-256. Decisive results alone contain the final model type. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. H4 is frozen as root_result, structural_result, and encoding_result under candidate_grammars.h4.encoding_result_rule, with the frozen h4_occurrence_evidence reference (path, SHA-256, size) that every structural candidate's occurrence_evidence_sha256 must equal. H4 holdout reuses the frozen structural id, evidence table, per-operation bitmap rules, and final equivalence class without refit. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the actual SHA-256 of the complete frozen file bytes, not a layers-only projection. Its candidate arrays, terminal evidence, evidence reference, instance bindings, transcripts, charges, and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes. H4 root, structural, and final candidates carry canonical_model_id and replica-qualified instance_bindings.",
     "h1_frozen_model_rule": "The canonical H1 scientific model contains only replica-invariant fields: layout, masked table-signature id, and ascending table-relative locator offsets. A separate frozen instance_bindings array contains exactly T1-v1, T2-v1, T2-v2, T3-v1, and T4-v1 for each derivation replica, each with logical role, lifecycle instance, TDEF page, two locator targets (page 0..20479, row 0..255), and its exact inclusive applicable checkpoint range. The required ranges are T1-v1 T1_CREATE_ID..T4_IDLE_R; T2-v1 T2_CREATE..T2_CREATE; T2-v2 T2_RECREATE..T4_IDLE_R; T3-v1 T3_CREATE..T4_IDLE_R; T4-v1 T4_CREATE..T4_IDLE_R. logical_role equals the lifecycle prefix, start is not after end in checkpoint order, and no binding may extend outside its lifecycle. Canonical replica agreement compares the invariant model and normalized logical-role behavior, not raw rotating page numbers. Holdout re-derives replica-3 bindings and tests the unchanged invariant model.",
     "canonicalization_and_uniqueness_rule": "For H1 recompute canonical_model_id as SHA256(canonical_json({model_type, model})) for replica-invariant scientific comparison and canonical_candidate_id as SHA256(canonical_json({model_type, model, instance_bindings})) for storage, sorting, and uniqueness. Distinct physical bindings may share a model id but must have distinct candidate ids. For H4 root, structural, and final candidates apply the same split (candidate_grammars.h4.identity_rule): canonical_model_id over the replica-invariant model only and canonical_candidate_id over model plus replica-qualified instance bindings; H4 replica agreement compares model ids. For H2, H3, and H4 operation-record candidates recompute canonical_candidate_id from their complete registered identity. A decisive H1 candidate carries exactly the ten replica-1 and replica-2 bindings in canonical order; a terminal candidate-set H1 candidate carries exactly the five bindings of the replica on which the predicate failed (AMB-04); a replica-pair entry's complete H1 candidate carries exactly the five bindings of its own replica. Recompute the h4_occurrence_evidence SHA-256 from the retained file bytes and require every structural binding's occurrence_evidence_sha256 and every bitmap popcount to agree with it, every binding's replica to be present in the evidence document, and a decisive H4 candidate to bind both replicas in replica order. Require equality, ascending locator offsets, unique targets, canonical binding order, exact role/lifecycle coverage and ranges, and no duplicate page/row pair. Recompute each candidate-array hash and the actual complete frozen-file SHA-256. Canonicalize snapshot tables by declared DAO ordinal then strict CP-1252 name bytes; canonicalize fields/indexes/index fields by their declared DAO ordinal then name bytes. Independently reject duplicate logical roles, names, ordinals, predicate ids, and tamper ids. uniqueItems on whole JSON objects does not satisfy these uniqueness rules.",
     "schema_semantic_validation_rule": "Use a layer- and terminal-stage-discriminated union: H1 TDEF, target-valid layout, and locator-pair candidates; H2 final-role candidates; H3 conversion and final-base candidates; and H4 root, operation-record, structural-field, and final-encoded-field candidates all have closed required fields with additionalProperties false, and every terminal_evidence payload has a closed schema. Project layer status, terminal, terminal payload kind, terminal candidate stage, measured predicate count, final-layer count, H4 result-slot states, and downstream not_applicable state from predicate rows and the predicate contracts, and reject any mismatch. The analysis report must byte-for-byte reproduce every frozen stage array, terminal evidence, evidence reference, and hash. Project the five holdout_results entries exactly from predicate rows 36–40 and prerequisite gating. Then derive scientific_outcome from that validated projection. A derivation or holdout result may never disagree with its predicate row. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
@@ -2510,11 +2545,33 @@
     "max_child_log_bytes": 1048576,
     "max_companion_bytes_per_checkpoint": 65536,
     "max_qualified_pages_per_submodel": 16,
-    "max_h4_value_equivalent_tuples": 27648
+    "max_h4_value_equivalent_tuples": 165888
   },
   "work_model": {
     "locator_pair_arithmetic": "Locator offsets are canonical ascending pairs (a,b) with 0 <= a < b <= 2044 and b-a >= 4. One layout has sum(1..2041)=2083861 raw pairs; both layouts have max_locator_pairs_per_tdef_page=4167722 and max_locator_pairs=16*4167722=66683552. Also charge all 4090 raw window identities per qualified page. Retained A3 page 23 examines 4090 windows, forms 3491392 raw pairs after cross-checkpoint syntactic preservation, and charges 3495482 raw window/pair identities before one structural pair survives under each layout; only the row-then-page pair is target-valid.",
     "charge_equation_rule": "Each term is maximum qualified union pages times applicable checkpoint identities times maximum row-directory entries, slots, bits, or registered grammar multiplicity. The named-loop sum is a conservative terminal-path upper calculation and MUST be <= max_analysis_work_units; it is not equal to that bound.",
+    "recomputation_inputs": {
+      "page_header_bytes": 10,
+      "row_directory_entry_bytes": 2,
+      "minimum_row_bytes": 1,
+      "locator_bytes": 4,
+      "type_0_header_bytes": 5,
+      "type_1_header_bytes": 1,
+      "tag_05_header_bytes": 4,
+      "integer_slot_bytes": 4,
+      "transition_legs": 5,
+      "distinct_name_pattern_scans": 9,
+      "kind_mapping_permutations": 6,
+      "operation_name_bytes": {
+        "T1_CREATE_ID": 8,
+        "T1_ADD_TEXT": 7,
+        "T1_ADD_INDEX": 7,
+        "T2_CREATE": 8,
+        "T2_RECREATE": 8,
+        "T3_CREATE": 8,
+        "T4_CREATE": 8
+      }
+    },
     "terms": {
       "tdef_lifecycle_signatures": {
         "equation": "16 * 25 * 2",
@@ -2557,7 +2614,7 @@
         "units": 800
       },
       "catalog_raw_rows": {
-        "equation": "7 operation instances (5 required + 2 contrast) * 16 pages * 679 jointly feasible rows",
+        "equation": "7 required operation instances * 16 pages * 679 jointly feasible rows",
         "units": 76048
       },
       "encoding_union_anchor_bytes": {
@@ -2565,15 +2622,11 @@
         "units": 36648
       },
       "h4_name_length_structural_tuples": {
-        "equation": "2 derivation replicas * 1270 required-record occurrence identities (5 * 254) * inner grammar (16 * 3 * 3 * 2 * 16 * 3 * 2) = 27648",
-        "units": 70225920
-      },
-      "h4_contrast_occurrence_evaluations": {
-        "equation": "2 derivation replicas * 2 contrast operations * 290 occurrences * 1 surviving structural model",
-        "units": 1160
+        "equation": "2 * 1,850 * (16*3*3*2*16*3*6*2) = 613,785,600",
+        "units": 613785600
       },
       "encoding_length_equivalence_candidates": {
-        "equation": "2 derivation replicas * 7 operation instances (5 required + 2 contrast) * 3 registered candidates",
+        "equation": "2 derivation replicas * 7 required operation instances * 3 registered candidates",
         "units": 42
       },
       "candidate_serializations": {
@@ -2690,7 +2743,6 @@
           "catalog_raw_rows",
           "encoding_union_anchor_bytes",
           "h4_name_length_structural_tuples",
-          "h4_contrast_occurrence_evaluations",
           "encoding_length_equivalence_candidates",
           "candidate_serializations"
         ]
@@ -2709,10 +2761,10 @@
         "h3_latest_derivation_terminal": 80474992,
         "h4_root_latest_terminal": 80475792,
         "h4_record_latest_terminal": 80551840,
-        "h4_field_model_latest_terminal": 150814408,
-        "h4_latest_derivation_terminal": 150819706
+        "h4_field_model_latest_terminal": 694374088,
+        "h4_latest_derivation_terminal": 694378226
       },
-      "proof": "Every maximum is recomputed by summing the named identities in terminal_path_maxima.term_table from work_model.terms, except the explicitly named invalid_path_row_directory_entries alternative, which is mutually exclusive with the valid path and all later terms. A complete row is at most 2,036 bytes. Both derivation replicas are charged for every occurrence-dependent H4 term: the nine deduplicated pattern/operation scans charge 18,324 starts per replica (36,648); the five eight-byte table operations plus two seven-byte field/index operations charge 1,850 occurrence identities per replica (3,700); one shared integer-field endianness gives inner grammar 27,648 and the two-replica tuple term 70,225,920 over 2*1,270 required occurrences; contrast evaluations 1,160 and encoding candidates 42 are likewise two-replica. The latest H4 path is 150,819,706. Every terminal path is <= max_analysis_work_units=800000000 (A4-SCOPE-AMENDMENT-001), and no registered path can charge the remaining 649,180,294 identities, so the bound is conservative_upper. The checked counter comparator accepts a unit-test measured-total argument of exactly 800,000,000 and rejects 800,000,001 before manifest creation; that comparator test is not a byte-level fixture."
+      "proof": "Every maximum is recomputed by summing its named terms; the invalid row-directory alternative is mutually exclusive with the valid path and later terms. Both derivation replicas are charged for every H4 occurrence-dependent term: 36,648 union-anchor byte starts, 3,700 occurrence identities, and the closed 165,888-tuple grammar give 2*1,850*165,888 = 613,785,600 tuple evaluations. With 42 encoding candidates and 4,096 candidate serializations, the latest H4 path is 694,378,226. It is below the A4-SCOPE-AMENDMENT-001 ceiling of 800,000,000 by 105,621,774 units. The checked comparator accepts 800,000,000 and rejects 800,000,001 before manifest creation."
     },
     "bound_classification": {
       "page_size": "conservative_upper",
@@ -2768,8 +2820,7 @@
     "memo_ole_or_long_value_layout": false,
     "writer_or_update_behavior": false,
     "free_space_preference": false,
-    "preservation_behavior": false,
-    "contrast_field_or_index_catalog_record_layout": false
+    "preservation_behavior": false
   },
   "harness_ambiguity_resolutions": {
     "source": "preregistration.origin_disclosure.executed_reference_harness",

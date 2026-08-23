@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `6a7fa837fb6429cfa36cd4a63190b9c85de2c44dc5379d3f8bf2d796920859f4`,
+  `ce37c90d3f835de7beb9d1480821d803cb2d0a5ecf0c7c521fd5c8909ec754c2`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4513,7 +4513,7 @@ Use `not applicable` explicitly rather than omitting a field.
   then predict the role-rotated holdout without refit. Retain R5-V01-style
   plan/revision binding, phase-specific R4-S01-style measured survivor counts,
   R4-C01-style union-once work charging with terminal-path maxima, including
-  a two-replica 150,819,706-unit H4 path below the 800,000,000-unit ceiling
+  a two-replica 694,378,226-unit H4 path below the 800,000,000-unit ceiling
   of `A4-SCOPE-AMENDMENT-001` (classified
   `conservative_upper`; only its checked comparator is unit-tested at
   800,000,000/800,000,001 outside the 40 byte fixtures, and the byte-level
@@ -4531,7 +4531,10 @@ Use `not applicable` explicitly rather than omitting a field.
   SHA-256
   `788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e`;
   focused structural/arithmetic contract
-  `oracle/windows-dao/tests/test_a4_plan_contract.py`. No A4 reachability
+  `oracle/windows-dao/tests/test_a4_plan_contract.py`; and plan-derived work
+  recomputation script
+  `oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_terms.py`.
+  No A4 reachability
   evaluator ships with the plan; the pre-dispatch byte-level harness is an
   explicit blocked execution gate. The A3 calibration
   identities recorded in the plan are manifest
@@ -4593,9 +4596,7 @@ Use `not applicable` explicitly rather than omitting a field.
   P5-B1--P5-B4 and P5-S1, were applied to this unmerged
   base plan in place. Pass 4 also canonically binds the required, not-yet-
   executed reachability transcript and recomputes the 2,036-byte row, 1,850
-  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms
-  (the last two later reduced to 27,648 and 35,112,960 when field/index
-  appends became a non-failing contrast).
+  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms.
   Pass 5 separates H4 structural and encoding results, makes every terminal
   serialize only its declared payload (candidate set, grouped operation set,
   per-replica pair, or invalid observation), fixes the transcript schema
@@ -4608,23 +4609,35 @@ Use `not applicable` explicitly rather than omitting a field.
   stated decision in the plan's `harness_ambiguity_resolutions`, including
   the page-bound decodability rule that reproduces the 1,872-window count and
   the by-construction unreachability of `A4-H1-LOCATOR-PAIR-MULTIPLE`.
-  Following the AMB-09 decision, catalog-record predicates require one record
-  per table lifecycle operation instance (five `TableDefs.Append` operations)
-  and the `Payload`/`A4IX_ID` appends are a separately reported, non-failing
-  `contrast_result` with its own record/occurrence accounting that cannot
-  terminate H4 and claims no field or index layout. Pass 6 finding P6-B1
+  Pass 6 finding P6-B1
   splits H4 identity into a replica-invariant `canonical_model_id` and a
   binding-qualified `canonical_candidate_id` (replica agreement compares
   model ids), freezes both derivation replicas' physical evidence as two
   replica groups with fourteen bindings on a decisive candidate, recomputes
-  every terminal-path maximum over both replicas (H4 path 150,819,706), and
+  every terminal-path maximum over both replicas, and
   records delegate-approved `A4-SCOPE-AMENDMENT-001`
   (`oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md`,
   SHA-256
   `770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25`)
   raising `max_analysis_work_units` from the approved brief's 600,000,000 to
-  800,000,000 with `EXP-0051` timing justification (134,291,460 units in a
-  ~17 s analysis step);
+  800,000,000. Pass 7 finding P7-B1 restores all seven approved operations as
+  required record, structural, and encoding inputs, including explicit
+  table/field/index kind mappings, and removes the non-failing contrast design.
+  The two-replica work equation is
+  `2 * 1,850 * (16*3*3*2*16*3*6*2) = 613,785,600`; the latest H4 terminal is
+  694,378,226, below the approved ceiling by 105,621,774 units. P7-S1 is
+  recorded additively in
+  `oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001-timing-correction.md`,
+  SHA-256
+  `49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d`.
+  GitHub Actions run `32626186825`, fan-in job `97163239067`, records about
+  3.84 seconds for derivation freeze, 0.67 seconds for analyzer resume, and
+  16.81 seconds for the independent recomputing validator. Using the slower
+  independent-recomputation observation gives
+  `800,000,000 / 134,291,460 * 16.81 ~= 100.1 seconds`; this is coarse hosted
+  planning evidence, not an A4 runtime proof. Normative controls remain the
+  checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second
+  hard campaign timeout;
   focused A4
   plan and repository contract checks must pass
 

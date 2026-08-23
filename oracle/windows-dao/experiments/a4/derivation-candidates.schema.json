@@ -761,10 +761,22 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "table"
+                "table",
+                "field",
+                "index"
               ],
               "properties": {
                 "table": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "field": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "index": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 4294967295
@@ -806,7 +818,7 @@
               "value_equivalent_tuple_count": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 27648
+                "maximum": 165888
               },
               "compatible_occurrences_by_operation": {
                 "type": "array",
@@ -818,7 +830,6 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
@@ -826,9 +837,6 @@
                       "operation_id": {
                         "const": "T1_CREATE_ID"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "compatible_occurrence_count": {
                         "type": "integer",
                         "minimum": 1,
@@ -845,7 +853,6 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
@@ -853,12 +860,9 @@
                       "operation_id": {
                         "const": "T1_ADD_TEXT"
                       },
-                      "required": {
-                        "const": false
-                      },
                       "compatible_occurrence_count": {
                         "type": "integer",
-                        "minimum": 0,
+                        "minimum": 1,
                         "maximum": 290
                       },
                       "compatible_occurrence_bitmap_hex": {
@@ -872,7 +876,6 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
@@ -880,12 +883,9 @@
                       "operation_id": {
                         "const": "T1_ADD_INDEX"
                       },
-                      "required": {
-                        "const": false
-                      },
                       "compatible_occurrence_count": {
                         "type": "integer",
-                        "minimum": 0,
+                        "minimum": 1,
                         "maximum": 290
                       },
                       "compatible_occurrence_bitmap_hex": {
@@ -899,7 +899,6 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
@@ -907,9 +906,6 @@
                       "operation_id": {
                         "const": "T2_CREATE"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "compatible_occurrence_count": {
                         "type": "integer",
                         "minimum": 1,
@@ -926,7 +922,6 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
@@ -934,9 +929,6 @@
                       "operation_id": {
                         "const": "T2_RECREATE"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "compatible_occurrence_count": {
                         "type": "integer",
                         "minimum": 1,
@@ -953,7 +945,6 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
@@ -961,9 +952,6 @@
                       "operation_id": {
                         "const": "T3_CREATE"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "compatible_occurrence_count": {
                         "type": "integer",
                         "minimum": 1,
@@ -980,16 +968,12 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "compatible_occurrence_count",
                       "compatible_occurrence_bitmap_hex"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T4_CREATE"
-                      },
-                      "required": {
-                        "const": true
                       },
                       "compatible_occurrence_count": {
                         "type": "integer",
@@ -1083,16 +1067,12 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T1_CREATE_ID"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "occurrence_index": {
                         "type": "integer",
                         "minimum": 0,
@@ -1105,27 +1085,16 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T1_ADD_TEXT"
                       },
-                      "required": {
-                        "const": false
-                      },
                       "occurrence_index": {
-                        "anyOf": [
-                          {
-                            "const": null
-                          },
-                          {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 289
-                          }
-                        ]
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 289
                       }
                     }
                   },
@@ -1134,27 +1103,16 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T1_ADD_INDEX"
                       },
-                      "required": {
-                        "const": false
-                      },
                       "occurrence_index": {
-                        "anyOf": [
-                          {
-                            "const": null
-                          },
-                          {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 289
-                          }
-                        ]
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 289
                       }
                     }
                   },
@@ -1163,16 +1121,12 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T2_CREATE"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "occurrence_index": {
                         "type": "integer",
                         "minimum": 0,
@@ -1185,16 +1139,12 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T2_RECREATE"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "occurrence_index": {
                         "type": "integer",
                         "minimum": 0,
@@ -1207,16 +1157,12 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T3_CREATE"
                       },
-                      "required": {
-                        "const": true
-                      },
                       "occurrence_index": {
                         "type": "integer",
                         "minimum": 0,
@@ -1229,15 +1175,11 @@
                     "additionalProperties": false,
                     "required": [
                       "operation_id",
-                      "required",
                       "occurrence_index"
                     ],
                     "properties": {
                       "operation_id": {
                         "const": "T4_CREATE"
-                      },
-                      "required": {
-                        "const": true
                       },
                       "occurrence_index": {
                         "type": "integer",
@@ -2037,7 +1979,6 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2045,9 +1986,6 @@
                 "operation_id": {
                   "const": "T1_CREATE_ID"
                 },
-                "required": {
-                  "const": true
-                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2069,7 +2007,6 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2077,9 +2014,6 @@
                 "operation_id": {
                   "const": "T1_ADD_TEXT"
                 },
-                "required": {
-                  "const": false
-                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2101,7 +2035,6 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2109,9 +2042,6 @@
                 "operation_id": {
                   "const": "T1_ADD_INDEX"
                 },
-                "required": {
-                  "const": false
-                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2133,7 +2063,6 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2141,9 +2070,6 @@
                 "operation_id": {
                   "const": "T2_CREATE"
                 },
-                "required": {
-                  "const": true
-                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2165,7 +2091,6 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2173,9 +2098,6 @@
                 "operation_id": {
                   "const": "T2_RECREATE"
                 },
-                "required": {
-                  "const": true
-                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2197,7 +2119,6 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2205,9 +2126,6 @@
                 "operation_id": {
                   "const": "T3_CREATE"
                 },
-                "required": {
-                  "const": true
-                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2229,16 +2147,12 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
-                "required",
                 "cardinality",
                 "candidate_ids"
               ],
               "properties": {
                 "operation_id": {
                   "const": "T4_CREATE"
-                },
-                "required": {
-                  "const": true
                 },
                 "cardinality": {
                   "type": "integer",
@@ -2826,8 +2740,7 @@
       "required": [
         "root_result",
         "structural_result",
-        "encoding_result",
-        "contrast_result"
+        "encoding_result"
       ],
       "properties": {
         "root_result": {
@@ -2838,9 +2751,6 @@
         },
         "encoding_result": {
           "$ref": "#/$defs/h4EncodingResult"
-        },
-        "contrast_result": {
-          "$ref": "#/$defs/h4ContrastResult"
         }
       }
     },
@@ -2914,7 +2824,6 @@
         "catalog_raw_rows",
         "encoding_union_anchor_bytes",
         "h4_name_length_structural_tuples",
-        "h4_contrast_occurrence_evaluations",
         "encoding_length_equivalence_candidates",
         "candidate_serializations",
         "total_work_units"
@@ -2983,7 +2892,7 @@
         "total_work_units": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 600000000
+          "maximum": 800000000
         },
         "h1_target_validity_checks": {
           "type": "integer",
@@ -2998,12 +2907,7 @@
         "h4_name_length_structural_tuples": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 70225920
-        },
-        "h4_contrast_occurrence_evaluations": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 1160
+          "maximum": 613785600
         }
       }
     },
@@ -3234,236 +3138,6 @@
               }
             }
           }
-        }
-      }
-    },
-    "h4ContrastResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status",
-        "operations"
-      ],
-      "properties": {
-        "status": {
-          "enum": [
-            "not_applicable",
-            "reported"
-          ]
-        },
-        "operations": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "prefixItems": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "operation_id",
-                "required",
-                "record_candidate_count",
-                "record_present",
-                "record_bytes_hex",
-                "compatible_occurrence_count",
-                "kind_raw_value",
-                "kind_differs_from_table",
-                "selected_occurrence_index",
-                "name_bytes_matched",
-                "stored_length_fits_decisive_class"
-              ],
-              "properties": {
-                "operation_id": {
-                  "const": "T1_ADD_TEXT"
-                },
-                "required": {
-                  "const": false
-                },
-                "record_candidate_count": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 4096
-                },
-                "record_present": {
-                  "type": "boolean"
-                },
-                "record_bytes_hex": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^([0-9a-f]{2}){1,2036}$"
-                    }
-                  ]
-                },
-                "compatible_occurrence_count": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 290
-                },
-                "kind_raw_value": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 4294967295
-                    }
-                  ]
-                },
-                "kind_differs_from_table": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                },
-                "selected_occurrence_index": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 289
-                    }
-                  ]
-                },
-                "name_bytes_matched": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                },
-                "stored_length_fits_decisive_class": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "operation_id",
-                "required",
-                "record_candidate_count",
-                "record_present",
-                "record_bytes_hex",
-                "compatible_occurrence_count",
-                "kind_raw_value",
-                "kind_differs_from_table",
-                "selected_occurrence_index",
-                "name_bytes_matched",
-                "stored_length_fits_decisive_class"
-              ],
-              "properties": {
-                "operation_id": {
-                  "const": "T1_ADD_INDEX"
-                },
-                "required": {
-                  "const": false
-                },
-                "record_candidate_count": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 4096
-                },
-                "record_present": {
-                  "type": "boolean"
-                },
-                "record_bytes_hex": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^([0-9a-f]{2}){1,2036}$"
-                    }
-                  ]
-                },
-                "compatible_occurrence_count": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 290
-                },
-                "kind_raw_value": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 4294967295
-                    }
-                  ]
-                },
-                "kind_differs_from_table": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                },
-                "selected_occurrence_index": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 289
-                    }
-                  ]
-                },
-                "name_bytes_matched": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                },
-                "stored_length_fits_decisive_class": {
-                  "anyOf": [
-                    {
-                      "const": null
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                }
-              }
-            }
-          ],
-          "items": false
         }
       }
     }

@@ -725,7 +725,7 @@
           "const": 16
         },
         "max_h4_value_equivalent_tuples": {
-          "const": 27648
+          "const": 165888
         }
       }
     },
@@ -755,8 +755,7 @@
         "memo_ole_or_long_value_layout",
         "writer_or_update_behavior",
         "free_space_preference",
-        "preservation_behavior",
-        "contrast_field_or_index_catalog_record_layout"
+        "preservation_behavior"
       ],
       "properties": {
         "descriptive_provider_observation_only": {
@@ -826,9 +825,6 @@
           "const": false
         },
         "preservation_behavior": {
-          "const": false
-        },
-        "contrast_field_or_index_catalog_record_layout": {
           "const": false
         }
       }

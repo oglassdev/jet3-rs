@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`6a7fa837fb6429cfa36cd4a63190b9c85de2c44dc5379d3f8bf2d796920859f4`.
+`ce37c90d3f835de7beb9d1480821d803cb2d0a5ecf0c7c521fd5c8909ec754c2`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -138,11 +138,14 @@ The base plan incorporates A3's later machinery fixes from the start:
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 150,819,706 units (both derivation replicas charged for every
+  path is H4 at 694,378,226 units (both derivation replicas charged for every
   occurrence-dependent term) under the 800,000,000-unit ceiling set by
   `A4-SCOPE-AMENDMENT-001` (`design-inputs/a4-scope-amendment-001.md`, which
-  supersedes the approved brief's 600,000,000 figure with `EXP-0051` timing
-  justification). The ceiling is classified `conservative_upper`: only its
+  supersedes the approved brief's 600,000,000 figure). Its timing attribution
+  is corrected additively by
+  `design-inputs/a4-scope-amendment-001-timing-correction.md`, SHA-256
+  `49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d`.
+  The ceiling is classified `conservative_upper`: only its
   checked comparator is tested
   (800,000,000 accepted, 800,000,001 rejected) as a unit test outside the 40
   byte fixtures, and the byte-level `A4-RESOURCE-BOUND` terminal is reached by
@@ -155,10 +158,9 @@ The base plan incorporates A3's later machinery fixes from the start:
   operations admit at most 1,850 occurrence identities per derivation
   replica (3,700 in total); nine deduplicated pattern/operation scans charge
   18,324 byte starts per replica. One shared integer-field endianness gives
-  the 27,648 inner grammar and, over the 1,270 required table-record
-  occurrences per replica, the 70,225,920 two-replica tuple term; the 580
-  contrast occurrences per replica are evaluated once under the surviving
-  structural model.
+  the 165,888 inner grammar. All 1,850 operation-record occurrences per
+  replica are required structural inputs, giving the two-replica tuple term
+  `2 * 1,850 * 165,888 = 613,785,600`.
 - One producer read plus independent analyzer and validator reads cost at most
   1,317,011,456 bytes per replica, below the 2 GiB logical-read bound; no
   analyzer/validator pass is shared. Candidates are globally capped at
@@ -169,7 +171,8 @@ The base plan incorporates A3's later machinery fixes from the start:
   16,781,313 bytes, and concrete bounded transcript schemas keep the complete
   frozen JSON below 23,800,000 bytes.
 - H4 identity is split exactly as H1's: `canonical_model_id` hashes only the
-  replica-invariant model (deltas, widths, endianness, table kind, lifecycle
+  replica-invariant model (deltas, widths, endianness, table/field/index kind,
+  lifecycle
   relation, and for the encoded model the structural model id plus
   equivalence class) and `canonical_candidate_id` hashes the model plus its
   replica-qualified physical bindings. Replica agreement compares model ids,
@@ -179,6 +182,16 @@ The base plan incorporates A3's later machinery fixes from the start:
   manifest creation. Exactly 2,700 seconds is accepted; 2,701 is rejected
   before manifest creation and produces diagnostics rather than a successful
   evidence bundle.
+- Timing calibration is non-normative. The retained EXP-0051 analysis report
+  records 134,291,460 work units. GitHub Actions run `32626186825`, fan-in job
+  `97163239067`, records approximately 3.84 seconds for derivation freeze,
+  0.67 seconds for analyzer resume, and 16.81 seconds for the independent
+  recomputing validator. Using the slower independent-recomputation observation
+  gives `800,000,000 / 134,291,460 * 16.81 ~= 100.1 seconds`. This is coarse
+  hosted-run planning evidence only because A3 and A4 charge different work
+  mixes; it does not prove A4 runtime. The normative controls remain the
+  checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second
+  hard campaign timeout.
 - The dry-run honesty clause requires executed byte-level reachability transcripts,
   independent replica-3 overshoots, full analyzer/validator agreement, genuine
   tamper execution, and exact-bound/one-over cases. Hand-authored or constant
@@ -196,6 +209,9 @@ The base plan incorporates A3's later machinery fixes from the start:
 The approved scope brief is copied byte-for-byte at
 `design-inputs/a4-scope-approved.md`, SHA-256
 `ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7`.
+`design-inputs/recompute_a4_work_terms.py` independently sums every registered
+work term, checks the latest H4 total, and exercises the 800,000,000 /
+800,000,001 comparator boundary from the immutable plan JSON.
 
 ## Schemas and status
 
@@ -204,11 +220,12 @@ stage-discriminated canonical candidate arrays, H4 has independent root and
 structural, and encoding results; structural candidates carry per-operation
 compatible-occurrence bitmaps and reference the hashed occurrence-evidence
 document, and final encoded candidates select one occurrence per operation
-under one encoding-length equivalence class. Catalog-record predicates
-require one record per table lifecycle operation instance (the five
-`TableDefs.Append` operations); the `Payload` field append and `A4IX_ID` index
-append are a separately reported, non-failing `contrast_result` that cannot
-terminate the layer and claims nothing about field or index layout. The
+under one encoding-length equivalence class. Catalog-record predicates require
+one record for each of the seven listed operations: the five
+`TableDefs.Append` instances, `T1_ADD_TEXT`, and `T1_ADD_INDEX`. The field and
+index operations participate in structural kind, identifier, exact-name, and
+stored-length evaluation, while remaining catalog object perturbations that
+claim no physical column-definition or index-node layout. The
 analysis report contains A4 row-directory, locator, transition, reference/
 bitmap, catalog-root, and catalog-field transcripts. A4 additionally defines
 `dao-schema-snapshot.schema.json` and
