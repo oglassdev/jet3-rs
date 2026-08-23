@@ -119,6 +119,8 @@ jobs:
       HOSTED_REPLICA_TIMEOUT_SECONDS: "2120"
       FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"
       REPLICA_MAXIMUM_OUTPUT_BYTES: "1048576"
+      FROZEN_PLAN_SHA256: "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+      FROZEN_REVISION_PLAN_SHA256: "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -192,6 +194,8 @@ jobs:
             document_type = "jet3_windows_dao_a3_hosted_replica"
             producer_commit = $env:GITHUB_SHA
             campaign_id = "a3-run-$env:GITHUB_RUN_ID"
+            plan_sha256 = $env:FROZEN_PLAN_SHA256
+            revision_plan_sha256 = $env:FROZEN_REVISION_PLAN_SHA256
             replica = $replica
             worker_timeout_seconds = [int]$env:FROZEN_WORKER_TIMEOUT_SECONDS
             hosted_timeout_seconds = [int]$env:HOSTED_REPLICA_TIMEOUT_SECONDS
@@ -327,9 +331,12 @@ jobs:
       needs.contract.result == 'success' &&
       needs.a3-replica.result == 'success'
     runs-on: windows-2022
-    timeout-minutes: 20
+    # Equals the plan's fan_in_timeout_seconds bound (900 s).
+    timeout-minutes: 15
     env:
       FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"
+      FROZEN_PLAN_SHA256: "b16f78436bdfea701451880a9b761b3e3aaf1b3ea0b62fef32a6afde22e05cb1"
+      FROZEN_REVISION_PLAN_SHA256: "939ce3ceef035b9da0e4527f1ffd9ddd6b21e23f088f867c56172f84650332ea"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -356,21 +363,13 @@ jobs:
           # The closed replica manifest is re-hashed by assemble; the zip digest is advisory.
           digest-mismatch: warn
 
-      - name: Download A3 replica 3
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: windows-dao-a3-replica-3
-          path: ${{ runner.temp }}\jet3-a3-replicas\replica-03
-          # The closed replica manifest is re-hashed by assemble; the zip digest is advisory.
-          digest-mismatch: warn
-
       - name: Download bounded A3 replica timing diagnostics
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: windows-dao-a3-diagnostics-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}\jet3-a3-replica-diagnostics
 
-      - name: Assemble the three checked replica trees
+      - name: Assemble the two derivation replica trees
         id: assemble
         shell: powershell
         run: |
@@ -381,19 +380,29 @@ jobs:
           & python -B oracle/windows-dao/scripts/a3_bundle.py assemble `
             --replica-root (Join-Path $replicas "replica-01") `
             --replica-root (Join-Path $replicas "replica-02") `
-            --replica-root (Join-Path $replicas "replica-03") `
             --bundle-root $bundle --campaign-id $campaignId `
             --producer-commit $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "A3 replica assembly failed." }
 
-      - name: Freeze derivation, validate holdout separately, and analyze
+      - name: Download A3 holdout replica 3 outside the bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-dao-a3-replica-3
+          path: ${{ runner.temp }}\jet3-a3-holdout\replica-03
+          # Not read or validated here: the analyzer's separate holdout process grafts
+          # and structurally validates this tree only after the derivation freeze.
+          digest-mismatch: warn
+
+      - name: Freeze derivation, graft and validate holdout separately, and analyze
         id: analyze
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $bundle = Join-Path $env:RUNNER_TEMP "jet3-a3-bundle"
+          $holdout = Join-Path $env:RUNNER_TEMP "jet3-a3-holdout\replica-03"
           & python -B oracle/windows-dao/scripts/a3_analysis.py `
             --bundle-root $bundle `
+            --holdout-replica-root $holdout `
             --replica (Join-Path $bundle "observations/replica-01.json") `
             --replica (Join-Path $bundle "observations/replica-02.json") `
             --replica (Join-Path $bundle "observations/replica-03.json") `
@@ -449,6 +458,7 @@ jobs:
           & python -B oracle/windows-dao/scripts/a3_independent_validator.py `
             --bundle-root $bundle `
             --plan oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json `
+            --revision oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json `
             --validator-commit $env:GITHUB_SHA `
             --output $report
           if ($LASTEXITCODE -ne 0) {
@@ -564,6 +574,8 @@ jobs:
             document_type = "jet3_windows_dao_a3_fan_in_status"
             producer_commit = $env:GITHUB_SHA
             campaign_id = "a3-run-$env:GITHUB_RUN_ID"
+            plan_sha256 = $env:FROZEN_PLAN_SHA256
+            revision_plan_sha256 = $env:FROZEN_REVISION_PLAN_SHA256
             assemble = $env:ASSEMBLE_OUTCOME
             analyze = $env:ANALYZE_OUTCOME
             finalize = $env:FINALIZE_OUTCOME
@@ -592,6 +604,9 @@ jobs:
             (Join-Path $diagnostics "fan-in-status.json"),
             $statusBytes
           )
+          if (-not $withinPlan) {
+            throw "A3 campaign exceeded the plan's campaign timeout or lacks complete timing."
+          }
 
       - name: Upload retained A3 bundle
         if: always()

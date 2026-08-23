@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import re
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-dao-a3.yml"
+SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from a3_spec import BOUNDS, PLAN_SHA256, REVISION_PLAN_SHA256  # noqa: E402
 
 
 class WindowsDaoA3WorkflowTests(unittest.TestCase):
@@ -111,8 +117,14 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertIn('HOSTED_REPLICA_TIMEOUT_SECONDS: "2120"', self.replica)
         self.assertIn('FROZEN_CAMPAIGN_TIMEOUT_SECONDS: "2700"', self.replica)
         self.assertIn('REPLICA_MAXIMUM_OUTPUT_BYTES: "1048576"', self.replica)
-        self.assertIn("timeout-minutes: 20", self.fan_in)
+        fan_in_minutes = int(re.search(r"timeout-minutes: (\d+)", self.fan_in).group(1))
+        self.assertEqual(fan_in_minutes * 60, BOUNDS["fan_in_timeout_seconds"])
         self.assertEqual(1_700 + 120 + 300, 2_120)
+        for section in (self.replica, self.fan_in):
+            self.assertIn(f'FROZEN_PLAN_SHA256: "{PLAN_SHA256}"', section)
+            self.assertIn(f'FROZEN_REVISION_PLAN_SHA256: "{REVISION_PLAN_SHA256}"', section)
+        self.assertIn("plan_sha256 = $env:FROZEN_PLAN_SHA256", self.run_step)
+        self.assertIn("revision_plan_sha256 = $env:FROZEN_REVISION_PLAN_SHA256", self.run_step)
 
     def test_replica_launch_is_x86_waited_bounded_and_null_safe(self) -> None:
         self.assertIn(
@@ -193,7 +205,16 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             self.assertIn(f"name: windows-dao-a3-replica-{replica}", self.fan_in)
             self.assertIn(f"replica-0{replica}", self.fan_in)
         assemble = self.fan_in.index("a3_bundle.py assemble")
+        holdout_download = self.fan_in.index("name: windows-dao-a3-replica-3")
         analysis = self.fan_in.index("a3_analysis.py", assemble)
+        # Replica 3 is downloaded outside the bundle only after the derivation
+        # replicas are assembled, and is never passed to assemble.
+        self.assertLess(assemble, holdout_download)
+        self.assertLess(holdout_download, analysis)
+        self.assertIn("jet3-a3-holdout\\replica-03", self.fan_in)
+        assemble_step = self.fan_in[assemble:holdout_download]
+        self.assertNotIn("replica-03", assemble_step)
+        self.assertIn("--holdout-replica-root $holdout", self.fan_in)
         finalize = self.fan_in.index("a3_bundle.py finalize", analysis)
         validate = self.fan_in.index("a3_bundle.py validate", finalize)
         independent = self.fan_in.index("a3_independent_validator.py", validate)
@@ -201,7 +222,7 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
         self.assertLess(analysis, finalize)
         self.assertLess(finalize, validate)
         self.assertLess(validate, independent)
-        self.assertEqual(self.fan_in.count("--replica-root"), 3)
+        self.assertEqual(self.fan_in.count("--replica-root"), 2)
         self.assertEqual(self.fan_in.count("--replica (Join-Path"), 3)
         self.assertIn('$campaignId = "a3-run-$env:GITHUB_RUN_ID"', self.fan_in)
         self.assertIn("--holdout-receipt", self.fan_in)
@@ -227,6 +248,10 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             "--plan oracle/windows-dao/experiments/a3/a3-allocation-maps.plan.json",
             step,
         )
+        self.assertIn(
+            "--revision oracle/windows-dao/experiments/a3/a3-allocation-maps-r4.plan.json",
+            step,
+        )
         self.assertIn("--output $report", step)
         self.assertIn("rejected the bundle", step)
         # The report lives outside the closed bundle tree.
@@ -250,8 +275,15 @@ class WindowsDaoA3WorkflowTests(unittest.TestCase):
             "campaign_elapsed_seconds",
             "within_plan_campaign_timeout",
             "timing_records_complete",
+            "plan_sha256 = $env:FROZEN_PLAN_SHA256",
+            "revision_plan_sha256 = $env:FROZEN_REVISION_PLAN_SHA256",
         ):
             self.assertIn(field, status)
+        # The plan's campaign timeout is enforced, not merely recorded: the status
+        # file is written first, then the step fails the job.
+        written = status.index('"fan-in-status.json"')
+        enforced = status.index("if (-not $withinPlan) {", written)
+        self.assertIn("throw", status[enforced:])
         self.assertIn('"dao_a3_independent_validation_report"', status)
         self.assertIn(
             'if ($env:INDEPENDENT_OUTCOME -cne "success") { $independentAccepted = $false }',
