@@ -182,4 +182,10 @@ AMBIGUITIES: tuple[dict[str, str], ...] = (
     {"id": "AMB-15", "topic": "A4-H2-REPLICA-DISAGREEMENT and the H1 role-assignment",
      "plan": "h2 locator_role_assignments versus h1_frozen_model_rule",
      "reading": "The H2 assignment binds locator ordinal (first/second hole) to owned/available; swapping row order in one replica yields a different canonical H2 model while H1 stays replica-invariant."},
+    {"id": "AMB-16", "topic": "dispatch-gate transcript schema requires every predicate to be a first failure",
+     "plan": "reachability-transcript.schema.json fixtureEntry.first_failure_id (non-null) with minItems/maxItems 40",
+     "reading": "The schema admits no asserted-unreachable entry, yet A4-H1-LOCATOR-PAIR-MULTIPLE is unreachable under the exact-hole rule (AMB-02). Either the hole rule or the schema must change; the reference transcript records the unreachable assertion separately."},
+    {"id": "AMB-17", "topic": "dispatch-gate transcript needs artifacts that do not exist yet",
+     "plan": "reachability_transcript_binding; adversarialOutcome.case_id resource_exact_ceiling / resource_one_over",
+     "reading": "The bound transcript requires analyzer and independent-validator commits and results, a provenance entry id, and resource-ceiling cases at exactly 600,000,000 work units. A synthetic campaign cannot reach that ceiling honestly (baseline charges are six orders of magnitude lower), so those two cases need a declared charging-injection mechanism in the plan. This harness writes a reference transcript under a distinct document type instead of claiming the gate artifact."},
 )

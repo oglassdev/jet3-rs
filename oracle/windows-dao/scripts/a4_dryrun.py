@@ -10,6 +10,12 @@ predicate is the measured first failure and the measured survivor count
 satisfies the predicate's ``exact``/``minimum``/``allowed_ranges`` contract.
 Unreachable terminals are asserted by enumeration across the whole sweep.
 
+The output is a *reference* transcript, deliberately distinct from the
+dispatch-gate ``dry-run/a4-reachability-transcript.json`` bound by
+``reachability-transcript.schema.json``: that document needs the production
+analyzer, an independent validator, and an additive provenance entry, none of
+which exist yet (see AMB-16/AMB-17).
+
 A4 rule | implementation
 --- | ---
 Every claimed-reachable terminal demonstrated as measured first failure | :func:`run_fixture`, :func:`reachability_rows`
@@ -46,6 +52,14 @@ HARNESS_FILES = (
     "a4_dryrun_fixtures.py", "a4_dryrun.py",
 )
 GENERATOR_FILES = ("a4_spec.py", "a4_pages.py", "a4_campaign.py", "a4_generator.py")
+TRANSCRIPT_NAME = "a4-reference-reachability-transcript.json"
+# reachability-transcript.schema.json adversarial case ids -> fixture demonstrating each outcome
+ADVERSARIAL_CASE_IDS = {
+    "multiple_count_2": "A4-R06-H1-TDEF-MULTIPLE", "multiple_count_3": "A4-ADV-TDEF-MULTIPLE-3",
+    "multiple_count_4": "A4-ADV-TDEF-MULTIPLE-4", "encoding_count_0": "A4-R37-H4-ENCODING",
+    "encoding_count_2": "A4-ADV-ENCODING-2", "unregistered_candidate_id": "A4-ADV-UNREGISTERED-ID",
+    "malformed_page": "A4-ADV-MALFORMED-PAGE", "earlier_predicate_invalidated": "A4-ADV-EARLIER-PREDICATE",
+}
 
 
 def _sha256_files(names: tuple[str, ...]) -> str:
@@ -150,9 +164,14 @@ def build_transcript(entries: dict[str, dict[str, Any]], commit: str, recorded_u
     ordered = [entries[f.fixture_id] for f in all_fixtures()]
     rows = reachability_rows(entries)
     unreachable = unreachable_rows(entries)
-    adversarial = [{k: entries[f.fixture_id].get(k) for k in ("fixture_id", "target_predicate_id", "description", "accepted",
-                                                               "rejected", "rejection", "first_failure", "measured_count")}
-                   for f in ADVERSARIAL]
+    adversarial = []
+    for case_id, fixture_id in ADVERSARIAL_CASE_IDS.items():
+        e = entries[fixture_id]
+        legitimate = e.get("first_failure") is not None and not e.get("rejected")
+        adversarial.append({"case_id": case_id, "fixture_id": fixture_id, "description": e["description"],
+                            "expected": "accept" if legitimate else "reject", "reference_evaluator_result": "accept" if legitimate else "reject",
+                            "accepted": e["accepted"], "rejection": e.get("rejection"), "first_failure": e.get("first_failure"),
+                            "measured_count": e.get("measured_count")})
     reached = sum(1 for r in rows if r["status"] == "reached")
     asserted = sum(1 for r in rows if r["status"] == "asserted_unreachable")
     baseline = entries[BASELINE.fixture_id]
@@ -162,7 +181,8 @@ def build_transcript(entries: dict[str, dict[str, Any]], commit: str, recorded_u
               and all(not u["terminal_in_any_fixture"] and u["max_measured_count_across_sweep"] <= 1 for u in unreachable))
     return {
         "protocol_version": "1.0.0",
-        "document_type": "dao_a4_reachability_transcript",
+        "document_type": "dao_a4_reference_reachability_transcript",
+        "not_the_dispatch_gate_transcript": "reachability-transcript.schema.json requires analyzer and independent-validator results, a provenance entry, and a non-null first failure on all 40 entries; this reference transcript has none of those (AMB-16, AMB-17)",
         "experiment_id": EXPERIMENT_ID,
         "plan_sha256": PLAN_SHA256,
         "revision_plan_sha256": REVISION_PLAN_SHA256,
@@ -199,7 +219,7 @@ def run_all(jobs: int) -> dict[str, dict[str, Any]]:
 
 def write_outputs(output: Path, transcript: dict[str, Any]) -> dict[str, str]:
     output.mkdir(parents=True, exist_ok=True)
-    documents = {"a4-reachability-transcript.json": transcript}
+    documents = {TRANSCRIPT_NAME: transcript}
     checksums = {}
     for name, document in documents.items():
         payload = json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8") + b"\n"
@@ -226,8 +246,8 @@ def main(argv: list[str] | None = None) -> int:
     for row in transcript["rows"]:
         print(f"{row['status']:<22} {row['predicate_id']}")
     for case in transcript["adversarial_cases"]:
-        print(f"{'adversarial-ok' if case['accepted'] else 'ADVERSARIAL-FAIL':<22} {case['fixture_id']}: {case['rejection'] or case['first_failure']}")
-    print(f"result={transcript['result']} reached={transcript['reached_count']}/{transcript['reachable_total']} plan={PLAN_SHA256[:12]} transcript={checksums['a4-reachability-transcript.json'][:12]}")
+        print(f"{'adversarial-ok' if case['accepted'] else 'ADVERSARIAL-FAIL':<22} {case['case_id']} ({case['fixture_id']}): {case['rejection'] or case['first_failure']}")
+    print(f"result={transcript['result']} reached={transcript['reached_count']}/{transcript['reachable_total']} plan={PLAN_SHA256[:12]} transcript={checksums[TRANSCRIPT_NAME][:12]}")
     return 0 if transcript["result"] == "pass" else 1
 
 

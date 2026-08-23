@@ -153,9 +153,10 @@ def _row_at(ctx: Context, replica: int, cp: str, page: int, ordinal: int, mask: 
 
 
 def _tuples():
-    for dk, wk, wid, e, dl, wl, el in product(FIELD_DELTA_RANGE, KIND_WIDTHS, ID_WIDTHS, ENDIANNESS, FIELD_DELTA_RANGE, KIND_WIDTHS, ENDIANNESS):
+    """13,824 relative field-address tuples: one shared endianness for kind, identifier and stored name length (plan P4-B2)."""
+    for dk, wk, wid, e, dl, wl in product(FIELD_DELTA_RANGE, KIND_WIDTHS, ID_WIDTHS, ENDIANNESS, FIELD_DELTA_RANGE, KIND_WIDTHS):
         yield {"kind_start_delta": dk, "kind_width": wk, "identifier_width": wid, "endianness": e,
-               "name_length_start_delta": dl, "name_length_width": wl, "name_length_endianness": el}
+               "name_length_start_delta": dl, "name_length_width": wl}
 
 
 def _fields(t: dict[str, int | str], o: int, name_len: int, row_len: int) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]] | None:
@@ -195,7 +196,7 @@ def structural_candidates(ctx: Context, replica: int, records: dict[str, tuple[i
                 if fields is None:
                     continue
                 kind_span, id_span, len_span = fields
-                length = _decode(row, len_span[0], len_span[1] - len_span[0], str(t["name_length_endianness"]))
+                length = _decode(row, len_span[0], len_span[1] - len_span[0], str(t["endianness"]))
                 if length not in plausible_lengths(expected_name(replica, cp)):
                     continue  # AMB-11 structural length plausibility
                 compatible.append({"name_start": o, "encoding_id": encoding_id, "bytes": pattern, "length": length,
