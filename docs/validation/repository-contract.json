@@ -37,16 +37,25 @@
       {
         "path": "crates/jet3/src/allocation.rs",
         "provenance_ids": [
+          "EXP-0051",
           "SRC-0020"
         ],
-        "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
+        "sha256": "b102aca393691a2a120a1dab364954bc6fd0dc8a9d9f5d9e1f8a9b4c607302dd"
+      },
+      {
+        "path": "crates/jet3/src/allocation_global.rs",
+        "provenance_ids": [
+          "EXP-0051",
+          "SRC-0020"
+        ],
+        "sha256": "610a8fb7267dc645e8b9109f9875dfde7a9f468b47549dca562b9cf8732c9445"
       },
       {
         "path": "crates/jet3/src/allocation_traverse.rs",
         "provenance_ids": [
           "SRC-0020"
         ],
-        "sha256": "f7b3de9413b7ce615e14f7e344f66113492c7e6b50154687d41633ca244a47c4"
+        "sha256": "7bfc84dacac26c92027cc8cb4fb1ef64846293182f75d19fa41b7c783ca5707f"
       },
       {
         "path": "crates/jet3/src/candidate.rs",
@@ -115,8 +124,8 @@
     "reviewed_non_assertion_files": [
       {
         "path": "crates/jet3/src/allocation_tests.rs",
-        "reason": "Test-only verification of the provenance-bound detached allocation-map assertions in allocation.rs.",
-        "sha256": "33d399e3ca3dae5d026cef08900fe2c090d23085cdac60ae6dfde70e83f55a1d"
+        "reason": "Test-only verification of the provenance-bound detached and global inline allocation-map assertions.",
+        "sha256": "5e1b9cab3d323c9db4b8ae2091c449755e8a5837cfe0bd11b04846f081c23859"
       },
       {
         "path": "crates/jet3/src/allocation_traverse_tests.rs",
@@ -186,7 +195,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "11c71d7799172a76459bce12007761a0c8abe26e409021dc79a3eb168f1cf249"
+        "sha256": "aabcf06b58f35d203892361ee6b8437ee63bc2436e7c043f93baeffef9fc8b9c"
       },
       {
         "path": "crates/jet3/src/limits.rs",

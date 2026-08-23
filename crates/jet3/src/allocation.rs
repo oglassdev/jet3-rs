@@ -1,9 +1,10 @@
-//! Detached, allocation-free decoders for documented Jet 3 allocation maps.
+//! Allocation-free decoders for documented Jet 3 allocation maps.
 //!
-//! These primitives decode only the record and page layouts documented by
-//! `SRC-0020`: caller-delimited records and already classified extended bitmap
-//! pages. They do not locate records, follow map page references, or infer the
-//! database page represented by an extended bitmap bit.
+//! `SRC-0020` supplies the detached record and extended-page layouts.
+//! `EXP-0051` additionally supplies one narrow location and polarity: the
+//! global record on an already classified page 1. Indirect conversion, map
+//! page traversal, extended bases, and table-definition pointers remain
+//! unsupported.
 
 use crate::{ClassifiedPage, Error, PageGeometry, PageKind, PageNumber, ResourceBudget};
 use std::fmt;
@@ -13,7 +14,14 @@ const INDIRECT_RECORD_TYPE: u8 = 0x01;
 const INLINE_HEADER_LEN: usize = 5;
 const INDIRECT_REFERENCE_LEN: usize = 4;
 const EXTENDED_BITMAP_OFFSET: usize = 4;
+#[path = "allocation_global.rs"]
+mod global;
 
+pub use global::{
+    GLOBAL_USAGE_MAP_PAGE, GLOBAL_USAGE_MAP_RECORD_END, GLOBAL_USAGE_MAP_RECORD_START,
+    GLOBAL_USAGE_MAP_ZERO_SUFFIX_SLACK, GlobalUsageMapError, GlobalUsageMapRecord,
+    GlobalUsagePages, UnsupportedGlobalUsageMap, locate_global_usage_map_record,
+};
 /// A decoded, caller-delimited allocation-map record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]

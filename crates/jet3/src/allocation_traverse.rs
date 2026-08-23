@@ -6,11 +6,12 @@
 //! a geometry check, one page visit per followed page, and a required
 //! classification. It interprets no database bytes.
 //!
-//! Every format-specific step that `SRC-0020` does not establish — locating a
-//! map record, turning a raw type-1 reference into a page number, and
-//! deriving the database page an extended bitmap bit represents — returns
-//! [`UnsupportedTraversalStep`] instead of guessing. When provenance for one
-//! of those steps is recorded, only that function changes.
+//! Every remaining format-specific step that `SRC-0020` does not establish —
+//! locating a map through a `DatabaseReader`, turning a raw type-1 reference
+//! into a page number, and deriving the database page an extended bitmap bit
+//! represents — returns [`UnsupportedTraversalStep`] instead of guessing. The
+//! narrow global-record locator over an already classified page 1 lives in
+//! `allocation` and does not authorize any traversal here.
 
 use crate::{
     ByteCount, ClassifiedPage, DatabasePageError, DatabaseReader, Error, ExtendedAllocationBits,
@@ -25,7 +26,7 @@ const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum UnsupportedTraversalStep {
-    /// Locating the global or per-table allocation-map record in a database.
+    /// Locating an allocation-map record through a database reader.
     MapLocation,
     /// Turning a raw type-1 map-page reference into a database page number,
     /// including whether zero is a null slot.
@@ -123,8 +124,9 @@ impl std::error::Error for AllocationTraversalError {
 
 /// Locates an allocation-map record inside a database.
 ///
-/// `SRC-0020` does not establish where map records live, so this always
-/// returns [`UnsupportedTraversalStep::MapLocation`] after one work unit.
+/// No evidence establishes a general database-reader lookup rule, so this
+/// always returns [`UnsupportedTraversalStep::MapLocation`] after one work
+/// unit. The classified-page global locator is deliberately a separate API.
 pub fn locate_allocation_map<S: ReadAt>(
     _database: &DatabaseReader<S>,
     budget: &mut ResourceBudget,

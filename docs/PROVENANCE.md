@@ -831,8 +831,11 @@ Use `not applicable` explicitly rather than omitting a field.
   and are not independent or DAO verification.
 - Usage: `file:crates/jet3/src/page_kind.rs`;
   `file:crates/jet3/src/allocation.rs`;
+  `file:crates/jet3/src/allocation_global.rs`;
   `file:crates/jet3/src/allocation_traverse.rs`;
   `file:crates/jet3/src/database.rs`;
+  `file:fixtures/manifest.json`;
+  `file:tools/generate_global_usage_map_fixture.py`;
   `file:docs/architecture/SEMANTIC_READER.md`;
   `file:docs/validation/repository-contract.json`;
   `file:docs/validation/support-matrix.json`; `file:fuzz/README.md`;
@@ -4470,6 +4473,12 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:oracle/windows-dao/experiments/a3/README.md`;
   `file:oracle/windows-dao/experiments/a3/analysis-report.schema.json`;
   `file:oracle/windows-dao/experiments/a3/independent-validation-report.schema.json`
+  Additional tracked Usage: `file:crates/jet3/src/allocation.rs`;
+  `file:crates/jet3/src/allocation_global.rs`;
+  `file:crates/jet3/src/allocation_tests.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:fixtures/manifest.json`;
+  `file:tools/generate_global_usage_map_fixture.py`.
 - Rights: project-generated through the licensed Microsoft DAO provider and
   retained as GitHub Actions artifacts; no provider binary, MDB, page blob, or
   retained bundle is committed or redistributed by this repository
@@ -4606,6 +4615,48 @@ Use `not applicable` explicitly rather than omitting a field.
 - Rights: inspection authorized locally; not redistributable; no redistribution
   grant; do not commit the file or derived content
 - Review: pending independent review
+
+### FIX-0005 — Synthetic global inline usage-map page
+
+- Recorded: 2026-08-23, OpenAI Codex
+- Kind: project-generated synthetic fixture; parser boundary input only, not a
+  DAO observation, hosted A3 artifact, Rust correctness result, or
+  compatibility result
+- Question: Can the `EXP-0051` page-1 locator and inverse-polarity inline
+  iterators be tested at their exact record and slack boundaries without
+  committing any hosted bundle bytes?
+- Origin: project-authored deterministic generator
+  `tools/generate_global_usage_map_fixture.py`, SHA-256
+  `c83761b28dbce47ae6c653724458e73cd65a9838894b48727dde6f858fca2c0c`.
+  The generator assigns a synthetic data-page tag from `SRC-0020`, the
+  `EXP-0051` record start, a type-0 base of zero, selected low-bit-first page
+  states, a distinguishing final pre-slack byte, and the polarity-relative
+  not-in-use suffix. It reads no MDB, DAO result, or third-party implementation.
+- Environment: generated with CPython 3.9.6 on macOS 26.3.1 arm64; the
+  generator requires only Python 3.9 or newer and standard-library `argparse`
+  and `pathlib`, assigns every meaningful byte explicitly, and is independent
+  of platform byte order, locale, time zone, and current time
+- Protocol: run
+  `python3 tools/generate_global_usage_map_fixture.py --output fixtures/generated/global-usage-map-page1.bin`,
+  require a 2,048-byte output, and verify its SHA-256 against
+  `fixtures/manifest.json`
+- Artifacts: `fixtures/generated/global-usage-map-page1.bin`, 2,048 bytes,
+  SHA-256
+  `e8b03a9dbb240ba8b40a1d4350e7e19654c7abc62710cfef5ba639c32ce6f3b4`;
+  manifest identity `FIX-0005`, scenario `UT-GLOBAL_USAGE_MAP_INLINE`
+- Observation: regeneration produced the exact registered byte length and
+  SHA-256. This is a synthetic construction, not a format observation.
+- Interpretation: suitable only for focused parser boundary, polarity,
+  resource, slack, and malformed-input tests. Its expected semantics derive
+  from `SRC-0020` and `EXP-0051`; self-reading it adds no evidence and cannot
+  change a support-matrix verification level.
+- Usage: `file:crates/jet3/src/allocation_tests.rs`;
+  `file:tools/generate_global_usage_map_fixture.py`;
+  `file:fixtures/manifest.json`
+- Rights: project-authored synthetic bytes and generator under the repository's
+  MIT OR Apache-2.0 license; no DAO binary, MDB, page blob, or hosted bundle is
+  included
+- Review: focused regeneration, hash, boundary, and parser tests in this change
 
 ### OBS-0002 — Retained Stage 1 classifier run
 

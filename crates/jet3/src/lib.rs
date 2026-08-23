@@ -22,9 +22,11 @@ pub mod resource;
 pub mod source;
 
 pub use allocation::{
-    AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
-    InlineAllocatedPages, InlineAllocationMap, MapPageReferences, decode_allocation_map,
-    extended_allocation_bits,
+    AllocationMap, AllocationMapError, ExtendedAllocationBits, GLOBAL_USAGE_MAP_PAGE,
+    GLOBAL_USAGE_MAP_RECORD_END, GLOBAL_USAGE_MAP_RECORD_START, GLOBAL_USAGE_MAP_ZERO_SUFFIX_SLACK,
+    GlobalUsageMapError, GlobalUsageMapRecord, GlobalUsagePages, IndirectAllocationMap,
+    InlineAllocatedPages, InlineAllocationMap, MapPageReferences, UnsupportedGlobalUsageMap,
+    decode_allocation_map, extended_allocation_bits, locate_global_usage_map_record,
 };
 pub use allocation_traverse::{
     AllocationTraversalError, PageChainWalker, ReachedMapPage, UnsupportedTraversalStep,

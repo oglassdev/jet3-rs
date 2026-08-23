@@ -1,4 +1,17 @@
 {
   "schema_version": 1,
-  "fixtures": []
+  "fixtures": [
+    {
+      "id": "FIX-0005",
+      "scenario_id": "UT-GLOBAL_USAGE_MAP_INLINE",
+      "provenance_id": "FIX-0005",
+      "path": "fixtures/generated/global-usage-map-page1.bin",
+      "sha256": "e8b03a9dbb240ba8b40a1d4350e7e19654c7abc62710cfef5ba639c32ce6f3b4",
+      "origin": "Project-generated synthetic classified page 1 based only on SRC-0020 and EXP-0051.",
+      "generator": "tools/generate_global_usage_map_fixture.py, SHA-256 c83761b28dbce47ae6c653724458e73cd65a9838894b48727dde6f858fca2c0c",
+      "environment": "Generated with CPython 3.9.6 on macOS 26.3.1 arm64; deterministic on Python 3.9+ standard-library environments.",
+      "license": "MIT OR Apache-2.0 project-generated synthetic bytes; no DAO or hosted-bundle bytes.",
+      "reproduction_command": "python3 tools/generate_global_usage_map_fixture.py --output fixtures/generated/global-usage-map-page1.bin"
+    }
+  ]
 }
