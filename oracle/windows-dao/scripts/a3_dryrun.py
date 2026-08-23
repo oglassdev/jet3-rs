@@ -246,6 +246,7 @@ def sweep_checks(results: list[CaseResult]) -> dict[str, bool]:
     checks["bounds_exact_ceiling_and_one_over"] = (
         sixteen.report is not None and all(label == DECISIVE for label in sixteen.produced.values())
         and sixteen.report["qualified_page_counts"] == {"global_map": BOUNDS["max_qualified_pages_per_submodel"], "tdef": BOUNDS["max_qualified_pages_per_submodel"]}
+        and sixteen.report["record_candidates_examined"] == BOUNDS["max_record_candidates"]
         and "A3-RESOURCE-BOUND" in seventeen.terminal_ids
     )
     checks["all_layers_decisive_recovered"] = all(label == DECISIVE for label in by_id["baseline"].produced.values())

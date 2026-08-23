@@ -364,7 +364,8 @@ class ReplicaBuilder:
             if perturbation == "churn_changes_two_bytes":
                 churn += 1 << 8
         if perturbation == "churn_pointer_no_return" and ordinal > CHECKPOINT_ORDINALS["L_DELETE_ALL"]:
-            churn = CHURN_ALTERNATE_PAGE
+            # Keep the delete-time high byte too, so no u24 window anywhere returns to its pre-delete value.
+            churn = CHURN_ALTERNATE_PAGE + (1 << 16)
         if perturbation == "holdout_contradicts_every_layer" and self.replica == 3 and ordinal > CHECKPOINT_ORDINALS["L_DELETE_ALL"]:
             churn = CHURN_ALTERNATE_PAGE
         page[GROWTH_OFFSET:GROWTH_OFFSET + 3] = growth.to_bytes(3, "little")

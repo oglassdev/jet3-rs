@@ -28,8 +28,7 @@ from a3_spec import BOUNDS, LAYER_KEYS, load_bounded_json
 
 VALIDATOR_SCRIPT = Path(__file__).resolve().parent / "a3_independent_validator.py"
 VALIDATOR_TIMEOUT_SECONDS = BOUNDS["fan_in_timeout_seconds"]
-# Rejections raised while loading the bundle, before any layer is recomputed.
-BUNDLE_CONTRACT_REJECTIONS = frozenset({"snapshot_page_blob_missing", "resource_bound_breach"})
+TAMPER_SUITE_NOT_APPLICABLE = "tamper_suite_not_executable"
 CAMPAIGN_PREDICATES = frozenset({"A3-IDLE-EQUALITY", "A3-SNAPSHOT-RECONSTRUCTION", "A3-RESOURCE-BOUND"})
 LAYER_PATHS = {
     "global_map_record": ("global_map", "record"),
@@ -127,6 +126,11 @@ class PairOutcome:
                 "tamper_results": None if self.validator.verdict is None else self.validator.verdict.get("tamper_results"),
             },
             "expected_validator_rejection": self.expected_validator_rejection,
+            "tamper_suite": (
+                "executed" if self.validator.accepted
+                else "not_applicable_no_decisive_global_model" if tamper_suite_not_applicable(self.analyzer, self.validator)
+                else "not_executed"
+            ),
             "agreement": self.agreed,
             "disagreements": list(self.disagreements),
         }
@@ -183,6 +187,15 @@ def run_validator(root: Path, commit: str, scratch: Path) -> ValidatorResult:
     return ValidatorResult(verdict, recomputation, verdict_run.returncode, stderr[-4000:])
 
 
+def tamper_suite_not_applicable(analyzer: AnalyzerResult, validator: ValidatorResult) -> bool:
+    """T1-T5 mutate a decisive global-record model (independent_validator_contract.tamper_cases);
+    without one the suite has no subject. The validator reaches that point only after every
+    untampered recomputation, predicate status, and bound check passed, so the pair gate reads
+    its ``tamper_suite_not_executable`` as "validated, tamper suite not applicable"."""
+    decisive_global = analyzer.frozen is not None and analyzer.frozen["layers"]["global_map_record"]["model"] is not None
+    return validator.discrepancy_codes == [TAMPER_SUITE_NOT_APPLICABLE] and not decisive_global
+
+
 def compare_pair(case_id: str, analyzer: AnalyzerResult, validator: ValidatorResult, expected_rejection: str | None) -> PairOutcome:
     disagreements: list[str] = []
     if analyzer.report is None:
@@ -193,9 +206,8 @@ def compare_pair(case_id: str, analyzer: AnalyzerResult, validator: ValidatorRes
             disagreements.append(
                 f"validator was expected to reject with {expected_rejection} only; got accepted={validator.accepted} codes={validator.discrepancy_codes}"
             )
-        if expected_rejection in BUNDLE_CONTRACT_REJECTIONS:
-            return PairOutcome(case_id, analyzer, validator, expected_rejection, disagreements)
-    elif not validator.accepted:
+        return PairOutcome(case_id, analyzer, validator, expected_rejection, disagreements)
+    if not validator.accepted and not tamper_suite_not_applicable(analyzer, validator):
         disagreements.append(f"validator accepted=false codes={validator.discrepancy_codes}")
     if validator.recomputation is None:
         disagreements.append("validator recompute-only produced no document")

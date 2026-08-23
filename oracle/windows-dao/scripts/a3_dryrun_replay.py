@@ -38,6 +38,10 @@ EXPECTED_VIOLATION = {"leg": ("L_REL_0512", "L_REL_0768"), "page": 1021, "evalua
 EXPECTED_TDEF_REASON = "no_tdef_record_candidate"
 EXPECTED_HIGHWATERS = {"E0": 29, "D_GROW_0128": 157, "D_REGROW_0128": 285}
 LEGACY_START_COUNT = 1935
+# R4-B02 / R4-C01 re-measured EXP-0042 figures.
+EXPECTED_QUALIFIED = {"global_map": [0, 1, 20, 21], "tdef": [0, 1, 23, 24]}
+EXPECTED_BLOB_COUNT = 81
+MAX_INPUT_BLOBS = 1800
 
 
 def _sha256(path: Path) -> str:
@@ -330,6 +334,8 @@ def run_replay(root: Path) -> ReplayResult:
     checks["every_predicate_id_exactly_once"] = [row["predicate_id"] for row in rows] == list(PREDICATE_IDS)
     t5 = tamper_t5(rows, terminal_ids, layers)
     checks["t3_rejected"], checks["t5_rejected"] = t3["rejected"], t5["rejected"]
+    checks["qualified_pages_0_1_20_21_and_0_1_23_24"] = {"global_map": list(global_pages[0]), "tdef": list(tdef_pages[0])} == EXPECTED_QUALIFIED
+    checks["exactly_81_blobs_opened_below_1800"] = len(tracker.cache) == EXPECTED_BLOB_COUNT <= MAX_INPUT_BLOBS
     outcomes = {
         "global_map_record": {"derivation": "model", "terminal_predicate_id": None, "holdout": "not_opened"},
         "global_map_conversion_inline": {"derivation": "no_outcome", "terminal_predicate_id": "A3-POLARITY-CROSSCHECK", "conversion_attribution_if_reached": would_be[0], "reached": False},

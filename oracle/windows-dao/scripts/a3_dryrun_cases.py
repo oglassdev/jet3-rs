@@ -26,9 +26,7 @@ VALIDATOR_REJECTIONS = {
     "missing_page_blob": "snapshot_page_blob_missing",
     "seventeen_qualified_pages": "resource_bound_breach",
 }
-# The validator's T1-T5 tamper suite needs a frozen global record model; without
-# one it rejects by construction, and only its recomputed layers can be compared.
-TAMPER_SUITE_NOT_EXECUTABLE = "tamper_suite_not_executable"
+
 (GLOBAL, CONVERSION, BASE, TDEF) = LAYER_KEYS
 
 
@@ -268,14 +266,8 @@ def iter_perturbation_cases() -> Iterator[Case]:
         )
 
 
-def _with_validator_rejection(case: Case) -> Case:
-    if case.expected_validator_rejection is None and case.expectation.layers[GLOBAL] != DECISIVE:
-        return replace(case, expected_validator_rejection=TAMPER_SUITE_NOT_EXECUTABLE)
-    return case
-
-
 def all_cases() -> list[Case]:
-    cases = [_with_validator_rejection(case) for case in (baseline_case(), *iter_axis_cases(), *iter_perturbation_cases())]
+    cases = [baseline_case(), *iter_axis_cases(), *iter_perturbation_cases()]
     identifiers = [case.case_id for case in cases]
     if len(identifiers) != len(set(identifiers)):
         raise ValueError("duplicate A3 dry-run case id")
