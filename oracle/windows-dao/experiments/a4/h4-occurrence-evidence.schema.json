@@ -49,6 +49,7 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
@@ -56,6 +57,9 @@
             "operation_id": {
               "const": "T1_CREATE_ID"
             },
+            "required": {
+              "const": true
+            },
             "canonical_record_locator": {
               "$ref": "#/$defs/catalogRecordLocator"
             },
@@ -75,6 +79,7 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
@@ -82,8 +87,18 @@
             "operation_id": {
               "const": "T1_ADD_TEXT"
             },
+            "required": {
+              "const": false
+            },
             "canonical_record_locator": {
-              "$ref": "#/$defs/catalogRecordLocator"
+              "anyOf": [
+                {
+                  "const": null
+                },
+                {
+                  "$ref": "#/$defs/catalogRecordLocator"
+                }
+              ]
             },
             "occurrences": {
               "type": "array",
@@ -101,6 +116,7 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
@@ -108,8 +124,18 @@
             "operation_id": {
               "const": "T1_ADD_INDEX"
             },
+            "required": {
+              "const": false
+            },
             "canonical_record_locator": {
-              "$ref": "#/$defs/catalogRecordLocator"
+              "anyOf": [
+                {
+                  "const": null
+                },
+                {
+                  "$ref": "#/$defs/catalogRecordLocator"
+                }
+              ]
             },
             "occurrences": {
               "type": "array",
@@ -127,6 +153,7 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
@@ -134,6 +161,9 @@
             "operation_id": {
               "const": "T2_CREATE"
             },
+            "required": {
+              "const": true
+            },
             "canonical_record_locator": {
               "$ref": "#/$defs/catalogRecordLocator"
             },
@@ -153,6 +183,7 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
@@ -160,6 +191,9 @@
             "operation_id": {
               "const": "T2_RECREATE"
             },
+            "required": {
+              "const": true
+            },
             "canonical_record_locator": {
               "$ref": "#/$defs/catalogRecordLocator"
             },
@@ -179,6 +213,7 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
@@ -186,6 +221,9 @@
             "operation_id": {
               "const": "T3_CREATE"
             },
+            "required": {
+              "const": true
+            },
             "canonical_record_locator": {
               "$ref": "#/$defs/catalogRecordLocator"
             },
@@ -205,12 +243,16 @@
           "additionalProperties": false,
           "required": [
             "operation_id",
+            "required",
             "canonical_record_locator",
             "occurrences"
           ],
           "properties": {
             "operation_id": {
               "const": "T4_CREATE"
+            },
+            "required": {
+              "const": true
             },
             "canonical_record_locator": {
               "$ref": "#/$defs/catalogRecordLocator"

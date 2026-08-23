@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`be6cecc23bad7bf25e71543023da074edf944c8f786bcd7703ef995e53708dc9`.
+`f4443072050df84900fb63948f341054312065695d6d569b60aef8f39c8c8f40`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -138,7 +138,7 @@ The base plan incorporates A3's later machinery fixes from the start:
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 387,467,081 units under the 600,000,000-unit ceiling, which
+  path is H4 at 115,687,821 units under the 600,000,000-unit ceiling, which
   is classified `conservative_upper`: only its checked comparator is tested
   (600,000,000 accepted, 600,000,001 rejected) as a unit test outside the 40
   byte fixtures, and the byte-level `A4-RESOURCE-BOUND` terminal is reached by
@@ -150,7 +150,9 @@ The base plan incorporates A3's later machinery fixes from the start:
   bytes. Five eight-byte table operations and two seven-byte field/index
   operations admit at most 1,850 occurrence identities; nine deduplicated
   pattern/operation scans charge 18,324 byte starts. One shared integer-field
-  endianness gives the 165,888 inner grammar and 306,892,800 tuple term.
+  endianness gives the 27,648 inner grammar and, over the 1,270 required
+  table-record occurrences, the 35,112,960 tuple term; the 580 contrast
+  occurrences are evaluated once under the surviving structural model.
 - One producer read plus independent analyzer and validator reads cost at most
   1,317,011,456 bytes per replica, below the 2 GiB logical-read bound; no
   analyzer/validator pass is shared. Candidates are globally capped at
@@ -188,7 +190,11 @@ stage-discriminated canonical candidate arrays, H4 has independent root and
 structural, and encoding results; structural candidates carry per-operation
 compatible-occurrence bitmaps and reference the hashed occurrence-evidence
 document, and final encoded candidates select one occurrence per operation
-under one encoding-length equivalence class. The
+under one encoding-length equivalence class. Catalog-record predicates
+require one record per table lifecycle operation instance (the five
+`TableDefs.Append` operations); the `Payload` field append and `A4IX_ID` index
+append are a separately reported, non-failing `contrast_result` that cannot
+terminate the layer and claims nothing about field or index layout. The
 analysis report contains A4 row-directory, locator, transition, reference/
 bitmap, catalog-root, and catalog-field transcripts. A4 additionally defines
 `dao-schema-snapshot.schema.json` and

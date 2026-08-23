@@ -30,7 +30,7 @@ CALIBRATION = EXPERIMENT / "design-inputs" / "a3-calibration-receipt.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 
-PLAN_SHA256 = "be6cecc23bad7bf25e71543023da074edf944c8f786bcd7703ef995e53708dc9"
+PLAN_SHA256 = "f4443072050df84900fb63948f341054312065695d6d569b60aef8f39c8c8f40"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 ZERO_SHA256 = "0" * 64
@@ -98,6 +98,9 @@ OPERATION_IDS = [
     "T3_CREATE",
     "T4_CREATE",
 ]
+REQUIRED_OPERATIONS = ["T1_CREATE_ID", "T2_CREATE", "T2_RECREATE", "T3_CREATE", "T4_CREATE"]
+CONTRAST_OPERATIONS = ["T1_ADD_TEXT", "T1_ADD_INDEX"]
+H4_INNER_GRAMMAR = 16 * 3 * 3 * 2 * 16 * 3 * 2
 OPERATION_OCCURRENCE_MAX = {
     operation: 290 if operation in ("T1_ADD_TEXT", "T1_ADD_INDEX") else 254
     for operation in OPERATION_IDS
@@ -209,6 +212,7 @@ def occurrence_evidence(occurrences_per_operation: int = 2) -> dict[str, Any]:
         bindings.append(
             {
                 "operation_id": operation,
+                "required": operation in REQUIRED_OPERATIONS,
                 "canonical_record_locator": {
                     "page": 100 + index,
                     "row": 0,
@@ -252,6 +256,7 @@ def structural_bindings(compatible: tuple[int, ...] = (0, 1)) -> list[dict[str, 
     return [
         {
             "operation_id": operation,
+            "required": operation in REQUIRED_OPERATIONS,
             "compatible_occurrence_count": len(compatible),
             "compatible_occurrence_bitmap_hex": bitmap_hex(operation, list(compatible)),
         }
@@ -342,7 +347,7 @@ def candidate(
             "endianness": "little",
             "name_length_start_delta": 1,
             "name_length_width": 1,
-            "kind_mapping": {"table": 1, "field": 2, "index": 3},
+            "kind_mapping": {"table": 1},
             "identifier_lifecycle": (
                 "stable_for_same_operation_instance_and_distinct_for_t2_v1_v2"
                 if serial % 2
@@ -357,7 +362,7 @@ def candidate(
             or candidate("h4_structural_field")["canonical_candidate_id"],
             "encoding_length_equivalence_class": EQUIVALENCE_CLASSES[(serial - 1) % 3],
             "selected_operation_occurrences": [
-                {"operation_id": operation_id, "occurrence_index": (serial - 1) % 2}
+                {"operation_id": operation_id, "required": operation_id in REQUIRED_OPERATIONS, "occurrence_index": (serial - 1) % 2}
                 for operation_id in OPERATION_IDS
             ],
         }
@@ -391,11 +396,12 @@ def maximal_candidate(stage: str) -> dict[str, Any]:
         return finish_candidate(stage, {"layout": "u24le_page_then_u8_row", "table_signature_id": "a3_page23_masked_record_0_92", "locator_offsets": [2040, 2044]}, bindings)
     if stage == "h4_structural_field":
         model = candidate(stage)["model"]
-        model["kind_mapping"] = {"table": 4294967295, "field": 4294967294, "index": 4294967293}
-        model["value_equivalent_tuple_count"] = 165888
+        model["kind_mapping"] = {"table": 4294967295}
+        model["value_equivalent_tuple_count"] = H4_INNER_GRAMMAR
         model["compatible_occurrences_by_operation"] = [
             {
                 "operation_id": operation,
+                "required": operation in REQUIRED_OPERATIONS,
                 "compatible_occurrence_count": OPERATION_OCCURRENCE_MAX[operation],
                 "compatible_occurrence_bitmap_hex": bitmap_hex(operation, list(range(OPERATION_OCCURRENCE_MAX[operation]))),
             }
@@ -406,7 +412,7 @@ def maximal_candidate(stage: str) -> dict[str, Any]:
         model = candidate(stage)["model"]
         model["encoding_length_equivalence_class"] = "utf8_unicode_scalar_or_code_unit_count"
         model["selected_operation_occurrences"] = [
-            {"operation_id": operation, "occurrence_index": OPERATION_OCCURRENCE_MAX[operation] - 1}
+            {"operation_id": operation, "required": operation in REQUIRED_OPERATIONS, "occurrence_index": OPERATION_OCCURRENCE_MAX[operation] - 1}
             for operation in OPERATION_IDS
         ]
         return finish_candidate(stage, model)
@@ -533,6 +539,7 @@ def terminal_result(
             groups.append(
                 {
                     "operation_id": operation,
+                    "required": operation in REQUIRED_OPERATIONS,
                     "cardinality": size,
                     "candidate_ids": sorted(item["canonical_candidate_id"] for item in members),
                 }
@@ -637,7 +644,62 @@ def build_layers_for_terminal(
             slots[slot] = empty_result("not_applicable")
     layers = {name: slots[name] for name in LAYERS[:3]}
     layers["h4_catalog_bootstrap"] = {slot: slots[slot] for slot in H4_SLOTS}
+    layers["h4_catalog_bootstrap"]["contrast_result"] = contrast_result(layers["h4_catalog_bootstrap"])
     return layers
+
+
+def records_began(structural: dict[str, Any]) -> bool:
+    return structural["status"] == "model" or structural["terminal_candidate_stage"] in {"h4_operation_record", "h4_structural_field"} or structural["terminal_payload_kind"] == "replica_pair"
+
+
+def contrast_result(h4: dict[str, Any]) -> dict[str, Any]:
+    structural, encoding = h4["structural_result"], h4["encoding_result"]
+    if not records_began(structural):
+        return {"status": "not_applicable", "operations": [{"operation_id": operation, "required": False, "record_candidate_count": 0, "record_present": False, "record_bytes_hex": None, "compatible_occurrence_count": 0, "kind_raw_value": None, "kind_differs_from_table": None, "selected_occurrence_index": None, "name_bytes_matched": None, "stored_length_fits_decisive_class": None} for operation in CONTRAST_OPERATIONS]}
+    unique_structural = structural["status"] == "model"
+    decisive_encoding = encoding["status"] == "model"
+    operations = []
+    for index, operation in enumerate(CONTRAST_OPERATIONS):
+        present = index == 0
+        operations.append(
+            {
+                "operation_id": operation,
+                "required": False,
+                "record_candidate_count": 1 if present else 0,
+                "record_present": present,
+                "record_bytes_hex": "5061796c6f6164" if present else None,
+                "compatible_occurrence_count": 2 if present else 0,
+                "kind_raw_value": 2 if present and unique_structural else None,
+                "kind_differs_from_table": True if present and unique_structural else None,
+                "selected_occurrence_index": 0 if present and unique_structural else None,
+                "name_bytes_matched": True if present and decisive_encoding else None,
+                "stored_length_fits_decisive_class": True if present and decisive_encoding else None,
+            }
+        )
+    return {"status": "reported", "operations": operations}
+
+
+def validate_contrast_result(h4: dict[str, Any]) -> None:
+    contrast, structural, encoding = h4["contrast_result"], h4["structural_result"], h4["encoding_result"]
+    if (contrast["status"] == "reported") != records_began(structural):
+        raise AssertionError("contrast status differs from record enumeration state")
+    if [row["operation_id"] for row in contrast["operations"]] != CONTRAST_OPERATIONS:
+        raise AssertionError("contrast operations differ from the frozen contrast split")
+    for row in contrast["operations"]:
+        if row["required"]:
+            raise AssertionError("contrast operation is flagged required")
+        if contrast["status"] == "not_applicable" and (row["record_candidate_count"] or row["record_present"] or row["record_bytes_hex"] is not None):
+            raise AssertionError("not_applicable contrast carries observations")
+        if row["record_present"] != (row["record_candidate_count"] == 1) or row["record_present"] != (row["record_bytes_hex"] is not None):
+            raise AssertionError("contrast record presence differs from its count and bytes")
+        if not row["record_present"] and row["compatible_occurrence_count"]:
+            raise AssertionError("absent contrast record has occurrences")
+        structural_fields = (row["kind_raw_value"], row["kind_differs_from_table"], row["selected_occurrence_index"])
+        if any(field is not None for field in structural_fields) and not (structural["status"] == "model" and row["record_present"]):
+            raise AssertionError("contrast structural observation exists without a unique structural model")
+        encoding_fields = (row["name_bytes_matched"], row["stored_length_fits_decisive_class"])
+        if any(field is not None for field in encoding_fields) and not (encoding["status"] == "model" and row["record_present"]):
+            raise AssertionError("contrast encoding observation exists without a decisive encoding class")
 
 
 def evidence_reference_for(layers: dict[str, Any]) -> dict[str, Any] | None:
@@ -694,11 +756,19 @@ def validate_candidate_identity(item: dict[str, Any], replicas: tuple[int, ...])
         bindings = model["compatible_occurrences_by_operation"]
         if [binding["operation_id"] for binding in bindings] != OPERATION_IDS:
             raise AssertionError("H4 operation bindings differ from frozen order")
+        if set(model["kind_mapping"]) != {"table"}:
+            raise AssertionError("structural kind mapping must hold only the table kind value")
         for binding in bindings:
             operation = binding["operation_id"]
+            if binding["required"] != (operation in REQUIRED_OPERATIONS):
+                raise AssertionError("compatible occurrence required flag differs from the frozen operation split")
             indexes = bitmap_indexes(operation, binding["compatible_occurrence_bitmap_hex"])
-            if not indexes or len(indexes) != binding["compatible_occurrence_count"]:
+            if len(indexes) != binding["compatible_occurrence_count"]:
                 raise AssertionError("H4 compatible bitmap popcount differs from count")
+            if not indexes:
+                if binding["required"]:
+                    raise AssertionError("required operation has no compatible occurrence")
+                continue
             if max(indexes) >= OPERATION_OCCURRENCE_MAX[operation]:
                 raise AssertionError("H4 compatible bitmap exceeds the operation occurrence maximum")
     if item["model_type"] == "h4_final_encoded_field":
@@ -715,6 +785,12 @@ def validate_final_against_structural(final: dict[str, Any], structural: dict[st
         for binding in structural["model"]["compatible_occurrences_by_operation"]
     }
     for row in final["model"]["selected_operation_occurrences"]:
+        if row["required"] != (row["operation_id"] in REQUIRED_OPERATIONS):
+            raise AssertionError("selected occurrence required flag differs from the frozen operation split")
+        if row["occurrence_index"] is None:
+            if row["required"]:
+                raise AssertionError("required operation lacks a selected occurrence")
+            continue
         if row["occurrence_index"] not in bitmap_indexes(row["operation_id"], bitmaps[row["operation_id"]]):
             raise AssertionError("selected occurrence is absent from the structural evidence")
 
@@ -778,7 +854,10 @@ def validate_frozen_result(value: dict[str, Any], slot: str) -> None:
             members = sorted(by_operation[group["operation_id"]])
             if group["candidate_ids"] != members or group["cardinality"] != len(members):
                 raise AssertionError("operation group membership or cardinality mismatch")
-        cardinalities = [group["cardinality"] for group in groups]
+        for group in groups:
+            if group["required"] != (group["operation_id"] in REQUIRED_OPERATIONS):
+                raise AssertionError("operation group required flag differs from the frozen operation split")
+        cardinalities = [group["cardinality"] for group in groups if group["required"]]
         if terminal == "A4-H4-CATALOG-RECORD-NONE":
             if count != min(cardinalities) or count != 0:
                 raise AssertionError("RECORD-NONE count must be the zero minimum group cardinality")
@@ -836,6 +915,7 @@ def validate_layer_semantics(
             raise AssertionError("H2 invalid observation does not reference the decisive H1 candidate")
     h4 = layers["h4_catalog_bootstrap"]
     root, structural, encoding = h4["root_result"], h4["structural_result"], h4["encoding_result"]
+    validate_contrast_result(h4)
     if root["status"] != "model" and structural["status"] != "not_applicable":
         raise AssertionError("H4 structural result requires a decisive root")
     if structural["terminal_payload_kind"] == "invalid_observation":
@@ -1577,7 +1657,7 @@ class A4PlanContractTests(unittest.TestCase):
             self.assertNotIn("h2StructuralDecoderCandidate", schema["$defs"])
             self.assertEqual(
                 schema["$defs"]["h4Result"]["required"],
-                ["root_result", "structural_result", "encoding_result"],
+                ["root_result", "structural_result", "encoding_result", "contrast_result"],
             )
             structural_model = schema["$defs"]["h4StructuralFieldCandidate"]["properties"]["model"]
             self.assertNotIn("name_length_endianness", structural_model["properties"])
@@ -2046,9 +2126,9 @@ class A4PlanContractTests(unittest.TestCase):
         work = self.plan["work_model"]
         bounds = self.plan["bounds"]
         self.assertEqual(work["bound_classification"]["max_analysis_work_units"], "conservative_upper")
-        self.assertEqual(work["terminal_path_maxima"]["computed_units"]["h4_latest_derivation_terminal"], 387467081)
-        self.assertEqual(600000000 - 387467081, 212532919)
-        self.assertIn("212,532,919", work["terminal_path_maxima"]["proof"])
+        self.assertEqual(work["terminal_path_maxima"]["computed_units"]["h4_latest_derivation_terminal"], 115687821)
+        self.assertEqual(600000000 - 115687821, 484312179)
+        self.assertIn("484,312,179", work["terminal_path_maxima"]["proof"])
         validate_analysis_work_bound(600000000, bounds["max_analysis_work_units"])
         with self.assertRaises(AssertionError):
             validate_analysis_work_bound(600000001, bounds["max_analysis_work_units"])
@@ -2373,10 +2453,14 @@ class A4PlanContractTests(unittest.TestCase):
         operation_instances = 7
         complete_row_bytes = bounds["page_size"] - 10 - 2
         occurrence_ceiling = 5 * (complete_row_bytes // 8) + 2 * (complete_row_bytes // 7)
-        h4_inner_grammar = 16 * 3 * 3 * 2 * 16 * 3 * 6 * 2
+        required_occurrence_ceiling = 5 * (complete_row_bytes // 8)
+        contrast_occurrence_ceiling = 2 * (complete_row_bytes // 7)
+        h4_inner_grammar = H4_INNER_GRAMMAR
         self.assertEqual(complete_row_bytes, 2036)
         self.assertEqual(occurrence_ceiling, 1850)
-        self.assertEqual(h4_inner_grammar, 165888)
+        self.assertEqual((required_occurrence_ceiling, contrast_occurrence_ceiling), (1270, 580))
+        self.assertEqual(h4_inner_grammar, 27648)
+        self.assertEqual(bounds["max_h4_value_equivalent_tuples"], h4_inner_grammar)
         one_layout = sum(range(1, 2042))
         self.assertEqual(one_layout, 2083861)
         self.assertEqual(2 * one_layout, bounds["max_locator_pairs_per_tdef_page"])
@@ -2394,7 +2478,8 @@ class A4PlanContractTests(unittest.TestCase):
             "catalog_root_signatures": qualified_pages * checkpoints * len(self.plan["replicas"]["derivation"]) * len(grammar["h4"]["catalog_root_selection_signatures"]),
             "catalog_raw_rows": operation_instances * qualified_pages * 679,
             "encoding_union_anchor_bytes": 9 * complete_row_bytes,
-            "h4_name_length_structural_tuples": occurrence_ceiling * h4_inner_grammar,
+            "h4_name_length_structural_tuples": required_occurrence_ceiling * h4_inner_grammar,
+            "h4_contrast_occurrence_evaluations": contrast_occurrence_ceiling * 1,
             "encoding_length_equivalence_candidates": operation_instances * len(grammar["h4"]["name_length_equivalence_classes"]),
             "candidate_serializations": bounds["max_candidate_models"],
         }
@@ -2402,8 +2487,8 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual({key: value["units"] for key, value in terms.items()}, expected_terms)
         terminal_maximum = sum(expected_terms.values())
         self.assertEqual(expected_terms["encoding_union_anchor_bytes"], 18324)
-        self.assertEqual(expected_terms["h4_name_length_structural_tuples"], 306892800)
-        self.assertEqual(terminal_maximum, 387467081)
+        self.assertEqual(expected_terms["h4_name_length_structural_tuples"], 35112960)
+        self.assertEqual(terminal_maximum, 115687821)
         terminal_paths = self.plan["work_model"]["terminal_path_maxima"]
         all_terms = {key: value["units"] for key, value in terms.items()}
         all_terms.update(
@@ -2624,6 +2709,67 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual((arithmetic["page_size"] - arithmetic["header_bytes"]) * arithmetic["bits_per_byte"], arithmetic["bitmap_bits"])
         self.assertEqual(arithmetic["bitmap_bits"], 16352)
 
+    def test_field_and_index_appends_are_a_non_failing_contrast(self) -> None:
+        h4 = self.plan["candidate_grammars"]["h4"]
+        self.assertEqual(h4["required_table_operations"], REQUIRED_OPERATIONS)
+        self.assertEqual(h4["contrast_operations"], CONTRAST_OPERATIONS)
+        self.assertEqual(h4["operation_binding_cardinality"], {"total": 7, "required": 5, "contrast": 2, "rule": h4["operation_binding_cardinality"]["rule"]})
+        self.assertIn("T2_DROP is not a record-producing operation", h4["table_operation_record_rule"])
+        self.assertIn("No contrast value can terminate the layer", h4["contrast_rule"])
+        self.assertIs(self.plan["claims"]["contrast_field_or_index_catalog_record_layout"], False)
+        contracts = {row["predicate_id"]: row for row in self.plan["predicate_registry"]["predicate_contracts"]}
+        for pid in ("A4-H4-CATALOG-RECORD-NONE", "A4-H4-CATALOG-RECORD-MULTIPLE"):
+            self.assertIn("required table operation instance", contracts[pid]["fail_iff"])
+            self.assertIn("does not fail this predicate", contracts[pid]["reachability_fixture"])
+        self.assertNotIn("A4-H4-CONTRAST", "".join(contracts))
+        by_id = {row["predicate_id"]: index for index, row in enumerate(self.plan["predicate_registry"]["predicate_contracts"])}
+        for pid in ("A4-H4-CATALOG-RECORD-NONE", "A4-H4-CATALOG-RECORD-MULTIPLE"):
+            report = build_report(self.plan, by_id[pid])
+            validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
+            h4_layer = report["layers"]["h4_catalog_bootstrap"]
+            self.assertEqual(h4_layer["contrast_result"]["status"], "reported")
+            groups = h4_layer["structural_result"]["terminal_evidence"]["groups"]
+            self.assertEqual([group["required"] for group in groups], [operation in REQUIRED_OPERATIONS for operation in OPERATION_IDS])
+            # a contrast group with zero or two candidates must not change the measured count
+            contrast_group = next(group for group in groups if group["operation_id"] == "T1_ADD_TEXT")
+            members = [item for item in h4_layer["structural_result"]["candidates"] if item["model"]["operation_id"] == "T1_ADD_TEXT"]
+            self.assertEqual(contrast_group["cardinality"], len(members))
+            h4_layer["structural_result"]["candidates"] = [item for item in h4_layer["structural_result"]["candidates"] if item["model"]["operation_id"] != "T1_ADD_TEXT"]
+            contrast_group["cardinality"], contrast_group["candidate_ids"] = 0, []
+            h4_layer["structural_result"]["canonical_candidates_sha256"] = canonical_sha256(h4_layer["structural_result"]["candidates"])
+            validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
+            validate_frozen_result(h4_layer["structural_result"], "structural_result")
+            required_group = next(group for group in groups if group["operation_id"] == "T3_CREATE")
+            required_group["required"] = False
+            with self.assertRaisesRegex(AssertionError, "required flag"):
+                validate_frozen_result(h4_layer["structural_result"], "structural_result")
+        decisive = build_report(self.plan, None)
+        h4_layer = decisive["layers"]["h4_catalog_bootstrap"]
+        contrast = h4_layer["contrast_result"]
+        self.assertEqual([row["record_present"] for row in contrast["operations"]], [True, False])
+        validate_report_semantics(decisive, self.plan)
+        h4_layer["contrast_result"]["operations"][1]["record_bytes_hex"] = "00"
+        with self.assertRaisesRegex(AssertionError, "presence differs"):
+            validate_report_semantics(decisive, self.plan)
+        # a structural FIELD-MODEL-NONE terminal leaves contrast structural fields null
+        none_report = build_report(self.plan, by_id["A4-H4-FIELD-MODEL-NONE"])
+        rows = none_report["layers"]["h4_catalog_bootstrap"]["contrast_result"]["operations"]
+        self.assertTrue(all(row["kind_raw_value"] is None and row["name_bytes_matched"] is None for row in rows))
+        rows[0]["kind_raw_value"] = 7
+        with self.assertRaisesRegex(AssertionError, "without a unique structural model"):
+            validate_report_semantics(none_report, self.plan)
+        # OUTSIDE stops before records: contrast is not_applicable
+        outside = build_report(self.plan, by_id["A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED"])
+        self.assertEqual(outside["layers"]["h4_catalog_bootstrap"]["contrast_result"]["status"], "not_applicable")
+        # final candidate with a null contrast occurrence is accepted; null required occurrence is rejected
+        structural = candidate("h4_structural_field")
+        final = candidate("h4_final_encoded_field", structural_id=structural["canonical_candidate_id"])
+        final["model"]["selected_operation_occurrences"][1]["occurrence_index"] = None
+        validate_final_against_structural(final, structural)
+        final["model"]["selected_operation_occurrences"][0]["occurrence_index"] = None
+        with self.assertRaisesRegex(AssertionError, "required operation lacks"):
+            validate_final_against_structural(final, structural)
+
     def test_harness_ambiguities_are_resolved_by_stated_decisions(self) -> None:
         harness = self.plan["preregistration"]["origin_disclosure"]["executed_reference_harness"]
         self.assertEqual(harness["pull_request"], 74)
@@ -2645,7 +2791,7 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertIn("every one of the five", grammars["h4"]["catalog_root_selection_signature_rules"]["operation_delta_non_name_structure"])
         self.assertIn("page 0 and page 1", grammars["h4"]["isolated_delta_rule"])
         self.assertEqual(
-            grammars["h4"]["raw_tuple_filter_order"][5:7],
+            grammars["h4"]["raw_tuple_filter_order"][6:8],
             ["test_stored_length_plausibility", "deduplicate_value_equivalent_tuples"],
         )
         self.assertIn("value_equivalent_tuple_count", grammars["h4"]["field_candidate_shapes"])

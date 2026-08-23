@@ -762,22 +762,10 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "table",
-                "field",
-                "index"
+                "table"
               ],
               "properties": {
                 "table": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 4294967295
-                },
-                "field": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 4294967295
-                },
-                "index": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 4294967295
@@ -800,6 +788,7 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
@@ -807,6 +796,9 @@
                     "operation_id": {
                       "const": "T1_CREATE_ID"
                     },
+                    "required": {
+                      "const": true
+                    },
                     "compatible_occurrence_count": {
                       "type": "integer",
                       "minimum": 1,
@@ -823,6 +815,7 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
@@ -830,9 +823,12 @@
                     "operation_id": {
                       "const": "T1_ADD_TEXT"
                     },
+                    "required": {
+                      "const": false
+                    },
                     "compatible_occurrence_count": {
                       "type": "integer",
-                      "minimum": 1,
+                      "minimum": 0,
                       "maximum": 290
                     },
                     "compatible_occurrence_bitmap_hex": {
@@ -846,6 +842,7 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
@@ -853,9 +850,12 @@
                     "operation_id": {
                       "const": "T1_ADD_INDEX"
                     },
+                    "required": {
+                      "const": false
+                    },
                     "compatible_occurrence_count": {
                       "type": "integer",
-                      "minimum": 1,
+                      "minimum": 0,
                       "maximum": 290
                     },
                     "compatible_occurrence_bitmap_hex": {
@@ -869,6 +869,7 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
@@ -876,6 +877,9 @@
                     "operation_id": {
                       "const": "T2_CREATE"
                     },
+                    "required": {
+                      "const": true
+                    },
                     "compatible_occurrence_count": {
                       "type": "integer",
                       "minimum": 1,
@@ -892,6 +896,7 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
@@ -899,6 +904,9 @@
                     "operation_id": {
                       "const": "T2_RECREATE"
                     },
+                    "required": {
+                      "const": true
+                    },
                     "compatible_occurrence_count": {
                       "type": "integer",
                       "minimum": 1,
@@ -915,6 +923,7 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
@@ -922,6 +931,9 @@
                     "operation_id": {
                       "const": "T3_CREATE"
                     },
+                    "required": {
+                      "const": true
+                    },
                     "compatible_occurrence_count": {
                       "type": "integer",
                       "minimum": 1,
@@ -938,12 +950,16 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "compatible_occurrence_count",
                     "compatible_occurrence_bitmap_hex"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T4_CREATE"
+                    },
+                    "required": {
+                      "const": true
                     },
                     "compatible_occurrence_count": {
                       "type": "integer",
@@ -962,7 +978,7 @@
             "value_equivalent_tuple_count": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 165888
+              "maximum": 27648
             }
           }
         }
@@ -1012,12 +1028,16 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "occurrence_index"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T1_CREATE_ID"
                     },
+                    "required": {
+                      "const": true
+                    },
                     "occurrence_index": {
                       "type": "integer",
                       "minimum": 0,
@@ -1030,16 +1050,27 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "occurrence_index"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T1_ADD_TEXT"
                     },
+                    "required": {
+                      "const": false
+                    },
                     "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 289
+                      "anyOf": [
+                        {
+                          "const": null
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 289
+                        }
+                      ]
                     }
                   }
                 },
@@ -1048,16 +1079,27 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "occurrence_index"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T1_ADD_INDEX"
                     },
+                    "required": {
+                      "const": false
+                    },
                     "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 289
+                      "anyOf": [
+                        {
+                          "const": null
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 289
+                        }
+                      ]
                     }
                   }
                 },
@@ -1066,12 +1108,16 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "occurrence_index"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T2_CREATE"
                     },
+                    "required": {
+                      "const": true
+                    },
                     "occurrence_index": {
                       "type": "integer",
                       "minimum": 0,
@@ -1084,29 +1130,15 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
                     "occurrence_index"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T2_RECREATE"
                     },
-                    "occurrence_index": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 253
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "operation_id",
-                    "occurrence_index"
-                  ],
-                  "properties": {
-                    "operation_id": {
-                      "const": "T3_CREATE"
+                    "required": {
+                      "const": true
                     },
                     "occurrence_index": {
                       "type": "integer",
@@ -1120,11 +1152,37 @@
                   "additionalProperties": false,
                   "required": [
                     "operation_id",
+                    "required",
+                    "occurrence_index"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T3_CREATE"
+                    },
+                    "required": {
+                      "const": true
+                    },
+                    "occurrence_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 253
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "required",
                     "occurrence_index"
                   ],
                   "properties": {
                     "operation_id": {
                       "const": "T4_CREATE"
+                    },
+                    "required": {
+                      "const": true
                     },
                     "occurrence_index": {
                       "type": "integer",
@@ -1951,6 +2009,7 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -1958,6 +2017,9 @@
                 "operation_id": {
                   "const": "T1_CREATE_ID"
                 },
+                "required": {
+                  "const": true
+                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -1979,6 +2041,7 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -1986,6 +2049,9 @@
                 "operation_id": {
                   "const": "T1_ADD_TEXT"
                 },
+                "required": {
+                  "const": false
+                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2007,6 +2073,7 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2014,6 +2081,9 @@
                 "operation_id": {
                   "const": "T1_ADD_INDEX"
                 },
+                "required": {
+                  "const": false
+                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2035,6 +2105,7 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2042,6 +2113,9 @@
                 "operation_id": {
                   "const": "T2_CREATE"
                 },
+                "required": {
+                  "const": true
+                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2063,6 +2137,7 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2070,6 +2145,9 @@
                 "operation_id": {
                   "const": "T2_RECREATE"
                 },
+                "required": {
+                  "const": true
+                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2091,6 +2169,7 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
@@ -2098,6 +2177,9 @@
                 "operation_id": {
                   "const": "T3_CREATE"
                 },
+                "required": {
+                  "const": true
+                },
                 "cardinality": {
                   "type": "integer",
                   "minimum": 0,
@@ -2119,12 +2201,16 @@
               "additionalProperties": false,
               "required": [
                 "operation_id",
+                "required",
                 "cardinality",
                 "candidate_ids"
               ],
               "properties": {
                 "operation_id": {
                   "const": "T4_CREATE"
+                },
+                "required": {
+                  "const": true
                 },
                 "cardinality": {
                   "type": "integer",
@@ -2712,7 +2798,8 @@
       "required": [
         "root_result",
         "structural_result",
-        "encoding_result"
+        "encoding_result",
+        "contrast_result"
       ],
       "properties": {
         "root_result": {
@@ -2723,6 +2810,9 @@
         },
         "encoding_result": {
           "$ref": "#/$defs/h4EncodingResult"
+        },
+        "contrast_result": {
+          "$ref": "#/$defs/h4ContrastResult"
         }
       }
     },
@@ -2796,6 +2886,7 @@
         "catalog_raw_rows",
         "encoding_union_anchor_bytes",
         "h4_name_length_structural_tuples",
+        "h4_contrast_occurrence_evaluations",
         "encoding_length_equivalence_candidates",
         "candidate_serializations",
         "total_work_units"
@@ -2879,7 +2970,12 @@
         "h4_name_length_structural_tuples": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 306892800
+          "maximum": 35112960
+        },
+        "h4_contrast_occurrence_evaluations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 580
         }
       }
     },
@@ -3275,7 +3371,8 @@
         "memo_ole_or_long_value_layout",
         "writer_or_update_behavior",
         "free_space_preference",
-        "preservation_behavior"
+        "preservation_behavior",
+        "contrast_field_or_index_catalog_record_layout"
       ],
       "properties": {
         "descriptive_provider_observation_only": {
@@ -3346,6 +3443,239 @@
         },
         "preservation_behavior": {
           "const": false
+        },
+        "contrast_field_or_index_catalog_record_layout": {
+          "const": false
+        }
+      }
+    },
+    "h4ContrastResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "operations"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_applicable",
+            "reported"
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "operation_id",
+                "required",
+                "record_candidate_count",
+                "record_present",
+                "record_bytes_hex",
+                "compatible_occurrence_count",
+                "kind_raw_value",
+                "kind_differs_from_table",
+                "selected_occurrence_index",
+                "name_bytes_matched",
+                "stored_length_fits_decisive_class"
+              ],
+              "properties": {
+                "operation_id": {
+                  "const": "T1_ADD_TEXT"
+                },
+                "required": {
+                  "const": false
+                },
+                "record_candidate_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4096
+                },
+                "record_present": {
+                  "type": "boolean"
+                },
+                "record_bytes_hex": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^([0-9a-f]{2}){1,2036}$"
+                    }
+                  ]
+                },
+                "compatible_occurrence_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 290
+                },
+                "kind_raw_value": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    }
+                  ]
+                },
+                "kind_differs_from_table": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "selected_occurrence_index": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 289
+                    }
+                  ]
+                },
+                "name_bytes_matched": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "stored_length_fits_decisive_class": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "operation_id",
+                "required",
+                "record_candidate_count",
+                "record_present",
+                "record_bytes_hex",
+                "compatible_occurrence_count",
+                "kind_raw_value",
+                "kind_differs_from_table",
+                "selected_occurrence_index",
+                "name_bytes_matched",
+                "stored_length_fits_decisive_class"
+              ],
+              "properties": {
+                "operation_id": {
+                  "const": "T1_ADD_INDEX"
+                },
+                "required": {
+                  "const": false
+                },
+                "record_candidate_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4096
+                },
+                "record_present": {
+                  "type": "boolean"
+                },
+                "record_bytes_hex": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^([0-9a-f]{2}){1,2036}$"
+                    }
+                  ]
+                },
+                "compatible_occurrence_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 290
+                },
+                "kind_raw_value": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    }
+                  ]
+                },
+                "kind_differs_from_table": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "selected_occurrence_index": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 289
+                    }
+                  ]
+                },
+                "name_bytes_matched": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "stored_length_fits_decisive_class": {
+                  "anyOf": [
+                    {
+                      "const": null
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "items": false
         }
       }
     }

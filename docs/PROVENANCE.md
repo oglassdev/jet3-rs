@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `be6cecc23bad7bf25e71543023da074edf944c8f786bcd7703ef995e53708dc9`,
+  `f4443072050df84900fb63948f341054312065695d6d569b60aef8f39c8c8f40`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4513,7 +4513,7 @@ Use `not applicable` explicitly rather than omitting a field.
   then predict the role-rotated holdout without refit. Retain R5-V01-style
   plan/revision binding, phase-specific R4-S01-style measured survivor counts,
   R4-C01-style union-once work charging with terminal-path maxima, including
-  a 387,467,081-unit H4 path below the 600,000,000-unit ceiling (classified
+  a 115,687,821-unit H4 path below the 600,000,000-unit ceiling (classified
   `conservative_upper`; only its checked comparator is unit-tested at
   600,000,000/600,000,001 outside the 40 byte fixtures, and the byte-level
   resource terminal is a 67,200-entry changed-hash one-over campaign),
@@ -4590,7 +4590,9 @@ Use `not applicable` explicitly rather than omitting a field.
   P5-B1--P5-B4 and P5-S1, were applied to this unmerged
   base plan in place. Pass 4 also canonically binds the required, not-yet-
   executed reachability transcript and recomputes the 2,036-byte row, 1,850
-  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms.
+  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms
+  (the last two later reduced to 27,648 and 35,112,960 when field/index
+  appends became a non-failing contrast).
   Pass 5 separates H4 structural and encoding results, makes every terminal
   serialize only its declared payload (candidate set, grouped operation set,
   per-replica pair, or invalid observation), fixes the transcript schema
@@ -4602,7 +4604,12 @@ Use `not applicable` explicitly rather than omitting a field.
   only; its 17 recorded ambiguities AMB-01--AMB-17 are each resolved by a
   stated decision in the plan's `harness_ambiguity_resolutions`, including
   the page-bound decodability rule that reproduces the 1,872-window count and
-  the by-construction unreachability of `A4-H1-LOCATOR-PAIR-MULTIPLE`;
+  the by-construction unreachability of `A4-H1-LOCATOR-PAIR-MULTIPLE`.
+  Following the AMB-09 decision, catalog-record predicates require one record
+  per table lifecycle operation instance (five `TableDefs.Append` operations)
+  and the `Payload`/`A4IX_ID` appends are a separately reported, non-failing
+  `contrast_result` with its own record/occurrence accounting that cannot
+  terminate H4 and claims no field or index layout;
   focused A4
   plan and repository contract checks must pass
 

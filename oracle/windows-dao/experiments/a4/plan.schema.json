@@ -579,7 +579,8 @@
         "campaign_timeout_seconds",
         "max_child_log_bytes",
         "max_companion_bytes_per_checkpoint",
-        "max_qualified_pages_per_submodel"
+        "max_qualified_pages_per_submodel",
+        "max_h4_value_equivalent_tuples"
       ],
       "properties": {
         "page_size": {
@@ -659,6 +660,9 @@
         },
         "max_qualified_pages_per_submodel": {
           "const": 16
+        },
+        "max_h4_value_equivalent_tuples": {
+          "const": 27648
         }
       }
     },
@@ -688,7 +692,8 @@
         "memo_ole_or_long_value_layout",
         "writer_or_update_behavior",
         "free_space_preference",
-        "preservation_behavior"
+        "preservation_behavior",
+        "contrast_field_or_index_catalog_record_layout"
       ],
       "properties": {
         "descriptive_provider_observation_only": {
@@ -758,6 +763,9 @@
           "const": false
         },
         "preservation_behavior": {
+          "const": false
+        },
+        "contrast_field_or_index_catalog_record_layout": {
           "const": false
         }
       }
