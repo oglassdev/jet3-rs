@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`ef1e5d150df0c1aead5b1ec516a8c74b268c62167ee42c020364f9fe870cb203`.
+`a3ec6e693a0b07c0697cf5d6d47c69ca070eafc3549b470c85664602cd8d954a`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -17,20 +17,27 @@ layers without allowing a later failure to erase an earlier success:
 3. `A4-H3` tests type-1 zero-slot behavior, exact tag-05 references, bitmap
    bytes `[4,2048)`, and
    `absolute_page = slot_ordinal * 16352 + bit_index`.
-4. `A4-H4` tests one allocation-admitted catalog root and a minimal field model
-   for object kind, identifier lifecycle, and name bytes/encoding.
+4. `A4-H4` locates one allocation-admitted catalog root and structural field
+   model from operation deltas and non-name fields, then compares exact strict
+   Windows-1252 and UTF-8 name bytes and stored-length equivalence classes.
 
 Every layer has an explicit ordered predicate sequence and `no_outcome`
 terminal in the plan. All 40 registered predicate ids have a mandatory
 contract with prerequisites, input candidate set, exact pass/fail rule,
 terminal/count/status behavior, and a constructible unique reachability
-fixture that passes every prior predicate. R4-C01-style charging counts each unique qualified
+fixture that passes every prior predicate. The stdlib-only
+`scripts/a4_plan_fixtures.py` evaluator executes the 40 registered fixture rows
+in order and proves first termination and survivor counts without importing
+analyzer logic. R4-C01-style charging counts each unique qualified
 page/checkpoint/model identity once across the derivation-replica union.
 
 ## Frozen design
 
-Three fresh replicas are required. Replicas 1 and 2 derive and canonically
-freeze all candidates before replica 3 is downloaded or opened. Physical table
+Three fresh replicas are required. Replicas 1 and 2 first evaluate every
+non-holdout H1--H4 predicate, then canonically freeze and hash all four layer
+results before replica 3 is acquired or opened. The later holdout phase runs
+H1, H2, H3, H4 root, and H4 fields in order without changing frozen bytes.
+Physical table
 names rotate across logical roles `T1` through `T4`:
 
 - `A4TAB_A1`
@@ -39,10 +46,16 @@ names rotate across logical roles `T1` through `T4`:
 - `A4TAB_É4`
 
 The four physical names are eight Unicode scalar values and, under the required
-strict Windows-1252 conversion, eight bytes each. `A4TAB_É4` is the only non-ASCII
-identifier and is pinned to Windows ANSI code page 1252, hexadecimal bytes
-`41 34 54 41 42 5f c9 34`. A host whose `GetACP` result is not 1252 fails
-before database creation. `A4IX_ID` is a nonunique index over the existing
+DAO snapshot conversion, eight strict Windows-1252 bytes each. `A4TAB_É4` is
+the only non-ASCII identifier and has Windows-1252 bytes
+`41 34 54 41 42 5f c9 34`; the registered alternate UTF-8 encoding uses
+`c3 89` for U+00C9. Catalog records are located without name bytes. Encoding
+and stored length are evaluated only after one structural model survives.
+Because strict CP1252 has one byte per representable scalar, no identifier
+within CP1252 can distinguish byte-count from scalar/code-unit-count for this
+question; those observationally equivalent hypotheses are reported as the
+single `cp1252_single_byte_per_scalar` class. A host whose `GetACP` result is
+not 1252 fails before database creation. `A4IX_ID` is a nonunique index over the existing
 `Id` long field and is only a catalog object-kind perturbation; A4 makes no
 physical index-layout claim.
 
@@ -59,8 +72,9 @@ Only one listed logical schema operation occurs between closed checkpoints.
 Every checkpoint retains a physical page index and a canonical DAO schema
 snapshot of non-system TableDefs, fields, indexes, attributes, row counts, and
 rolling row hashes. The schema snapshot is read-only, and the before/after MDB
-hashes must match. Its collection ordinals come from zero-based DAO enumeration
-after `Refresh`; exact BSTR UTF-16 code units and strict Windows-1252 bytes are
+hashes must match. It reopens with
+`workspace.OpenDatabase(path, False, True, "")`. Its collection ordinals are
+assigned only after each declared post-`Refresh` filter; exact BSTR UTF-16 code units and strict Windows-1252 bytes are
 retained, and validators independently reject duplicate roles, names, or
 ordinals and cross-bind every snapshot to its observation, page index,
 manifest entry, and actual bytes.
@@ -104,11 +118,21 @@ The base plan incorporates A3's later machinery fixes from the start:
   inapplicable layer.
 - R4-C01-style charging counts union-qualified work once, even when both
   derivation replicas expose it.
-- Canonical locator pairs admit exactly 4,167,722 layout/offset candidates per
-  qualified TDEF page and 66,683,552 across 16 pages. The closed work equation
-  totals 81,099,648 units. The retained page store is limited to 128 MiB for
-  65,536 unique 2,048-byte blobs, and at most 4,096 canonical candidates fit
-  the frozen-set JSON contract.
+- Canonical locator enumeration examines 4,090 raw window identities and at
+  most 4,167,722 raw pairs per qualified TDEF page. Across 16 pages the raw
+  pair bound is 66,683,552. On retained A3 page 23, the plan recomputes 1,872
+  preserved windows per layout, 3,491,392 raw nonoverlapping pairs, and a
+  3,495,482-unit raw-window/pair charge before one structural pair survives.
+- Work is bounded per reachable fail-fast terminal path. The largest stated
+  path is H4 at 343,105,669 units under the conservative 350,000,000-unit
+  ceiling; mutually exclusive row-count and row-length maxima are not summed.
+  Type-1 rows admit at most 508 complete slots, type-0 rows 16,248 bits, and
+  tag-05 pages 16,352 bits. H4 charges every one of its 262,821,888 possible
+  raw structural tuples on the maximal path.
+- Two and only two full checkpoint-page read passes cost 2,097,152,000 bytes
+  per replica, below the 2 GiB logical-read bound. Candidates are capped at
+  4,096 bytes each, their full array at 16,781,313 bytes, and concrete bounded
+  transcript schemas keep the complete frozen JSON below 64 MiB.
 - R5-T01-style timing measures from hosted attempt start through successful
   manifest creation. Exactly 2,700 seconds is accepted; 2,701 is rejected
   before manifest creation and produces diagnostics rather than a successful

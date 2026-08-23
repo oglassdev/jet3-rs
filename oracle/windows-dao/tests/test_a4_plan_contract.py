@@ -27,7 +27,7 @@ CALIBRATION = EXPERIMENT / "design-inputs" / "a3-calibration-receipt.json"
 README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 
-PLAN_SHA256 = "ef1e5d150df0c1aead5b1ec516a8c74b268c62167ee42c020364f9fe870cb203"
+PLAN_SHA256 = "a3ec6e693a0b07c0697cf5d6d47c69ca070eafc3549b470c85664602cd8d954a"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 ZERO_SHA256 = "0" * 64
@@ -81,6 +81,7 @@ from protocol_validation import (  # noqa: E402
     lint_schema,
     validate_schema_value,
 )
+from a4_plan_fixtures import evaluate_all_registered_fixtures  # noqa: E402
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -97,14 +98,45 @@ def canonical_sha256(value: Any) -> str:
 
 
 def candidate(model_type: str, serial: int = 1) -> dict[str, Any]:
-    model: dict[str, Any] = {"serial": serial}
-    if model_type == "h2_map_role":
-        model.update(
-            owned_in_use_locator_ordinal=0,
-            available_locator_ordinal=1,
-        )
     if model_type == "h1_locator":
-        model["locator_targets"] = [[24, 0], [24, 1]]
+        model: dict[str, Any] = {
+            "layout": "u8_row_then_u24le_page",
+            "table_signature_id": "a3_page23_masked_record_0_92",
+            "locator_offsets": [35 + serial - 1, 39 + serial - 1],
+            "locator_targets": [[24 + serial - 1, 0], [24 + serial - 1, 1]],
+        }
+    elif model_type == "h2_map_role":
+        model = {
+            "row_mask": 8191 if serial % 2 else 4095,
+            "polarity": "set_bit_owned_in_use" if serial % 2 else "clear_bit_owned_in_use",
+            "owned_in_use_locator_ordinal": 0,
+            "available_locator_ordinal": 1,
+        }
+    elif model_type == "h3_traversal":
+        formulas = [
+            "slot_ordinal_times_16352_plus_bit_index",
+            "referenced_page_times_16352_plus_bit_index",
+            "slot_ordinal_times_16352_plus_bit_index_minus_one",
+            "slot_ordinal_times_16352_plus_bit_index_plus_one",
+        ]
+        model = {
+            "conversion": "structural_type_0_to_type_1_with_nonzero_u32_slots",
+            "base_formula": formulas[(serial - 1) % len(formulas)],
+        }
+    elif model_type == "h4_catalog_root":
+        model = {"tdef_page": 20 + serial, "locator_offsets": [35, 39]}
+    elif model_type == "h4_catalog_field":
+        model = {
+            "kind_start_delta": min(serial, 16),
+            "kind_width": 1,
+            "identifier_width": 4,
+            "endianness": "little",
+            "kind_mapping": "bijection-1",
+            "identifier_lifecycle": "stable_for_same_operation_instance_and_distinct_for_t2_v1_v2",
+            "encoding_length_equivalence_class": "cp1252_single_byte_per_scalar",
+        }
+    else:
+        raise AssertionError(f"unknown model type {model_type}")
     value = {"model_type": model_type, "model": model}
     return {"canonical_id": canonical_sha256(value), **value}
 
@@ -114,7 +146,6 @@ def frozen_result(
     status: str,
     terminal: str | None = None,
     count: int | None = None,
-    holdout_evaluated: bool = False,
 ) -> dict[str, Any]:
     if count is None:
         count = 1 if status == "model" else 0
@@ -126,7 +157,6 @@ def frozen_result(
         "terminal_predicate_id": terminal,
         "candidates": candidates,
         "canonical_candidates_sha256": canonical_sha256(candidates),
-        "holdout_evaluated": holdout_evaluated,
     }
 
 
@@ -146,7 +176,7 @@ def validate_frozen_result(value: dict[str, Any]) -> None:
     if value["status"] == "model" and (count != 1 or terminal is not None):
         raise AssertionError("model must have one candidate and no terminal")
     if value["status"] == "not_applicable" and (
-        count != 0 or candidates or terminal is not None or value["holdout_evaluated"]
+        count != 0 or candidates or terminal is not None
     ):
         raise AssertionError("not_applicable result has retained state")
     if value["status"] == "no_outcome" and terminal is None:
@@ -168,16 +198,19 @@ def validate_frozen_result(value: dict[str, Any]) -> None:
 def validate_layer_semantics(layers: dict[str, Any]) -> None:
     for name in LAYERS[:3]:
         validate_frozen_result(layers[name])
+        self_type = MODEL_TYPES[name]
+        if any(item["model_type"] != self_type for item in layers[name]["candidates"]):
+            raise AssertionError("layer contains a foreign candidate type")
     root = layers["h4_catalog_bootstrap"]["root_result"]
     field = layers["h4_catalog_bootstrap"]["field_result"]
     validate_frozen_result(root)
     validate_frozen_result(field)
     if root["status"] != "model" and field["status"] != "not_applicable":
         raise AssertionError("H4 fields require a decisive root")
-    if root["terminal_predicate_id"] == "A4-H4-HOLDOUT-ROOT" and (
-        field["status"] != "not_applicable"
-    ):
-        raise AssertionError("failed root holdout must gate field holdout")
+    if any(item["model_type"] != MODEL_TYPES["root_result"] for item in root["candidates"]):
+        raise AssertionError("H4 root contains a foreign candidate type")
+    if any(item["model_type"] != MODEL_TYPES["field_result"] for item in field["candidates"]):
+        raise AssertionError("H4 field contains a foreign candidate type")
 
 
 def predicate_failure_count(contract: dict[str, Any]) -> int:
@@ -202,16 +235,16 @@ def build_layers_for_terminal(
         model_type = MODEL_TYPES[name]
         if terminal_scope == "campaign":
             return frozen_result(model_type, "not_applicable")
+        if terminal_id is not None and "HOLDOUT" in terminal_id:
+            return frozen_result(model_type, "model")
         if terminal_scope is None or scope_order.index(name) < scope_order.index(terminal_scope):
-            return frozen_result(model_type, "model", holdout_evaluated=True)
+            return frozen_result(model_type, "model")
         if name == terminal_scope:
-            holdout = terminal_id is not None and "HOLDOUT" in terminal_id
             return frozen_result(
                 model_type,
                 "no_outcome",
                 terminal_id,
                 terminal_count,
-                holdout,
             )
         return frozen_result(model_type, "not_applicable")
 
@@ -227,10 +260,10 @@ def build_layers_for_terminal(
             "root_result": frozen_result(root_type, "not_applicable"),
             "field_result": frozen_result(field_type, "not_applicable"),
         }
-    elif terminal_scope is None:
+    elif terminal_scope is None or (terminal_id is not None and "HOLDOUT" in terminal_id):
         h4 = {
-            "root_result": frozen_result(root_type, "model", holdout_evaluated=True),
-            "field_result": frozen_result(field_type, "model", holdout_evaluated=True),
+            "root_result": frozen_result(root_type, "model"),
+            "field_result": frozen_result(field_type, "model"),
         }
     else:
         assert terminal_id is not None and terminal_count is not None
@@ -238,7 +271,6 @@ def build_layers_for_terminal(
             "A4-H4-CATALOG-ROOT-NONE",
             "A4-H4-CATALOG-ROOT-MULTIPLE",
             "A4-H4-SCHEMA-DELTA-OUTSIDE-OWNED",
-            "A4-H4-HOLDOUT-ROOT",
         }
         if terminal_id in root_terminals:
             h4 = {
@@ -247,19 +279,17 @@ def build_layers_for_terminal(
                     "no_outcome",
                     terminal_id,
                     terminal_count,
-                    "HOLDOUT" in terminal_id,
                 ),
                 "field_result": frozen_result(field_type, "not_applicable"),
             }
         else:
             h4 = {
-                "root_result": frozen_result(root_type, "model", holdout_evaluated=True),
+                "root_result": frozen_result(root_type, "model"),
                 "field_result": frozen_result(
                     field_type,
                     "no_outcome",
                     terminal_id,
                     terminal_count,
-                    terminal_id == "A4-H4-HOLDOUT-FIELDS",
                 ),
             }
     layers["h4_catalog_bootstrap"] = h4
@@ -270,20 +300,19 @@ def build_report(
     plan: dict[str, Any], terminal_index: int | None = None
 ) -> dict[str, Any]:
     contracts = plan["predicate_registry"]["predicate_contracts"]
+    fixture_results = None
+    if terminal_index is not None:
+        fixture_results = evaluate_all_registered_fixtures(plan)[terminal_index]
     results = []
     for index, contract in enumerate(contracts):
-        if terminal_index is None or index < terminal_index:
-            status = "pass"
-            terminal = None
+        if fixture_results is None:
+            status, terminal = "pass", None
             count = 0 if contract["scope"] == "campaign" else 1
-        elif index == terminal_index:
-            status = "fail"
-            terminal = contract["predicate_id"]
-            count = predicate_failure_count(contract)
         else:
-            status = "not_applicable"
-            terminal = None
-            count = 0
+            executed = fixture_results.predicate_results[index]
+            status = executed["status"]
+            terminal = executed["terminal_predicate_id"]
+            count = executed["survivor_count"]
         results.append(
             {
                 "predicate_id": contract["predicate_id"],
@@ -295,6 +324,7 @@ def build_report(
                 "reachability_fixture_id": contract["reachability_fixture_id"],
             }
         )
+    holdout_results = build_holdout_results(contracts, terminal_index)
     return {
         "protocol_version": "1.0.0",
         "document_type": "dao_a4_analysis_report",
@@ -304,10 +334,12 @@ def build_report(
         "campaign_id": "synthetic",
         "producer_commit": "0" * 40,
         "derivation_replicas": [1, 2],
+        "derivation_candidate_set_sha256": ZERO_SHA256,
         "holdout_replica": 3,
         "holdout_opened_after_freeze": True,
         "predicate_results": results,
         "layers": build_layers_for_terminal(contracts, terminal_index),
+        "holdout_results": holdout_results,
         "transcripts": {
             "row_directories": [],
             "locators": [],
@@ -318,10 +350,35 @@ def build_report(
         },
         "scientific_outcome": (
             "one_or_more_layers_predict_holdout"
-            if terminal_index is None or terminal_index >= 13
+            if any(item["status"] == "pass" for item in holdout_results.values())
             else "no_layer_predicts_holdout"
         ),
         "claims": copy.deepcopy(plan["claims"]),
+    }
+
+
+def build_holdout_results(
+    contracts: list[dict[str, Any]], terminal_index: int | None
+) -> dict[str, Any]:
+    names = ["h1", "h2", "h3", "h4_root", "h4_fields"]
+    holdout_ids = [
+        "A4-H1-HOLDOUT-PREDICTION",
+        "A4-H2-HOLDOUT-PREDICTION",
+        "A4-H3-HOLDOUT-PREDICTION",
+        "A4-H4-HOLDOUT-ROOT",
+        "A4-H4-HOLDOUT-FIELDS",
+    ]
+    terminal_id = contracts[terminal_index]["predicate_id"] if terminal_index is not None else None
+    if terminal_id not in holdout_ids:
+        status = "pass" if terminal_id is None else "not_applicable"
+        return {name: {"status": status, "terminal_predicate_id": None} for name in names}
+    failed = holdout_ids.index(terminal_id)
+    return {
+        name: {
+            "status": "pass" if index < failed else "fail" if index == failed else "not_applicable",
+            "terminal_predicate_id": terminal_id if index == failed else None,
+        }
+        for index, name in enumerate(names)
     }
 
 
@@ -366,6 +423,19 @@ def validate_report_semantics(report: dict[str, Any], plan: dict[str, Any]) -> N
         if result["derivation_survivor_count"] != expected_count:
             raise AssertionError("predicate survivor projection mismatch")
     validate_layer_semantics(report["layers"])
+    projected = (
+        "one_or_more_layers_predict_holdout"
+        if any(item["status"] == "pass" for item in report["holdout_results"].values())
+        else "no_layer_predicts_holdout"
+    )
+    if report["scientific_outcome"] != projected:
+        raise AssertionError("scientific_outcome differs from holdout projection")
+
+
+def validate_work_charges(charges: dict[str, int]) -> None:
+    terms = [value for key, value in charges.items() if key != "total_work_units"]
+    if charges["total_work_units"] != sum(terms):
+        raise AssertionError("total_work_units mismatch")
 
 
 def validate_snapshot_uniqueness(snapshot: dict[str, Any]) -> None:
@@ -519,7 +589,9 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(expected["T2_RECREATE"][-1], "T2:v2:id+payload")
         protocol = self.plan["tables"]["dao_protocol"]
         for required in (
-            "DAO.DBEngine.36.CreateDatabase",
+            "DAO.DBEngine.36.Workspaces(0)",
+            "workspace.CreateDatabase",
+            'workspace.OpenDatabase(path, False, True, "")',
             "dbVersion30 is numeric 32",
             "dbOpenDynaset numeric 2",
             "No DAO workspace BeginTrans",
@@ -528,6 +600,16 @@ class A4PlanContractTests(unittest.TestCase):
             "No compact or repair",
         ):
             self.assertIn(required, " ".join(protocol.values()))
+        fields = self.plan["tables"]["definition"]["fields"]
+        self.assertEqual(
+            [(field["required"], field["allow_zero_length"]) for field in fields],
+            [(False, None), (False, False)],
+        )
+        index = self.plan["tables"]["definition"]["index"]
+        self.assertEqual(
+            [index[key] for key in ("primary", "unique", "required", "ignore_nulls")],
+            [False, False, False, False],
+        )
 
     def test_role_rotation_and_strict_name_capture_are_exact(self) -> None:
         tables = self.plan["tables"]
@@ -539,6 +621,14 @@ class A4PlanContractTests(unittest.TestCase):
         capture = tables["identifier_discriminator"]["name_capture_rule"]
         for required in ("WideCharToMultiByte", "WC_NO_BEST_FIT_CHARS", "usedDefaultChar == FALSE", "no Unicode normalization"):
             self.assertIn(required, capture)
+        grammar = self.plan["candidate_grammars"]["h4"]
+        self.assertEqual(
+            [item["u00c9_hex"] for item in grammar["name_encodings"]],
+            ["c9", "c389"],
+        )
+        cp1252_class = grammar["name_length_equivalence_classes"][0]
+        self.assertEqual(len(cp1252_class["members"]), 2)
+        self.assertIn("no identifier within CP1252", cp1252_class["reason"])
 
     def test_all_40_predicate_contracts_define_executable_semantics(self) -> None:
         registry = self.plan["predicate_registry"]
@@ -546,7 +636,7 @@ class A4PlanContractTests(unittest.TestCase):
             predicate
             for sequence in registry["per_layer_ordered_predicates"].values()
             for predicate in sequence
-        ]
+        ] + registry["holdout_phase_ordered_predicates"]
         contracts = registry["predicate_contracts"]
         self.assertEqual(len(flattened), 40)
         self.assertEqual([item["predicate_id"] for item in contracts], flattened)
@@ -556,6 +646,7 @@ class A4PlanContractTests(unittest.TestCase):
             "predicate_id", "order", "scope", "prerequisites", "input_candidate_set",
             "pass_iff", "fail_iff", "terminal_id", "failure_survivor_count",
             "later_status", "reachability_fixture_id", "reachability_fixture",
+            "semantic_rule", "reachability_fixture_input",
         }
         for contract in contracts:
             self.assertEqual(set(contract), required)
@@ -565,8 +656,28 @@ class A4PlanContractTests(unittest.TestCase):
             self.assertTrue(contract["fail_iff"])
             self.assertTrue(contract["reachability_fixture"])
         evaluation = registry["evaluation_rule"]
-        for phrase in ("pass means and only means", "sole terminal", "all 36 scientific predicates", "complete frozen candidate set", "unchanged single derivation model"):
+        for phrase in ("Evaluation has two phases", "Derivation phase", "Holdout phase", "derivation layer depends", "sole terminal", "all 36 scientific predicates"):
             self.assertIn(phrase, evaluation)
+
+    def test_all_40_semantic_fixtures_first_terminate_at_the_claimed_row(self) -> None:
+        evaluations = evaluate_all_registered_fixtures(self.plan)
+        self.assertEqual(len(evaluations), 40)
+        for evaluation in evaluations:
+            with self.subTest(fixture=evaluation.fixture_id):
+                self.assertEqual(evaluation.first_failure, evaluation.claimed_terminal)
+                failed = [
+                    row for row in evaluation.predicate_results if row["status"] == "fail"
+                ]
+                self.assertEqual(len(failed), 1)
+                self.assertEqual(failed[0]["terminal_predicate_id"], evaluation.claimed_terminal)
+                self.assertTrue(
+                    all(
+                        row["status"] == "not_applicable"
+                        for row in evaluation.predicate_results[
+                            list(evaluation.predicate_results).index(failed[0]) + 1 :
+                        ]
+                    )
+                )
 
     def test_every_terminal_and_all_pass_report_validate_semantically(self) -> None:
         contracts = self.plan["predicate_registry"]["predicate_contracts"]
@@ -576,9 +687,14 @@ class A4PlanContractTests(unittest.TestCase):
                 validate_schema_value(report, self.analysis_schema, self.analysis_schema, "$")
                 validate_report_semantics(report, self.plan)
 
-    def test_frozen_schemas_represent_none_multiple_partial_and_holdout_states(self) -> None:
+    def test_freeze_precedes_holdout_and_is_identical_for_pass_and_failure(self) -> None:
         contracts = self.plan["predicate_registry"]["predicate_contracts"]
-        indexes = [4, 5, 34, 38, 39]
+        by_id = {row["predicate_id"]: index for index, row in enumerate(contracts)}
+        indexes = [
+            by_id["A4-H1-TDEF-NONE"],
+            by_id["A4-H1-TDEF-MULTIPLE"],
+            by_id["A4-H4-FIELD-MODEL-NONE"],
+        ]
         for index in indexes:
             report = build_report(self.plan, index)
             freeze = {
@@ -591,18 +707,21 @@ class A4PlanContractTests(unittest.TestCase):
                 "derivation_replicas": [1, 2],
                 "qualified_pages": [],
                 "work_charges": {
-                    "row_directory_entries": 0,
                     "tdef_lifecycle_signatures": 0,
-                    "locator_pairs": 0,
+                    "raw_locator_windows": 0,
+                    "raw_locator_pairs": 0,
+                    "locator_transition_signatures": 0,
+                    "valid_path_row_directory_entries": 0,
                     "type_1_slots": 0,
-                    "bitmap_bits": 0,
-                    "transition_models": 0,
+                    "type_0_and_tag_05_bitmap_bits": 0,
+                    "role_transition_evaluations": 0,
                     "base_formula_evaluations": 0,
                     "catalog_root_signatures": 0,
-                    "catalog_rows": 0,
-                    "catalog_field_candidates": 0,
+                    "catalog_raw_rows": 0,
+                    "h4_raw_structural_tuples": 0,
+                    "encoding_length_equivalence_candidates": 0,
                     "candidate_serializations": 0,
-                    "total": 0,
+                    "total_work_units": 0,
                 },
                 "layers": copy.deepcopy(report["layers"]),
                 "transcripts": copy.deepcopy(report["transcripts"]),
@@ -610,12 +729,36 @@ class A4PlanContractTests(unittest.TestCase):
             with self.subTest(terminal=contracts[index]["predicate_id"]):
                 validate_schema_value(freeze, self.derivation_schema, self.derivation_schema, "$")
                 validate_layer_semantics(freeze["layers"])
+                validate_work_charges(freeze["work_charges"])
                 self.assertEqual(freeze["layers"], report["layers"])
-        partial = build_report(self.plan, 34)["layers"]["h4_catalog_bootstrap"]
+        partial = build_report(
+            self.plan, by_id["A4-H4-FIELD-MODEL-NONE"]
+        )["layers"]["h4_catalog_bootstrap"]
         self.assertEqual(partial["root_result"]["status"], "model")
         self.assertEqual(partial["field_result"]["status"], "no_outcome")
-        failed_root = build_report(self.plan, 38)["layers"]["h4_catalog_bootstrap"]
-        self.assertEqual(failed_root["field_result"]["status"], "not_applicable")
+        pass_report = build_report(self.plan)
+        frozen_pass = pass_report["layers"]
+        frozen_bytes = canonical_bytes({"layers": frozen_pass})
+        frozen_sha256 = hashlib.sha256(frozen_bytes).hexdigest()
+        pass_report["derivation_candidate_set_sha256"] = frozen_sha256
+        failed_holdout = build_report(
+            self.plan, by_id["A4-H4-HOLDOUT-ROOT"]
+        )
+        failed_holdout["derivation_candidate_set_sha256"] = frozen_sha256
+        self.assertEqual(failed_holdout["layers"], frozen_pass)
+        self.assertEqual(failed_holdout["holdout_results"]["h4_root"]["status"], "fail")
+        self.assertEqual(
+            failed_holdout["holdout_results"]["h4_fields"]["status"],
+            "not_applicable",
+        )
+        self.assertEqual(
+            canonical_bytes(failed_holdout["layers"]), canonical_bytes(frozen_pass)
+        )
+        self.assertEqual(
+            pass_report["derivation_candidate_set_sha256"],
+            failed_holdout["derivation_candidate_set_sha256"],
+        )
+        self.assertEqual(hashlib.sha256(frozen_bytes).hexdigest(), frozen_sha256)
 
     def test_malformed_duplicate_classes_and_equal_h2_ordinals_are_rejected(self) -> None:
         report = build_report(self.plan)
@@ -645,9 +788,14 @@ class A4PlanContractTests(unittest.TestCase):
     def test_snapshot_uniqueness_and_strict_name_fields_are_semantically_checked(self) -> None:
         schema = json.loads(SCHEMA_SNAPSHOT.read_bytes())
         self.assertFalse(schema["properties"]["dao_identifier_observable"]["const"])
+        self.assertIn("required", schema["$defs"]["index"]["required"])
+        self.assertIn(
+            {"type": "null"},
+            schema["$defs"]["field"]["properties"]["allow_zero_length"]["anyOf"],
+        )
         table = {
             "ordinal": 0,
-            "ordinal_source": "TableDefs zero-based user-table enumeration after Refresh",
+            "ordinal_source": "TableDefs zero-based position after Refresh and canonical user-table filtering",
             "logical_role": "T1",
             "lifecycle_instance": "T1-v1",
             "name": "A4TAB_A1",
@@ -658,7 +806,7 @@ class A4PlanContractTests(unittest.TestCase):
             "rolling_row_sha256": ZERO_SHA256,
             "fields": [{
                 "ordinal": 0,
-                "ordinal_source": "Fields zero-based DAO enumeration after Refresh",
+                "ordinal_source": "Fields zero-based position after Refresh and the all-fields filter",
                 "name": "Id",
                 "name_utf16_code_units": [73, 100],
                 "name_windows_1252_hex": "4964",
@@ -666,7 +814,7 @@ class A4PlanContractTests(unittest.TestCase):
                 "size": 4,
                 "attributes": 0,
                 "required": False,
-                "allow_zero_length": False,
+                "allow_zero_length": None,
             }],
             "indexes": [],
         }
@@ -827,25 +975,85 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(2 * one_layout, bounds["max_locator_pairs_per_tdef_page"])
         self.assertEqual(16 * 2 * one_layout, bounds["max_locator_pairs"])
         expected_terms = {
-            "row_directory_entries": 16 * 25 * 1019,
             "tdef_lifecycle_signatures": 16 * 25 * 2,
-            "locator_pairs": 16 * 4167722,
-            "type_1_slots": 16 * 25 * 2 * 511,
-            "type_0_and_tag_05_bitmap_bits": 16 * 25 * (16344 + 16352),
+            "raw_locator_windows": 16 * 4090,
+            "raw_locator_pairs": 16 * 4167722,
+            "locator_transition_signatures": 16 * 7 * 2,
+            "valid_path_row_directory_entries": 16 * 25 * 2,
+            "type_1_slots": 16 * 25 * 2 * 508,
+            "type_0_and_tag_05_bitmap_bits": 16 * 25 * (16248 + 16352),
             "role_transition_evaluations": 2 * 2 * 2 * 5 * 4 * 25,
             "base_formula_evaluations": 4 * 16 * 25,
             "catalog_root_signatures": 16 * 25 * 2,
-            "catalog_rows": 16 * 25 * 1019,
-            "catalog_field_candidates": 4096 * 25,
+            "catalog_raw_rows": 7 * 16 * 679,
+            "h4_raw_structural_tuples": 7 * 16 * 679 * (16 * 3 * 3 * 2 * 6 * 2),
+            "encoding_length_equivalence_candidates": 7 * 3,
             "candidate_serializations": 4096,
         }
         terms = self.plan["work_model"]["terms"]
         self.assertEqual({key: value["units"] for key, value in terms.items()}, expected_terms)
-        self.assertEqual(sum(expected_terms.values()), bounds["max_analysis_work_units"])
+        self.assertEqual(self.plan["work_model"]["terminal_path_maxima"]["h4_latest_derivation_terminal"], 343105669)
+        self.assertLessEqual(343105669, bounds["max_analysis_work_units"])
         self.assertEqual(bounds["max_retained_page_store_bytes"], 65536 * 2048)
-        self.assertLessEqual(4096 * 8190 + 4097, bounds["max_canonical_candidates_array_bytes"])
-        self.assertIn("unit 81099648", self.plan["work_model"]["exact_and_one_over"])
-        self.assertIn("81099649", self.plan["work_model"]["exact_and_one_over"])
+        self.assertEqual(4096 * 4096 + 4097, bounds["max_canonical_candidates_array_bytes"])
+        passes = self.plan["work_model"]["full_page_read_passes"]
+        self.assertEqual(passes["count"] * passes["bytes_per_pass_per_replica"], 2097152000)
+        self.assertLessEqual(2097152000, bounds["max_logical_checkpoint_read_bytes_per_replica"])
+        self.assertEqual(self.plan["work_model"]["bound_classification"]["max_analysis_work_units"], "conservative_upper")
+
+    def test_a3_page_23_raw_window_and_pair_charge_is_recomputed_when_available(self) -> None:
+        expected = self.plan["candidate_grammars"]["h1"]["a3_page_23_recomputed_work"]
+        root = Path(
+            self.plan["preregistration"]["origin_disclosure"]["a3_calibration_bundle"]["local_read_only_path"]
+        ) / "jet3-a3-bundle"
+        if not root.exists():
+            self.skipTest("read-only retained A3 calibration bundle is not mounted")
+        pages = []
+        for path in sorted((root / "page-indexes" / "replica-01").glob("*.json")):
+            index = json.loads(path.read_bytes())
+            digest = index["ordered_page_sha256"][23]
+            page = (root / "page-store" / f"{digest}.page").read_bytes()
+            self.assertEqual(hashlib.sha256(page).hexdigest(), digest)
+            pages.append(page)
+        self.assertEqual(len(pages), 25)
+        preserved: list[list[int]] = []
+        for layout in ("page_row", "row_page"):
+            offsets = []
+            for offset in range(2045):
+                for page in pages:
+                    raw = page[offset : offset + 4]
+                    number = int.from_bytes(raw[:3], "little") if layout == "page_row" else int.from_bytes(raw[1:], "little")
+                    if number > 20479:
+                        break
+                else:
+                    offsets.append(offset)
+            preserved.append(offsets)
+        pair_counts = [
+            sum(1 for i, a in enumerate(offsets) for b in offsets[i + 1 :] if b - a >= 4)
+            for offsets in preserved
+        ]
+        self.assertEqual([len(values) for values in preserved], [1872, 1872])
+        self.assertEqual(pair_counts, [1745696, 1745696])
+        self.assertEqual(4090 + sum(pair_counts), expected["raw_interval_and_pair_charge"])
+
+    def test_work_total_and_layer_candidate_discriminator_are_semantic(self) -> None:
+        report = build_report(self.plan)
+        foreign = copy.deepcopy(report)
+        foreign["layers"]["h1_tdef_to_map_row"]["candidates"] = [candidate("h4_catalog_root")]
+        foreign["layers"]["h1_tdef_to_map_row"]["derivation_survivor_count"] = 1
+        foreign["layers"]["h1_tdef_to_map_row"]["canonical_candidates_sha256"] = canonical_sha256(
+            foreign["layers"]["h1_tdef_to_map_row"]["candidates"]
+        )
+        with self.assertRaises(ValidationError):
+            validate_schema_value(foreign, self.analysis_schema, self.analysis_schema, "$")
+        charges = {key: value["units"] for key, value in self.plan["work_model"]["terms"].items()}
+        serialized_total = sum(charges.values())
+        self.assertNotEqual(serialized_total, self.plan["bounds"]["max_analysis_work_units"])
+        serialized = {**charges, "total_work_units": serialized_total}
+        validate_work_charges(serialized)
+        serialized["total_work_units"] += 1
+        with self.assertRaises(AssertionError):
+            validate_work_charges(serialized)
 
     def test_r5_timeout_and_revision_binding_are_complete(self) -> None:
         runtime = self.plan["runtime_design"]

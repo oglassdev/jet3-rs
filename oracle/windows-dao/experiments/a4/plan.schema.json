@@ -551,13 +551,13 @@
           "const": 4096
         },
         "max_canonical_candidate_bytes": {
-          "const": 8190
+          "const": 4096
         },
         "max_canonical_candidates_array_bytes": {
-          "const": 33554432
+          "const": 16781313
         },
         "max_analysis_work_units": {
-          "const": 81099648
+          "const": 350000000
         },
         "max_unique_page_blobs": {
           "const": 65536

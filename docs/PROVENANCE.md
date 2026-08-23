@@ -4505,14 +4505,15 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `ef1e5d150df0c1aead5b1ec516a8c74b268c62167ee42c020364f9fe870cb203`,
+  `a3ec6e693a0b07c0697cf5d6d47c69ca070eafc3549b470c85664602cd8d954a`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
   replicas 1 and 2, canonically freeze before replica 3 is downloaded/opened,
   then predict the role-rotated holdout without refit. Retain R5-V01-style
   plan/revision binding, R4-S01-style survivor counts, R4-C01-style union-once
-  work charging with a closed 81,099,648-unit equation, complete frozen
+  work charging with terminal-path maxima, including a 343,105,669-unit H4
+  path below the conservative 350,000,000-unit ceiling, complete frozen
   candidate arrays and separate H4 root/field results, a complete manifest,
   independent recomputation and tamper suite, and the R5-T01-style hard
   2,700-second campaign bound derived from hosted `run_started_at`: accept
@@ -4524,7 +4525,8 @@ Use `not applicable` explicitly rather than omitting a field.
   SHA-256
   `788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e`;
   focused semantic contract
-  `oracle/windows-dao/tests/test_a4_plan_contract.py`. The A3 calibration
+  `oracle/windows-dao/tests/test_a4_plan_contract.py`; stdlib-only plan-fixture
+  evaluator `oracle/windows-dao/scripts/a4_plan_fixtures.py`. The A3 calibration
   identities recorded in the plan are manifest
   `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`,
   analysis report
@@ -4539,9 +4541,19 @@ Use `not applicable` explicitly rather than omitting a field.
   `slot_ordinal * 16352 + bit_index`; H4 tests one allocation-admitted catalog
   root and a minimal kind/id/name field model. All 40 predicate ids have an
   explicit evaluation rule, order, status/terminal/count behavior, and
-  constructible reachability fixture. Closed A4 grammars cover TDEF lifecycle,
-  locators, complete map rows and transition roles, references/bitmaps, system
-  catalog-root selection, and bounded kind/id/name fields. The schedule
+  constructible reachability fixture executed by the plan-driven evaluator.
+  Derivation evaluates every non-holdout H1--H4 predicate and freezes all four
+  layers before the ordered holdout phase begins. Closed A4 grammars cover
+  TDEF lifecycle, an exact masked table-record signature and transition truth
+  table, locators, complete map rows and transition roles, references/bitmaps,
+  system catalog-root selection, and bounded kind/id/name fields. Retained A3
+  page 23 recomputes 4,090 raw windows, 3,491,392 raw nonoverlapping pairs, and
+  a 3,495,482-unit raw interval/pair charge before one structural pair survives.
+  H4 locates records only from operation deltas and non-name structural fields;
+  after one structural model survives it compares strict Windows-1252 (`c9`
+  for U+00C9) with UTF-8 (`c389`) and reports the observationally equivalent
+  CP1252 byte/scalar length hypotheses as one class because no within-CP1252
+  identifier can discriminate them. The schedule
   includes one nonunique `A4IX_ID` index solely as an
   object-kind perturbation.
 - Interpretation: A4 is a new base experiment, not an A3 revision or
@@ -4560,8 +4572,9 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: user approved combined H1--H4, one code-page discriminator, one
   nonunique index perturbation, three replicas with freeze/holdout and
   independent validation, and the 2,700-second hard bound. Adversarial review
-  pass 1 findings B1--B8, S1--S3, and N1--N2 were applied to this unmerged base
-  plan in place; focused A4 plan and repository contract checks must pass
+  pass 1 findings B1--B8, S1--S3, and N1--N2 and pass 2 findings P2-B1--B6
+  and P2-S1--S2 were applied to this unmerged base plan in place; focused A4
+  plan and repository contract checks must pass
 
 ## Fixtures and black-box results
 
