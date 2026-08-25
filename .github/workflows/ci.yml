@@ -36,6 +36,7 @@ jobs:
               - 'fuzz/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'mise.toml'
               - 'tests/manifest.json'
               - 'rust-toolchain*'
               - '.github/workflows/**'
