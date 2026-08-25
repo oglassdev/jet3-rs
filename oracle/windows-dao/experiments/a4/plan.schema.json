@@ -1,0 +1,861 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a4/plan.schema.json",
+  "title": "DAO A4 row-anchored allocation and catalog preregistration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "experiment_id",
+    "preregistration",
+    "execution_gate",
+    "repository_binding",
+    "implementation_rebinding",
+    "environment_binding",
+    "question",
+    "replicas",
+    "tables",
+    "checkpoint_design",
+    "page_capture",
+    "record_candidate_procedure",
+    "row_directory_procedure",
+    "candidate_grammars",
+    "hypotheses",
+    "analyzer_dry_run_contract",
+    "predicate_registry",
+    "harness_ambiguity_resolutions",
+    "decision_rules",
+    "independent_validator_contract",
+    "decisive_report_handling",
+    "runtime_design",
+    "artifacts",
+    "bounds",
+    "work_model",
+    "claims"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0.0"
+    },
+    "document_type": {
+      "const": "dao_a4_row_anchored_maps_plan"
+    },
+    "experiment_id": {
+      "const": "DAO-A4-ROW-ANCHORED-MAPS-001"
+    },
+    "preregistration": {
+      "$ref": "#/$defs/preregistration"
+    },
+    "execution_gate": {
+      "$ref": "#/$defs/executionGate"
+    },
+    "repository_binding": {
+      "$ref": "#/$defs/repositoryBinding"
+    },
+    "implementation_rebinding": {
+      "type": "object"
+    },
+    "environment_binding": {
+      "$ref": "#/$defs/environmentBinding"
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "replicas": {
+      "$ref": "#/$defs/replicas"
+    },
+    "tables": {
+      "type": "object"
+    },
+    "checkpoint_design": {
+      "$ref": "#/$defs/checkpointDesign"
+    },
+    "page_capture": {
+      "type": "object"
+    },
+    "record_candidate_procedure": {
+      "type": "object"
+    },
+    "row_directory_procedure": {
+      "type": "object"
+    },
+    "candidate_grammars": {
+      "type": "object"
+    },
+    "hypotheses": {
+      "type": "object"
+    },
+    "analyzer_dry_run_contract": {
+      "type": "object"
+    },
+    "predicate_registry": {
+      "type": "object"
+    },
+    "harness_ambiguity_resolutions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "rule",
+        "resolutions"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "resolutions": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "topic",
+              "decision",
+              "plan_locations"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^AMB-[0-9]{2}$"
+              },
+              "topic": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "decision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "plan_locations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "decision_rules": {
+      "type": "object"
+    },
+    "independent_validator_contract": {
+      "type": "object"
+    },
+    "decisive_report_handling": {
+      "$ref": "#/$defs/decisiveReportHandling"
+    },
+    "runtime_design": {
+      "$ref": "#/$defs/runtimeDesign"
+    },
+    "artifacts": {
+      "type": "object"
+    },
+    "bounds": {
+      "$ref": "#/$defs/bounds"
+    },
+    "work_model": {
+      "type": "object"
+    },
+    "claims": {
+      "$ref": "#/$defs/claims"
+    }
+  },
+  "$defs": {
+    "preregistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_entry",
+        "recorded_utc_date",
+        "acquisition_started",
+        "acquisition_start_criterion",
+        "origin_disclosure",
+        "amendment_rule",
+        "scope_amendments"
+      ],
+      "properties": {
+        "provenance_entry": {
+          "const": "EXP-0052"
+        },
+        "recorded_utc_date": {
+          "const": "2026-08-23"
+        },
+        "acquisition_started": {
+          "const": false
+        },
+        "acquisition_start_criterion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "origin_disclosure": {
+          "type": "object"
+        },
+        "amendment_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "scope_amendments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "supersedes",
+              "field",
+              "from",
+              "to",
+              "approved_by",
+              "note_path",
+              "note_sha256",
+              "justification",
+              "tests"
+            ],
+            "properties": {
+              "id": {
+                "const": "A4-SCOPE-AMENDMENT-001"
+              },
+              "supersedes": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "field": {
+                "const": "max_analysis_work_units"
+              },
+              "from": {
+                "const": 600000000
+              },
+              "to": {
+                "const": 800000000
+              },
+              "approved_by": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "note_path": {
+                "const": "oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md"
+              },
+              "note_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "justification": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "tests": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          }
+        }
+      }
+    },
+    "executionGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "blocking_requirements"
+      ],
+      "properties": {
+        "status": {
+          "const": "BLOCKED"
+        },
+        "blocking_requirements": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "repositoryBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_https_url",
+        "producer_commit_required",
+        "clean_worktree_required",
+        "pushed_commit_required"
+      ],
+      "properties": {
+        "canonical_https_url": {
+          "const": "https://github.com/oglassdev/jet3-rs.git"
+        },
+        "producer_commit_required": {
+          "const": true
+        },
+        "clean_worktree_required": {
+          "const": true
+        },
+        "pushed_commit_required": {
+          "const": true
+        }
+      }
+    },
+    "environmentBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operating_system",
+        "process_architecture",
+        "powershell_major",
+        "python_version",
+        "dao_prog_id",
+        "provider_identity_and_binary_hash_required",
+        "per_replica_environment_required",
+        "windows_ansi_code_page",
+        "ansi_code_page_rule",
+        "cross_replica_exact_fields",
+        "recorded_may_differ_fields"
+      ],
+      "properties": {
+        "operating_system": {
+          "const": "Windows"
+        },
+        "process_architecture": {
+          "const": "x86"
+        },
+        "powershell_major": {
+          "const": 5
+        },
+        "python_version": {
+          "const": "3.13.x"
+        },
+        "dao_prog_id": {
+          "const": "DAO.DBEngine.36"
+        },
+        "provider_identity_and_binary_hash_required": {
+          "const": true
+        },
+        "per_replica_environment_required": {
+          "const": true
+        },
+        "windows_ansi_code_page": {
+          "const": 1252
+        },
+        "ansi_code_page_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "cross_replica_exact_fields": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "dao_prog_id",
+              "provider_clsid",
+              "provider_binary_sha256",
+              "process_architecture",
+              "powershell_major",
+              "windows_ansi_code_page"
+            ]
+          }
+        },
+        "recorded_may_differ_fields": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows_version",
+              "python_patch_version"
+            ]
+          }
+        }
+      }
+    },
+    "replicas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "derivation",
+        "holdout",
+        "acquisition_independence",
+        "fan_in_rule",
+        "environment_identity_rule"
+      ],
+      "properties": {
+        "count": {
+          "const": 3
+        },
+        "derivation": {
+          "const": [
+            1,
+            2
+          ]
+        },
+        "holdout": {
+          "const": 3
+        },
+        "acquisition_independence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "fan_in_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "environment_identity_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    },
+    "checkpointDesign": {
+      "type": "object",
+      "required": [
+        "count",
+        "adaptive_checkpoints_allowed",
+        "all_checkpoints_closed_and_quiescent",
+        "d_growth_rule",
+        "d_regrowth_rule",
+        "relative_growth_rule",
+        "absolute_growth_rule",
+        "checkpoint_ids",
+        "idle_pairs",
+        "transition_coverage",
+        "schedule_minimization_basis"
+      ],
+      "properties": {
+        "count": {
+          "const": 25
+        },
+        "adaptive_checkpoints_allowed": {
+          "const": false
+        },
+        "all_checkpoints_closed_and_quiescent": {
+          "const": true
+        },
+        "d_growth_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "d_regrowth_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relative_growth_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "absolute_growth_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkpoint_ids": {
+          "const": [
+            "EMPTY",
+            "EMPTY_R",
+            "T1_CREATE_ID",
+            "T1_ADD_TEXT",
+            "T1_ADD_INDEX",
+            "T2_CREATE",
+            "T2_DROP",
+            "T2_RECREATE",
+            "T3_CREATE",
+            "T4_CREATE",
+            "T1_REL_0064",
+            "T1_REL_0512",
+            "T1_REL_0768",
+            "T1_REL_1280",
+            "T1_DELETE_ALL",
+            "T1_REINSERT_SAME",
+            "T1_IDLE_R",
+            "T3_ABS_04096",
+            "T3_ABS_08192",
+            "T3_ABS_12288",
+            "T3_ABS_16480",
+            "T4_REL_0064",
+            "T4_REL_0896",
+            "T4_REL_0904",
+            "T4_IDLE_R"
+          ]
+        },
+        "idle_pairs": {
+          "type": "array"
+        },
+        "transition_coverage": {
+          "type": "object"
+        },
+        "schedule_minimization_basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtimeDesign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matrix_jobs",
+        "fan_in_jobs",
+        "hosted_wall_clock_target_seconds",
+        "post_33_timing_inputs",
+        "timing_derivation",
+        "per_replica_projection_seconds",
+        "per_replica_headroom",
+        "campaign_headroom",
+        "setup_and_dispatch_allowance_seconds",
+        "estimated_complete_wall_clock_seconds",
+        "bounds_sanity_basis"
+      ],
+      "properties": {
+        "matrix_jobs": {
+          "const": 3
+        },
+        "fan_in_jobs": {
+          "const": 1
+        },
+        "hosted_wall_clock_target_seconds": {
+          "const": 1800
+        },
+        "post_33_timing_inputs": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "run",
+              "replica",
+              "sha256"
+            ],
+            "properties": {
+              "run": {
+                "type": "integer",
+                "minimum": 11,
+                "maximum": 12
+              },
+              "replica": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "timing_derivation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "per_replica_projection_seconds": {
+          "const": 725
+        },
+        "per_replica_headroom": {
+          "type": "string",
+          "minLength": 1
+        },
+        "campaign_headroom": {
+          "type": "string",
+          "minLength": 1
+        },
+        "setup_and_dispatch_allowance_seconds": {
+          "const": 100
+        },
+        "estimated_complete_wall_clock_seconds": {
+          "const": 1725
+        },
+        "bounds_sanity_basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_size",
+        "replicas",
+        "max_checkpoints_per_replica",
+        "planned_checkpoints_per_replica",
+        "max_final_pages_per_replica",
+        "max_logical_checkpoint_read_bytes_per_replica",
+        "max_inserted_rows_per_replica",
+        "max_changed_hash_entries_per_replica",
+        "max_locator_pairs_per_tdef_page",
+        "max_locator_pairs",
+        "max_candidate_models",
+        "max_canonical_candidate_bytes",
+        "max_canonical_candidates_array_bytes",
+        "max_h4_occurrence_identities",
+        "max_h4_occurrence_evidence_bytes",
+        "max_analysis_work_units",
+        "max_unique_page_blobs",
+        "max_retained_page_store_bytes",
+        "max_bundle_bytes",
+        "max_json_bytes",
+        "worker_timeout_seconds_per_replica",
+        "fan_in_timeout_seconds",
+        "campaign_timeout_seconds",
+        "max_child_log_bytes",
+        "max_companion_bytes_per_checkpoint",
+        "max_qualified_pages_per_submodel",
+        "max_h4_value_equivalent_tuples"
+      ],
+      "properties": {
+        "page_size": {
+          "const": 2048
+        },
+        "replicas": {
+          "const": 3
+        },
+        "max_checkpoints_per_replica": {
+          "const": 25
+        },
+        "planned_checkpoints_per_replica": {
+          "const": 25
+        },
+        "max_final_pages_per_replica": {
+          "const": 20480
+        },
+        "max_logical_checkpoint_read_bytes_per_replica": {
+          "const": 2147483648
+        },
+        "max_inserted_rows_per_replica": {
+          "const": 200000
+        },
+        "max_changed_hash_entries_per_replica": {
+          "const": 65536
+        },
+        "max_locator_pairs_per_tdef_page": {
+          "const": 4167722
+        },
+        "max_locator_pairs": {
+          "const": 66683552
+        },
+        "max_candidate_models": {
+          "const": 4096
+        },
+        "max_canonical_candidate_bytes": {
+          "const": 4096
+        },
+        "max_canonical_candidates_array_bytes": {
+          "const": 16781313
+        },
+        "max_h4_occurrence_identities": {
+          "const": 3700
+        },
+        "max_h4_occurrence_evidence_bytes": {
+          "const": 1048576
+        },
+        "max_analysis_work_units": {
+          "const": 800000000
+        },
+        "max_unique_page_blobs": {
+          "const": 65536
+        },
+        "max_retained_page_store_bytes": {
+          "const": 134217728
+        },
+        "max_bundle_bytes": {
+          "const": 805306368
+        },
+        "max_json_bytes": {
+          "const": 67108864
+        },
+        "worker_timeout_seconds_per_replica": {
+          "const": 1700
+        },
+        "fan_in_timeout_seconds": {
+          "const": 900
+        },
+        "campaign_timeout_seconds": {
+          "const": 2700
+        },
+        "max_child_log_bytes": {
+          "const": 1048576
+        },
+        "max_companion_bytes_per_checkpoint": {
+          "const": 65536
+        },
+        "max_qualified_pages_per_submodel": {
+          "const": 16
+        },
+        "max_h4_value_equivalent_tuples": {
+          "const": 165888
+        }
+      }
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptive_provider_observation_only",
+        "a3_calibration_input_is_a4_evidence",
+        "exp_0051_bundle_is_a4_evidence",
+        "synthetic_dry_run_is_a4_evidence",
+        "general_tdef_catalog_row_index_or_lval_layout",
+        "unobserved_slot_or_base_behavior",
+        "compaction_encryption_or_version_behavior",
+        "rust_correctness",
+        "dao_compatibility_or_support",
+        "support_matrix_advancement",
+        "dao_differential_verification",
+        "dao_exposed_physical_oracle",
+        "exact_allocation_set_equality",
+        "general_jet3_or_jet4_behavior",
+        "general_provider_or_locale_behavior",
+        "physical_column_definition_layout",
+        "physical_index_definition_or_node_layout",
+        "row_value_layout",
+        "relationship_layout",
+        "memo_ole_or_long_value_layout",
+        "writer_or_update_behavior",
+        "free_space_preference",
+        "preservation_behavior"
+      ],
+      "properties": {
+        "descriptive_provider_observation_only": {
+          "const": true
+        },
+        "a3_calibration_input_is_a4_evidence": {
+          "const": false
+        },
+        "exp_0051_bundle_is_a4_evidence": {
+          "const": false
+        },
+        "synthetic_dry_run_is_a4_evidence": {
+          "const": false
+        },
+        "general_tdef_catalog_row_index_or_lval_layout": {
+          "const": false
+        },
+        "unobserved_slot_or_base_behavior": {
+          "const": false
+        },
+        "compaction_encryption_or_version_behavior": {
+          "const": false
+        },
+        "rust_correctness": {
+          "const": false
+        },
+        "dao_compatibility_or_support": {
+          "const": false
+        },
+        "support_matrix_advancement": {
+          "const": false
+        },
+        "dao_differential_verification": {
+          "const": false
+        },
+        "dao_exposed_physical_oracle": {
+          "const": false
+        },
+        "exact_allocation_set_equality": {
+          "const": false
+        },
+        "general_jet3_or_jet4_behavior": {
+          "const": false
+        },
+        "general_provider_or_locale_behavior": {
+          "const": false
+        },
+        "physical_column_definition_layout": {
+          "const": false
+        },
+        "physical_index_definition_or_node_layout": {
+          "const": false
+        },
+        "row_value_layout": {
+          "const": false
+        },
+        "relationship_layout": {
+          "const": false
+        },
+        "memo_ole_or_long_value_layout": {
+          "const": false
+        },
+        "writer_or_update_behavior": {
+          "const": false
+        },
+        "free_space_preference": {
+          "const": false
+        },
+        "preservation_behavior": {
+          "const": false
+        }
+      }
+    },
+    "decisiveReportHandling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysis_report_artifact",
+        "bundle_status",
+        "campaign_behavior",
+        "independent_validation_rule"
+      ],
+      "properties": {
+        "analysis_report_artifact": {
+          "const": "retained_in_bundle"
+        },
+        "bundle_status": {
+          "const": "decisive_pending_independent_validation"
+        },
+        "campaign_behavior": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "independent_validation_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}

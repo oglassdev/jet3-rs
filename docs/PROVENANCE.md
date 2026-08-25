@@ -839,6 +839,10 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:fuzz/corpus/manifest.json`;
   `file:fuzz/fuzz_targets/allocation.rs`;
   `file:fuzz/fuzz_targets/page_classification.rs`; `file:tests/manifest.json`
+  Additional tracked Usage:
+  `file:oracle/windows-dao/experiments/a4/README.md`;
+  `file:oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`;
+  `file:oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md`.
 - Rights: citation to public documentation distributed upstream under the MIT
   license; no upstream documentation content is redistributed
 - Review: pending independent review
@@ -4476,6 +4480,270 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: hosted workflow success, artifact identity, manifest and frozen-set
   hashes, producer validation, and independent recomputation were checked;
   focused A3 plan-contract and repository-contract tests must pass
+
+### EXP-0052 — Preregistered A4 row-anchored allocation and catalog campaign
+
+- Recorded: 2026-08-23, OpenAI Codex
+- Kind: preregistered base plan for a controlled DAO physical-observation
+  campaign; no A4 acquisition, result, analyzer, validator, worker, or workflow
+  is included
+- Question: Can table-relative row-directory locators, complete allocation-map
+  rows, indirect extended-map traversal, and a minimum catalog field model
+  derived from two fresh Jet 3 databases predict a role-rotated third holdout
+  without refitting?
+- Origin: project-authored experiment `DAO-A4-ROW-ANCHORED-MAPS-001`, grounded
+  in the bounded row-directory and allocation-map primitives of `SRC-0020` and
+  the user-approved scope brief copied byte-for-byte at
+  `oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md`,
+  SHA-256
+  `ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7`.
+  The retained A3 result `EXP-0051` and its local read-only bundle were used
+  only as calibration/design input, never as A4 evidence.
+- Environment: planned Windows x86 PowerShell 5 with `DAO.DBEngine.36`; exact
+  provider identity and binary SHA-256 must match across three replicas.
+  Windows ANSI code page 1252 is mandatory and recorded; `A4TAB_É4`, bytes
+  `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
+- Protocol: freeze immutable base plan
+  `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
+  `3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1`,
+  before acquisition. Execute exactly 25 closed, quiescent checkpoints with
+  one listed logical schema mutation per schema transition and canonical DAO
+  user-schema snapshots at every checkpoint. Derive H1--H4 on independent
+  replicas 1 and 2, canonically freeze before replica 3 is downloaded/opened,
+  then predict the role-rotated holdout without refit. Retain R5-V01-style
+  plan/revision binding, phase-specific R4-S01-style measured survivor counts,
+  R4-C01-style union-once work charging with terminal-path maxima, including
+  a two-replica 774,929,266-unit H4 path below the 800,000,000-unit ceiling
+  of `A4-SCOPE-AMENDMENT-001` (classified
+  `conservative_upper`; only its checked comparator is unit-tested at
+  800,000,000/800,000,001 outside the 40 byte fixtures, and the byte-level
+  resource terminal is a 67,200-entry changed-hash one-over campaign),
+  complete frozen candidate arrays, distinct H1 model/physical candidate ids,
+  exact lifecycle ranges, and independent H4 root/structural/encoding
+  results, a complete manifest,
+  independent recomputation and tamper suite, and the R5-T01-style hard
+  2,700-second campaign bound derived from hosted `run_started_at`: accept
+  2,700, reject 2,701 before manifest creation.
+- Artifacts: immutable base plan and README under
+  `oracle/windows-dao/experiments/a4/`; A4-specific evidence schema family;
+  new `dao-schema-snapshot.schema.json`; hash-pinned calibration receipt
+  `oracle/windows-dao/experiments/a4/design-inputs/a3-calibration-receipt.json`,
+  SHA-256
+  `788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e`;
+  focused structural/arithmetic contract
+  `oracle/windows-dao/tests/test_a4_plan_contract.py`; and plan-derived work
+  recomputation script
+  `oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_terms.py`.
+  No A4 reachability
+  evaluator ships with the plan; the pre-dispatch byte-level harness is an
+  explicit blocked execution gate. The A3 calibration
+  identities recorded in the plan are manifest
+  `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`,
+  analysis report
+  `7587389e4323171aff9b9efcd46bcd5fc8e2ec8273116e8a0360965e4e11faeb`,
+  and frozen derivation set
+  `ec7c8d27cc46ef9dfdc8214d025cd2d6493ab089f00fc35dbf0ccb9899cdcc0a`.
+- Observation: no A4 provider observation exists. The plan preregisters four
+  layered hypotheses: H1 locates exactly two row-directory-anchored map rows
+  from a lifecycle-selected TDEF; H2 assigns complete type-0/type-1 rows to
+  owned/in-use and available roles while permitting row motion; H3 tests zero
+  slots, exact tag-05 references, bitmap bytes `[4,2048)`, and
+  `slot_ordinal * 16352 + bit_index`; H4 tests one allocation-admitted catalog
+  root and a minimal kind/id/name field model. All 40 predicate ids have an
+  explicit evaluation rule, order, status/terminal/count behavior, and a
+  claimed byte fixture whose reachability must be executed before dispatch.
+  Derivation evaluates every non-holdout H1--H4 predicate and freezes all four
+  layers before the ordered holdout phase begins. Closed A4 grammars cover
+  TDEF lifecycle, an exact masked table-record signature, syntactic locators,
+  target validity, complete H2 map rows and transition roles, references/bitmaps,
+  system catalog-root selection, and bounded kind/id/name fields. Retained A3
+  page 23 recomputes 4,090 raw windows, 3,491,392 raw nonoverlapping pairs, and
+  a 3,495,482-unit raw interval/pair charge before one structural pair survives
+  under each layout; target validation leaves zero page-then-row pairs and one
+  row-then-page pair.
+  H4 locates records only from operation deltas and non-name structural fields;
+  every structural candidate carries a replica-invariant model and one
+  replica-qualified binding per bound replica, each with seven ordered
+  per-operation compatible-occurrence bitmaps referencing by SHA-256 a
+  separate bounded two-replica-group
+  `analysis/h4-occurrence-evidence.json` (at most 1,048,576 bytes) so frozen
+  candidates stay within 4,096 bytes, without an encoding result. After one
+  structural model survives it compares strict Windows-1252 (`c9`
+  for U+00C9) with UTF-8 (`c389`) and reports the observationally equivalent
+  CP1252 byte/scalar length hypotheses as one class because no within-CP1252
+  identifier can discriminate them. The schedule
+  includes one nonunique `A4IX_ID` index solely as an
+  object-kind perturbation.
+- Interpretation: A4 is a new base experiment, not an A3 revision or
+  reinterpretation. `EXP-0051` concrete row motion (page-24 row 0 starts
+  1915, 1911, 1895, 1847, then 1843), the pages-1021--1023 A3 boundary
+  violation, type-1 prefixes, and tag-05 references are disclosed calibration
+  inputs only. A future A4 result must arise from three fresh replicas and
+  independent validation. Acquisition remains `BLOCKED` until every execution
+  gate and dry-run honesty requirement is implemented and disclosed.
+- Usage: physical-provenance plan for future Stage 2 map-location,
+  pointer-following, extended-base work and minimum Stage 3 catalog bootstrap;
+  no production implementation or capability movement is authorized
+- Rights: project-authored plan and schemas; future MDBs and page blobs remain
+  uncommitted DAO-generated evidence. No donated MDB, provider binary, or
+  third-party MDB implementation is used or redistributed.
+- Review: user approved combined H1--H4, one code-page discriminator, one
+  nonunique index perturbation, three replicas with freeze/holdout and
+  independent validation, and the 2,700-second hard bound. Adversarial review
+  pass 1 findings B1--B8, S1--S3, and N1--N2 and pass 2 findings P2-B1--B6
+  and P2-S1--S2, plus pass 3 findings P3-B1--P3-B6 and P3-S1--P3-S2 and pass
+  4 findings P4-B1--P4-B3 and P4-S1--P4-S2, and pass 5 findings
+  P5-B1--P5-B4 and P5-S1, were applied to this unmerged
+  base plan in place. Pass 4 also canonically binds the required, not-yet-
+  executed reachability transcript and recomputes the 2,036-byte row, 1,850
+  occurrence, 18,324 scan, 165,888 inner-grammar, and 306,892,800 tuple terms.
+  Pass 5 separates H4 structural and encoding results, makes every terminal
+  serialize only its declared payload (candidate set, grouped operation set,
+  per-replica pair, or invalid observation), fixes the transcript schema
+  positionally for all 40 registry entries with an exact ten-case adversarial
+  set, and records an executed reference reachability harness (draft PR #74,
+  branch `fable/a4-dryrun`, transcript SHA-256
+  `06179c9fdada8cf7a8c3a6ce47919f4f19b4065ebf603b27720250fe9768af21`,
+  built by a different agent against the pass-4 plan) as a design input
+  only; its 17 recorded ambiguities AMB-01--AMB-17 are each resolved by a
+  stated decision in the plan's `harness_ambiguity_resolutions`; pass 8
+  supersedes the earlier AMB-02/AMB-16 exception as described below while
+  retaining the page-bound decodability rule that reproduces the 1,872-window
+  count.
+  Pass 6 finding P6-B1
+  splits H4 identity into a replica-invariant `canonical_model_id` and a
+  binding-qualified `canonical_candidate_id` (replica agreement compares
+  model ids), freezes both derivation replicas' physical evidence as two
+  replica groups with fourteen bindings on a decisive candidate, recomputes
+  every terminal-path maximum over both replicas, and
+  records delegate-approved `A4-SCOPE-AMENDMENT-001`
+  (`oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md`,
+  SHA-256
+  `770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25`)
+  raising `max_analysis_work_units` from the approved brief's 600,000,000 to
+  800,000,000. Pass 7 finding P7-B1 restores all seven approved operations as
+  required record, structural, and encoding inputs, including explicit
+  table/field/index kind mappings, and removes the non-failing contrast design.
+  The two-replica work equation is
+  `2 * 1,850 * (16*3*3*2*16*3*6*2) = 613,785,600`; the latest H4 terminal is
+  694,378,226, below the approved ceiling by 105,621,774 units. P7-S1 is
+  recorded additively in
+  `oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001-timing-correction.md`,
+  SHA-256
+  `49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d`.
+  GitHub Actions run `32626186825`, fan-in job `97163239067`, records about
+  3.84 seconds for derivation freeze, 0.67 seconds for analyzer resume, and
+  16.81 seconds for the independent recomputing validator. Using the slower
+  independent-recomputation observation gives
+  `800,000,000 / 134,291,460 * 16.81 ~= 100.1 seconds`; this is coarse hosted
+  planning evidence, not an A4 runtime proof. Normative controls remain the
+  checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second
+  hard campaign timeout;
+  pass 8 finding B1 makes all 40 predicate fixtures claimed-reachable with the
+  exact literal `claimed_reachable; execution_required_before_dispatch` and
+  no exception. `A4-H1-LOCATOR-PAIR-MULTIPLE` now has fixture
+  `A4-R10-H1-PAIR-MULTIPLE`: a closed, mutually exclusive three-hole TDEF
+  signature duplicates the second locator at the third offset, producing two
+  identity-preserved target-valid pairs under only the row-then-page layout.
+  The two pairs reuse the same two decoded targets, so independently
+  recomputed candidate bounds, the 1,600 target-validity checks, all resource
+  bounds, and the 694,378,226-unit total are unchanged. Before/after schema
+  hashes for this pre-acquisition P0 repair are:
+
+  | Schema | SHA-256 before | SHA-256 after |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `3a3903a49a05cedad0b6685ccf194ef598ba4c359aad18adcd1ba2113abcc0db` | `132239732f50872ae3e579b4857a498f2df1aff09ecffc389e08d1756c988104` |
+  | `derivation-candidates.schema.json` | `c6dc3b11a73a6ba4dedb582e01b405aeb8d84cd801b261f41ed6884792a5c1e6` | `f0dec323bb1b1647b0bf093a9692b0a338859ed3b219567b3b4f0751294d69f7` |
+  | `reachability-transcript.schema.json` | `2faec2aed55be8b9274631e15bbf3b58e72036c3ff3896f807a992f3a3c96c4f` | `beaa8179a9c0e5a3d26c1098494f6d0bf32c20ea87d162de65e0637aa3f95bb5` |
+
+  Pass 9 findings P9-B1 and P9-B2 are applied additively to the same unmerged,
+  pre-acquisition P0 base. H1 target-layout candidates now admit exactly the
+  standard and duplicate-locator signatures. H1 locator-pair candidates are a
+  closed signature-discriminated union: the standard signature admits only
+  `[35,39]`, while the duplicate signature admits `[35,39]`, `[35,43]`, or
+  `[39,43]`; semantic evaluation still rejects duplicate decoded targets and
+  any layout whose decoded page/tag/row targets fail against the bound page
+  bytes. The duplicate grammar now records exact structured mask derivation,
+  `[39,43) == [43,47)` equality, and inequality against the base signature's
+  fixed `[43,47)` value. The work script validates every four-byte hole,
+  derives equality classes rather than trusting their recorded output, proves
+  the standard/duplicate intersection empty, and rejects altered equality,
+  partition, hole, inequality, or base mask/value before summing. The Pass-8
+  plan hash
+  `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`
+  is superseded by the current plan hash above. Pass-9 changed-file identities
+  are:
+
+  | File | SHA-256 before Pass 9 | SHA-256 after Pass 9 |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `132239732f50872ae3e579b4857a498f2df1aff09ecffc389e08d1756c988104` | `d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0` |
+  | `derivation-candidates.schema.json` | `f0dec323bb1b1647b0bf093a9692b0a338859ed3b219567b3b4f0751294d69f7` | `2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245` |
+  | `a4-row-anchored-maps.plan.json` | `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597` | `a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314` |
+  | `README.md` | `2af4f607607d1b26c16b68395c7ed7a9c5ebf375e6e6760d9ef5876932bdccf9` | `e15bb743ce4f3f550691210efb47b732d40028e67fe1dc76a69df8f25338735e` |
+  | `design-inputs/recompute_a4_work_terms.py` | `c1772790010981f80f9eb44e280af970129d27f3a0d7863f7cafa5ae7f9ac6b9` | `d120aae59b2f8fd5aa46a2b0f09f5049cdb84f80199c7ff34febec2480aa4f36` |
+  | `tests/test_a4_plan_contract.py` | `7488b5b615a11ba8a96b16fd3a0dcccebbf2d4f08905d45d67e00e6d35bbea05` | `8210eefc9411433f19716a212187d62c6bf2bf367089fd710aacbff28957f058` |
+
+  Focused complete-report falsification accepts both registered signatures and
+  rejects overlapping `[35,37]`, standard-plus-`[35,43]`, duplicate-plus-
+  `[100,104]`, duplicate candidates, duplicate target tuples, and the
+  page-then-row interpretation of the exact R10 bytes. CLI/module mutation
+  cases cover registered units, the H4 dimension, removed/cross-hole/extra
+  equality, conflicting derived grouping, a fourth hole, missing/changed
+  mutual exclusion, and base mask/value. The derived target-validity term
+  remains 1,600 and the complete work total remains 694,378,226; acquisition,
+  capability movement, and final P0 closure remain blocked.
+
+  Pass 10 independently reviewed exact head
+  `3a738787d36e08d68b8134fd8965eddc29d1d198` and found two blockers. P10-B1
+  showed that the focused byte-semantic checker compared decoded physical
+  target tuples across all lifecycle and replica bindings, contradicting the
+  registered invariant-model/rotating-binding split. P10-B2 showed that the
+  work model identified qualified pages only by numeric page and checkpoint
+  across two independently created MDBs, so H1--H3 and catalog-row work omitted
+  the second replica's physical inspections. This pre-acquisition repair binds
+  H1 page evidence by `(replica, checkpoint id, page number)`, validates every
+  applicable checkpoint of every binding independently without requiring
+  physical target equality, and charges the second derivation replica for each
+  affected term. The invalid-directory alternative rises from 407,600 to
+  815,200 units; the latest H4 path rises by 80,551,040 to 774,929,266 and
+  remains 25,070,734 below the approved 800,000,000 ceiling.
+  The repaired recomputation helper has SHA-256
+  `49079d3bfb413bdcc98288adf3c2e7ae736577e0ef5002d8e00d816aba25a7ec`;
+  the focused contract test has SHA-256
+  `fbd712fd9bec62b1663336d7e3365cdb586ca333a277f121829539f6fc2ce7d2`.
+  No approved scope,
+  acquisition state, DAO evidence, support state, or compatibility claim is
+  changed; final P0 closure remains blocked pending a fresh post-repair review.
+
+  Pass 11 independently reviewed exact head
+  `a83016b4a031f52cd987e734e792f325cf28fa93` and found two additional
+  pre-acquisition blockers. P11-B1 showed that the frozen schema retained
+  single-replica maxima for ten now-aggregate charges, omitted the 815,200-unit
+  invalid-directory alternative, and represented qualified pages only as
+  unqualified numeric page numbers; the analysis-report schema also could not
+  reproduce the frozen charges. P11-B2 showed that AMB-02 and AMB-03 still
+  prescribed the superseded 1,600-check and cross-replica-deduplicated rules.
+  This repair keeps `max_locator_pairs` and
+  `max_qualified_pages_per_submodel` as per-replica bounds, while both evidence
+  schemas now admit the exact aggregate named-term maxima and the mutually
+  exclusive invalid-directory charge. Frozen and report qualified-page
+  inventories use canonical `(replica, checkpoint_id, page_number)` objects,
+  bounded by 3,200 identities across two replicas, 25 checkpoints, four
+  layers, and 16 pages. The analysis report must reproduce those identities
+  and the complete work charges byte-for-byte. Changed schema identities are:
+
+  | File | SHA-256 before Pass 11 | SHA-256 after Pass 11 |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0` | `bd1cdd62fdf6dae1ed756c092a90936be1318dc3a66e9d1d6309ecfa0d3d2010` |
+  | `derivation-candidates.schema.json` | `2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245` | `1cf5829b14663a68c934ff4d16b1b95668291b21b645ad3ae0e93abe3c839a28` |
+
+  The Pass-11 focused contract-test SHA-256 is
+  `cdc341b4c6ef0e3e4b08e908e4f357096da9f635b42ff0110b12e9fbd761a91e`.
+  Acquisition, support movement, and compatibility claims remain blocked
+  pending another exact-head independent review.
+
+  focused A4
+  plan and repository contract checks must pass
 
 ## Fixtures and black-box results
 

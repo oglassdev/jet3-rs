@@ -38,6 +38,24 @@ class SharedProtocolValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "too many items"):
             validate_schema_value({"values": [1, 2]}, schema, schema, "$")
 
+    def test_prefix_items_are_positional_and_items_false_closes_the_array(self):
+        schema = {
+            "type": "array",
+            "prefixItems": [{"const": "a"}, {"type": "integer"}],
+            "items": False,
+        }
+        lint_schema(schema)
+        validate_schema_value(["a", 1], schema, schema, "$")
+        validate_schema_value(["a"], schema, schema, "$")
+        with self.assertRaisesRegex(ValidationError, "const"):
+            validate_schema_value([1, "a"], schema, schema, "$")
+        with self.assertRaisesRegex(ValidationError, "beyond prefixItems are forbidden"):
+            validate_schema_value(["a", 1, 2], schema, schema, "$")
+        with self.assertRaisesRegex(ValidationError, "prefixItems"):
+            lint_schema({"type": "array", "items": False})
+        with self.assertRaisesRegex(ValidationError, "prefixItems"):
+            lint_schema({"type": "array", "prefixItems": []})
+
     def test_m1_uses_the_shared_public_boundary(self):
         source = (SCRIPTS / "validate_m1_protocol.py").read_text(encoding="utf-8")
         self.assertNotIn("importlib", source)

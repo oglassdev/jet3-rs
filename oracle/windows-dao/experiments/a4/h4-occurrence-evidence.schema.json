@@ -1,0 +1,526 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oglassdev/jet3-rs/oracle/windows-dao/experiments/a4/h4-occurrence-evidence.schema.json",
+  "title": "DAO A4 frozen H4 encoding-neutral name occurrence evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "experiment_id",
+    "plan_sha256",
+    "revision_plan_sha256",
+    "campaign_id",
+    "root_candidate_id",
+    "replica_groups"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0.0"
+    },
+    "document_type": {
+      "const": "dao_a4_h4_occurrence_evidence"
+    },
+    "experiment_id": {
+      "const": "DAO-A4-ROW-ANCHORED-MAPS-001"
+    },
+    "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "revision_plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "root_candidate_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "replica_groups": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "replica",
+            "operation_bindings"
+          ],
+          "properties": {
+            "replica": {
+              "const": 1
+            },
+            "operation_bindings": {
+              "type": "array",
+              "minItems": 7,
+              "maxItems": 7,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T1_CREATE_ID"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T1_ADD_TEXT"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 290,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T1_ADD_INDEX"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 290,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T2_CREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T2_RECREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T3_CREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T4_CREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "replica",
+            "operation_bindings"
+          ],
+          "properties": {
+            "replica": {
+              "const": 2
+            },
+            "operation_bindings": {
+              "type": "array",
+              "minItems": 7,
+              "maxItems": 7,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T1_CREATE_ID"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T1_ADD_TEXT"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 290,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T1_ADD_INDEX"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 290,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T2_CREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T2_RECREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T3_CREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "operation_id",
+                    "canonical_record_locator",
+                    "occurrences"
+                  ],
+                  "properties": {
+                    "operation_id": {
+                      "const": "T4_CREATE"
+                    },
+                    "canonical_record_locator": {
+                      "$ref": "#/$defs/catalogRecordLocator"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 254,
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "#/$defs/occurrence"
+                      }
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "catalogRecordLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page",
+        "row",
+        "row_start",
+        "row_end"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20479
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "row_start": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 2047
+        },
+        "row_end": {
+          "type": "integer",
+          "minimum": 11,
+          "maximum": 2048
+        }
+      }
+    },
+    "occurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_index",
+        "name_start",
+        "matched_registered_pattern_id",
+        "matched_bytes_hex"
+      ],
+      "properties": {
+        "occurrence_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 289
+        },
+        "name_start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2035
+        },
+        "matched_registered_pattern_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+_(CP1252|UTF8)$",
+          "maxLength": 64
+        },
+        "matched_bytes_hex": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{14,18}$"
+        }
+      }
+    }
+  }
+}

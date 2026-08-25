@@ -38,6 +38,7 @@ SUPPORTED_SCHEMA_KEYWORDS = frozenset(
         "minLength",
         "minimum",
         "pattern",
+        "prefixItems",
         "properties",
         "required",
         "title",
@@ -204,10 +205,19 @@ def validate_schema_value(
             ]
             if len(encoded) != len(set(encoded)):
                 raise ValidationError(f"{location}: array items must be unique")
+        prefix_items = schema.get("prefixItems", [])
+        for index, item in enumerate(value[: len(prefix_items)]):
+            validate_schema_value(
+                item, prefix_items[index], root_schema, f"{location}[{index}]"
+            )
         if "items" in schema:
-            for index, item in enumerate(value):
+            for index in range(len(prefix_items), len(value)):
+                if schema["items"] is False:
+                    raise ValidationError(
+                        f"{location}[{index}]: items beyond prefixItems are forbidden"
+                    )
                 validate_schema_value(
-                    item, schema["items"], root_schema, f"{location}[{index}]"
+                    value[index], schema["items"], root_schema, f"{location}[{index}]"
                 )
 
     if isinstance(value, dict):
@@ -303,8 +313,22 @@ def lint_schema(schema: dict[str, Any]) -> None:
                 children = _require_schema_map(node[map_name], f"{location}.{map_name}")
                 for name, child in children.items():
                     walk(child, f"{location}.{map_name}.{name}")
+        if "prefixItems" in node:
+            prefix_items = node["prefixItems"]
+            if not isinstance(prefix_items, list) or not prefix_items:
+                raise ValidationError(f"{location}.prefixItems: expected non-empty array")
+            for index, child in enumerate(prefix_items):
+                walk(child, f"{location}.prefixItems[{index}]")
         if "items" in node:
-            walk(node["items"], f"{location}.items")
+            if node["items"] is False:
+                if "prefixItems" not in node:
+                    raise ValidationError(
+                        f"{location}.items: false requires prefixItems"
+                    )
+            elif node["items"] is True:
+                raise ValidationError(f"{location}.items: true is unsupported")
+            else:
+                walk(node["items"], f"{location}.items")
         if isinstance(node.get("additionalProperties"), dict):
             walk(node["additionalProperties"], f"{location}.additionalProperties")
         elif "additionalProperties" in node and not isinstance(
