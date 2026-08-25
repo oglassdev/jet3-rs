@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -16,6 +17,7 @@ if str(SCRIPTS) not in sys.path:
 
 from a4_analysis import analyze  # noqa: E402
 from a4_dryrun import _reported_campaign_rejection  # noqa: E402
+from a4_dryrun_calibration import _OpenedPageStore  # noqa: E402
 from a4_dryrun_fixtures import FIXTURES, Fixture, reject_verdict_keys  # noqa: E402
 from a4_dryrun_surface import CAMPAIGN_ID, PRODUCER_COMMIT, FixtureInputs  # noqa: E402
 from a4_generator import SyntheticParameters  # noqa: E402
@@ -23,6 +25,23 @@ from a4_spec import PREDICATE_CONTRACTS  # noqa: E402
 
 
 class A4DryRunTests(unittest.TestCase):
+    def test_retained_page_store_counts_every_distinct_opened_blob_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store_path = root / "page-store"
+            store_path.mkdir()
+            payloads = (bytes(2048), bytes([1]) * 2048)
+            digests = []
+            for payload in payloads:
+                digest = hashlib.sha256(payload).hexdigest()
+                (store_path / f"{digest}.page").write_bytes(payload)
+                digests.append(digest)
+            store = _OpenedPageStore(root)
+            self.assertEqual(store.read(digests[0]), payloads[0])
+            self.assertEqual(store.read(digests[0]), payloads[0])
+            self.assertEqual(store.read(digests[1]), payloads[1])
+            self.assertEqual(store.page_blob_count, 2)
+
     def test_malformed_input_accepts_only_process_or_campaign_rejection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "result.json"

@@ -47,6 +47,23 @@ def _page(root: Path, digest: str) -> bytes:
     return payload
 
 
+class _OpenedPageStore:
+    """Read retained page blobs while counting each opened identity once."""
+
+    def __init__(self, root: Path) -> None:
+        self._root = root
+        self._opened: set[str] = set()
+
+    def read(self, digest: str) -> bytes:
+        payload = _page(self._root, digest)
+        self._opened.add(digest)
+        return payload
+
+    @property
+    def page_blob_count(self) -> int:
+        return len(self._opened)
+
+
 def _decode(page: bytes, offset: int, layout: str) -> tuple[int, int]:
     raw = page[offset : offset + 4]
     if layout == "page_then_row":
@@ -63,6 +80,7 @@ def replay(retained_root: Path) -> dict[str, Any]:
         raise ValidationError("A4 calibration bundle manifest identity mismatch")
     manifest = _json(root / "bundle-manifest.json")
     entries = {entry["path"]: entry for entry in manifest.get("files", ())}
+    page_store = _OpenedPageStore(root)
     indexes: list[dict[str, Any]] = []
     pages: list[bytes] = []
     prefix = "page-indexes/replica-01/"
@@ -79,7 +97,7 @@ def replay(retained_root: Path) -> dict[str, Any]:
         index = _json(root / relative)
         digest = index["ordered_page_sha256"][23]
         indexes.append(index)
-        pages.append(_page(root, digest))
+        pages.append(page_store.read(digest))
 
     preserved: dict[str, list[int]] = {}
     for layout in ("page_then_row", "row_then_page"):
@@ -103,7 +121,7 @@ def replay(retained_root: Path) -> dict[str, Any]:
         digests = index["ordered_page_sha256"]
         if page_number >= len(digests):
             return False
-        page = _page(root, digests[page_number])
+        page = page_store.read(digests[page_number])
         return page[0] == 1 and row < int.from_bytes(page[8:10], "little")
 
     valid_counts = {}
@@ -133,7 +151,7 @@ def replay(retained_root: Path) -> dict[str, Any]:
         "holdout_opened": False,
         "page_number_bound_inclusive": MAX_PAGE_NUMBER,
         "checkpoint_count": len(indexes),
-        "page_blob_count": len(set(index["ordered_page_sha256"][23] for index in indexes)),
+        "page_blob_count": page_store.page_blob_count,
         "measured": measured,
         "expected": expected,
         "result": "pass" if measured == expected else "fail",
