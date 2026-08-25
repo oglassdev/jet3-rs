@@ -19,7 +19,7 @@ sys.path.insert(0, str(TESTS))
 
 import test_a4_independent_bundle as fixture  # noqa: E402
 from a4_generator import SyntheticParameters  # noqa: E402
-from a4_independent_bundle import BundleLoader, ValidationError  # noqa: E402
+from a4_independent_bundle import BundleLoader  # noqa: E402
 from a4_independent_contract import CONTRACT, EXPECTED_TAMPERS  # noqa: E402
 from a4_independent_validator import (  # noqa: E402
     execute_tamper_suite,
@@ -98,7 +98,7 @@ class A4IndependentTerminalPathTests(unittest.TestCase):
         validate_bundle(bundle, recomputed)
         _assert_t1_t9(self, bundle, recomputed)
 
-    def test_h2_terminal_exposes_analyzer_holdout_projection_conflict(self) -> None:
+    def test_h2_terminal_preserves_applicable_h1_holdout(self) -> None:
         bundle = BundleLoader(self.h2_root).load()
         recomputed = recompute_bundle(bundle)
         h2 = recomputed["layers"]["h2_row_identity_map_role"]
@@ -113,12 +113,11 @@ class A4IndependentTerminalPathTests(unittest.TestCase):
             h1_contract["prerequisites"], ["derivation_candidate_set_sha256"]
         )
         self.assertEqual(recomputed["holdout_results"]["h1"]["status"], "pass")
-        self.assertEqual(bundle.report["holdout_results"]["h1"]["status"], "not_applicable")
+        self.assertEqual(bundle.report["holdout_results"]["h1"]["status"], "pass")
         for name in ("h2", "h3", "h4_root", "h4_fields"):
             self.assertEqual(recomputed["holdout_results"][name]["status"], "not_applicable")
             self.assertEqual(bundle.report["holdout_results"][name]["status"], "not_applicable")
-        with self.assertRaisesRegex(ValidationError, "holdout_projection_mismatch"):
-            validate_bundle(bundle, recomputed)
+        validate_bundle(bundle, recomputed)
         _assert_t1_t9(self, bundle, recomputed)
 
 

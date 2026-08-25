@@ -14,8 +14,19 @@ from a4_spec import canonical_json_bytes, sha256_hex
 
 
 @dataclass(frozen=True)
+class FrozenModelPrefix:
+    """The dependency-complete model prefix permitted across the boundary."""
+
+    h1: H1ReplicaCandidate | None
+    h2: H2ReplicaCandidate | None
+    h3: H3Candidate | None
+    h4_root: H4Candidate | None
+    h4: EncodedDerivation | None
+
+
+@dataclass(frozen=True)
 class FrozenModels:
-    """The replica-invariant models permitted to cross the holdout boundary."""
+    """Every replica-invariant model from a decisive derivation."""
 
     h1: H1ReplicaCandidate
     h2: H2ReplicaCandidate
@@ -101,17 +112,71 @@ def _h4(candidate: Mapping[str, Any], stage: str) -> H4Candidate:
     return result
 
 
-def load_frozen_models(document: Mapping[str, Any]) -> FrozenModels:
-    """Recompute every canonical identity from one validated frozen document."""
+def load_frozen_model_prefix(document: Mapping[str, Any]) -> FrozenModelPrefix:
+    """Recompute the dependency-complete decisive prefix of frozen models."""
     layers = document["layers"]
     h4 = layers["h4_catalog_bootstrap"]
-    h1 = _h1(_only_model(layers["h1_tdef_to_map_row"], "H1"))
-    h2 = _h2(_only_model(layers["h2_row_identity_map_role"], "H2"))
-    h3 = _plain(_only_model(layers["h3_indirect_traversal"], "H3"), "H3")
-    root = _h4(_only_model(h4["root_result"], "H4 root"), "H4 root")
-    structural = _h4(
-        _only_model(h4["structural_result"], "H4 structural"),
-        "H4 structural",
+
+    def present(result: Mapping[str, Any]) -> bool:
+        return result.get("status") == "model"
+
+    h1 = (
+        _h1(_only_model(layers["h1_tdef_to_map_row"], "H1"))
+        if present(layers["h1_tdef_to_map_row"])
+        else None
     )
-    final = _h4(_only_model(h4["encoding_result"], "H4 encoding"), "H4 encoding")
-    return FrozenModels(h1, h2, h3, root, EncodedDerivation(structural, final))
+    h2 = (
+        _h2(_only_model(layers["h2_row_identity_map_role"], "H2"))
+        if present(layers["h2_row_identity_map_role"])
+        else None
+    )
+    h3 = (
+        _plain(_only_model(layers["h3_indirect_traversal"], "H3"), "H3")
+        if present(layers["h3_indirect_traversal"])
+        else None
+    )
+    root = (
+        _h4(_only_model(h4["root_result"], "H4 root"), "H4 root")
+        if present(h4["root_result"])
+        else None
+    )
+    structural = (
+        _h4(
+            _only_model(h4["structural_result"], "H4 structural"),
+            "H4 structural",
+        )
+        if present(h4["structural_result"])
+        else None
+    )
+    final = (
+        _h4(_only_model(h4["encoding_result"], "H4 encoding"), "H4 encoding")
+        if present(h4["encoding_result"])
+        else None
+    )
+    ordered = (h1, h2, h3, root)
+    if any(value is not None for value in ordered[1:]) and h1 is None:
+        raise ValueError("A4 frozen model prefix omits H1")
+    if any(value is not None for value in ordered[2:]) and h2 is None:
+        raise ValueError("A4 frozen model prefix omits H2")
+    if root is not None and h3 is None:
+        raise ValueError("A4 frozen model prefix omits H3")
+    if (structural is not None or final is not None) and root is None:
+        raise ValueError("A4 frozen model prefix omits H4 root")
+    if final is not None and structural is None:
+        raise ValueError("A4 frozen model prefix omits H4 structural model")
+    encoded = (
+        EncodedDerivation(structural, final)
+        if structural is not None and final is not None
+        else None
+    )
+    return FrozenModelPrefix(h1, h2, h3, root, encoded)
+
+
+def load_frozen_models(document: Mapping[str, Any]) -> FrozenModels:
+    """Require and recompute every model from a decisive frozen document."""
+    models = load_frozen_model_prefix(document)
+    h1, h2, h3 = models.h1, models.h2, models.h3
+    root, h4 = models.h4_root, models.h4
+    if h1 is None or h2 is None or h3 is None or root is None or h4 is None:
+        raise ValueError("A4 frozen derivation does not contain every model")
+    return FrozenModels(h1, h2, h3, root, h4)

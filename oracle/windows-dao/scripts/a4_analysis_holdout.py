@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from a4_analysis_input import HoldoutAnalysisInput
 from a4_derivation import isolated_operation_deltas
-from a4_frozen_models import FrozenModels
+from a4_frozen_models import FrozenModelPrefix, FrozenModels
 from a4_layer_h1 import predict_h1
 from a4_layer_h2 import decode_frozen_owned_rows
 from a4_layer_h3 import predicts_h3
@@ -18,7 +18,7 @@ from a4_model import A4AnalysisError, WorkLedger
 
 @dataclass(frozen=True)
 class HoldoutResults:
-    h1: bool
+    h1: bool | None
     h2: bool | None
     h3: bool | None
     h4_root: bool | None
@@ -27,7 +27,7 @@ class HoldoutResults:
 
 def evaluate_holdout(
     inputs: HoldoutAnalysisInput,
-    frozen: FrozenModels,
+    frozen: FrozenModelPrefix | FrozenModels,
     ledger: WorkLedger | None = None,
 ) -> HoldoutResults:
     """Open replica 3 only after derivation freeze and apply unchanged models."""
@@ -40,11 +40,15 @@ def evaluate_holdout(
 
     work = ledger or WorkLedger()
     view = inputs.view
+    if frozen.h1 is None:
+        return HoldoutResults(None, None, None, None, None)
     holdout_h1 = predict_h1(
         view, inputs.qualified_tdef_pages, frozen.h1, work
     )
     if holdout_h1 is None:
         return HoldoutResults(False, None, None, None, None)
+    if frozen.h2 is None:
+        return HoldoutResults(True, None, None, None, None)
     h2_ok = predicts_h2(
         view,
         holdout_h1,
@@ -53,6 +57,8 @@ def evaluate_holdout(
     )
     if not h2_ok:
         return HoldoutResults(True, False, None, None, None)
+    if frozen.h3 is None:
+        return HoldoutResults(True, True, None, None, None)
     try:
         frozen_rows = decode_frozen_owned_rows(
             view, holdout_h1, frozen.h2, work
@@ -67,6 +73,8 @@ def evaluate_holdout(
     )
     if not h3_ok:
         return HoldoutResults(True, True, False, None, None)
+    if frozen.h4_root is None:
+        return HoldoutResults(True, True, True, None, None)
     roots = catalog_root_observations(
         view,
         inputs.qualified_tdef_pages,
@@ -80,6 +88,8 @@ def evaluate_holdout(
     )
     if len(matching_roots) != 1:
         return HoldoutResults(True, True, True, False, None)
+    if frozen.h4 is None:
+        return HoldoutResults(True, True, True, True, None)
     root = matching_roots[0]
     try:
         deltas = isolated_operation_deltas(view, holdout_h1, rows, frozen.h3)
