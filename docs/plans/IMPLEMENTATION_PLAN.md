@@ -40,7 +40,7 @@ python3 -c "import json,collections; m=json.load(open('docs/validation/support-m
   paths (`/private/tmp/...`) are convenience copies only and are never
   binding inputs.
 
-## 1. Current state snapshot (2026-08-25, `main` at `94db078`)
+## 1. Current state snapshot (2026-08-25, `main` at `b69201e`)
 
 This snapshot records the reviewed baseline for this plan. Before executing a
 phase, resolve its named PRs and binding inputs against current `main`; a PR
@@ -100,7 +100,7 @@ amendment in P8T before any verification state can move (Section 5.5).
 | A1 `DAO-A1-ALLOCATION-MAPS-001` | `EXP-0037`–`EXP-0039` | hosted lane proved; `no_scientific_outcome` (analyzer/acquisition contract mismatch, disclosed in `EXP-0040`) |
 | A2 `DAO-A2-ALLOCATION-MAPS-001` | `EXP-0040`–`EXP-0043` | decisive record layer **downgraded** (`EXP-0043`: 1,935 plan-literal starts survive); closed |
 | A3 `DAO-A3-ALLOCATION-MAPS-001` + R2–R5 | `EXP-0044`–`EXP-0051` | **independently validated**: `global_map.record` = page 1, interval `[1915,2048)`, `set_means_not_in_use`, predicts holdout. Conversion, extended base, TDEF pointer pair: `no_outcome`. No capability moved. |
-| A4 `DAO-A4-ROW-ANCHORED-MAPS-001` | `EXP-0052` remains proposed by unmerged PR #72 at this snapshot; resolve its reviewed input and merge commit at P0 execution | Pass 10 found two blockers; the remote branch contains a repair and still requires a fresh post-repair review. Do not infer completion from the branch or this row. No A4 implementation or acquisition is authorized until the final zero-blocker review is committed byte-for-byte and the human merges PR #72. |
+| A4 `DAO-A4-ROW-ANCHORED-MAPS-001` | `EXP-0052`; PR #72 final head `991e815d621f0aa4f1fe367e22d08b35a07e2634`; merge commit `b69201e09286ad9f953691dedc878298990b2e1d` | Pass 12 externally reviewed the exact final head with zero blockers and all hosted checks passed before merge. P0 is complete. No A4 implementation, acquisition, DAO evidence, or capability movement exists yet. |
 
 What A3 established that Rust may rely on (only via `EXP-0051`, and only as
 "narrow independently validated experimental input", never as a layout
@@ -196,6 +196,8 @@ one-over reject tests for every bound.
 
 ### P0 — Close the A4 preregistration (PR #72)
 
+- Status: complete at merge commit
+  `b69201e09286ad9f953691dedc878298990b2e1d`.
 - Goal: a merged, immutable A4 base plan that survives one more adversarial
   pass with zero blocking findings.
 - Binding inputs: the committed scope brief
@@ -205,28 +207,22 @@ one-over reject tests for every bound.
   (SHA-256
   `770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25`;
   800,000,000 work-unit ceiling is approved scope; any other figure is
-  not); a TO-BE-CREATED committed copy of the final zero-blocker review at
-  `oracle/windows-dao/experiments/a4/design-inputs/sol-a4-review-final.md`
-  (the future review pass that ends with zero blocking findings, copied
-  byte-for-byte from the reviewer's file; no intermediate review hash is a
-  binding input);
-  `EXP-0043`–`EXP-0051` for the A3 calibration bytes. Before the P0 merge,
-  record all three full SHA-256 values and the exact full OID of the immutable
-  input head examined by the final zero-blocker review in both the PR body and
-  the additive `EXP-0052` entry. A tracked file cannot record the OID of the
-  commit that contains that record. After the final tracked commit is pushed,
-  record the exact final PR head OID in the external PR body only; do not call
-  it the reviewed input head. The final tracked commit may add only the
-  byte-for-byte review and its derived identities; any other content change
-  requires a fresh review of the new input head.
-- Deliverables (all on branch `codex/a4-plan`, additive commits, no
-  squash), one PR step:
-  1. `docs(a4): close preregistration review` — apply any remaining
-     blocking replacement text from the latest review pass verbatim;
-     commit `sol-a4-review-final.md`; add the recomputation script
+  not); `EXP-0043`–`EXP-0051` for the A3 calibration bytes. The final
+  zero-blocker review is an external PR discussion artifact, not a tracked
+  plan input. It must examine and name the exact full OID GitHub reports as
+  the final PR head, and the PR body must record that same OID. Do not commit
+  the review or its hash after review, because doing so would advance the
+  reviewed head. Any tracked content change after the verdict invalidates it
+  and requires a fresh review.
+- Delivered on branch `codex/a4-plan` with additive commits and no squash:
+  1. applied the blocking repairs from Passes 10 and 11;
+     added the recomputation script
      `oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_terms.py`
      that sums every work term from the plan JSON and asserts the printed
-     total; re-pin README and `EXP-0052` text to the final plan SHA-256.
+     total; re-pinned README and `EXP-0052` to plan SHA-256
+     `3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1`;
+     obtained the external Pass 12 exact-final-head zero-blocker review; and
+     merged only after every hosted check passed.
 - Acceptance checks: common commands, then:
 
 ```sh
@@ -251,12 +247,14 @@ python3 -B oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_ter
   "fixing" a blocker by editing the reviewer's replacement text into prose
   without changing the schema; raising a cap without a committed, approved
   amendment.
-- Go/no-go: human merges PR #72 only after a review pass reports no
-  blocking findings. No A4 code may start before merge.
+- Go/no-go: satisfied. PR #72 merged only after a review pass reported no
+  blocking findings. P1 may now start from the merge commit; acquisition
+  remains blocked until every P1 gate passes.
 
-Historical draft PR #74 is an explicit design-input exception to that last
-sentence: its reference harness and transcript were produced against an
-earlier P0 plan solely to expose ambiguities that the preregistration resolves.
+Historical draft PR #74 is an explicit design-input exception to the former
+pre-merge implementation rule: its reference harness and transcript were
+produced against an earlier P0 plan solely to expose ambiguities that the
+preregistration resolves.
 They are not P1 implementation or disclosure artifacts, do not authorize
 acquisition, and do not satisfy any P1 deliverable. All P1 code must still be
 implemented and independently reviewed after PR #72 merges, against the final
@@ -267,9 +265,9 @@ merged plan.
 - Goal: a runnable A4 lane (worker, analyzer, synthetic generator,
   independent validator, workflow) whose pre-dispatch byte-level
   reachability transcript is executed, hash-bound, and disclosed.
-- Binding inputs: merged A4 plan and schemas (full PR #72 merge OID, resolved
-  from `main`, not the reviewed input head or final PR head recorded in the PR
-  body);
+- Binding inputs: merged A4 plan and schemas at full PR #72 merge OID
+  `b69201e09286ad9f953691dedc878298990b2e1d`, resolved from `main`, not the
+  final PR head recorded in the PR body;
   `EXP-0049` (hosted lane rebinding rules); `EXP-0048` (dry-run disclosure
   shape); `EXP-0050` (R5-V01 binding, R5-L01 baselines, R5-T01 timeout);
   the A3 lane files listed in Section 3.3; the retained `EXP-0051` bundle,
@@ -1632,10 +1630,12 @@ reverted.
 ### 6.2 Reviewer ≠ author
 
 Every PR is reviewed by a session that did not write it, using the review
-template in Section 6.5, and the review is appended to
-`/private/tmp/sol-<topic>-review.md`; when a review becomes a plan input it
-is copied byte-for-byte under the relevant `design-inputs/` directory and
-hash-pinned (P0 is the model). A review that only restates the PR
+template in Section 6.5, and the review may be appended to
+`/private/tmp/sol-<topic>-review.md`. A review becomes a committed, hash-pinned
+input only when the phase explicitly requires it and it is committed before
+the head it helps review is frozen. P0 instead used an external PR discussion
+artifact tied to the exact final head; committing that review afterward would
+have invalidated its verdict. A review that only restates the PR
 description is invalid; it must contain the reviewer's own recomputed
 numbers, executed commands with output, and at least one attempted
 falsification per blocking claim. Verdict literals: `MERGE`,
@@ -1786,7 +1786,7 @@ Change only docs/PROVENANCE.md. Open draft PR 'docs: record <campaign> first hos
 
 | Phase | Estimate | Basis |
 | --- | --- | --- |
-| P0 close A4 plan | 1–2 days | A3 needed R2–R5 over ~8.5 h; A4's Pass 10 repair awaits a fresh review |
+| P0 close A4 plan | complete | PR #72 merged at `b69201e` after exact-head Pass 12 |
 | P1 A4 lane + dry runs | 3–5 days | A3 analyzer/validator/lane were PRs #53–#64 over ~2 days with parallel authors |
 | P2 A4 hosted + result | 0.5–2 days | A3: five infra failures then a 22-minute run |
 | P3 Stage 2 close | 3–5 days | three new modules, fuzz target, contract re-pins |
