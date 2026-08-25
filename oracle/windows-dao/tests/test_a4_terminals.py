@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle" / "windows-dao" / "scripts"
@@ -13,6 +15,7 @@ sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from a4_analysis import analyze  # noqa: E402
+import a4_layers  # noqa: E402
 from a4_analysis_input import check_analysis_input  # noqa: E402
 from a4_generator import SyntheticParameters  # noqa: E402
 from a4_layer_h1 import (  # noqa: E402
@@ -293,6 +296,61 @@ class A4TerminalTests(unittest.TestCase):
             frozen.document["layers"]["h3_indirect_traversal"]["status"],
             "not_applicable",
         )
+
+    def test_derivation_terminals_evaluate_only_the_decisive_holdout_prefix(self) -> None:
+        cases: list[tuple[object, SyntheticParameters, dict[str, str]]] = []
+        cases.append((
+            nullcontext(),
+            SyntheticParameters(owned_ordinal_by_replica={2: 1}),
+            {
+                "h1": "pass",
+                "h2": "not_applicable",
+                "h3": "not_applicable",
+                "h4_root": "not_applicable",
+                "h4_fields": "not_applicable",
+            },
+        ))
+
+        original_h3 = a4_layers.h3_observations
+
+        def conversion_none(view: object, rows: object, work: object) -> object:
+            return original_h3(view, rows, work)[:1]
+
+        cases.append((
+            mock.patch.object(
+                a4_layers, "h3_observations", side_effect=conversion_none
+            ),
+            SyntheticParameters(),
+            {
+                "h1": "pass",
+                "h2": "pass",
+                "h3": "not_applicable",
+                "h4_root": "not_applicable",
+                "h4_fields": "not_applicable",
+            },
+        ))
+        cases.append((
+            mock.patch.object(a4_layers, "operation_records", return_value=()),
+            SyntheticParameters(),
+            {
+                "h1": "pass",
+                "h2": "pass",
+                "h3": "pass",
+                "h4_root": "pass",
+                "h4_fields": "not_applicable",
+            },
+        ))
+
+        for patcher, parameters, expected in cases:
+            with self.subTest(expected=expected), patcher:
+                analysis = analyze("a4-synthetic", _COMMIT, _inputs(parameters))
+            self.assertEqual(
+                {
+                    name: result["status"]
+                    for name, result in analysis.report["holdout_results"].items()
+                },
+                expected,
+            )
 
 
 if __name__ == "__main__":

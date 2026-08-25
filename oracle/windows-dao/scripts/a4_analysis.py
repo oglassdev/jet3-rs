@@ -18,7 +18,7 @@ from a4_analysis_input import (
 )
 from a4_analysis_state import FrozenDerivation, freeze_derivation, resume_derivation
 from a4_analysis_holdout import HoldoutResults, evaluate_holdout
-from a4_frozen_models import load_frozen_models
+from a4_frozen_models import load_frozen_model_prefix, load_frozen_models
 from a4_layers import DerivationLayers, derive_layers
 from a4_model import WorkLedger
 from a4_measurements import PredicateMeasurement
@@ -189,6 +189,7 @@ def analyze(
         frozen.occurrence_evidence_bytes,
     )
     if isinstance(layers, DerivationTerminal):
+        frozen_models = load_frozen_model_prefix(resumed)
         measurements = layers.measurements
         occurrence_evidence = MappingProxyType(
             {} if layers.h4_occurrence_evidence is None else dict(layers.h4_occurrence_evidence)
@@ -203,15 +204,25 @@ def analyze(
             provider,
             frozen.occurrence_evidence_bytes,
         )
+        prior_work_units = ledger.total_work_units
         del layers, derivation_input, ledger, resumed
-        holdout_campaign = open_holdout_campaign(ticket, frozen.canonical_bytes)
+        if frozen_models.h1 is None:
+            holdout_input = open_holdout_campaign(ticket, frozen.canonical_bytes)
+            holdout = None
+        else:
+            holdout_input = open_holdout(ticket, frozen.canonical_bytes)
+            holdout = evaluate_holdout(
+                holdout_input,
+                frozen_models,
+                WorkLedger(prior_work_units),
+            )
         del ticket
         report = _report(
             campaign_id,
             producer_commit,
             frozen,
-            None,
-            [*derivation_reads, holdout_campaign.view.logical_read_bytes],
+            holdout,
+            [*derivation_reads, holdout_input.view.logical_read_bytes],
             measurements,
         )
         return AnalysisResult(frozen, occurrence_evidence, MappingProxyType(report))

@@ -360,7 +360,7 @@ class A4LayerBoundaryTests(unittest.TestCase):
             qualified_tdef_pages=(),
             replica=SimpleNamespace(table_row_counts={}),
         )
-        frozen = SimpleNamespace(h1=object(), h2=object())
+        frozen = SimpleNamespace(h1=object(), h2=object(), h3=object())
         with patch.object(
             a4_analysis_holdout, "predict_h1", return_value=object()
         ), patch.object(
