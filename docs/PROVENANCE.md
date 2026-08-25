@@ -4802,8 +4802,8 @@ Use `not applicable` explicitly rather than omitting a field.
   equality were accepted; an unregistered candidate id, malformed page,
   invalidated earlier predicate, and one-over resource count were rejected.
   The analyzer and independent validator both report commit
-  `668692bc4eba63b18fb841db4d0a05530db9c335`; generation reports
-  `PASS (40/40)`. Fresh byte-for-byte verification is required before merge.
+  `668692bc4eba63b18fb841db4d0a05530db9c335`; generation and fresh
+  byte-for-byte verification each report `PASS (40/40)`.
 - Artifacts: `a3-calibration-report.json`, 3,889 bytes, SHA-256
   `d4478ca40b40bc60bc090aa30f06e07220ef6edac52678229a06cb5ae775624e`;
   `a4-reachability-transcript.json`, 125,211 bytes, SHA-256
@@ -4823,8 +4823,8 @@ Use `not applicable` explicitly rather than omitting a field.
   retained-bundle-path-dependent test skipped, including the generator, analyzer,
   dry-run driver, independent campaign checks, independent H3/H4 checks, and
   independent validator. Python bytecode compilation, whitespace validation,
-  artifact checksum validation, and deterministic generation passed; fresh
-  independent verification remains pending.
+  artifact checksum validation, deterministic generation, and fresh independent
+  verification passed.
 
 ## Fixtures and black-box results
 
