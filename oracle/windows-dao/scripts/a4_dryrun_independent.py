@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -19,35 +18,66 @@ from a4_independent_bundle import (
     ValidationError,
     canonical_document_bytes,
 )
+from a4_dryrun_io import BoundedIoError, TreeFile, inventory_tree, read_regular
 from a4_independent_campaign import recompute_campaign
 from a4_independent_contract import CONTRACT, ContractError
 from a4_independent_validator import _validate_candidates, recompute_bundle
 
 
+PROCESS_MARKER = "a4-dryrun-independent-validator-process-v1"
+
+
 def _read_document(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
-    raw = path.read_bytes()
+    try:
+        raw = read_regular(path, int(CONTRACT.bounds["max_json_bytes"]))
+    except BoundedIoError as exc:
+        raise ValidationError("fixture_file_bound", label) from exc
     value = json.loads(raw)
     if not isinstance(value, dict) or raw != canonical_document_bytes(value):
         raise ValidationError("fixture_not_canonical", label)
     return value, raw
 
 
-def _merge_roots(roots: Sequence[Path], destination: Path) -> None:
-    destination.mkdir()
-    for root in roots:
-        shutil.copytree(root, destination, dirs_exist_ok=True)
+def _root_inventory(root: Path) -> dict[str, TreeFile]:
+    try:
+        files = inventory_tree(
+            root,
+            maximum_entries=int(CONTRACT.bounds["max_unique_page_blobs"]) + 128,
+            maximum_bytes=int(CONTRACT.bounds["max_bundle_bytes"]),
+            maximum_file_bytes=int(CONTRACT.bounds["max_json_bytes"]),
+            page_size=2048,
+        )
+    except BoundedIoError as exc:
+        raise ValidationError("fixture_inventory_bound", str(root)) from exc
+    return {item.relative: item for item in files}
 
 
 def _campaign_bundle(roots: Sequence[Path], workspace: Path) -> LoadedBundle:
     if len(roots) != 3:
         raise ValidationError("fixture_replica_count")
     combined = workspace / "combined"
-    _merge_roots(roots, combined)
+    combined.mkdir()
     entries: dict[str, Mapping[str, Any]] = {}
+    sources: dict[str, Path] = {}
     manifests: dict[int, Mapping[str, Any]] = {}
-    for replica in (1, 2, 3):
+    page_payloads: dict[str, bytes] = {}
+    physical_entries = 0
+    physical_bytes = 0
+    for replica, root in zip((1, 2, 3), roots, strict=True):
+        available = _root_inventory(root)
+        physical_entries += len(available)
+        physical_bytes += sum(item.size for item in available.values())
+        if (
+            physical_entries > int(CONTRACT.bounds["max_unique_page_blobs"]) + 128
+            or physical_bytes > int(CONTRACT.bounds["max_bundle_bytes"])
+        ):
+            raise ValidationError("fixture_aggregate_inventory_bound")
         relative = f"replica-artifacts/replica-{replica:02d}-manifest.json"
-        manifest, raw = _read_document(combined / relative, relative)
+        try:
+            manifest_path = available[relative].path
+        except KeyError as exc:
+            raise ValidationError("fixture_manifest_missing", relative) from exc
+        manifest, raw = _read_document(manifest_path, relative)
         CONTRACT.validate_document(manifest, "dao_a4_replica_artifact_manifest")
         manifests[replica] = manifest
         own: Mapping[str, Any] = {
@@ -57,28 +87,47 @@ def _campaign_bundle(roots: Sequence[Path], workspace: Path) -> LoadedBundle:
             "size_bytes": len(raw),
             "media_type": "application/json",
         }
+        declared_for_root: set[str] = set()
         for entry in (own, *manifest["files"]):
             path = str(entry["path"])
-            payload = (combined / path).read_bytes()
+            try:
+                source = available[path].path
+            except KeyError as exc:
+                raise ValidationError("fixture_declared_file_missing", path) from exc
+            declared_for_root.add(path)
+            role = str(entry["role"])
+            maximum = 2048 if role == "page_blob" else int(CONTRACT.bounds["max_json_bytes"])
+            try:
+                payload = read_regular(
+                    source,
+                    maximum,
+                    exact_size=2048 if role == "page_blob" else None,
+                )
+            except BoundedIoError as exc:
+                raise ValidationError("fixture_file_bound", path) from exc
             actual_entry = {
                 **entry,
                 "sha256": hashlib.sha256(payload).hexdigest(),
                 "size_bytes": len(payload),
             }
+            if actual_entry["sha256"] != entry["sha256"] or actual_entry["size_bytes"] != entry["size_bytes"]:
+                raise ValidationError("fixture_manifest_file_mismatch", path)
             existing = entries.get(path)
             if existing is not None and existing != actual_entry:
                 raise ValidationError("fixture_inventory_disagreement", path)
             entries[path] = actual_entry
-    declared = set(entries)
-    actual = {
-        path.relative_to(combined).as_posix()
-        for path in combined.rglob("*")
-        if path.is_file()
-    }
-    if actual != declared:
-        raise ValidationError("fixture_inventory_not_closed")
+            sources.setdefault(path, source)
+            if role == "page_blob":
+                page_payloads.setdefault(str(entry["sha256"]), payload)
+            else:
+                target = combined / path
+                if not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(payload)
+        if set(available) != declared_for_root:
+            raise ValidationError("fixture_inventory_not_closed", str(root))
     page_paths = {
-        str(entry["sha256"]): combined / path
+        str(entry["sha256"]): sources[path]
         for path, entry in entries.items()
         if entry["role"] == "page_blob"
     }
@@ -87,12 +136,14 @@ def _campaign_bundle(roots: Sequence[Path], workspace: Path) -> LoadedBundle:
         int(CONTRACT.bounds["max_unique_page_blobs"]),
         int(CONTRACT.bounds["max_logical_checkpoint_read_bytes_per_replica"]),
     )
+    for digest, payload in page_payloads.items():
+        store.preload(digest, payload)
     replicas: dict[int, Replica] = {}
     for replica in (1, 2, 3):
         environment_path = f"environment/replica-{replica:02d}.json"
         observation_path = f"observations/replica-{replica:02d}.json"
-        environment, _ = _read_document(combined / environment_path, environment_path)
-        observation, _ = _read_document(combined / observation_path, observation_path)
+        environment, _ = _read_document(sources[environment_path], environment_path)
+        observation, _ = _read_document(sources[observation_path], observation_path)
         CONTRACT.validate_document(environment, "dao_a4_environment")
         CONTRACT.validate_document(observation, "dao_a4_replica_observation")
         indexes: dict[str, Mapping[str, Any]] = {}
@@ -100,8 +151,8 @@ def _campaign_bundle(roots: Sequence[Path], workspace: Path) -> LoadedBundle:
         for ordinal, checkpoint in enumerate(CONTRACT.checkpoint_ids):
             index_path = f"page-indexes/replica-{replica:02d}/{ordinal:02d}-{checkpoint}.json"
             snapshot_path = f"schema-snapshots/replica-{replica:02d}/{ordinal:02d}-{checkpoint}.json"
-            index, _ = _read_document(combined / index_path, index_path)
-            snapshot, _ = _read_document(combined / snapshot_path, snapshot_path)
+            index, _ = _read_document(sources[index_path], index_path)
+            snapshot, _ = _read_document(sources[snapshot_path], snapshot_path)
             CONTRACT.validate_document(index, "dao_a4_page_index")
             indexes[checkpoint] = index
             snapshots[checkpoint] = snapshot
@@ -252,6 +303,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    print(PROCESS_MARKER, flush=True)
     args = parse_args()
     if args.frozen is not None:
         result = {"result": "accept"}

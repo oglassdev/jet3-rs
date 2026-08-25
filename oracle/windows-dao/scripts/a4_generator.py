@@ -26,6 +26,7 @@ from a4_generator_pages import (
     type_0_row,
     type_1_row,
 )
+from a4_generator_parameters import SyntheticParameters
 from a4_generator_schedule import EVENTS, PROFILES, EventKind, Profile, SCHEDULE
 from a4_spec import BOUNDS, CHECKPOINT_IDS, PAGE_SIZE, PLAN
 
@@ -78,116 +79,6 @@ def _strict_name_bytes(name: str) -> bytes:
         return name.encode("cp1252", errors="strict")
     except UnicodeEncodeError as exc:
         raise ValidationError("A4 synthetic name is not strict Windows-1252") from exc
-
-
-@dataclass(frozen=True)
-class SyntheticParameters:
-    """Bounded byte-level choices; none is a scientific result label."""
-
-    layout_by_replica: Mapping[int, str] = field(default_factory=dict)
-    owned_ordinal_by_replica: Mapping[int, int] = field(default_factory=dict)
-    signature_id: str = STANDARD_SIGNATURE
-    locator_offsets: tuple[int, ...] = DEFAULT_OFFSETS
-    type_0_polarity: str = "set_bit_owned_in_use"
-    row_flag: int = 0x1000
-    force_t3_conversion_checkpoint: str = "T3_ABS_08192"
-    force_conversion_checkpoint_by_role: Mapping[str, str] = field(default_factory=dict)
-    initial_filler_delta: int = 0
-    post_reservation_filler_delta: int = 0
-    omit_blob_digest: str | None = None
-    user_tdef_tag: int = TAG_TDEF
-    tdef_style: str = "signature"
-    locator_target: str = "map"
-    locator_target_page: int | None = None
-    decoy_tdef_pages: Mapping[str, int] = field(default_factory=dict)
-    available_equals_owned: bool = False
-    conversion: str = "capacity"
-    never_convert_roles: frozenset[str] = frozenset()
-    type_1_exact_slots: bool = False
-    type_1_slot_count: int | None = None
-    omit_pages_at_or_above: int | None = None
-    omit_pages_below_by_role: Mapping[str, int] = field(default_factory=dict)
-    tag_05_mode_by_replica: Mapping[int, str] = field(default_factory=dict)
-    tag_05_bit_shift: int = 0
-    tag_05_bit_shift_by_replica: Mapping[int, int] = field(default_factory=dict)
-    synthetic_boundary_bits: bool = False
-    catalog_page_default: str = "catalog"
-    catalog_page_override: Mapping[str, str] = field(default_factory=dict)
-    catalog_page_override_by_replica: Mapping[int, Mapping[str, str]] = field(default_factory=dict)
-    decoy_follows_operations: bool = False
-    spare_noise_at: frozenset[str] = frozenset()
-    catalog_header_noise_at: frozenset[str] = frozenset()
-    skip_catalog_record_at: frozenset[str] = frozenset()
-    duplicate_catalog_record_at: frozenset[str] = frozenset()
-    catalog_kind_override: Mapping[str, int] = field(default_factory=dict)
-    catalog_record_layout: str = "single"
-    e_acute_length_override: int | None = None
-    e_acute_double_occurrence: bool = False
-    t2_identifier_relation_by_replica: Mapping[int, str] = field(default_factory=dict)
-    holdout_name_corruption: bool = False
-
-    def layout(self, replica: int) -> str:
-        return self.layout_by_replica.get(replica, DEFAULT_LAYOUT)
-
-    def owned_ordinal(self, replica: int) -> int:
-        return self.owned_ordinal_by_replica.get(replica, 0)
-
-    def validate(self) -> None:
-        layouts = tuple(H1["locator_layouts"])
-        if any(replica not in PROFILES for replica in self.layout_by_replica):
-            raise ValidationError("A4 synthetic layout names an unknown replica")
-        if any(layout not in layouts for layout in self.layout_by_replica.values()):
-            raise ValidationError("A4 synthetic locator layout is not registered")
-        if any(value not in (0, 1) for value in self.owned_ordinal_by_replica.values()):
-            raise ValidationError("A4 synthetic owned ordinal must be zero or one")
-        signatures = {STANDARD_SIGNATURE, DUPLICATE_SIGNATURE}
-        if self.signature_id not in signatures:
-            raise ValidationError("A4 synthetic TDEF signature is not registered")
-        signature = (
-            H1["table_record_signature"]
-            if self.signature_id == STANDARD_SIGNATURE
-            else H1["pair_multiple_reachability_signature"]
-        )
-        required = tuple(interval[0] for interval in signature["locator_holes"])
-        if self.locator_offsets != required:
-            raise ValidationError("A4 synthetic locator offsets differ from the signature")
-        if self.type_0_polarity not in H1.get("type_0_polarities", ()) and self.type_0_polarity not in GRAMMAR["h2"]["type_0_polarities"]:
-            raise ValidationError("A4 synthetic type-0 polarity is not registered")
-        if self.row_flag < 0 or self.row_flag > 0xF000 or self.row_flag & 0x0FFF:
-            raise ValidationError("A4 synthetic row flag overlaps the offset bits")
-        if self.force_t3_conversion_checkpoint not in CHECKPOINT_IDS:
-            raise ValidationError("A4 synthetic conversion checkpoint is unknown")
-        if any(value not in CHECKPOINT_IDS for value in self.force_conversion_checkpoint_by_role.values()):
-            raise ValidationError("A4 synthetic role conversion checkpoint is unknown")
-        if self.initial_filler_delta < 0 or self.initial_filler_delta > 4096:
-            raise ValidationError("A4 synthetic filler delta is outside its local bound")
-        if not 0 <= self.post_reservation_filler_delta <= 4096:
-            raise ValidationError("A4 synthetic post-reservation filler is outside its bound")
-        if self.omit_blob_digest is not None and (
-            len(self.omit_blob_digest) != 64
-            or any(value not in "0123456789abcdef" for value in self.omit_blob_digest)
-        ):
-            raise ValidationError("A4 omitted blob identity is not canonical SHA-256")
-        if self.user_tdef_tag < 0 or self.user_tdef_tag > 255:
-            raise ValidationError("A4 synthetic TDEF tag is outside u8")
-        if self.tdef_style not in {"signature", "opaque", "broken_signature"}:
-            raise ValidationError("A4 synthetic TDEF style is unknown")
-        if self.locator_target not in {"map", "tdef"}:
-            raise ValidationError("A4 synthetic locator target is unknown")
-        if self.locator_target_page is not None and not 0 <= self.locator_target_page <= 20479:
-            raise ValidationError("A4 synthetic locator target page is outside its bound")
-        if self.conversion not in {"capacity", "never"}:
-            raise ValidationError("A4 synthetic conversion policy is unknown")
-        if self.type_1_slot_count is not None and not 1 <= self.type_1_slot_count <= 64:
-            raise ValidationError("A4 synthetic type-1 slot count is outside its bound")
-        if any(value not in {"slot", "equals_slot", "referenced"} for value in self.tag_05_mode_by_replica.values()):
-            raise ValidationError("A4 synthetic tag-05 mode is unknown")
-        if self.catalog_page_default not in {"catalog", "spare"}:
-            raise ValidationError("A4 synthetic catalog page is unknown")
-        if self.catalog_record_layout not in {"single", "double"}:
-            raise ValidationError("A4 synthetic catalog layout is unknown")
-        if self.omit_pages_at_or_above is not None and self.omit_pages_at_or_above < 0:
-            raise ValidationError("A4 synthetic visible-page limit is negative")
 
 
 @dataclass

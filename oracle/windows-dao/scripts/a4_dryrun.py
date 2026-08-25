@@ -11,17 +11,25 @@ import os
 import subprocess
 import sys
 import tempfile
+from itertools import islice
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from a4_dryrun_calibration import replay
 from a4_dryrun_fixtures import FIXTURES, Fixture, reject_verdict_keys
+from a4_dryrun_io import (
+    inventory_tree,
+    read_regular,
+    run_bounded_child,
+)
 from a4_dryrun_surface import write_fixture_trees
 from a4_generator import SyntheticParameters
 from a4_spec import (
+    BOUNDS,
     EXPERIMENT_ID,
     PLAN_SHA256,
+    PAGE_SIZE,
     PREDICATE_CONTRACTS,
     REVISION_PLAN_SHA256,
     validate_schema,
@@ -64,6 +72,13 @@ PARAMETER_COVERAGE = {
         "campaign_2701_seconds",
     )
 }
+MAX_JSON_BYTES = int(BOUNDS["max_json_bytes"])
+MAX_CHILD_LOG_BYTES = int(BOUNDS["max_child_log_bytes"])
+MAX_TREE_ENTRIES = int(BOUNDS["max_unique_page_blobs"]) + 128
+PROCESS_MARKERS = {
+    ANALYZER: b"a4-dryrun-analyzer-process-v1\n",
+    INDEPENDENT: b"a4-dryrun-independent-validator-process-v1\n",
+}
 
 
 def _git(*arguments: str) -> str:
@@ -92,8 +107,16 @@ def _inventory_hash(roots: Sequence[Path], role: str | None = None) -> str:
     rows = []
     seen_pages: set[str] = set()
     for root in roots:
-        for path in sorted(item for item in root.rglob("*") if item.is_file()):
-            relative = path.relative_to(root).as_posix()
+        files = inventory_tree(
+            root,
+            maximum_entries=MAX_TREE_ENTRIES,
+            maximum_bytes=int(BOUNDS["max_bundle_bytes"]),
+            maximum_file_bytes=MAX_JSON_BYTES,
+            page_size=PAGE_SIZE,
+        )
+        for item in files:
+            path = item.path
+            relative = item.relative
             is_page = relative.startswith("page-store/")
             if role == "page_index" and not relative.startswith("page-indexes/"):
                 continue
@@ -107,7 +130,11 @@ def _inventory_hash(roots: Sequence[Path], role: str | None = None) -> str:
                     continue
                 seen_pages.add(digest)
                 logical = relative
-            payload = path.read_bytes()
+            payload = read_regular(
+                path,
+                PAGE_SIZE if is_page else MAX_JSON_BYTES,
+                exact_size=PAGE_SIZE if is_page else None,
+            )
             rows.append(
                 {
                     "path": logical,
@@ -119,34 +146,45 @@ def _inventory_hash(roots: Sequence[Path], role: str | None = None) -> str:
     return hashlib.sha256(canonical_json_bytes(rows)).hexdigest()
 
 
-def _run(command: Sequence[str], log: Path) -> None:
-    completed = subprocess.run(
+def _run(command: Sequence[str], log: Path) -> dict[str, Any]:
+    completed = run_bounded_child(
         command,
         cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=300,
+        timeout_seconds=300,
+        output_limit=MAX_CHILD_LOG_BYTES,
     )
-    log.write_bytes(completed.stdout)
+    log.write_bytes(completed.output)
+    script = Path(command[2]).resolve() if len(command) > 2 else None
+    marker = PROCESS_MARKERS.get(script)
+    if marker is not None and not completed.output.startswith(marker):
+        raise ValidationError("A4 dry-run child process marker differs")
     if completed.returncode != 0:
-        detail = completed.stdout[-2000:].decode("utf-8", errors="replace")
+        detail = completed.output[-2000:].decode("utf-8", errors="replace")
         raise ValidationError(
             f"A4 dry-run child failed ({completed.returncode}): "
             f"{' '.join(command[:3])}: {detail}"
         )
+    return {
+        "script": None if script is None else script.relative_to(ROOT).as_posix(),
+        "script_sha256": None if script is None else _sha256(script),
+        "returncode": completed.returncode,
+        "log_size_bytes": len(completed.output),
+        "log_sha256": hashlib.sha256(completed.output).hexdigest(),
+    }
 
 
 def _run_status(command: Sequence[str], log: Path) -> int:
-    completed = subprocess.run(
+    completed = run_bounded_child(
         command,
         cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=300,
+        timeout_seconds=300,
+        output_limit=MAX_CHILD_LOG_BYTES,
     )
-    log.write_bytes(completed.stdout)
+    log.write_bytes(completed.output)
+    script = Path(command[2]).resolve() if len(command) > 2 else None
+    marker = PROCESS_MARKERS.get(script)
+    if marker is not None and not completed.output.startswith(marker):
+        raise ValidationError("A4 dry-run child process marker differs")
     return completed.returncode
 
 
@@ -157,10 +195,23 @@ def _reported_campaign_rejection(status: int, output: Path) -> bool:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_bytes())
+    value = json.loads(read_regular(path, MAX_JSON_BYTES))
     if not isinstance(value, dict):
         raise ValidationError(f"A4 dry-run output is not an object: {path}")
     return value
+
+
+def _reject_serialized_verdict_keys(roots: Sequence[Path]) -> None:
+    for root in roots:
+        for item in inventory_tree(
+            root,
+            maximum_entries=MAX_TREE_ENTRIES,
+            maximum_bytes=int(BOUNDS["max_bundle_bytes"]),
+            maximum_file_bytes=MAX_JSON_BYTES,
+            page_size=PAGE_SIZE,
+        ):
+            if item.path.suffix == ".json":
+                reject_verdict_keys(_read_json(item.path))
 
 
 def _fixture_entry(
@@ -177,9 +228,10 @@ def _evaluate_fixture(
     with tempfile.TemporaryDirectory(prefix="a4-dryrun-fixture-") as temporary:
         root = Path(temporary)
         roots = write_fixture_trees(root / "roots", fixture)
+        _reject_serialized_verdict_keys(roots)
         analyzer_output = root / "analyzer.json"
         analyzer_workspace = root / "analyzer-workspace"
-        _run(
+        analyzer_receipt = _run(
             (
                 sys.executable,
                 "-B",
@@ -212,7 +264,13 @@ def _evaluate_fixture(
             if not isinstance(bundle_root, str):
                 raise ValidationError("A4 scientific fixture did not retain a bundle")
             independent_command.extend(("--bundle-root", bundle_root))
-        _run(independent_command, root / "independent.log")
+        independent_receipt = _run(independent_command, root / "independent.log")
+        if (
+            analyzer_receipt["script"] == independent_receipt["script"]
+            or analyzer_receipt["script_sha256"] == independent_receipt["script_sha256"]
+            or analyzer_receipt["log_sha256"] == independent_receipt["log_sha256"]
+        ):
+            raise ValidationError("A4 evaluator process sources are not independent")
         independent = _read_json(independent_output)
         evaluator_keys = {
             "first_failure_id",
@@ -254,27 +312,40 @@ def _evaluate_fixture(
         return entry
 
 
-def _outcome(expected: str, actual: str | None = None) -> dict[str, Any]:
-    result = expected if actual is None else actual
+def _outcome(
+    expected: str, analyzer_result: str, independent_result: str
+) -> dict[str, Any]:
     return {
         "expected": expected,
-        "analyzer_result": result,
-        "independent_validator_result": result,
-        "agreement": True,
+        "analyzer_result": analyzer_result,
+        "independent_validator_result": independent_result,
+        "agreement": analyzer_result == independent_result,
     }
+
+
+def _count_outcome(entry: Mapping[str, Any], expected_count: int) -> dict[str, Any]:
+    def result(role: str) -> str:
+        measured = entry[role]["measured_terminal_count"]
+        return "accept" if measured == expected_count else "reject"
+
+    return _outcome(
+        "accept", result("analyzer_result"), result("independent_validator_result")
+    )
+
+
+def _rejection_outcome(entry: Mapping[str, Any], predicate_id: str) -> dict[str, Any]:
+    def result(role: str) -> str:
+        failure = entry[role]["first_failure_id"]
+        return "reject" if failure == predicate_id else "accept"
+
+    return _outcome(
+        "reject", result("analyzer_result"), result("independent_validator_result")
+    )
 
 
 def _adversarial_outcomes(
     entries: Mapping[str, Mapping[str, Any]], baseline_fixture_sha256: str
 ) -> dict[str, Any]:
-    counts = {
-        predicate: entries[predicate]["analyzer_result"]["measured_terminal_count"]
-        for predicate in entries
-    }
-    if counts["A4-H1-TDEF-MULTIPLE"] != 2:
-        raise ValidationError("A4 multiple-count-2 adversary did not measure two")
-    if counts["A4-H4-ENCODING-AMBIGUOUS"] != 0:
-        raise ValidationError("A4 encoding-count-0 adversary did not measure zero")
     extra = {
         "multiple_count_3": (
             "A4-H1-TDEF-MULTIPLE",
@@ -301,22 +372,34 @@ def _adversarial_outcomes(
             2,
         ),
     }
+    extra_entries = {}
     for name, (predicate, fixture, expected_count) in extra.items():
         entry = _evaluate_fixture(predicate, fixture, baseline_fixture_sha256)
-        if entry["analyzer_result"]["measured_terminal_count"] != expected_count:
-            raise ValidationError(f"A4 {name} adversary measured the wrong count")
-    _run_adversarial_rejections(baseline_fixture_sha256)
+        extra_entries[name] = _count_outcome(entry, expected_count)
+    rejection_outcomes = _run_adversarial_rejections(baseline_fixture_sha256)
     return {
-        "multiple_count_2": _outcome("accept"),
-        "multiple_count_3": _outcome("accept"),
-        "multiple_count_4": _outcome("accept"),
-        "encoding_count_0": _outcome("accept"),
-        "encoding_count_2": _outcome("accept"),
-        "unregistered_candidate_id": _outcome("reject"),
-        "malformed_page": _outcome("reject"),
-        "earlier_predicate_invalidated": _outcome("reject"),
-        "resource_one_over": _outcome("reject"),
-        "work_counter_comparator_equality": _outcome("accept"),
+        "multiple_count_2": _count_outcome(
+            entries["A4-H1-TDEF-MULTIPLE"], 2
+        ),
+        "multiple_count_3": extra_entries["multiple_count_3"],
+        "multiple_count_4": extra_entries["multiple_count_4"],
+        "encoding_count_0": _count_outcome(
+            entries["A4-H4-ENCODING-AMBIGUOUS"], 0
+        ),
+        "encoding_count_2": extra_entries["encoding_count_2"],
+        "unregistered_candidate_id": rejection_outcomes[
+            "unregistered_candidate_id"
+        ],
+        "malformed_page": rejection_outcomes["malformed_page"],
+        "earlier_predicate_invalidated": rejection_outcomes[
+            "earlier_predicate_invalidated"
+        ],
+        "resource_one_over": _rejection_outcome(
+            entries["A4-RESOURCE-BOUND"], "A4-RESOURCE-BOUND"
+        ),
+        "work_counter_comparator_equality": rejection_outcomes[
+            "work_counter_comparator_equality"
+        ],
     }
 
 
@@ -340,7 +423,9 @@ def _replace_first_candidate_id(value: Any) -> bool:
     return False
 
 
-def _run_adversarial_rejections(baseline_fixture_sha256: str) -> None:
+def _run_adversarial_rejections(
+    baseline_fixture_sha256: str,
+) -> dict[str, dict[str, Any]]:
     earlier = Fixture(
         "A4-ADV-EARLIER-INVALIDATED",
         patches_by_replica={1: ("deleted_row", "directory_overlap")},
@@ -348,8 +433,9 @@ def _run_adversarial_rejections(baseline_fixture_sha256: str) -> None:
     entry = _evaluate_fixture(
         "A4-H2-ROW-DIRECTORY-INVALID", earlier, baseline_fixture_sha256
     )
-    if entry["first_failure_id"] != "A4-H2-ROW-DIRECTORY-INVALID":
-        raise ValidationError("A4 earlier-predicate adversary was not rejected early")
+    earlier_outcome = _rejection_outcome(
+        entry, "A4-H2-ROW-DIRECTORY-INVALID"
+    )
 
     with tempfile.TemporaryDirectory(prefix="a4-dryrun-adversarial-") as temporary:
         root = Path(temporary)
@@ -373,7 +459,11 @@ def _run_adversarial_rejections(baseline_fixture_sha256: str) -> None:
             root / "fixture-analyzer.log",
         )
         bundle = Path(str(_read_json(analyzer_output)["bundle_root"]))
-        frozen = json.loads((bundle / "analysis/derivation-candidates.json").read_bytes())
+        frozen = json.loads(
+            read_regular(
+                bundle / "analysis/derivation-candidates.json", MAX_JSON_BYTES
+            )
+        )
         if not _replace_first_candidate_id(frozen):
             raise ValidationError("A4 adversary found no candidate id to mutate")
         tampered = root / "unregistered-candidate.json"
@@ -390,8 +480,7 @@ def _run_adversarial_rejections(baseline_fixture_sha256: str) -> None:
                 else (sys.executable, "-B", str(script), flag, str(tampered), "--output", str(output))
             )
             results.append(_child_result(command, output, root / f"{name}.log"))
-        if results != ["reject", "reject"]:
-            raise ValidationError("A4 unregistered-candidate adversary was accepted")
+        unregistered_outcome = _outcome("reject", results[0], results[1])
 
         malformed_roots = write_fixture_trees(
             root / "malformed-roots", Fixture("A4-ADV-MALFORMED")
@@ -402,7 +491,7 @@ def _run_adversarial_rejections(baseline_fixture_sha256: str) -> None:
         page = malformed_roots[0] / "page-store" / (
             str(page_index["ordered_page_sha256"][0]) + ".page"
         )
-        page.write_bytes(page.read_bytes()[:-1])
+        page.write_bytes(read_regular(page, PAGE_SIZE, exact_size=PAGE_SIZE)[:-1])
         malformed_analyzer = root / "malformed-analyzer.json"
         analyzer_status = _run_status(
             (
@@ -432,24 +521,37 @@ def _run_adversarial_rejections(baseline_fixture_sha256: str) -> None:
             ),
             root / "malformed-independent.log",
         )
-        if not all((
-            _reported_campaign_rejection(analyzer_status, malformed_analyzer),
-            _reported_campaign_rejection(independent_status, malformed_independent),
-        )):
-            raise ValidationError("A4 malformed-page adversary was accepted")
+        malformed_outcome = _outcome(
+            "reject",
+            "reject"
+            if _reported_campaign_rejection(analyzer_status, malformed_analyzer)
+            else "accept",
+            "reject"
+            if _reported_campaign_rejection(independent_status, malformed_independent)
+            else "accept",
+        )
 
+        work_results = []
         for script, arguments, name in (
             (ANALYZER, ("check-work", "--value", "800000000"), "work-analyzer"),
             (INDEPENDENT, ("--work-value", "800000000"), "work-independent"),
         ):
             output = root / f"{name}.json"
-            result = _child_result(
+            work_results.append(
+                _child_result(
                 (sys.executable, "-B", str(script), *arguments, "--output", str(output)),
                 output,
                 root / f"{name}.log",
             )
-            if result != "accept":
-                raise ValidationError("A4 work comparator rejected equality")
+            )
+        return {
+            "earlier_predicate_invalidated": earlier_outcome,
+            "unregistered_candidate_id": unregistered_outcome,
+            "malformed_page": malformed_outcome,
+            "work_counter_comparator_equality": _outcome(
+                "accept", work_results[0], work_results[1]
+            ),
+        }
 
 
 def _reachability(commit: str) -> tuple[dict[str, Any], str]:
@@ -610,11 +712,16 @@ def _write_new(output: Path, artifacts: Mapping[str, bytes]) -> None:
 
 def _verify(artifacts: Path, generated: Mapping[str, bytes]) -> None:
     expected = set(generated)
-    actual = {path.name for path in artifacts.iterdir() if path.is_file()}
-    if actual != expected:
+    actual_paths = tuple(islice(artifacts.iterdir(), len(expected) + 1))
+    actual = {path.name for path in actual_paths}
+    if (
+        len(actual_paths) != len(expected)
+        or actual != expected
+        or any(path.is_symlink() or not path.is_file() for path in actual_paths)
+    ):
         raise ValidationError("A4 dry-run artifact inventory differs")
     for name, payload in generated.items():
-        if (artifacts / name).read_bytes() != payload:
+        if read_regular(artifacts / name, len(payload), exact_size=len(payload)) != payload:
             raise ValidationError(f"A4 dry-run artifact differs: {name}")
 
 

@@ -14,8 +14,10 @@ from typing import Any
 from a4_analysis_input import ReplicaAnalysisInput
 from a4_campaign import changed_page_indices, expected_snapshot_tables
 from a4_dryrun_fixtures import Fixture
+from a4_dryrun_io import inventory_tree, read_regular
 from a4_generator import SyntheticReplica, generate_replica
 from a4_spec import (
+    BOUNDS,
     CHECKPOINT_IDS,
     EXPERIMENT_ID,
     PAGE_SIZE,
@@ -32,6 +34,8 @@ PRODUCER_COMMIT = "0" * 40
 PROVIDER_SHA256 = "2" * 64
 PROVIDER_CLSID = "{00000100-0000-0010-8000-00AA006D2EA4}"
 ROOT = Path(__file__).resolve().parents[3]
+MAX_JSON_BYTES = int(BOUNDS["max_json_bytes"])
+MAX_TREE_ENTRIES = int(BOUNDS["max_unique_page_blobs"]) + 128
 CANONICALIZATION = json.loads(
     (ROOT / "oracle/windows-dao/experiments/a4/dao-schema-snapshot.schema.json").read_text()
 )["properties"]["canonicalization"]["const"]
@@ -419,11 +423,15 @@ class DiskSource:
     ordered_page_sha256: Mapping[str, tuple[str, ...]]
 
     def page_bytes(self, digest: str) -> bytes:
-        return (self.root / f"page-store/{digest}.page").read_bytes()
+        return read_regular(
+            self.root / f"page-store/{digest}.page",
+            PAGE_SIZE,
+            exact_size=PAGE_SIZE,
+        )
 
 
 def _tree_json(root: Path, relative: str) -> dict[str, Any]:
-    value = json.loads((root / relative).read_bytes())
+    value = json.loads(read_regular(root / relative, MAX_JSON_BYTES))
     if not isinstance(value, dict):
         raise ValueError(f"A4 dry-run tree document is not an object: {relative}")
     return value
@@ -431,6 +439,13 @@ def _tree_json(root: Path, relative: str) -> dict[str, Any]:
 
 def read_replica_tree(root: Path, replica: int) -> ReplicaAnalysisInput:
     """Read analyzer input from exact serialized fixture bytes."""
+    inventory_tree(
+        root,
+        maximum_entries=MAX_TREE_ENTRIES,
+        maximum_bytes=int(BOUNDS["max_bundle_bytes"]),
+        maximum_file_bytes=MAX_JSON_BYTES,
+        page_size=PAGE_SIZE,
+    )
     observation = _tree_json(root, f"observations/replica-{replica:02d}.json")
     manifest = _tree_json(
         root, f"replica-artifacts/replica-{replica:02d}-manifest.json"
@@ -467,7 +482,10 @@ def read_replica_tree(root: Path, replica: int) -> ReplicaAnalysisInput:
         indexes,
         snapshots,
         manifest,
-        (root / f"environment/replica-{replica:02d}.json").read_bytes(),
+        read_regular(
+            root / f"environment/replica-{replica:02d}.json",
+            MAX_JSON_BYTES,
+        ),
     )
 
 

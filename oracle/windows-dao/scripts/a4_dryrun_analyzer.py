@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -18,6 +17,13 @@ from a4_dryrun_surface import (
     PRODUCER_COMMIT,
     read_replica_tree,
 )
+from a4_dryrun_io import (
+    BoundedIoError,
+    copy_bounded_tree,
+    inventory_tree,
+    read_regular,
+)
+from a4_spec import BOUNDS, PAGE_SIZE
 from a4_analysis_state import resume_derivation
 from a4_model import A4AnalysisError, require_analysis_work_within_limit
 from protocol_validation import ValidationError, canonical_json_bytes
@@ -35,6 +41,7 @@ _MODEL_STAGES = {
     "h4_structural_field": "h4_structural_field",
     "h4_final_encoded_field": "h4_final_encoded_field",
 }
+PROCESS_MARKER = "a4-dryrun-analyzer-process-v1"
 
 
 def _candidate_hash_for(
@@ -109,6 +116,23 @@ def _evaluated(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
 
 
 def evaluate(roots: Sequence[Path], workspace: Path) -> dict[str, Any]:
+    physical_entries = 0
+    physical_bytes = 0
+    for root in roots:
+        files = inventory_tree(
+            root,
+            maximum_entries=int(BOUNDS["max_unique_page_blobs"]) + 128,
+            maximum_bytes=int(BOUNDS["max_bundle_bytes"]),
+            maximum_file_bytes=int(BOUNDS["max_json_bytes"]),
+            page_size=PAGE_SIZE,
+        )
+        physical_entries += len(files)
+        physical_bytes += sum(item.size for item in files)
+        if (
+            physical_entries > int(BOUNDS["max_unique_page_blobs"]) + 128
+            or physical_bytes > int(BOUNDS["max_bundle_bytes"])
+        ):
+            raise ValidationError("A4 dry-run aggregate fixture bound exceeded")
     derivation = {
         replica: read_replica_tree(roots[replica - 1], replica)
         for replica in (1, 2)
@@ -216,16 +240,34 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    print(PROCESS_MARKER, flush=True)
     args = parse_args()
     if args.command == "copy-holdout":
-        shutil.copytree(args.source, args.destination)
+        try:
+            copy_bounded_tree(
+                args.source,
+                args.destination,
+                maximum_entries=int(BOUNDS["max_unique_page_blobs"]) + 128,
+                maximum_bytes=int(BOUNDS["max_bundle_bytes"]),
+                maximum_file_bytes=int(BOUNDS["max_json_bytes"]),
+                page_size=PAGE_SIZE,
+            )
+        except BoundedIoError as exc:
+            raise ValidationError("A4 dry-run holdout copy exceeded its bound") from exc
         return 0
     if args.command == "validate-frozen":
-        payload = args.input.read_bytes()
         result = "accept"
         try:
+            payload = read_regular(args.input, int(BOUNDS["max_json_bytes"]))
             resume_derivation(payload, hashlib.sha256(payload).hexdigest(), None)
-        except (A4AnalysisError, ValidationError, TypeError, ValueError, KeyError):
+        except (
+            A4AnalysisError,
+            BoundedIoError,
+            ValidationError,
+            TypeError,
+            ValueError,
+            KeyError,
+        ):
             result = "reject"
         args.output.write_bytes(canonical_json_bytes({"result": result}))
         return 0

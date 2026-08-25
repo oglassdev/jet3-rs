@@ -196,6 +196,16 @@ class A4GeneratorTests(unittest.TestCase):
             generate_replica(SyntheticParameters(layout_by_replica={1: "invented"}))
         with self.assertRaisesRegex(Exception, "offsets"):
             generate_replica(SyntheticParameters(locator_offsets=(35, 43)))
+        invalid = (
+            SyntheticParameters(decoy_tdef_pages={"T3_CREATE": 10**12}),
+            SyntheticParameters(decoy_tdef_pages={"UNKNOWN": 1}),
+            SyntheticParameters(decoy_tdef_pages={"T3_CREATE": -1}),
+            SyntheticParameters(e_acute_length_override=256),
+        )
+        for parameters in invalid:
+            with self.subTest(parameters=parameters):
+                with self.assertRaises(Exception):
+                    parameters.validate()
 
     def test_work_ledger_accepts_exact_limits_and_rejects_one_over(self) -> None:
         term = next(iter(WORK_TERM_LIMITS))

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from a4_dryrun_io import BoundedIoError, read_regular
 from protocol_validation import ValidationError
 
 
@@ -19,12 +20,13 @@ MAX_PAGE_NUMBER = 20479
 
 
 def _read_bound(path: Path, maximum: int) -> bytes:
-    if path.is_symlink() or not path.is_file():
-        raise ValidationError(f"A4 calibration path is not a regular file: {path}")
-    size = path.stat().st_size
-    if size < 1 or size > maximum:
-        raise ValidationError(f"A4 calibration file exceeds its bound: {path}")
-    return path.read_bytes()
+    try:
+        payload = read_regular(path, maximum)
+    except BoundedIoError as exc:
+        raise ValidationError(f"A4 calibration file exceeds its bound: {path}") from exc
+    if not payload:
+        raise ValidationError(f"A4 calibration file is empty: {path}")
+    return payload
 
 
 def _json(path: Path) -> dict[str, Any]:

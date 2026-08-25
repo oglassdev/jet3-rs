@@ -16,15 +16,62 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from a4_analysis import analyze  # noqa: E402
-from a4_dryrun import _reported_campaign_rejection  # noqa: E402
+from a4_dryrun import (  # noqa: E402
+    _reject_serialized_verdict_keys,
+    _reported_campaign_rejection,
+)
 from a4_dryrun_calibration import _OpenedPageStore  # noqa: E402
 from a4_dryrun_fixtures import FIXTURES, Fixture, reject_verdict_keys  # noqa: E402
+from a4_dryrun_io import BoundedIoError, read_regular, run_bounded_child  # noqa: E402
 from a4_dryrun_surface import CAMPAIGN_ID, PRODUCER_COMMIT, FixtureInputs  # noqa: E402
 from a4_generator import SyntheticParameters  # noqa: E402
 from a4_spec import PREDICATE_CONTRACTS  # noqa: E402
 
 
 class A4DryRunTests(unittest.TestCase):
+    def test_bounded_regular_read_accepts_equality_and_rejects_one_over(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.bin"
+            source.write_bytes(b"abcd")
+            self.assertEqual(read_regular(source, 4), b"abcd")
+            source.write_bytes(b"abcde")
+            with self.assertRaises(BoundedIoError):
+                read_regular(source, 4)
+            source.unlink()
+            source.symlink_to(root / "target.bin")
+            (root / "target.bin").write_bytes(b"abcd")
+            with self.assertRaises(BoundedIoError):
+                read_regular(source, 4)
+
+    def test_bounded_child_output_accepts_equality_and_rejects_one_over(self) -> None:
+        command = (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'x' * int(sys.argv[1]))",
+        )
+        result = run_bounded_child(
+            (*command, "4"),
+            cwd=SCRIPTS,
+            timeout_seconds=5,
+            output_limit=4,
+        )
+        self.assertEqual(result.output, b"xxxx")
+        with self.assertRaises(BoundedIoError):
+            run_bounded_child(
+                (*command, "5"),
+                cwd=SCRIPTS,
+                timeout_seconds=5,
+                output_limit=4,
+            )
+
+    def test_serialized_fixture_verdict_key_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "fixture.json").write_text('{"accepted":false}')
+            with self.assertRaises(Exception):
+                _reject_serialized_verdict_keys((root,))
+
     def test_retained_page_store_counts_every_distinct_opened_blob_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
