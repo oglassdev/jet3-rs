@@ -577,7 +577,13 @@ class A4FrozenTerminalTests(unittest.TestCase):
             "h3_indirect_traversal": decisive_result(h3_candidate, ledger),
             "h4_catalog_bootstrap": {
                 "root_result": decisive_result(root, ledger),
-                "structural_result": terminal_result(error, ledger, terminal_evidence=pair(structures), per_replica_counts=(1, 1)),
+                "structural_result": terminal_result(
+                    error,
+                    ledger,
+                    terminal_evidence=pair(structures),
+                    per_replica_counts=(1, 1),
+                    candidate_stage="h4_structural_field",
+                ),
                 "encoding_result": terminal_result(error, ledger, terminal_evidence=pair(finals), per_replica_counts=(1, 1)),
             },
         }
