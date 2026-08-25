@@ -39,6 +39,8 @@ wired checks; missing release gates are never treated as a pass.
 
 See [validation/README.md](docs/validation/README.md) for the distinction
 between currently wired bootstrap checks and the full v1 acceptance contract.
+See [TOOLING.md](docs/TOOLING.md) for the pinned mise-managed developer tools
+and the remaining host prerequisites.
 
 ## Status
 
