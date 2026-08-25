@@ -23,8 +23,11 @@ from a4_dryrun import (  # noqa: E402
 from a4_dryrun_calibration import _OpenedPageStore  # noqa: E402
 from a4_dryrun_fixtures import FIXTURES, Fixture, reject_verdict_keys  # noqa: E402
 from a4_dryrun_io import BoundedIoError, read_regular, run_bounded_child  # noqa: E402
+from a4_dryrun_independent import _campaign_bundle  # noqa: E402
 from a4_dryrun_surface import CAMPAIGN_ID, PRODUCER_COMMIT, FixtureInputs  # noqa: E402
+from a4_dryrun_surface import write_fixture_trees  # noqa: E402
 from a4_generator import SyntheticParameters  # noqa: E402
+from a4_independent_campaign import recompute_campaign  # noqa: E402
 from a4_spec import PREDICATE_CONTRACTS  # noqa: E402
 
 
@@ -71,6 +74,20 @@ class A4DryRunTests(unittest.TestCase):
             (root / "fixture.json").write_text('{"accepted":false}')
             with self.assertRaises(Exception):
                 _reject_serialized_verdict_keys((root,))
+
+    def test_bounded_campaign_loader_preserves_registered_schema_terminal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            roots = write_fixture_trees(
+                root / "roots", FIXTURES["A4-SCHEMA-SNAPSHOT"]
+            )
+            workspace = root / "workspace"
+            workspace.mkdir()
+            bundle = _campaign_bundle(roots, workspace)
+            result = recompute_campaign(bundle)
+            self.assertEqual(
+                result.first_failure.predicate_id, "A4-SCHEMA-SNAPSHOT"
+            )
 
     def test_retained_page_store_counts_every_distinct_opened_blob_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

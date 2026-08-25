@@ -110,8 +110,6 @@ def _campaign_bundle(roots: Sequence[Path], workspace: Path) -> LoadedBundle:
                 "sha256": hashlib.sha256(payload).hexdigest(),
                 "size_bytes": len(payload),
             }
-            if actual_entry["sha256"] != entry["sha256"] or actual_entry["size_bytes"] != entry["size_bytes"]:
-                raise ValidationError("fixture_manifest_file_mismatch", path)
             existing = entries.get(path)
             if existing is not None and existing != actual_entry:
                 raise ValidationError("fixture_inventory_disagreement", path)
