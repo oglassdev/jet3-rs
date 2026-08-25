@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314`.
+`b0f807d6922be0df51fcc7c73ba9c7c20caded41970c62d31c9719f4b4b8841d`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -36,9 +36,9 @@ claimed-reachable terminal, and retain analyzer/validator agreement for all 40.
 variant with a third locator hole whose bytes duplicate the second locator.
 Two distinct-offset pairs therefore resolve the same two valid row targets
 under exactly one layout, while the pair between the duplicate locators is
-rejected for duplicate targets. R4-C01-style
-charging counts each unique qualified
-page/checkpoint/model identity once across the derivation-replica union.
+rejected for duplicate targets. R4-C01-style charging counts each unique
+replica/page/checkpoint/model identity once. Equal numeric pages in independent
+replica MDBs remain separate byte inspections and are charged separately.
 
 ## Frozen design
 
@@ -141,11 +141,12 @@ The base plan incorporates A3's later machinery fixes from the start:
   under each layout. Only row-then-page is target-valid: page-then-row is valid
   at 7/25 checkpoints, while row-then-page resolves page 24 rows 0/1 at 25/25.
   The pair-multiple fixture's two surviving offset pairs reuse those same two
-  decoded target identities, so the existing 1,600 target-validity checks and
-  every candidate, work, and resource bound remain unchanged.
+  decoded target identities. Across both independent derivation replicas the
+  conservative bound is 3,200 target-validity checks.
 - Work is bounded per reachable fail-fast terminal path. The largest stated
-  path is H4 at 694,378,226 units (both derivation replicas charged for every
-  occurrence-dependent term) under the 800,000,000-unit ceiling set by
+  path is H4 at 774,929,266 units (both derivation replicas charged for every
+  physical inspection and occurrence-dependent term) under the
+  800,000,000-unit ceiling set by
   `A4-SCOPE-AMENDMENT-001` (`design-inputs/a4-scope-amendment-001.md`, which
   supersedes the approved brief's 600,000,000 figure). Its timing attribution
   is corrected additively by
@@ -219,9 +220,10 @@ The approved scope brief is copied byte-for-byte at
 work term, checks the latest H4 total, and exercises the 800,000,000 /
 800,000,001 comparator boundary from the immutable plan JSON.
 
-The Pass-9 P0 repair supersedes the Pass-8 plan hash
+The Pass-9 P0 repair superseded the Pass-8 plan hash
 `0a9ba13efe2c26cdde1f207189832af0869d7a52c23cba569a898a7454fbd597`
-with the current hash above. It closes H1 candidates by signature, makes the
+with `a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314`.
+It closes H1 candidates by signature, makes the
 duplicate-locator equality and standard-signature inequality structured, and
 derives the target-identity partition before work is summed. The changed
 schema inventory is:
@@ -237,6 +239,20 @@ the focused contract test SHA-256 is
 `8210eefc9411433f19716a212187d62c6bf2bf367089fd710aacbff28957f058`.
 The derived work total remains 694,378,226 under the unchanged approved
 800,000,000 ceiling.
+
+Pass 10 reviewed exact head
+`3a738787d36e08d68b8134fd8965eddc29d1d198` and found that the focused
+byte-semantic checker incorrectly required equal physical targets across
+rotating lifecycle/replica bindings, while the work model aliased equal
+numeric page/checkpoint identities across independent MDBs. This
+pre-acquisition repair binds page evidence by replica and checkpoint, validates
+every binding independently, and charges both replicas for H1--H3 and
+catalog-row work. The current plan hash is the value at the top of this file
+and the recomputed latest path is 774,929,266, leaving 25,070,734 units below
+the approved ceiling. The Pass-10 recomputation-helper SHA-256 is
+`49079d3bfb413bdcc98288adf3c2e7ae736577e0ef5002d8e00d816aba25a7ec`;
+the focused contract-test SHA-256 is
+`fbd712fd9bec62b1663336d7e3365cdb586ca333a277f121829539f6fc2ce7d2`.
 
 ## Schemas and status
 

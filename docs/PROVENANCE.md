@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314`,
+  `b0f807d6922be0df51fcc7c73ba9c7c20caded41970c62d31c9719f4b4b8841d`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4513,7 +4513,7 @@ Use `not applicable` explicitly rather than omitting a field.
   then predict the role-rotated holdout without refit. Retain R5-V01-style
   plan/revision binding, phase-specific R4-S01-style measured survivor counts,
   R4-C01-style union-once work charging with terminal-path maxima, including
-  a two-replica 694,378,226-unit H4 path below the 800,000,000-unit ceiling
+  a two-replica 774,929,266-unit H4 path below the 800,000,000-unit ceiling
   of `A4-SCOPE-AMENDMENT-001` (classified
   `conservative_upper`; only its checked comparator is unit-tested at
   800,000,000/800,000,001 outside the 40 byte fixtures, and the byte-level
@@ -4692,6 +4692,28 @@ Use `not applicable` explicitly rather than omitting a field.
   mutual exclusion, and base mask/value. The derived target-validity term
   remains 1,600 and the complete work total remains 694,378,226; acquisition,
   capability movement, and final P0 closure remain blocked.
+
+  Pass 10 independently reviewed exact head
+  `3a738787d36e08d68b8134fd8965eddc29d1d198` and found two blockers. P10-B1
+  showed that the focused byte-semantic checker compared decoded physical
+  target tuples across all lifecycle and replica bindings, contradicting the
+  registered invariant-model/rotating-binding split. P10-B2 showed that the
+  work model identified qualified pages only by numeric page and checkpoint
+  across two independently created MDBs, so H1--H3 and catalog-row work omitted
+  the second replica's physical inspections. This pre-acquisition repair binds
+  H1 page evidence by `(replica, checkpoint id, page number)`, validates every
+  applicable checkpoint of every binding independently without requiring
+  physical target equality, and charges the second derivation replica for each
+  affected term. The invalid-directory alternative rises from 407,600 to
+  815,200 units; the latest H4 path rises by 80,551,040 to 774,929,266 and
+  remains 25,070,734 below the approved 800,000,000 ceiling.
+  The repaired recomputation helper has SHA-256
+  `49079d3bfb413bdcc98288adf3c2e7ae736577e0ef5002d8e00d816aba25a7ec`;
+  the focused contract test has SHA-256
+  `fbd712fd9bec62b1663336d7e3365cdb586ca333a277f121829539f6fc2ce7d2`.
+  No approved scope,
+  acquisition state, DAO evidence, support state, or compatibility claim is
+  changed; final P0 closure remains blocked pending a fresh post-repair review.
 
   focused A4
   plan and repository contract checks must pass

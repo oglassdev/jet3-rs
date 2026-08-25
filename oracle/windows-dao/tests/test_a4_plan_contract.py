@@ -36,7 +36,7 @@ README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 RECOMPUTE = EXPERIMENT / "design-inputs" / "recompute_a4_work_terms.py"
 
-PLAN_SHA256 = "a934586299edfcd53ac2f7d7fa0428c9b389dfb47bce98f28c9ca445a65fd314"
+PLAN_SHA256 = "b0f807d6922be0df51fcc7c73ba9c7c20caded41970c62d31c9719f4b4b8841d"
 ANALYSIS_SCHEMA_SHA256 = "d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0"
 DERIVATION_SCHEMA_SHA256 = "2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
@@ -257,68 +257,87 @@ def h1_signature_matches(
 
 
 def evaluate_h1_candidate_from_pages(
-    item: dict[str, Any], page_index: dict[int, bytes], plan: dict[str, Any]
-) -> dict[tuple[int, int], tuple[tuple[int, int], tuple[int, int]]]:
+    item: dict[str, Any],
+    page_index: dict[tuple[int, str, int], bytes],
+    plan: dict[str, Any],
+) -> None:
     model = item["model"]
     signature = h1_signature(plan, model["table_signature_id"])
     page_size = plan["bounds"]["page_size"]
-    valid_by_offsets: dict[
-        tuple[int, int], tuple[tuple[int, int], tuple[int, int]]
-    ] = {}
     for binding in item["instance_bindings"]:
-        tdef_page = page_index.get(binding["tdef_page"])
-        if tdef_page is None or len(tdef_page) != page_size or tdef_page[0] != 2:
-            raise AssertionError("candidate TDEF page is absent, mis-sized, or not tag 02")
-        if not h1_signature_matches(tdef_page, signature, plan):
-            raise AssertionError("candidate TDEF page does not match its registered signature")
-        binding_valid: dict[
-            tuple[int, int], tuple[tuple[int, int], tuple[int, int]]
-        ] = {}
-        for offsets in h1_registered_pairs(plan, model["table_signature_id"]):
-            targets = tuple(
-                decode_h1_locator(tdef_page[offset : offset + 4], model["layout"])
-                for offset in offsets
+        replica = binding["replica"]
+        checkpoint_range = binding["applicable_checkpoint_range"]
+        first = CHECKPOINTS.index(checkpoint_range["start"])
+        last = CHECKPOINTS.index(checkpoint_range["end"])
+        for checkpoint in CHECKPOINTS[first : last + 1]:
+            tdef_page = page_index.get(
+                (replica, checkpoint, binding["tdef_page"])
             )
-            if len(set(targets)) != 2:
-                continue
-            targets_valid = True
-            for page_number, row in targets:
-                target_page = page_index.get(page_number)
-                if (
-                    page_number >= plan["bounds"]["max_final_pages_per_replica"]
-                    or target_page is None
-                    or len(target_page) != page_size
-                    or target_page[0] != 1
-                    or row >= int.from_bytes(target_page[8:10], "little")
-                ):
-                    targets_valid = False
-                    break
-            if targets_valid:
-                binding_valid[offsets] = targets
-        if not binding_valid:
-            raise AssertionError("layout has no byte-derived target-valid locator pair")
-        if item["model_type"] == "h1_locator_pair":
-            selected = tuple(model["locator_offsets"])
-            if selected not in binding_valid:
-                raise AssertionError("selected locator pair fails bound page/tag/row checks")
+            if (
+                tdef_page is None
+                or len(tdef_page) != page_size
+                or tdef_page[0] != 2
+            ):
+                raise AssertionError(
+                    "candidate TDEF page is absent, mis-sized, or not tag 02"
+                )
+            if not h1_signature_matches(tdef_page, signature, plan):
+                raise AssertionError(
+                    "candidate TDEF page does not match its registered signature"
+                )
+            binding_valid: dict[
+                tuple[int, int], tuple[tuple[int, int], tuple[int, int]]
+            ] = {}
+            for offsets in h1_registered_pairs(
+                plan, model["table_signature_id"]
+            ):
+                targets = tuple(
+                    decode_h1_locator(
+                        tdef_page[offset : offset + 4], model["layout"]
+                    )
+                    for offset in offsets
+                )
+                if len(set(targets)) != 2:
+                    continue
+                targets_valid = True
+                for page_number, row in targets:
+                    target_page = page_index.get(
+                        (replica, checkpoint, page_number)
+                    )
+                    if (
+                        page_number
+                        >= plan["bounds"]["max_final_pages_per_replica"]
+                        or target_page is None
+                        or len(target_page) != page_size
+                        or target_page[0] != 1
+                        or row >= int.from_bytes(target_page[8:10], "little")
+                    ):
+                        targets_valid = False
+                        break
+                if targets_valid:
+                    binding_valid[offsets] = targets
+            if not binding_valid:
+                raise AssertionError(
+                    "layout has no byte-derived target-valid locator pair"
+                )
             serialized = tuple(
                 (target["page"], target["row"])
                 for target in binding["locator_targets"]
             )
-            if serialized != binding_valid[selected]:
-                raise AssertionError("serialized locator targets differ from decoded bytes")
-        else:
-            serialized = tuple(
-                (target["page"], target["row"])
-                for target in binding["locator_targets"]
-            )
-            if serialized not in binding_valid.values():
-                raise AssertionError("layout binding targets differ from decoded bytes")
-        if not valid_by_offsets:
-            valid_by_offsets = binding_valid
-        elif valid_by_offsets != binding_valid:
-            raise AssertionError("candidate target-valid pairs differ across bindings")
-    return valid_by_offsets
+            if item["model_type"] == "h1_locator_pair":
+                selected = tuple(model["locator_offsets"])
+                if selected not in binding_valid:
+                    raise AssertionError(
+                        "selected locator pair fails bound page/tag/row checks"
+                    )
+                if serialized != binding_valid[selected]:
+                    raise AssertionError(
+                        "serialized locator targets differ from decoded bytes"
+                    )
+            elif serialized not in binding_valid.values():
+                raise AssertionError(
+                    "layout binding targets differ from decoded bytes"
+                )
 
 
 def bitmap_hex(operation: str, indexes: list[int]) -> str:
@@ -702,13 +721,80 @@ def rehash_report_layers(report: dict[str, Any], plan: dict[str, Any]) -> dict[s
     return frozen
 
 
-def bind_h1_candidate_to_page_fixture(
-    item: dict[str, Any], targets: tuple[tuple[int, int], tuple[int, int]]
-) -> None:
+def encode_h1_locator(page: int, row: int, layout: str) -> bytes:
+    if layout == "u24le_page_then_u8_row":
+        return page.to_bytes(3, "little") + bytes([row])
+    if layout == "u8_row_then_u24le_page":
+        return bytes([row]) + page.to_bytes(3, "little")
+    raise AssertionError("unregistered H1 locator layout")
+
+
+def h1_page_evidence(
+    item: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    page_template: bytes | None = None,
+) -> dict[tuple[int, str, int], bytes]:
+    page_size = plan["bounds"]["page_size"]
+    signature = h1_signature(plan, item["model"]["table_signature_id"])
+    if page_template is None:
+        standard = plan["candidate_grammars"]["h1"]["table_record_signature"]
+        template = bytearray(page_size)
+        template[: len(bytes.fromhex(standard["value_hex"]))] = bytes.fromhex(
+            standard["value_hex"]
+        )
+    else:
+        template = bytearray(page_template)
+    if len(template) != page_size or not h1_signature_matches(
+        bytes(template), signature, plan
+    ):
+        raise AssertionError("H1 page template does not match the selected signature")
+
+    evidence: dict[tuple[int, str, int], bytes] = {}
+    selected_offsets = tuple(
+        item["model"].get(
+            "locator_offsets",
+            h1_registered_pairs(plan, item["model"]["table_signature_id"])[0],
+        )
+    )
     for binding in item["instance_bindings"]:
-        binding["tdef_page"] = 23
+        tdef_page = bytearray(template)
+        targets = [
+            (target["page"], target["row"])
+            for target in binding["locator_targets"]
+        ]
+        for offset, (page, row) in zip(selected_offsets, targets, strict=True):
+            tdef_page[offset : offset + 4] = encode_h1_locator(
+                page, row, item["model"]["layout"]
+            )
+        for equality in signature.get("equal_byte_intervals", []):
+            left_start, left_end = equality["left"]
+            right_start, right_end = equality["right"]
+            tdef_page[right_start:right_end] = tdef_page[left_start:left_end]
+        replica = binding["replica"]
+        checkpoint_range = binding["applicable_checkpoint_range"]
+        first = CHECKPOINTS.index(checkpoint_range["start"])
+        last = CHECKPOINTS.index(checkpoint_range["end"])
+        for checkpoint in CHECKPOINTS[first : last + 1]:
+            evidence[(replica, checkpoint, binding["tdef_page"])] = bytes(
+                tdef_page
+            )
+            for page, row in targets:
+                target_page = bytearray(page_size)
+                target_page[0] = 1
+                target_page[8:10] = (row + 1).to_bytes(2, "little")
+                evidence[(replica, checkpoint, page)] = bytes(target_page)
+    return evidence
+
+
+def rotate_h1_physical_bindings(
+    item: dict[str, Any], *, target_page_base: int = 1000
+) -> None:
+    for index, binding in enumerate(item["instance_bindings"]):
+        binding["tdef_page"] = 100 + index % len(LIFECYCLE_RANGES)
         binding["locator_targets"] = [
-            {"page": page, "row": row} for page, row in targets
+            {"page": target_page_base + index, "row": 0},
+            {"page": target_page_base + index, "row": 1},
         ]
     rebind_candidate(item)
 
@@ -892,7 +978,7 @@ def validate_candidate_identity(
     item: dict[str, Any],
     replicas: tuple[int, ...],
     plan: dict[str, Any] = REGISTERED_PLAN,
-    h1_page_index: dict[int, bytes] | None = None,
+    h1_page_index: dict[tuple[int, str, int], bytes] | None = None,
 ) -> None:
     identity = {"model_type": item["model_type"], "model": item["model"]}
     if item["model_type"] in SPLIT_IDENTITY_STAGES:
@@ -1031,7 +1117,7 @@ def validate_frozen_result(
     value: dict[str, Any],
     slot: str,
     plan: dict[str, Any] = REGISTERED_PLAN,
-    h1_page_index: dict[int, bytes] | None = None,
+    h1_page_index: dict[tuple[int, str, int], bytes] | None = None,
 ) -> None:
     candidates = value["candidates"]
     count = value["predicate_measured_survivor_count"]
@@ -1140,7 +1226,7 @@ def validate_layer_semantics(
     layers: dict[str, Any],
     evidence_reference: dict[str, Any] | None,
     plan: dict[str, Any] = REGISTERED_PLAN,
-    h1_page_index: dict[int, bytes] | None = None,
+    h1_page_index: dict[tuple[int, str, int], bytes] | None = None,
 ) -> None:
     upstream_ids: dict[str, str] = {}
     for slot in RESULT_SLOTS:
@@ -1361,7 +1447,7 @@ def result_projection(value: dict[str, Any]) -> tuple[Any, ...]:
 def validate_report_semantics(
     report: dict[str, Any],
     plan: dict[str, Any],
-    h1_page_index: dict[int, bytes] | None = None,
+    h1_page_index: dict[tuple[int, str, int], bytes] | None = None,
 ) -> None:
     contracts = plan["predicate_registry"]["predicate_contracts"]
     results = report["predicate_results"]
@@ -1981,12 +2067,13 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual({offset for group in classes for offset in group}, set(offsets))
         self.assertEqual(len(classes), multiple["maximum_distinct_target_identities_per_layout"])
         target_checks = (
-            self.plan["bounds"]["max_qualified_pages_per_submodel"]
+            len(self.plan["replicas"]["derivation"])
+            * self.plan["bounds"]["max_qualified_pages_per_submodel"]
             * len(h1["locator_layouts"])
             * max(len(standard["locator_holes"]), len(classes))
             * self.plan["checkpoint_design"]["count"]
         )
-        self.assertEqual(target_checks, 1600)
+        self.assertEqual(target_checks, 3200)
         self.assertEqual(
             target_checks,
             self.plan["work_model"]["terms"]["h1_target_validity_checks"]["units"],
@@ -2148,15 +2235,10 @@ class A4PlanContractTests(unittest.TestCase):
             validate_report_semantics(duplicate_targets, self.plan)
 
         standard = self.plan["candidate_grammars"]["h1"]["table_record_signature"]
-        standard_page = bytearray(self.plan["bounds"]["page_size"])
-        standard_page[:92] = bytes.fromhex(standard["value_hex"])
-        target_page = bytearray(self.plan["bounds"]["page_size"])
-        target_page[0] = 1
-        target_page[8:10] = (2).to_bytes(2, "little")
-        standard_pages = {23: bytes(standard_page), 24: bytes(target_page)}
         decisive = build_report(self.plan)
         decisive_item = decisive["layers"]["h1_tdef_to_map_row"]["candidates"][0]
-        bind_h1_candidate_to_page_fixture(decisive_item, ((24, 0), (24, 1)))
+        rotate_h1_physical_bindings(decisive_item)
+        standard_pages = h1_page_evidence(decisive_item, self.plan)
         decisive_result = decisive["layers"]["h1_tdef_to_map_row"]
         decisive_result["canonical_candidates_sha256"] = canonical_sha256(
             decisive_result["candidates"]
@@ -2173,11 +2255,25 @@ class A4PlanContractTests(unittest.TestCase):
         )
         validate_report_semantics(decisive, self.plan, standard_pages)
 
+        corrupted_pages = dict(standard_pages)
+        corrupted_binding = decisive_item["instance_bindings"][-1]
+        corrupted_key = (
+            corrupted_binding["replica"],
+            corrupted_binding["applicable_checkpoint_range"]["start"],
+            corrupted_binding["locator_targets"][0]["page"],
+        )
+        corrupted_target = bytearray(corrupted_pages[corrupted_key])
+        corrupted_target[0] = 0
+        corrupted_pages[corrupted_key] = bytes(corrupted_target)
+        with self.assertRaises(AssertionError):
+            validate_report_semantics(decisive, self.plan, corrupted_pages)
+
+        standard_page = bytearray(self.plan["bounds"]["page_size"])
+        standard_page[:92] = bytes.fromhex(standard["value_hex"])
         duplicate_page = bytearray(standard_page)
         duplicate_page[35:39] = bytes.fromhex("00180000")
         duplicate_page[39:43] = bytes.fromhex("01180000")
         duplicate_page[43:47] = bytes.fromhex("01180000")
-        duplicate_pages = {23: bytes(duplicate_page), 24: bytes(target_page)}
         exact_r10 = build_report(
             self.plan, by_id["A4-H1-LOCATOR-PAIR-MULTIPLE"], 2
         )
@@ -2191,8 +2287,11 @@ class A4PlanContractTests(unittest.TestCase):
                     "locator_offsets": offsets,
                 }
             )
-            bind_h1_candidate_to_page_fixture(item, ((24, 0), (24, 1)))
+            rotate_h1_physical_bindings(item, target_page_base=2000)
             exact_candidates.append(item)
+        duplicate_pages = h1_page_evidence(
+            exact_candidates[0], self.plan, page_template=bytes(duplicate_page)
+        )
         exact_frozen = replace_candidates(exact_r10, exact_candidates)
         validate_schema_value(
             exact_r10, self.analysis_schema, self.analysis_schema, "$"
@@ -2211,7 +2310,7 @@ class A4PlanContractTests(unittest.TestCase):
         ]
         for item in invalid_candidates:
             item["model"]["layout"] = "u24le_page_then_u8_row"
-            bind_h1_candidate_to_page_fixture(item, ((6144, 0), (6145, 0)))
+            rebind_candidate(item)
         invalid_frozen = replace_candidates(page_then_row, invalid_candidates)
         validate_schema_value(
             page_then_row, self.analysis_schema, self.analysis_schema, "$"
@@ -2748,10 +2847,10 @@ class A4PlanContractTests(unittest.TestCase):
         work = self.plan["work_model"]
         bounds = self.plan["bounds"]
         self.assertEqual(work["bound_classification"]["max_analysis_work_units"], "conservative_upper")
-        self.assertEqual(work["terminal_path_maxima"]["computed_units"]["h4_latest_derivation_terminal"], 694378226)
+        self.assertEqual(work["terminal_path_maxima"]["computed_units"]["h4_latest_derivation_terminal"], 774929266)
         self.assertEqual(bounds["max_analysis_work_units"], 800000000)
-        self.assertEqual(800000000 - 694378226, 105621774)
-        self.assertIn("105,621,774", work["terminal_path_maxima"]["proof"])
+        self.assertEqual(800000000 - 774929266, 25070734)
+        self.assertIn("25,070,734", work["terminal_path_maxima"]["proof"])
         validate_analysis_work_bound(800000000, bounds["max_analysis_work_units"])
         with self.assertRaises(AssertionError):
             validate_analysis_work_bound(800000001, bounds["max_analysis_work_units"])
@@ -3125,17 +3224,17 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertEqual(2 * one_layout, bounds["max_locator_pairs_per_tdef_page"])
         self.assertEqual(16 * 2 * one_layout, bounds["max_locator_pairs"])
         expected_terms = {
-            "tdef_lifecycle_signatures": qualified_pages * checkpoints * len(grammar["h1"]["tdef_lifecycle_signatures"]),
-            "raw_locator_windows": qualified_pages * 4090,
-            "raw_locator_pairs": qualified_pages * bounds["max_locator_pairs_per_tdef_page"],
-            "h1_target_validity_checks": qualified_pages * len(grammar["h1"]["locator_layouts"]) * len(grammar["h1"]["table_record_signature"]["locator_holes"]) * checkpoints,
-            "valid_path_row_directory_entries": qualified_pages * checkpoints * 679,
-            "type_1_slots": qualified_pages * checkpoints * 2 * 508,
-            "type_0_and_tag_05_bitmap_bits": qualified_pages * checkpoints * (16248 + 16352),
-            "role_transition_evaluations": len(grammar["h2"]["row_masks"]) * len(grammar["h2"]["type_0_polarities"]) * len(grammar["h2"]["locator_role_assignments"]) * 5 * len(self.plan["tables"]["logical_roles"]) * checkpoints,
-            "base_formula_evaluations": len(grammar["h3"]["base_formulas"]) * qualified_pages * checkpoints,
+            "tdef_lifecycle_signatures": derivation_replicas * qualified_pages * checkpoints * len(grammar["h1"]["tdef_lifecycle_signatures"]),
+            "raw_locator_windows": derivation_replicas * qualified_pages * 4090,
+            "raw_locator_pairs": derivation_replicas * qualified_pages * bounds["max_locator_pairs_per_tdef_page"],
+            "h1_target_validity_checks": derivation_replicas * qualified_pages * len(grammar["h1"]["locator_layouts"]) * len(grammar["h1"]["table_record_signature"]["locator_holes"]) * checkpoints,
+            "valid_path_row_directory_entries": derivation_replicas * qualified_pages * checkpoints * 679,
+            "type_1_slots": derivation_replicas * qualified_pages * checkpoints * 2 * 508,
+            "type_0_and_tag_05_bitmap_bits": derivation_replicas * qualified_pages * checkpoints * (16248 + 16352),
+            "role_transition_evaluations": derivation_replicas * len(grammar["h2"]["row_masks"]) * len(grammar["h2"]["type_0_polarities"]) * len(grammar["h2"]["locator_role_assignments"]) * 5 * len(self.plan["tables"]["logical_roles"]) * checkpoints,
+            "base_formula_evaluations": derivation_replicas * len(grammar["h3"]["base_formulas"]) * qualified_pages * checkpoints,
             "catalog_root_signatures": qualified_pages * checkpoints * len(self.plan["replicas"]["derivation"]) * len(grammar["h4"]["catalog_root_selection_signatures"]),
-            "catalog_raw_rows": operation_instances * qualified_pages * 679,
+            "catalog_raw_rows": derivation_replicas * operation_instances * qualified_pages * 679,
             "encoding_union_anchor_bytes": derivation_replicas * 9 * complete_row_bytes,
             "h4_name_length_structural_tuples": derivation_replicas * occurrence_ceiling * h4_inner_grammar,
             "encoding_length_equivalence_candidates": derivation_replicas * operation_instances * len(grammar["h4"]["name_length_equivalence_classes"]),
@@ -3146,9 +3245,23 @@ class A4PlanContractTests(unittest.TestCase):
         terminal_maximum = sum(expected_terms.values())
         self.assertEqual(expected_terms["encoding_union_anchor_bytes"], 36648)
         self.assertEqual(expected_terms["h4_name_length_structural_tuples"], 613785600)
-        self.assertEqual(terminal_maximum, 694378226)
+        self.assertEqual(terminal_maximum, 774929266)
         self.assertEqual(bounds["max_h4_occurrence_identities"], derivation_replicas * occurrence_ceiling)
         terminal_paths = self.plan["work_model"]["terminal_path_maxima"]
+        self.assertEqual(
+            terminal_paths["alternative_terms"][
+                "invalid_path_row_directory_entries"
+            ]["units"],
+            derivation_replicas * qualified_pages * checkpoints * 1019,
+        )
+        qualified_page_rule = self.plan["record_candidate_procedure"][
+            "qualified_page_rule"
+        ]
+        charging_rule = self.plan["record_candidate_procedure"][
+            "union_once_charging"
+        ]["rule"]
+        self.assertIn("(replica, page number, checkpoint id)", qualified_page_rule)
+        self.assertIn("must be charged separately", charging_rule)
         all_terms = {key: value["units"] for key, value in terms.items()}
         all_terms.update(
             {key: value["units"] for key, value in terminal_paths["alternative_terms"].items()}
@@ -3306,7 +3419,7 @@ class A4PlanContractTests(unittest.TestCase):
                         recompute_terms(forged)
                 process = run_cli(forged)
                 self.assertNotEqual(process.returncode, 0, process.stdout)
-                self.assertNotIn("recomputed_total=694378226", process.stdout)
+                self.assertNotIn("recomputed_total=774929266", process.stdout)
 
     def test_a3_page_23_raw_window_and_pair_charge_is_recomputed_when_available(self) -> None:
         expected = self.plan["candidate_grammars"]["h1"]["a3_page_23_recomputed_work"]

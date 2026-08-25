@@ -75,7 +75,7 @@
         "approved_by": "user's delegate, review pass 6 (P6-B1)",
         "note_path": "oracle/windows-dao/experiments/a4/design-inputs/a4-scope-amendment-001.md",
         "note_sha256": "770215c2472d8dee823db6c8fc3af75fc44cfd0769802e7f9f486a25131f3b25",
-        "justification": "Timing calibration, non-normative: the retained EXP-0051 analysis report records 134,291,460 work units. GitHub Actions run 32626186825, fan-in job 97163239067, records approximately 3.84 seconds for derivation freeze, 0.67 seconds for analyzer resume, and 16.81 seconds for the independent recomputing validator. Using the slower independent-recomputation observation gives 800,000,000 / 134,291,460 * 16.81 ~= 100.1 seconds. This is coarse hosted-run planning evidence only because A3 and A4 charge different work mixes; it does not prove A4 runtime. The normative controls remain the checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second hard campaign timeout. Restoring the approved seven-record grammar charges a two-replica maximum of 694,378,226 units, so the approved ceiling remains sufficient.",
+        "justification": "Timing calibration, non-normative: the retained EXP-0051 analysis report records 134,291,460 work units. GitHub Actions run 32626186825, fan-in job 97163239067, records approximately 3.84 seconds for derivation freeze, 0.67 seconds for analyzer resume, and 16.81 seconds for the independent recomputing validator. Using the slower independent-recomputation observation gives 800,000,000 / 134,291,460 * 16.81 ~= 100.1 seconds. This is coarse hosted-run planning evidence only because A3 and A4 charge different work mixes; it does not prove A4 runtime. The normative controls remain the checked 800,000,000-unit counter, 900-second fan-in timeout, and 2,700-second hard campaign timeout. Restoring the approved seven-record grammar and charging every independent replica inspection gives a two-replica maximum of 774,929,266 units, so the approved ceiling remains sufficient.",
         "tests": "comparator unit test accepts exactly 800,000,000 and rejects 800,000,001 before manifest creation; the bound stays conservative_upper"
       }
     ]
@@ -549,10 +549,10 @@
       "type_0": "For a type-0 row, byte 0 is tag 00, bytes [1,5) are a little-endian u32 base, and bytes [5,row_len) are an LSB-first bitmap. Bit index k refers to absolute page base + k. The registered polarity candidates are set_bit_owned_in_use and clear_bit_owned_in_use; H2 lifecycle legs select exactly one polarity/row-role model, and only bits classified owned/in-use admit pages.",
       "type_1": "For a type-1 row, byte 0 is tag 01 and bytes [1,row_len) must have length divisible by four; otherwise A4-H2-MAP-TAG-UNSUPPORTED fails. Slot ordinal is the zero-based u32 position after the tag. Zero is inactive. A nonzero slot is an exact physical tag-05 page reference. A tag-05 page has header [0,4) and an LSB-first bitmap [4,2048); bit index k maps by the registered base formula, and only set bits of the owned/in-use row admit pages."
     },
-    "qualified_page_rule": "schema lifecycle deltas qualify at most 16 tag-02 pages for H1 and allocation-admitted traversal qualifies at most 16 tag-01 or tag-05 pages per later layer; hash-state absence is explicit and a page is charged once across the union of derivation replicas A qualified page identity is (page number, checkpoint id) in the derivation union (AMB-03).",
+    "qualified_page_rule": "Schema lifecycle deltas qualify at most 16 tag-02 pages per derivation replica for H1, and allocation-admitted traversal qualifies at most 16 tag-01 or tag-05 pages per derivation replica for each later layer; hash-state absence is explicit. A qualified page identity is (replica, page number, checkpoint id). Repeated exposure of that identity within one replica is charged once, but equal numeric page/checkpoint values in independently created replicas are distinct byte inspections (AMB-03).",
     "union_once_charging": {
       "style": "R4-C01",
-      "rule": "row slots, locator pairs, references, bitmap bits, catalog rows, and candidate models are counted once per unique qualified page/checkpoint/model identity in the union across derivation replicas however many replicas expose it; replica agreement is a predicate, not a second work charge",
+      "rule": "row slots, locator pairs, references, bitmap bits, catalog rows, and physical candidate evaluations are counted once per unique replica-qualified page/checkpoint/model identity. Repeated exposure within one replica is not charged again. Replica agreement itself is a predicate rather than a duplicate charge, but reading and evaluating each independent replica is separate work and must be charged separately",
       "resource_units": "charge one unit for each row-directory entry decoded, locator layout/offset pair tested, slot/reference decoded, bitmap bit inspected, catalog field candidate tested, and candidate transition evaluation",
       "exact_ceiling_rule": "Bounds classified attainable_exact have equality/one-over fixtures. Conservative upper bounds are proved by inequalities and make no attainability claim; the work-unit ceiling is conservative and its comparator is tested as a pure function under unit test, not by a byte campaign. Fail-fast evaluation charges only work reached after prior predicates."
     },
@@ -1051,7 +1051,7 @@
       "replica_3_independent_overshoot": "synthetic replica 3 uses independently chosen baseline/threshold overshoot in every growth phase and is not an alias of replica 1 or 2",
       "pair_acceptance_gate": "analyzer and separately implemented validator must agree on every propagated candidate set, actual survivor count, ordered predicate status, first failure, layer outcome, and holdout result across the full byte-fixture sweep",
       "tamper_suite_execution": "execute and retain rejection of plan binding, frozen set, row locator, schema snapshot, report, and timeout tampering; a constant rejected=true is failure",
-      "work_counter_comparator_rule": "max_analysis_work_units is a conservative_upper bound: the latest registered path charges 694,378,226 units and no byte-level campaign can reach 800,000,000. The equality and one-over tests therefore exercise only the checked counter comparator: a unit-test measured-total argument of 800,000,000 is accepted and 800,000,001 is rejected before manifest creation. Neither test claims a constructible campaign at the ceiling; both are comparator tests outside the 40 byte-level reachability fixtures. The byte-level A4-RESOURCE-BOUND terminal is exercised through the constructible one-over changed-hash resource (67,200 recomputed changed page-index entries against the attainable_exact 65,536 cap, built from two alternating blobs over 3,200 pages); a row-count one-over is not used because snapshot and observation schemas already cap row counts at 200,000 and would fail A4-SCHEMA-SNAPSHOT first. There is no charge-injection hook in the production analyzer: the comparator is a pure function under unit test, and the transcript records that unit-test result (AMB-17)."
+      "work_counter_comparator_rule": "max_analysis_work_units is a conservative_upper bound: the latest registered path charges 774,929,266 units and no byte-level campaign can reach 800,000,000. The equality and one-over tests therefore exercise only the checked counter comparator: a unit-test measured-total argument of 800,000,000 is accepted and 800,000,001 is rejected before manifest creation. Neither test claims a constructible campaign at the ceiling; both are comparator tests outside the 40 byte-level reachability fixtures. The byte-level A4-RESOURCE-BOUND terminal is exercised through the constructible one-over changed-hash resource (67,200 recomputed changed page-index entries against the attainable_exact 65,536 cap, built from two alternating blobs over 3,200 pages); a row-count one-over is not used because snapshot and observation schemas already cap row counts at 200,000 and would fail A4-SCHEMA-SNAPSHOT first. There is no charge-injection hook in the production analyzer: the comparator is a pure function under unit test, and the transcript records that unit-test result (AMB-17)."
     },
     "a3_calibration_use_limit": "only retained A3 replicas 1 and 2 may be opened by calibration replay; no result, including EXP-0051 independent acceptance, is A4 evidence"
   },
@@ -2459,7 +2459,7 @@
     "frozen_set_shape_rule": "A frozen layer contains only its derivation status (model | no_outcome | not_applicable), derivation terminal if any, terminal_payload_kind, terminal_candidate_stage, predicate_measured_survivor_count, final-layer derivation_survivor_count, the complete stage-discriminated canonical candidates that exist at that stage, terminal_evidence (replica pair, operation groups, or invalid observation) where the contract declares it, instance bindings where registered, and candidates SHA-256. Decisive results alone contain the final model type. It MUST NOT contain holdout_evaluated, a holdout terminal, a holdout status, or any value computed from replica 3. H4 is frozen as root_result, structural_result, and encoding_result under candidate_grammars.h4.encoding_result_rule, with the frozen h4_occurrence_evidence reference (path, SHA-256, size) that every structural candidate's occurrence_evidence_sha256 must equal. H4 holdout reuses the frozen structural id, evidence table, per-operation bitmap rules, and final equivalence class without refit. The final analysis report separately records holdout predicates and outcomes and MUST require derivation_candidate_set_sha256, equal to the actual SHA-256 of the complete frozen file bytes, not a layers-only projection. Its candidate arrays, terminal evidence, evidence reference, instance bindings, transcripts, charges, and per-layer derivation fields MUST byte-for-byte equal the frozen values for decisive, NONE, MULTIPLE, derivation-invalid, and holdout-failure outcomes. H4 root, structural, and final candidates carry canonical_model_id and replica-qualified instance_bindings.",
     "h1_frozen_model_rule": "The canonical H1 scientific model contains only replica-invariant fields: layout, masked table-signature id, and ascending table-relative locator offsets. A separate frozen instance_bindings array contains exactly T1-v1, T2-v1, T2-v2, T3-v1, and T4-v1 for each derivation replica, each with logical role, lifecycle instance, TDEF page, two locator targets (page 0..20479, row 0..255), and its exact inclusive applicable checkpoint range. The required ranges are T1-v1 T1_CREATE_ID..T4_IDLE_R; T2-v1 T2_CREATE..T2_CREATE; T2-v2 T2_RECREATE..T4_IDLE_R; T3-v1 T3_CREATE..T4_IDLE_R; T4-v1 T4_CREATE..T4_IDLE_R. logical_role equals the lifecycle prefix, start is not after end in checkpoint order, and no binding may extend outside its lifecycle. Canonical replica agreement compares the invariant model and normalized logical-role behavior, not raw rotating page numbers. Holdout re-derives replica-3 bindings and tests the unchanged invariant model.",
     "canonicalization_and_uniqueness_rule": "For H1 recompute canonical_model_id as SHA256(canonical_json({model_type, model})) for replica-invariant scientific comparison and canonical_candidate_id as SHA256(canonical_json({model_type, model, instance_bindings})) for storage, sorting, and uniqueness. Distinct physical bindings may share a model id but must have distinct candidate ids. For H4 root, structural, and final candidates apply the same split (candidate_grammars.h4.identity_rule): canonical_model_id over the replica-invariant model only and canonical_candidate_id over model plus replica-qualified instance bindings; H4 replica agreement compares model ids. For H2, H3, and H4 operation-record candidates recompute canonical_candidate_id from their complete registered identity. A decisive H1 candidate carries exactly the ten replica-1 and replica-2 bindings in canonical order; a terminal candidate-set H1 candidate carries exactly the five bindings of the replica on which the predicate failed (AMB-04); a replica-pair entry's complete H1 candidate carries exactly the five bindings of its own replica. Recompute the h4_occurrence_evidence SHA-256 from the retained file bytes and require every structural binding's occurrence_evidence_sha256 and every bitmap popcount to agree with it, every binding's replica to be present in the evidence document, and a decisive H4 candidate to bind both replicas in replica order. Require equality, ascending locator offsets, unique targets, canonical binding order, exact role/lifecycle coverage and ranges, and no duplicate page/row pair. Recompute each candidate-array hash and the actual complete frozen-file SHA-256. Canonicalize snapshot tables by declared DAO ordinal then strict CP-1252 name bytes; canonicalize fields/indexes/index fields by their declared DAO ordinal then name bytes. Independently reject duplicate logical roles, names, ordinals, predicate ids, and tamper ids. uniqueItems on whole JSON objects does not satisfy these uniqueness rules.",
-    "schema_semantic_validation_rule": "Use a layer- and terminal-stage-discriminated union: H1 TDEF, target-valid layout, and locator-pair candidates; H2 final-role candidates; H3 conversion and final-base candidates; and H4 root, operation-record, structural-field, and final-encoded-field candidates all have closed required fields with additionalProperties false, and every terminal_evidence payload has a closed schema. H1 target-valid-layout candidates admit only the two registered signature ids. H1 locator-pair models are a closed signature-discriminated union: the standard signature admits only [35,39], and the duplicate signature admits only [35,39], [35,43], or [39,43]. Independently reject nonascending, duplicate, overlapping, non-four-byte, or non-hole-member intervals. For either retained layout, independently decode the locator bytes and reject unless both distinct targets exist within the bound page index, have tag 01, and name rows below the target page's row count; retaining both layout enum values never permits a byte-invalid layout. Project layer status, terminal, terminal payload kind, terminal candidate stage, measured predicate count, final-layer count, H4 result-slot states, and downstream not_applicable state from predicate rows and the predicate contracts, and reject any mismatch. The analysis report must byte-for-byte reproduce every frozen stage array, terminal evidence, evidence reference, and hash. Project the five holdout_results entries exactly from predicate rows 36–40 and prerequisite gating. Then derive scientific_outcome from that validated projection. A derivation or holdout result may never disagree with its predicate row. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
+    "schema_semantic_validation_rule": "Use a layer- and terminal-stage-discriminated union: H1 TDEF, target-valid layout, and locator-pair candidates; H2 final-role candidates; H3 conversion and final-base candidates; and H4 root, operation-record, structural-field, and final-encoded-field candidates all have closed required fields with additionalProperties false, and every terminal_evidence payload has a closed schema. H1 target-valid-layout candidates admit only the two registered signature ids. H1 locator-pair models are a closed signature-discriminated union: the standard signature admits only [35,39], and the duplicate signature admits only [35,39], [35,43], or [39,43]. Independently reject nonascending, duplicate, overlapping, non-four-byte, or non-hole-member intervals. Bind page evidence by (replica, checkpoint id, page number), and for every applicable checkpoint of every lifecycle binding independently decode the locator bytes and reject unless both distinct serialized targets exist within that replica's bound page index, have tag 01, and name rows below the target page's row count. The selected signature, layout, and locator offsets are invariant; physical TDEF pages and decoded page/row targets may rotate across lifecycle bindings and replicas and MUST NOT be compared for physical equality. Retaining both layout enum values never permits a byte-invalid layout. Project layer status, terminal, terminal payload kind, terminal candidate stage, measured predicate count, final-layer count, H4 result-slot states, and downstream not_applicable state from predicate rows and the predicate contracts, and reject any mismatch. The analysis report must byte-for-byte reproduce every frozen stage array, terminal evidence, evidence reference, and hash. Project the five holdout_results entries exactly from predicate rows 36–40 and prerequisite gating. Then derive scientific_outcome from that validated projection. A derivation or holdout result may never disagree with its predicate row. Independently recompute total_work_units from the serialized term values and reject any mismatch. Validate transcript objects with concrete, bounded schemas rather than unconstrained objects.",
     "claims_rule": "a scientific result remains descriptive_provider_observation_only even after independent validation and cannot move a support-matrix capability"
   },
   "independent_validator_contract": {
@@ -2644,7 +2644,7 @@
   },
   "work_model": {
     "locator_pair_arithmetic": "Locator offsets are canonical ascending pairs (a,b) with 0 <= a < b <= 2044 and b-a >= 4. One layout has sum(1..2041)=2083861 raw pairs; both layouts have max_locator_pairs_per_tdef_page=4167722 and max_locator_pairs=16*4167722=66683552. Also charge all 4090 raw window identities per qualified page. Retained A3 page 23 examines 4090 windows, forms 3491392 raw pairs after cross-checkpoint syntactic preservation, and charges 3495482 raw window/pair identities before one structural pair survives under each layout; only the row-then-page pair is target-valid.",
-    "pair_multiple_bound_reconciliation": "Candidate bound: the raw sweep already enumerates every canonical nonoverlapping offset pair under both layouts, so adding the mutually exclusive three-hole signature changes neither 4,167,722 pairs per TDEF page nor 66,683,552 across 16 pages; its two target-valid pairs remain below max_candidate_models=4,096 and use the existing h1_locator_pair candidate shape with a second registered signature id. Work bound: the recomputation script validates every four-byte hole, derives equivalence classes solely from equal_byte_intervals, checks derived_locator_identity_classes only as derived output, and proves the standard/new intersection empty from mutual_exclusion_inequality plus the base fixed mask/value. The derived partition [35] and [39,43] keeps the maximum at 16 pages * 2 layouts * 2 target identities * 25 checkpoints = 1,600 checks; every later term and the 694,378,226 total are unchanged. Resource bound: the fixture uses one qualified TDEF page, one target page, three locator windows, three structural pairs, two target-valid candidates, 25 checkpoints, and two derivation replicas; exact 2,048-byte pages, candidate count, candidate bytes, JSON bytes, logical reads, retained blobs, and bundle bytes remain strictly below their existing caps. Recalculation fails before summing for altered equality, conflicting derived partition, extra hole, unregistered equality, changed mutual-exclusion inequality, or base signature/mask/value mismatch.",
+    "pair_multiple_bound_reconciliation": "Candidate bound: the raw sweep already enumerates every canonical nonoverlapping offset pair under both layouts, so adding the mutually exclusive three-hole signature changes neither 4,167,722 pairs per TDEF page nor 66,683,552 per derivation replica across 16 pages; its two target-valid pairs remain below max_candidate_models=4,096 and use the existing h1_locator_pair candidate shape with a second registered signature id. Work bound: the recomputation script validates every four-byte hole, derives equivalence classes solely from equal_byte_intervals, checks derived_locator_identity_classes only as derived output, and proves the standard/new intersection empty from mutual_exclusion_inequality plus the base fixed mask/value. The derived partition [35] and [39,43] keeps the maximum at 2 derivation replicas * 16 pages * 2 layouts * 2 target identities * 25 checkpoints = 3,200 checks. Charging every independent replica inspection gives a 774,929,266-unit latest path. Resource bound: the fixture uses one qualified TDEF page, one target page, three locator windows, three structural pairs, two target-valid candidates, 25 checkpoints, and two derivation replicas; exact 2,048-byte pages, candidate count, candidate bytes, JSON bytes, logical reads, retained blobs, and bundle bytes remain strictly below their existing caps. Recalculation fails before summing for altered equality, conflicting derived partition, extra hole, unregistered equality, changed mutual-exclusion inequality, or base signature/mask/value mismatch.",
     "charge_equation_rule": "Each term is maximum qualified union pages times applicable checkpoint identities times maximum row-directory entries, slots, bits, or registered grammar multiplicity. The named-loop sum is a conservative terminal-path upper calculation and MUST be <= max_analysis_work_units; it is not equal to that bound.",
     "recomputation_inputs": {
       "page_header_bytes": 10,
@@ -2670,48 +2670,48 @@
     },
     "terms": {
       "tdef_lifecycle_signatures": {
-        "equation": "16 * 25 * 2",
-        "units": 800
+        "equation": "2 derivation replicas * 16 * 25 * 2 signatures",
+        "units": 1600
       },
       "raw_locator_windows": {
-        "equation": "16 * 4090",
-        "units": 65440
+        "equation": "2 derivation replicas * 16 * 4090",
+        "units": 130880
       },
       "raw_locator_pairs": {
-        "equation": "16 * 4167722",
-        "units": 66683552
+        "equation": "2 derivation replicas * 16 * 4167722",
+        "units": 133367104
       },
       "h1_target_validity_checks": {
-        "equation": "16 qualified TDEF pages * 2 layouts * max 2 distinct decoded target identities per mutually exclusive signature * 25 checkpoints",
-        "units": 1600
+        "equation": "2 derivation replicas * 16 qualified TDEF pages * 2 layouts * max 2 distinct decoded target identities per mutually exclusive signature * 25 checkpoints",
+        "units": 3200
       },
       "valid_path_row_directory_entries": {
-        "equation": "16 * 25 * 679",
-        "units": 271600
+        "equation": "2 derivation replicas * 16 * 25 * 679",
+        "units": 543200
       },
       "type_1_slots": {
-        "equation": "16 * 25 * 2 * 508",
-        "units": 406400
+        "equation": "2 derivation replicas * 16 * 25 * 2 rows * 508",
+        "units": 812800
       },
       "type_0_and_tag_05_bitmap_bits": {
-        "equation": "16 * 25 * (16248 + 16352)",
-        "units": 13040000
+        "equation": "2 derivation replicas * 16 * 25 * (16248 + 16352)",
+        "units": 26080000
       },
       "role_transition_evaluations": {
-        "equation": "2 masks * 2 polarities * 2 assignments * 5 legs * 4 roles * 25 checkpoints",
-        "units": 4000
+        "equation": "2 derivation replicas * 2 masks * 2 polarities * 2 assignments * 5 legs * 4 roles * 25 checkpoints",
+        "units": 8000
       },
       "base_formula_evaluations": {
-        "equation": "4 formulas * 16 pages * 25 checkpoints",
-        "units": 1600
+        "equation": "2 derivation replicas * 4 formulas * 16 pages * 25 checkpoints",
+        "units": 3200
       },
       "catalog_root_signatures": {
         "equation": "16 * 25 * 2",
         "units": 800
       },
       "catalog_raw_rows": {
-        "equation": "7 required operation instances * 16 pages * 679 jointly feasible rows",
-        "units": 76048
+        "equation": "2 derivation replicas * 7 required operation instances * 16 pages * 679 jointly feasible rows",
+        "units": 152096
       },
       "encoding_union_anchor_bytes": {
         "equation": "2 derivation replicas * 9 distinct-pattern/operation row scans after per-operation CP1252/UTF-8 byte-sequence deduplication * 2036 maximum complete-row bytes",
@@ -2845,22 +2845,22 @@
       },
       "alternative_terms": {
         "invalid_path_row_directory_entries": {
-          "equation": "16 * 25 * 1019",
-          "units": 407600,
+          "equation": "2 derivation replicas * 16 * 25 * 1019",
+          "units": 815200,
           "mutually_exclusive_with": "valid_path_row_directory_entries and all later H2-H4 terms"
         }
       },
       "computed_units": {
-        "h1_latest_derivation_terminal": 66751392,
-        "h2_row_directory_invalid_terminal": 67158992,
-        "h2_latest_derivation_terminal": 80473392,
-        "h3_latest_derivation_terminal": 80474992,
-        "h4_root_latest_terminal": 80475792,
-        "h4_record_latest_terminal": 80551840,
-        "h4_field_model_latest_terminal": 694374088,
-        "h4_latest_derivation_terminal": 694378226
+        "h1_latest_derivation_terminal": 133502784,
+        "h2_row_directory_invalid_terminal": 134317984,
+        "h2_latest_derivation_terminal": 160946784,
+        "h3_latest_derivation_terminal": 160949984,
+        "h4_root_latest_terminal": 160950784,
+        "h4_record_latest_terminal": 161102880,
+        "h4_field_model_latest_terminal": 774925128,
+        "h4_latest_derivation_terminal": 774929266
       },
-      "proof": "Every maximum is recomputed by summing its named terms; the invalid row-directory alternative is mutually exclusive with the valid path and later terms. Both derivation replicas are charged for every H4 occurrence-dependent term: 36,648 union-anchor byte starts, 3,700 occurrence identities, and the closed 165,888-tuple grammar give 2*1,850*165,888 = 613,785,600 tuple evaluations. With 42 encoding candidates and 4,096 candidate serializations, the latest H4 path is 694,378,226. It is below the A4-SCOPE-AMENDMENT-001 ceiling of 800,000,000 by 105,621,774 units. The checked comparator accepts 800,000,000 and rejects 800,000,001 before manifest creation."
+      "proof": "Every maximum is recomputed by summing its named terms; the invalid row-directory alternative is mutually exclusive with the valid path and later terms. Every physical inspection is charged under a replica-qualified identity, so equal numeric page/checkpoint values in the two independently created derivation MDBs never alias. Both derivation replicas are also charged for every H4 occurrence-dependent term: 36,648 union-anchor byte starts, 3,700 occurrence identities, and the closed 165,888-tuple grammar give 2*1,850*165,888 = 613,785,600 tuple evaluations. With 42 encoding candidates and 4,096 candidate serializations, the latest H4 path is 774,929,266. It is below the A4-SCOPE-AMENDMENT-001 ceiling of 800,000,000 by 25,070,734 units. The checked comparator accepts 800,000,000 and rejects 800,000,001 before manifest creation."
     },
     "bound_classification": {
       "page_size": "conservative_upper",

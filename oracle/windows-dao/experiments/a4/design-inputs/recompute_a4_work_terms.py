@@ -322,34 +322,53 @@ def recompute_terms(plan: dict[str, Any]) -> tuple[dict[str, int], dict[str, int
     )
 
     terms = {
-        "tdef_lifecycle_signatures": qualified_pages
+        "tdef_lifecycle_signatures": derivation_replicas
+        * qualified_pages
         * checkpoints
         * len(grammar["h1"]["tdef_lifecycle_signatures"]),
-        "raw_locator_windows": qualified_pages * raw_locator_windows_per_page,
-        "raw_locator_pairs": qualified_pages * locator_pairs_per_page,
-        "h1_target_validity_checks": qualified_pages
+        "raw_locator_windows": derivation_replicas
+        * qualified_pages
+        * raw_locator_windows_per_page,
+        "raw_locator_pairs": derivation_replicas
+        * qualified_pages
+        * locator_pairs_per_page,
+        "h1_target_validity_checks": derivation_replicas
+        * qualified_pages
         * len(grammar["h1"]["locator_layouts"])
         * maximum_locator_identities
         * checkpoints,
-        "valid_path_row_directory_entries": qualified_pages * checkpoints * valid_rows,
-        "type_1_slots": qualified_pages * checkpoints * 2 * type_1_slots,
-        "type_0_and_tag_05_bitmap_bits": qualified_pages
+        "valid_path_row_directory_entries": derivation_replicas
+        * qualified_pages
+        * checkpoints
+        * valid_rows,
+        "type_1_slots": derivation_replicas
+        * qualified_pages
+        * checkpoints
+        * 2
+        * type_1_slots,
+        "type_0_and_tag_05_bitmap_bits": derivation_replicas
+        * qualified_pages
         * checkpoints
         * (type_0_bits + tag_05_bits),
-        "role_transition_evaluations": len(grammar["h2"]["row_masks"])
+        "role_transition_evaluations": derivation_replicas
+        * len(grammar["h2"]["row_masks"])
         * len(grammar["h2"]["type_0_polarities"])
         * len(grammar["h2"]["locator_role_assignments"])
         * inputs["transition_legs"]
         * len(plan["tables"]["logical_roles"])
         * checkpoints,
-        "base_formula_evaluations": len(grammar["h3"]["base_formulas"])
+        "base_formula_evaluations": derivation_replicas
+        * len(grammar["h3"]["base_formulas"])
         * qualified_pages
         * checkpoints,
         "catalog_root_signatures": qualified_pages
         * checkpoints
         * derivation_replicas
         * len(grammar["h4"]["catalog_root_selection_signatures"]),
-        "catalog_raw_rows": len(operations) * qualified_pages * valid_rows,
+        "catalog_raw_rows": derivation_replicas
+        * len(operations)
+        * qualified_pages
+        * valid_rows,
         "encoding_union_anchor_bytes": derivation_replicas
         * inputs["distinct_name_pattern_scans"]
         * complete_row_bytes,
@@ -364,7 +383,8 @@ def recompute_terms(plan: dict[str, Any]) -> tuple[dict[str, int], dict[str, int
         ),
     }
     alternatives = {
-        "invalid_path_row_directory_entries": qualified_pages
+        "invalid_path_row_directory_entries": derivation_replicas
+        * qualified_pages
         * checkpoints
         * invalid_directory_entries
     }
