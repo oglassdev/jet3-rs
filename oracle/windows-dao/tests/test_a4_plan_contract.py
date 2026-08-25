@@ -36,9 +36,9 @@ README = EXPERIMENT / "README.md"
 PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
 RECOMPUTE = EXPERIMENT / "design-inputs" / "recompute_a4_work_terms.py"
 
-PLAN_SHA256 = "b0f807d6922be0df51fcc7c73ba9c7c20caded41970c62d31c9719f4b4b8841d"
-ANALYSIS_SCHEMA_SHA256 = "d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0"
-DERIVATION_SCHEMA_SHA256 = "2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245"
+PLAN_SHA256 = "3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1"
+ANALYSIS_SCHEMA_SHA256 = "bd1cdd62fdf6dae1ed756c092a90936be1318dc3a66e9d1d6309ecfa0d3d2010"
+DERIVATION_SCHEMA_SHA256 = "1cf5829b14663a68c934ff4d16b1b95668291b21b645ad3ae0e93abe3c839a28"
 BRIEF_SHA256 = "ead09d9cec961d018ed4845f14d825d2ae8da2d3329f12d6ae9ea2233e4eeeb7"
 CALIBRATION_SHA256 = "788605e1aeca015d88319ef78b3ae34adbec04527efaa11b79f5663474169d3e"
 TIMING_CORRECTION_SHA256 = "49139e945641bf09dfd9969634c8af2e584559707ab89bf02384eef07eab2a8d"
@@ -1361,6 +1361,12 @@ def build_report(
         "campaign_id": "synthetic",
         "producer_commit": "0" * 40,
         "derivation_replicas": [1, 2],
+        "qualified_pages": [],
+        "work_charges": {
+            **{key: 0 for key in plan["work_model"]["terms"]},
+            "invalid_path_row_directory_entries": 0,
+            "total_work_units": 0,
+        },
         "derivation_candidate_set_sha256": ZERO_SHA256,
         "holdout_replica": 3,
         "holdout_opened_after_freeze": True,
@@ -1423,6 +1429,7 @@ def build_frozen_document(report: dict[str, Any], plan: dict[str, Any]) -> dict[
         "qualified_pages": [],
         "work_charges": {
             **{key: 0 for key in plan["work_model"]["terms"]},
+            "invalid_path_row_directory_entries": 0,
             "total_work_units": 0,
         },
         "h4_occurrence_evidence": copy.deepcopy(report["h4_occurrence_evidence"]),
@@ -1634,6 +1641,23 @@ def validate_work_charges(charges: dict[str, int]) -> None:
     terms = [value for key, value in charges.items() if key != "total_work_units"]
     if charges["total_work_units"] != sum(terms):
         raise AssertionError("total_work_units mismatch")
+    if charges["invalid_path_row_directory_entries"] and any(
+        charges[key]
+        for key in (
+            "valid_path_row_directory_entries",
+            "type_1_slots",
+            "type_0_and_tag_05_bitmap_bits",
+            "role_transition_evaluations",
+            "base_formula_evaluations",
+            "catalog_root_signatures",
+            "catalog_raw_rows",
+            "encoding_union_anchor_bytes",
+            "h4_name_length_structural_tuples",
+            "encoding_length_equivalence_candidates",
+            "candidate_serializations",
+        )
+    ):
+        raise AssertionError("invalid row-directory work is not mutually exclusive")
 
 
 def validate_analysis_work_bound(attempted_units: int, bound: int) -> None:
@@ -3240,6 +3264,7 @@ class A4PlanContractTests(unittest.TestCase):
             "encoding_length_equivalence_candidates": derivation_replicas * operation_instances * len(grammar["h4"]["name_length_equivalence_classes"]),
             "candidate_serializations": bounds["max_candidate_models"],
         }
+        invalid_path_units = derivation_replicas * qualified_pages * checkpoints * 1019
         terms = self.plan["work_model"]["terms"]
         self.assertEqual({key: value["units"] for key, value in terms.items()}, expected_terms)
         terminal_maximum = sum(expected_terms.values())
@@ -3252,7 +3277,7 @@ class A4PlanContractTests(unittest.TestCase):
             terminal_paths["alternative_terms"][
                 "invalid_path_row_directory_entries"
             ]["units"],
-            derivation_replicas * qualified_pages * checkpoints * 1019,
+            invalid_path_units,
         )
         qualified_page_rule = self.plan["record_candidate_procedure"][
             "qualified_page_rule"
@@ -3261,7 +3286,20 @@ class A4PlanContractTests(unittest.TestCase):
             "union_once_charging"
         ]["rule"]
         self.assertIn("(replica, page number, checkpoint id)", qualified_page_rule)
+        self.assertIn("3,200 entries", qualified_page_rule)
         self.assertIn("must be charged separately", charging_rule)
+        expected_schema_maxima = {
+            **expected_terms,
+            "invalid_path_row_directory_entries": invalid_path_units,
+            "total_work_units": bounds["max_analysis_work_units"],
+        }
+        for schema in (self.analysis_schema, self.derivation_schema):
+            work_properties = schema["$defs"]["workCharges"]["properties"]
+            self.assertEqual(
+                {key: value["maximum"] for key, value in work_properties.items()},
+                expected_schema_maxima,
+            )
+            self.assertEqual(schema["properties"]["qualified_pages"]["maxItems"], 3200)
         all_terms = {key: value["units"] for key, value in terms.items()}
         all_terms.update(
             {key: value["units"] for key, value in terminal_paths["alternative_terms"].items()}
@@ -3520,8 +3558,38 @@ class A4PlanContractTests(unittest.TestCase):
         charges = {key: value["units"] for key, value in self.plan["work_model"]["terms"].items()}
         serialized_total = sum(charges.values())
         self.assertNotEqual(serialized_total, self.plan["bounds"]["max_analysis_work_units"])
-        serialized = {**charges, "total_work_units": serialized_total}
+        serialized = {
+            **charges,
+            "invalid_path_row_directory_entries": 0,
+            "total_work_units": serialized_total,
+        }
         validate_work_charges(serialized)
+        full_report = build_report(self.plan)
+        full_report["work_charges"] = copy.deepcopy(serialized)
+        validate_schema_value(full_report, self.analysis_schema, self.analysis_schema, "$")
+        full_frozen = build_frozen_document(full_report, self.plan)
+        full_frozen["work_charges"] = copy.deepcopy(serialized)
+        validate_schema_value(full_frozen, self.derivation_schema, self.derivation_schema, "$")
+        invalid = {key: 0 for key in serialized}
+        invalid.update(
+            {
+                "tdef_lifecycle_signatures": charges["tdef_lifecycle_signatures"],
+                "raw_locator_windows": charges["raw_locator_windows"],
+                "raw_locator_pairs": charges["raw_locator_pairs"],
+                "h1_target_validity_checks": charges["h1_target_validity_checks"],
+                "invalid_path_row_directory_entries": self.plan["work_model"]
+                ["terminal_path_maxima"]["alternative_terms"]
+                ["invalid_path_row_directory_entries"]["units"],
+            }
+        )
+        invalid["total_work_units"] = sum(
+            value for key, value in invalid.items() if key != "total_work_units"
+        )
+        validate_work_charges(invalid)
+        invalid["valid_path_row_directory_entries"] = 1
+        invalid["total_work_units"] += 1
+        with self.assertRaises(AssertionError):
+            validate_work_charges(invalid)
         serialized["total_work_units"] += 1
         with self.assertRaises(AssertionError):
             validate_work_charges(serialized)

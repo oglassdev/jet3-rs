@@ -4505,7 +4505,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `41 34 54 41 42 5f c9 34`, is the sole non-ASCII identifier.
 - Protocol: freeze immutable base plan
   `oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`, SHA-256
-  `b0f807d6922be0df51fcc7c73ba9c7c20caded41970c62d31c9719f4b4b8841d`,
+  `3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1`,
   before acquisition. Execute exactly 25 closed, quiescent checkpoints with
   one listed logical schema mutation per schema transition and canonical DAO
   user-schema snapshots at every checkpoint. Derive H1--H4 on independent
@@ -4714,6 +4714,33 @@ Use `not applicable` explicitly rather than omitting a field.
   No approved scope,
   acquisition state, DAO evidence, support state, or compatibility claim is
   changed; final P0 closure remains blocked pending a fresh post-repair review.
+
+  Pass 11 independently reviewed exact head
+  `a83016b4a031f52cd987e734e792f325cf28fa93` and found two additional
+  pre-acquisition blockers. P11-B1 showed that the frozen schema retained
+  single-replica maxima for ten now-aggregate charges, omitted the 815,200-unit
+  invalid-directory alternative, and represented qualified pages only as
+  unqualified numeric page numbers; the analysis-report schema also could not
+  reproduce the frozen charges. P11-B2 showed that AMB-02 and AMB-03 still
+  prescribed the superseded 1,600-check and cross-replica-deduplicated rules.
+  This repair keeps `max_locator_pairs` and
+  `max_qualified_pages_per_submodel` as per-replica bounds, while both evidence
+  schemas now admit the exact aggregate named-term maxima and the mutually
+  exclusive invalid-directory charge. Frozen and report qualified-page
+  inventories use canonical `(replica, checkpoint_id, page_number)` objects,
+  bounded by 3,200 identities across two replicas, 25 checkpoints, four
+  layers, and 16 pages. The analysis report must reproduce those identities
+  and the complete work charges byte-for-byte. Changed schema identities are:
+
+  | File | SHA-256 before Pass 11 | SHA-256 after Pass 11 |
+  | --- | --- | --- |
+  | `analysis-report.schema.json` | `d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0` | `bd1cdd62fdf6dae1ed756c092a90936be1318dc3a66e9d1d6309ecfa0d3d2010` |
+  | `derivation-candidates.schema.json` | `2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245` | `1cf5829b14663a68c934ff4d16b1b95668291b21b645ad3ae0e93abe3c839a28` |
+
+  The Pass-11 focused contract-test SHA-256 is
+  `cdc341b4c6ef0e3e4b08e908e4f357096da9f635b42ff0110b12e9fbd761a91e`.
+  Acquisition, support movement, and compatibility claims remain blocked
+  pending another exact-head independent review.
 
   focused A4
   plan and repository contract checks must pass

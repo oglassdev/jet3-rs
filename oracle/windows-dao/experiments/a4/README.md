@@ -3,7 +3,7 @@
 `DAO-A4-ROW-ANCHORED-MAPS-001` is the project-authored successor to A3. It is
 preregistered by `EXP-0052` before acquisition. The immutable base plan is
 `a4-row-anchored-maps.plan.json`, SHA-256
-`b0f807d6922be0df51fcc7c73ba9c7c20caded41970c62d31c9719f4b4b8841d`.
+`3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1`.
 
 A4 replaces fixed absolute record intervals with row-directory-anchored
 locators grounded in `SRC-0020`. It then evaluates four dependency-ordered
@@ -253,6 +253,25 @@ the approved ceiling. The Pass-10 recomputation-helper SHA-256 is
 `49079d3bfb413bdcc98288adf3c2e7ae736577e0ef5002d8e00d816aba25a7ec`;
 the focused contract-test SHA-256 is
 `fbd712fd9bec62b1663336d7e3365cdb586ca333a277f121829539f6fc2ce7d2`.
+
+Pass 11 reviewed exact head
+`a83016b4a031f52cd987e734e792f325cf28fa93` and found that the corrected
+aggregate terms exceeded stale single-replica maxima in both evidence schemas,
+the invalid-directory alternative was not serializable, and the frozen
+qualified-page inventory still erased replica/checkpoint identity. This
+pre-acquisition repair makes both schemas carry the complete aggregate charge
+vocabulary, requires the analysis report to reproduce qualified pages and work
+charges, and stores qualified pages as replica/checkpoint/page identities. It
+also corrects the superseded AMB-02 and AMB-03 decisions. The schema identities
+are:
+
+| Schema | SHA-256 before Pass 11 | SHA-256 after Pass 11 |
+| --- | --- | --- |
+| `analysis-report.schema.json` | `d320894cfd9b9cb9ddd7ad0d05dcd84333003a83fb352a0d1001715045a495f0` | `bd1cdd62fdf6dae1ed756c092a90936be1318dc3a66e9d1d6309ecfa0d3d2010` |
+| `derivation-candidates.schema.json` | `2276299d1aea1fe5796684d3236bf5889c806ebaf6e06c146f482a38561ae245` | `1cf5829b14663a68c934ff4d16b1b95668291b21b645ad3ae0e93abe3c839a28` |
+
+The Pass-11 focused contract-test SHA-256 is
+`cdc341b4c6ef0e3e4b08e908e4f357096da9f635b42ff0110b12e9fbd761a91e`.
 
 ## Schemas and status
 

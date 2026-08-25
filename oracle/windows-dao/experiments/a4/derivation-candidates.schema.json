@@ -51,12 +51,10 @@
     "qualified_pages": {
       "type": "array",
       "minItems": 0,
-      "maxItems": 64,
+      "maxItems": 3200,
       "uniqueItems": true,
       "items": {
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 20479
+        "$ref": "#/$defs/qualifiedPageIdentity"
       }
     },
     "work_charges": {
@@ -107,6 +105,31 @@
       "pattern": "^[A-Z0-9_]+$",
       "minLength": 2,
       "maxLength": 32
+    },
+    "qualifiedPageIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replica",
+        "checkpoint_id",
+        "page_number"
+      ],
+      "properties": {
+        "replica": {
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "checkpoint_id": {
+          "$ref": "#/$defs/checkpointId"
+        },
+        "page_number": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20479
+        }
+      }
     },
     "lifecycleRange": {
       "enum": [
@@ -2860,6 +2883,7 @@
         "base_formula_evaluations",
         "catalog_root_signatures",
         "catalog_raw_rows",
+        "invalid_path_row_directory_entries",
         "encoding_union_anchor_bytes",
         "h4_name_length_structural_tuples",
         "encoding_length_equivalence_candidates",
@@ -2870,42 +2894,42 @@
         "tdef_lifecycle_signatures": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 800
+          "maximum": 1600
         },
         "raw_locator_windows": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 65440
+          "maximum": 130880
         },
         "raw_locator_pairs": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 66683552
+          "maximum": 133367104
         },
         "valid_path_row_directory_entries": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 271600
+          "maximum": 543200
         },
         "type_1_slots": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 406400
+          "maximum": 812800
         },
         "type_0_and_tag_05_bitmap_bits": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 13040000
+          "maximum": 26080000
         },
         "role_transition_evaluations": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 4000
+          "maximum": 8000
         },
         "base_formula_evaluations": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1600
+          "maximum": 3200
         },
         "catalog_root_signatures": {
           "type": "integer",
@@ -2915,7 +2939,12 @@
         "catalog_raw_rows": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 76048
+          "maximum": 152096
+        },
+        "invalid_path_row_directory_entries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 815200
         },
         "encoding_length_equivalence_candidates": {
           "type": "integer",
@@ -2935,7 +2964,7 @@
         "h1_target_validity_checks": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1600
+          "maximum": 3200
         },
         "encoding_union_anchor_bytes": {
           "type": "integer",
