@@ -91,8 +91,40 @@ class SyntheticParameters:
     type_0_polarity: str = "set_bit_owned_in_use"
     row_flag: int = 0x1000
     force_t3_conversion_checkpoint: str = "T3_ABS_08192"
+    force_conversion_checkpoint_by_role: Mapping[str, str] = field(default_factory=dict)
     initial_filler_delta: int = 0
+    post_reservation_filler_delta: int = 0
     omit_blob_digest: str | None = None
+    user_tdef_tag: int = TAG_TDEF
+    tdef_style: str = "signature"
+    locator_target: str = "map"
+    locator_target_page: int | None = None
+    decoy_tdef_pages: Mapping[str, int] = field(default_factory=dict)
+    available_equals_owned: bool = False
+    conversion: str = "capacity"
+    never_convert_roles: frozenset[str] = frozenset()
+    type_1_exact_slots: bool = False
+    type_1_slot_count: int | None = None
+    omit_pages_at_or_above: int | None = None
+    omit_pages_below_by_role: Mapping[str, int] = field(default_factory=dict)
+    tag_05_mode_by_replica: Mapping[int, str] = field(default_factory=dict)
+    tag_05_bit_shift: int = 0
+    tag_05_bit_shift_by_replica: Mapping[int, int] = field(default_factory=dict)
+    synthetic_boundary_bits: bool = False
+    catalog_page_default: str = "catalog"
+    catalog_page_override: Mapping[str, str] = field(default_factory=dict)
+    catalog_page_override_by_replica: Mapping[int, Mapping[str, str]] = field(default_factory=dict)
+    decoy_follows_operations: bool = False
+    spare_noise_at: frozenset[str] = frozenset()
+    catalog_header_noise_at: frozenset[str] = frozenset()
+    skip_catalog_record_at: frozenset[str] = frozenset()
+    duplicate_catalog_record_at: frozenset[str] = frozenset()
+    catalog_kind_override: Mapping[str, int] = field(default_factory=dict)
+    catalog_record_layout: str = "single"
+    e_acute_length_override: int | None = None
+    e_acute_double_occurrence: bool = False
+    t2_identifier_relation_by_replica: Mapping[int, str] = field(default_factory=dict)
+    holdout_name_corruption: bool = False
 
     def layout(self, replica: int) -> str:
         return self.layout_by_replica.get(replica, DEFAULT_LAYOUT)
@@ -125,13 +157,37 @@ class SyntheticParameters:
             raise ValidationError("A4 synthetic row flag overlaps the offset bits")
         if self.force_t3_conversion_checkpoint not in CHECKPOINT_IDS:
             raise ValidationError("A4 synthetic conversion checkpoint is unknown")
-        if self.initial_filler_delta < 0 or self.initial_filler_delta > 32:
+        if any(value not in CHECKPOINT_IDS for value in self.force_conversion_checkpoint_by_role.values()):
+            raise ValidationError("A4 synthetic role conversion checkpoint is unknown")
+        if self.initial_filler_delta < 0 or self.initial_filler_delta > 4096:
             raise ValidationError("A4 synthetic filler delta is outside its local bound")
+        if not 0 <= self.post_reservation_filler_delta <= 4096:
+            raise ValidationError("A4 synthetic post-reservation filler is outside its bound")
         if self.omit_blob_digest is not None and (
             len(self.omit_blob_digest) != 64
             or any(value not in "0123456789abcdef" for value in self.omit_blob_digest)
         ):
             raise ValidationError("A4 omitted blob identity is not canonical SHA-256")
+        if self.user_tdef_tag < 0 or self.user_tdef_tag > 255:
+            raise ValidationError("A4 synthetic TDEF tag is outside u8")
+        if self.tdef_style not in {"signature", "opaque", "broken_signature"}:
+            raise ValidationError("A4 synthetic TDEF style is unknown")
+        if self.locator_target not in {"map", "tdef"}:
+            raise ValidationError("A4 synthetic locator target is unknown")
+        if self.locator_target_page is not None and not 0 <= self.locator_target_page <= 20479:
+            raise ValidationError("A4 synthetic locator target page is outside its bound")
+        if self.conversion not in {"capacity", "never"}:
+            raise ValidationError("A4 synthetic conversion policy is unknown")
+        if self.type_1_slot_count is not None and not 1 <= self.type_1_slot_count <= 64:
+            raise ValidationError("A4 synthetic type-1 slot count is outside its bound")
+        if any(value not in {"slot", "equals_slot", "referenced"} for value in self.tag_05_mode_by_replica.values()):
+            raise ValidationError("A4 synthetic tag-05 mode is unknown")
+        if self.catalog_page_default not in {"catalog", "spare"}:
+            raise ValidationError("A4 synthetic catalog page is unknown")
+        if self.catalog_record_layout not in {"single", "double"}:
+            raise ValidationError("A4 synthetic catalog layout is unknown")
+        if self.omit_pages_at_or_above is not None and self.omit_pages_at_or_above < 0:
+            raise ValidationError("A4 synthetic visible-page limit is negative")
 
 
 @dataclass
@@ -158,6 +214,7 @@ class CatalogRecord:
     object_kind: str
     object_id: int
     name: str
+    page_slot: str = "catalog"
 
 
 @dataclass(frozen=True)
@@ -205,10 +262,12 @@ class ReplicaBuilder:
         self.row_counts: dict[str, Mapping[str, int]] = {}
         self.tables: dict[str, TableState] = {}
         self.catalog_records: list[CatalogRecord] = []
+        self.instance_object_ids: dict[str, int] = {}
         self.system: dict[str, int] = {}
         self.reserved: dict[str, tuple[int, int]] = {}
         self.baselines: dict[str, int] = {}
         self.inserted_rows = 0
+        self.current_checkpoint = ""
 
     def _append(self, payload: bytes) -> int:
         if len(payload) != PAGE_SIZE:
@@ -228,6 +287,7 @@ class ReplicaBuilder:
         self._append(empty_page())
         for name in SYSTEM_PAGE_NAMES:
             self.system[name] = self._append(empty_page())
+        self.system["spare"] = 1
         for _ in range(self.profile.initial_filler_pages + self.parameters.initial_filler_delta):
             self._append(empty_page())
         for instance in SCHEDULE.instances:
@@ -235,6 +295,19 @@ class ReplicaBuilder:
                 self._append(empty_page()),
                 self._append(empty_page()),
             )
+        for _ in range(self.parameters.post_reservation_filler_delta):
+            self._append(data_page((b"\x00", b"\x01")))
+        if (
+            self.parameters.catalog_page_default == "spare"
+            or self.parameters.decoy_follows_operations
+            or self.parameters.spare_noise_at
+            or "spare" in self.parameters.catalog_page_override.values()
+            or any(
+                "spare" in overrides.values()
+                for overrides in self.parameters.catalog_page_override_by_replica.values()
+            )
+        ):
+            self.system["spare"] = self._append(empty_page())
         layout = self.parameters.layout(self.replica)
         self.pages[self.system["root_tdef"]] = _system_tdef(layout, self.system["root_map"])
         self.pages[self.system["decoy_tdef"]] = _system_tdef(layout, self.system["decoy_map"])
@@ -248,17 +321,76 @@ class ReplicaBuilder:
         available = type_0_row(root_map, (), polarity=self.parameters.type_0_polarity)
         flags = {0: self.parameters.row_flag, 1: self.parameters.row_flag}
         self.pages[root_map] = data_page((owned, available), raw_flags=flags)
-        decoy_available = type_0_row(decoy_map, (), polarity=self.parameters.type_0_polarity)
-        self.pages[decoy_map] = data_page((type_0_row(decoy_map, {decoy_map}), decoy_available), raw_flags=flags)
-        rows = tuple(self._catalog_row(record) for record in self.catalog_records)
-        self.pages[catalog] = data_page(rows)
+        decoy_owned = (
+            {decoy_map, self.system["spare"]}
+            if self.parameters.decoy_follows_operations
+            else {decoy_map}
+        )
+        decoy_available = type_0_row(
+            decoy_map, (), polarity=self.parameters.type_0_polarity
+        )
+        self.pages[decoy_map] = data_page(
+            (type_0_row(decoy_map, decoy_owned), decoy_available), raw_flags=flags
+        )
+        for slot, page_number in (
+            ("catalog", catalog),
+            ("spare", self.system["spare"]),
+        ):
+            rows = tuple(
+                self._catalog_row(record)
+                for record in self.catalog_records
+                if record.page_slot == slot
+            )
+            if slot == "spare" and self.parameters.post_reservation_filler_delta:
+                rows += (b"\x00", b"\x01")
+            if slot == "spare":
+                rows += tuple(
+                    b"\x7f" + record.checkpoint_id.encode("ascii")
+                    for record in self.catalog_records
+                    if record.checkpoint_id in self.parameters.spare_noise_at
+                )
+            if slot == "spare" and self.parameters.decoy_follows_operations:
+                rows += (b"\x01" + len(self.catalog_records).to_bytes(2, "little"),)
+            rendered = data_page(rows)
+            if (
+                slot == "catalog"
+                and self.current_checkpoint in self.parameters.catalog_header_noise_at
+            ):
+                changed = bytearray(rendered)
+                changed[2] = 1
+                rendered = bytes(changed)
+            self.pages[page_number] = rendered
 
     def _catalog_row(self, record: CatalogRecord) -> bytes:
-        kind = CATALOG_KINDS[record.object_kind]
+        kind = self.parameters.catalog_kind_override.get(
+            record.checkpoint_id, CATALOG_KINDS[record.object_kind]
+        )
         name = _strict_name_bytes(record.name)
         if len(name) > 0xFFFF:
             raise ValidationError("A4 synthetic catalog name is too long")
-        return bytes([record.object_id, kind, len(name)]) + name
+        if (
+            self.parameters.holdout_name_corruption
+            and self.replica == 3
+            and b"\xc9" in name
+        ):
+            name = name[:-1] + b"5"
+        stored_length = len(name)
+        if (
+            name != record.name.encode("utf-8")
+            and self.parameters.e_acute_length_override is not None
+        ):
+            stored_length = self.parameters.e_acute_length_override
+        prefix = bytes([record.object_id, kind])
+        if self.parameters.catalog_record_layout == "double":
+            prefix += bytes([record.object_id ^ 0x40, kind])
+        row = prefix + bytes([stored_length]) + name
+        if (
+            self.parameters.e_acute_double_occurrence
+            and name != record.name.encode("utf-8")
+        ):
+            utf8 = record.name.encode("utf-8")
+            row += bytes([record.object_id, kind, len(utf8)]) + utf8
+        return row
 
     def _name_for(self, checkpoint_id: str, role: str) -> str:
         binding = next(item for item in PLAN["tables"]["role_bindings"] if item["replica"] == self.replica)
@@ -269,16 +401,35 @@ class ReplicaBuilder:
         return str(binding[role])
 
     def _record(self, checkpoint_id: str, instance_id: str, kind: str) -> None:
+        if checkpoint_id in self.parameters.skip_catalog_record_at:
+            return
         role = SCHEDULE.instance(instance_id).role
         ordinal = len(self.catalog_records)
         object_id = 0x21 + ordinal
-        self.catalog_records.append(CatalogRecord(
+        relation = self.parameters.t2_identifier_relation_by_replica.get(
+            self.replica
+        )
+        if instance_id == "T2-v2" and relation == "same":
+            object_id = self.instance_object_ids["T2-v1"]
+        elif instance_id == "T2-v2" and relation == "distinct":
+            object_id = 0x70
+        if kind == "table":
+            self.instance_object_ids[instance_id] = object_id
+        overrides = dict(self.parameters.catalog_page_override)
+        overrides.update(
+            self.parameters.catalog_page_override_by_replica.get(self.replica, {})
+        )
+        record = CatalogRecord(
             checkpoint_id,
             instance_id,
             kind,
             object_id,
             self._name_for(checkpoint_id, role),
-        ))
+            overrides.get(checkpoint_id, self.parameters.catalog_page_default),
+        )
+        self.catalog_records.append(record)
+        if checkpoint_id in self.parameters.duplicate_catalog_record_at:
+            self.catalog_records.append(record)
 
     def _locators(self, map_page: int) -> Mapping[int, bytes]:
         layout = self.parameters.layout(self.replica)
@@ -291,16 +442,40 @@ class ReplicaBuilder:
             locators[offsets[2]] = locators[offsets[1]]
         return locators
 
+    def _tdef_page(self, tdef_page: int, map_page: int, version: int) -> bytes:
+        target = (
+            self.parameters.locator_target_page
+            if self.parameters.locator_target_page is not None
+            else tdef_page
+            if self.parameters.locator_target == "tdef"
+            else map_page
+        )
+        if self.parameters.tdef_style == "opaque":
+            page = bytearray([0xA5] * PAGE_SIZE)
+            page[0] = self.parameters.user_tdef_tag
+            return bytes(page)
+        page = bytearray(
+            masked_tdef_page(
+                self.parameters.signature_id,
+                self._locators(target),
+                version=version,
+            )
+        )
+        page[0] = self.parameters.user_tdef_tag
+        if self.parameters.tdef_style == "broken_signature":
+            page[2] ^= 1
+        return bytes(page)
+
     def _create(self, checkpoint_id: str, instance_id: str) -> None:
         role = SCHEDULE.instance(instance_id).role
         tdef_page, map_page = self.reserved[instance_id]
         state = TableState(instance_id, role, tdef_page, map_page, {map_page})
         self.tables[instance_id] = state
-        self.pages[tdef_page] = masked_tdef_page(
-            self.parameters.signature_id,
-            self._locators(map_page),
-            version=state.version,
+        self.pages[tdef_page] = self._tdef_page(
+            tdef_page, map_page, state.version
         )
+        for _ in range(self.parameters.decoy_tdef_pages.get(checkpoint_id, 0)):
+            self._append(self._tdef_page(tdef_page, map_page, state.version))
         self._record(checkpoint_id, instance_id, "table")
 
     def _drop(self, instance_id: str) -> None:
@@ -327,10 +502,26 @@ class ReplicaBuilder:
             raise ValidationError("A4 growth event lacks a target")
         projected_bits = max(1, target - state.map_page)
         projected_row_bytes = 15 + math.ceil(projected_bits / 8)
-        force_t3 = state.role == "T3" and CHECKPOINT_IDS.index(checkpoint_id) >= CHECKPOINT_IDS.index(self.parameters.force_t3_conversion_checkpoint)
-        if state.converted or force_t3 or projected_row_bytes > PAGE_SIZE:
+        forced_checkpoint = self.parameters.force_conversion_checkpoint_by_role.get(
+            state.role,
+            self.parameters.force_t3_conversion_checkpoint
+            if state.role == "T3"
+            else "",
+        )
+        force_t3 = bool(forced_checkpoint) and CHECKPOINT_IDS.index(
+            checkpoint_id
+        ) >= CHECKPOINT_IDS.index(forced_checkpoint)
+        if (
+            self.parameters.conversion != "never"
+            and state.role not in self.parameters.never_convert_roles
+            and (
+            state.converted or force_t3 or projected_row_bytes > PAGE_SIZE
+            )
+        ):
             state.converted = True
-        while len(self.pages) < target:
+        first_batch = state.row_count == 0
+        while len(self.pages) < target or first_batch:
+            first_batch = False
             if self.inserted_rows + self.profile.batch_rows > SCHEDULE.max_inserted_rows_per_replica:
                 raise ValidationError("A4 synthetic inserted-row bound exceeded")
             first_id = state.row_count + 1
@@ -349,6 +540,8 @@ class ReplicaBuilder:
                 self._prepare_tag05_slots(state, len(self.pages))
             state.row_count += self.profile.batch_rows
             self.inserted_rows += self.profile.batch_rows
+        if state.converted:
+            self._prepare_tag05_slots(state, len(self.pages))
         state.retained_row_count = state.row_count
 
     def _prepare_tag05_slots(self, state: TableState, achieved_pages: int) -> None:
@@ -356,6 +549,8 @@ class ReplicaBuilder:
         while True:
             highest = max((*state.owned_pages, achieved_pages - 1), default=0)
             required = set(range(highest // TAG05_BITS + 1))
+            if self.parameters.synthetic_boundary_bits and required:
+                required.add(max(required) + 1)
             missing = sorted(required - set(state.tag05_pages))
             if not missing:
                 return
@@ -363,7 +558,15 @@ class ReplicaBuilder:
                 state.tag05_pages[slot] = self._append(tag_05_page(()))
 
     def _should_convert(self, checkpoint_id: str, state: TableState) -> bool:
-        if state.role == "T3" and CHECKPOINT_IDS.index(checkpoint_id) >= CHECKPOINT_IDS.index(self.parameters.force_t3_conversion_checkpoint):
+        if state.role in self.parameters.never_convert_roles:
+            return False
+        forced_checkpoint = self.parameters.force_conversion_checkpoint_by_role.get(
+            state.role,
+            self.parameters.force_t3_conversion_checkpoint
+            if state.role == "T3"
+            else "",
+        )
+        if forced_checkpoint and CHECKPOINT_IDS.index(checkpoint_id) >= CHECKPOINT_IDS.index(forced_checkpoint):
             return True
         owned_bits = max(state.owned_pages, default=state.map_page) - state.map_page + 1
         available_bits = max(state.available_pages, default=state.map_page) - state.map_page + 1
@@ -371,49 +574,115 @@ class ReplicaBuilder:
         return 14 + serialized > PAGE_SIZE
 
     def _render_tag05(self, state: TableState) -> tuple[int, ...]:
-        slots = sorted({page // TAG05_BITS for page in state.owned_pages})
+        visible_owned = self._visible(state, state.owned_pages)
+        slots = sorted({page // TAG05_BITS for page in visible_owned})
+        if self.parameters.synthetic_boundary_bits:
+            slots = sorted(set(slots) | set(state.tag05_pages))
         if not slots:
             return ()
         for slot in slots:
             if slot not in state.tag05_pages:
                 raise ValidationError("A4 synthetic tag-05 page was not allocated during growth")
         references = [0] * (max(slots) + 1)
+        mode = self.parameters.tag_05_mode_by_replica.get(self.replica, "slot")
         for slot in slots:
             reference = state.tag05_pages[slot]
+            if mode == "equals_slot":
+                reference = slot
+            elif mode == "referenced":
+                reference = slot + 1
             references[slot] = reference
-            bits = {page - slot * TAG05_BITS for page in state.owned_pages if page // TAG05_BITS == slot}
-            self.pages[reference] = tag_05_page(bits)
+            base = reference if mode == "referenced" else slot
+            bits = {
+                page
+                - base * TAG05_BITS
+                + self.parameters.tag_05_bit_shift_by_replica.get(
+                    self.replica, self.parameters.tag_05_bit_shift
+                )
+                for page in visible_owned
+                if page // TAG05_BITS == slot
+            }
+            if self.parameters.synthetic_boundary_bits:
+                bits.update({0, TAG05_BITS - 1})
+            if not 0 <= reference < len(self.pages):
+                raise ValidationError("A4 synthetic tag-05 reference is outside the file")
+            self.pages[reference] = tag_05_page(
+                bit for bit in bits if 0 <= bit < TAG05_BITS
+            )
         return tuple(references)
+
+    def _visible(self, state: TableState, pages: set[int]) -> set[int]:
+        limit = self.parameters.omit_pages_at_or_above
+        floor = self.parameters.omit_pages_below_by_role.get(state.role, 0)
+        return {
+            page
+            for page in pages
+            if page >= floor and (limit is None or page < limit)
+        }
 
     def _render_table(self, checkpoint_id: str, state: TableState) -> None:
         if state.dropped:
             return
-        state.converted = state.converted or self._should_convert(checkpoint_id, state)
+        state.converted = (
+            self.parameters.conversion != "never"
+            and state.role not in self.parameters.never_convert_roles
+            and (state.converted or self._should_convert(checkpoint_id, state))
+        )
+        visible_owned = self._visible(state, state.owned_pages)
+        visible_available = self._visible(state, state.available_pages)
         if state.converted:
-            owned_row = type_1_row(self._render_tag05(state), slot_count=3)
+            self._prepare_tag05_slots(state, len(self.pages))
+            references = self._render_tag05(state)
+            owned_row = type_1_row(
+                references,
+                slot_count=(
+                    len(references)
+                    if self.parameters.type_1_exact_slots
+                    else self.parameters.type_1_slot_count or 3
+                ),
+            )
         else:
-            capacity = max(state.owned_pages | state.available_pages, default=state.map_page) - state.map_page + 1
+            capacity_limit = ((PAGE_SIZE - 24) // 2) * 8
+            visible_owned = {
+                page
+                for page in visible_owned
+                if page - state.map_page < capacity_limit
+            }
+            visible_available = {
+                page
+                for page in visible_available
+                if page - state.map_page < capacity_limit
+            }
+            capacity = (
+                max(visible_owned | visible_available, default=state.map_page)
+                - state.map_page
+                + 1
+            )
             owned_row = type_0_row(
                 state.map_page,
-                state.owned_pages,
+                visible_owned,
                 polarity=self.parameters.type_0_polarity,
                 capacity_bits=capacity,
             )
         available_row = type_0_row(
             state.map_page,
-            state.available_pages,
+            visible_available,
             polarity=self.parameters.type_0_polarity,
-            capacity_bits=max(state.available_pages, default=state.map_page) - state.map_page + 1,
+            capacity_bits=(
+                max(visible_available, default=state.map_page)
+                - state.map_page
+                + 1
+            ),
         )
+        if self.parameters.available_equals_owned:
+            available_row = owned_row
         rows = (owned_row, available_row)
         if self.parameters.owned_ordinal(self.replica) == 1:
             rows = tuple(reversed(rows))
         flags = {0: self.parameters.row_flag, 1: self.parameters.row_flag}
         self.pages[state.map_page] = data_page(rows, raw_flags=flags)
-        self.pages[state.tdef_page] = masked_tdef_page(
-            self.parameters.signature_id,
-            self._locators(state.map_page),
-            version=state.version,
+        self.pages[state.tdef_page] = self._tdef_page(
+            state.tdef_page, state.map_page, state.version
         )
 
     def _capture(self, checkpoint_id: str) -> None:
@@ -432,6 +701,7 @@ class ReplicaBuilder:
     def build(self) -> SyntheticReplica:
         for event in EVENTS:
             checkpoint_id = event.checkpoint_id
+            self.current_checkpoint = checkpoint_id
             if event.kind is EventKind.EMPTY:
                 self._build_empty()
             elif event.kind is EventKind.CREATE:
@@ -460,7 +730,8 @@ class ReplicaBuilder:
             self._render_system()
             for state in self.tables.values():
                 self._render_table(checkpoint_id, state)
-            self._render_system()
+            if self.parameters.tag_05_mode_by_replica.get(self.replica, "slot") == "slot":
+                self._render_system()
             self._capture(checkpoint_id)
             if checkpoint_id in {event.baseline_checkpoint_id for event in EVENTS if event.baseline_checkpoint_id}:
                 self.baselines[checkpoint_id] = len(self.pages)

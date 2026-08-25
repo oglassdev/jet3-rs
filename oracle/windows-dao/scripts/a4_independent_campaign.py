@@ -522,6 +522,15 @@ def _h1_projection(
     # ordinal, then checkpoint; it is distinct from H1's checkpoint-major rows.
     h1 = h1_candidates[0]
     terminal_h3 = terminal_projection
+    h3_result = bundle.frozen["layers"]["h3_indirect_traversal"]
+    h3_evidence = h3_result.get("terminal_evidence")
+    invalid_reference_replica = (
+        h3_evidence["observation"]["replica"]
+        if h3_result.get("terminal_predicate_id") == "A4-H3-REFERENCE-INVALID"
+        and isinstance(h3_evidence, Mapping)
+        and isinstance(h3_evidence.get("observation"), Mapping)
+        else None
+    )
     seen_h3: dict[str, set[tuple[int, str, int, bytes]]] = {
         "map_transitions": set(), "reference_bitmaps": set()
     }
@@ -565,9 +574,11 @@ def _h1_projection(
                         reference = int.from_bytes(record[offset:offset + 4], "little")
                         if reference:
                             identity = (replica_number, checkpoint, reference)
+                            if replica_number == invalid_reference_replica:
+                                references.add(identity)
+                                continue
                             if identity not in qualified:
                                 continue
-                            references.add(identity)
                             detail = reference.to_bytes(4, "little")
                             key = (*identity, detail)
                             if not terminal_h3 or key not in seen_h3["reference_bitmaps"]:
@@ -576,6 +587,7 @@ def _h1_projection(
                                     output, "reference_bitmaps", checkpoint, reference,
                                     detail,
                                 )
+                            references.add(identity)
     return tdefs, targets, references
 
 
@@ -677,7 +689,22 @@ def recompute_frozen_transcripts(bundle: LoadedBundle) -> Mapping[str, tuple[Map
         ),
         (),
     )
-    for replica_number in (1, 2):
+    if not root_offsets:
+        root_offsets = next(
+            (
+                tuple(candidate["model"]["locator_offsets"])
+                for candidate in _all_candidates(bundle.frozen)
+                if candidate["model_type"] == "h1_locator_pair"
+            ),
+            (),
+        )
+    root_result = bundle.frozen["layers"]["h4_catalog_bootstrap"]["root_result"]
+    root_replicas = (
+        (1,)
+        if root_result.get("terminal_predicate_id") == "A4-H4-CATALOG-ROOT-NONE"
+        else (1, 2)
+    )
+    for replica_number in root_replicas:
         replica = bundle.replicas[replica_number]
         for row in bundle.frozen["qualified_pages"]:
             if row["replica"] != replica_number or row["checkpoint_id"] != "EMPTY":

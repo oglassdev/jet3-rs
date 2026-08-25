@@ -323,7 +323,19 @@ def derive_layers(
     )
     if h2_outcome.failure is not None:
         error = h2_outcome.failure.error
-        results["h2_row_identity_map_role"] = caught_terminal(error, work)
+        evidence = getattr(error, "terminal_evidence", None)
+        if error.predicate_id in {
+            "A4-H2-ROW-DIRECTORY-INVALID",
+            "A4-H2-ROW-FLAGS-INVALID",
+            "A4-H2-MAP-TAG-UNSUPPORTED",
+        }:
+            evidence = {
+                **dict(evidence),
+                "input_model_id": frozen_h1.canonical_candidate_id,
+            }
+        results["h2_row_identity_map_role"] = caught_terminal(
+            error, work, evidence=evidence
+        )
         return terminal(error)
     h2_by = dict(h2_outcome.values)
     try:
@@ -479,6 +491,11 @@ def derive_layers(
             root_observation[replica],
             deltas_by[replica],
         )
+        if outside is not None:
+            outside = {
+                **outside,
+                "input_model_id": frozen_root.canonical_candidate_id,
+            }
         results["h4_catalog_bootstrap"]["structural_result"] = caught_terminal(
             error, work, evidence=outside
         )
@@ -672,6 +689,7 @@ def derive_layers(
                 (encoded_by[1].structural, encoded_by[2].structural)
             ),
             per_replica_counts=(1, 1),
+            candidate_stage="h4_structural_field",
         )
         results["h4_catalog_bootstrap"]["encoding_result"] = caught_terminal(
             error,

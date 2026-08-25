@@ -67,7 +67,7 @@ _LATEST_PATH = tuple(
 )
 _VALID_DIRECTORY_PATH_TERMS = frozenset(
     _LATEST_PATH[_LATEST_PATH.index(_VALID_DIRECTORY_TERM) :]
-)
+) - {"candidate_serializations"}
 
 
 def _checked_nonnegative(value: int, label: str) -> int:

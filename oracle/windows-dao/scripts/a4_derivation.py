@@ -71,6 +71,7 @@ def caught_terminal(
     candidates: Sequence[Mapping[str, Any]] | None = None,
     evidence: Mapping[str, Any] | None = None,
     per_replica_counts: Sequence[int] | None = None,
+    candidate_stage: str | None = None,
 ) -> dict[str, Any]:
     return terminal_result(
         error,
@@ -80,6 +81,7 @@ def caught_terminal(
             getattr(error, "terminal_evidence", None) if evidence is None else evidence
         ),
         per_replica_counts=per_replica_counts,
+        candidate_stage=candidate_stage,
     )
 
 
