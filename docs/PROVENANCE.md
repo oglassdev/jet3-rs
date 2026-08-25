@@ -4746,6 +4746,69 @@ Use `not applicable` explicitly rather than omitting a field.
   focused A4
   plan and repository contract checks must pass
 
+### EXP-0053 — A4 deterministic pre-acquisition dry-run disclosure
+
+- Recorded: 2026-08-25, OpenAI Codex
+- Kind: additive, non-evidential pre-acquisition execution disclosure; no DAO
+  acquisition, holdout result, format observation, or capability advancement
+- Question: Does the implementation bound to the immutable A4 plan make all
+  40 registered terminal predicates reachable, preserve the plan's ordered
+  first-failure semantics and resource limits, and agree exactly with a
+  separately invoked independent validator before any acquisition is allowed?
+- Preregistration: immutable plan and revision SHA-256
+  `3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1`.
+  The analyzer, fixture generator, harness, and independent validator were
+  executed from the code-only commit
+  `cfa27fdffc5f2d911ba439324cae289b4b9440ea`; no preregistered plan or prior
+  provenance entry was rewritten.
+- Calibration input: retained read-only A3 `EXP-0051` bundle at
+  `/tmp/jet3-a3-retained-32626186825/jet3-a3-bundle`, manifest SHA-256
+  `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`.
+  The dry run opened nine retained calibration page blobs from replica 1 and
+  never opened replica 3. It independently recomputed 1,872 syntactically
+  preserved windows and 1,745,696 canonical nonoverlapping pairs for each
+  locator layout, with 7 page-then-row and 25 row-then-page target-valid
+  checkpoints. `holdout_opened` is false.
+- Protocol: execute
+  `mise exec -- python3 -B oracle/windows-dao/scripts/a4_dryrun.py generate
+  --retained-root /tmp/jet3-a3-retained-32626186825/jet3-a3-bundle --output
+  oracle/windows-dao/experiments/a4/dry-run`, then execute the corresponding
+  `verify` command against the retained root and generated artifact directory.
+  The generator serialized complete page trees for every fixture, ran the
+  production analyzer in a child process, and ran an independently implemented
+  validator in a separate child process. The verifier recomputed each result
+  and required exact agreement on terminal predicate, terminal status,
+  candidate count, candidate-set SHA-256, and registered-prefix evaluation.
+- Observation: all 40 registered terminal fixtures reached their claimed
+  terminals under both the retained-A3 calibration schedule and a separate
+  A4-schedule-synthetic report. All ten required adversarial cases agreed:
+  multiplicities 2, 3, and 4, encoding counts 0 and 2, and exact work-counter
+  equality were accepted; an unregistered candidate id, malformed page,
+  invalidated earlier predicate, and one-over resource count were rejected.
+  The analyzer and independent validator both report commit
+  `cfa27fdffc5f2d911ba439324cae289b4b9440ea`, and generation and verification
+  each report `PASS (40/40)`.
+- Artifacts: `a3-calibration-report.json`, 3,888 bytes, SHA-256
+  `440e0a6cb0727498d2c99ad215e739e904051d51e8ed660e7e87e2c5fb9947e3`;
+  `a4-reachability-transcript.json`, 125,211 bytes, SHA-256
+  `d94f2b5e2f70a453ea73facd04b9dd0eb1fb9aa814c51ae20d3cbb632f2d764f`;
+  `a4-synthetic-report.json`, 3,960 bytes, SHA-256
+  `2b33922b23ad9ec38113bd1538ca2d56f274f4f88cd8cce36c67986ecf95584f`;
+  and `checksums.sha256`, 282 bytes, SHA-256
+  `e3db6dfaab79566f126d640f3c7be74fb0ba06b4a57c88e2145fe3e7f4143de6`,
+  all under `oracle/windows-dao/experiments/a4/dry-run/`.
+- Interpretation: this closes only the deterministic A4 P1 pre-acquisition
+  reachability and analyzer/validator-agreement obligation. Both reports set
+  `scientific_evidence`, `acquisition_authorized`, and
+  `capability_advancement_authorized` to false. The synthetic report contains
+  no page blobs and no fixture verdict fields. It is not DAO evidence and
+  cannot support a compatibility claim or support-matrix movement.
+- Review: focused suites passed 72 tests across the generator, analyzer,
+  dry-run driver, independent campaign checks, independent H3/H4 checks, and
+  independent validator. Python bytecode compilation, whitespace validation,
+  artifact checksum validation, deterministic regeneration, and independent
+  verification passed.
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
