@@ -842,7 +842,8 @@ Use `not applicable` explicitly rather than omitting a field.
   Additional tracked Usage:
   `file:oracle/windows-dao/experiments/a4/README.md`;
   `file:oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`;
-  `file:oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md`.
+  `file:oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md`;
+  `file:oracle/windows-dao/scripts/a4_independent_h3.py`.
 - Rights: citation to public documentation distributed upstream under the MIT
   license; no upstream documentation content is redistributed
 - Review: pending independent review
