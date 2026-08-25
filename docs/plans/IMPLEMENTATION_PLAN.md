@@ -1,9 +1,10 @@
 # Implementation plan: current state to v1 completion
 
-Status: directive plan, written 2026-08-23, revised 2026-08-23 after the
-executability review (`docs/plans/design-inputs/` holds the committed copies
-of its binding inputs). It is an execution document for agents, not a
-contract; the binding contracts remain `AGENTS.md`, `docs/PROVENANCE.md`,
+Status: directive plan, written 2026-08-23, revised 2026-08-25 after the
+executability and repository-interface reviews (`docs/plans/design-inputs/`
+holds the committed copies of its binding inputs). It is an execution
+document for agents, not a contract; the binding contracts remain `AGENTS.md`,
+`docs/PROVENANCE.md`,
 `docs/validation/ACCEPTANCE.md`, `docs/validation/EVIDENCE.md`, and
 `docs/validation/DAO_PROVIDER_BLOCKER.md`. Where this plan and a contract
 disagree, the contract wins and the plan is amended by a PR. Plan amendments
@@ -39,7 +40,11 @@ python3 -c "import json,collections; m=json.load(open('docs/validation/support-m
   paths (`/private/tmp/...`) are convenience copies only and are never
   binding inputs.
 
-## 1. Current state snapshot (2026-08-23, `main` at `7bdaf73`)
+## 1. Current state snapshot (2026-08-25, `main` at `94db078`)
+
+This snapshot records the reviewed baseline for this plan. Before executing a
+phase, resolve its named PRs and binding inputs against current `main`; a PR
+number or branch state recorded here is not evidence that its gate completed.
 
 ### 1.1 Rust reader (`crates/jet3`)
 
@@ -95,7 +100,7 @@ amendment in P8T before any verification state can move (Section 5.5).
 | A1 `DAO-A1-ALLOCATION-MAPS-001` | `EXP-0037`–`EXP-0039` | hosted lane proved; `no_scientific_outcome` (analyzer/acquisition contract mismatch, disclosed in `EXP-0040`) |
 | A2 `DAO-A2-ALLOCATION-MAPS-001` | `EXP-0040`–`EXP-0043` | decisive record layer **downgraded** (`EXP-0043`: 1,935 plan-literal starts survive); closed |
 | A3 `DAO-A3-ALLOCATION-MAPS-001` + R2–R5 | `EXP-0044`–`EXP-0051` | **independently validated**: `global_map.record` = page 1, interval `[1915,2048)`, `set_means_not_in_use`, predicts holdout. Conversion, extended base, TDEF pointer pair: `no_outcome`. No capability moved. |
-| A4 `DAO-A4-ROW-ANCHORED-MAPS-001` | `EXP-0052` is TO BE MERGED by PR #72; resolve the full remote PR head at P0 execution | current review verdict is DO-NOT-MERGE; do not record a pass count or mutable review-file hash here. No A4 implementation or acquisition is authorized until the final zero-blocker review is committed byte-for-byte and the human merges PR #72. |
+| A4 `DAO-A4-ROW-ANCHORED-MAPS-001` | `EXP-0052` remains proposed by unmerged PR #72 at this snapshot; resolve its reviewed input and merge commit at P0 execution | Pass 10 found two blockers; the remote branch contains a repair and still requires a fresh post-repair review. Do not infer completion from the branch or this row. No A4 implementation or acquisition is authorized until the final zero-blocker review is committed byte-for-byte and the human merges PR #72. |
 
 What A3 established that Rust may rely on (only via `EXP-0051`, and only as
 "narrow independently validated experimental input", never as a layout
@@ -151,9 +156,17 @@ P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P7H → P7I → P8T → 
 
 Common acceptance commands (run on every PR before requesting review):
 
+Python tests use the standard-library `unittest` interface supplied by the
+pinned interpreter; `pytest` is not a managed repository tool. Because
+`oracle/windows-dao` is not an importable dotted package name, invoke tests
+with discovery rooted at each test directory. Focused commands below use one
+`-p` pattern per named file for the same reason.
+
 ```sh
 just ready
-python3 -B -m pytest oracle/windows-dao/tests tools/tests fuzz/tests -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -v
+python3 -B -m unittest discover -s tools/tests -v
+python3 -B -m unittest discover -s fuzz/tests -v
 python3 tools/validate_repository_contract.py
 python3 tools/reconcile_tests.py
 git diff --check "$(git merge-base origin/main HEAD)" HEAD
@@ -198,8 +211,14 @@ one-over reject tests for every bound.
   byte-for-byte from the reviewer's file; no intermediate review hash is a
   binding input);
   `EXP-0043`–`EXP-0051` for the A3 calibration bytes. Before the P0 merge,
-  record all three full SHA-256 values and the exact full PR head OID in
-  the PR body and the additive `EXP-0052` entry.
+  record all three full SHA-256 values and the exact full OID of the immutable
+  input head examined by the final zero-blocker review in both the PR body and
+  the additive `EXP-0052` entry. A tracked file cannot record the OID of the
+  commit that contains that record. After the final tracked commit is pushed,
+  record the exact final PR head OID in the external PR body only; do not call
+  it the reviewed input head. The final tracked commit may add only the
+  byte-for-byte review and its derived identities; any other content change
+  requires a fresh review of the new input head.
 - Deliverables (all on branch `codex/a4-plan`, additive commits, no
   squash), one PR step:
   1. `docs(a4): close preregistration review` — apply any remaining
@@ -211,7 +230,7 @@ one-over reject tests for every bound.
 - Acceptance checks: common commands, then:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a4_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a4_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_terms.py --plan oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json --assert-plan-total --expect-ceiling 800000000 --reject-ceiling 800000001
 ```
 
@@ -235,12 +254,22 @@ python3 -B oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_ter
 - Go/no-go: human merges PR #72 only after a review pass reports no
   blocking findings. No A4 code may start before merge.
 
+Historical draft PR #74 is an explicit design-input exception to that last
+sentence: its reference harness and transcript were produced against an
+earlier P0 plan solely to expose ambiguities that the preregistration resolves.
+They are not P1 implementation or disclosure artifacts, do not authorize
+acquisition, and do not satisfy any P1 deliverable. All P1 code must still be
+implemented and independently reviewed after PR #72 merges, against the final
+merged plan.
+
 ### P1 — A4 lane implementation and dry runs
 
 - Goal: a runnable A4 lane (worker, analyzer, synthetic generator,
   independent validator, workflow) whose pre-dispatch byte-level
   reachability transcript is executed, hash-bound, and disclosed.
-- Binding inputs: merged A4 plan and schemas (full PR #72 merge OID);
+- Binding inputs: merged A4 plan and schemas (full PR #72 merge OID, resolved
+  from `main`, not the reviewed input head or final PR head recorded in the PR
+  body);
   `EXP-0049` (hosted lane rebinding rules); `EXP-0048` (dry-run disclosure
   shape); `EXP-0050` (R5-V01 binding, R5-L01 baselines, R5-T01 timeout);
   the A3 lane files listed in Section 3.3; the retained `EXP-0051` bundle,
@@ -277,19 +306,21 @@ python3 -B oracle/windows-dao/experiments/a4/design-inputs/recompute_a4_work_ter
 - Acceptance checks: common commands on every step. Step 1 additionally:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a4_analyzer.py oracle/windows-dao/tests/test_a4_generator.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a4_analyzer.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a4_generator.py' -v
 ```
 
   Step 2 additionally:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a4_independent_validator.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a4_independent_validator.py' -v
 ```
 
   Step 3 additionally:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_windows_dao_a4_workflow.py oracle/windows-dao/tests/test_a4_powershell_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_windows_dao_a4_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a4_powershell_contract.py' -v
 ```
 
   Step 4 (dry-run CLI contract; `a4_dryrun.py` with both subcommands is a
@@ -497,21 +528,25 @@ cargo fuzz run catalog_parsing -- -max_total_time=60
   Step 1:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a5_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a5/design-inputs/recompute_a5_work_terms.py --plan oracle/windows-dao/experiments/a5/a5-table-definitions.plan.json --assert-plan-total --assert-scope-ceiling --reject-one-over
 ```
 
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a5_analysis.py oracle/windows-dao/tests/test_a5_generator.py oracle/windows-dao/tests/test_a5_independent_validator.py oracle/windows-dao/tests/test_a5_import_isolation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_analysis.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_generator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_independent_validator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_import_isolation.py' -v
 ```
 
   Step 3:
 
 ```sh
 test -d "$A4_RETAINED_BUNDLE"
-python3 -B -m pytest oracle/windows-dao/tests/test_a5_workflow.py oracle/windows-dao/tests/test_a5_dryrun.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a5_dryrun.py' -v
 python3 -B oracle/windows-dao/scripts/a5_dryrun.py generate --retained-root "$A4_RETAINED_BUNDLE" --output oracle/windows-dao/experiments/a5/dry-run
 python3 -B oracle/windows-dao/scripts/a5_dryrun.py verify --retained-root "$A4_RETAINED_BUNDLE" --artifacts oracle/windows-dao/experiments/a5/dry-run
 ```
@@ -575,21 +610,25 @@ cargo fuzz run table_definition_parsing -- -max_total_time=60
   Step 1:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a6_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a6/design-inputs/recompute_a6_work_terms.py --plan oracle/windows-dao/experiments/a6/a6-rows.plan.json --assert-plan-total --assert-scope-ceiling --reject-one-over
 ```
 
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a6_analysis.py oracle/windows-dao/tests/test_a6_generator.py oracle/windows-dao/tests/test_a6_independent_validator.py oracle/windows-dao/tests/test_a6_import_isolation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_analysis.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_generator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_independent_validator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_import_isolation.py' -v
 ```
 
   Step 3:
 
 ```sh
 test -d "$A5_RETAINED_BUNDLE"
-python3 -B -m pytest oracle/windows-dao/tests/test_a6_workflow.py oracle/windows-dao/tests/test_a6_dryrun.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a6_dryrun.py' -v
 python3 -B oracle/windows-dao/scripts/a6_dryrun.py generate --retained-root "$A5_RETAINED_BUNDLE" --output oracle/windows-dao/experiments/a6/dry-run
 python3 -B oracle/windows-dao/scripts/a6_dryrun.py verify --retained-root "$A5_RETAINED_BUNDLE" --artifacts oracle/windows-dao/experiments/a6/dry-run
 ```
@@ -651,21 +690,25 @@ cargo fuzz run row_parsing -- -max_total_time=60
   Step 1:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a7_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a7/design-inputs/recompute_a7_work_terms.py --plan oracle/windows-dao/experiments/a7/a7-values.plan.json --assert-plan-total --assert-scope-ceiling --reject-one-over
 ```
 
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a7_analysis.py oracle/windows-dao/tests/test_a7_generator.py oracle/windows-dao/tests/test_a7_independent_validator.py oracle/windows-dao/tests/test_a7_import_isolation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_analysis.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_generator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_independent_validator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_import_isolation.py' -v
 ```
 
   Step 3:
 
 ```sh
 test -d "$A6_RETAINED_BUNDLE"
-python3 -B -m pytest oracle/windows-dao/tests/test_a7_workflow.py oracle/windows-dao/tests/test_a7_dryrun.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a7_dryrun.py' -v
 python3 -B oracle/windows-dao/scripts/a7_dryrun.py generate --retained-root "$A6_RETAINED_BUNDLE" --output oracle/windows-dao/experiments/a7/dry-run
 python3 -B oracle/windows-dao/scripts/a7_dryrun.py verify --retained-root "$A6_RETAINED_BUNDLE" --artifacts oracle/windows-dao/experiments/a7/dry-run
 ```
@@ -737,21 +780,25 @@ cargo fuzz run long_values -- -max_total_time=60
   Step 1:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a_opening_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a-opening/design-inputs/recompute_a_opening_work_terms.py --plan oracle/windows-dao/experiments/a-opening/a-opening.plan.json --assert-plan-total --assert-scope-ceiling --reject-one-over
 ```
 
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a_opening_analysis.py oracle/windows-dao/tests/test_a_opening_generator.py oracle/windows-dao/tests/test_a_opening_independent_validator.py oracle/windows-dao/tests/test_a_opening_import_isolation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_analysis.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_generator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_independent_validator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_import_isolation.py' -v
 ```
 
   Step 3:
 
 ```sh
 test -d "$A7_RETAINED_BUNDLE"
-python3 -B -m pytest oracle/windows-dao/tests/test_a_opening_workflow.py oracle/windows-dao/tests/test_a_opening_dryrun.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a_opening_dryrun.py' -v
 python3 -B oracle/windows-dao/scripts/a_opening_dryrun.py generate --retained-root "$A7_RETAINED_BUNDLE" --output oracle/windows-dao/experiments/a-opening/dry-run
 python3 -B oracle/windows-dao/scripts/a_opening_dryrun.py verify --retained-root "$A7_RETAINED_BUNDLE" --artifacts oracle/windows-dao/experiments/a-opening/dry-run
 ```
@@ -819,21 +866,25 @@ cargo fuzz run database_opening -- -max_total_time=60
   Step 1:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a8_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a8/design-inputs/recompute_a8_work_terms.py --plan oracle/windows-dao/experiments/a8/a8-index-relationships.plan.json --assert-plan-total --assert-scope-ceiling --reject-one-over
 ```
 
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a8_analysis.py oracle/windows-dao/tests/test_a8_generator.py oracle/windows-dao/tests/test_a8_independent_validator.py oracle/windows-dao/tests/test_a8_import_isolation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_analysis.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_generator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_independent_validator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_import_isolation.py' -v
 ```
 
   Step 3:
 
 ```sh
 test -d "$A_OPENING_RETAINED_BUNDLE"
-python3 -B -m pytest oracle/windows-dao/tests/test_a8_workflow.py oracle/windows-dao/tests/test_a8_dryrun.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a8_dryrun.py' -v
 python3 -B oracle/windows-dao/scripts/a8_dryrun.py generate --retained-root "$A_OPENING_RETAINED_BUNDLE" --output oracle/windows-dao/experiments/a8/dry-run
 python3 -B oracle/windows-dao/scripts/a8_dryrun.py verify --retained-root "$A_OPENING_RETAINED_BUNDLE" --artifacts oracle/windows-dao/experiments/a8/dry-run
 ```
@@ -908,7 +959,7 @@ changes only tooling and contract text; it advances no verification state.
 - Acceptance checks: common commands, then:
 
 ```sh
-python3 -B -m pytest tools/tests -q
+python3 -B -m unittest discover -s tools/tests -v
 python3 tools/validate_repository_contract.py
 ./scripts/acceptance.sh full
 ```
@@ -978,7 +1029,7 @@ python3 tools/validate_repository_contract.py
 ```sh
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
-python3 -B -m pytest oracle/windows-dao/tests/test_protocol_validation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
 ```
 
   Step 2:
@@ -992,7 +1043,8 @@ python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
   Step 3:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_windows_dao_differential_workflow.py oracle/windows-dao/tests/test_protocol_validation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_windows_dao_differential_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
 ```
 
   Step 4:
@@ -1057,21 +1109,25 @@ python3 tools/validate_repository_contract.py
   Step 1:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a9_plan_contract.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_plan_contract.py' -v
 python3 -B oracle/windows-dao/experiments/a9/design-inputs/recompute_a9_work_terms.py --plan oracle/windows-dao/experiments/a9/a9-writer-allocation.plan.json --assert-plan-total --assert-scope-ceiling --reject-one-over
 ```
 
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_a9_analysis.py oracle/windows-dao/tests/test_a9_generator.py oracle/windows-dao/tests/test_a9_independent_validator.py oracle/windows-dao/tests/test_a9_import_isolation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_analysis.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_generator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_independent_validator.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_import_isolation.py' -v
 ```
 
   Step 3:
 
 ```sh
 test -d "$A8_RETAINED_BUNDLE"
-python3 -B -m pytest oracle/windows-dao/tests/test_a9_workflow.py oracle/windows-dao/tests/test_a9_dryrun.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_a9_dryrun.py' -v
 python3 -B oracle/windows-dao/scripts/a9_dryrun.py generate --retained-root "$A8_RETAINED_BUNDLE" --output oracle/windows-dao/experiments/a9/dry-run
 python3 -B oracle/windows-dao/scripts/a9_dryrun.py verify --retained-root "$A8_RETAINED_BUNDLE" --artifacts oracle/windows-dao/experiments/a9/dry-run
 ```
@@ -1097,7 +1153,7 @@ cargo fuzz run allocator -- -max_total_time=60
 
 ```sh
 python3 -B tools/validation/independent_writer.py --self-test
-python3 -B -m pytest tools/tests -q
+python3 -B -m unittest discover -s tools/tests -v
 python3 tools/validate_repository_contract.py
 ./scripts/check-source-size.sh
 ```
@@ -1146,7 +1202,8 @@ python3 tools/validate_repository_contract.py
 
 ```sh
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
-python3 -B -m pytest oracle/windows-dao/tests/test_protocol_validation.py tools/tests/test_verify_preservation_diff.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_verify_preservation_diff.py' -v
 ./scripts/acceptance.sh full
 ```
 
@@ -1156,7 +1213,8 @@ python3 -B -m pytest oracle/windows-dao/tests/test_protocol_validation.py tools/
   Step 2:
 
 ```sh
-python3 -B -m pytest oracle/windows-dao/tests/test_windows_dao_differential_workflow.py oracle/windows-dao/tests/test_protocol_validation.py -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_windows_dao_differential_workflow.py' -v
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
 python3 -B oracle/windows-dao/scripts/differential_dryrun.py verify --inventory oracle/windows-dao/protocol/v1_2/scenarios.json --artifacts oracle/windows-dao/protocol/v1_2/dry-run
 ./scripts/acceptance.sh full
 ```
@@ -1168,7 +1226,8 @@ python3 -B oracle/windows-dao/scripts/differential_dryrun.py verify --inventory 
 
 ```sh
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
-python3 -B -m pytest oracle/windows-dao/tests/test_windows_dao_differential_workflow.py tools/tests -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_windows_dao_differential_workflow.py' -v
+python3 -B -m unittest discover -s tools/tests -v
 python3 tools/validate_repository_contract.py
 ./scripts/acceptance.sh full
 ```
@@ -1670,7 +1729,9 @@ Apply exactly the replacement text in review findings <ids>; do not reinterpret 
 Recompute every format-derived number with <committed script and exact command>; include command and output in the PR body.
 Run exactly:
 just ready
-python3 -B -m pytest oracle/windows-dao/tests tools/tests fuzz/tests -q
+python3 -B -m unittest discover -s oracle/windows-dao/tests -v
+python3 -B -m unittest discover -s tools/tests -v
+python3 -B -m unittest discover -s fuzz/tests -v
 python3 tools/validate_repository_contract.py
 python3 tools/reconcile_tests.py
 git diff --check "$(git merge-base origin/main HEAD)" HEAD
@@ -1725,7 +1786,7 @@ Change only docs/PROVENANCE.md. Open draft PR 'docs: record <campaign> first hos
 
 | Phase | Estimate | Basis |
 | --- | --- | --- |
-| P0 close A4 plan | 1–2 days | A3 needed R2–R5 over ~8.5 h; A4 is on pass 6 |
+| P0 close A4 plan | 1–2 days | A3 needed R2–R5 over ~8.5 h; A4's Pass 10 repair awaits a fresh review |
 | P1 A4 lane + dry runs | 3–5 days | A3 analyzer/validator/lane were PRs #53–#64 over ~2 days with parallel authors |
 | P2 A4 hosted + result | 0.5–2 days | A3: five infra failures then a 22-minute run |
 | P3 Stage 2 close | 3–5 days | three new modules, fuzz target, contract re-pins |
