@@ -4826,6 +4826,79 @@ Use `not applicable` explicitly rather than omitting a field.
   artifact checksum validation, deterministic generation, and fresh independent
   verification passed.
 
+### EXP-0054 — First hosted A4 dispatch worker-plan-chain blocker
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: additive exact-commit hosted failure record and conservative
+  `IMPLEMENTATION_PLAN.md` Section 6.4 scientific stop; not an A4 acquisition
+  result, H-layer result, or `no_outcome`
+- Question: Why did the first authorized hosted A4 dispatch stop in all three
+  replica workers, and did it retain any preregistered A4 scientific artifact?
+- Origin: project-authored `DAO-A4-ROW-ANCHORED-MAPS-001` workflow, controller,
+  worker, immutable plan, and failure diagnostics only. No MDB or provider bytes
+  were retained or inspected.
+- Environment: GitHub Actions run `32917739205`, attempt 1, dispatched on
+  `main` at 2026-08-26T01:06:53Z from exact clean pushed commit
+  `905f6342fa4d6a46cdf533bbc226f753d0bb669a`. The checked contract job
+  `98024880803` passed. The three `windows-2022` replica jobs were
+  `98025089916`, `98025089885`, and `98025089888`. Fresh hosted provider proof
+  run `32439805418`, attempt 1, had passed on 2026-08-21; each replica's
+  preflight again selected x86 `DAO.DBEngine.36`, `dao360.dll` version
+  `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  with Windows ANSI code page 1252.
+- Protocol: dispatch `.github/workflows/windows-dao-a4.yml` on `main` with
+  `execute_a4_campaign=true`; require the exact pushed checkout and checked A4
+  contract; launch the three bounded replicas; stop on the first checked worker
+  error; upload only bounded diagnostics on failure; do not redispatch. The
+  contract completed successfully before the three replica workers began.
+- Retained artifacts: no replica tree or complete A4 bundle exists, and fan-in
+  job `98025380301` was skipped. GitHub retained only diagnostics artifacts
+  `windows-dao-a4-diagnostics-1-32917739205-1` (id `9588800826`),
+  `windows-dao-a4-diagnostics-2-32917739205-1` (id `9588801059`), and
+  `windows-dao-a4-diagnostics-3-32917739205-1` (id `9588801439`), each 6,723
+  transport bytes and expiring 2026-09-09. Their extracted read-only tree
+  inventory SHA-256 values were respectively
+  `74dc902376657da9c1697bbb869e482afd7ad51d0a395554361588f509cfa058`,
+  `5c38490619494f41653256a77877b3cfd922b17a75ff8a691b6db5d9f445b585`,
+  and `ecba54d3737dacf8e86021b3e40459cf15a820b8f74d814d52ca79e9f6cf7ef3`.
+  All three `failure.json` files were 561 bytes with identical SHA-256
+  `ebdec1af1a69496308da0007c7816af59a28bab84428dffe5eeb89e9e42bbbe8`;
+  all three stderr logs were 538 bytes with identical SHA-256
+  `494fe5610bffce7b87f76d6a0835f087001f626b59a3fc3dae7b7532ed6f173b`.
+- Observation: each worker stopped after approximately 22--24 seconds in
+  `Assert-A4PlanChain` because strict-mode property access required
+  `preregistration.status`, which does not exist in the immutable A4 plan. The
+  failure occurred before environment binding, A4 provider activation, and
+  `Invoke-A4Schedule`. Each progress log was zero bytes, no schema-valid replica
+  observation or DAO schema snapshot was retained, and the plan's explicit A4
+  acquisition-start criterion was not met.
+- Boundary classification: the controller's preceding provider preflight did
+  create and close a disposable `dbVersion30` MDB. Although no A4 acquisition
+  artifact survived, that DAO mutation makes the Section 6.4 first-mutation
+  boundary conservative or uncertain. This attempt is therefore recorded once
+  as a scientific stop for escalation purposes, not reclassified as an H-layer
+  scientific result, infrastructure `no_outcome`, or contrary format
+  observation.
+- Human decision: on 2026-08-26 the user directed this separate additive record,
+  authorized treating the worker plan-chain correction as non-scientific
+  execution-glue repair under the unchanged A4 experiment, and authorized
+  continued P2 work including a replacement dispatch without another approval
+  unless a genuine blocker or major plan deviation occurs. The repair may change
+  only pre-acquisition binding code and focused tests; it may not change the
+  immutable plan, evidence schemas, scientific worker schedule, analyzer,
+  validator, predicates, bounds, or holdout controls.
+- Interpretation and claims: this failed attempt assigns no MDB byte meaning,
+  establishes no Rust correctness, DAO compatibility, product support, or
+  capability movement, and supplies no H1--H4 value. No report claims block
+  exists; every compatibility or format claim remains false.
+- Usage: exact failure input for the authorized focused A4 execution-glue repair
+  and any later result entry's prior-attempt disclosure; no production Rust or
+  MDB format usage
+- Rights: project-authored diagnostics and descriptive licensed-provider
+  metadata only; no MDB or provider binary is committed or redistributed
+- Review: pending exact-head independent review before repair or redispatch
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
