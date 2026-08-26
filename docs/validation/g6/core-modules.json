@@ -5,12 +5,12 @@
     {
       "path": "crates/jet3/src/allocation.rs",
       "classification": "format_safety",
-      "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
+      "sha256": "c52b7b405280675b97b9316b6f39019a650a7d7800a0334d7ac000c766a4e82f"
     },
     {
       "path": "crates/jet3/src/allocation_traverse.rs",
       "classification": "format_safety",
-      "sha256": "8c3efc654a99773340eb982cb5a764ebf46984ab6ead9daaaa9b5be10792f627"
+      "sha256": "852ae84e46f8821db4f78acbfcde4d5809abddd1a48679e7cd923a46265273eb"
     },
     {
       "path": "crates/jet3/src/atomic.rs",
