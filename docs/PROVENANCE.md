@@ -4899,6 +4899,89 @@ Use `not applicable` explicitly rather than omitting a field.
   metadata only; no MDB or provider binary is committed or redistributed
 - Review: pending exact-head independent review before repair or redispatch
 
+### EXP-0055 — Replacement hosted A4 post-mutation schema-snapshot stop
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: additive exact-commit hosted scientific-event record under
+  `IMPLEMENTATION_PLAN.md` Section 6.4; not a complete A4 acquisition result,
+  H-layer result, infrastructure failure, or `no_outcome`
+- Question: Why did the authorized replacement A4 dispatch stop in all three
+  replica workers, and had the preregistered campaign crossed its first DAO
+  mutation boundary?
+- Origin: project-authored `DAO-A4-ROW-ANCHORED-MAPS-001` workflow, controller,
+  worker, immutable plan, and bounded failure diagnostics only. The diagnostics
+  contain three project-generated failed MDBs; they were retained read-only and
+  identity-hashed but their contents were not semantically inspected. No donated
+  MDB, provider binary, or third-party MDB implementation was used or inspected.
+- Environment: GitHub Actions run `32929243031`, attempt 1, dispatched on
+  `main` at 2026-08-26T04:11:01Z from exact clean pushed commit
+  `e6e209612f0b3a98f84d8750e422efd353f9a03b`. The checked contract job
+  `98058137895` passed. The three `windows-2022` replica jobs were
+  `98058316327`, `98058316345`, and `98058316377`. Fresh hosted provider proof
+  run `32439805418`, attempt 1, had passed on 2026-08-21. Each replica again
+  recorded Windows Server 2022 build 20348, x86 process architecture, and ready
+  `DAO.DBEngine.36` 3.6 from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  with `dbVersion30` creation capability.
+- Protocol: after the user-authorized execution-glue repair merged as PR 83,
+  reconfirm an exact clean pushed `main`, no open pull request, merged A4
+  disclosure, and provider proof younger than seven days; dispatch
+  `.github/workflows/windows-dao-a4.yml` once with
+  `execute_a4_campaign=true`; require the checked contract and exact producer
+  binding; launch three bounded independent replicas; on any failure retain
+  bounded diagnostics, skip fan-in, do not redispatch, and classify the event
+  using Section 6.4.
+- Retained artifacts: no retained replica tree or complete A4 bundle exists,
+  and fan-in job `98058602728` was skipped. GitHub retained diagnostics artifacts
+  `windows-dao-a4-diagnostics-1-32929243031-1` (id `9592651485`, 47,981
+  transport bytes), `windows-dao-a4-diagnostics-2-32929243031-1` (id
+  `9592650889`, 47,985 transport bytes), and
+  `windows-dao-a4-diagnostics-3-32929243031-1` (id `9592653671`, 47,985
+  transport bytes), all expiring 2026-09-09. Canonical relative extracted-tree
+  inventory SHA-256 values were respectively
+  `3ffffb850ce7f04555bc613d8145ea5510215f85d9f63128d1c4255efbce1d6b`,
+  `ec9f84b8cb384dc704c7b9e26e375741d65ac8312ee1fe576df5eed3e7b79443`,
+  and `7139ee52a25fd710bcf65fbfa3b6fd7dda80a85d52f604d068a1fd486fd9dc8e`.
+  All three `failure.json` files were 645 bytes with identical SHA-256
+  `9b1408a483ba409bcca840f56df6394a128c66544168ce0e7410450b45866f38`;
+  all three stderr logs were 622 bytes with identical SHA-256
+  `f46c3545c03ad40d38048de4f5205d61fedfe09d76247ec88adf01bb2791dd30`.
+  Each stdout and progress log was empty with SHA-256
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  The three failed MDBs were each 40,960 bytes, with respective SHA-256 values
+  `d6ac51d58e7fe45a3cb40c6cc59d4071333ee595d486920498dbc7bd6d52398c`,
+  `af4b2aebe79419da8eac70825c833fe4ad4f601bc701faffaf52ef95e4291a63`,
+  and `ebcc1cbef8cfd2749a1ac73ee170406fa04f66eba74b4d4ef0f73de7891aa687`.
+- Observation: all three replicas created and closed their fresh Jet 3 campaign
+  database, then failed identically at the first `EMPTY` checkpoint. The worker
+  called `Read-A4SchemaSnapshot`; the plan-derived expected descriptor list was
+  empty, and PowerShell rejected that empty array when binding the mandatory
+  `Descriptors` parameter of `Get-A4ScheduledTableNames`. The normalized error
+  was `ParameterArgumentValidationErrorEmptyArrayNotAllowed` at
+  `A4.Worker.ps1:436`. Hosted elapsed times were 23.000 seconds for replica 1,
+  23.418 seconds for replica 2, and 25.689 seconds for replica 3. No schema
+  snapshot, checkpoint progress event, analyzed report, or H1--H4 value was
+  retained.
+- Boundary classification: `Invoke-A4Schedule` calls DAO `CreateDatabase`
+  before entering the checkpoint loop, and each diagnostics artifact contains a
+  distinct failed campaign MDB. The failure therefore occurred after the first
+  DAO mutation and is unambiguously a scientific event under Section 6.4 item
+  4. It is recorded once. No further dispatch, worker change, or scientific
+  input change is authorized without a new human decision.
+- Interpretation and claims: this event is neither an H1--H4 finding nor a
+  valid analyzed `no_outcome`. It assigns no MDB byte meaning, establishes no
+  Rust correctness, DAO compatibility, product support, or capability movement,
+  and does not unlock P3 or P4. No report claims block exists; every
+  compatibility or format claim remains false.
+- Usage: exact scientific-stop input for the required human decision and any
+  later additive revision or prior-attempt disclosure; no production Rust or
+  MDB format usage
+- Rights: project-generated failed MDBs and project-authored diagnostics were
+  retained as access-controlled GitHub artifacts and in a local read-only
+  scratch tree; no MDB or provider binary is committed or redistributed
+- Review: pending exact-head review; further A4 acquisition is stopped pending
+  human direction
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
