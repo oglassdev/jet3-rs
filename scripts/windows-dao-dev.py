@@ -79,8 +79,16 @@ def canonical_windows_path(value: str, *, label: str) -> str:
         raise DevClientError(f"{label} is malformed")
     normalized = ntpath.normpath(value)
     drive, tail = ntpath.splitdrive(normalized)
-    if not re.fullmatch(r"[A-Za-z]:", drive) or not tail.startswith("\\"):
-        raise DevClientError(f"{label} must be an absolute drive path")
+    drive_absolute = bool(re.fullmatch(r"[A-Za-z]:", drive)) and tail.startswith("\\")
+    unc_parts = drive[2:].split("\\") if drive.startswith("\\\\") else []
+    unc_absolute = (
+        len(unc_parts) == 2
+        and all(unc_parts)
+        and not drive.startswith(("\\\\?\\", "\\\\.\\"))
+        and (not tail or tail.startswith("\\"))
+    )
+    if not drive_absolute and not unc_absolute:
+        raise DevClientError(f"{label} must be an absolute drive or UNC path")
     if ".." in [part for part in re.split(r"[\\/]", value) if part]:
         raise DevClientError(f"{label} cannot contain parent traversal")
     return normalized
@@ -339,7 +347,9 @@ def parser() -> argparse.ArgumentParser:
     )
     argument_parser.add_argument(
         "--remote-shared-root",
-        default=os.environ.get("JET3_WINDOWS_REMOTE_SHARED_ROOT", "Z:\\"),
+        default=os.environ.get(
+            "JET3_WINDOWS_REMOTE_SHARED_ROOT", r"\\host.lan\Data"
+        ),
     )
     default_run_id = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-dev-dao"
     argument_parser.add_argument("--run-id", default=default_run_id)

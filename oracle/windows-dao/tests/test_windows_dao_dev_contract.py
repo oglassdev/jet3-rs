@@ -66,6 +66,15 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             self.assertIn("StrictHostKeyChecking=yes", command)
             self.assertIn("BatchMode=yes", command)
 
+    def test_default_shared_path_is_the_dockur_unc_share(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            args = self.args(root, identity)
+            CLIENT.validate_args(args)
+            self.assertEqual(args.remote_shared_root, r"\\host.lan\Data")
+
     def test_staged_request_hashes_sources_and_marks_dirty_tree(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

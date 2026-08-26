@@ -6,10 +6,11 @@ generated MDB files, and raw outputs outside this repository.
 
 The recommended host directory is
 `/home/alex/development/vms/jet3-windows/`, with persistent `storage/` and a
-`shared/` directory mounted by dockur/windows as drive `Z:`. Bind the web UI,
-RDP, and SSH to loopback only. Create and open MDB files on the guest's local
-disk; the checked development runner copies them to the shared drive only after
-DAO closes every object.
+`shared/` directory mounted by dockur/windows as drive `Z:` on the interactive
+desktop and as `\\host.lan\Data` in SSH sessions. Bind the web UI, RDP, and
+SSH to loopback only. Create and open MDB files on the guest's local disk; the
+checked development runner copies them to the shared path only after DAO closes
+every object.
 
 ## Client configuration
 
@@ -34,7 +35,7 @@ just windows-dev-empty
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
 DAO candidates. `create-empty` additionally requires a ready
 `DAO.DBEngine.36`, creates and reopens a Jet 3 database on `C:`, closes DAO,
-then publishes the private MDB and hashed metadata through `Z:`.
+then publishes the private MDB and hashed metadata through the Dockur share.
 
 Outputs under the external `shared/outbox/` directory are bounded, hash
 checked, and permanently marked `development_only`. They are diagnostics, not
