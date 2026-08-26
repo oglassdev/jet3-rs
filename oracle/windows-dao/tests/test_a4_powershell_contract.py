@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
+import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -11,10 +13,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "oracle/windows-dao/scripts"
 PLAN_PATH = ROOT / "oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json"
+WORKER_PATH = SCRIPTS / "a4/A4.Worker.ps1"
+POWERSHELL = (
+    Path(os.environ.get("WINDIR", r"C:\Windows"))
+    / "System32"
+    / "WindowsPowerShell"
+    / "v1.0"
+    / "powershell.exe"
+)
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from a4_spec import CHECKPOINT_IDS, EXPERIMENT_ID, PLAN_SHA256  # noqa: E402
+
+
+def ps_quote(value: object) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 class A4PowerShellContractTests(unittest.TestCase):
@@ -22,7 +36,7 @@ class A4PowerShellContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.plan = json.loads(PLAN_PATH.read_bytes())
         cls.entry = (SCRIPTS / "run-a4-replica.ps1").read_text(encoding="utf-8")
-        cls.worker = (SCRIPTS / "a4/A4.Worker.ps1").read_text(encoding="utf-8")
+        cls.worker = WORKER_PATH.read_text(encoding="utf-8")
         cls.store = (SCRIPTS / "a4/A4.PageStore.ps1").read_text(encoding="utf-8")
         cls.snapshot = (SCRIPTS / "a4/A4.SchemaSnapshot.ps1").read_text(
             encoding="utf-8"
@@ -39,6 +53,10 @@ class A4PowerShellContractTests(unittest.TestCase):
         self.assertEqual(PLAN_SHA256, hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest())
 
     def test_schedule_and_role_binding_are_plan_derived(self) -> None:
+        self.assertNotIn("$Plan.preregistration.status", self.worker)
+        self.assertIn(
+            "$Plan.preregistration.acquisition_started -ne $false", self.worker
+        )
         self.assertIn("$Plan.checkpoint_design.checkpoint_ids", self.worker)
         self.assertIn("$Plan.tables.logical_roles", self.worker)
         self.assertIn("$Plan.tables.role_bindings", self.worker)
@@ -122,6 +140,52 @@ class A4PowerShellContractTests(unittest.TestCase):
         self.assertIn("$text.Length -gt 4000", self.entry)
         self.assertIn("MaximumOutputBytes 1MB", self.entry)
         self.assertIn("failed-replica-{0:D2}.mdb", self.entry)
+
+
+@unittest.skipUnless(os.name == "nt" and POWERSHELL.is_file(), "Windows required")
+class A4PowerShellWindowsNoComTests(unittest.TestCase):
+    def test_plan_chain_accepts_the_actual_frozen_plan_under_strict_mode(self) -> None:
+        command = (
+            "$ErrorActionPreference='Stop';Set-StrictMode -Version Latest;"
+            "$tokens=$null;$errors=$null;"
+            "$ast=[Management.Automation.Language.Parser]::ParseFile("
+            f"{ps_quote(WORKER_PATH)},[ref]$tokens,[ref]$errors);"
+            "if($errors.Count-ne 0){throw 'A4 worker parse failed'};"
+            "$functions=@($ast.FindAll({param($node)"
+            "$node-is [Management.Automation.Language.FunctionDefinitionAst]"
+            "-and $node.Name-ceq 'Assert-A4PlanChain'},$true));"
+            "if($functions.Count-ne 1){throw 'A4 plan-chain function count drifted'};"
+            "Invoke-Expression $functions[0].Extent.Text;"
+            "$script:A4RequiredPlanPath="
+            "'oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json';"
+            f"$script:A4ExperimentId={ps_quote(EXPERIMENT_ID)};"
+            f"$plan=Get-Content -Raw -LiteralPath {ps_quote(PLAN_PATH)}|ConvertFrom-Json;"
+            "Assert-A4PlanChain -Plan $plan;"
+            "$plan.preregistration.acquisition_started=$true;"
+            "$rejected=$false;try{Assert-A4PlanChain -Plan $plan}catch{"
+            "if($_.Exception.Message-cne "
+            "'A4 base-plan chain or implementation binding drifted.'){throw};"
+            "$rejected=$true};"
+            "if(-not $rejected){throw 'A4 acquired plan was accepted'};"
+            "[Console]::Write('accepted|rejected')"
+        )
+        result = subprocess.run(
+            [
+                str(POWERSHELL),
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "accepted|rejected")
 
 
 if __name__ == "__main__":

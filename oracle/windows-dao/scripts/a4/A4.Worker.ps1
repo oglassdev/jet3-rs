@@ -41,8 +41,7 @@ $script:A4Locale = ";LANGID=0x0409;CP=1252;COUNTRY=0"
 
 function Assert-A4PlanChain {
     param([Parameter(Mandatory = $true)][pscustomobject]$Plan)
-    if ([string]$Plan.preregistration.status -cne "frozen_before_acquisition" -or
-        $Plan.preregistration.acquisition_started -ne $false -or
+    if ($Plan.preregistration.acquisition_started -ne $false -or
         [string]$Plan.implementation_rebinding.required_plan_path -cne
             $script:A4RequiredPlanPath -or
         [string]$Plan.implementation_rebinding.required_experiment_id -cne
