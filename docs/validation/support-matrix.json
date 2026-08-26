@@ -24,10 +24,30 @@
   "capabilities": [
     {
       "id": "database.open",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "The bounded reader now admits only the exploratory Jet 3, unencrypted, no-password opening state and rejects other version or protection states with structured errors. It retains exact page-zero bytes and geometry, but does not validate the remaining header, allocation state, catalog, or whole-database structure, and has no release-eligible DAO differential evidence.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/database.rs",
+          "sha256": "ade820197519da154de38a2b39a6e2f2cf82a271863ed026771c83ab57a360fb",
+          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
+          "capability_id": "database.open"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/database_tests.rs",
+          "sha256": "5facf7e0952440581f4d31b085864e8ffb005ce4c52e9346192cce52a1bdea01",
+          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
+          "capability_id": "database.open",
+          "scenario_ids": [
+            "UT-DATABASE-001",
+            "UT-DATABASE-024"
+          ]
+        }
+      ]
     },
     {
       "id": "database.create_empty",
@@ -48,20 +68,20 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, and a typed snapshot of the complete first database page are implemented. The typed view exposes only the generic signature and documented raw contextual commit region; it does not assign meaning to any other page-zero bytes. Commit-state pairs are not interpreted as standalone validity or corruption evidence; the physical version discriminator, encryption-state validation, remaining header fields, contemporaneous .ldb correlation, and DAO differential evidence are absent.",
+      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, a typed snapshot of the complete first database page, and the exploratory Jet 3 unencrypted no-password opening discriminator are implemented. The remaining page-zero fields are uninterpreted, commit-state pairs are not standalone validity evidence, and contemporaneous .ldb correlation plus release-eligible DAO differential evidence are absent.",
       "evidence": [
         {
           "kind": "source",
           "path": "crates/jet3/src/database_header.rs",
-          "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38",
-          "commit": "8055a11fe14925aabbfca0400eca3eaf3d12fec7",
+          "sha256": "4a9340d94b67f4f97e07575a93b11b92d34738d118add7f3e196162131f3a968",
+          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
           "capability_id": "format.header_and_version"
         },
         {
           "kind": "test",
           "path": "crates/jet3/src/database_header_tests.rs",
-          "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0",
-          "commit": "8055a11fe14925aabbfca0400eca3eaf3d12fec7",
+          "sha256": "d0668c0a3d25d3df587630396bd57a420efa37d1782bfb7e376482587aeacf4e",
+          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
           "capability_id": "format.header_and_version",
           "scenario_ids": [
             "UT-DBHEADER-001",
@@ -69,7 +89,11 @@
             "UT-DBHEADER-003",
             "UT-DBHEADER-004",
             "UT-DBHEADER-005",
-            "UT-DBHEADER-006"
+            "UT-DBHEADER-006",
+            "UT-DBHEADER-007",
+            "UT-DBHEADER-008",
+            "UT-DBHEADER-009",
+            "UT-DBHEADER-010"
           ]
         },
         {
