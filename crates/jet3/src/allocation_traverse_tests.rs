@@ -408,6 +408,7 @@ fn owned_inline_map_accepts_bit_1023_and_rejects_bit_1024() -> TestResult {
             },
         })
     );
+    assert_eq!(pages.next_page()?, None);
     Ok(())
 }
 
@@ -448,8 +449,8 @@ fn zero_slots_end_without_following_a_page() -> TestResult {
 
 #[test]
 fn self_reference_is_rejected_before_following() -> TestResult {
-    let record = indirect_record(&[2]);
-    let bytes = owned_page_database(5, &record, &[]);
+    let record = indirect_record(&[2, 3]);
+    let bytes = owned_page_database(5, &record, &[3]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
     let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
@@ -459,13 +460,14 @@ fn self_reference_is_rejected_before_following() -> TestResult {
             record_page: PageNumber::new(2),
         })
     );
+    assert_eq!(pages.next_page()?, None);
     Ok(())
 }
 
 #[test]
 fn duplicate_reference_is_a_cycle() -> TestResult {
-    let record = indirect_record(&[3, 3]);
-    let bytes = owned_page_database(5, &record, &[3]);
+    let record = indirect_record(&[3, 3, 4]);
+    let bytes = owned_page_database(5, &record, &[3, 4]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
     let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
@@ -475,13 +477,14 @@ fn duplicate_reference_is_a_cycle() -> TestResult {
             page: PageNumber::new(3),
         })
     );
+    assert_eq!(pages.next_page()?, None);
     Ok(())
 }
 
 #[test]
 fn nonzero_after_zero_slot_is_rejected_without_a_read() -> TestResult {
-    let record = indirect_record(&[0, 3]);
-    let bytes = owned_page_database(5, &record, &[3]);
+    let record = indirect_record(&[0, 3, 4]);
+    let bytes = owned_page_database(5, &record, &[3, 4]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
     let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
@@ -492,13 +495,14 @@ fn nonzero_after_zero_slot_is_rejected_without_a_read() -> TestResult {
             page: PageNumber::new(3),
         })
     );
+    assert_eq!(pages.next_page()?, None);
     Ok(())
 }
 
 #[test]
 fn reference_beyond_captured_input_is_rejected_before_read() -> TestResult {
-    let record = indirect_record(&[5]);
-    let bytes = owned_page_database(5, &record, &[]);
+    let record = indirect_record(&[5, 3]);
+    let bytes = owned_page_database(5, &record, &[3]);
     let mut resources = budget();
     let mut database = open(&bytes, &mut resources)?;
     let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
@@ -512,6 +516,7 @@ fn reference_beyond_captured_input_is_rejected_before_read() -> TestResult {
             },
         })
     );
+    assert_eq!(pages.next_page()?, None);
     Ok(())
 }
 

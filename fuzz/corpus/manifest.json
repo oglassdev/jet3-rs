@@ -788,8 +788,8 @@
       "id": "FUZZ-SEED-USAGE-MAP-TRAVERSE-003",
       "path": "fuzz/corpus/usage_map_traverse/repeated_reference",
       "size_bytes": 9,
-      "sha256": "ee31edefe2aac2cfdb3b616c0154273cced8a96854e1360069507bb1ac2522a5",
-      "purpose": "Select an indirect owned-page map with a repeated type-05 bitmap-page reference so bounded visited-state rejects the cycle.",
+      "sha256": "1e616aea1ed8b3c4201c96699911e05545e57c761765ebea6eca9b5196881203",
+      "purpose": "Select an indirect owned-page map with enough work to exhaust an empty type-05 bitmap before a repeated reference rereads and rejects the same physical page.",
       "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0057; contains no MDB fixture content.",
       "generator": "POSIX printf",
       "environment": {
@@ -799,7 +799,7 @@
         "line_endings": "LF"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '%s\\n' '13333333' > fuzz/corpus/usage_map_traverse/repeated_reference"
+      "reproduction_command": "printf '%s\\n' '1z533334' > fuzz/corpus/usage_map_traverse/repeated_reference"
     },
     {
       "id": "FUZZ-SEED-USAGE-MAP-TRAVERSE-004",

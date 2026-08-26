@@ -4,18 +4,19 @@
 //! `EXP-0057`; detached map and bitmap shapes remain grounded in `SRC-0020`.
 
 use crate::{
-    AllocationMap, ByteCount, ClassifiedPage, DatabasePageError, DatabaseReader, Error,
-    ExtendedAllocationBits, JET3_PAGE_SIZE, MapLocationError, PageGeometry, PageKind, PageNumber,
-    ReadAt, ResourceBudget, UsageMapError, allocation::AllocationMapError, decode_allocation_map,
+    ByteCount, ClassifiedPage, DatabasePageError, DatabaseReader, Error, ExtendedAllocationBits,
+    JET3_PAGE_SIZE, MapLocationError, PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget,
+    UsageMapError,
+    allocation::{
+        AllocationMapError, AllocationMapLayout, EXTENDED_BITMAP_BITS, MapReferenceCursor,
+        SetBitCursor, decode_allocation_map_layout, extended_bitmap_bytes,
+    },
     extended_allocation_bits, locate_table_maps, locate_usage_map,
 };
 use std::fmt;
 use std::ops::Range;
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
-const EXTENDED_BITMAP_OFFSET: usize = 4;
-// SRC-0020 and EXP-0057: 2,044 bytes, one bit per page.
-const EXTENDED_BITMAP_BITS: u64 = 16_352;
 const INLINE_VISITED_BYTES: usize = 32;
 
 /// A structured failure while locating or traversing an allocation map.
@@ -391,66 +392,19 @@ impl<'page> ReachedMapPage<'page> {
 }
 
 #[derive(Debug)]
-struct BitCursor {
-    next: u64,
-    end: u64,
-}
-
-impl BitCursor {
-    const fn new(end: u64) -> Self {
-        Self { next: 0, end }
-    }
-
-    fn next_set(
-        &mut self,
-        bytes: &[u8],
-        budget: &mut ResourceBudget,
-    ) -> Result<Option<u64>, AllocationTraversalError> {
-        while self.next < self.end {
-            budget
-                .charge_items(1)
-                .map_err(AllocationTraversalError::Resource)?;
-            let bit = self.next;
-            self.next = self
-                .next
-                .checked_add(1)
-                .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                    operation: "advance owned-page bitmap cursor",
-                }))?;
-            let byte = usize::try_from(bit / 8).map_err(|_| {
-                AllocationTraversalError::Resource(Error::IntegerConversion {
-                    value: u128::from(bit / 8),
-                    target: "usize",
-                })
-            })?;
-            let mask = 1_u8 << (bit % 8);
-            let value =
-                bytes
-                    .get(byte)
-                    .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                        operation: "access owned-page bitmap byte",
-                    }))?;
-            if value & mask != 0 {
-                return Ok(Some(bit));
-            }
-        }
-        Ok(None)
-    }
-}
-
-#[derive(Debug)]
 enum OwnedMapState {
     Inline {
         start_page: PageNumber,
         bitmap: Range<usize>,
-        bits: BitCursor,
+        bits: SetBitCursor,
     },
     Indirect {
-        references: Range<usize>,
+        record_page: PageNumber,
+        references: MapReferenceCursor,
         next_slot: u64,
-        slot_count: u64,
         zero_seen: bool,
-        active: Option<(u64, BitCursor)>,
+        active: Option<(u64, SetBitCursor)>,
+        walker: PageChainWalker,
     },
 }
 
@@ -460,11 +414,10 @@ pub struct OwnedPages<'operation, S> {
     database: &'operation mut DatabaseReader<S>,
     budget: &'operation mut ResourceBudget,
     geometry: PageGeometry,
-    record_page: PageNumber,
     usage_page: [u8; PAGE_BYTES],
     extended_page: [u8; PAGE_BYTES],
-    walker: Option<PageChainWalker>,
     state: OwnedMapState,
+    failed: bool,
 }
 
 impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
@@ -487,78 +440,54 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
             .map_err(AllocationTraversalError::Page)?;
         let record = locate_usage_map(classified, locator, budget)
             .map_err(AllocationTraversalError::UsageMap)?;
-        let range = record.range();
-        let decoded = decode_allocation_map(record.raw(), budget)
+        let record_range = record.range();
+        let decoded = decode_allocation_map_layout(record.raw(), budget)
             .map_err(AllocationTraversalError::AllocationMap)?;
-        let (state, walker) = match decoded {
-            AllocationMap::Inline(map) => {
-                let bitmap_start =
-                    range
-                        .start
-                        .checked_add(5)
-                        .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                            operation: "locate inline usage-map bitmap",
-                        }))?;
-                let bitmap_bytes = range.end.checked_sub(bitmap_start).ok_or(
-                    AllocationTraversalError::Resource(Error::Arithmetic {
-                        operation: "measure inline usage-map bitmap",
-                    }),
-                )?;
-                let bit_count = u64::try_from(bitmap_bytes)
-                    .ok()
-                    .and_then(|value| value.checked_mul(8))
-                    .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                        operation: "measure inline usage-map bits",
-                    }))?;
-                (
-                    OwnedMapState::Inline {
-                        start_page: map.start_page(),
-                        bitmap: bitmap_start..range.end,
-                        bits: BitCursor::new(bit_count),
-                    },
-                    None,
-                )
-            }
-            AllocationMap::Indirect(map) => {
-                let references_start =
-                    range
-                        .start
-                        .checked_add(1)
-                        .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                            operation: "locate indirect usage-map references",
-                        }))?;
-                let slot_count = u64::try_from(map.reference_count()).map_err(|_| {
-                    AllocationTraversalError::Resource(Error::IntegerConversion {
-                        value: map.reference_count() as u128,
-                        target: "u64",
-                    })
-                })?;
-                (
-                    OwnedMapState::Indirect {
-                        references: references_start..range.end,
-                        next_slot: 0,
-                        slot_count,
-                        zero_seen: false,
-                        active: None,
-                    },
-                    Some(PageChainWalker::new(geometry, budget)?),
-                )
-            }
+        let state = match decoded {
+            AllocationMapLayout::Inline { start_page, bitmap } => OwnedMapState::Inline {
+                start_page,
+                bitmap: absolute_record_range(&record_range, bitmap)?,
+                bits: SetBitCursor::new(),
+            },
+            AllocationMapLayout::Indirect { references } => OwnedMapState::Indirect {
+                record_page: locator.page(),
+                references: MapReferenceCursor::new(absolute_record_range(
+                    &record_range,
+                    references,
+                )?),
+                next_slot: 0,
+                zero_seen: false,
+                active: None,
+                walker: PageChainWalker::new(geometry, budget)?,
+            },
         };
         Ok(Self {
             database,
             budget,
             geometry,
-            record_page: locator.page(),
             usage_page,
             extended_page: [0_u8; PAGE_BYTES],
-            walker,
             state,
+            failed: false,
         })
     }
 
     /// Returns the next geometry-validated owned page.
+    ///
+    /// Any error exhausts the cursor so malformed input cannot be skipped by
+    /// calling this method again.
     pub fn next_page(&mut self) -> Result<Option<PageNumber>, AllocationTraversalError> {
+        if self.failed {
+            return Ok(None);
+        }
+        let result = self.next_page_inner();
+        if result.is_err() {
+            self.failed = true;
+        }
+        result
+    }
+
+    fn next_page_inner(&mut self) -> Result<Option<PageNumber>, AllocationTraversalError> {
         loop {
             match &mut self.state {
                 OwnedMapState::Inline {
@@ -566,7 +495,11 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
                     bitmap,
                     bits,
                 } => {
-                    let Some(bit) = bits.next_set(&self.usage_page[bitmap.clone()], self.budget)?
+                    let Some(bit) = bits
+                        .next_set_bit(&self.usage_page[bitmap.clone()], self.budget)
+                        .map_err(|source| {
+                            AllocationTraversalError::Resource(source.into_error())
+                        })?
                     else {
                         return Ok(None);
                     };
@@ -583,15 +516,19 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
                     return Ok(Some(page));
                 }
                 OwnedMapState::Indirect {
+                    record_page,
                     references,
                     next_slot,
-                    slot_count,
                     zero_seen,
                     active,
+                    walker,
                 } => {
                     if let Some((slot, bits)) = active {
                         if let Some(bit) = bits
-                            .next_set(&self.extended_page[EXTENDED_BITMAP_OFFSET..], self.budget)?
+                            .next_set_bit(extended_bitmap_bytes(&self.extended_page), self.budget)
+                            .map_err(|source| {
+                                AllocationTraversalError::Resource(source.into_error())
+                            })?
                         {
                             let page = absolute_extended_page(*slot, bit)?;
                             self.geometry.validate_reference(page).map_err(|source| {
@@ -602,32 +539,13 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
                         *active = None;
                         continue;
                     }
-                    if *next_slot == *slot_count {
+                    let Some(raw) = references
+                        .next_reference(&self.usage_page, self.budget)
+                        .map_err(AllocationTraversalError::AllocationMap)?
+                    else {
                         return Ok(None);
-                    }
-                    self.budget
-                        .charge_items(1)
-                        .map_err(AllocationTraversalError::Resource)?;
+                    };
                     let slot = *next_slot;
-                    let byte_offset = usize::try_from(slot)
-                        .ok()
-                        .and_then(|value| value.checked_mul(4))
-                        .and_then(|value| references.start.checked_add(value))
-                        .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                            operation: "locate indirect usage-map slot",
-                        }))?;
-                    let entry_end =
-                        byte_offset
-                            .checked_add(4)
-                            .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                                operation: "measure indirect usage-map slot",
-                            }))?;
-                    let entry = self.usage_page.get(byte_offset..entry_end).ok_or(
-                        AllocationTraversalError::Resource(Error::Arithmetic {
-                            operation: "access indirect usage-map slot",
-                        }),
-                    )?;
-                    let raw = u32::from_le_bytes([entry[0], entry[1], entry[2], entry[3]]);
                     *next_slot =
                         next_slot
                             .checked_add(1)
@@ -641,31 +559,48 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
                     if *zero_seen {
                         return Err(AllocationTraversalError::NonzeroAfterNullSlot { slot, page });
                     }
-                    if page == self.record_page {
+                    if page == *record_page {
                         return Err(AllocationTraversalError::SelfReference {
-                            record_page: self.record_page,
+                            record_page: *record_page,
                         });
                     }
-                    let walker = self
-                        .walker
-                        .as_mut()
-                        .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
-                            operation: "access indirect usage-map walker",
-                        }))?;
-                    let classified = walker.follow(
+                    walker.follow(
                         page,
                         PageKind::ExtendedUsageBitmap,
                         self.database,
                         &mut self.extended_page,
                         self.budget,
                     )?;
-                    ReachedMapPage::new(slot, classified)
-                        .map_err(AllocationTraversalError::AllocationMap)?;
-                    *active = Some((slot, BitCursor::new(EXTENDED_BITMAP_BITS)));
+                    *active = Some((slot, SetBitCursor::new()));
                 }
             }
         }
     }
+}
+
+fn absolute_record_range(
+    record: &Range<usize>,
+    relative: Range<usize>,
+) -> Result<Range<usize>, AllocationTraversalError> {
+    let start =
+        record
+            .start
+            .checked_add(relative.start)
+            .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
+                operation: "locate allocation-map payload start",
+            }))?;
+    let end = record
+        .start
+        .checked_add(relative.end)
+        .ok_or(AllocationTraversalError::Resource(Error::Arithmetic {
+            operation: "locate allocation-map payload end",
+        }))?;
+    if start > end || end > record.end {
+        return Err(AllocationTraversalError::Resource(Error::Arithmetic {
+            operation: "validate allocation-map payload range",
+        }));
+    }
+    Ok(start..end)
 }
 
 fn absolute_extended_page(

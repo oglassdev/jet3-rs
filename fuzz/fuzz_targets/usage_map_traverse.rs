@@ -17,7 +17,7 @@ const MAX_RESULTS: usize = 65;
 
 fuzz_target!(|data: &[u8]| {
     let mode = selector(data.first().copied()) % 2;
-    let selected_work = u64::from(selector(data.get(1).copied())) * 128;
+    let selected_work = u64::from(selector(data.get(1).copied())) * 256;
     let selected_visits = u64::from(selector(data.get(2).copied()) % 12);
     let selected_depth = u64::from(selector(data.get(3).copied()) % 8);
     let payload = data.get(4..).unwrap_or_default();
@@ -80,7 +80,10 @@ fn usage_page(bytes: &mut [u8; DATABASE_BYTES], mode: u8, payload: &[u8]) {
     if mode == 0 {
         record[0] = 0;
         record[1..5].copy_from_slice(&u32::from(selector(payload.first().copied()) % 9).to_le_bytes());
-        fill_repeating(&mut record[5..], payload.get(1..).unwrap_or_default());
+        fill_repeating(
+            &mut record[5..],
+            payload.get(1..).unwrap_or_default(),
+        );
     } else {
         record[0] = 1;
         for (slot, entry) in record[1..].chunks_exact_mut(4).enumerate() {
@@ -118,6 +121,6 @@ fn fill_repeating(destination: &mut [u8], source: &[u8]) {
         return;
     }
     for (index, byte) in destination.iter_mut().enumerate() {
-        *byte = source[index % source.len()];
+        *byte = selector(Some(source[index % source.len()]));
     }
 }
