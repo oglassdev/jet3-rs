@@ -223,6 +223,7 @@ def _structural_candidates(
     operation_rows: Mapping[str, tuple[dict[str, object], bytes, list[dict[str, object]]]],
     occurrence_hash: str,
     grammar: Mapping[str, Any],
+    plan: Mapping[str, Any],
     work: dict[str, int],
 ) -> list[tuple[dict[str, object], dict[str, Any]]]:
     operations = grammar["operation_binding_order"]
@@ -240,6 +241,10 @@ def _structural_candidates(
         for operation in operations:
             _locator, row, occurrences = operation_rows[operation]
             compatible[operation], decoded[operation] = set(), {}
+            plausible_lengths = set()
+            for identifier, pattern in _operation_patterns(plan, number, operation):
+                encoding = "utf-8" if "UTF8" in identifier else "cp1252"
+                plausible_lengths.update((len(pattern), len(pattern.decode(encoding))))
             for occurrence in occurrences:
                 index, name_start = occurrence["occurrence_index"], occurrence["name_start"]
                 kind_start = name_start - kind_delta
@@ -256,14 +261,7 @@ def _structural_candidates(
                 kind = int.from_bytes(row[kind_start : kind_start + kind_width], endian)
                 identifier = int.from_bytes(row[identifier_start:kind_start], endian)
                 stored_length = int.from_bytes(row[length_start : length_start + length_width], endian)
-                pattern = bytes.fromhex(occurrence["matched_bytes_hex"])
-                try:
-                    scalar_count = len(pattern.decode("utf-8")) if "UTF8" in occurrence[
-                        "matched_registered_pattern_id"
-                    ] else len(pattern.decode("cp1252"))
-                except UnicodeDecodeError:
-                    continue
-                if stored_length not in {len(pattern), scalar_count}:
+                if stored_length not in plausible_lengths:
                     continue
                 compatible[operation].add(index)
                 decoded[operation][index] = (kind, identifier, stored_length)
@@ -324,6 +322,7 @@ def _slot(
     candidates: list[dict[str, object]], terminal: str | None = None, measured: int | None = None,
     kind: str | None = None, stage: str | None = None, evidence: object = None,
 ) -> dict[str, object]:
+    candidates = sorted(candidates, key=lambda row: str(row["canonical_candidate_id"]))
     applicable = terminal != "not_applicable"
     return {"status": "not_applicable" if not applicable else "no_outcome" if terminal else "model",
             "predicate_measured_survivor_count": 0 if not applicable else len(candidates) if measured is None else measured,
@@ -488,7 +487,8 @@ def recompute_h4(
                                       checkpoints, mask, qualified, number, work, catalog_charges)
             for page_number, row_number, start, end, raw in retained:
                 locator = {"page": page_number, "row": row_number, "row_start": start, "row_end": end}
-                model = {"replica": number, "root_candidate_id": root["canonical_candidate_id"],
+                model = {"replica": number,
+                         "root_candidate_id": roots[number][0]["canonical_candidate_id"],
                          "operation_id": operation, "canonical_record_locator": locator}
                 rows.append((_candidate("h4_operation_record", model), raw))
                 if sum(len(group) for by_operation in groups.values() for group in by_operation.values()
@@ -542,7 +542,7 @@ def recompute_h4(
         raise H4ValidationError("resource_bound_breach", "occurrence evidence bytes")
     occurrence_hash = hashlib.sha256(occurrence_bytes).hexdigest()
     structural = {number: _structural_candidates(number, operation_rows[number], occurrence_hash,
-                                                  grammar, work) for number in (1, 2)}
+                                                  grammar, plan, work) for number in (1, 2)}
     structural_failure = first_cardinality_failure({number: [len(structural[number])]
                                                      for number in (1, 2)})
     if structural_failure is not None:

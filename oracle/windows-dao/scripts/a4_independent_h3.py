@@ -233,6 +233,7 @@ def _make_result(
     candidates: list[dict[str, object]], terminal: str | None, measured: int,
     stage: str | None, evidence: object = None,
 ) -> dict[str, object]:
+    candidates = sorted(candidates, key=lambda row: str(row["canonical_candidate_id"]))
     return {
         "status": "model" if terminal is None else "no_outcome",
         "predicate_measured_survivor_count": measured,

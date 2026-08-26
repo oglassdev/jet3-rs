@@ -83,6 +83,7 @@ def terminal_result(
     candidates: Sequence[Mapping[str, Any]] | None = None,
     terminal_evidence: Mapping[str, Any] | None = None,
     per_replica_counts: Sequence[int] | None = None,
+    candidate_stage: str | None = None,
 ) -> dict[str, Any]:
     """Project one registered terminal solely through its predicate contract."""
     contract = PREDICATE_CONTRACTS.get(error.predicate_id)
@@ -95,7 +96,10 @@ def terminal_result(
     validate_failure_count(
         error.predicate_id, measured, per_replica_counts=per_replica_counts
     )
-    retained = [dict(candidate) for candidate in candidates or ()]
+    retained = sorted(
+        (dict(candidate) for candidate in candidates or ()),
+        key=lambda candidate: candidate["canonical_candidate_id"],
+    )
     evidence = None if terminal_evidence is None else dict(terminal_evidence)
 
     if payload_kind == "candidate_set":
@@ -164,7 +168,11 @@ def terminal_result(
         "derivation_survivor_count": 0,
         "terminal_predicate_id": error.predicate_id,
         "terminal_payload_kind": payload_kind,
-        "terminal_candidate_stage": contract["candidate_stage"],
+        "terminal_candidate_stage": (
+            contract["candidate_stage"]
+            if candidate_stage is None
+            else candidate_stage
+        ),
         "candidates": retained,
         "terminal_evidence": evidence,
         "canonical_candidates_sha256": _candidate_hash(retained),

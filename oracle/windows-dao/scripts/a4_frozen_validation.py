@@ -435,7 +435,7 @@ def _validate_replica_pair(predicate_id: str, slot: str, result: Mapping[str, An
         if candidate["model_type"] != expected_type:
             raise ValueError(f"{predicate_id}: replica-pair candidate has the wrong stage")
         replicas = _binding_replicas(candidate)
-        if replicas and replicas != (entry["replica"],):
+        if replicas and set(replicas) != {entry["replica"]}:
             raise ValueError(f"{predicate_id}: replica-pair candidate is bound to another replica")
         if candidate["model_type"] == "h4_operation_record" and candidate["model"]["replica"] != entry["replica"]:
             raise ValueError(f"{predicate_id}: replica-pair operation record is cross-replica")
@@ -483,7 +483,13 @@ def _validate_terminal_payload(slot: str, result: Mapping[str, Any], immediate_i
     contract = PREDICATE_CONTRACTS.get(predicate_id)
     if contract is None or slot not in contract["result_slots"]:
         raise ValueError(f"{predicate_id}: terminal occupies an unregistered result slot")
-    if result["terminal_payload_kind"] != contract["terminal_payload_schema"] or result["terminal_candidate_stage"] != contract["candidate_stage"] or result["derivation_survivor_count"] != 0:
+    expected_stage = (
+        "h4_structural_field"
+        if predicate_id == "A4-H4-REPLICA-DISAGREEMENT"
+        and slot == "structural_result"
+        else contract["candidate_stage"]
+    )
+    if result["terminal_payload_kind"] != contract["terminal_payload_schema"] or result["terminal_candidate_stage"] != expected_stage or result["derivation_survivor_count"] != 0:
         raise ValueError(f"{predicate_id}: terminal projection differs from its contract")
     payload, measured = contract["terminal_payload_schema"], result["predicate_measured_survivor_count"]
     validate_failure_count(predicate_id, measured, per_replica_counts=(1, 1) if payload == "replica_pair" else None)

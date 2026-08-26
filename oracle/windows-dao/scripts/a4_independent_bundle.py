@@ -7,12 +7,12 @@ import hashlib
 import json
 import math
 import os
-import stat
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
+from a4_dryrun_io import BoundedIoError, read_regular
 from a4_independent_contract import (
     CONTRACT,
     EXPERIMENT_ID,
@@ -55,15 +55,9 @@ def canonical_document_bytes(value: Any) -> bytes:
 
 def read_bytes(path: Path, maximum: int) -> bytes:
     try:
-        metadata = path.stat()
-    except OSError as exc:
-        raise ValidationError("missing_file", str(path)) from exc
-    if not stat.S_ISREG(metadata.st_mode) or not 0 <= metadata.st_size <= maximum:
-        raise ValidationError("file_size_bound", str(path))
-    try:
-        return path.read_bytes()
-    except OSError as exc:
-        raise ValidationError("file_read_failure", str(path)) from exc
+        return read_regular(path, maximum)
+    except BoundedIoError as exc:
+        raise ValidationError("file_size_bound", str(path)) from exc
 
 
 def load_json_bytes(raw: bytes, label: str) -> dict[str, Any]:
@@ -106,18 +100,26 @@ class PageStore:
         default_factory=lambda: {1: set(), 2: set(), 3: set()}, init=False
     )
 
+    def preload(self, digest: str, payload: bytes) -> None:
+        """Install one already bounded and hash-checked physical page read."""
+        if digest in self._cache:
+            if self._cache[digest] != payload:
+                raise ValidationError("page_blob_hash_mismatch", digest)
+            return
+        if len(self._cache) >= self.maximum_blobs:
+            raise ValidationError("resource_bound_breach", "page blob count")
+        if len(payload) != 2048 or sha256_bytes(payload) != digest:
+            raise ValidationError("page_blob_hash_mismatch", digest)
+        self._cache[digest] = payload
+
     def read(self, digest: str, replica: int) -> bytes:
         try:
             path = self.paths[digest]
         except KeyError as exc:
             raise ValidationError("page_blob_missing", digest) from exc
         if digest not in self._cache:
-            if len(self._cache) >= self.maximum_blobs:
-                raise ValidationError("resource_bound_breach", "page blob count")
             payload = read_bytes(path, 2048)
-            if len(payload) != 2048 or sha256_bytes(payload) != digest:
-                raise ValidationError("page_blob_hash_mismatch", digest)
-            self._cache[digest] = payload
+            self.preload(digest, payload)
         charged = self._charged[replica]
         charged.add(digest)
         if len(charged) * 2048 > self.maximum_bytes:

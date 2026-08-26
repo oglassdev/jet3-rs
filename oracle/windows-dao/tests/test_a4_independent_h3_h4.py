@@ -115,6 +115,31 @@ class A4IndependentH3H4Tests(unittest.TestCase):
         self.assertEqual(h4._canonical(value), expected)
         self.assertEqual(h3._digest(value), "7f99f4654f8d09362fad7519a2670728e1e7e420cb8af180a0dca86fb1610822")
 
+    def test_h3_terminal_candidate_hash_uses_canonical_id_order(self) -> None:
+        candidates = [
+            {"canonical_candidate_id": "b", "model": {"value": 2}},
+            {"canonical_candidate_id": "a", "model": {"value": 1}},
+        ]
+        result = h3._make_result(
+            candidates, "A4-H3-BASE-MULTIPLE", 2, "h3_final_base_formula"
+        )
+        expected = sorted(candidates, key=lambda row: row["canonical_candidate_id"])
+        self.assertEqual(result["candidates"], expected)
+        self.assertEqual(result["canonical_candidates_sha256"], h3._digest(expected))
+
+    def test_h4_terminal_candidate_hash_uses_canonical_id_order(self) -> None:
+        candidates = [
+            {"canonical_candidate_id": "b", "model": {"value": 2}},
+            {"canonical_candidate_id": "a", "model": {"value": 1}},
+        ]
+        result = h4._slot(
+            candidates, "A4-H4-ENCODING-AMBIGUOUS", 2,
+            "candidate_set", "h4_final_encoded_field",
+        )
+        expected = sorted(candidates, key=lambda row: row["canonical_candidate_id"])
+        self.assertEqual(result["candidates"], expected)
+        self.assertEqual(result["canonical_candidates_sha256"], h4._digest(expected))
+
     def test_h3_recomputes_unique_slot_formula_from_pages(self) -> None:
         replicas, h1_models, h2_models = _h3_fixture()
         result = h3.recompute_h3(replicas, h1_models, h2_models, _plan_h3())
@@ -341,9 +366,10 @@ class A4IndependentH3H4Tests(unittest.TestCase):
         rows = {}
         identifiers = [10, 11, 12, 13, 14, 15, 16]
         for operation, identifier in zip(operations, identifiers):
-            pattern_id, pattern = h4._operation_patterns(plan, 1, operation)[0]
+            patterns = h4._operation_patterns(plan, 1, operation)
+            pattern_id, pattern = patterns[0]
             raw = bytearray(40)
-            raw[16], raw[17] = len(pattern), identifier
+            raw[16], raw[17] = max(len(value) for _, value in patterns), identifier
             raw[18] = 2 if operation == "T1_ADD_TEXT" else 3 if operation == "T1_ADD_INDEX" else 1
             raw[20 : 20 + len(pattern)] = pattern
             occurrence = {"occurrence_index": 0, "name_start": 20,
@@ -352,7 +378,9 @@ class A4IndependentH3H4Tests(unittest.TestCase):
             rows[operation] = ({"page": 5, "row": 0, "row_start": 2000, "row_end": 2040},
                                bytes(raw), [occurrence])
         work = {"h4_name_length_structural_tuples": 0}
-        candidates = h4._structural_candidates(1, rows, "0" * 64, grammar, work)
+        candidates = h4._structural_candidates(
+            1, rows, "0" * 64, grammar, plan, work
+        )
         self.assertTrue(any(candidate[0]["model"]["kind_start_delta"] == 2 for candidate in candidates))
         self.assertEqual(work["h4_name_length_structural_tuples"], 7 * 165888)
 

@@ -4746,6 +4746,86 @@ Use `not applicable` explicitly rather than omitting a field.
   focused A4
   plan and repository contract checks must pass
 
+### EXP-0053 — A4 deterministic pre-acquisition dry-run disclosure
+
+- Recorded: 2026-08-25, OpenAI Codex
+- Kind: additive, non-evidential pre-acquisition execution disclosure; no DAO
+  acquisition, holdout result, format observation, or capability advancement
+- Question: Does the implementation bound to the immutable A4 plan make all
+  40 registered terminal predicates reachable, preserve the plan's ordered
+  first-failure semantics and resource limits, and agree exactly with a
+  separately invoked independent validator before any acquisition is allowed?
+- Preregistration: immutable plan and revision SHA-256
+  `3e74e67a213611596aaa0f5a4c3e433b2528a438bfa74708f4937e0233ed9aa1`.
+  The analyzer, fixture generator, harness, and independent validator were
+  executed from exact commit
+  `668692bc4eba63b18fb841db4d0a05530db9c335`; no preregistered plan or prior
+  provenance entry was rewritten.
+- Calibration input: retained read-only A3 `EXP-0051` bundle at
+  `/tmp/jet3-a3-retained-32626186825/jet3-a3-bundle`, manifest SHA-256
+  `f1a644abae1585d8ed0531f45a0544d3264d2449f6d5973ef2ef0bb3d5fefaab`.
+  The dry run opened 22 distinct retained calibration page blobs from replica 1 and
+  never opened replica 3. It independently recomputed 1,872 syntactically
+  preserved windows and 1,745,696 canonical nonoverlapping pairs for each
+  locator layout, with 7 page-then-row and 25 row-then-page target-valid
+  checkpoints. `holdout_opened` is false.
+- Protocol: execute
+  `python3 oracle/windows-dao/scripts/a4_dryrun.py generate
+  --retained-root /tmp/jet3-a3-retained-32626186825/jet3-a3-bundle --output
+  /tmp/jet3-a4-artifacts-final.Tpv5iv/dry-run`, place the four resulting files
+  under `oracle/windows-dao/experiments/a4/dry-run`, then execute the
+  corresponding `verify` command against the retained root and tracked artifact
+  directory.
+  The generator serialized complete page trees for every fixture, ran the
+  production analyzer in a child process, and ran an independently implemented
+  validator in a separate child process. The verifier recomputed each result
+  and required exact agreement on terminal predicate, terminal status,
+  candidate count, candidate-set SHA-256, and registered-prefix evaluation.
+  Serialized inputs, tree inventory, child output, and generator parameters
+  were checked against the preregistered bounds before use.
+- Process separation: the analyzer script SHA-256 was
+  `12edbb97e7fab2aa0ab658f31bffc74ca0a044b215606d3a6e1018619444767a`
+  and its successful marker log was 30 bytes with SHA-256
+  `7c89671e61381898b9451372d83c264ffdd6272627306c8b9a032bfc9f17c482`.
+  The independent-validator script SHA-256 was
+  `20ff1f18cddd345db9952d6f2dfaae3b2bf814e5bef5b56530970ac8ce6610f6`
+  and its successful marker log was 43 bytes with SHA-256
+  `37bcf1654adcd1ab5cc5ae76af6afa73765e486c34643be820080838d6f09ebf`.
+  The driver required distinct script paths, script hashes, process markers,
+  and log hashes for every fixture before recording agreement.
+- Observation: the retained-A3 calibration replay passed separately. One
+  A4-schedule-synthetic sweep reached all 40 registered terminal fixtures, and
+  its single transcript was bound into both disclosure reports. All ten
+  required adversarial outcomes were derived from the two child results and
+  agreed:
+  multiplicities 2, 3, and 4, encoding counts 0 and 2, and exact work-counter
+  equality were accepted; an unregistered candidate id, malformed page,
+  invalidated earlier predicate, and one-over resource count were rejected.
+  The analyzer and independent validator both report commit
+  `668692bc4eba63b18fb841db4d0a05530db9c335`; generation and fresh
+  byte-for-byte verification each report `PASS (40/40)`.
+- Artifacts: `a3-calibration-report.json`, 3,889 bytes, SHA-256
+  `d4478ca40b40bc60bc090aa30f06e07220ef6edac52678229a06cb5ae775624e`;
+  `a4-reachability-transcript.json`, 125,211 bytes, SHA-256
+  `36af100d8c457de48509b8610ad070411eb9787c8884b1f1812bb281077f499c`;
+  `a4-synthetic-report.json`, 3,960 bytes, SHA-256
+  `4800ef229e935e22923249690d065f95ca64bf16f9b47005c052ab3248279d9c`;
+  and `checksums.sha256`, 282 bytes, SHA-256
+  `e7509245432a94d7d964e316d39aebebb109039d6aa8e3562625b4c6a96b8b9d`,
+  all under `oracle/windows-dao/experiments/a4/dry-run/`.
+- Interpretation: this closes only the deterministic A4 P1 pre-acquisition
+  reachability and analyzer/validator-agreement obligation. Both reports set
+  `scientific_evidence`, `acquisition_authorized`, and
+  `capability_advancement_authorized` to false. The synthetic report contains
+  no page blobs and no fixture verdict fields. It is not DAO evidence and
+  cannot support a compatibility claim or support-matrix movement.
+- Review: the complete A4-focused suite passed 229 tests with one
+  retained-bundle-path-dependent test skipped, including the generator, analyzer,
+  dry-run driver, independent campaign checks, independent H3/H4 checks, and
+  independent validator. Python bytecode compilation, whitespace validation,
+  artifact checksum validation, deterministic generation, and fresh independent
+  verification passed.
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
