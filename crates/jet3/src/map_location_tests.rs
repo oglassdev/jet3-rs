@@ -1,7 +1,7 @@
 use super::{MapLocationError, MapRowLocator, locate_table_maps};
 use crate::{
-    ByteCount, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimits,
-    classify_page,
+    ByteCount, Error, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimits, classify_page,
 };
 
 const PAGE_BYTES: usize = 2048;
@@ -70,4 +70,43 @@ fn rejects_locator_at_and_one_beyond_page_count() -> Result<(), Box<dyn std::err
         ));
     }
     Ok(())
+}
+
+#[test]
+fn errors_report_context_and_preserve_sources() {
+    let invalid_source = Error::PageOutOfBounds {
+        page: 4,
+        page_count: 4,
+    };
+    let resource_source = Error::Arithmetic {
+        operation: "test map location",
+    };
+    let cases = [
+        (
+            MapLocationError::ExpectedTableDefinition {
+                page: PageNumber::new(1),
+                actual: PageKind::Data,
+            },
+            "expected page 1 to be a table definition, found Data",
+            false,
+        ),
+        (
+            MapLocationError::InvalidReference {
+                role: "owned",
+                locator: MapRowLocator::new(PageNumber::new(4), 2),
+                source: invalid_source,
+            },
+            "owned map locator page 4 row 2 is invalid",
+            true,
+        ),
+        (
+            MapLocationError::Resource(resource_source),
+            "map location rejected",
+            true,
+        ),
+    ];
+    for (error, context, has_source) in &cases {
+        assert!(error.to_string().contains(context));
+        assert_eq!(std::error::Error::source(error).is_some(), *has_source);
+    }
 }

@@ -129,7 +129,7 @@
           "SRC-0020",
           "EXP-0057"
         ],
-        "sha256": "648baf8d65de62af3e827c702a4a65b32e1c2268e4fe4c35ba33492d0c70b10c"
+        "sha256": "091f54f1b7f495215d5ff6c9ef07bdef406cf8171bf64f912f808f35b13ad0ec"
       }
     ],
     "reviewed_non_assertion_files": [
@@ -141,7 +141,7 @@
       {
         "path": "crates/jet3/src/allocation_traverse_tests.rs",
         "reason": "Test-only verification of the provenance-bound bounded allocation traversal in allocation_traverse.rs.",
-        "sha256": "43a5714063f60c5bda8b01f80427f19d34ae6ec464aa0c65f047322d092a2914"
+        "sha256": "2f645025bc8d6fbbdb12cd2f5cfac175303e7b60e1847cfcb607e2598639e75e"
       },
       {
         "path": "crates/jet3/src/atomic.rs",
@@ -216,7 +216,7 @@
       {
         "path": "crates/jet3/src/map_location_tests.rs",
         "reason": "Test-only verification of the EXP-0057 table-map locator assertions in map_location.rs.",
-        "sha256": "8fd2c54c63a6c9e74a714bdc0667faca43c0f8ae11675f601d762544b6442b3d"
+        "sha256": "cde5157045742466becb13d3664e8f8693e335b9b3dc420209f7cf4a0e140389"
       },
       {
         "path": "crates/jet3/src/offset.rs",
@@ -256,7 +256,7 @@
       {
         "path": "crates/jet3/src/usage_map_tests.rs",
         "reason": "Test-only verification of bounded provenance-bound usage-map row delimiting in usage_map.rs.",
-        "sha256": "76797ae10c37dad4e1a2d0d3f169eaec65c82b7a6ac1dec14d4d78facb1e4250"
+        "sha256": "ea80281a393b3a709b9a483f40b9ab461dec586edda3d95d69975623996e51b8"
       }
     ]
   },

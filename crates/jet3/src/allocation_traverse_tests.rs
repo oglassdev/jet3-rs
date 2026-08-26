@@ -3,8 +3,9 @@ use super::{
     follow_map_page_reference,
 };
 use crate::{
-    ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE, PageGeometry, PageKind,
-    PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+    AllocationMapError, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
+    MapLocationError, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimitKind, ResourceLimits, SliceSource, UsageMapError,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -512,4 +513,64 @@ fn reference_beyond_captured_input_is_rejected_before_read() -> TestResult {
         })
     );
     Ok(())
+}
+
+#[test]
+fn errors_report_context_and_preserve_nested_sources() {
+    let cases = [
+        AllocationTraversalError::MapLocation(MapLocationError::Resource(Error::Arithmetic {
+            operation: "map",
+        })),
+        AllocationTraversalError::UsageMap(UsageMapError::Resource(Error::Arithmetic {
+            operation: "row",
+        })),
+        AllocationTraversalError::AllocationMap(AllocationMapError::EmptyRecord),
+        AllocationTraversalError::Page(DatabasePageError::Read(Error::Arithmetic {
+            operation: "page",
+        })),
+        AllocationTraversalError::InvalidReference {
+            page: PageNumber::new(9),
+            source: Error::PageOutOfBounds {
+                page: 9,
+                page_count: 9,
+            },
+        },
+        AllocationTraversalError::SelfReference {
+            record_page: PageNumber::new(2),
+        },
+        AllocationTraversalError::NonzeroAfterNullSlot {
+            slot: 1,
+            page: PageNumber::new(3),
+        },
+        AllocationTraversalError::RepeatedPage {
+            page: PageNumber::new(3),
+        },
+        AllocationTraversalError::UnexpectedPageKind {
+            page: PageNumber::new(3),
+            expected: BITMAP,
+            actual: PageKind::Data,
+        },
+        AllocationTraversalError::RelativeBitOutOfRange {
+            slot: 1,
+            bit_index: 16_352,
+        },
+        AllocationTraversalError::InlinePageOverflow {
+            start_page: PageNumber::new(u64::MAX),
+            bit_index: 1,
+        },
+        AllocationTraversalError::ExtendedPageOverflow {
+            slot: u64::MAX,
+            bit_index: 1,
+        },
+        AllocationTraversalError::Resource(Error::Arithmetic {
+            operation: "traversal",
+        }),
+    ];
+    for (index, error) in cases.iter().enumerate() {
+        assert!(!error.to_string().is_empty());
+        assert_eq!(
+            std::error::Error::source(error).is_some(),
+            index < 5 || index == 12
+        );
+    }
 }

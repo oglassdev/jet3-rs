@@ -48,22 +48,48 @@ impl<'page> UsageMapRecord<'page> {
 pub enum UsageMapError {
     /// The supplied page does not match the locator.
     PageMismatch {
+        /// Physical page named by the locator.
         expected: PageNumber,
+        /// Physical page supplied by the caller.
         actual: PageNumber,
     },
     /// The locator target is not a data page.
-    ExpectedDataPage { page: PageNumber, actual: PageKind },
+    ExpectedDataPage {
+        /// Physical page supplied by the caller.
+        page: PageNumber,
+        /// Lossless classification actually found.
+        actual: PageKind,
+    },
     /// The row count cannot fit a complete Jet 3 directory.
-    RowCountTooLarge { row_count: u16, maximum: usize },
+    RowCountTooLarge {
+        /// Declared row count.
+        row_count: u16,
+        /// Maximum count whose complete directory fits the page.
+        maximum: usize,
+    },
     /// The requested row slot is absent.
-    RowOutOfBounds { row: u8, row_count: u16 },
+    RowOutOfBounds {
+        /// Requested zero-based row slot.
+        row: u8,
+        /// Number of rows declared by the page.
+        row_count: u16,
+    },
     /// A row-directory entry contains flags or an impossible page offset.
-    FlaggedOrOutOfPageRow { row: u16, raw_offset: u16 },
+    FlaggedOrOutOfPageRow {
+        /// Zero-based directory slot.
+        row: u16,
+        /// Unmodified little-endian directory value.
+        raw_offset: u16,
+    },
     /// A row begins inside the directory or does not precede its end.
     InvalidRowBounds {
+        /// Zero-based directory slot.
         row: u16,
+        /// Decoded inclusive row start.
         start: usize,
+        /// Derived exclusive row end.
         end: usize,
+        /// First byte after the complete row directory.
         directory_end: usize,
     },
     /// Resource policy rejected bounded directory work.
