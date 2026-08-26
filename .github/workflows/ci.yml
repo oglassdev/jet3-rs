@@ -12,6 +12,10 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Detect heavy-job paths
@@ -142,12 +146,31 @@ jobs:
         run: python3 tools/validate_g6_evidence.py inventory
       - name: Test validation and acceptance tooling
         run: python3 -m unittest discover -s tools/tests -v
-      - name: Validate DAO oracle protocol without claiming provider coverage
-        run: |
-          python3 oracle/windows-dao/scripts/validate_protocol.py schemas
-          python3 -m unittest discover -s oracle/windows-dao/tests -v
+      - name: Validate DAO oracle schemas without claiming provider coverage
+        run: python3 oracle/windows-dao/scripts/validate_protocol.py schemas
       - name: Reconcile checked test inventory with Rust tests
         run: python3 tools/reconcile_tests.py --repo-root "$GITHUB_WORKSPACE"
+
+  oracle-contracts:
+    name: Portable oracle contracts (${{ matrix.shard }})
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.oracle == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Exercise one deterministic portable oracle shard
+        run: >-
+          python3 oracle/windows-dao/scripts/run_contract_tests.py
+          portable-shard --shard-index ${{ matrix.shard }} --shard-count 4
 
   g6-coverage:
     name: Exact-commit G6 coverage evidence
@@ -202,7 +225,12 @@ jobs:
           python-version: "3.13"
       - name: Validate DAO oracle schemas
         run: python oracle/windows-dao/scripts/validate_protocol.py schemas
-      - name: Exercise Windows-only oracle and process contracts
+      - name: Exercise focused Windows and process contracts on pull requests
+        if: github.event_name == 'pull_request'
+        run: >-
+          python oracle/windows-dao/scripts/run_contract_tests.py windows-pr
+      - name: Exercise the complete Windows oracle contract after merge
+        if: github.event_name == 'push'
         run: python -m unittest discover -s oracle/windows-dao/tests -v
       - name: Exercise Windows release-evidence contracts
         if: always()
