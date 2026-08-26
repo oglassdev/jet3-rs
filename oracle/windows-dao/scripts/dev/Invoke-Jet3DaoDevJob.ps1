@@ -1,7 +1,13 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$RequestPath,
+    [ValidateSet("provider-probe", "create-empty")]
+    [string]$Job,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
+    [string]$RunId,
+    [Parameter(Mandatory = $true)]
+    [string]$ProviderProbePath,
     [Parameter(Mandatory = $true)]
     [string]$SharedOutputPath,
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
@@ -10,21 +16,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$AllowedJobs = @("provider-probe", "create-empty")
 $DbVersion30 = 32
 $DatabaseLocale = ";LANGID=0x0409;CP=1252;COUNTRY=0"
 
-function Get-LowerSha256 {
-    param([string]$Path)
-
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-}
-
 function Write-JsonDocument {
-    param(
-        [string]$Path,
-        [object]$Document
-    )
+    param([string]$Path, [object]$Document)
 
     $encoding = New-Object Text.UTF8Encoding($false)
     [IO.File]::WriteAllText(
@@ -37,36 +33,13 @@ function Write-JsonDocument {
 function Release-ComObject {
     param([object]$Value)
 
-    if (
-        $null -ne $Value -and
-        [Runtime.InteropServices.Marshal]::IsComObject($Value)
-    ) {
+    if ($null -ne $Value -and [Runtime.InteropServices.Marshal]::IsComObject($Value)) {
         [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($Value)
     }
 }
 
-function New-FileRecord {
-    param(
-        [string]$Root,
-        [string]$Name
-    )
-
-    $path = Join-Path $Root $Name
-    $item = Get-Item -LiteralPath $path
-    return [ordered]@{
-        path = $Name
-        size = [long]$item.Length
-        sha256 = Get-LowerSha256 -Path $path
-    }
-}
-
 function Publish-DevelopmentOutput {
-    param(
-        [string]$Source,
-        [string]$Destination,
-        [object]$Request,
-        [string]$Status
-    )
+    param([string]$Source, [string]$Destination)
 
     if (Test-Path -LiteralPath $Destination) {
         throw "Shared output path already exists."
@@ -74,29 +47,14 @@ function Publish-DevelopmentOutput {
     $parent = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Destination))
     [IO.Directory]::CreateDirectory($parent) | Out-Null
     $staging = $Destination + ".building." + [Guid]::NewGuid().ToString("N")
-    [IO.Directory]::CreateDirectory($staging) | Out-Null
     try {
-        $records = New-Object Collections.ArrayList
+        [IO.Directory]::CreateDirectory($staging) | Out-Null
         foreach ($name in @("environment.json", "result.json", "empty.mdb")) {
             $sourcePath = Join-Path $Source $name
-            if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-                continue
+            if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
+                Copy-Item -LiteralPath $sourcePath -Destination $staging
             }
-            Copy-Item -LiteralPath $sourcePath -Destination $staging
-            [void]$records.Add((New-FileRecord -Root $staging -Name $name))
         }
-        $manifest = [ordered]@{
-            schema_version = 1
-            document_type = "jet3_windows_dev_manifest"
-            development_only = $true
-            run_id = [string]$Request.run_id
-            job = [string]$Request.job
-            status = $Status
-            published_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
-            files = @($records)
-        }
-        Write-JsonDocument -Path (Join-Path $staging "manifest.json") `
-            -Document $manifest
         [IO.Directory]::Move($staging, $Destination)
     }
     catch {
@@ -107,38 +65,12 @@ function Publish-DevelopmentOutput {
     }
 }
 
-if (-not (Test-Path -LiteralPath $RequestPath -PathType Leaf)) {
-    [Console]::Error.WriteLine("INVALID: request file does not exist.")
+if (-not (Test-Path -LiteralPath $ProviderProbePath -PathType Leaf)) {
+    [Console]::Error.WriteLine("INVALID: provider probe does not exist.")
     exit 2
 }
 
-$request = Get-Content -LiteralPath $RequestPath -Raw | ConvertFrom-Json
-if (
-    [int]$request.schema_version -ne 1 -or
-    [string]$request.document_type -cne "jet3_windows_dev_request" -or
-    $request.development_only -cne $true -or
-    $AllowedJobs -cnotcontains [string]$request.job -or
-    [string]$request.run_id -cnotmatch `
-        "^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$"
-) {
-    [Console]::Error.WriteLine("INVALID: request contract is malformed.")
-    exit 2
-}
-
-$requestDirectory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($RequestPath))
-$probePath = Join-Path $requestDirectory "probe-provider.ps1"
-$runnerHash = Get-LowerSha256 -Path $PSCommandPath
-$probeHash = Get-LowerSha256 -Path $probePath
-if (
-    $runnerHash -cne [string]$request.sources.runner.sha256 -or
-    $probeHash -cne [string]$request.sources.provider_probe.sha256
-) {
-    [Console]::Error.WriteLine("INVALID: executed sources differ from the request.")
-    exit 2
-}
-
-$runRoot = Join-Path ([IO.Path]::GetFullPath($GuestOutputRoot)) `
-    ("runs\" + [string]$request.run_id)
+$runRoot = Join-Path ([IO.Path]::GetFullPath($GuestOutputRoot)) ("runs\" + $RunId)
 if (Test-Path -LiteralPath $runRoot) {
     [Console]::Error.WriteLine("INVALID: guest run directory already exists.")
     exit 2
@@ -146,7 +78,7 @@ if (Test-Path -LiteralPath $runRoot) {
 [IO.Directory]::CreateDirectory($runRoot) | Out-Null
 $environmentPath = Join-Path $runRoot "environment.json"
 & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
-    -ExecutionPolicy Bypass -File $probePath -OutputPath $environmentPath `
+    -ExecutionPolicy Bypass -File $ProviderProbePath -OutputPath $environmentPath `
     -ProtocolVersion "1.1.0"
 $probeExitCode = [int]$LASTEXITCODE
 
@@ -156,7 +88,7 @@ $exitCode = 3
 $databaseName = $null
 $databaseVersion = $null
 
-if ([string]$request.job -ceq "provider-probe") {
+if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
         $status = "pass"
         $detail = "The x86 DAO provider probe reported ready."
@@ -164,7 +96,7 @@ if ([string]$request.job -ceq "provider-probe") {
     }
     elseif ($probeExitCode -eq 1) {
         $status = "fail"
-        $detail = "The x86 DAO provider probe reported a controlled failure."
+        $detail = "The x86 DAO provider probe failed."
         $exitCode = 1
     }
 }
@@ -218,11 +150,9 @@ elseif ($probeExitCode -eq 0) {
 }
 
 $result = [ordered]@{
-    schema_version = 1
-    document_type = "jet3_windows_dev_result"
     development_only = $true
-    run_id = [string]$request.run_id
-    job = [string]$request.job
+    run_id = $RunId
+    job = $Job
     status = $status
     detail = $detail
     probe_exit_code = $probeExitCode
@@ -233,8 +163,7 @@ $result = [ordered]@{
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result
 
 try {
-    Publish-DevelopmentOutput -Source $runRoot -Destination $SharedOutputPath `
-        -Request $request -Status $status
+    Publish-DevelopmentOutput -Source $runRoot -Destination $SharedOutputPath
 }
 catch {
     [Console]::Error.WriteLine("ERROR: development publication failed: " + $_.Exception.Message)

@@ -35,8 +35,8 @@ just windows-dev-empty
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
 DAO candidates. `create-empty` additionally requires a ready
 `DAO.DBEngine.36`, creates and reopens a Jet 3 database on `C:`, closes DAO,
-then publishes the private MDB and hashed metadata through the Dockur share.
+then publishes the private MDB and result metadata through the Dockur share.
 
-Outputs under the external `shared/outbox/` directory are bounded, hash
-checked, and permanently marked `development_only`. They are diagnostics, not
-release evidence, and must not be committed or redistributed.
+Outputs under the external `shared/outbox/` directory are marked
+`development_only`. They are disposable diagnostics, not release evidence, and
+must not be committed or redistributed.

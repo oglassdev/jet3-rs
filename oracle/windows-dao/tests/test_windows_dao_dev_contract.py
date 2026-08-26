@@ -5,7 +5,6 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
-from unittest import mock
 import unittest
 
 
@@ -45,56 +44,36 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         parser = CLIENT.parser()
         job = next(action for action in parser._actions if action.dest == "job")
         self.assertEqual(tuple(job.choices), ("provider-probe", "create-empty"))
-        destinations = {action.dest for action in parser._actions}
-        self.assertNotIn("command", destinations)
-        self.assertNotIn("script", destinations)
+        self.assertNotIn("command", {action.dest for action in parser._actions})
 
-    def test_invocation_uses_x86_powershell_and_encoded_paths(self) -> None:
+    def test_invocation_uses_x86_powershell_and_strict_ssh(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             identity = root / "identity"
             identity.write_text("private", encoding="utf-8")
             args = self.args(root, identity)
             CLIENT.validate_args(args)
-            script = CLIENT.invocation_script(args)
-            self.assertIn("SysWOW64", script)
-            self.assertNotIn(str(root), script)
             command = CLIENT.ssh_command(args)
-            encoded = command[-1]
-            decoded = base64.b64decode(encoded).decode("utf-16-le")
-            self.assertEqual(decoded, script)
+            decoded = base64.b64decode(command[-1]).decode("utf-16-le")
+            self.assertIn("SysWOW64", decoded)
+            self.assertIn("-Job ([string]$c.job)", decoded)
             self.assertIn("StrictHostKeyChecking=yes", command)
             self.assertIn("BatchMode=yes", command)
 
-    def test_default_shared_path_is_the_dockur_unc_share(self) -> None:
+    def test_staging_copies_only_the_two_runner_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             identity = root / "identity"
             identity.write_text("private", encoding="utf-8")
             args = self.args(root, identity)
             CLIENT.validate_args(args)
-            self.assertEqual(args.remote_shared_root, r"\\host.lan\Data")
-
-    def test_staged_request_hashes_sources_and_marks_dirty_tree(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            identity = root / "identity"
-            identity.write_text("private", encoding="utf-8")
-            args = self.args(root, identity)
-            CLIENT.validate_args(args)
-            with mock.patch.object(
-                CLIENT, "git", side_effect=("a" * 40, " M local-change")
-            ):
-                request_dir = CLIENT.stage_request(args)
-            request = json.loads((request_dir / "request.json").read_text())
-            self.assertIs(request["development_only"], True)
-            self.assertIs(request["client"]["dirty"], True)
+            staged = CLIENT.stage_job(args)
             self.assertEqual(
-                request["sources"]["runner"]["sha256"],
-                CLIENT.sha256(request_dir / CLIENT.REMOTE_RUNNER.name),
+                {path.name for path in staged.iterdir()},
+                {CLIENT.REMOTE_RUNNER.name, CLIENT.PROVIDER_PROBE.name},
             )
 
-    def test_manifest_validation_recomputes_every_file_identity(self) -> None:
+    def test_result_must_match_job_and_exit_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             identity = root / "identity"
@@ -103,52 +82,24 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             CLIENT.validate_args(args)
             output = root / "outbox" / args.run_id
             output.mkdir(parents=True)
-            result = output / "result.json"
-            result.write_text("{}\n", encoding="utf-8")
-            manifest = {
-                "document_type": "jet3_windows_dev_manifest",
+            result = {
                 "development_only": True,
                 "job": args.job,
                 "run_id": args.run_id,
-                "status": "blocked",
-                "files": [
-                    {
-                        "path": result.name,
-                        "size": result.stat().st_size,
-                        "sha256": CLIENT.sha256(result),
-                    }
-                ],
+                "status": "pass",
             }
-            (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            self.assertEqual(CLIENT.validated_manifest(args)["status"], "blocked")
-            result.write_text("changed\n", encoding="utf-8")
-            with self.assertRaisesRegex(CLIENT.DevClientError, "identity differs"):
-                CLIENT.validated_manifest(args)
+            (output / "result.json").write_text(json.dumps(result), encoding="utf-8")
+            self.assertEqual(CLIENT.validated_result(args, 0), result)
+            with self.assertRaises(CLIENT.DevClientError):
+                CLIENT.validated_result(args, 3)
 
-            result.write_text("{}\n", encoding="utf-8")
-            manifest["files"][0]["size"] = result.stat().st_size
-            manifest["files"][0]["sha256"] = CLIENT.sha256(result)
-            manifest["status"] = "ready-ish"
-            (output / "manifest.json").write_text(
-                json.dumps(manifest), encoding="utf-8"
-            )
-            with self.assertRaisesRegex(CLIENT.DevClientError, "invalid status"):
-                CLIENT.validated_manifest(args)
-
-    def test_validation_rejects_missing_identity_and_parent_traversal(self) -> None:
+    def test_validation_rejects_parent_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            args = CLIENT.parser().parse_args(
-                [
-                    "provider-probe",
-                    "--user",
-                    "jet3runner",
-                    "--shared-root",
-                    str(root),
-                    "--remote-shared-root",
-                    r"Z:\safe\..\escape",
-                ]
-            )
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            args = self.args(root, identity)
+            args.remote_shared_root = r"Z:\safe\..\escape"
             with self.assertRaises(CLIENT.DevClientError):
                 CLIENT.validate_args(args)
 
@@ -158,18 +109,17 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.remote = REMOTE_PATH.read_text(encoding="utf-8")
 
-    def test_remote_is_exploratory_allowlisted_and_hash_bound(self) -> None:
-        self.assertIn('$AllowedJobs = @("provider-probe", "create-empty")', self.remote)
+    def test_remote_is_exploratory_and_allowlisted(self) -> None:
+        self.assertIn('[ValidateSet("provider-probe", "create-empty")]', self.remote)
         self.assertIn("development_only = $true", self.remote)
-        self.assertIn("Get-LowerSha256 -Path $PSCommandPath", self.remote)
-        self.assertIn("sources.provider_probe.sha256", self.remote)
         self.assertNotIn("Invoke-Expression", self.remote)
         self.assertNotIn("ScriptBlock::Create", self.remote)
 
-    def test_database_is_closed_before_shared_publication(self) -> None:
-        close = self.remote.index("$database.Close()")
-        publish = self.remote.index("Publish-DevelopmentOutput -Source")
-        self.assertLess(close, publish)
+    def test_database_is_closed_before_atomic_publication(self) -> None:
+        self.assertLess(
+            self.remote.index("$database.Close()"),
+            self.remote.index("Publish-DevelopmentOutput -Source"),
+        )
         self.assertIn("[IO.Directory]::Move($staging, $Destination)", self.remote)
 
 

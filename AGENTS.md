@@ -77,17 +77,12 @@ history.
 
 ## Exploratory Windows development
 
-The local VM workflow in `docs/plans/VM_FIRST_DEVELOPMENT.md` is the default
-format-discovery loop. Its outputs must declare `development_only = true` and
-may be regenerated, revised, or discarded without campaign authorization.
-They cannot advance the support matrix, satisfy a release gate, or substantiate
-a compatibility claim.
-
-Exploratory results may guide implementation after the format fact and its
-reproduction scenario are recorded concisely in provenance. Keep the licensed
-Windows/DAO installation, credentials, VM disks, generated MDB files, and raw
-outputs outside the repository. Official acquisition and release evidence
-remain subject to the evidence-campaign rules above.
+The local VM workflow in `docs/LOCAL_WINDOWS_VM.md` is the default discovery
+loop. Its `development_only` outputs may be regenerated or discarded, but
+cannot support compatibility claims or release gates. Record newly observed
+format facts concisely in provenance before relying on them in production code,
+and keep VM disks, credentials, generated MDB files, and raw outputs outside
+the repository.
 
 ## CI and review efficiency
 
