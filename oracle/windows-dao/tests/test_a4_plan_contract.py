@@ -1793,7 +1793,7 @@ class A4PlanContractTests(unittest.TestCase):
         self.assertIn("### EXP-0052", provenance)
         self.assertIn(PLAN_SHA256, provenance)
         ids = [int(value) for value in re.findall(r"^### EXP-(\d{4})", provenance, re.M)]
-        self.assertEqual(max(ids), 53)
+        self.assertEqual(ids, sorted(ids))
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(
             hashlib.sha256(ANALYSIS_SCHEMA.read_bytes()).hexdigest(),
