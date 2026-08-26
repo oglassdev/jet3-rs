@@ -29,3 +29,11 @@ accept:
 
 # Everything currently green-able; run before publishing changes.
 ready: fmt-check lint test doc quick
+
+# Exploratory only; output cannot satisfy release evidence or compatibility claims.
+windows-dev-probe:
+    "{{PYTHON}}" scripts/windows-dao-dev.py provider-probe
+
+# Create and reopen one private empty Jet 3 database through local DAO.
+windows-dev-empty:
+    "{{PYTHON}}" scripts/windows-dao-dev.py create-empty
