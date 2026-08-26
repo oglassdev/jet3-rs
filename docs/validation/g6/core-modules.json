@@ -10,7 +10,7 @@
     {
       "path": "crates/jet3/src/allocation_traverse.rs",
       "classification": "format_safety",
-      "sha256": "f7b3de9413b7ce615e14f7e344f66113492c7e6b50154687d41633ca244a47c4"
+      "sha256": "8c3efc654a99773340eb982cb5a764ebf46984ab6ead9daaaa9b5be10792f627"
     },
     {
       "path": "crates/jet3/src/atomic.rs",
@@ -40,7 +40,7 @@
     {
       "path": "crates/jet3/src/database.rs",
       "classification": "format_safety",
-      "sha256": "ade820197519da154de38a2b39a6e2f2cf82a271863ed026771c83ab57a360fb"
+      "sha256": "5b01a5e65810b19e2eee78d67a73cb702f396fbd1efeb366b2024f97f43b1b54"
     },
     {
       "path": "crates/jet3/src/database_header.rs",
@@ -65,12 +65,17 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "3487a123d5f306178594043d1065e4cdffa76a3a70a4304375ee90c5edacdbe5"
+      "sha256": "5789d5cd0cbab7f6166c28effb9d96bff68c040b4269c274bcf947a5d80a550c"
     },
     {
       "path": "crates/jet3/src/limits.rs",
       "classification": "safety",
       "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443"
+    },
+    {
+      "path": "crates/jet3/src/map_location.rs",
+      "classification": "format_safety",
+      "sha256": "4fc00ccfaae0ed58e8f6adb82409eb3cf1e6f13fc1475caad519ff419be25c6c"
     },
     {
       "path": "crates/jet3/src/offset.rs",
@@ -101,6 +106,11 @@
       "path": "crates/jet3/src/source.rs",
       "classification": "safety",
       "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a"
+    },
+    {
+      "path": "crates/jet3/src/usage_map.rs",
+      "classification": "format_safety",
+      "sha256": "648baf8d65de62af3e827c702a4a65b32e1c2268e4fe4c35ba33492d0c70b10c"
     }
   ]
 }
