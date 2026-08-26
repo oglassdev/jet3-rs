@@ -188,10 +188,10 @@
     },
     {
       "id": "format.pages_allocation_usage",
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Bounded complete-page reads, allocation-free sequential streaming, and experimental SRC-0020 byte-zero and detached usage-map primitives are implemented. The classifier names only page zero tag 00 and nonzero-page tags 01 through 05. The detached decoder handles caller-delimited type-0/type-1 records and relative set-bit positions from already-classified complete Jet 3 type-05 pages. It does not locate maps, follow type-1 references, assign null-pointer semantics, derive an extended-map absolute page base, or establish global or table allocation state. All such support is internal-only secondary-documentation support, not independent corroboration or DAO verification; database traversal, remaining page-header meanings, structural validation, and DAO differential evidence are absent.",
+      "reason": "Bounded complete-page reads, allocation-free sequential streaming, SRC-0020 detached usage-map primitives, and EXP-0057 table-owned page traversal are implemented. From a caller-supplied table-definition root, the reader locates and delimits the owned-map row, handles inline maps, treats a zero type-1 slot as null, follows a bounded prefix of direct checked type-05 page references, and derives extended pages from the checked slot-relative base. Traversal rejects malformed row directories and flags, out-of-capture references, self-references, repeated pages, nonzero slots after null, arithmetic overflow, and resource exhaustion with fixed page storage and pre-charged visited state. This does not locate a catalog, discover table roots, establish global allocation state, choose pages for writes, decode row values, or provide DAO differential verification. The implementation and exploratory observations remain internal_only and make no compatibility claim.",
       "evidence": [
         {
           "kind": "source",
@@ -257,6 +257,86 @@
           "scenario_ids": [
             "PROP-RAW-STREAM-001",
             "PROP-RAW-STREAM-002"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/database.rs",
+          "sha256": "5b01a5e65810b19e2eee78d67a73cb702f396fbd1efeb366b2024f97f43b1b54",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/map_location.rs",
+          "sha256": "4fc00ccfaae0ed58e8f6adb82409eb3cf1e6f13fc1475caad519ff419be25c6c",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/map_location_tests.rs",
+          "sha256": "8fd2c54c63a6c9e74a714bdc0667faca43c0f8ae11675f601d762544b6442b3d",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-ALLOCATION-022",
+            "UT-ALLOCATION-023",
+            "UT-ALLOCATION-024"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/usage_map.rs",
+          "sha256": "648baf8d65de62af3e827c702a4a65b32e1c2268e4fe4c35ba33492d0c70b10c",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/usage_map_tests.rs",
+          "sha256": "76797ae10c37dad4e1a2d0d3f169eaec65c82b7a6ac1dec14d4d78facb1e4250",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-ALLOCATION-025",
+            "UT-ALLOCATION-026",
+            "UT-ALLOCATION-027",
+            "UT-ALLOCATION-028",
+            "UT-ALLOCATION-029"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/allocation_traverse.rs",
+          "sha256": "8c3efc654a99773340eb982cb5a764ebf46984ab6ead9daaaa9b5be10792f627",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/allocation_traverse_tests.rs",
+          "sha256": "43a5714063f60c5bda8b01f80427f19d34ae6ec464aa0c65f047322d092a2914",
+          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
+          "capability_id": "format.pages_allocation_usage",
+          "scenario_ids": [
+            "UT-ALLOCATION-013",
+            "UT-ALLOCATION-014",
+            "UT-ALLOCATION-015",
+            "UT-ALLOCATION-016",
+            "UT-ALLOCATION-017",
+            "UT-ALLOCATION-018",
+            "UT-ALLOCATION-019",
+            "UT-ALLOCATION-020",
+            "UT-ALLOCATION-021",
+            "UT-ALLOCATION-030",
+            "UT-ALLOCATION-031",
+            "UT-ALLOCATION-032",
+            "UT-ALLOCATION-033",
+            "UT-ALLOCATION-034",
+            "UT-ALLOCATION-035",
+            "UT-ALLOCATION-036",
+            "UT-ALLOCATION-037"
           ]
         }
       ]

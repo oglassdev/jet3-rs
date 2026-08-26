@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -19,6 +19,8 @@ $ErrorActionPreference = "Stop"
 $DbVersion30 = 32
 $DbVersion40 = 64
 $DbEncrypt = 2
+$DbLong = 4
+$DbLongBinary = 11
 $DatabaseLocale = ";LANGID=0x0409;CP=1252;COUNTRY=0"
 # SRC-0022 bounds this development-only DAO NewPassword control to 20 characters.
 $OpeningPassword = "J3dev!Only2026"
@@ -109,6 +111,230 @@ function New-OpeningCase {
     }
 }
 
+function Invoke-WithAllocationDatabase {
+    param(
+        [string]$Path,
+        [scriptblock]$Action
+    )
+
+    $engine = $null
+    $database = $null
+    try {
+        $engine = New-Object -ComObject "DAO.DBEngine.36"
+        $database = $engine.OpenDatabase($Path)
+        & $Action $database
+        $database.Close()
+        Release-ComObject -Value $database
+        $database = $null
+    }
+    finally {
+        if ($null -ne $database) {
+            try { $database.Close() } catch { }
+        }
+        Release-ComObject -Value $database
+        Release-ComObject -Value $engine
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+    }
+}
+
+function New-AllocationTable {
+    param([string]$Path)
+
+    Invoke-WithAllocationDatabase -Path $Path -Action {
+        param($database)
+        $table = $null
+        $idField = $null
+        $payloadField = $null
+        try {
+            $table = $database.CreateTableDef("AllocationDev")
+            $idField = $table.CreateField("Id", $DbLong)
+            $table.Fields.Append($idField)
+            $payloadField = $table.CreateField("Payload", $DbLongBinary)
+            $table.Fields.Append($payloadField)
+            $database.TableDefs.Append($table)
+        }
+        finally {
+            Release-ComObject -Value $payloadField
+            Release-ComObject -Value $idField
+            Release-ComObject -Value $table
+        }
+    }
+}
+
+function Add-AllocationRows {
+    param(
+        [string]$Path,
+        [int]$FirstId,
+        [int]$Count,
+        [byte[]]$Payload
+    )
+
+    Invoke-WithAllocationDatabase -Path $Path -Action {
+        param($database)
+        $recordset = $null
+        $idField = $null
+        $payloadField = $null
+        try {
+            $recordset = $database.OpenRecordset("AllocationDev", 2, 0)
+            $idField = $recordset.Fields.Item("Id")
+            $payloadField = $recordset.Fields.Item("Payload")
+            for ($offset = 0; $offset -lt $Count; $offset++) {
+                $recordset.AddNew()
+                $idField.Value = [int]($FirstId + $offset)
+                $payloadField.AppendChunk($Payload)
+                $recordset.Update()
+            }
+        }
+        finally {
+            Release-ComObject -Value $payloadField
+            Release-ComObject -Value $idField
+            if ($null -ne $recordset) {
+                try { $recordset.Close() } catch { }
+            }
+            Release-ComObject -Value $recordset
+        }
+    }
+}
+
+function Remove-AllocationRows {
+    param(
+        [string]$Path,
+        [int]$FirstId,
+        [int]$Count
+    )
+
+    Invoke-WithAllocationDatabase -Path $Path -Action {
+        param($database)
+        $recordset = $null
+        try {
+            $lastId = $FirstId + $Count - 1
+            $sql = "SELECT Id FROM [AllocationDev] WHERE Id >= $FirstId AND Id <= $lastId ORDER BY Id"
+            $recordset = $database.OpenRecordset($sql, 2, 0)
+            $deleted = 0
+            while (-not $recordset.EOF) {
+                $recordset.Delete()
+                $recordset.MoveNext()
+                $deleted++
+            }
+            if ($deleted -ne $Count) {
+                throw "Allocation deletion removed $deleted rows; expected $Count."
+            }
+        }
+        finally {
+            if ($null -ne $recordset) {
+                try { $recordset.Close() } catch { }
+            }
+            Release-ComObject -Value $recordset
+        }
+    }
+}
+
+function Get-Type05Pages {
+    param([string]$Path)
+
+    $stream = $null
+    try {
+        $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
+        if (($stream.Length % 2048) -ne 0) {
+            throw "Allocation checkpoint is not an exact sequence of 2 KiB pages."
+        }
+        $pages = New-Object Collections.ArrayList
+        $buffer = New-Object byte[] 1
+        $pageCount = [long]($stream.Length / 2048)
+        for ($page = 1; $page -lt $pageCount; $page++) {
+            $stream.Position = [long]$page * 2048
+            if ($stream.Read($buffer, 0, 1) -ne 1) {
+                throw "Allocation checkpoint page-tag read was short."
+            }
+            if ($buffer[0] -eq 5) {
+                if ($pages.Count -ge 64) {
+                    throw "Allocation checkpoint contains more than 64 type-05 pages."
+                }
+                [void]$pages.Add([long]$page)
+            }
+        }
+        return @($pages)
+    }
+    finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
+function Get-MultiSlotUsageMap {
+    param([string]$Path)
+
+    $bytes = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path))
+    if (($bytes.Length % 2048) -ne 0) {
+        throw "Allocation checkpoint is not an exact sequence of 2 KiB pages."
+    }
+    $pageCount = [int]($bytes.Length / 2048)
+    for ($page = 1; $page -lt $pageCount; $page++) {
+        $pageStart = $page * 2048
+        if ($bytes[$pageStart] -ne 1) { continue }
+        $rowCount = [int]$bytes[$pageStart + 8] -bor `
+            ([int]$bytes[$pageStart + 9] -shl 8)
+        if ($rowCount -gt 1019) { continue }
+        $directoryEnd = 10 + 2 * $rowCount
+        $priorStart = 2048
+        for ($row = 0; $row -lt $rowCount; $row++) {
+            $entry = $pageStart + 10 + 2 * $row
+            $rawStart = [int]$bytes[$entry] -bor ([int]$bytes[$entry + 1] -shl 8)
+            $rowStart = $rawStart -band 0x1fff
+            $rowEnd = $priorStart
+            $priorStart = $rowStart
+            if ($rowStart -lt $directoryEnd -or $rowStart -ge $rowEnd) { break }
+            $rowLength = $rowEnd - $rowStart
+            if ($bytes[$pageStart + $rowStart] -ne 1 -or (($rowLength - 1) % 4) -ne 0) {
+                continue
+            }
+            $references = New-Object Collections.ArrayList
+            $valid = $true
+            for ($slot = 0; $slot -lt (($rowLength - 1) / 4); $slot++) {
+                $referenceOffset = $pageStart + $rowStart + 1 + 4 * $slot
+                $reference = [BitConverter]::ToUInt32($bytes, $referenceOffset)
+                if ($reference -eq 0) { continue }
+                if ($reference -ge $pageCount -or $bytes[[int]$reference * 2048] -ne 5) {
+                    $valid = $false
+                    break
+                }
+                [void]$references.Add([long]$reference)
+            }
+            if ($valid -and $references.Count -ge 2) {
+                return [ordered]@{
+                    record_page = [long]$page
+                    record_row = $row
+                    references = @($references)
+                }
+            }
+        }
+    }
+    return $null
+}
+
+function Save-AllocationCheckpoint {
+    param(
+        [string]$Source,
+        [string]$RunRoot,
+        [string]$Name,
+        [int]$Rows
+    )
+
+    $fileName = "allocation-$Name.mdb"
+    $destination = Join-Path $RunRoot $fileName
+    Copy-Item -LiteralPath $Source -Destination $destination
+    $item = Get-Item -LiteralPath $destination
+    $type05 = @(Get-Type05Pages -Path $destination)
+    return [ordered]@{
+        name = $Name
+        database = $fileName
+        rows = $Rows
+        size = [long]$item.Length
+        page_count = [long]($item.Length / 2048)
+        type_05_pages = @($type05)
+    }
+}
+
 function Publish-DevelopmentOutput {
     param([string]$Source, [string]$Destination)
 
@@ -123,7 +349,11 @@ function Publish-DevelopmentOutput {
         foreach ($name in @(
             "environment.json", "result.json", "empty.mdb",
             "v30-u-n.mdb", "v30-e-n.mdb", "v30-u-p.mdb", "v30-e-p.mdb",
-            "v40-u-n.mdb", "v40-e-n.mdb", "v40-u-p.mdb", "v40-e-p.mdb"
+            "v40-u-n.mdb", "v40-e-n.mdb", "v40-u-p.mdb", "v40-e-p.mdb",
+            "allocation-00-empty.mdb", "allocation-01-created.mdb",
+            "allocation-02-seeded.mdb", "allocation-03-before-extended.mdb",
+            "allocation-04-after-extended.mdb", "allocation-05-grown.mdb",
+            "allocation-06-deleted.mdb", "allocation-07-reinserted.mdb"
         )) {
             $sourcePath = Join-Path $Source $name
             if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
@@ -163,6 +393,11 @@ $exitCode = 3
 $databaseName = $null
 $databaseVersion = $null
 $openingCases = @()
+$allocationCheckpoints = @()
+$allocationBatchRows = $null
+$allocationPayloadBytes = $null
+$allocationExtendedDetectedAtRows = $null
+$allocationMultiSlotMap = $null
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -258,6 +493,136 @@ elseif ($Job -ceq "opening-matrix" -and $probeExitCode -eq 0) {
         }
     }
 }
+elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
+    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
+        $detail = "The ready provider is not DAO.DBEngine.36."
+    }
+    else {
+        $engine = $null
+        $workspace = $null
+        $database = $null
+        try {
+            $workingPath = Join-Path $runRoot "allocation-working.mdb"
+            $engine = New-Object -ComObject "DAO.DBEngine.36"
+            $workspace = $engine.Workspaces.Item(0)
+            $database = $workspace.CreateDatabase(
+                $workingPath,
+                $DatabaseLocale,
+                $DbVersion30
+            )
+            $database.Close()
+            Release-ComObject -Value $database
+            $database = $null
+            Release-ComObject -Value $workspace
+            $workspace = $null
+            Release-ComObject -Value $engine
+            $engine = $null
+
+            $rows = 0
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "00-empty" -Rows $rows
+            New-AllocationTable -Path $workingPath
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "01-created" -Rows $rows
+
+            $allocationPayloadBytes = 1800
+            $payload = New-Object byte[] $allocationPayloadBytes
+            for ($index = 0; $index -lt $payload.Length; $index++) {
+                $payload[$index] = [byte](($index * 29 + 17) % 251)
+            }
+            Add-AllocationRows -Path $workingPath -FirstId 1 -Count 2 -Payload $payload
+            $rows = 2
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "02-seeded" -Rows $rows
+
+            $baselineType05 = @(Get-Type05Pages -Path $workingPath).Count
+            $allocationBatchRows = 256
+            $maximumRows = 32768
+            $previousPath = Join-Path $runRoot "allocation-previous.mdb"
+            $foundExtended = $false
+            while ($rows -lt $maximumRows) {
+                Copy-Item -LiteralPath $workingPath -Destination $previousPath -Force
+                $count = [Math]::Min($allocationBatchRows, $maximumRows - $rows)
+                Add-AllocationRows -Path $workingPath -FirstId ($rows + 1) `
+                    -Count $count -Payload $payload
+                $rows += $count
+                if (@(Get-Type05Pages -Path $workingPath).Count -gt $baselineType05) {
+                    $foundExtended = $true
+                    break
+                }
+            }
+            if (-not $foundExtended) {
+                throw "No new type-05 page appeared within the bounded growth scenario."
+            }
+            Copy-Item -LiteralPath $previousPath `
+                -Destination (Join-Path $runRoot "allocation-03-before-extended.mdb")
+            $beforeItem = Get-Item -LiteralPath $previousPath
+            $allocationCheckpoints += [ordered]@{
+                name = "03-before-extended"
+                database = "allocation-03-before-extended.mdb"
+                rows = $rows - $count
+                size = [long]$beforeItem.Length
+                page_count = [long]($beforeItem.Length / 2048)
+                type_05_pages = @(Get-Type05Pages -Path $previousPath)
+            }
+            $allocationExtendedDetectedAtRows = $rows
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "04-after-extended" -Rows $rows
+
+            $observedType05Count = @(Get-Type05Pages -Path $workingPath).Count
+            while ($rows -lt $maximumRows -and $null -eq $allocationMultiSlotMap) {
+                $count = [Math]::Min($allocationBatchRows, $maximumRows - $rows)
+                Add-AllocationRows -Path $workingPath -FirstId ($rows + 1) `
+                    -Count $count -Payload $payload
+                $rows += $count
+                $currentType05Count = @(Get-Type05Pages -Path $workingPath).Count
+                if ($currentType05Count -gt $observedType05Count) {
+                    $observedType05Count = $currentType05Count
+                    $allocationMultiSlotMap = Get-MultiSlotUsageMap -Path $workingPath
+                }
+            }
+            if ($null -eq $allocationMultiSlotMap) {
+                throw "No type-1 row with two valid type-05 references appeared within the bounded growth scenario."
+            }
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "05-grown" -Rows $rows
+
+            $churnRows = 256
+            $churnFirstId = $rows - $churnRows + 1
+            Remove-AllocationRows -Path $workingPath -FirstId $churnFirstId `
+                -Count $churnRows
+            $rows -= $churnRows
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "06-deleted" -Rows $rows
+
+            Add-AllocationRows -Path $workingPath -FirstId $churnFirstId `
+                -Count $churnRows -Payload $payload
+            $rows += $churnRows
+            $allocationCheckpoints += Save-AllocationCheckpoint `
+                -Source $workingPath -RunRoot $runRoot -Name "07-reinserted" -Rows $rows
+
+            $status = "pass"
+            $detail = "Completed the bounded allocation growth, deletion, and reinsertion scenario."
+            $exitCode = 0
+        }
+        catch {
+            $status = "fail"
+            $detail = $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+            $exitCode = 1
+        }
+        finally {
+            if ($null -ne $database) {
+                try { $database.Close() } catch { }
+            }
+            Release-ComObject -Value $database
+            Release-ComObject -Value $workspace
+            Release-ComObject -Value $engine
+            [GC]::Collect()
+            [GC]::WaitForPendingFinalizers()
+        }
+    }
+}
 
 $result = [ordered]@{
     development_only = $true
@@ -269,6 +634,11 @@ $result = [ordered]@{
     database = $databaseName
     database_version = $databaseVersion
     opening_cases = @($openingCases)
+    allocation_checkpoints = @($allocationCheckpoints)
+    allocation_batch_rows = $allocationBatchRows
+    allocation_payload_bytes = $allocationPayloadBytes
+    allocation_extended_detected_at_rows = $allocationExtendedDetectedAtRows
+    allocation_multi_slot_map = $allocationMultiSlotMap
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

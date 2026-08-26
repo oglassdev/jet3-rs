@@ -8,9 +8,8 @@ use std::hint::black_box;
 use jet3::{
     AllocationMap, AllocationMapError, AllocationTraversalError, ByteCount, DatabaseReader,
     JET3_PAGE_SIZE, PageChainWalker, PageGeometry, PageKind, PageNumber, ReachedMapPage,
-    ReadLimits, ResourceBudget, ResourceLimits, SliceSource, UnsupportedTraversalStep,
-    classify_page, decode_allocation_map, extended_allocation_bits, follow_map_page_reference,
-    locate_allocation_map,
+    ReadLimits, ResourceBudget, ResourceLimits, SliceSource, classify_page, decode_allocation_map,
+    extended_allocation_bits, follow_map_page_reference,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -117,8 +116,8 @@ fn exercise_extended(payload: &[u8], work_limit: u64) {
 /// Follows input-selected page numbers through a synthetic nine-page
 /// database under input-selected chain-depth and page-visit limits. The first
 /// `TRAVERSAL_PAGES` payload bytes become page tags; the following bytes are
-/// the page numbers to follow. Every format-specific step must stay
-/// unsupported.
+/// the page numbers to follow. Direct reference and slot-base interpretation
+/// are exercised independently of database-level map location.
 fn exercise_traversal(payload: &[u8], work_limit: u64) {
     let mut database_bytes = [0_u8; TRAVERSAL_DATABASE_BYTES];
     database_bytes[4..19].copy_from_slice(b"Standard Jet DB");
@@ -138,18 +137,11 @@ fn exercise_traversal(payload: &[u8], work_limit: u64) {
     let Ok(mut database) = DatabaseReader::from_source(source, &mut resources) else {
         return;
     };
-    assert!(matches!(
-        locate_allocation_map(&database, &mut resources),
-        Err(AllocationTraversalError::Unsupported(
-            UnsupportedTraversalStep::MapLocation
-        ))
-    ));
-    assert!(matches!(
-        follow_map_page_reference(u32::from(steps.first().copied().unwrap_or(0)), &mut resources),
-        Err(AllocationTraversalError::Unsupported(
-            UnsupportedTraversalStep::PointerFollowing
-        ))
-    ));
+    let raw_reference = u32::from(steps.first().copied().unwrap_or(0));
+    assert_eq!(
+        follow_map_page_reference(raw_reference, &mut resources),
+        Ok((raw_reference != 0).then(|| PageNumber::new(u64::from(raw_reference))))
+    );
     let geometry = database.geometry();
     let mut walker = PageChainWalker::new(geometry, &mut resources)
         .expect("the nine-page visited set is two bytes");
@@ -172,14 +164,9 @@ fn exercise_traversal(payload: &[u8], work_limit: u64) {
                 assert!(number.get() < geometry.page_count());
                 assert!(walker.followed(number));
                 if expected == PageKind::ExtendedUsageBitmap {
-                    let mut reached = ReachedMapPage::new(classified)
+                    let mut reached = ReachedMapPage::new(u64::from(step % 4), classified)
                         .expect("a classified extended bitmap wraps");
-                    assert!(matches!(
-                        reached.absolute_page(0),
-                        Err(AllocationTraversalError::Unsupported(
-                            UnsupportedTraversalStep::ExtendedPageBase
-                        ))
-                    ));
+                    assert!(reached.absolute_page(0).is_ok());
                     let mut bit_budget = budget(4);
                     let _ = black_box(reached.relative_bits().next_bit(&mut bit_budget));
                 }

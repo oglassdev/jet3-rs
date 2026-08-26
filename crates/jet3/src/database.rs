@@ -13,10 +13,10 @@ use std::fmt;
 use std::path::Path;
 
 use crate::{
-    CandidateError, ClassifiedPage, DatabaseFormatError, DatabaseHeaderPage,
-    DatabaseHeaderPageError, Error, FileSource, JET3_PAGE_SIZE, JetFileKind,
-    PageClassificationError, PageGeometry, PageNumber, RawJet3Candidate, RawPageCursor, ReadAt,
-    ResourceBudget, SupportedDatabaseFormat, classify_page,
+    AllocationTraversalError, CandidateError, ClassifiedPage, DatabaseFormatError,
+    DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource, JET3_PAGE_SIZE, JetFileKind,
+    OwnedPages, PageClassificationError, PageGeometry, PageNumber, RawJet3Candidate, RawPageCursor,
+    ReadAt, ResourceBudget, SupportedDatabaseFormat, classify_page,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -230,6 +230,20 @@ where
     /// Starts allocation-free sequential access to uninterpreted pages.
     pub fn raw_pages(&mut self) -> RawPageCursor<'_, S> {
         self.candidate.raw_pages()
+    }
+
+    /// Starts bounded iteration over pages owned by one table-definition root.
+    ///
+    /// `EXP-0057` supplies the table-map locators, direct type-1 references,
+    /// null-slot rule, and extended slot-base calculation. Construction reads
+    /// only the table-definition and its owned-map row page. Indirect maps
+    /// pre-charge their complete fixed-size visited state before returning.
+    pub fn owned_pages<'operation>(
+        &'operation mut self,
+        table_root: PageNumber,
+        budget: &'operation mut ResourceBudget,
+    ) -> Result<OwnedPages<'operation, S>, AllocationTraversalError> {
+        OwnedPages::new(self, table_root, budget)
     }
 }
 

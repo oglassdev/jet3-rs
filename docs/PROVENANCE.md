@@ -840,6 +840,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:fuzz/fuzz_targets/allocation.rs`;
   `file:fuzz/fuzz_targets/page_classification.rs`; `file:tests/manifest.json`
   Additional tracked Usage:
+  `file:crates/jet3/src/usage_map.rs`;
+  `file:fuzz/fuzz_targets/usage_map_traverse.rs`;
   `file:oracle/windows-dao/experiments/a4/README.md`;
   `file:oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`;
   `file:oracle/windows-dao/experiments/a4/design-inputs/a4-scope-approved.md`;
@@ -5059,6 +5061,86 @@ Use `not applicable` explicitly rather than omitting a field.
   official campaign was inconclusive and assigned no physical meaning.
 - Usage: `file:crates/jet3/src/database_header.rs`;
   `file:crates/jet3/src/database.rs`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0057 — Local DAO allocation-map traversal observations
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: In controlled Jet 3 table creation, row growth, deletion, and
+  reinsertion, where are table allocation-map rows located, how do type-1 raw
+  references select type-`05` pages, and how does a bitmap slot determine its
+  absolute page base?
+- Origin: the project-authored local Windows development runner using the DAO
+  creation, field, row, and long-value APIs documented in `SRC-0001`,
+  `SRC-0009`, `SRC-0010`, and `SRC-0012`; bounded page, row-directory, and
+  usage-map interpretations were restricted to the grammar in `SRC-0020`; no
+  third-party MDB implementation was inspected
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM as `EXP-0056`; all three runs accepted `DAO.DBEngine.36`
+  version 3.6 from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`
+- Protocol: run three independent `allocation-map` jobs. Each created one
+  fresh Jet 3 database and one table with an integer key and deterministic
+  1,800-byte long-binary payload, captured the closed empty, table-created,
+  and two-row states, then added rows in fixed 256-row batches. The loop made
+  no threshold or locator assumption: it captured the state immediately
+  before and after the first new type-`05` page, then continued until one
+  structurally delimited type-1 row contained at least two nonzero references
+  that each named an extant type-`05` page, failing closed after 32,768 rows.
+  It finally deleted and reinserted the last 256 rows and captured both closed
+  states.
+- Artifacts: development run ids `20260826T210000Z-allocation3`,
+  `20260826T211000Z-allocation4`, and `20260826T212000Z-allocation5`;
+  respective `result.json` SHA-256 values
+  `3d7defcb2d5d0b3cbf5976a15ec04f0ea2fd93e2b262f653feb1471a725e42e8`,
+  `a4f52aa27c81da77503ef196b977b0fb53f2a6c0c5b81c975a15dd0940a3478a`,
+  and `e16eac23bc1d95b8bbe7c4b28982a5ac524a2cb96391abfea9fe444ff99de6e3`.
+  Raw MDBs and complete outputs remain outside the repository.
+- Observation: every run added exactly one new tag-`02` page at physical page
+  20 when the table was created. Exhaustive four-byte-window decoding under
+  both candidate locator orders found the unique adjacent, non-overlapping
+  table-map pair at page offsets 35 and 39: each value is one row byte followed
+  by a three-byte little-endian page number. The values were respectively row
+  0/page 21 and row 1/page 21 in all checkpoints. The row at the first locator
+  tracked every table-owned data page; the second was a subset tracking the
+  currently available data page. The locators and roles were stable across
+  growth, deletion, and reinsertion.
+- Observation: type-1 rows consisted of their tag followed by complete
+  four-byte little-endian slots. Every nonzero slot value directly equaled the
+  physical page number of an extant type-`05` page; zero slots followed the
+  active prefix and selected no page. In every run the table's long-value
+  owned-page row reached the identical two-reference state `[7041, 16354]`.
+- Observation: a complete type-`05` bitmap has 16,352 bits as recorded by
+  `SRC-0020`. For the two-reference table row, slot 0 bit indices through
+  16,351 described physical pages with the same numbers, while slot 1 bit
+  indices described physical pages `16,352 + bit_index`. Deleting 256 rows
+  cleared slot-0 bits 16,340 through 16,351 and 244 slot-1 bits between 1 and
+  249; the represented pages were the corresponding table-owned long-value
+  pages, and reinsertion set the newly allocated positions again. A
+  reference-relative base would map the slot-0 changes beyond the captured
+  16,606-page input and is refuted. Thus the absolute page calculation is
+  checked `slot_ordinal * 16_352 + bit_index`, independent of the physical
+  page storing that bitmap.
+- Interpretation: the bounded reader may decode the two table-map locators at
+  offsets 35 and 39, use the first as the owned-page map, treat zero type-1
+  slots as unused, follow each nonzero raw value as a direct checked physical
+  page reference requiring tag `05`, and derive extended absolute pages with
+  checked `slot_ordinal * 16_352 + bit_index`. It must still reject malformed
+  row directories, flags, out-of-capture references, self-references,
+  repeated references, arithmetic overflow, and resource exhaustion. These
+  observations establish only internal traversal behavior for this project;
+  they do not decode the catalog, provide release-eligible DAO differential
+  evidence, or establish compatibility.
+- Usage: `file:crates/jet3/src/map_location.rs`;
+  `file:crates/jet3/src/usage_map.rs`;
+  `file:crates/jet3/src/allocation_traverse.rs`;
+  `file:crates/jet3/src/database.rs`;
+  `file:fuzz/fuzz_targets/usage_map_traverse.rs`
 - Rights: project-generated licensed-provider outputs are private local
   development material and are neither committed nor redistributed
 - Review: pending independent review

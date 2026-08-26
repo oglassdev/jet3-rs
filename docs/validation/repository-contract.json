@@ -40,14 +40,15 @@
         "provenance_ids": [
           "SRC-0020"
         ],
-        "sha256": "342e213a7c45eab37e2a7898aefdd3d4a5445ed91c5f29f0dd7ec02ae4fcb43b"
+        "sha256": "c52b7b405280675b97b9316b6f39019a650a7d7800a0334d7ac000c766a4e82f"
       },
       {
         "path": "crates/jet3/src/allocation_traverse.rs",
         "provenance_ids": [
-          "SRC-0020"
+          "SRC-0020",
+          "EXP-0057"
         ],
-        "sha256": "f7b3de9413b7ce615e14f7e344f66113492c7e6b50154687d41633ca244a47c4"
+        "sha256": "852ae84e46f8821db4f78acbfcde4d5809abddd1a48679e7cd923a46265273eb"
       },
       {
         "path": "crates/jet3/src/candidate.rs",
@@ -71,9 +72,10 @@
           "SRC-0005",
           "SRC-0013",
           "SRC-0020",
-          "EXP-0056"
+          "EXP-0056",
+          "EXP-0057"
         ],
-        "sha256": "ade820197519da154de38a2b39a6e2f2cf82a271863ed026771c83ab57a360fb"
+        "sha256": "5b01a5e65810b19e2eee78d67a73cb702f396fbd1efeb366b2024f97f43b1b54"
       },
       {
         "path": "crates/jet3/src/database_header.rs",
@@ -101,6 +103,13 @@
         "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6"
       },
       {
+        "path": "crates/jet3/src/map_location.rs",
+        "provenance_ids": [
+          "EXP-0057"
+        ],
+        "sha256": "4fc00ccfaae0ed58e8f6adb82409eb3cf1e6f13fc1475caad519ff419be25c6c"
+      },
+      {
         "path": "crates/jet3/src/page_kind.rs",
         "provenance_ids": [
           "SRC-0020"
@@ -113,6 +122,14 @@
           "SRC-0005"
         ],
         "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367"
+      },
+      {
+        "path": "crates/jet3/src/usage_map.rs",
+        "provenance_ids": [
+          "SRC-0020",
+          "EXP-0057"
+        ],
+        "sha256": "091f54f1b7f495215d5ff6c9ef07bdef406cf8171bf64f912f808f35b13ad0ec"
       }
     ],
     "reviewed_non_assertion_files": [
@@ -124,7 +141,7 @@
       {
         "path": "crates/jet3/src/allocation_traverse_tests.rs",
         "reason": "Test-only verification of the provenance-bound bounded allocation traversal in allocation_traverse.rs.",
-        "sha256": "080d65311dcef6e5ea6c83df75c721a5a88dfd5ebb014bd318f528fc5b3c8713"
+        "sha256": "1f72f3ce97c3df02f2d9435355e355da466c6bb641a50ef31070c992408cf79f"
       },
       {
         "path": "crates/jet3/src/atomic.rs",
@@ -189,12 +206,17 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "3487a123d5f306178594043d1065e4cdffa76a3a70a4304375ee90c5edacdbe5"
+        "sha256": "5789d5cd0cbab7f6166c28effb9d96bff68c040b4269c274bcf947a5d80a550c"
       },
       {
         "path": "crates/jet3/src/limits.rs",
         "reason": "The only Jet reference explicitly states that the security defaults are format-independent.",
         "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443"
+      },
+      {
+        "path": "crates/jet3/src/map_location_tests.rs",
+        "reason": "Test-only verification of the EXP-0057 table-map locator assertions in map_location.rs.",
+        "sha256": "cde5157045742466becb13d3664e8f8693e335b9b3dc420209f7cf4a0e140389"
       },
       {
         "path": "crates/jet3/src/offset.rs",
@@ -230,6 +252,11 @@
         "path": "crates/jet3/src/source.rs",
         "reason": "Format-neutral bounded random-access byte sources.",
         "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a"
+      },
+      {
+        "path": "crates/jet3/src/usage_map_tests.rs",
+        "reason": "Test-only verification of bounded provenance-bound usage-map row delimiting in usage_map.rs.",
+        "sha256": "ea80281a393b3a709b9a483f40b9ab461dec586edda3d95d69975623996e51b8"
       }
     ]
   },

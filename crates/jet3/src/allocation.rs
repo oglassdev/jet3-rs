@@ -5,14 +5,30 @@
 //! pages. They do not locate records, follow map page references, or infer the
 //! database page represented by an extended bitmap bit.
 
-use crate::{ClassifiedPage, Error, PageGeometry, PageKind, PageNumber, ResourceBudget};
+use crate::{
+    ClassifiedPage, Error, JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber, ResourceBudget,
+};
 use std::fmt;
+use std::ops::Range;
 
 const INLINE_RECORD_TYPE: u8 = 0x00;
 const INDIRECT_RECORD_TYPE: u8 = 0x01;
 const INLINE_HEADER_LEN: usize = 5;
 const INDIRECT_REFERENCE_LEN: usize = 4;
 const EXTENDED_BITMAP_OFFSET: usize = 4;
+const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
+pub(crate) const EXTENDED_BITMAP_BITS: u64 = ((PAGE_BYTES - EXTENDED_BITMAP_OFFSET) * 8) as u64;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum AllocationMapLayout {
+    Inline {
+        start_page: PageNumber,
+        bitmap: Range<usize>,
+    },
+    Indirect {
+        references: Range<usize>,
+    },
+}
 
 /// A decoded, caller-delimited allocation-map record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,7 +90,7 @@ impl<'a> IndirectAllocationMap<'a> {
     pub fn map_page_references(&self) -> MapPageReferences<'a> {
         MapPageReferences {
             references: self.references,
-            offset: 0,
+            cursor: MapReferenceCursor::new(0..self.references.len()),
         }
     }
 }
@@ -193,6 +209,36 @@ pub fn decode_allocation_map<'record>(
     record: &'record [u8],
     budget: &mut ResourceBudget,
 ) -> Result<AllocationMap<'record>, AllocationMapError> {
+    match decode_allocation_map_layout(record, budget)? {
+        AllocationMapLayout::Inline { start_page, bitmap } => {
+            let bitmap =
+                record
+                    .get(bitmap)
+                    .ok_or(AllocationMapError::Arithmetic(Error::Arithmetic {
+                        operation: "access decoded inline allocation-map bitmap",
+                    }))?;
+            Ok(AllocationMap::Inline(InlineAllocationMap {
+                start_page,
+                bitmap,
+            }))
+        }
+        AllocationMapLayout::Indirect { references } => {
+            let references = record
+                .get(references)
+                .ok_or(AllocationMapError::Arithmetic(Error::Arithmetic {
+                    operation: "access decoded indirect allocation-map references",
+                }))?;
+            Ok(AllocationMap::Indirect(IndirectAllocationMap {
+                references,
+            }))
+        }
+    }
+}
+
+pub(crate) fn decode_allocation_map_layout(
+    record: &[u8],
+    budget: &mut ResourceBudget,
+) -> Result<AllocationMapLayout, AllocationMapError> {
     budget
         .charge_work_units(1)
         .map_err(AllocationMapError::Resource)?;
@@ -208,10 +254,10 @@ pub fn decode_allocation_map<'record>(
                 });
             }
             let start_page = u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
-            Ok(AllocationMap::Inline(InlineAllocationMap {
+            Ok(AllocationMapLayout::Inline {
                 start_page: PageNumber::new(u64::from(start_page)),
-                bitmap: &payload[INDIRECT_REFERENCE_LEN..],
-            }))
+                bitmap: INLINE_HEADER_LEN..record.len(),
+            })
         }
         INDIRECT_RECORD_TYPE => {
             if payload.len() % INDIRECT_REFERENCE_LEN != 0 {
@@ -219,9 +265,9 @@ pub fn decode_allocation_map<'record>(
                     payload_len: payload.len(),
                 });
             }
-            Ok(AllocationMap::Indirect(IndirectAllocationMap {
-                references: payload,
-            }))
+            Ok(AllocationMapLayout::Indirect {
+                references: 1..record.len(),
+            })
         }
         _ => Err(AllocationMapError::UnsupportedRecordType { record_type }),
     }
@@ -243,8 +289,12 @@ pub fn extended_allocation_bits<'page>(
     }
 
     Ok(ExtendedAllocationBits {
-        bits: SetBitIndices::new(&page.raw_bytes()[EXTENDED_BITMAP_OFFSET..]),
+        bits: SetBitIndices::new(extended_bitmap_bytes(page.raw_bytes())),
     })
+}
+
+pub(crate) fn extended_bitmap_bytes(raw: &[u8; PAGE_BYTES]) -> &[u8] {
+    &raw[EXTENDED_BITMAP_OFFSET..]
 }
 
 /// Allocation-free cursor over set pages in a type-0 inline bitmap.
@@ -296,7 +346,7 @@ impl InlineAllocatedPages<'_> {
 #[derive(Debug)]
 pub struct MapPageReferences<'map> {
     references: &'map [u8],
-    offset: usize,
+    cursor: MapReferenceCursor,
 }
 
 impl MapPageReferences<'_> {
@@ -308,7 +358,34 @@ impl MapPageReferences<'_> {
         &mut self,
         budget: &mut ResourceBudget,
     ) -> Result<Option<u32>, AllocationMapError> {
-        if self.offset == self.references.len() {
+        self.cursor.next_reference(self.references, budget)
+    }
+
+    /// Returns the number of raw references not yet inspected.
+    #[must_use]
+    pub fn remaining_references(&self) -> usize {
+        self.cursor.remaining_references()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct MapReferenceCursor {
+    references: Range<usize>,
+    offset: usize,
+}
+
+impl MapReferenceCursor {
+    pub(crate) const fn new(references: Range<usize>) -> Self {
+        let offset = references.start;
+        Self { references, offset }
+    }
+
+    pub(crate) fn next_reference(
+        &mut self,
+        bytes: &[u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<u32>, AllocationMapError> {
+        if self.offset == self.references.end {
             return Ok(None);
         }
         if let Err(source) = budget.charge_items(1) {
@@ -320,17 +397,24 @@ impl MapPageReferences<'_> {
                 operation: "advance indirect allocation-map reference cursor",
             }),
         )?;
-        let entry = &self.references[self.offset..end];
+        if end > self.references.end {
+            return Err(AllocationMapError::Arithmetic(Error::Arithmetic {
+                operation: "measure indirect allocation-map reference",
+            }));
+        }
+        let entry = bytes
+            .get(self.offset..end)
+            .ok_or(AllocationMapError::Arithmetic(Error::Arithmetic {
+                operation: "access indirect allocation-map reference",
+            }))?;
         self.offset = end;
         Ok(Some(u32::from_le_bytes([
             entry[0], entry[1], entry[2], entry[3],
         ])))
     }
 
-    /// Returns the number of raw references not yet inspected.
-    #[must_use]
-    pub fn remaining_references(&self) -> usize {
-        (self.references.len() - self.offset) / INDIRECT_REFERENCE_LEN
+    pub(crate) fn remaining_references(&self) -> usize {
+        (self.references.end - self.offset) / INDIRECT_REFERENCE_LEN
     }
 }
 
@@ -358,16 +442,33 @@ impl ExtendedAllocationBits<'_> {
 #[derive(Debug)]
 struct SetBitIndices<'bytes> {
     bytes: &'bytes [u8],
-    byte_index: usize,
-    bit_in_byte: u8,
-    bit_index: u64,
-    done: bool,
+    cursor: SetBitCursor,
 }
 
 impl<'bytes> SetBitIndices<'bytes> {
     const fn new(bytes: &'bytes [u8]) -> Self {
         Self {
             bytes,
+            cursor: SetBitCursor::new(),
+        }
+    }
+
+    fn next_set_bit(&mut self, budget: &mut ResourceBudget) -> Result<Option<u64>, SetBitError> {
+        self.cursor.next_set_bit(self.bytes, budget)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SetBitCursor {
+    byte_index: usize,
+    bit_in_byte: u8,
+    bit_index: u64,
+    done: bool,
+}
+
+impl SetBitCursor {
+    pub(crate) const fn new() -> Self {
+        Self {
             byte_index: 0,
             bit_in_byte: 0,
             bit_index: 0,
@@ -375,13 +476,17 @@ impl<'bytes> SetBitIndices<'bytes> {
         }
     }
 
-    fn next_set_bit(&mut self, budget: &mut ResourceBudget) -> Result<Option<u64>, SetBitError> {
-        while !self.done && self.byte_index < self.bytes.len() {
+    pub(crate) fn next_set_bit(
+        &mut self,
+        bytes: &[u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<u64>, SetBitError> {
+        while !self.done && self.byte_index < bytes.len() {
             budget.charge_items(1).map_err(SetBitError::Resource)?;
 
             let bit_index = self.bit_index;
-            let is_set = self.bytes[self.byte_index] & (1 << self.bit_in_byte) != 0;
-            self.advance()?;
+            let is_set = bytes[self.byte_index] & (1 << self.bit_in_byte) != 0;
+            self.advance(bytes.len())?;
             if is_set {
                 return Ok(Some(bit_index));
             }
@@ -389,7 +494,7 @@ impl<'bytes> SetBitIndices<'bytes> {
         Ok(None)
     }
 
-    fn advance(&mut self) -> Result<(), SetBitError> {
+    fn advance(&mut self, byte_len: usize) -> Result<(), SetBitError> {
         self.bit_index = self.bit_index.checked_add(1).ok_or_else(|| {
             self.done = true;
             SetBitError::Arithmetic(Error::Arithmetic {
@@ -411,7 +516,7 @@ impl<'bytes> SetBitIndices<'bytes> {
                 })
             })?;
         }
-        if self.byte_index == self.bytes.len() {
+        if self.byte_index == byte_len {
             self.done = true;
         }
         Ok(())
@@ -419,9 +524,17 @@ impl<'bytes> SetBitIndices<'bytes> {
 }
 
 #[derive(Debug)]
-enum SetBitError {
+pub(crate) enum SetBitError {
     Resource(Error),
     Arithmetic(Error),
+}
+
+impl SetBitError {
+    pub(crate) fn into_error(self) -> Error {
+        match self {
+            Self::Resource(source) | Self::Arithmetic(source) => source,
+        }
+    }
 }
 
 impl From<SetBitError> for AllocationMapError {
