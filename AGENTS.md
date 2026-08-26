@@ -60,7 +60,8 @@ history.
 
 - Local or VM DAO runs are diagnostics unless the preregistration names that
   environment. Before official acquisition, run only contracts and synthetic
-  dry runs locally.
+  dry runs locally. This restriction applies to official evidence campaigns,
+  not to the explicitly exploratory development lane below.
 - Before dispatch, require a merged plan and disclosure, fresh provider proof,
   an exact clean pushed commit, and recorded human authorization. Capture the
   hosted run and attempt ids.
@@ -73,6 +74,20 @@ history.
 - Keep retained evidence read-only. Derive provenance from validated report
   JSON, not workflow summaries, and never commit or redistribute MDB or
   provider bytes.
+
+## Exploratory Windows development
+
+The local VM workflow in `docs/plans/VM_FIRST_DEVELOPMENT.md` is the default
+format-discovery loop. Its outputs must declare `development_only = true` and
+may be regenerated, revised, or discarded without campaign authorization.
+They cannot advance the support matrix, satisfy a release gate, or substantiate
+a compatibility claim.
+
+Exploratory results may guide implementation after the format fact and its
+reproduction scenario are recorded concisely in provenance. Keep the licensed
+Windows/DAO installation, credentials, VM disks, generated MDB files, and raw
+outputs outside the repository. Official acquisition and release evidence
+remain subject to the evidence-campaign rules above.
 
 ## CI and review efficiency
 

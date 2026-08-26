@@ -1,5 +1,11 @@
 # Implementation plan: current state to v1 completion
 
+Development workflow amendment: exploratory implementation now follows
+[`VM_FIRST_DEVELOPMENT.md`](VM_FIRST_DEVELOPMENT.md). The serial campaign and
+approval steps below remain historical guidance and continue to govern only an
+official campaign that explicitly adopts them. Release claims remain governed
+by the binding validation contracts.
+
 Status: directive plan, written 2026-08-23, revised 2026-08-25 after the
 executability and repository-interface reviews (`docs/plans/design-inputs/`
 holds the committed copies of its binding inputs). It is an execution

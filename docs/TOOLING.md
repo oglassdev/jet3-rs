@@ -49,6 +49,12 @@ commands also require:
 
 The optional remote Windows DAO runner additionally needs an OpenSSH client.
 
+The local exploratory Windows DAO loop uses the same system OpenSSH client and
+a machine-local dockur/windows VM. Its disks, credentials, licensed provider,
+and shared artifacts stay outside the repository. See
+[`LOCAL_WINDOWS_VM.md`](LOCAL_WINDOWS_VM.md) for the environment variables and
+checked `just windows-dev-*` entry points.
+
 The Windows DAO oracle additionally requires x86 Windows PowerShell 5 and the
 exact licensed `DAO.DBEngine.36` provider described in
 [`DAO_PROVIDER_BLOCKER.md`](validation/DAO_PROVIDER_BLOCKER.md). Mise cannot
