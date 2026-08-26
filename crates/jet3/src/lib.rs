@@ -14,12 +14,14 @@ pub mod error;
 pub mod header;
 pub mod jet3_page;
 pub mod limits;
+pub mod map_location;
 pub mod offset;
 pub mod page;
 pub mod page_kind;
 pub mod raw_page_stream;
 pub mod resource;
 pub mod source;
+pub mod usage_map;
 
 pub use allocation::{
     AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
@@ -27,8 +29,8 @@ pub use allocation::{
     extended_allocation_bits,
 };
 pub use allocation_traverse::{
-    AllocationTraversalError, PageChainWalker, ReachedMapPage, UnsupportedTraversalStep,
-    VisitedPages, follow_map_page_reference, locate_allocation_map,
+    AllocationTraversalError, OwnedPages, PageChainWalker, ReachedMapPage, VisitedPages,
+    follow_map_page_reference,
 };
 pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
 pub use binary::BinaryCursor;
@@ -50,12 +52,14 @@ pub use header::{
 };
 pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
+pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
 pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use source::{FileSource, ReadAt, SliceSource};
+pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";

@@ -41,3 +41,7 @@ windows-dev-empty:
 # Create the private Jet 3/4, encryption, and password opening matrix.
 windows-dev-opening:
     "{{PYTHON}}" scripts/windows-dao-dev.py opening-matrix
+
+# Discover allocation-map transitions without assuming a conversion threshold.
+windows-dev-allocation:
+    "{{PYTHON}}" scripts/windows-dao-dev.py allocation-map --timeout 900

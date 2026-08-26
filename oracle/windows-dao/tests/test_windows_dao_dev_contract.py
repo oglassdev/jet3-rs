@@ -45,7 +45,12 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         job = next(action for action in parser._actions if action.dest == "job")
         self.assertEqual(
             tuple(job.choices),
-            ("provider-probe", "create-empty", "opening-matrix"),
+            (
+                "provider-probe",
+                "create-empty",
+                "opening-matrix",
+                "allocation-map",
+            ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
 
@@ -114,7 +119,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -124,6 +129,26 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             self.assertIn(name, self.remote)
         self.assertNotIn("Invoke-Expression", self.remote)
         self.assertNotIn("ScriptBlock::Create", self.remote)
+
+    def test_allocation_job_is_bounded_and_publishes_closed_checkpoints(self) -> None:
+        self.assertIn('$Job -ceq "allocation-map"', self.remote)
+        self.assertIn("$maximumRows = 32768", self.remote)
+        self.assertIn("$allocationBatchRows = 256", self.remote)
+        self.assertIn("$allocationPayloadBytes = 1800", self.remote)
+        self.assertIn("No new type-05 page appeared", self.remote)
+        self.assertIn("function Get-MultiSlotUsageMap", self.remote)
+        self.assertIn("No type-1 row with two valid type-05 references", self.remote)
+        for name in (
+            "allocation-00-empty.mdb",
+            "allocation-01-created.mdb",
+            "allocation-02-seeded.mdb",
+            "allocation-03-before-extended.mdb",
+            "allocation-04-after-extended.mdb",
+            "allocation-05-grown.mdb",
+            "allocation-06-deleted.mdb",
+            "allocation-07-reinserted.mdb",
+        ):
+            self.assertIn(name, self.remote)
 
     def test_database_is_closed_before_atomic_publication(self) -> None:
         self.assertLess(

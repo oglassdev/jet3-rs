@@ -82,6 +82,15 @@
       "max_len": 4096,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "usage_map_traverse",
+      "source": "fuzz/fuzz_targets/usage_map_traverse.rs",
+      "corpus": "fuzz/corpus/usage_map_traverse",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
     }
   ]
 }

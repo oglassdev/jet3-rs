@@ -188,10 +188,10 @@
     },
     {
       "id": "format.pages_allocation_usage",
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Bounded complete-page reads, allocation-free sequential streaming, and experimental SRC-0020 byte-zero and detached usage-map primitives are implemented. The classifier names only page zero tag 00 and nonzero-page tags 01 through 05. The detached decoder handles caller-delimited type-0/type-1 records and relative set-bit positions from already-classified complete Jet 3 type-05 pages. It does not locate maps, follow type-1 references, assign null-pointer semantics, derive an extended-map absolute page base, or establish global or table allocation state. All such support is internal-only secondary-documentation support, not independent corroboration or DAO verification; database traversal, remaining page-header meanings, structural validation, and DAO differential evidence are absent.",
+      "reason": "Bounded complete-page reads, allocation-free sequential streaming, SRC-0020 detached usage-map primitives, and EXP-0057 table-owned page traversal are implemented. From a caller-supplied table-definition root, the reader locates and delimits the owned-map row, handles inline maps, treats a zero type-1 slot as null, follows a bounded prefix of direct checked type-05 page references, and derives extended pages from the checked slot-relative base. Traversal rejects malformed row directories and flags, out-of-capture references, self-references, repeated pages, nonzero slots after null, arithmetic overflow, and resource exhaustion with fixed page storage and pre-charged visited state. This does not locate a catalog, discover table roots, establish global allocation state, choose pages for writes, decode row values, or provide DAO differential verification. The implementation and exploratory observations remain internal_only and make no compatibility claim.",
       "evidence": [
         {
           "kind": "source",

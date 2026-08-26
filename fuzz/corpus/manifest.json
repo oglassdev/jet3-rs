@@ -721,7 +721,7 @@
       "path": "fuzz/corpus/allocation/traversal_repeat",
       "size_bytes": 13,
       "sha256": "e3975ac46c7680816c9cb24d34c7eb98be9b53ad9fbe6a53c190a139b1319129",
-      "purpose": "Select the page-chain traversal mode with a chain-depth limit of three over eight extended bitmap pages, then follow pages 2, 2, and 4 so the walker charges and rejects the repeated page without changing depth and keeps the location, pointer-following, and page-base steps unsupported.",
+      "purpose": "Select the page-chain traversal mode with a chain-depth limit of three over eight extended bitmap pages, then follow pages 2, 2, and 4 so the walker charges and rejects the repeated page without changing depth.",
       "origin": "Project-authored synthetic bytes based on SRC-0020; contains no MDB fixture content.",
       "generator": "POSIX printf",
       "environment": {
@@ -749,6 +749,74 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '43\\001\\177\\005\\005\\005\\005\\005\\005\\002\\001\\003' > fuzz/corpus/allocation/traversal_kinds"
+    },
+    {
+      "id": "FUZZ-SEED-USAGE-MAP-TRAVERSE-001",
+      "path": "fuzz/corpus/usage_map_traverse/inline_boundary",
+      "size_bytes": 17,
+      "sha256": "29c9af101293de8f2942860745d29fef9e87a59b0dcb0498ebe43daf762ec4fe",
+      "purpose": "Select an inline owned-page map and exercise its caller-delimited bitmap boundary under input-selected resource limits.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0057; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '0inline-boundary' > fuzz/corpus/usage_map_traverse/inline_boundary"
+    },
+    {
+      "id": "FUZZ-SEED-USAGE-MAP-TRAVERSE-002",
+      "path": "fuzz/corpus/usage_map_traverse/out_of_range",
+      "size_bytes": 9,
+      "sha256": "12caef36994598b40e56ad62f87c700416c9e631a76b5c2b9526c356a74a8b8c",
+      "purpose": "Select an indirect owned-page map whose first bitmap-page reference is beyond the fixed synthetic database.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0057; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '19999999' > fuzz/corpus/usage_map_traverse/out_of_range"
+    },
+    {
+      "id": "FUZZ-SEED-USAGE-MAP-TRAVERSE-003",
+      "path": "fuzz/corpus/usage_map_traverse/repeated_reference",
+      "size_bytes": 9,
+      "sha256": "ee31edefe2aac2cfdb3b616c0154273cced8a96854e1360069507bb1ac2522a5",
+      "purpose": "Select an indirect owned-page map with a repeated type-05 bitmap-page reference so bounded visited-state rejects the cycle.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0057; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '13333333' > fuzz/corpus/usage_map_traverse/repeated_reference"
+    },
+    {
+      "id": "FUZZ-SEED-USAGE-MAP-TRAVERSE-004",
+      "path": "fuzz/corpus/usage_map_traverse/zero_slots",
+      "size_bytes": 9,
+      "sha256": "751be12fbd2ea0a30819c86ed0b631b3b5d0bbf9bbd077b460dec6b7634a8a1c",
+      "purpose": "Select an indirect owned-page map containing only null reference slots and require a bounded empty traversal.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0057; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '19990000' > fuzz/corpus/usage_map_traverse/zero_slots"
     }
   ]
 }

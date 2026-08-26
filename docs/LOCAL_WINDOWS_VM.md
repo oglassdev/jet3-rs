@@ -31,6 +31,7 @@ Pin its host key before invoking these commands:
 just windows-dev-probe
 just windows-dev-empty
 just windows-dev-opening
+just windows-dev-allocation
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -39,6 +40,14 @@ DAO candidates. `create-empty` additionally requires a ready
 then publishes the private MDB and result metadata through the Dockur share.
 `opening-matrix` creates the private Jet 3/4, encryption, and password controls
 used while developing fail-closed database opening.
+
+`allocation-map` creates one private Jet 3 table, adds deterministic long-binary
+rows in fixed bounded batches until one type-1 row contains two nonzero
+references to type-`05` pages, then captures deletion and reinsertion across
+that multi-slot state. It publishes eight closed checkpoint MDBs plus compact
+page-count, type-`05`, and multi-slot metadata. The growth loop assumes no
+format threshold: it stops on observed row and page structure or fails after
+32,768 rows. Allow up to 15 minutes for this exploratory job.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and

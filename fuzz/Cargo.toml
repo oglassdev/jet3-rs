@@ -73,6 +73,12 @@ name = "allocation"
 path = "fuzz_targets/allocation.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "usage_map_traverse"
+path = "fuzz_targets/usage_map_traverse.rs"
+test = false
+doc = false
 bench = false
 
 # Keep this cargo-fuzz package independent of the production workspace.
