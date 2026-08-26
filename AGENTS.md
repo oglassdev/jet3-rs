@@ -51,10 +51,41 @@ must report `BLOCKED` until every required gate is actually wired and present.
 - Use conventional commit messages such as `feat:`, `fix:`, `test:`, `docs:`,
   `refactor:`, `perf:`, `build:`, and `chore:`.
 
-Binding contracts live in `docs/PROVENANCE.md`, `docs/validation/ACCEPTANCE.md`,
-`docs/validation/EVIDENCE.md`, and `docs/validation/DAO_PROVIDER_BLOCKER.md`.
-Amendments are additive: a new revision plan file plus a new provenance entry,
-never an edit to a preregistered plan or a rewrite of ledger history.
+Binding contracts live in `docs/plans/IMPLEMENTATION_PLAN.md`,
+`docs/PROVENANCE.md`, and `docs/validation/`. Amendments are additive: add a
+revision plan and provenance entry; never edit a preregistered plan or ledger
+history.
+
+## Evidence campaigns
+
+- Local or VM DAO runs are diagnostics unless the preregistration names that
+  environment. Before official acquisition, run only contracts and synthetic
+  dry runs locally.
+- Before dispatch, require a merged plan and disclosure, fresh provider proof,
+  an exact clean pushed commit, and recorded human authorization. Capture the
+  hosted run and attempt ids.
+- An honest independently validated `no_outcome` is a valid result; never
+  optimize for a favorable finding.
+- A failure after the first DAO mutation, or an uncertain failure, is
+  scientific under `IMPLEMENTATION_PLAN.md` Section 6.4. Record it once; do not
+  redispatch or change scientific inputs without the required human decision
+  and additive revision or new experiment.
+- Keep retained evidence read-only. Derive provenance from validated report
+  JSON, not workflow summaries, and never commit or redistribute MDB or
+  provider bytes.
+
+## CI and review efficiency
+
+- Overlap independent work, but never weaken bindings, holdout isolation,
+  independent recomputation, exact-head review, path filters, or required
+  checks.
+- Use focused checks while iterating; run full phase acceptance once on the
+  final candidate. Any tracked change invalidates exact-head review.
+- Inspect the active step and recent durations before calling CI stalled.
+  Cancel only superseded runs.
+- Local acceptance, hosted CI, and review may overlap on immutable inputs. A
+  post-merge rerun need not block handoff when its tree equals the reviewed
+  head and no contract requires merge-commit evidence; disclose its status.
 
 ## Glossary
 
@@ -62,9 +93,11 @@ never an edit to a preregistered plan or a rewrite of ledger history.
   Fail closed: anything missing reports `BLOCKED` with a nonzero exit.
 - **G1 aggregate** — commit-bound cross-platform (Linux/macOS/Windows) evidence
   bundle, validated by `tools/ci_evidence.py verify-aggregate`.
-- **M0–M5, M5S1** — preregistered Windows DAO oracle experiment campaigns
-  (`oracle/windows-dao/experiments/`). Evidence campaigns, not product
-  milestones; `R` suffixes (M5R2…) are additive plan revisions.
+- **M0–M5/M5S1 and A1–A9** — Windows DAO evidence campaigns, not product
+  milestones. Revisions are additive and never overwrite base plans.
+- **Infrastructure failure / scientific event** — the fail-closed boundary in
+  `IMPLEMENTATION_PLAN.md` Section 6.4. Once the first DAO mutation may have
+  occurred, treat failure as scientific unless the plan clearly says otherwise.
 - **Semantic reader stages 0–6** — the dependency-ordered reader plan
   (`docs/architecture/SEMANTIC_READER.md`); each stage gates on recorded
   provenance, not on any specific experiment.
