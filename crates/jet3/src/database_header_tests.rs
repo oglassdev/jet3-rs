@@ -1,7 +1,10 @@
 use std::error::Error as StdError;
 use std::io;
 
-use super::{DatabaseHeaderPage, DatabaseHeaderPageError};
+use super::{
+    DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError, DatabaseProtection,
+    DatabaseVersion,
+};
 use crate::{
     ByteCount, ByteOffset, Error, HeaderError, JetFileKind, LimitKind, RawJet3Candidate, ReadAt,
     ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
@@ -20,6 +23,73 @@ fn raw_page(signature: &[u8; 15]) -> [u8; PAGE_BYTES] {
         *byte = index as u8;
     }
     raw
+}
+
+fn supported_raw_page() -> [u8; PAGE_BYTES] {
+    let mut raw = raw_page(b"Standard Jet DB");
+    raw[0x14] = 0x00;
+    raw[0x41] = 0x4e;
+    raw[0x42..0x50].copy_from_slice(&[
+        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
+    ]);
+    raw
+}
+
+#[test]
+fn supported_format_accepts_only_the_observed_v1_opening_state() -> Result<(), HeaderError> {
+    let view = DatabaseHeaderPage::from_raw_bytes(supported_raw_page())?;
+    let format = view.supported_format().expect("supported opening state");
+    assert_eq!(format.version(), DatabaseVersion::Jet3);
+    assert_eq!(
+        format.protection(),
+        DatabaseProtection::UnencryptedWithoutPassword
+    );
+    Ok(())
+}
+
+#[test]
+fn supported_format_rejects_the_observed_jet4_marker() -> Result<(), HeaderError> {
+    for observed in 1..=u8::MAX {
+        let mut raw = supported_raw_page();
+        raw[0x14] = observed;
+        let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
+        assert_eq!(
+            view.supported_format(),
+            Err(DatabaseFormatError::UnsupportedVersion { observed })
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn supported_format_rejects_the_observed_encrypted_marker() -> Result<(), HeaderError> {
+    for observed in 0..=u8::MAX {
+        if observed == 0x4e {
+            continue;
+        }
+        let mut raw = supported_raw_page();
+        raw[0x41] = observed;
+        let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
+        assert_eq!(
+            view.supported_format(),
+            Err(DatabaseFormatError::EncryptedOrUnsupported { observed })
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn supported_format_rejects_passworded_or_unknown_header_state() -> Result<(), HeaderError> {
+    for offset in 0x42..0x50 {
+        let mut raw = supported_raw_page();
+        raw[offset] ^= 0x01;
+        let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
+        assert_eq!(
+            view.supported_format(),
+            Err(DatabaseFormatError::PasswordedOrUnsupported)
+        );
+    }
+    Ok(())
 }
 
 fn operation_budget(single_read: u64, total_read: u64) -> ResourceBudget {

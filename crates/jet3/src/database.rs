@@ -3,19 +3,20 @@
 //! This module composes only the generic Jet signature published by Microsoft
 //! (`SRC-0004`), the documented Jet 3 2 KiB page size (`SRC-0005`), and the
 //! documented identification of the first database page as the database header
-//! page (`SRC-0013`). Initial validation does not identify a physical Jet
-//! version discriminator, encryption state, page type, allocation structure,
-//! catalog, table, row, or value. The experimental classified-page read
-//! composes the byte-zero tags in `SRC-0020` without validating any other
-//! page-header byte.
+//! page (`SRC-0013`), and the narrow Jet 3/unprotected opening discriminator
+//! from `EXP-0056`. Initial validation does not establish page allocation, a
+//! catalog, tables, rows, values, or DAO compatibility. The experimental
+//! classified-page read composes the byte-zero tags in `SRC-0020` without
+//! validating any other page-header byte.
 
 use std::fmt;
 use std::path::Path;
 
 use crate::{
-    CandidateError, ClassifiedPage, DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource,
-    JET3_PAGE_SIZE, JetFileKind, PageClassificationError, PageGeometry, PageNumber,
-    RawJet3Candidate, RawPageCursor, ReadAt, ResourceBudget, classify_page,
+    CandidateError, ClassifiedPage, DatabaseFormatError, DatabaseHeaderPage,
+    DatabaseHeaderPageError, Error, FileSource, JET3_PAGE_SIZE, JetFileKind,
+    PageClassificationError, PageGeometry, PageNumber, RawJet3Candidate, RawPageCursor, ReadAt,
+    ResourceBudget, SupportedDatabaseFormat, classify_page,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -30,6 +31,8 @@ pub enum DatabaseOpenError {
     Candidate(CandidateError),
     /// Reading or revalidating the complete database-header page failed.
     Header(DatabaseHeaderPageError),
+    /// The complete header describes a version or protection state outside v1.
+    Format(DatabaseFormatError),
     /// The generic signature classification changed between bounded reads.
     SignatureChanged {
         /// Classification from the initial 15-byte signature read.
@@ -49,6 +52,9 @@ impl fmt::Display for DatabaseOpenError {
             Self::Header(source) => {
                 write!(formatter, "database header validation failed: {source}")
             }
+            Self::Format(source) => {
+                write!(formatter, "database format is unsupported: {source}")
+            }
             Self::SignatureChanged { initial, header } => write!(
                 formatter,
                 "database signature changed while opening: initial {initial:?}, header {header:?}"
@@ -63,6 +69,7 @@ impl std::error::Error for DatabaseOpenError {
             Self::Source(source) => Some(source),
             Self::Candidate(source) => Some(source),
             Self::Header(source) => Some(source),
+            Self::Format(source) => Some(source),
             Self::SignatureChanged { .. } => None,
         }
     }
@@ -100,15 +107,14 @@ impl std::error::Error for DatabasePageError {
 
 /// A bounded reader whose initial, narrowly supported structure was checked.
 ///
-/// Construction requires a documented generic Jet signature, an input length
-/// exactly divisible into 2 KiB pages, and a complete readable page zero whose
-/// signature still matches when read as a whole. These checks are intentionally
-/// insufficient to claim that the input is Jet 3, unencrypted, internally
-/// consistent, or compatible with DAO.
+/// Construction requires a documented generic Jet signature, exact 2 KiB page
+/// geometry, and the supported Jet 3, unencrypted, no-password page-zero state.
+/// These checks do not establish internal consistency or DAO compatibility.
 #[derive(Debug)]
 pub struct DatabaseReader<S> {
     candidate: RawJet3Candidate<S>,
     header: DatabaseHeaderPage,
+    format: SupportedDatabaseFormat,
 }
 
 impl DatabaseReader<FileSource> {
@@ -147,7 +153,14 @@ where
                 header: header.signature_kind(),
             });
         }
-        Ok(Self { candidate, header })
+        let format = header
+            .supported_format()
+            .map_err(DatabaseOpenError::Format)?;
+        Ok(Self {
+            candidate,
+            header,
+            format,
+        })
     }
 
     /// Returns the retained, complete database-header-page snapshot.
@@ -160,6 +173,12 @@ where
     #[must_use]
     pub const fn signature_kind(&self) -> JetFileKind {
         self.header.signature_kind()
+    }
+
+    /// Returns the Jet 3 and unprotected format identity checked at open time.
+    #[must_use]
+    pub const fn format(&self) -> SupportedDatabaseFormat {
+        self.format
     }
 
     /// Returns the exact 2 KiB page geometry captured at open time.

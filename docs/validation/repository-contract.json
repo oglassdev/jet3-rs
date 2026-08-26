@@ -30,9 +30,10 @@
         "path": "crates/jet3-cli/src/main.rs",
         "provenance_ids": [
           "SRC-0004",
-          "SRC-0005"
+          "SRC-0005",
+          "EXP-0056"
         ],
-        "sha256": "ff6a2d9b2481feeb5a7fda597d2b3ebdf26b0cfd2e0a3aba5226ee161c0f636c"
+        "sha256": "0b9e015e246827ee99876738a28e40b0e2867ead3c537a02134023f47c7a02a7"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -69,18 +70,20 @@
           "SRC-0004",
           "SRC-0005",
           "SRC-0013",
-          "SRC-0020"
+          "SRC-0020",
+          "EXP-0056"
         ],
-        "sha256": "0319b38ca7830e80bcad767b72b00797136118b66653b078989349739314a0e5"
+        "sha256": "ade820197519da154de38a2b39a6e2f2cf82a271863ed026771c83ab57a360fb"
       },
       {
         "path": "crates/jet3/src/database_header.rs",
         "provenance_ids": [
           "SRC-0004",
           "SRC-0005",
-          "SRC-0013"
+          "SRC-0013",
+          "EXP-0056"
         ],
-        "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38"
+        "sha256": "4a9340d94b67f4f97e07575a93b11b92d34738d118add7f3e196162131f3a968"
       },
       {
         "path": "crates/jet3/src/header.rs",
@@ -121,7 +124,7 @@
       {
         "path": "crates/jet3/src/allocation_traverse_tests.rs",
         "reason": "Test-only verification of the provenance-bound bounded allocation traversal in allocation_traverse.rs.",
-        "sha256": "71b6fd8cfac85d09ac4e7e18260c03f7b9cbeb2d24ce8fe8054536297505e485"
+        "sha256": "080d65311dcef6e5ea6c83df75c721a5a88dfd5ebb014bd318f528fc5b3c8713"
       },
       {
         "path": "crates/jet3/src/atomic.rs",
@@ -156,12 +159,12 @@
       {
         "path": "crates/jet3/src/database_header_tests.rs",
         "reason": "Test-only verification of the provenance-bound database header page composition in database_header.rs.",
-        "sha256": "bec401286680c08fd2a722e9495c5964bc3ded66f2392166caaef4415d61eda0"
+        "sha256": "d0668c0a3d25d3df587630396bd57a420efa37d1782bfb7e376482587aeacf4e"
       },
       {
         "path": "crates/jet3/src/database_tests.rs",
         "reason": "Test-only verification of provenance-bound bounded database opening and classified-page integration in database.rs.",
-        "sha256": "96de7950153dfff844a09cd02eea5e2786a596927c7cbda26ef68858b426785d"
+        "sha256": "5facf7e0952440581f4d31b085864e8ffb005ce4c52e9346192cce52a1bdea01"
       },
       {
         "path": "crates/jet3/src/commit_state_tests.rs",
@@ -186,7 +189,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "11c71d7799172a76459bce12007761a0c8abe26e409021dc79a3eb168f1cf249"
+        "sha256": "3487a123d5f306178594043d1065e4cdffa76a3a70a4304375ee90c5edacdbe5"
       },
       {
         "path": "crates/jet3/src/limits.rs",

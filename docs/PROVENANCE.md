@@ -884,6 +884,35 @@ Use `not applicable` explicitly rather than omitting a field.
   content is redistributed
 - Review: pending independent review
 
+### SRC-0022 — DAO database-password mutation contract
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: public source
+- Question: How can a development-only DAO control add a database password,
+  and what input bound applies?
+- Origin: Microsoft Learn, “Database.NewPassword method (DAO),” accessed
+  2026-08-26,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/database-newpassword-method-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: inspect the documented method signature, argument descriptions,
+  and remarks only
+- Artifacts: the cited public documentation page; no documentation content is
+  redistributed by this repository
+- Observation: Microsoft documents `NewPassword(old, new)` as changing a
+  database password; each password string is limited to 20 characters, an
+  empty old password adds a password to a database that has none, and password
+  matching is case-sensitive.
+- Interpretation: the development-only DAO opening matrix may use
+  `NewPassword` with a bounded nonempty password to create a passworded control.
+  This API contract assigns no meaning to an MDB byte or field and establishes
+  no Rust correctness or compatibility.
+- Usage:
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`
+- Rights: citation to public Microsoft documentation; no documentation content
+  is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
@@ -4981,6 +5010,58 @@ Use `not applicable` explicitly rather than omitting a field.
   scratch tree; no MDB or provider binary is committed or redistributed
 - Review: pending exact-head review; further A4 acquisition is stopped pending
   human direction
+
+### EXP-0056 — Local DAO opening discriminator matrix
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Which minimal page-zero states distinguish DAO-created Jet 3 from
+  Jet 4 controls and the supported Jet 3 unencrypted, no-password state from
+  encrypted or passworded controls?
+- Origin: the project-authored local Windows development runner using the DAO
+  creation, open, and password APIs documented in `SRC-0014`, `SRC-0015`, and
+  `SRC-0022`; no third-party MDB implementation was inspected
+- Environment: local Windows Server 2022 build 20348 VM; x86 Windows PowerShell
+  5.1.20348.558; `DAO.DBEngine.36` 3.6 from `dao360.dll` version
+  `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  host and guest time zone `America/New_York`
+- Protocol: run three independent `opening-matrix` jobs. In each run, create,
+  close, and reopen eight controls spanning DAO versions 3.0 and 4.0, encrypted
+  and unencrypted creation, and passworded and no-password states. Require DAO
+  reopen success and the expected `Database.Version`, then compare only the
+  bounded page-zero prefix `[0, 0x600)` across all 24 private outputs.
+- Artifacts: development run ids `20260826T143505Z-dev-dao`,
+  `20260826T143554Z-dev-dao`, and `20260826T143604Z-dev-dao`; respective
+  `result.json` SHA-256 values
+  `0f48cd6d509b7729047c4049ebec3cae0941ba9d7dd65c328b062c2c48f96b17`,
+  `4cde98eb6e87af4749a41995bc49ed398bc6d91b35c79d5a484a2e7741996c96`,
+  and `b7972ab6cf9791391364f5003c2f3bfa006ea12b31227a1e8d575e1f2a331690`.
+  Raw MDBs and complete outputs remain outside the repository.
+- Observation: DAO reported version `3.0` and 40,960 bytes for every Jet 3
+  control and version `4.0` and 65,536 bytes for every Jet 4 control. Across
+  every run, offset `0x014` was `00` for Jet 3 and `01` for Jet 4; offset
+  `0x041` was `4e` for unencrypted controls and `ee` for encrypted controls.
+  Every Jet 3 no-password control, encrypted or unencrypted, had bytes
+  `86 fb ec 37 5d 44 9c fa c6 5e 28 e6 13 b6` at `[0x042, 0x050)`;
+  passworded Jet 3 controls differed there. Other encrypted bytes varied across
+  runs. The Rust CLI admitted every unencrypted, no-password Jet 3 control and
+  rejected every Jet 4, encrypted, or passworded control by the corresponding
+  discriminator.
+- Interpretation: the v1 opening boundary may require the exact Jet 3 marker
+  at `0x014`, unencrypted marker at `0x041`, and observed Jet 3 no-password
+  state at `[0x042, 0x050)`, failing closed for every other value. This
+  establishes only an internal opening discriminator. It does not validate the
+  rest of page zero or the database structure, advance the support matrix to
+  DAO-verified, or establish compatibility. `EXP-0018` remains unchanged: its
+  official campaign was inconclusive and assigned no physical meaning.
+- Usage: `file:crates/jet3/src/database_header.rs`;
+  `file:crates/jet3/src/database.rs`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
 
 ## Fixtures and black-box results
 

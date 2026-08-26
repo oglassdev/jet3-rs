@@ -41,7 +41,8 @@ pub use commit_state::{
 };
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
-    DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError,
+    DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
+    DatabaseProtection, DatabaseVersion, SupportedDatabaseFormat,
 };
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{

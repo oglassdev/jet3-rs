@@ -1,10 +1,11 @@
 #![forbid(unsafe_code)]
 
-//! Bounded command-line diagnostics for generic Jet database candidates.
+//! Bounded command-line diagnostics for supported Jet 3 databases.
 //!
-//! This binary intentionally reports only documented generic signatures and
-//! 2 KiB page geometry. It does not claim a Jet generation, encryption state,
-//! structural validity, or application compatibility.
+//! This binary reports the narrow version and protection state checked by
+//! [`jet3::DatabaseReader`] from the exploratory `EXP-0056` discriminator. It
+//! does not claim whole-database structural validity or application
+//! compatibility.
 
 use std::env;
 use std::ffi::OsString;
@@ -13,8 +14,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use jet3::{
-    ByteCount, CandidateError, FileSource, JET3_PAGE_SIZE, JetFileKind, RawJet3Candidate,
-    ReadLimits, ResourceBudget, ResourceLimits,
+    ByteCount, CandidateError, DatabaseFormatError, DatabaseOpenError, DatabaseReader, FileSource,
+    JET3_PAGE_SIZE, JetFileKind, ReadLimits, ResourceBudget, ResourceLimits,
 };
 
 const DEFAULT_MAX_INPUT_BYTES: u64 = 256 * 1024 * 1024;
@@ -22,6 +23,9 @@ const DEFAULT_MAX_INPUT_BYTES: u64 = 256 * 1024 * 1024;
 const SIGNATURE_READ_BYTES: u64 = 15;
 // `JET3_PAGE_SIZE` is the `SRC-0005`-traced library constant.
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
+const OPENING_READ_BYTES: u64 = SIGNATURE_READ_BYTES + PAGE_BYTES as u64;
+const OPENING_PAGE_VISITS: u64 = 1;
+const OPENING_WORK_UNITS: u64 = 1;
 const FNV1A64_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV1A64_PRIME: u64 = 0x0000_0100_0000_01b3;
 const IO_ERROR_EXIT: u8 = 74;
@@ -36,12 +40,12 @@ Usage:
   jet3-cli --help
   jet3-cli --version
 
-probe recognizes only the documented generic Jet signature and reports candidate
-2 KiB geometry. --scan-pages rereads every complete candidate page with a fixed
-2 KiB buffer after checking both explicit scan limits.
+probe accepts only the supported Jet 3, unencrypted, no-password header state
+and reports 2 KiB geometry. --scan-pages rereads every complete page with a
+fixed 2 KiB buffer after checking both explicit scan limits.
 
-The JSON result does not identify a Jet generation or encryption state, validate
-database structure, or establish application compatibility.
+The JSON result does not validate whole-database structure or establish
+application compatibility.
 ";
 
 #[derive(Debug)]
@@ -186,15 +190,19 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
         Some(limits) => (
             limits
                 .max_bytes
-                .checked_add(SIGNATURE_READ_BYTES)
+                .checked_add(OPENING_READ_BYTES)
                 .ok_or("invalid_limit")?,
-            limits.max_pages,
+            limits
+                .max_pages
+                .checked_add(OPENING_PAGE_VISITS)
+                .ok_or("invalid_limit")?,
             limits
                 .max_bytes
                 .checked_add(limits.max_pages)
+                .and_then(|work| work.checked_add(OPENING_WORK_UNITS))
                 .ok_or("invalid_limit")?,
         ),
-        None => (SIGNATURE_READ_BYTES, 0, 0),
+        None => (OPENING_READ_BYTES, OPENING_PAGE_VISITS, OPENING_WORK_UNITS),
     };
     let read_limits = ReadLimits::new(
         ByteCount::new(options.max_input_bytes),
@@ -205,18 +213,10 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
         .with_max_page_visits(max_page_visits)
         .with_max_total_work_units(max_total_work);
     let mut budget = ResourceBudget::new(resource_limits);
-    let source =
-        FileSource::open(&options.path, budget.read_budget()).map_err(|_| "open_failed")?;
-    let mut candidate =
-        RawJet3Candidate::inspect(source, &mut budget).map_err(|error| match error {
-            CandidateError::Input(_) => "input_limit_exceeded",
-            CandidateError::Signature(_) => "unrecognized_signature",
-            CandidateError::Geometry(_) => "not_2k_aligned",
-            _ => "candidate_inspection_failed",
-        })?;
-    let geometry = candidate.geometry();
+    let mut database = DatabaseReader::open(&options.path, &mut budget).map_err(open_error_code)?;
+    let geometry = database.geometry();
 
-    let signature_name = match candidate.signature_kind() {
+    let signature_name = match database.signature_kind() {
         JetFileKind::Standard => "standard",
         JetFileKind::System => "system",
         JetFileKind::Temporary => "temporary",
@@ -236,11 +236,12 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
         }
         let expected_work = scan_bytes
             .checked_add(geometry.page_count())
+            .and_then(|work| work.checked_add(OPENING_WORK_UNITS))
             .ok_or("scan_count_overflow")?;
-        let result = scan_pages(&mut candidate, &mut budget)?;
+        let result = scan_pages(&mut database, &mut budget)?;
         if result.pages_read != geometry.page_count()
             || result.hashed_bytes != scan_bytes
-            || budget.page_visits() != geometry.page_count()
+            || budget.page_visits() != geometry.page_count() + OPENING_PAGE_VISITS
             || budget.total_work_units() != expected_work
         {
             return Err("scan_accounting_failed");
@@ -261,10 +262,10 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
 
     Ok(format!(
         "{{\"schema_version\":1,\"ok\":true,\"signature_kind\":\"{signature_name}\",\
+         \"database_version\":\"jet3\",\"protection\":\"unencrypted_without_password\",\
          \"candidate_geometry\":{{\"page_size_bytes\":{PAGE_BYTES},\"page_count\":{},\
          \"source_length_bytes\":{}}},\"raw_scan\":{scan_json},\
-         \"caveats\":[\"generic_signature_only\",\"jet_generation_not_identified\",\
-         \"encryption_state_not_inspected\",\"database_structure_not_validated\",\
+         \"caveats\":[\"opening_header_only\",\"database_structure_not_validated\",\
          \"compatibility_not_established\"]}}\n",
         geometry.page_count(),
         geometry.source_len().get()
@@ -272,12 +273,12 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
 }
 
 fn scan_pages(
-    candidate: &mut RawJet3Candidate<FileSource>,
+    database: &mut DatabaseReader<FileSource>,
     budget: &mut ResourceBudget,
 ) -> Result<ScanResult, &'static str> {
     let mut checksum = FNV1A64_OFFSET_BASIS;
     let mut hashed_bytes = 0_u64;
-    let mut raw_pages = candidate.raw_pages();
+    let mut raw_pages = database.raw_pages();
     while let Some(page) = raw_pages
         .next_page(budget)
         .map_err(|_| "scan_read_failed")?
@@ -301,6 +302,25 @@ fn scan_pages(
         hashed_bytes,
         checksum,
     })
+}
+
+fn open_error_code(error: DatabaseOpenError) -> &'static str {
+    match error {
+        DatabaseOpenError::Source(_) => "open_failed",
+        DatabaseOpenError::Candidate(CandidateError::Input(_)) => "input_limit_exceeded",
+        DatabaseOpenError::Candidate(CandidateError::Signature(_)) => "unrecognized_signature",
+        DatabaseOpenError::Candidate(CandidateError::Geometry(_)) => "not_2k_aligned",
+        DatabaseOpenError::Format(DatabaseFormatError::UnsupportedVersion { .. }) => {
+            "unsupported_database_version"
+        }
+        DatabaseOpenError::Format(DatabaseFormatError::EncryptedOrUnsupported { .. }) => {
+            "encrypted_or_unsupported_database"
+        }
+        DatabaseOpenError::Format(DatabaseFormatError::PasswordedOrUnsupported) => {
+            "passworded_or_unsupported_database"
+        }
+        _ => "database_open_failed",
+    }
 }
 
 fn error_json(code: &str) -> String {

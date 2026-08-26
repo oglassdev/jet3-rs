@@ -16,19 +16,20 @@ captured-length `ReadAt` source and, using one caller-owned `ResourceBudget`:
 4. reads one complete database-header page, which is the first database page
    (`SRC-0013`); and
 5. rejects a signature classification that changes between the initial window
-   and the retained page-zero read; and
-6. can read a complete page into caller-owned fixed storage and classify only
+   and the retained page-zero read;
+6. requires the exploratory Jet 3, unencrypted, no-password opening state from
+   `EXP-0056`; and
+7. can read a complete page into caller-owned fixed storage and classify only
    its byte-zero tag in page-number context (`SRC-0020`).
 
-Success establishes only this narrow structural envelope. It does not identify
-the Jet generation, prove that the input is unencrypted, validate any page
-header or payload beyond the experimental byte-zero tag, validate database
-allocation state, locate a catalog, or establish compatibility. Unknown and
-contextually unsupported tags are retained as successful `Unknown(u8)`
-classifications. In
-particular, `EXP-0018` observed offset `0x041` under one DAO campaign but
-explicitly assigned it no physical meaning and reported an inconclusive
-scientific outcome.
+Success establishes only this narrow opening envelope. It identifies the
+exploratory Jet 3, unencrypted, no-password discriminator tuple, but does not
+validate the rest of page zero, any page header or payload beyond the
+experimental byte-zero tag, database allocation state, a catalog, or
+compatibility. Unknown and contextually unsupported tags are retained as
+successful `Unknown(u8)` classifications. `EXP-0056` is local development
+evidence and does not revise the inconclusive official `EXP-0018` result or
+advance a release claim.
 
 The physical layer also has an internal-only detached usage-map decoder based
 on `SRC-0020`. It accepts only caller-supplied record or page bytes; it is not
@@ -44,7 +45,7 @@ must not reach around these boundaries to decode numeric offsets directly.
 
 | Stage | Intended output | Evidence gate before implementation | Required safety boundary | Present state |
 | --- | --- | --- | --- | --- |
-| 0. Bounded opening | `DatabaseReader<S>`, captured geometry, retained page zero | Existing `SRC-0004`, `SRC-0005`, and `SRC-0013` | Input, single-read, total-read, page-visit, and total-work limits | Implemented internally; no compatibility claim |
+| 0. Bounded opening | `DatabaseReader<S>`, typed supported format, captured geometry, retained page zero | `SRC-0004`, `SRC-0005`, `SRC-0013`, and exploratory `EXP-0056` | Input, single-read, total-read, page-visit, and total-work limits | Implemented internally for Jet 3, unencrypted, no-password inputs; no structural-validity or compatibility claim |
 | 1. Page classification | `PageKind` plus a borrowed `ClassifiedPage` over one complete fixed page | `SRC-0020` for byte offset zero and tags `00` through `05`; no other header field or validity rule is claimed | One fixed page per decode; one page visit per source read; one explicit classification work unit | Implemented experimentally/internal-only; unknown tags remain lossless; retained classifier run at commit 0a48b190ffb3211e3e1fd1f0483327b507d15136 over FIX-0001..FIX-0004 (`docs/validation/stage1-classifier-snapshot.json`); not DAO-verified |
 | 2. Allocation and usage | Bounded iterators over allocated/owned page references | `SRC-0020` supports detached type-0/type-1 records and complete Jet 3 type-`05` bitmap pages only; map locations, pointer rules, extended bases, and traversal still require physical evidence | Checked arithmetic and item charging for detached decoding; future traversal additionally requires checked page references, cycle detection, chain-depth limits, and bounded visited state | Detached primitives implemented experimentally/internal-only; format-neutral page-chain boundary implemented (`allocation_traverse`: caller-supplied pages only, checked references, pre-charged visited set, chain depth, repeat detection, one visit per followed page, required classification); map location, raw-reference following, and extended page base return structured `Unsupported` and stay blocked on evidence |
 | 3. Catalog bootstrap | Streaming catalog records sufficient to locate user objects | Provenance for catalog root/location, record layout, object kinds, identifiers, and name encoding | Allocation charged before buffers/sets; count and page limits; no recursive traversal | Blocked on physical evidence |
@@ -161,7 +162,8 @@ evidence.
 
 The current provenance does not establish any of the following:
 
-- a Jet 3 version discriminator or a physical unencrypted-state check;
+- any additional database-header field or validity rule beyond the narrow
+  exploratory opening discriminator in `EXP-0056`;
 - any page-header field or validity rule beyond the experimental byte-zero tags
   recorded in `SRC-0020`;
 - allocation/usage map locations, encodings, ownership, or continuation rules;

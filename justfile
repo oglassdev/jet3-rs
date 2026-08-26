@@ -37,3 +37,7 @@ windows-dev-probe:
 # Create and reopen one private empty Jet 3 database through local DAO.
 windows-dev-empty:
     "{{PYTHON}}" scripts/windows-dao-dev.py create-empty
+
+# Create the private Jet 3/4, encryption, and password opening matrix.
+windows-dev-opening:
+    "{{PYTHON}}" scripts/windows-dao-dev.py opening-matrix
