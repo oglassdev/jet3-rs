@@ -36,9 +36,9 @@ fn supported_raw_page() -> [u8; PAGE_BYTES] {
 }
 
 #[test]
-fn supported_format_accepts_only_the_observed_v1_opening_state() -> Result<(), HeaderError> {
+fn supported_format_accepts_only_the_observed_v1_opening_state() -> Result<(), Box<dyn StdError>> {
     let view = DatabaseHeaderPage::from_raw_bytes(supported_raw_page())?;
-    let format = view.supported_format().expect("supported opening state");
+    let format = view.supported_format()?;
     assert_eq!(format.version(), DatabaseVersion::Jet3);
     assert_eq!(
         format.protection(),
