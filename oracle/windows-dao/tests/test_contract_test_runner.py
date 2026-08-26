@@ -40,7 +40,14 @@ class ContractTestRunnerTests(unittest.TestCase):
         self.assertLessEqual(set(RUNNER.WINDOWS_PR_MODULES), self.modules)
 
     def test_windows_inventory_covers_every_platform_sensitive_module(self) -> None:
-        markers = ("POWERSHELL", "PowerShell", "os.name", "sys.platform")
+        markers = (
+            "POWERSHELL",
+            "PowerShell",
+            "os.name",
+            "sys.platform",
+            'shutil.which("pwsh")',
+            'shutil.which("powershell")',
+        )
         marked_modules = {
             path.stem
             for path in RUNNER.TEST_ROOT.glob("test_*.py")
@@ -59,6 +66,7 @@ class ContractTestRunnerTests(unittest.TestCase):
         modules = RUNNER.discovered_modules(selected)
         self.assertEqual(modules, RUNNER.WINDOWS_PR_MODULES)
         self.assertIn("test_bounded_process_contract", modules)
+        self.assertIn("test_validate_protocol", modules)
         self.assertNotIn("test_a4_independent_campaign", modules)
 
     def test_nonstandard_shard_counts_use_stable_hash_routing(self) -> None:

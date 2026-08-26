@@ -66,6 +66,7 @@ WINDOWS_PR_MODULES = frozenset(
         "test_m4_phase_contract",
         "test_m4r1_powershell_contract",
         "test_m5_powershell_contract",
+        "test_validate_protocol",
         "test_windows_dao_a3_workflow",
         "test_windows_dao_a4_workflow",
         "test_windows_dao_hosted_workflow",
