@@ -44,13 +44,13 @@ and the remaining host prerequisites.
 
 ## Status
 
-Generic Jet header probing and raw Jet 3 page transfer or streaming are
-**experimental**: the support matrix records them as partial and internal-only.
-Physical version and encryption discrimination, page semantics, allocation
-maps, database opening, schema, rows, indexes, long values, creation, updates,
-and validation remain planned. The raw commit-region reader preserves every
-two-byte value; its two documented labels are contextual and cannot diagnose a
-database without contemporaneous `.ldb` lock evidence. The bounded-input safety
-and format-neutral atomic-publication foundations are also partial,
-internal-only work. None of these states is an MDB validity or compatibility
-claim.
+Generic Jet header probing, narrow Jet 3 unencrypted/no-password opening, and
+raw Jet 3 page transfer or streaming are **experimental**: the support matrix
+records them as partial and internal-only. Complete header and page semantics,
+allocation maps, database validation, schema, rows, indexes, long values,
+creation, and updates remain planned. The raw commit-region reader preserves
+every two-byte value; its two documented labels are contextual and cannot
+diagnose a database without contemporaneous `.ldb` lock evidence. The
+bounded-input safety and format-neutral atomic-publication foundations are also
+partial, internal-only work. None of these states is an MDB validity or
+compatibility claim.

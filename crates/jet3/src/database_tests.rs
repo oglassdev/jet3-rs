@@ -6,9 +6,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 use crate::{
-    ByteCount, ByteOffset, CandidateError, DatabaseHeaderPageError, Error, HeaderError,
-    JET3_PAGE_SIZE, JetFileKind, LimitKind, PageClassificationError, PageKind, PageNumber, ReadAt,
-    ReadBudget, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+    ByteCount, ByteOffset, CandidateError, DatabaseFormatError, DatabaseHeaderPageError,
+    DatabaseProtection, DatabaseVersion, Error, HeaderError, JET3_PAGE_SIZE, JetFileKind,
+    LimitKind, PageClassificationError, PageKind, PageNumber, ReadAt, ReadBudget, ReadLimits,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -32,6 +33,10 @@ fn budget(max_input: u64, max_single_read: u64, max_total_read: u64) -> Resource
 fn candidate_bytes(page_count: usize, signature: &[u8; 15]) -> Vec<u8> {
     let mut bytes = vec![0_u8; page_count * PAGE_BYTES];
     bytes[SIGNATURE_START..SIGNATURE_END].copy_from_slice(signature);
+    bytes[0x41] = 0x4e;
+    bytes[0x42..0x50].copy_from_slice(&[
+        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
+    ]);
     bytes
 }
 
@@ -49,6 +54,11 @@ fn opens_minimum_one_page_candidate_with_exact_accounting() -> TestResult {
     let database = DatabaseReader::from_source(source, &mut operation)?;
 
     assert_eq!(database.signature_kind(), JetFileKind::Standard);
+    assert_eq!(database.format().version(), DatabaseVersion::Jet3);
+    assert_eq!(
+        database.format().protection(),
+        DatabaseProtection::UnencryptedWithoutPassword
+    );
     assert_eq!(database.geometry().page_count(), 1);
     assert_eq!(database.header().raw_bytes(), bytes.as_slice());
     assert_eq!(
@@ -58,6 +68,33 @@ fn opens_minimum_one_page_candidate_with_exact_accounting() -> TestResult {
     assert_eq!(operation.page_visits(), 1);
     assert_eq!(operation.total_work_units(), 1);
     assert_eq!(operation.allocation_bytes(), ByteCount::new(0));
+    Ok(())
+}
+
+#[test]
+fn unsupported_version_and_protection_states_fail_closed() -> TestResult {
+    for (offset, value, expected) in [
+        (
+            0x14,
+            0x01,
+            DatabaseFormatError::UnsupportedVersion { observed: 0x01 },
+        ),
+        (
+            0x41,
+            0xee,
+            DatabaseFormatError::EncryptedOrUnsupported { observed: 0xee },
+        ),
+        (0x42, 0x00, DatabaseFormatError::PasswordedOrUnsupported),
+    ] {
+        let mut bytes = candidate_bytes(1, b"Standard Jet DB");
+        bytes[offset] = value;
+        let mut operation = budget(PAGE_BYTES as u64, PAGE_BYTES as u64, u64::MAX);
+        let source = source(&bytes, &mut operation)?;
+        assert_eq!(
+            DatabaseReader::from_source(source, &mut operation).err(),
+            Some(DatabaseOpenError::Format(expected))
+        );
+    }
     Ok(())
 }
 
@@ -401,6 +438,8 @@ fn display_and_error_sources_preserve_open_stage_context() {
     let header = DatabaseOpenError::Header(DatabaseHeaderPageError::Signature(
         HeaderError::UnknownSignature { observed },
     ));
+    let format =
+        DatabaseOpenError::Format(DatabaseFormatError::UnsupportedVersion { observed: 0x01 });
     let changed = DatabaseOpenError::SignatureChanged {
         initial: JetFileKind::Standard,
         header: JetFileKind::System,
@@ -421,6 +460,11 @@ fn display_and_error_sources_preserve_open_stage_context() {
             .to_string()
             .starts_with("database header validation failed")
     );
+    assert!(
+        format
+            .to_string()
+            .starts_with("database format is unsupported")
+    );
     let changed_text = changed.to_string();
     assert!(changed_text.starts_with("database signature changed while opening"));
     assert!(changed_text.contains("Standard") && changed_text.contains("System"));
@@ -428,6 +472,7 @@ fn display_and_error_sources_preserve_open_stage_context() {
     assert!(opened.source().is_some());
     assert!(candidate.source().is_some());
     assert!(header.source().is_some());
+    assert!(format.source().is_some());
     assert!(changed.source().is_none());
 }
 

@@ -25,17 +25,20 @@ export JET3_WINDOWS_SHARED_ROOT=/home/alex/development/vms/jet3-windows/shared
 ```
 
 The Windows account must be a standard account with key-only OpenSSH access.
-Pin its host key before invoking either command:
+Pin its host key before invoking these commands:
 
 ```sh
 just windows-dev-probe
 just windows-dev-empty
+just windows-dev-opening
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
 DAO candidates. `create-empty` additionally requires a ready
 `DAO.DBEngine.36`, creates and reopens a Jet 3 database on `C:`, closes DAO,
 then publishes the private MDB and result metadata through the Dockur share.
+`opening-matrix` creates the private Jet 3/4, encryption, and password controls
+used while developing fail-closed database opening.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and

@@ -30,7 +30,7 @@ PROVIDER_PROBE = ROOT / "oracle" / "windows-dao" / "scripts" / "probe-provider.p
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
-ALLOWED_JOBS = ("provider-probe", "create-empty")
+ALLOWED_JOBS = ("provider-probe", "create-empty", "opening-matrix")
 
 
 class DevClientError(RuntimeError):

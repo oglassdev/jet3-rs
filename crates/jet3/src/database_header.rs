@@ -1,11 +1,11 @@
-//! Typed access to the documented portions of a Jet 3-sized page zero.
+//! Typed access to the supported portions of a Jet 3 database page zero.
 //!
-//! This view composes only three independently documented observations:
+//! This view composes the independently documented generic observations:
 //! the generic Jet signature at offset `0x4` (`SRC-0004`), the 2 KiB page
 //! geometry (`SRC-0005`), and the raw commit slots in `[0x600, 0x800)`
-//! (`SRC-0013`). It deliberately assigns no meaning to any other byte and
-//! makes no claim about version, encryption, page type, validity, or
-//! compatibility.
+//! (`SRC-0013`). `EXP-0056` additionally supports the narrow, fail-closed
+//! opening discriminator implemented here. No other page-zero byte is
+//! interpreted.
 
 use std::fmt;
 
@@ -13,11 +13,98 @@ use crate::commit_state::commit_region_from_database_header_page;
 use crate::header::{JET3_PAGE_BYTES, classify_database_header_signature};
 use crate::{CommitRegion, Error, HeaderError, JetFileKind, PageNumber};
 
+const VERSION_OFFSET: usize = 0x14;
+const JET3_VERSION_MARKER: u8 = 0x00;
+const ENCRYPTION_OFFSET: usize = 0x41;
+const UNENCRYPTED_MARKER: u8 = 0x4e;
+const PASSWORD_STATE_START: usize = 0x42;
+const PASSWORD_STATE_END: usize = 0x50;
+const JET3_NO_PASSWORD_STATE: [u8; PASSWORD_STATE_END - PASSWORD_STATE_START] = [
+    0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
+];
+
 /// Physical page number of the documented database-header page.
 ///
 /// This position alone does not identify a Jet version, encryption state,
 /// valid database, or compatible file.
 pub const DATABASE_HEADER_PAGE_NUMBER: PageNumber = PageNumber::new(0);
+
+/// Database generation admitted by the supported opening boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DatabaseVersion {
+    /// Microsoft Jet 3.0/3.5 format.
+    Jet3,
+}
+
+/// Protection state admitted by the supported opening boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DatabaseProtection {
+    /// The database is unencrypted and has no database password.
+    UnencryptedWithoutPassword,
+}
+
+/// Narrow format identity established while opening a database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SupportedDatabaseFormat {
+    version: DatabaseVersion,
+    protection: DatabaseProtection,
+}
+
+impl SupportedDatabaseFormat {
+    /// Returns the admitted database generation.
+    #[must_use]
+    pub const fn version(self) -> DatabaseVersion {
+        self.version
+    }
+
+    /// Returns the admitted protection state.
+    #[must_use]
+    pub const fn protection(self) -> DatabaseProtection {
+        self.protection
+    }
+}
+
+/// A structured rejection of an unsupported page-zero format state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DatabaseFormatError {
+    /// The observed generation marker is not the Jet 3 marker.
+    UnsupportedVersion {
+        /// Exact bounded marker observed at the version discriminator.
+        observed: u8,
+    },
+    /// The observed protection marker is not the unencrypted marker.
+    EncryptedOrUnsupported {
+        /// Exact bounded marker observed at the encryption discriminator.
+        observed: u8,
+    },
+    /// The page does not carry the observed Jet 3 no-password state.
+    PasswordedOrUnsupported,
+}
+
+impl fmt::Display for DatabaseFormatError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedVersion { observed } => {
+                write!(
+                    formatter,
+                    "unsupported database version marker {observed:#04x}"
+                )
+            }
+            Self::EncryptedOrUnsupported { observed } => write!(
+                formatter,
+                "encrypted or unsupported database protection marker {observed:#04x}"
+            ),
+            Self::PasswordedOrUnsupported => {
+                formatter.write_str("passworded or unsupported database header state")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DatabaseFormatError {}
 
 /// A complete 2 KiB page-zero snapshot with only documented fields exposed.
 ///
@@ -67,6 +154,27 @@ impl DatabaseHeaderPage {
     #[must_use]
     pub const fn commit_region(&self) -> &CommitRegion {
         &self.commit_region
+    }
+
+    /// Validates the supported Jet 3, unencrypted, no-password opening state.
+    pub fn supported_format(&self) -> Result<SupportedDatabaseFormat, DatabaseFormatError> {
+        let version = self.raw[VERSION_OFFSET];
+        if version != JET3_VERSION_MARKER {
+            return Err(DatabaseFormatError::UnsupportedVersion { observed: version });
+        }
+        let encryption = self.raw[ENCRYPTION_OFFSET];
+        if encryption != UNENCRYPTED_MARKER {
+            return Err(DatabaseFormatError::EncryptedOrUnsupported {
+                observed: encryption,
+            });
+        }
+        if self.raw[PASSWORD_STATE_START..PASSWORD_STATE_END] != JET3_NO_PASSWORD_STATE {
+            return Err(DatabaseFormatError::PasswordedOrUnsupported);
+        }
+        Ok(SupportedDatabaseFormat {
+            version: DatabaseVersion::Jet3,
+            protection: DatabaseProtection::UnencryptedWithoutPassword,
+        })
     }
 }
 

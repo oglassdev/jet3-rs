@@ -43,7 +43,10 @@ class WindowsDaoDevClientTests(unittest.TestCase):
     def test_cli_exposes_only_allowlisted_jobs(self) -> None:
         parser = CLIENT.parser()
         job = next(action for action in parser._actions if action.dest == "job")
-        self.assertEqual(tuple(job.choices), ("provider-probe", "create-empty"))
+        self.assertEqual(
+            tuple(job.choices),
+            ("provider-probe", "create-empty", "opening-matrix"),
+        )
         self.assertNotIn("command", {action.dest for action in parser._actions})
 
     def test_invocation_uses_x86_powershell_and_strict_ssh(self) -> None:
@@ -110,8 +113,15 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         cls.remote = REMOTE_PATH.read_text(encoding="utf-8")
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
-        self.assertIn('[ValidateSet("provider-probe", "create-empty")]', self.remote)
+        self.assertIn(
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix")]',
+            self.remote,
+        )
         self.assertIn("development_only = $true", self.remote)
+        for name in ("v30-u-n", "v30-e-n", "v30-u-p", "v30-e-p"):
+            self.assertIn(name, self.remote)
+        for name in ("v40-u-n", "v40-e-n", "v40-u-p", "v40-e-p"):
+            self.assertIn(name, self.remote)
         self.assertNotIn("Invoke-Expression", self.remote)
         self.assertNotIn("ScriptBlock::Create", self.remote)
 

@@ -40,12 +40,12 @@
     {
       "path": "crates/jet3/src/database.rs",
       "classification": "format_safety",
-      "sha256": "0319b38ca7830e80bcad767b72b00797136118b66653b078989349739314a0e5"
+      "sha256": "ade820197519da154de38a2b39a6e2f2cf82a271863ed026771c83ab57a360fb"
     },
     {
       "path": "crates/jet3/src/database_header.rs",
       "classification": "format_safety",
-      "sha256": "c910dfccb11e096608611b708c18ad0d10a390fab98a7011ac97e76636045b38"
+      "sha256": "4a9340d94b67f4f97e07575a93b11b92d34738d118add7f3e196162131f3a968"
     },
     {
       "path": "crates/jet3/src/error.rs",
@@ -65,7 +65,7 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "11c71d7799172a76459bce12007761a0c8abe26e409021dc79a3eb168f1cf249"
+      "sha256": "3487a123d5f306178594043d1065e4cdffa76a3a70a4304375ee90c5edacdbe5"
     },
     {
       "path": "crates/jet3/src/limits.rs",
