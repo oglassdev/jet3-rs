@@ -59,8 +59,13 @@ def fuzz_target_runtime_command(
     deterministic_seed: int,
     max_len: int,
     peak_rss_limit_bytes: int,
+    artifacts: Path | str,
 ) -> list[str]:
-    """Construct the canonical direct libFuzzer target invocation."""
+    """Construct the canonical direct libFuzzer target invocation.
+
+    Crash, timeout, and out-of-memory artifacts are routed into the external
+    campaign directory so a finding never dirties the clean Git checkout.
+    """
     return [
         executable_path,
         str(corpus),
@@ -68,6 +73,7 @@ def fuzz_target_runtime_command(
         f"-seed={deterministic_seed}",
         f"-max_len={max_len}",
         f"-rss_limit_mb={peak_rss_limit_bytes // (1024 * 1024)}",
+        f"-artifact_prefix={artifacts}/",
     ]
 
 
@@ -88,8 +94,8 @@ def validate_fuzz_target_runtime_command(
         raise ValidationError(
             "observer command is not the canonical direct fuzz-target invocation"
         )
-    expected_corpus = Path(target_directory).resolve().parent / "corpus"
-    if Path(command[1]).resolve() != expected_corpus:
+    campaign_directory = Path(target_directory).resolve().parent
+    if Path(command[1]).resolve() != campaign_directory / "corpus":
         raise ValidationError("observer command does not name the disposable corpus")
     expected_command = fuzz_target_runtime_command(
         command[0],
@@ -98,6 +104,7 @@ def validate_fuzz_target_runtime_command(
         deterministic_seed,
         max_len,
         peak_rss_limit_bytes,
+        campaign_directory / "artifacts",
     )
     if command != expected_command:
         raise ValidationError(
@@ -656,6 +663,8 @@ def run_campaign(
         target_directory = build.target_directory
         corpus = temporary / "corpus"
         seeds = copy_seeds(root, corpus, manifest, target_name)
+        artifacts = temporary / "artifacts"
+        artifacts.mkdir()
         log_path = temporary / "producer.log"
         command = fuzz_target_runtime_command(
             prebuild["executable"]["path"],
@@ -664,6 +673,7 @@ def run_campaign(
             registry["deterministic_seed"],
             target["max_len"],
             target["peak_rss_limit_bytes"],
+            artifacts,
         )
         observer = observe_producer(
             root,

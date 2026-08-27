@@ -137,6 +137,8 @@ python3 fuzz/tools/fuzz_campaign.py smoke \
 The smoke runner copies only manifest-listed seeds into per-target disposable
 corpora, rejects corpora over their registered byte bounds, and runs every
 target for at least 60 seconds with the registered input and peak-RSS limits.
+libFuzzer crash, timeout, and out-of-memory artifacts are written to the
+bundle's `artifacts/` directory, never into the checkout.
 It runs up to `min(4, os.cpu_count())` targets concurrently by default; use
 `--jobs 1` for the previous serial behavior. Each target retains its own
 observer and process resource accounting, and suite reports are ordered by
