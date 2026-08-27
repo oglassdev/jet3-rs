@@ -77,7 +77,7 @@ fn synthetic_database(bytes: &mut [u8; DATABASE_BYTES]) {
     ]);
     write_definition(&mut bytes[TABLE_ROOT * PAGE_BYTES..(TABLE_ROOT + 1) * PAGE_BYTES]);
     bytes[MAP_PAGE * PAGE_BYTES] = 1;
-    bytes[ROW_PAGE * PAGE_BYTES] = 1;
+    write_row_page(&mut bytes[ROW_PAGE * PAGE_BYTES..(ROW_PAGE + 1) * PAGE_BYTES], 3);
 
     let first = leaf_entry([0x7f, 0x80, 0, 0, 0], 0);
     let second = leaf_entry([0x7f, 0x80, 0, 0, 1], 1);
@@ -104,6 +104,17 @@ fn synthetic_database(bytes: &mut [u8; DATABASE_BYTES]) {
         &[0x7f, 0x80, 0, 0],
         &[&third],
     );
+}
+
+/// Writes a table-owned data page holding `rows` one-byte rows.
+fn write_row_page(page: &mut [u8], rows: usize) {
+    page[0] = 1;
+    page[4..8].copy_from_slice(&(TABLE_ROOT as u32).to_le_bytes());
+    page[8..10].copy_from_slice(&(rows as u16).to_le_bytes());
+    for row in 0..rows {
+        let start = (PAGE_BYTES - row - 1) as u16;
+        page[10 + 2 * row..12 + 2 * row].copy_from_slice(&start.to_le_bytes());
+    }
 }
 
 fn write_definition(page: &mut [u8]) {

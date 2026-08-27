@@ -17,41 +17,63 @@ const ROW_PAGE: usize = 6;
 const ENTRY_AREA_OFFSET: usize = 248;
 const ENTRY_AREA_LEN: usize = PAGE_BYTES - ENTRY_AREA_OFFSET;
 
-fn column_record(physical_type: u8, class: u8, size: u16) -> [u8; 18] {
+struct ColumnSpec {
+    physical_type: u8,
+    class: u8,
+    size: u16,
+    ordinal: u16,
+    fixed_offset: u16,
+}
+
+fn column_record(column: &ColumnSpec) -> [u8; 18] {
     let mut record = [0_u8; 18];
-    record[0] = physical_type;
+    record[0] = column.physical_type;
+    record[1..3].copy_from_slice(&column.ordinal.to_le_bytes());
+    record[5..7].copy_from_slice(&column.ordinal.to_le_bytes());
     record[7..9].copy_from_slice(&1_u16.to_le_bytes());
     record[9..13].copy_from_slice(&[0x09, 0x04, 0xe4, 0x04]);
-    record[13] = class;
-    record[16..18].copy_from_slice(&size.to_le_bytes());
+    record[13] = column.class;
+    record[14..16].copy_from_slice(&column.fixed_offset.to_le_bytes());
+    record[16..18].copy_from_slice(&column.size.to_le_bytes());
     record
 }
 
-fn definition(physical_type: u8, class: u8, size: u16) -> Vec<u8> {
+/// Physical key slots as `(column ordinal, ascending)` pairs.
+fn physical_record(keys: &[(u16, bool)]) -> [u8; 39] {
+    let mut physical = [0_u8; 39];
+    for slot in 0..10 {
+        physical[slot * 3..slot * 3 + 2].copy_from_slice(&u16::MAX.to_le_bytes());
+    }
+    for (slot, (column, ascending)) in keys.iter().enumerate() {
+        physical[slot * 3..slot * 3 + 2].copy_from_slice(&column.to_le_bytes());
+        physical[slot * 3 + 2] = u8::from(*ascending);
+    }
+    physical[31..34].copy_from_slice(&[MAP_PAGE as u8, 0, 0]);
+    physical[34..38].copy_from_slice(&(INDEX_ROOT as u32).to_le_bytes());
+    physical
+}
+
+fn definition_with(columns: &[ColumnSpec], keys: &[(u16, bool)]) -> Vec<u8> {
+    let column_count = columns.len() as u16;
+    let variable_count = columns.iter().filter(|column| column.class == 2).count() as u16;
     let mut bytes = vec![0_u8; 43];
     bytes[..4].copy_from_slice(&[0x02, 0x01, 0x56, 0x43]);
     bytes[20] = 0x4e;
-    bytes[21..23].copy_from_slice(&1_u16.to_le_bytes());
-    if class == 2 {
-        bytes[23..25].copy_from_slice(&1_u16.to_le_bytes());
-    }
-    bytes[25..27].copy_from_slice(&1_u16.to_le_bytes());
+    bytes[21..23].copy_from_slice(&column_count.to_le_bytes());
+    bytes[23..25].copy_from_slice(&variable_count.to_le_bytes());
+    bytes[25..27].copy_from_slice(&column_count.to_le_bytes());
     bytes[27..29].copy_from_slice(&1_u16.to_le_bytes());
     bytes[31..33].copy_from_slice(&1_u16.to_le_bytes());
     bytes[35..39].copy_from_slice(&[0, MAP_PAGE as u8, 0, 0]);
     bytes[39..43].copy_from_slice(&[1, MAP_PAGE as u8, 0, 0]);
     bytes.extend_from_slice(&[0; 8]);
-    bytes.extend_from_slice(&column_record(physical_type, class, size));
-    bytes.extend_from_slice(&[3, b'K', b'e', b'y']);
-    let mut physical = [0_u8; 39];
-    for slot in 0..10 {
-        physical[slot * 3..slot * 3 + 2].copy_from_slice(&u16::MAX.to_le_bytes());
+    for column in columns {
+        bytes.extend_from_slice(&column_record(column));
     }
-    physical[..2].copy_from_slice(&0_u16.to_le_bytes());
-    physical[2] = 1;
-    physical[31..34].copy_from_slice(&[MAP_PAGE as u8, 0, 0]);
-    physical[34..38].copy_from_slice(&(INDEX_ROOT as u32).to_le_bytes());
-    bytes.extend_from_slice(&physical);
+    for ordinal in 0..column_count {
+        bytes.extend_from_slice(&[2, b'C', b'0' + ordinal as u8]);
+    }
+    bytes.extend_from_slice(&physical_record(keys));
     let mut logical = [0_u8; 20];
     logical[9..13].copy_from_slice(&u32::MAX.to_le_bytes());
     logical[17..19].copy_from_slice(&[4, 4]);
@@ -62,18 +84,57 @@ fn definition(physical_type: u8, class: u8, size: u16) -> Vec<u8> {
     bytes
 }
 
-fn database_bytes(physical_type: u8, class: u8, size: u16) -> Vec<u8> {
+fn definition(physical_type: u8, class: u8, size: u16) -> Vec<u8> {
+    definition_with(
+        &[ColumnSpec {
+            physical_type,
+            class,
+            size,
+            ordinal: 0,
+            fixed_offset: 0,
+        }],
+        &[(0, true)],
+    )
+}
+
+fn composite_definition() -> Vec<u8> {
+    let long = |ordinal, fixed_offset| ColumnSpec {
+        physical_type: 4,
+        class: 3,
+        size: 4,
+        ordinal,
+        fixed_offset,
+    };
+    definition_with(&[long(0, 0), long(1, 4)], &[(0, false), (1, true)])
+}
+
+/// Writes a table-owned data page holding `rows` one-byte rows.
+fn write_row_page(bytes: &mut [u8], rows: usize) {
+    let page = &mut bytes[ROW_PAGE * PAGE_BYTES..(ROW_PAGE + 1) * PAGE_BYTES];
+    page[0] = 1;
+    page[4..8].copy_from_slice(&(ROOT as u32).to_le_bytes());
+    page[8..10].copy_from_slice(&(rows as u16).to_le_bytes());
+    for row in 0..rows {
+        let start = (PAGE_BYTES - row - 1) as u16;
+        page[10 + 2 * row..12 + 2 * row].copy_from_slice(&start.to_le_bytes());
+    }
+}
+
+fn database_with_definition(definition: &[u8]) -> Vec<u8> {
     let mut bytes = vec![0_u8; PAGE_COUNT * PAGE_BYTES];
     bytes[4..19].copy_from_slice(b"Standard Jet DB");
     bytes[0x41] = 0x4e;
     bytes[0x42..0x50].copy_from_slice(&[
         0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
     ]);
-    let definition = definition(physical_type, class, size);
-    bytes[ROOT * PAGE_BYTES..ROOT * PAGE_BYTES + definition.len()].copy_from_slice(&definition);
+    bytes[ROOT * PAGE_BYTES..ROOT * PAGE_BYTES + definition.len()].copy_from_slice(definition);
     bytes[MAP_PAGE * PAGE_BYTES] = 1;
-    bytes[ROW_PAGE * PAGE_BYTES] = 1;
+    write_row_page(&mut bytes, 4);
     bytes
+}
+
+fn database_bytes(physical_type: u8, class: u8, size: u16) -> Vec<u8> {
+    database_with_definition(&definition(physical_type, class, size))
 }
 
 struct NodeSpec<'a> {
@@ -321,6 +382,125 @@ fn key_inventory_is_typed_only_for_observed_encodings_and_other_bytes_are_lossle
         assert_eq!(tree.entries()[0].key().raw_bytes(), *raw_key);
     }
     Ok(())
+}
+
+#[test]
+fn composite_descending_keys_stay_lossless_in_physical_order()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut bytes = database_with_definition(&composite_definition());
+    let keys: [&[u8]; 3] = [
+        &[0x7f, 0x7f, 0xff, 0xff, 0xfd, 0x7f, 0x80, 0, 0, 0],
+        &[0x7f, 0x7f, 0xff, 0xff, 0xfd, 0x7f, 0x80, 0, 0, 1],
+        &[0],
+    ];
+    let entries: Vec<Vec<u8>> = keys
+        .iter()
+        .enumerate()
+        .map(|(slot, key)| leaf_entry(key, slot as u8))
+        .collect();
+    let entry_refs: Vec<&[u8]> = entries.iter().map(Vec::as_slice).collect();
+    write_node(
+        &mut bytes,
+        NodeSpec {
+            page: INDEX_ROOT,
+            tag: 4,
+            previous: 0,
+            next: 0,
+            tail_child: 0,
+            prefix: &[],
+            entries: &entry_refs,
+        },
+    );
+    let (tree, _) = traverse_with_limits(&bytes, limits(&bytes))?;
+    assert_eq!(tree.entries().len(), 3);
+    for (slot, (entry, key)) in tree.entries().iter().zip(keys).enumerate() {
+        assert_eq!(entry.key().raw_bytes(), key);
+        assert_eq!(entry.key().encoding(), IndexKeyEncoding::Unsupported);
+        assert_eq!(entry.row().slot(), slot as u8);
+    }
+    Ok(())
+}
+
+#[test]
+fn item_work_is_charged_online_for_nodes_entries_and_rows() -> Result<(), Box<dyn std::error::Error>>
+{
+    let bytes = branch_tree();
+    let (_, budget) = traverse_with_limits(&bytes, limits(&bytes))?;
+    let work = budget.item_work();
+    assert!(
+        work >= 3 + 5 + 4,
+        "nodes, entries, and row slots must be charged"
+    );
+    let exact = limits(&bytes).with_max_item_work(work);
+    assert_eq!(traverse_with_limits(&bytes, exact)?.0.entries().len(), 4);
+    let one_over = limits(&bytes).with_max_item_work(work - 1);
+    let error = traverse_with_limits(&bytes, one_over)
+        .err()
+        .ok_or("one-over item work unexpectedly succeeded")?;
+    assert!(matches!(
+        error.downcast_ref::<IndexTreeError>(),
+        Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::ItemWork,
+            ..
+        }))
+    ));
+    Ok(())
+}
+
+#[test]
+fn rejects_row_locators_outside_validated_data_pages() {
+    let entry = leaf_entry(&[0x7f, 0x80, 0, 0, 0], 0);
+    let trailer = INDEX_ROOT * PAGE_BYTES + ENTRY_AREA_OFFSET + entry.len() - 4;
+    let single_leaf = |mutate: &dyn Fn(&mut [u8])| {
+        let mut bytes = database_bytes(4, 3, 4);
+        write_node(
+            &mut bytes,
+            NodeSpec {
+                page: INDEX_ROOT,
+                tag: 4,
+                previous: 0,
+                next: 0,
+                tail_child: 0,
+                prefix: &[],
+                entries: &[&entry],
+            },
+        );
+        mutate(&mut bytes);
+        traverse_with_limits(&bytes, limits(&bytes))
+            .err()
+            .and_then(|error| error.downcast::<IndexTreeError>().ok())
+            .map(|error| *error)
+    };
+
+    let table_page = single_leaf(&|bytes| bytes[trailer + 2] = ROOT as u8);
+    assert!(matches!(
+        table_page,
+        Some(IndexTreeError::UnexpectedRowPageKind {
+            actual: PageKind::TableDefinition,
+            ..
+        })
+    ));
+
+    let foreign_owner = single_leaf(&|bytes| bytes[trailer + 2] = MAP_PAGE as u8);
+    assert!(matches!(
+        foreign_owner,
+        Some(IndexTreeError::RowDirectory {
+            source: crate::RowDirectoryError::UnexpectedOwner { .. },
+            ..
+        })
+    ));
+
+    let missing_slot = single_leaf(&|bytes| bytes[trailer + 3] = 4);
+    assert!(matches!(
+        missing_slot,
+        Some(IndexTreeError::RowDirectory {
+            source: crate::RowDirectoryError::MissingRow {
+                row: 4,
+                row_count: 4
+            },
+            ..
+        })
+    ));
 }
 
 #[test]

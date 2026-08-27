@@ -7,11 +7,14 @@
 use std::fmt;
 use std::mem::size_of;
 
-use crate::index_tree_page::{ENTRY_AREA_OFFSET, ParsedNode, parse_node, u24_at_be, u32_at_be};
+use crate::index_tree_page::{
+    ENTRY_AREA_OFFSET, ParsedNode, boundaries, parse_node, u24_at_be, u32_at_be,
+};
+use crate::index_tree_rows::RowReferenceValidator;
 use crate::{
     ByteCount, ColumnPhysicalType, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
-    PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget, RowLocator, TableDefinition,
-    VisitedPages,
+    PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget, RowDirectoryError, RowLocator,
+    TableDefinition, VisitedPages,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -253,6 +256,20 @@ pub enum IndexTreeError {
         /// Sourced tail-child reference.
         child: PageNumber,
     },
+    /// A leaf row locator referenced a page that is not a data page.
+    UnexpectedRowPageKind {
+        /// Referenced row page.
+        page: PageNumber,
+        /// Classified kind found on that page.
+        actual: PageKind,
+    },
+    /// A leaf row locator's data page or slot failed row-directory validation.
+    RowDirectory {
+        /// Referenced row page.
+        page: PageNumber,
+        /// Row-directory error for that page or slot.
+        source: RowDirectoryError,
+    },
     /// A sourced page reference was outside captured geometry.
     InvalidReference {
         /// Page containing the rejected reference.
@@ -310,6 +327,7 @@ impl std::error::Error for IndexTreeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Page(source) => Some(source),
+            Self::RowDirectory { source, .. } => Some(source),
             Self::InvalidReference { source, .. } | Self::Resource(source) => Some(source),
             _ => None,
         }
@@ -351,6 +369,7 @@ impl<S: ReadAt> DatabaseReader<S> {
         )?;
         let mut nodes = Vec::new();
         let mut entries = Vec::new();
+        let mut rows = RowReferenceValidator::default();
         let mut page_bytes = [0_u8; PAGE_BYTES];
         let mut cursor = 0_usize;
         let mut leaf_depth = None;
@@ -359,6 +378,7 @@ impl<S: ReadAt> DatabaseReader<S> {
             cursor = cursor
                 .checked_add(1)
                 .ok_or_else(|| resource_arithmetic("advance index queue"))?;
+            budget.charge_items(1).map_err(IndexTreeError::Resource)?;
             budget
                 .check_chain_depth(pending_node.depth)
                 .map_err(IndexTreeError::Resource)?;
@@ -402,6 +422,7 @@ impl<S: ReadAt> DatabaseReader<S> {
                         None => leaf_depth = Some(pending_node.depth),
                         _ => {}
                     }
+                    let first_new = entries.len();
                     append_leaf_entries(
                         &page_bytes,
                         &parsed,
@@ -411,6 +432,9 @@ impl<S: ReadAt> DatabaseReader<S> {
                         &mut entries,
                         budget,
                     )?;
+                    for entry in &entries[first_new..] {
+                        rows.validate(self, table.root(), entry.row, &mut page_bytes, budget)?;
+                    }
                 }
                 IndexNodeKind::Intermediate => {
                     if let Some(expected) = leaf_depth {
@@ -425,7 +449,7 @@ impl<S: ReadAt> DatabaseReader<S> {
             }
             push_charged(&mut nodes, parsed.node, budget, "reserve index node result")?;
         }
-        validate_sibling_links(&nodes, budget)?;
+        validate_sibling_links(&nodes)?;
         Ok(IndexTree {
             root: physical.root(),
             nodes,
@@ -446,7 +470,7 @@ fn append_leaf_entries(
     let data = &page[ENTRY_AREA_OFFSET..];
     let prefix = &data[..parsed.prefix_len];
     let mut start = parsed.prefix_len;
-    for (entry_index, end) in parsed.boundaries.iter().copied().enumerate() {
+    for (entry_index, end) in boundaries(page).enumerate() {
         let suffix = &data[start..end];
         let full_len = prefix
             .len()
@@ -504,7 +528,7 @@ fn append_children(
     budget
         .check_chain_depth(child_depth)
         .map_err(IndexTreeError::Resource)?;
-    for (entry_index, end) in parsed.boundaries.iter().copied().enumerate() {
+    for (entry_index, end) in boundaries(page).enumerate() {
         let suffix = &data[start..end];
         let full_len = parsed
             .prefix_len
@@ -552,12 +576,12 @@ fn classify_key(
     physical: &crate::PhysicalIndexDefinition,
     table: &TableDefinition,
 ) -> IndexKeyEncoding {
-    if raw == [0] {
-        return IndexKeyEncoding::Null;
-    }
     let [field] = physical.fields() else {
         return IndexKeyEncoding::Unsupported;
     };
+    if raw == [0] {
+        return IndexKeyEncoding::Null;
+    }
     let Some(column) = table.columns().get(usize::from(field.column().get())) else {
         return IndexKeyEncoding::Unsupported;
     };
@@ -585,17 +609,8 @@ fn classify_key(
     }
 }
 
-fn validate_sibling_links(
-    nodes: &[IndexNode],
-    budget: &mut ResourceBudget,
-) -> Result<(), IndexTreeError> {
-    budget
-        .charge_items(
-            u64::try_from(nodes.len())
-                .map_err(|_| resource_conversion(nodes.len() as u128, "u64"))
-                .map_err(IndexTreeError::Resource)?,
-        )
-        .map_err(IndexTreeError::Resource)?;
+/// Checks sibling links over nodes whose visits were already charged as items.
+fn validate_sibling_links(nodes: &[IndexNode]) -> Result<(), IndexTreeError> {
     let mut group_start = 0;
     while group_start < nodes.len() {
         let depth = nodes[group_start].depth;
@@ -658,18 +673,33 @@ fn validate_reference(
         })
 }
 
-pub(crate) fn push_charged<T>(
+const MIN_GROWTH_CAPACITY: usize = 4;
+
+/// Pushes with amortized doubling, charging every reserved element up front.
+fn push_charged<T>(
     values: &mut Vec<T>,
     value: T,
     budget: &mut ResourceBudget,
     operation: &'static str,
 ) -> Result<(), IndexTreeError> {
-    budget
-        .charge_allocation(ByteCount::new(size_of::<T>() as u64))
-        .map_err(IndexTreeError::Resource)?;
-    values
-        .try_reserve_exact(1)
-        .map_err(|_| allocation_failure(operation))?;
+    if values.len() == values.capacity() {
+        let target = values
+            .capacity()
+            .checked_mul(2)
+            .ok_or_else(|| resource_arithmetic(operation))?
+            .max(MIN_GROWTH_CAPACITY);
+        let additional = target - values.len();
+        let bytes = u64::try_from(additional)
+            .ok()
+            .and_then(|count| count.checked_mul(size_of::<T>() as u64))
+            .ok_or_else(|| resource_arithmetic(operation))?;
+        budget
+            .charge_allocation(ByteCount::new(bytes))
+            .map_err(IndexTreeError::Resource)?;
+        values
+            .try_reserve_exact(additional)
+            .map_err(|_| allocation_failure(operation))?;
+    }
     values.push(value);
     Ok(())
 }
@@ -683,10 +713,6 @@ fn allocation_failure(operation: &'static str) -> IndexTreeError {
 
 pub(crate) fn resource_arithmetic(operation: &'static str) -> IndexTreeError {
     IndexTreeError::Resource(Error::Arithmetic { operation })
-}
-
-fn resource_conversion(value: u128, target: &'static str) -> Error {
-    Error::IntegerConversion { value, target }
 }
 
 #[cfg(test)]

@@ -158,6 +158,10 @@ impl RowEntry {
 }
 
 impl RowDirectory {
+    pub(crate) const fn row_count(&self) -> u16 {
+        self.inner.row_count()
+    }
+
     pub(crate) fn validate_owner(
         expected_owner: PageNumber,
         page: &[u8; PAGE_BYTES],

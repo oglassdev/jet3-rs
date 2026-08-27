@@ -1,8 +1,6 @@
 //! Checked decoding of one physical index page from `EXP-0062`.
 
-use crate::index_tree::{
-    IndexNode, IndexNodeKind, IndexTreeError, PendingNode, push_charged, resource_arithmetic,
-};
+use crate::index_tree::{IndexNode, IndexNodeKind, IndexTreeError, PendingNode};
 use crate::{JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber, ResourceBudget};
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -16,9 +14,44 @@ const INTERMEDIATE_NODE_MARKER: u8 = 1;
 #[derive(Debug)]
 pub(crate) struct ParsedNode {
     pub(crate) node: IndexNode,
-    pub(crate) boundaries: Vec<usize>,
     pub(crate) prefix_len: usize,
     pub(crate) tail_child: PageNumber,
+}
+
+/// Allocation-free iterator over set bits of the entry-boundary bitmap.
+pub(crate) struct Boundaries<'a> {
+    bitmap: &'a [u8],
+    byte_index: usize,
+    bit: u32,
+}
+
+impl Iterator for Boundaries<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<usize> {
+        while let Some(value) = self.bitmap.get(self.byte_index).copied() {
+            if self.bit < 8 {
+                let bit = self.bit;
+                self.bit += 1;
+                if value & (1_u8 << bit) != 0 {
+                    return Some(self.byte_index * 8 + bit as usize);
+                }
+            } else {
+                self.bit = 0;
+                self.byte_index += 1;
+            }
+        }
+        None
+    }
+}
+
+/// Iterates the validated cumulative entry-end offsets of one parsed node.
+pub(crate) fn boundaries(page: &[u8; PAGE_BYTES]) -> Boundaries<'_> {
+    Boundaries {
+        bitmap: &page[BOUNDARY_BITMAP_OFFSET..ENTRY_AREA_OFFSET],
+        byte_index: 0,
+        bit: 0,
+    }
 }
 
 pub(crate) fn parse_node(
@@ -85,46 +118,27 @@ pub(crate) fn parse_node(
         _ => {}
     }
     let prefix_len = usize::from(page[20]);
-    let mut boundaries = Vec::new();
-    for (byte_index, value) in page[BOUNDARY_BITMAP_OFFSET..ENTRY_AREA_OFFSET]
-        .iter()
-        .copied()
-        .enumerate()
-    {
-        for bit in 0..8_u32 {
-            if value & (1_u8 << bit) == 0 {
-                continue;
-            }
-            let boundary = byte_index
-                .checked_mul(8)
-                .and_then(|offset| offset.checked_add(bit as usize))
-                .ok_or_else(|| resource_arithmetic("decode index entry boundary"))?;
-            if boundary > ENTRY_AREA_LEN {
-                return Err(IndexTreeError::BoundaryOutsideEntryArea {
-                    page: pending.page,
-                    boundary,
-                });
-            }
-            push_charged(
-                &mut boundaries,
-                boundary,
-                budget,
-                "reserve index entry boundaries",
-            )?;
-        }
-    }
     let mut previous_boundary = prefix_len;
-    for boundary in &boundaries {
-        if *boundary <= previous_boundary || *boundary > ENTRY_AREA_LEN {
+    let mut entry_count = 0_usize;
+    for boundary in boundaries(page) {
+        budget.charge_items(1).map_err(IndexTreeError::Resource)?;
+        if boundary > ENTRY_AREA_LEN {
+            return Err(IndexTreeError::BoundaryOutsideEntryArea {
+                page: pending.page,
+                boundary,
+            });
+        }
+        if boundary <= previous_boundary {
             return Err(IndexTreeError::InvalidEntryBoundary {
                 page: pending.page,
-                boundary: *boundary,
+                boundary,
                 previous: previous_boundary,
             });
         }
-        previous_boundary = *boundary;
+        previous_boundary = boundary;
+        entry_count += 1;
     }
-    if boundaries.is_empty() && prefix_len != 0 {
+    if entry_count == 0 && prefix_len != 0 {
         return Err(IndexTreeError::InvalidEntryBoundary {
             page: pending.page,
             boundary: 0,
@@ -140,7 +154,7 @@ pub(crate) fn parse_node(
             expected: expected_free,
         });
     }
-    if node_kind == IndexNodeKind::Intermediate && boundaries.is_empty() {
+    if node_kind == IndexNodeKind::Intermediate && entry_count == 0 {
         return Err(IndexTreeError::EmptyIntermediate { page: pending.page });
     }
     Ok(ParsedNode {
@@ -151,7 +165,6 @@ pub(crate) fn parse_node(
             previous,
             next,
         },
-        boundaries,
         prefix_len,
         tail_child,
     })

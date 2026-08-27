@@ -125,8 +125,10 @@ or speculative modules.
   relationship references.
 - `relationships.rs`: allocation-free relationship inventory over logical
   indexes, including raw and isolated cascade-option bytes.
-- `index_tree.rs` and `index_tree_page.rs`: bounded iterative index traversal,
-  page-layout validation, lossless keys, and row/child/sibling references.
+- `index_tree.rs`, `index_tree_page.rs`, and `index_tree_rows.rs`: bounded
+  iterative index traversal, allocation-free page-layout validation, lossless
+  keys, child/sibling references, and row locators validated against their
+  owned data-page directories.
 - `row_directory.rs`: provenance-bound data-page ownership and reverse-packed
   row delimiting, including deleted, overflow-pointer, and hidden-storage flags.
 - `row.rs`: lending row cursor, iterative overflow resolution, validated row

@@ -20,6 +20,7 @@ pub mod header;
 pub mod index_definition;
 pub mod index_tree;
 mod index_tree_page;
+mod index_tree_rows;
 pub mod jet3_page;
 pub mod limits;
 pub mod long_value;

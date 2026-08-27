@@ -65,7 +65,7 @@
           "EXP-0058",
           "EXP-0059"
         ],
-      "sha256": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33"
+        "sha256": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33"
       },
       {
         "path": "crates/jet3/src/catalog_record.rs",
@@ -73,7 +73,7 @@
           "SRC-0020",
           "EXP-0058"
         ],
-      "sha256": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144"
+        "sha256": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144"
       },
       {
         "path": "crates/jet3/src/commit_state.rs",
@@ -88,7 +88,7 @@
           "SRC-0023",
           "EXP-0059"
         ],
-      "sha256": "99b763a1bd0ccd47318f24f169d6ffd261b756e0cda2ae7919bfc480123ca9ce"
+        "sha256": "99b763a1bd0ccd47318f24f169d6ffd261b756e0cda2ae7919bfc480123ca9ce"
       },
       {
         "path": "crates/jet3/src/data_page_directory.rs",
@@ -125,7 +125,7 @@
         "provenance_ids": [
           "EXP-0059"
         ],
-      "sha256": "622c3c285a01453f3f50700ae9a4fc0c886c8bd95d0876314f3cf6ee5cba5f1a"
+        "sha256": "622c3c285a01453f3f50700ae9a4fc0c886c8bd95d0876314f3cf6ee5cba5f1a"
       },
       {
         "path": "crates/jet3/src/header.rs",
@@ -155,21 +155,29 @@
         "provenance_ids": [
           "EXP-0062"
         ],
-        "sha256": "6ed01488ebd0d9daa3d896ff5e790e966f80e898edc422f22ae0fbea7a0f4596"
+        "sha256": "53a455cd4da994360900854f55e1c639e512b47ac9b553305c851292cbba1bc5"
       },
       {
         "path": "crates/jet3/src/index_tree_page.rs",
         "provenance_ids": [
           "EXP-0062"
         ],
-        "sha256": "85876dc26dc175d59819d5a245fd46bbbfb6507b56982c61a55327d119ff964b"
+        "sha256": "df68286c9796319c6e88eed0644a23bf966a6573d53022da2bb2968e55c2cce2"
+      },
+      {
+        "path": "crates/jet3/src/index_tree_rows.rs",
+        "provenance_ids": [
+          "EXP-0060",
+          "EXP-0062"
+        ],
+        "sha256": "8239cbf0b5f90e90169f6a2c355e7c59f9f3d39c4aa22fb5094242dd31862c2c"
       },
       {
         "path": "crates/jet3/src/long_value.rs",
         "provenance_ids": [
           "EXP-0061"
         ],
-      "sha256": "0fe9ec300202d10e8ced2329012283e5f81e0e861ad4f54a0d5529ac76e581df"
+        "sha256": "0fe9ec300202d10e8ced2329012283e5f81e0e861ad4f54a0d5529ac76e581df"
       },
       {
         "path": "crates/jet3/src/map_location.rs",
@@ -213,14 +221,14 @@
           "EXP-0060",
           "EXP-0061"
         ],
-      "sha256": "921f9d4154e6684a348a3f3f4bf14e088a456bed498d4f035b660079cbf03348"
+        "sha256": "921f9d4154e6684a348a3f3f4bf14e088a456bed498d4f035b660079cbf03348"
       },
       {
         "path": "crates/jet3/src/row_directory.rs",
         "provenance_ids": [
           "EXP-0060"
         ],
-      "sha256": "ede4361a8dec1a2f0771cd6e43f2000b85e044a797b986674ded22c11f82a38a"
+        "sha256": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844"
       },
       {
         "path": "crates/jet3/src/table_definition.rs",
@@ -236,7 +244,7 @@
           "SRC-0025",
           "EXP-0061"
         ],
-      "sha256": "892b2b2218b52d09f1c2bf2c32aad11f7e0759118681df68f83122a0751192a2"
+        "sha256": "892b2b2218b52d09f1c2bf2c32aad11f7e0759118681df68f83122a0751192a2"
       },
       {
         "path": "crates/jet3/src/usage_map.rs",
@@ -251,7 +259,7 @@
         "provenance_ids": [
           "EXP-0061"
         ],
-      "sha256": "1d87c71aec821aedf3007179bcd9437f1c953ba2e8b3b74a342ad9ab51c1872f"
+        "sha256": "1d87c71aec821aedf3007179bcd9437f1c953ba2e8b3b74a342ad9ab51c1872f"
       }
     ],
     "reviewed_non_assertion_files": [
@@ -338,12 +346,12 @@
       {
         "path": "crates/jet3/src/index_tree_tests.rs",
         "reason": "Test-only verification of EXP-0062 index traversal, raw key retention, child and sibling graphs, corruption, and resource boundaries.",
-        "sha256": "11e418b1a25d56f6231277a2bd089ce14886907c13bd48c6d70aed2dc4f74094"
+        "sha256": "1caaed33c29a6a24f0992e252073a579a825bf9da5e2f9f7fc22b9e249252714"
       },
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "d5404dd364dfb662bd1d66bbe0817d3de685fca895759242644a11fa9504225e"
+        "sha256": "ad37cf9a92f7ad9e5b66b3128bd63b720fd70d54d3e2eb1ee6b47ba05cc0d042"
       },
       {
         "path": "crates/jet3/src/long_value_tests.rs",
