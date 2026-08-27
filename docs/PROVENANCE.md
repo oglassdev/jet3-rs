@@ -841,6 +841,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:fuzz/fuzz_targets/page_classification.rs`; `file:tests/manifest.json`
   Additional tracked Usage:
   `file:crates/jet3/src/usage_map.rs`;
+  `file:crates/jet3/src/catalog_record.rs`;
+  `file:fuzz/fuzz_targets/catalog_parsing.rs`;
   `file:fuzz/fuzz_targets/usage_map_traverse.rs`;
   `file:oracle/windows-dao/experiments/a4/README.md`;
   `file:oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`;
@@ -5141,6 +5143,97 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:crates/jet3/src/allocation_traverse.rs`;
   `file:crates/jet3/src/database.rs`;
   `file:fuzz/fuzz_targets/usage_map_traverse.rs`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0058 — Local DAO catalog bootstrap observations
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Can a Jet 3 catalog root be found without an absolute page
+  assumption, and which minimum row fields identify table objects, system
+  classification, raw names, and table-definition roots?
+- Origin: the project-authored, explicitly allowlisted local Windows
+  development runner using DAO database, table-definition, field, append, and
+  delete APIs documented in `SRC-0001`, `SRC-0009`, `SRC-0010`, `SRC-0012`,
+  and the database locale from `SRC-0014`; page classification, row-directory
+  bounds, and allocation traversal were restricted to `SRC-0020` and
+  `EXP-0057`; no third-party MDB implementation was inspected
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM as `EXP-0056`; every run accepted `DAO.DBEngine.36` version
+  3.6 from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  each database was created with
+  `;LANGID=0x0409;CP=1252;COUNTRY=0`
+- Protocol: run three independent `catalog` jobs. Each job created one fresh
+  Jet 3 database and captured seven checkpoints: empty; create, drop, and
+  recreate `CatalogAscii`; then create, drop, and recreate
+  `Café_Euro€`. The non-ASCII name was constructed from Unicode code points,
+  not decoded from the PowerShell source file. Each checkpoint reopened DAO
+  only to capture at most 128 table names and attributes, closed every DAO and
+  COM object, forced finalization, and only then copied the MDB. The physical
+  analysis enumerated every tag-`02` page rather than assuming a catalog page,
+  traversed each candidate's owned map, admitted only tag-`01` pages, and used
+  complete `SRC-0020` row-directory bounds. It required the same observations
+  in all three runs before interpretation.
+- Artifacts: development run ids `20260827T001825Z-catalog1`,
+  `20260827T001844Z-catalog2`, and `20260827T001855Z-catalog3`; respective
+  `result.json` SHA-256 values
+  `0d8458f40920c32eef1b4552bb68c813a993579ef2e8b3afacdb8eee309bb3ac`,
+  `dacb635ecec6c3a8ef81b90a786c9fc542cbcb6b9d67047e7321d8a5c68bc716`,
+  and `98694b637fc6c1cba135236abaa9854744f41dc5e7d6a3dea6e4d08dfd831c4a`.
+  The job-specific result was byte-identical in all three runs, SHA-256
+  `b711efd74ff44cdf20cf6cc5b19a4bba8fb1e9cd0babc0860c0dc3355391d092`.
+  Raw MDBs and complete outputs remain outside the repository.
+- Observation: the empty databases had 20 pages and tag-`02` candidates 2, 3,
+  4, and 5. At every checkpoint, traversing candidate 2's owned map admitted
+  tag-`01` page 18, which contained exactly one active table record whose raw
+  name was `MSysObjects`, whose identifier was 2, whose raw kind was 1, and
+  whose flags were `0x80000000`. No other tag-`02` candidate had that
+  self-identifying record. Candidate 3's owned page also changed during table
+  operations, so change alone is not a unique catalog-root discriminator.
+- Observation: every active catalog record began with column count 17. The
+  little-endian identifier occupied row bytes `[1,5)`, the little-endian raw
+  kind occupied `[9,11)`, and the little-endian object flags occupied
+  `[27,31)`. In each row, the fifth byte from the end was name-start offset 31,
+  the sixth byte from the end was the exclusive name-end offset, the fourth
+  byte from the end was fixed boundary 11, and the third byte from the end was
+  `0xff`; the name range was nonempty and ended before this six-byte trailer.
+  Table records had raw kind 1. DAO's four system table definitions correlated
+  with object flags `0x80000000`; both user tables correlated with flags 0.
+  The identifier of every observed table record was also its in-range,
+  tag-`02` table-definition page: 2 through 5 for the system tables, 20 for
+  `CatalogAscii`, and 23 for `Café_Euro€`. Drop/recreate reused the same
+  physical table-definition identifier in this no-compaction scenario, so the
+  identifier is not interpreted as a lifetime-unique generation.
+- Observation: the ASCII name was stored as its 12 ASCII bytes. Under the
+  recorded CP1252 database locale, `Café_Euro€` was stored exactly as
+  `43 61 66 e9 5f 45 75 72 6f 80`, not either UTF-8 byte sequence. Dropping a
+  table changed its directory entry to flags `0xc000`; after a later append,
+  the masked dropped-row start equaled the next active row's end and delimited
+  an empty tombstone. Active catalog entries used no directory flags.
+- Interpretation: catalog discovery may scan the captured page range under the
+  operation budget, consider only correctly classified tag-`02` candidates,
+  traverse candidate-owned pages using `EXP-0057`, require those pages to be
+  tag `01`, and select the unique candidate containing the self-identifying
+  active `MSysObjects` system-table record above. It must reject zero or
+  multiple roots. On the selected owned pages it may decode the recorded
+  minimum fields, preserve unknown kind values, require exact system/user flag
+  values, retain raw name bytes with database-code-page context, and expose the
+  identifier as a checked table-definition reference only for raw table kind
+  1. Deleted `0xc000` tombstones are skipped; unknown directory flags, active
+  overflow entries, malformed bounds/trailers, duplicate active identifiers,
+  and invalid references fail closed. This does not establish a general row
+  grammar, decode arbitrary text, traverse index trees, validate DAO
+  compatibility, or revise any hosted-campaign result.
+- Usage: `file:oracle/windows-dao/scripts/dev/Catalog.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`; `file:crates/jet3/src/catalog.rs`;
+  `file:crates/jet3/src/catalog_record.rs`;
+  `file:fuzz/fuzz_targets/catalog_parsing.rs`
 - Rights: project-generated licensed-provider outputs are private local
   development material and are neither committed nor redistributed
 - Review: pending independent review

@@ -48,7 +48,7 @@
           "SRC-0020",
           "EXP-0057"
         ],
-        "sha256": "852ae84e46f8821db4f78acbfcde4d5809abddd1a48679e7cd923a46265273eb"
+        "sha256": "49765944254374fb6b7bd227faf48eb674ae42e7d6ff5dae475d45526b23607e"
       },
       {
         "path": "crates/jet3/src/candidate.rs",
@@ -57,6 +57,22 @@
           "SRC-0005"
         ],
         "sha256": "0c5c1b59022efcf9c6032e7176a21786c38cc7b7cf31d88219e127384105b486"
+      },
+      {
+        "path": "crates/jet3/src/catalog.rs",
+        "provenance_ids": [
+          "EXP-0057",
+          "EXP-0058"
+        ],
+        "sha256": "4d6e4880ebc4ed537b3d34fdf3b7489eeac58c3344f28ce02807444c55342082"
+      },
+      {
+        "path": "crates/jet3/src/catalog_record.rs",
+        "provenance_ids": [
+          "SRC-0020",
+          "EXP-0058"
+        ],
+        "sha256": "77568d67b9ba7a9d9213992900d49a2268cab9246f3bfbf3c0595838c49289f0"
       },
       {
         "path": "crates/jet3/src/commit_state.rs",
@@ -75,7 +91,7 @@
           "EXP-0056",
           "EXP-0057"
         ],
-        "sha256": "5b01a5e65810b19e2eee78d67a73cb702f396fbd1efeb366b2024f97f43b1b54"
+        "sha256": "46bbecc16e6eb0c389f64aae741aa7a2d514b25e249b0ddca1825cd86ddd1c9c"
       },
       {
         "path": "crates/jet3/src/database_header.rs",
@@ -174,6 +190,16 @@
         "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e"
       },
       {
+        "path": "crates/jet3/src/catalog_record_tests.rs",
+        "reason": "Test-only verification of EXP-0058 catalog directory and minimum record decoding.",
+        "sha256": "581ed9dea8506e82f0c68f413ee4f3ee6f6c250c68f066cc636d4f034d2edb75"
+      },
+      {
+        "path": "crates/jet3/src/catalog_tests.rs",
+        "reason": "Test-only verification of bounded EXP-0058 catalog discovery and streaming.",
+        "sha256": "f1b337ba9870c3bdff433f6ec6c3b167455f811a2dcda946f9e7d5574a97edb8"
+      },
+      {
         "path": "crates/jet3/src/database_header_tests.rs",
         "reason": "Test-only verification of the provenance-bound database header page composition in database_header.rs.",
         "sha256": "7b95662b982035cf25f0907c4e9abc9e541cfff211bdb2e4fb484d40f53f1bf6"
@@ -206,7 +232,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "5789d5cd0cbab7f6166c28effb9d96bff68c040b4269c274bcf947a5d80a550c"
+        "sha256": "5a4b1aa6ffdf9f6df8706e7aac73ef96e136f29686285ae9af44cc5be281f026"
       },
       {
         "path": "crates/jet3/src/limits.rs",

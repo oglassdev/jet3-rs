@@ -81,5 +81,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "catalog_parsing"
+path = "fuzz_targets/catalog_parsing.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

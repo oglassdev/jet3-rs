@@ -27,6 +27,9 @@ REMOTE_RUNNER = (
     / "Invoke-Jet3DaoDevJob.ps1"
 )
 PROVIDER_PROBE = ROOT / "oracle" / "windows-dao" / "scripts" / "probe-provider.ps1"
+CATALOG_JOB = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Catalog.DevJob.ps1"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -35,6 +38,7 @@ ALLOWED_JOBS = (
     "create-empty",
     "opening-matrix",
     "allocation-map",
+    "catalog",
 )
 
 
@@ -103,6 +107,7 @@ def stage_job(args: argparse.Namespace) -> Path:
     try:
         shutil.copyfile(REMOTE_RUNNER, staging / REMOTE_RUNNER.name)
         shutil.copyfile(PROVIDER_PROBE, staging / PROVIDER_PROBE.name)
+        shutil.copyfile(CATALOG_JOB, staging / CATALOG_JOB.name)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -117,6 +122,7 @@ def invocation_script(args: argparse.Namespace) -> str:
         "run_id": args.run_id,
         "runner": ntpath.join(remote_input, REMOTE_RUNNER.name),
         "probe": ntpath.join(remote_input, PROVIDER_PROBE.name),
+        "catalog_job": ntpath.join(remote_input, CATALOG_JOB.name),
         "output": ntpath.join(args.remote_shared_root, "outbox", args.run_id),
     }
     encoded = base64.b64encode(
@@ -131,7 +137,8 @@ def invocation_script(args: argparse.Namespace) -> str:
         "& $winps -NoProfile -NonInteractive -ExecutionPolicy Bypass "
         "-File ([string]$c.runner) -Job ([string]$c.job) "
         "-RunId ([string]$c.run_id) -ProviderProbePath ([string]$c.probe) "
-        "-SharedOutputPath ([string]$c.output);exit $LASTEXITCODE"
+        "-SharedOutputPath ([string]$c.output) "
+        "-CatalogJobPath ([string]$c.catalog_job);exit $LASTEXITCODE"
     )
 
 

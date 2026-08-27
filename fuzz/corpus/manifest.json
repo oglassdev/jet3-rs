@@ -817,6 +817,57 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '19990000' > fuzz/corpus/usage_map_traverse/zero_slots"
+    },
+    {
+      "id": "FUZZ-SEED-CATALOG-PARSING-001",
+      "path": "fuzz/corpus/catalog_parsing/valid_catalog",
+      "size_bytes": 6,
+      "sha256": "9d4d3a9b4b3c46108e989e70d7c56806dc026bbf4863b1231ffc2751ad92117d",
+      "purpose": "Select generous resource controls and preserve the complete project-authored synthetic self-identifying catalog with one system and one CP1252-shaped user table record.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, and EXP-0058; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33330' > fuzz/corpus/catalog_parsing/valid_catalog"
+    },
+    {
+      "id": "FUZZ-SEED-CATALOG-PARSING-002",
+      "path": "fuzz/corpus/catalog_parsing/malformed_directory",
+      "size_bytes": 8,
+      "sha256": "631f40e4092bd0a7ad7a8d4278b14d494012dcc38cb7a564b5c7df2ff28f8f9a",
+      "purpose": "Overwrite the synthetic catalog row-count bytes with an oversized ASCII-shaped value and exercise fail-closed directory validation.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0058; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33331zz' > fuzz/corpus/catalog_parsing/malformed_directory"
+    },
+    {
+      "id": "FUZZ-SEED-CATALOG-PARSING-003",
+      "path": "fuzz/corpus/catalog_parsing/tight_resources",
+      "size_bytes": 6,
+      "sha256": "64f277fa6be054fb021b92d8199f38025231e6d3c833a54dd501da394b547ce6",
+      "purpose": "Select zero item, work, visit, and allocation ceilings against the valid synthetic catalog to exercise early resource rejection.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0058; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '00000' > fuzz/corpus/catalog_parsing/tight_resources"
     }
   ]
 }

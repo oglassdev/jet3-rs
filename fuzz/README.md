@@ -44,7 +44,11 @@ exactly. The checked targets are:
 - `usage_map_traverse`: fixed-memory, end-to-end owned-page traversal over a
   synthetic Jet 3 database, including table-definition map locators, inline
   and indirect records, direct type-05 references, slot-relative extended
-  bases, null slots, repeats, and out-of-capture references (`EXP-0057`).
+  bases, null slots, repeats, and out-of-capture references (`EXP-0057`); and
+- `catalog_parsing`: bounded catalog-root discovery and streaming minimum
+  catalog records over a fixed synthetic database, including directories,
+  flags, identifiers, kinds, raw names, TDEF references, duplicates, and
+  operation-wide resource limits (`EXP-0058`).
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
@@ -76,6 +80,11 @@ nine-page synthetic database, retains two fixed page buffers, follows at most
 the 33 indirect slots encoded in its fixed map row, and returns after at
 most 65 owned pages while all reads, visits, items, work, and allocations stay
 under input-selected limits.
+`catalog_parsing` borrows at most one 4 KiB input, constructs one fixed
+five-page synthetic database, mutates only one selected bounded physical
+region, and returns after at most 32 catalog records while discovery,
+allocation traversal, name retention, and duplicate tracking share one
+input-selected budget.
 The checked corpus covers zero/tight limits, primitive reads, arithmetic
 boundary-shaped values, all documented generic Jet signature kinds, unknown
 and truncated signatures, exact/partial Jet 3 geometry,
@@ -96,6 +105,8 @@ bytes, and retry without advancement after tight resource failures.
 End-to-end usage-map coverage includes inline boundaries, all-zero indirect
 slots, repeated direct references, references beyond captured input, and
 slot-relative type-05 bitmap traversal.
+Catalog coverage includes a valid self-identifying root, CP1252-shaped raw
+name bytes, malformed directories, and zero resource ceilings.
 `corpus/manifest.json` records each seed's stable ID,
 purpose, exact bytes and hash, origin, environment, rights, and reproduction
 command.

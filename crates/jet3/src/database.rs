@@ -13,10 +13,11 @@ use std::fmt;
 use std::path::Path;
 
 use crate::{
-    AllocationTraversalError, CandidateError, ClassifiedPage, DatabaseFormatError,
-    DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource, JET3_PAGE_SIZE, JetFileKind,
-    OwnedPages, PageClassificationError, PageGeometry, PageNumber, RawJet3Candidate, RawPageCursor,
-    ReadAt, ResourceBudget, SupportedDatabaseFormat, classify_page,
+    AllocationTraversalError, CandidateError, CatalogCursor, CatalogError, ClassifiedPage,
+    DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource,
+    JET3_PAGE_SIZE, JetFileKind, OwnedPages, PageClassificationError, PageGeometry, PageNumber,
+    RawJet3Candidate, RawPageCursor, ReadAt, ResourceBudget, SupportedDatabaseFormat,
+    classify_page,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -244,6 +245,14 @@ where
         budget: &'operation mut ResourceBudget,
     ) -> Result<OwnedPages<'operation, S>, AllocationTraversalError> {
         OwnedPages::new(self, table_root, budget)
+    }
+
+    /// Discovers and starts a bounded stream over minimum catalog records.
+    pub fn catalog<'operation>(
+        &'operation mut self,
+        budget: &'operation mut ResourceBudget,
+    ) -> Result<CatalogCursor<'operation, S>, CatalogError> {
+        CatalogCursor::new(self, budget)
     }
 }
 

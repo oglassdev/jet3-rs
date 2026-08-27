@@ -7,6 +7,8 @@ pub mod atomic;
 pub mod binary;
 pub mod binary_writer;
 pub mod candidate;
+pub mod catalog;
+pub mod catalog_record;
 pub mod commit_state;
 pub mod database;
 pub mod database_header;
@@ -36,6 +38,11 @@ pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_h
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
 pub use candidate::{CandidateError, RawJet3Candidate};
+pub use catalog::{CatalogCursor, CatalogError};
+pub use catalog_record::{
+    CatalogName, CatalogNameEncoding, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
+    CatalogRecord, CatalogRecordError,
+};
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,

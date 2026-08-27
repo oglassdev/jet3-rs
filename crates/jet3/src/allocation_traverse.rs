@@ -487,6 +487,33 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
         result
     }
 
+    /// Reads and classifies the next owned page into caller-provided storage.
+    ///
+    /// This crate-internal composition hook keeps the traversal's database and
+    /// operation-budget borrows intact while allowing the catalog layer to
+    /// retain exactly one owned data page.
+    pub(crate) fn next_classified_page_into(
+        &mut self,
+        destination: &mut [u8; PAGE_BYTES],
+    ) -> Result<Option<(PageNumber, PageKind)>, AllocationTraversalError> {
+        let Some(page) = self.next_page()? else {
+            return Ok(None);
+        };
+        let classified = self
+            .database
+            .read_classified_page(page, destination, self.budget)
+            .map_err(AllocationTraversalError::Page)?;
+        Ok(Some((classified.number(), classified.kind())))
+    }
+
+    pub(crate) const fn geometry(&self) -> PageGeometry {
+        self.geometry
+    }
+
+    pub(crate) const fn budget_mut(&mut self) -> &mut ResourceBudget {
+        self.budget
+    }
+
     fn next_page_inner(&mut self) -> Result<Option<PageNumber>, AllocationTraversalError> {
         loop {
             match &mut self.state {

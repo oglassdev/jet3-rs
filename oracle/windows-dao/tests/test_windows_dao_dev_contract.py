@@ -50,6 +50,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "create-empty",
                 "opening-matrix",
                 "allocation-map",
+                "catalog",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -68,7 +69,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             self.assertIn("StrictHostKeyChecking=yes", command)
             self.assertIn("BatchMode=yes", command)
 
-    def test_staging_copies_only_the_two_runner_files(self) -> None:
+    def test_staging_copies_only_the_allowlisted_runner_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             identity = root / "identity"
@@ -78,7 +79,11 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             staged = CLIENT.stage_job(args)
             self.assertEqual(
                 {path.name for path in staged.iterdir()},
-                {CLIENT.REMOTE_RUNNER.name, CLIENT.PROVIDER_PROBE.name},
+                {
+                    CLIENT.REMOTE_RUNNER.name,
+                    CLIENT.PROVIDER_PROBE.name,
+                    CLIENT.CATALOG_JOB.name,
+                },
             )
 
     def test_result_must_match_job_and_exit_status(self) -> None:
@@ -119,7 +124,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -129,6 +134,28 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             self.assertIn(name, self.remote)
         self.assertNotIn("Invoke-Expression", self.remote)
         self.assertNotIn("ScriptBlock::Create", self.remote)
+
+    def test_catalog_job_is_staged_and_bounded(self) -> None:
+        catalog = CLIENT.CATALOG_JOB.read_text(encoding="utf-8")
+        self.assertIn('$Job -ceq "catalog"', self.remote)
+        self.assertIn("CatalogJobPath", self.remote)
+        self.assertIn("development_only = $true", catalog)
+        self.assertIn("$count -gt 128", catalog)
+        self.assertIn("Release-ComObject -Value $definitions", catalog)
+        for name in (
+            "00-empty",
+            "01-ascii-created",
+            "02-ascii-dropped",
+            "03-ascii-recreated",
+            "04-cp1252-created",
+            "05-cp1252-dropped",
+            "06-cp1252-recreated",
+        ):
+            self.assertIn(name, catalog)
+        self.assertLess(
+            catalog.index("Get-TableSnapshot -Path $Source"),
+            catalog.index("Copy-Item -LiteralPath $Source"),
+        )
 
     def test_allocation_job_is_bounded_and_publishes_closed_checkpoints(self) -> None:
         self.assertIn('$Job -ceq "allocation-map"', self.remote)

@@ -32,6 +32,7 @@ just windows-dev-probe
 just windows-dev-empty
 just windows-dev-opening
 just windows-dev-allocation
+just windows-dev-catalog
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -48,6 +49,12 @@ that multi-slot state. It publishes eight closed checkpoint MDBs plus compact
 page-count, type-`05`, and multi-slot metadata. The growth loop assumes no
 format threshold: it stops on observed row and page structure or fails after
 32,768 rows. Allow up to 15 minutes for this exploratory job.
+
+`catalog` runs a fixed seven-checkpoint sequence over fresh Jet 3 databases:
+empty, ASCII table create/drop/recreate, then CP1252-discriminating table
+create/drop/recreate. The job snapshots bounded DAO table metadata, closes DAO
+before every MDB copy, and constructs the non-ASCII name from code points so
+script-file encoding cannot affect the observation.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and

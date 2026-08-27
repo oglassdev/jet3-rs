@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -10,6 +10,8 @@ param(
     [string]$ProviderProbePath,
     [Parameter(Mandatory = $true)]
     [string]$SharedOutputPath,
+    [Parameter(Mandatory = $true)]
+    [string]$CatalogJobPath,
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
 )
 
@@ -353,7 +355,11 @@ function Publish-DevelopmentOutput {
             "allocation-00-empty.mdb", "allocation-01-created.mdb",
             "allocation-02-seeded.mdb", "allocation-03-before-extended.mdb",
             "allocation-04-after-extended.mdb", "allocation-05-grown.mdb",
-            "allocation-06-deleted.mdb", "allocation-07-reinserted.mdb"
+            "allocation-06-deleted.mdb", "allocation-07-reinserted.mdb",
+            "catalog-job-result.json", "catalog-00-empty.mdb",
+            "catalog-01-ascii-created.mdb", "catalog-02-ascii-dropped.mdb",
+            "catalog-03-ascii-recreated.mdb", "catalog-04-cp1252-created.mdb",
+            "catalog-05-cp1252-dropped.mdb", "catalog-06-cp1252-recreated.mdb"
         )) {
             $sourcePath = Join-Path $Source $name
             if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
@@ -372,6 +378,10 @@ function Publish-DevelopmentOutput {
 
 if (-not (Test-Path -LiteralPath $ProviderProbePath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: provider probe does not exist.")
+    exit 2
+}
+if ($Job -ceq "catalog" -and -not (Test-Path -LiteralPath $CatalogJobPath -PathType Leaf)) {
+    [Console]::Error.WriteLine("INVALID: catalog job does not exist.")
     exit 2
 }
 
@@ -398,6 +408,7 @@ $allocationBatchRows = $null
 $allocationPayloadBytes = $null
 $allocationExtendedDetectedAtRows = $null
 $allocationMultiSlotMap = $null
+$catalogCheckpoints = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -623,6 +634,31 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
+elseif ($Job -ceq "catalog" -and $probeExitCode -eq 0) {
+    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
+        $detail = "The ready provider is not DAO.DBEngine.36."
+    }
+    else {
+        & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
+            -ExecutionPolicy Bypass -File $CatalogJobPath -RunRoot $runRoot
+        $catalogExitCode = [int]$LASTEXITCODE
+        $catalogResultPath = Join-Path $runRoot "catalog-job-result.json"
+        if (-not (Test-Path -LiteralPath $catalogResultPath -PathType Leaf)) {
+            $status = "fail"
+            $detail = "The staged catalog job did not write its bounded result."
+            $exitCode = 1
+        }
+        else {
+            $catalogResult = Get-Content -LiteralPath $catalogResultPath -Raw |
+                ConvertFrom-Json
+            $catalogCheckpoints = @($catalogResult.checkpoints)
+            $status = [string]$catalogResult.status
+            $detail = [string]$catalogResult.detail
+            $exitCode = $catalogExitCode
+        }
+    }
+}
 
 $result = [ordered]@{
     development_only = $true
@@ -639,6 +675,7 @@ $result = [ordered]@{
     allocation_payload_bytes = $allocationPayloadBytes
     allocation_extended_detected_at_rows = $allocationExtendedDetectedAtRows
     allocation_multi_slot_map = $allocationMultiSlotMap
+    catalog_checkpoints = @($catalogCheckpoints)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result
