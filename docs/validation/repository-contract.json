@@ -145,9 +145,24 @@
       {
         "path": "crates/jet3/src/index_definition.rs",
         "provenance_ids": [
-          "EXP-0059"
+          "EXP-0059",
+          "EXP-0062"
         ],
-      "sha256": "1cad64f9b243cfc682bd67041f1d74f579264382cbb6db27a8bc1b49a41a504e"
+        "sha256": "53713edf32671f438e838c49057c75e6038ada0b10d87b8b2266890ed635af13"
+      },
+      {
+        "path": "crates/jet3/src/index_tree.rs",
+        "provenance_ids": [
+          "EXP-0062"
+        ],
+        "sha256": "7d39eb94228fcd35eedd47ba21615a7b29529e16be015ff319255701ab8279bd"
+      },
+      {
+        "path": "crates/jet3/src/index_tree_page.rs",
+        "provenance_ids": [
+          "EXP-0062"
+        ],
+        "sha256": "85876dc26dc175d59819d5a245fd46bbbfb6507b56982c61a55327d119ff964b"
       },
       {
         "path": "crates/jet3/src/long_value.rs",
@@ -185,6 +200,14 @@
         "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367"
       },
       {
+        "path": "crates/jet3/src/relationships.rs",
+        "provenance_ids": [
+          "EXP-0059",
+          "EXP-0062"
+        ],
+        "sha256": "8126b9425e5371e315bd0ecde515108512d3544ef0013749430d807a0beb771f"
+      },
+      {
         "path": "crates/jet3/src/row.rs",
         "provenance_ids": [
           "EXP-0060",
@@ -205,7 +228,7 @@
           "EXP-0057",
           "EXP-0059"
         ],
-      "sha256": "859c093f574830d80ec0d02ed9fa49ba28e4f95601029c867c763a8c9d031fc6"
+        "sha256": "561737aa39422cf1cb2cda0ea3c29e7d9cf27ce2d5069ae63a065e52114e16ba"
       },
       {
         "path": "crates/jet3/src/text.rs",
@@ -313,9 +336,14 @@
         "sha256": "bff23b9a03e21578052e2bebb5f36eb6cf169cdf4ff737ab46ea05ae98409cb1"
       },
       {
+        "path": "crates/jet3/src/index_tree_tests.rs",
+        "reason": "Test-only verification of EXP-0062 index traversal, raw key retention, child and sibling graphs, corruption, and resource boundaries.",
+        "sha256": "6a3a37bdd1584ca4d0e5e1808f033d677b5dfc98882b6c95e10f6594f0755ecd"
+      },
+      {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "0327f97f897f18a4b27ecb849094fa1339d43a87c045f9c943373a36fee579d8"
+        "sha256": "d5404dd364dfb662bd1d66bbe0817d3de685fca895759242644a11fa9504225e"
       },
       {
         "path": "crates/jet3/src/long_value_tests.rs",
@@ -379,8 +407,8 @@
       },
       {
         "path": "crates/jet3/src/table_definition_tests.rs",
-        "reason": "Test-only verification of EXP-0059 table-definition, column, index, relationship-reference, chain, corruption, and resource boundaries.",
-        "sha256": "29f062aa54591c3c9fcbb60181969b0adfdba7b5ec6f910859181a5e7810aee5"
+        "reason": "Test-only verification of EXP-0059 and EXP-0062 table-definition, column, index, relationship, chain, corruption, and resource boundaries.",
+        "sha256": "89ba4c4d229f45f2234965e25293d8e0eeff5441e64189719b7f401a69566fc3"
       },
       {
         "path": "crates/jet3/src/text_tests.rs",

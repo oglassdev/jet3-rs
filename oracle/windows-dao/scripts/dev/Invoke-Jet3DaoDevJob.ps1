@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -24,6 +24,8 @@ param(
     [string]$RowJobPath,
     [Parameter(Mandatory = $true)]
     [string]$ValueJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$IndexJobPath,
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
 )
 
@@ -363,7 +365,7 @@ if ($Job -ceq "table-definition" -and
     [Console]::Error.WriteLine("INVALID: table-definition job inputs do not exist.")
     exit 2
 }
-foreach ($requiredHelper in @($DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath)) {
+foreach ($requiredHelper in @($DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath)) {
     if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
         [Console]::Error.WriteLine("INVALID: staged development helper does not exist.")
         exit 2
@@ -398,6 +400,7 @@ $tableDefinitionCheckpoints = @()
 $tableDefinitionTypeResults = @()
 $rowScenarios = @()
 $valueScenarios = @()
+$indexScenarios = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -623,7 +626,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -633,7 +636,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value") -and $probeExi
             -ExecutionPolicy Bypass -File $DispatchPath -Job $Job -RunRoot $runRoot `
             -CatalogJobPath $CatalogJobPath -TableDefinitionJobPath $TableDefinitionJobPath `
             -TableDefinitionTypeInputPath $TableDefinitionTypeInputPath -RowJobPath $RowJobPath `
-            -ValueJobPath $ValueJobPath
+            -ValueJobPath $ValueJobPath -IndexJobPath $IndexJobPath
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
         if (-not (Test-Path -LiteralPath $dispatchResultPath -PathType Leaf)) {
@@ -649,6 +652,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value") -and $probeExi
             $tableDefinitionTypeResults = @($dispatchResult.table_definition_type_results)
             $rowScenarios = @($dispatchResult.row_scenarios)
             $valueScenarios = @($dispatchResult.value_scenarios)
+            $indexScenarios = @($dispatchResult.index_scenarios)
             $status = [string]$dispatchResult.status
             $detail = [string]$dispatchResult.detail
             $exitCode = $dispatchExitCode
@@ -676,6 +680,7 @@ $result = [ordered]@{
     table_definition_type_results = @($tableDefinitionTypeResults)
     row_scenarios = @($rowScenarios)
     value_scenarios = @($valueScenarios)
+    index_scenarios = @($indexScenarios)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

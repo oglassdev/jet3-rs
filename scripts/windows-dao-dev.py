@@ -44,6 +44,7 @@ STAGED_PUBLICATION = (
 )
 ROW_JOB = ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Row.DevJob.ps1"
 VALUE_JOB = ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Value.DevJob.ps1"
+INDEX_JOB = ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Index.DevJob.ps1"
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -56,6 +57,7 @@ ALLOWED_JOBS = (
     "table-definition",
     "row",
     "value",
+    "index",
 )
 
 
@@ -131,6 +133,7 @@ def stage_job(args: argparse.Namespace) -> Path:
         shutil.copyfile(STAGED_PUBLICATION, staging / STAGED_PUBLICATION.name)
         shutil.copyfile(ROW_JOB, staging / ROW_JOB.name)
         shutil.copyfile(VALUE_JOB, staging / VALUE_JOB.name)
+        shutil.copyfile(INDEX_JOB, staging / INDEX_JOB.name)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -152,6 +155,7 @@ def invocation_script(args: argparse.Namespace) -> str:
         "publication": ntpath.join(remote_input, STAGED_PUBLICATION.name),
         "row_job": ntpath.join(remote_input, ROW_JOB.name),
         "value_job": ntpath.join(remote_input, VALUE_JOB.name),
+        "index_job": ntpath.join(remote_input, INDEX_JOB.name),
         "output": ntpath.join(args.remote_shared_root, "outbox", args.run_id),
     }
     encoded = base64.b64encode(
@@ -173,7 +177,8 @@ def invocation_script(args: argparse.Namespace) -> str:
         "-DispatchPath ([string]$c.dispatch) "
         "-PublicationPath ([string]$c.publication) "
         "-RowJobPath ([string]$c.row_job) "
-        "-ValueJobPath ([string]$c.value_job);"
+        "-ValueJobPath ([string]$c.value_job) "
+        "-IndexJobPath ([string]$c.index_job);"
         "exit $LASTEXITCODE"
     )
 

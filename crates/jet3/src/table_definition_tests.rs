@@ -234,7 +234,32 @@ fn preserves_minimum_relationship_reference_without_cascade_claims()
     );
     assert_eq!(reference.raw_relation_ordinal(), 1);
     assert_eq!(reference.raw_selector(), 0);
+    assert_eq!(reference.raw_context(), [1, 1]);
+    assert!(reference.cascade_updates());
+    assert!(reference.cascade_deletes());
     assert_eq!(definition.indexes()[0].raw_record()[8], 2);
+
+    let relationship = definition
+        .relationships()
+        .next()
+        .ok_or("missing relationship")?;
+    assert_eq!(relationship.name().decoded_ascii(), Some("Rel"));
+    assert_eq!(relationship.physical_index(), 0);
+    assert_eq!(relationship.raw_context(), [1, 1]);
+    assert!(definition.relationships().nth(1).is_none());
+
+    for context in [[0, 0], [1, 0], [0, 1], [1, 1]] {
+        let mut logical = relationship_definition();
+        logical[LOGICAL_OFFSET + 17..LOGICAL_OFFSET + 19].copy_from_slice(&context);
+        let decoded = decode(&database_bytes(&logical, None))?;
+        let item = decoded
+            .relationships()
+            .next()
+            .ok_or("missing relationship")?;
+        assert_eq!(item.raw_context(), context);
+        assert_eq!(item.cascade_updates(), context[0] == 1);
+        assert_eq!(item.cascade_deletes(), context[1] == 1);
+    }
     Ok(())
 }
 

@@ -127,6 +127,15 @@
       "max_len": 4096,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 536870912
+    },
+    {
+      "name": "index_traversal",
+      "source": "fuzz/fuzz_targets/index_traversal.rs",
+      "corpus": "fuzz/corpus/index_traversal",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 1073741824
     }
   ]
 }

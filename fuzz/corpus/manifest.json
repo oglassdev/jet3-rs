@@ -1021,6 +1021,57 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '33333335chain-mutation' > fuzz/corpus/long_values/chain_mutation"
+    },
+    {
+      "id": "FUZZ-SEED-INDEX-TRAVERSAL-001",
+      "path": "fuzz/corpus/index_traversal/valid_index",
+      "size_bytes": 18,
+      "sha256": "58295a7a7fe1327bfe651eef9f8b9f5a0e348dc494c6422742683bbcf25bce29",
+      "purpose": "Select generous limits and preserve the complete project-authored two-level index tree.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0062; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333333valid-index' > fuzz/corpus/index_traversal/valid_index"
+    },
+    {
+      "id": "FUZZ-SEED-INDEX-TRAVERSAL-002",
+      "path": "fuzz/corpus/index_traversal/tight_resources",
+      "size_bytes": 22,
+      "sha256": "16d2063ab2106533a8b929db54aacf31576db97040e448d49fe72105b1aae577",
+      "purpose": "Select zero allocation, item, work, page-visit, and chain ceilings against the valid synthetic index database.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0062; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000000tight-resources' > fuzz/corpus/index_traversal/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-INDEX-TRAVERSAL-003",
+      "path": "fuzz/corpus/index_traversal/branch_mutation",
+      "size_bytes": 22,
+      "sha256": "3b5741264bfa537a9261bc899efc270dc30fa8c0c627a3b92d539b30d0e73e41",
+      "purpose": "Mutate the synthetic intermediate page while retaining bounded database and table-definition setup.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0062; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333333branch-mutation' > fuzz/corpus/index_traversal/branch_mutation"
     }
   ]
 }

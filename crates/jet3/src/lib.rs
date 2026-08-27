@@ -18,6 +18,8 @@ mod definition_name;
 pub mod error;
 pub mod header;
 pub mod index_definition;
+pub mod index_tree;
+mod index_tree_page;
 pub mod jet3_page;
 pub mod limits;
 pub mod long_value;
@@ -27,6 +29,7 @@ pub mod page;
 pub mod page_kind;
 mod physical_index_definition;
 pub mod raw_page_stream;
+pub mod relationships;
 pub mod resource;
 pub mod row;
 pub mod row_directory;
@@ -76,6 +79,9 @@ pub use index_definition::{
     IndexDefinition, IndexDefinitionError, IndexDefinitionKind, IndexDirection, IndexField,
     IndexUsageMapReference, PhysicalIndexDefinition, RelationshipReference, RelationshipSide,
 };
+pub use index_tree::{
+    IndexEntry, IndexKey, IndexKeyEncoding, IndexNode, IndexNodeKind, IndexTree, IndexTreeError,
+};
 pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
 pub use long_value::{
@@ -87,6 +93,7 @@ pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
 pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
+pub use relationships::{Relationship, Relationships};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use row::{RawField, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};

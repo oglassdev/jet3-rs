@@ -5677,6 +5677,95 @@ Use `not applicable` explicitly rather than omitting a field.
   development material and are neither committed nor redistributed
 - Review: pending independent review
 
+### EXP-0062 — Local DAO index-tree and relationship-option observations
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Which bounded branch/leaf layout, links, key byte shapes, and
+  relationship option bytes are stable across controlled Jet 3 indexes?
+- Origin: one project-authored, explicitly allowlisted staged `index` job using
+  the checked DAO types and operations in `SRC-0023` and `SRC-0024`, the table
+  definitions in `EXP-0059`, and no third-party MDB implementation
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM and provider as `EXP-0061`; every database used
+  `;LANGID=0x0409;CP=1252;COUNTRY=0`
+- Protocol: create bounded fresh databases holding 4,096 ascending,
+  descending, or permuted Long keys; a 1,024-row mixed-direction composite
+  key; isolated physical-type indexes; and parent/child relationship
+  checkpoints for absent, no-cascade, update-only, delete-only, combined, and
+  deleted states. Close DAO before every retained copy, never compact, and
+  require a second final run after the relationship cases were isolated.
+  Seven preceding local pilots failed while the job isolated provider
+  behavior for descending fields, populated GUID indexes, and invalid
+  Memo/LongBinary definitions; they are diagnostics and are excluded.
+- Artifacts: development run id `20260827T183000Z-index-layout`;
+  `result.json` SHA-256
+  `b5755a74ba8461a405dd9aa8741d498f428bcbcfc89feb32ae7bffee7ddbc176`;
+  `index-job-result.json` SHA-256
+  `19e9fe8cd685d80c2e32971cff12126c5b93996d67f771f0edbf969bcc9feb97`;
+  SHA-256 of the sorted 11-line MDB SHA-256 manifest
+  `5e58c26c85dc4eca6524ac6b8a76d81b3f9bf554a1e76173b0786c4cd75f64f5`.
+  Raw MDBs, the manifest, and complete output remain outside the repository.
+- Observation: a branched physical-index root was tag `03`; leaves were tag
+  `04`. Both used byte 1 value 1, little-endian free bytes at `[2,4)`, the
+  owning TDEF page at `[4,8)`, previous and next sibling references at
+  `[8,12)` and `[12,16)`, a branch tail child at `[16,20)` (zero for leaves),
+  common-key prefix length at byte 20, and class byte 1 for branches or 0 for
+  leaves at byte 21. Bytes `[22,248)` were an LSB-first bitmap of cumulative
+  entry-end offsets in the 1,800-byte area `[248,2048)`; the free count equaled
+  1,800 minus the highest boundary. Bytes after that boundary could remain
+  stale and were not input.
+- Observation: each leaf entry was the page common prefix plus its stored
+  suffix and ended with a four-byte row locator: a three-byte big-endian page
+  followed by one row slot. Each branch separator ended with the same
+  key-and-row-locator form followed by a four-byte big-endian child page; the
+  header supplied the rightmost child. Separators duplicated the maximum key
+  in the child reached through them. Sibling references formed exact
+  left-to-right chains at each populated depth in the ascending, descending,
+  and permuted controls.
+- Observation: a non-null single-field key began with `7f`. Boolean and Byte
+  keys were two bytes; Integer three; Long and Single five; Currency, Double,
+  and Date nine. Fixed Binary held the marker, exact declared bytes, and a
+  trailing declared-length byte. Text held provider collation bytes after the
+  marker and ended in zero; those bytes were not decoded as text. Null was the
+  single byte `00`. DAO accepted index definitions for Boolean, Byte, Integer,
+  Long, Currency, Single, Double, Date, Binary, Text, and GUID; inserting the
+  first indexed GUID failed in this provider, so no GUID key encoding was
+  observed. Memo and LongBinary index definitions were rejected. Composite
+  component boundaries and all unsupported encodings remain lossless raw
+  bytes rather than guessed values.
+- Observation: the two relationship logical-record context bytes at `[17,19)`
+  were respectively cascade-update and cascade-delete flags. The isolated
+  controls produced `00 00`, `01 00`, `00 01`, and `01 01` on both relationship
+  sides. Deleting the relation removed those relationship logical indexes.
+- Interpretation: an index reader may traverse the child graph iteratively,
+  validate owner/kind/header/free-space/boundaries/row and child references,
+  require exact sibling chains and uniform leaf depth, reject repeated pages,
+  cycles, self-links, and resource exhaustion, and retain every raw key. It
+  may label only the exact single-field shapes above; composite, GUID, Memo,
+  LongBinary, or any other shape stays explicitly unsupported and lossless.
+  Relationship views may expose the isolated booleans and raw record. This is
+  internal-only discovery and does not establish DAO compatibility.
+- Usage: `file:oracle/windows-dao/scripts/dev/Index.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Publish.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`;
+  `file:crates/jet3/src/index_definition.rs`;
+  `file:crates/jet3/src/index_tree.rs`;
+  `file:crates/jet3/src/index_tree_page.rs`;
+  `file:crates/jet3/src/relationships.rs`;
+  `file:fuzz/fuzz_targets/index_traversal.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/LOCAL_WINDOWS_VM.md`;
+  `file:fuzz/README.md`;
+  `file:docs/validation/repository-contract.json`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
