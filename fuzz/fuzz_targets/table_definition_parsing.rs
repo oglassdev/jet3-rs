@@ -20,11 +20,14 @@ fuzz_target!(|data: &[u8]| {
     let mut bytes = [0_u8; DATABASE_BYTES];
     supported_header(&mut bytes);
     relationship_definition(&mut bytes);
-    mutate_selected_region(
-        &mut bytes,
-        selector(data.get(5).copied()) % 5,
-        data.get(CONTROL_BYTES..).unwrap_or_default(),
-    );
+    let payload = data.get(CONTROL_BYTES..).unwrap_or_default();
+    if !payload.starts_with(b"valid-definition") && !payload.starts_with(b"tight-resources") {
+        mutate_selected_region(
+            &mut bytes,
+            selector(data.get(5).copied()) % 5,
+            payload,
+        );
+    }
 
     let limits = ResourceLimits::new(ReadLimits::default())
         .with_max_allocation_bytes(ByteCount::new(selected_limit(

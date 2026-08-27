@@ -5,6 +5,7 @@
 
 use std::mem::size_of;
 
+use crate::definition_name::{DefinitionName, contains_name};
 use crate::table_definition::TableDefinitionError;
 use crate::{ByteCount, Error, ResourceBudget};
 
@@ -25,54 +26,6 @@ impl ColumnOrdinal {
     #[must_use]
     pub const fn get(self) -> u16 {
         self.0
-    }
-}
-
-/// Encoding context attached to raw definition names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum DefinitionNameEncoding {
-    DatabaseCodePage,
-}
-
-/// Owned raw column/index name with its sourced encoding context.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DefinitionName {
-    raw: Vec<u8>,
-    encoding: DefinitionNameEncoding,
-}
-
-impl DefinitionName {
-    pub(crate) fn from_raw(raw: &[u8], budget: &mut ResourceBudget) -> Result<Self, Error> {
-        budget.charge_allocation(ByteCount::from_usize(raw.len())?)?;
-        let mut owned = Vec::new();
-        owned.try_reserve_exact(raw.len()).map_err(|_| Error::Io {
-            operation: "reserve raw definition name",
-            kind: std::io::ErrorKind::OutOfMemory,
-        })?;
-        owned.extend_from_slice(raw);
-        Ok(Self {
-            raw: owned,
-            encoding: DefinitionNameEncoding::DatabaseCodePage,
-        })
-    }
-
-    #[must_use]
-    pub fn raw_bytes(&self) -> &[u8] {
-        &self.raw
-    }
-
-    #[must_use]
-    pub const fn encoding(&self) -> DefinitionNameEncoding {
-        self.encoding
-    }
-
-    #[must_use]
-    pub fn decoded_ascii(&self) -> Option<&str> {
-        self.raw
-            .is_ascii()
-            .then(|| std::str::from_utf8(&self.raw).ok())
-            .flatten()
     }
 }
 
@@ -336,9 +289,15 @@ pub(crate) fn decode_columns(
         .map_err(|_| allocation_failure("reserve column definitions"))?;
     for raw in raw_columns {
         let name_bytes = take_name(bytes, offset)?;
-        let duplicate = columns
-            .iter()
-            .any(|column: &ColumnDefinition| column.name.raw_bytes() == name_bytes);
+        let duplicate = contains_name(
+            columns
+                .iter()
+                .map(|column: &ColumnDefinition| column.name.raw_bytes()),
+            columns.len(),
+            name_bytes,
+            budget,
+        )
+        .map_err(TableDefinitionError::Resource)?;
         if name_bytes.is_empty() || duplicate {
             return Err(TableDefinitionError::InvalidColumnName {
                 ordinal: raw.ordinal.get(),

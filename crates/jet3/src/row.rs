@@ -7,6 +7,7 @@ use std::fmt;
 use std::mem::size_of;
 use std::ops::Range;
 
+use crate::data_page_directory::{DataPageDirectory, LONG_VALUE_OWNER};
 use crate::row_directory::{RowDirectory, RowDirectoryError, RowEntry};
 use crate::{
     AllocationTraversalError, ByteCount, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
@@ -339,6 +340,9 @@ impl<'operation, 'schema, S: ReadAt> RowCursor<'operation, 'schema, S> {
             };
             if kind != PageKind::Data {
                 return Err(RowError::UnexpectedOwnedPageKind { page, actual: kind });
+            }
+            if DataPageDirectory::owner(&self.page) == LONG_VALUE_OWNER {
+                continue;
             }
             self.directory = Some(
                 RowDirectory::validate(page, self.root, &self.page, self.owned.budget_mut())

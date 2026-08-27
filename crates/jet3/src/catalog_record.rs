@@ -2,19 +2,8 @@
 
 use std::fmt;
 
-use crate::{ByteCount, Error, JET3_PAGE_SIZE, PageNumber, ResourceBudget};
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
-
-// SRC-0020 and EXP-0058: Jet 3 data-page directory.
-const ROW_COUNT_OFFSET: usize = 8;
-const ROW_DIRECTORY_OFFSET: usize = 10;
-const ROW_ENTRY_LEN: usize = 2;
-const ROW_OFFSET_MASK: u16 = 0x1fff;
-const UNKNOWN_ROW_FLAG: u16 = 0x2000;
-const OVERFLOW_ROW_FLAG: u16 = 0x4000;
-const DELETED_ROW_FLAG: u16 = 0x8000;
-const MAX_ROW_COUNT: usize = (PAGE_BYTES - ROW_DIRECTORY_OFFSET) / ROW_ENTRY_LEN;
+use crate::data_page_directory::{DataPageDirectory, DataPageDirectoryError, PAGE_BYTES};
+use crate::{ByteCount, Error, PageNumber, ResourceBudget};
 
 // EXP-0058: minimum catalog record fields and reverse trailer entries.
 const CATALOG_COLUMN_COUNT: u8 = 17;
@@ -322,10 +311,9 @@ impl std::error::Error for CatalogRecordError {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CatalogPageDirectory {
-    row_count: u16,
-    next_row: u16,
+    inner: DataPageDirectory,
 }
 
 impl CatalogPageDirectory {
@@ -333,50 +321,25 @@ impl CatalogPageDirectory {
         page: &[u8; PAGE_BYTES],
         budget: &mut ResourceBudget,
     ) -> Result<Self, CatalogRecordError> {
-        let row_count = u16::from_le_bytes([page[ROW_COUNT_OFFSET], page[ROW_COUNT_OFFSET + 1]]);
-        if usize::from(row_count) > MAX_ROW_COUNT {
-            return Err(CatalogRecordError::RowCountTooLarge {
-                row_count,
-                maximum: MAX_ROW_COUNT,
-            });
+        let inner = DataPageDirectory::validate(page, budget).map_err(map_directory_error)?;
+        let mut validation = inner.clone();
+        while let Some(entry) = validation.next_entry(page) {
+            if !entry.hidden() && entry.overflow() {
+                return Err(CatalogRecordError::ActiveOverflowRow { row: entry.row() });
+            }
         }
-        budget
-            .charge_items(u64::from(row_count))
-            .map_err(CatalogRecordError::Resource)?;
-        let directory_end = ROW_DIRECTORY_OFFSET + ROW_ENTRY_LEN * usize::from(row_count);
-        let mut prior_start = PAGE_BYTES;
-        for row in 0..row_count {
-            let raw_offset = raw_row_offset(page, row);
-            validate_row_bounds(raw_offset, row, prior_start, directory_end)?;
-            prior_start = usize::from(raw_offset & ROW_OFFSET_MASK);
-        }
-        Ok(Self {
-            row_count,
-            next_row: 0,
-        })
+        Ok(Self { inner })
     }
 
     pub(crate) fn next_active<'page>(
         &mut self,
         page: &'page [u8; PAGE_BYTES],
     ) -> Result<Option<&'page [u8]>, CatalogRecordError> {
-        while self.next_row < self.row_count {
-            let row = self.next_row;
-            self.next_row += 1;
-            let raw_offset = raw_row_offset(page, row);
-            if raw_offset & DELETED_ROW_FLAG != 0 {
+        while let Some(entry) = self.inner.next_entry(page) {
+            if entry.hidden() {
                 continue;
             }
-            if raw_offset & OVERFLOW_ROW_FLAG != 0 {
-                return Err(CatalogRecordError::ActiveOverflowRow { row });
-            }
-            let start = usize::from(raw_offset & ROW_OFFSET_MASK);
-            let end = if row == 0 {
-                PAGE_BYTES
-            } else {
-                usize::from(raw_row_offset(page, row - 1) & ROW_OFFSET_MASK)
-            };
-            return Ok(Some(&page[start..end]));
+            return Ok(Some(&page[entry.range()]));
         }
         Ok(None)
     }
@@ -459,37 +422,30 @@ pub(crate) fn decode_catalog_record<'row>(
     })
 }
 
-fn raw_row_offset(page: &[u8; PAGE_BYTES], row: u16) -> u16 {
-    let offset = ROW_DIRECTORY_OFFSET + ROW_ENTRY_LEN * usize::from(row);
-    u16::from_le_bytes([page[offset], page[offset + 1]])
-}
-
-fn validate_row_bounds(
-    raw_offset: u16,
-    row: u16,
-    end: usize,
-    directory_end: usize,
-) -> Result<(), CatalogRecordError> {
-    if raw_offset & UNKNOWN_ROW_FLAG != 0 {
-        return Err(CatalogRecordError::UnknownDirectoryFlag { row, raw_offset });
-    }
-    let start = usize::from(raw_offset & ROW_OFFSET_MASK);
-    if start >= PAGE_BYTES {
-        return Err(CatalogRecordError::RowOffsetOutOfPage { row, raw_offset });
-    }
-    let deleted = raw_offset & DELETED_ROW_FLAG != 0;
-    if start < directory_end || start > end || (!deleted && start == end) {
-        return Err(CatalogRecordError::InvalidRowBounds {
+fn map_directory_error(error: DataPageDirectoryError) -> CatalogRecordError {
+    match error {
+        DataPageDirectoryError::RowCountTooLarge { row_count, maximum } => {
+            CatalogRecordError::RowCountTooLarge { row_count, maximum }
+        }
+        DataPageDirectoryError::UnknownFlag { row, raw_offset } => {
+            CatalogRecordError::UnknownDirectoryFlag { row, raw_offset }
+        }
+        DataPageDirectoryError::OffsetOutOfPage { row, raw_offset } => {
+            CatalogRecordError::RowOffsetOutOfPage { row, raw_offset }
+        }
+        DataPageDirectoryError::InvalidBounds {
             row,
             start,
             end,
             directory_end,
-        });
+        } => CatalogRecordError::InvalidRowBounds {
+            row,
+            start,
+            end,
+            directory_end,
+        },
+        DataPageDirectoryError::Resource(source) => CatalogRecordError::Resource(source),
     }
-    if !deleted && raw_offset & OVERFLOW_ROW_FLAG != 0 {
-        return Err(CatalogRecordError::ActiveOverflowRow { row });
-    }
-    Ok(())
 }
 
 #[cfg(test)]

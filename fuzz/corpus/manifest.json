@@ -821,8 +821,8 @@
     {
       "id": "FUZZ-SEED-CATALOG-PARSING-001",
       "path": "fuzz/corpus/catalog_parsing/valid_catalog",
-      "size_bytes": 6,
-      "sha256": "9d4d3a9b4b3c46108e989e70d7c56806dc026bbf4863b1231ffc2751ad92117d",
+      "size_bytes": 19,
+      "sha256": "9ca4d614f7a0ef2387335ac639ac5764b31970eabf3f47f82a559f4664477864",
       "purpose": "Select generous resource controls and preserve the complete project-authored synthetic self-identifying catalog with one system and one CP1252-shaped user table record.",
       "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, and EXP-0058; contains no MDB fixture content.",
       "generator": "POSIX printf",
@@ -833,13 +833,13 @@
         "line_endings": "LF"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '%s\\n' '33330' > fuzz/corpus/catalog_parsing/valid_catalog"
+      "reproduction_command": "printf '%s\\n' '33330valid-catalog' > fuzz/corpus/catalog_parsing/valid_catalog"
     },
     {
       "id": "FUZZ-SEED-CATALOG-PARSING-002",
       "path": "fuzz/corpus/catalog_parsing/malformed_directory",
       "size_bytes": 8,
-      "sha256": "631f40e4092bd0a7ad7a8d4278b14d494012dcc38cb7a564b5c7df2ff28f8f9a",
+      "sha256": "5538b5f5bca3ab98fbbdab0d32d4f79d5e9ec4f2e77e677a1f2334e1b45bf38e",
       "purpose": "Overwrite the synthetic catalog row-count bytes with an oversized ASCII-shaped value and exercise fail-closed directory validation.",
       "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0058; contains no MDB fixture content.",
       "generator": "POSIX printf",
@@ -850,13 +850,13 @@
         "line_endings": "LF"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '%s\\n' '33331zz' > fuzz/corpus/catalog_parsing/malformed_directory"
+      "reproduction_command": "printf '%s\\n' '33330zz' > fuzz/corpus/catalog_parsing/malformed_directory"
     },
     {
       "id": "FUZZ-SEED-CATALOG-PARSING-003",
       "path": "fuzz/corpus/catalog_parsing/tight_resources",
-      "size_bytes": 6,
-      "sha256": "64f277fa6be054fb021b92d8199f38025231e6d3c833a54dd501da394b547ce6",
+      "size_bytes": 21,
+      "sha256": "4d16aa6a3167f545712b53e3200a2cf4f4363671d141cab4961171b97ed4f3f5",
       "purpose": "Select zero item, work, visit, and allocation ceilings against the valid synthetic catalog to exercise early resource rejection.",
       "origin": "Project-authored synthetic ASCII control bytes based on EXP-0058; contains no MDB fixture content.",
       "generator": "POSIX printf",
@@ -867,13 +867,13 @@
         "line_endings": "LF"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '%s\\n' '00000' > fuzz/corpus/catalog_parsing/tight_resources"
+      "reproduction_command": "printf '%s\\n' '00000tight-resources' > fuzz/corpus/catalog_parsing/tight_resources"
     },
     {
       "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-001",
       "path": "fuzz/corpus/table_definition_parsing/valid_definition",
       "size_bytes": 23,
-      "sha256": "0d1d51265e2e8f27b2592e6b453da5da29f520f9c7acb4cd28ec47fcd56c139d",
+      "sha256": "d1748e1c79d106922782e2bf5ddaf16d1059908ba833d296fb266a4791a044c6",
       "purpose": "Select generous limits and preserve the complete project-authored synthetic multi-page relationship table definition.",
       "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, and EXP-0059; contains no MDB fixture content.",
       "generator": "POSIX printf",
@@ -884,7 +884,7 @@
         "line_endings": "LF"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '%s\\n' '555555valid-definition' > fuzz/corpus/table_definition_parsing/valid_definition"
+      "reproduction_command": "printf '%s\\n' '333330valid-definition' > fuzz/corpus/table_definition_parsing/valid_definition"
     },
     {
       "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-002",
@@ -907,7 +907,7 @@
       "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-003",
       "path": "fuzz/corpus/table_definition_parsing/continuation_mutation",
       "size_bytes": 28,
-      "sha256": "734c32d3880c3b002af1ef476a18f559c8d97a9c87f7211faca1355cf788c44a",
+      "sha256": "82d3bf022cf5c2845ec854f454f1dcf234da1b3d759008c5865b1a1f35a97002",
       "purpose": "Select generous limits and mutate the synthetic continuation page to exercise prefix, link, truncation, and terminator rejection.",
       "origin": "Project-authored synthetic ASCII control bytes based on EXP-0059; contains no MDB fixture content.",
       "generator": "POSIX printf",
@@ -918,7 +918,7 @@
         "line_endings": "LF"
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
-      "reproduction_command": "printf '%s\\n' '555554continuation-mutation' > fuzz/corpus/table_definition_parsing/continuation_mutation"
+      "reproduction_command": "printf '%s\\n' '333331continuation-mutation' > fuzz/corpus/table_definition_parsing/continuation_mutation"
     },
     {
       "id": "FUZZ-SEED-ROW-PARSING-001",

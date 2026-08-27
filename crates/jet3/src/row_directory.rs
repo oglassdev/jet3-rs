@@ -3,18 +3,11 @@
 use std::fmt;
 use std::ops::Range;
 
-use crate::{Error, JET3_PAGE_SIZE, PageNumber, ResourceBudget};
+use crate::data_page_directory::{
+    DataPageDirectory, DataPageDirectoryError, MAX_ROW_COUNT, PAGE_BYTES,
+};
+use crate::{Error, PageNumber, ResourceBudget};
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
-const OWNER_OFFSET: usize = 4;
-const ROW_COUNT_OFFSET: usize = 8;
-const DIRECTORY_OFFSET: usize = 10;
-const ENTRY_LEN: usize = 2;
-const OFFSET_MASK: u16 = 0x1fff;
-const UNKNOWN_FLAG: u16 = 0x2000;
-const OVERFLOW_FLAG: u16 = 0x4000;
-const HIDDEN_FLAG: u16 = 0x8000;
-const MAX_ROW_COUNT: usize = (PAGE_BYTES - DIRECTORY_OFFSET) / ENTRY_LEN;
 const OVERFLOW_POINTER_LEN: usize = 4;
 
 /// A physical row slot on one data page.
@@ -103,8 +96,7 @@ impl std::error::Error for RowDirectoryError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RowDirectory {
     page: PageNumber,
-    row_count: u16,
-    next_row: u16,
+    inner: DataPageDirectory,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,7 +130,9 @@ impl RowDirectory {
         expected_owner: PageNumber,
         page: &[u8; PAGE_BYTES],
     ) -> Result<(), RowDirectoryError> {
-        let actual_owner = PageNumber::new(u64::from(u32_at(page, OWNER_OFFSET)));
+        let actual_owner = PageNumber::new(u64::from(u32::from_le_bytes(
+            DataPageDirectory::owner(page),
+        )));
         if actual_owner != expected_owner {
             return Err(RowDirectoryError::UnexpectedOwner {
                 expected: expected_owner,
@@ -155,7 +149,7 @@ impl RowDirectory {
         budget: &mut ResourceBudget,
     ) -> Result<Self, RowDirectoryError> {
         Self::validate_owner(expected_owner, page)?;
-        let row_count = u16_at(page, ROW_COUNT_OFFSET);
+        let row_count = DataPageDirectory::declared_row_count(page);
         if usize::from(row_count) > MAX_ROW_COUNT {
             return Err(RowDirectoryError::RowCountTooLarge {
                 row_count,
@@ -165,22 +159,21 @@ impl RowDirectory {
         if row_count > u16::from(u8::MAX) + 1 {
             return Err(RowDirectoryError::RowSlotNotRepresentable { row_count });
         }
-        budget
-            .charge_items(u64::from(row_count))
-            .map_err(RowDirectoryError::Resource)?;
-        let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(row_count);
-        let mut end = PAGE_BYTES;
-        for row in 0..row_count {
-            let slot = u8::try_from(row)
-                .map_err(|_| RowDirectoryError::RowSlotNotRepresentable { row_count })?;
-            let raw_offset = raw_offset(page, row);
-            let start = validate_entry(slot, raw_offset, end, directory_end)?;
-            end = start;
+        let inner = DataPageDirectory::validate(page, budget).map_err(map_directory_error)?;
+        let mut validation = inner.clone();
+        while let Some(entry) = validation.next_entry(page) {
+            if entry.overflow() && !entry.hidden() && entry.range().len() != OVERFLOW_POINTER_LEN {
+                let row = u8::try_from(entry.row())
+                    .map_err(|_| RowDirectoryError::RowSlotNotRepresentable { row_count })?;
+                return Err(RowDirectoryError::InvalidOverflowPointerLength {
+                    row,
+                    length: entry.range().len(),
+                });
+            }
         }
         Ok(Self {
             page: page_number,
-            row_count,
-            next_row: 0,
+            inner,
         })
     }
 
@@ -188,14 +181,18 @@ impl RowDirectory {
         &mut self,
         page: &[u8; PAGE_BYTES],
     ) -> Result<Option<RowEntry>, RowDirectoryError> {
-        while self.next_row < self.row_count {
-            let row = self.next_row;
-            self.next_row += 1;
-            let slot =
-                u8::try_from(row).map_err(|_| RowDirectoryError::RowSlotNotRepresentable {
-                    row_count: self.row_count,
-                })?;
-            let entry = self.entry(page, slot)?;
+        while let Some(common) = self.inner.next_entry(page) {
+            let slot = u8::try_from(common.row()).map_err(|_| {
+                RowDirectoryError::RowSlotNotRepresentable {
+                    row_count: self.inner.row_count(),
+                }
+            })?;
+            let entry = RowEntry {
+                locator: RowLocator::new(self.page, slot),
+                range: common.range(),
+                overflow: common.overflow(),
+                hidden: common.hidden(),
+            };
             if !entry.hidden() {
                 return Ok(Some(entry));
             }
@@ -204,14 +201,14 @@ impl RowDirectory {
     }
 
     pub(crate) fn resume_after(mut self, previous: &Self) -> Result<Self, RowDirectoryError> {
-        if self.page != previous.page || self.row_count != previous.row_count {
+        if self.page != previous.page || self.inner.row_count() != previous.inner.row_count() {
             return Err(RowDirectoryError::DirectoryChanged {
                 page: self.page,
-                previous_row_count: previous.row_count,
-                current_row_count: self.row_count,
+                previous_row_count: previous.inner.row_count(),
+                current_row_count: self.inner.row_count(),
             });
         }
-        self.next_row = previous.next_row;
+        self.inner.resume_after(&previous.inner);
         Ok(self)
     }
 
@@ -220,75 +217,49 @@ impl RowDirectory {
         page: &[u8; PAGE_BYTES],
         row: u8,
     ) -> Result<RowEntry, RowDirectoryError> {
-        if u16::from(row) >= self.row_count {
+        let Some(common) = self.inner.entry(page, u16::from(row)) else {
             return Err(RowDirectoryError::MissingRow {
                 row,
-                row_count: self.row_count,
+                row_count: self.inner.row_count(),
             });
-        }
-        let raw = raw_offset(page, u16::from(row));
-        let start = usize::from(raw & OFFSET_MASK);
-        let end = if row == 0 {
-            PAGE_BYTES
-        } else {
-            usize::from(raw_offset(page, u16::from(row) - 1) & OFFSET_MASK)
         };
         Ok(RowEntry {
             locator: RowLocator::new(self.page, row),
-            range: start..end,
-            overflow: raw & OVERFLOW_FLAG != 0,
-            hidden: raw & HIDDEN_FLAG != 0,
+            range: common.range(),
+            overflow: common.overflow(),
+            hidden: common.hidden(),
         })
     }
 }
 
-fn validate_entry(
-    row: u8,
-    raw_offset: u16,
-    end: usize,
-    directory_end: usize,
-) -> Result<usize, RowDirectoryError> {
-    if raw_offset & UNKNOWN_FLAG != 0 {
-        return Err(RowDirectoryError::UnknownFlag { row, raw_offset });
-    }
-    let start = usize::from(raw_offset & OFFSET_MASK);
-    if start >= PAGE_BYTES {
-        return Err(RowDirectoryError::OffsetOutOfPage { row, raw_offset });
-    }
-    let hidden = raw_offset & HIDDEN_FLAG != 0;
-    if start < directory_end || start > end || (!hidden && start == end) {
-        return Err(RowDirectoryError::InvalidBounds {
+fn map_directory_error(error: DataPageDirectoryError) -> RowDirectoryError {
+    match error {
+        DataPageDirectoryError::RowCountTooLarge { row_count, maximum } => {
+            RowDirectoryError::RowCountTooLarge { row_count, maximum }
+        }
+        DataPageDirectoryError::UnknownFlag { row, raw_offset } => RowDirectoryError::UnknownFlag {
+            row: row as u8,
+            raw_offset,
+        },
+        DataPageDirectoryError::OffsetOutOfPage { row, raw_offset } => {
+            RowDirectoryError::OffsetOutOfPage {
+                row: row as u8,
+                raw_offset,
+            }
+        }
+        DataPageDirectoryError::InvalidBounds {
             row,
             start,
             end,
             directory_end,
-        });
+        } => RowDirectoryError::InvalidBounds {
+            row: row as u8,
+            start,
+            end,
+            directory_end,
+        },
+        DataPageDirectoryError::Resource(source) => RowDirectoryError::Resource(source),
     }
-    if raw_offset & OVERFLOW_FLAG != 0 && !hidden && end - start != OVERFLOW_POINTER_LEN {
-        return Err(RowDirectoryError::InvalidOverflowPointerLength {
-            row,
-            length: end - start,
-        });
-    }
-    Ok(start)
-}
-
-fn raw_offset(page: &[u8; PAGE_BYTES], row: u16) -> u16 {
-    let offset = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(row);
-    u16::from_le_bytes([page[offset], page[offset + 1]])
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes([
-        bytes[offset],
-        bytes[offset + 1],
-        bytes[offset + 2],
-        bytes[offset + 3],
-    ])
-}
-
-fn u16_at(bytes: &[u8], offset: usize) -> u16 {
-    u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
 }
 
 #[cfg(test)]

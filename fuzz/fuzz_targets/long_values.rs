@@ -99,7 +99,7 @@ fn synthetic_database(bytes: &mut [u8; DATABASE_BYTES]) {
         0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
     ]);
     table_definition(&mut bytes[PAGE_BYTES..2 * PAGE_BYTES]);
-    let owned = [0, 0, 0, 0, 0, 1 << 3];
+    let owned = [0, 0, 0, 0, 0, (1 << 3) | (1 << 4) | (1 << 5)];
     let available = [0, 0, 0, 0, 0];
     write_rows(
         &mut bytes[2 * PAGE_BYTES..3 * PAGE_BYTES],

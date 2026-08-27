@@ -11,8 +11,10 @@ pub mod catalog;
 pub mod catalog_record;
 pub mod column_definition;
 pub mod commit_state;
+mod data_page_directory;
 pub mod database;
 pub mod database_header;
+mod definition_name;
 pub mod error;
 pub mod header;
 pub mod index_definition;
@@ -23,6 +25,7 @@ pub mod map_location;
 pub mod offset;
 pub mod page;
 pub mod page_kind;
+mod physical_index_definition;
 pub mod raw_page_stream;
 pub mod resource;
 pub mod row;
@@ -52,8 +55,7 @@ pub use catalog_record::{
     CatalogRecord, CatalogRecordError,
 };
 pub use column_definition::{
-    ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass, DefinitionName,
-    DefinitionNameEncoding,
+    ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
 };
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
@@ -65,6 +67,7 @@ pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
     DatabaseProtection, DatabaseVersion, SupportedDatabaseFormat,
 };
+pub use definition_name::{DefinitionName, DefinitionNameEncoding};
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{
     HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,

@@ -4,6 +4,7 @@ use std::fmt;
 use std::mem::size_of;
 use std::ops::Range;
 
+use crate::data_page_directory::LONG_VALUE_OWNER;
 use crate::text::{DecodedText, TextCodePage, TextError, decode_text, decoded_text_length};
 use crate::{
     AllocationTraversalError, ByteCount, Error, JET3_PAGE_SIZE, OwnedPages, PageKind, PageNumber,
@@ -15,7 +16,6 @@ const HEADER_LEN: usize = 12;
 const LENGTH_MASK: u32 = 0x00ff_ffff;
 const INLINE_FLAG: u32 = 0x8000_0000;
 const SINGLE_PAGE_FLAG: u32 = 0x4000_0000;
-const LVAL_OWNER: [u8; 4] = *b"LVAL";
 const DIRECTORY_OFFSET: usize = 10;
 const ENTRY_LEN: usize = 2;
 const OFFSET_MASK: u16 = 0x1fff;
@@ -482,7 +482,7 @@ fn validate_lval_row(
             .map_err(|_| LongValueError::InvalidDirectory {
                 page: locator.page(),
             })?;
-    if actual_owner != LVAL_OWNER {
+    if actual_owner != LONG_VALUE_OWNER {
         return Err(LongValueError::InvalidOwner {
             page: locator.page(),
             actual: actual_owner,

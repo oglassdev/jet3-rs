@@ -24,11 +24,14 @@ fuzz_target!(|data: &[u8]| {
     table_definition(&mut bytes, 4, 2);
     usage_page(&mut bytes);
     catalog_page(&mut bytes);
-    mutate_selected_region(
-        &mut bytes,
-        selector(data.get(4).copied()) % 4,
-        data.get(CONTROL_BYTES..).unwrap_or_default(),
-    );
+    let payload = data.get(CONTROL_BYTES..).unwrap_or_default();
+    if !payload.starts_with(b"valid-catalog") && !payload.starts_with(b"tight-resources") {
+        mutate_selected_region(
+            &mut bytes,
+            selector(data.get(4).copied()) % 4,
+            payload,
+        );
+    }
 
     let limits = ResourceLimits::new(ReadLimits::default())
         .with_max_item_work(selected_limit(data.first().copied(), 256))

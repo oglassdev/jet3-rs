@@ -167,6 +167,30 @@ fn streams_direct_and_overflow_rows_with_lossless_field_slices()
 }
 
 #[test]
+fn skips_owned_long_value_pages_after_primary_rows() -> Result<(), Box<dyn std::error::Error>> {
+    let mut bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
+    let first = direct_row(1, b"a");
+    write_rows(
+        &mut bytes[FIRST_DATA * PAGE_BYTES..(FIRST_DATA + 1) * PAGE_BYTES],
+        ROOT as u32,
+        &[(&first, 0)],
+    );
+    write_rows(
+        &mut bytes[SECOND_DATA * PAGE_BYTES..(SECOND_DATA + 1) * PAGE_BYTES],
+        u32::from_le_bytes(*b"LVAL"),
+        &[(&[0, 0, 0, 0, b'x'], 0)],
+    );
+
+    let mut budget = ResourceBudget::new(limits(&bytes));
+    let mut database = open(&bytes, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+    let mut rows = database.rows(&definition, &mut budget)?;
+    assert!(rows.next_row()?.is_some());
+    assert!(rows.next_row()?.is_none());
+    Ok(())
+}
+
+#[test]
 fn rejects_self_links_cycles_wrong_owner_and_chain_exhaustion()
 -> Result<(), Box<dyn std::error::Error>> {
     let self_link = database_bytes([1, FIRST_DATA as u8, 0, 0], 0x8000, ROOT as u32);
