@@ -343,44 +343,66 @@
     },
     {
       "id": "schema.catalog_and_table_definitions",
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "A fallible streaming catalog cursor now discovers a unique self-identifying catalog root without an absolute-page assumption, consumes only allocation-admitted data pages, preserves raw names with database-code-page context, classifies observed system/user flags, retains unknown object kinds, and exposes checked table-definition roots for observed table records. It rejects malformed directories and records, duplicate identifiers, invalid references, and resource exhaustion. Table-definition, index, relationship, row, and value decoding remain unimplemented, and the local exploratory observations are not DAO differential evidence or a compatibility claim.",
+      "reason": "The bounded reader now streams the allocation-admitted catalog and decodes referenced table-definition chains into immutable typed column, physical-index, logical-index, and minimum relationship-reference metadata while retaining sourced raw fields. Index roots are classified but never traversed. Relationship cascade semantics, rows, and values remain outside this capability, and the local exploratory observations are not DAO differential evidence or a compatibility claim.",
       "evidence": [
         {
           "kind": "source",
           "path": "crates/jet3/src/catalog.rs",
-          "sha256": "4d6e4880ebc4ed537b3d34fdf3b7489eeac58c3344f28ce02807444c55342082",
-          "commit": "0a1594ee7f21c45f35b9b124c46d4fa526c8ec61",
+          "sha256": "ba273b8cc403941a9373be867c99b91e4f9d2ac9ef9386be4ee9f2c047ea9ad3",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
           "capability_id": "schema.catalog_and_table_definitions"
         },
         {
           "kind": "source",
           "path": "crates/jet3/src/catalog_record.rs",
           "sha256": "77568d67b9ba7a9d9213992900d49a2268cab9246f3bfbf3c0595838c49289f0",
-          "commit": "0a1594ee7f21c45f35b9b124c46d4fa526c8ec61",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "schema.catalog_and_table_definitions"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/column_definition.rs",
+          "sha256": "c39ccc19fbb6aa485fae659413d9276e4a7a8d9210c4722a5b796d3a1c5cf0d3",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "schema.catalog_and_table_definitions"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/index_definition.rs",
+          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "schema.catalog_and_table_definitions"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/table_definition.rs",
+          "sha256": "4afaaa3da8537243e827e5f2d1fca388ed6c7a2edaa5cb43fdf43c5982621978",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
           "capability_id": "schema.catalog_and_table_definitions"
         },
         {
           "kind": "test",
           "path": "crates/jet3/src/catalog_tests.rs",
-          "sha256": "f1b337ba9870c3bdff433f6ec6c3b167455f811a2dcda946f9e7d5574a97edb8",
-          "commit": "0a1594ee7f21c45f35b9b124c46d4fa526c8ec61",
+          "sha256": "54117c2679c100c10cafc169fbb478e64f09ff85b5993e15d324e7af20635bee",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
           "capability_id": "schema.catalog_and_table_definitions",
           "scenario_ids": [
             "UT-CATALOG-001",
             "UT-CATALOG-002",
             "UT-CATALOG-003",
             "UT-CATALOG-004",
-            "UT-CATALOG-005"
+            "UT-CATALOG-005",
+            "UT-CATALOG-012"
           ]
         },
         {
           "kind": "test",
           "path": "crates/jet3/src/catalog_record_tests.rs",
           "sha256": "581ed9dea8506e82f0c68f413ee4f3ee6f6c250c68f066cc636d4f034d2edb75",
-          "commit": "0a1594ee7f21c45f35b9b124c46d4fa526c8ec61",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
           "capability_id": "schema.catalog_and_table_definitions",
           "scenario_ids": [
             "UT-CATALOG-006",
@@ -389,6 +411,24 @@
             "UT-CATALOG-009",
             "UT-CATALOG-010",
             "UT-CATALOG-011"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/table_definition_tests.rs",
+          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "schema.catalog_and_table_definitions",
+          "scenario_ids": [
+            "UT-TABLE-DEFINITION-001",
+            "UT-TABLE-DEFINITION-002",
+            "UT-TABLE-DEFINITION-003",
+            "UT-TABLE-DEFINITION-004",
+            "UT-TABLE-DEFINITION-005",
+            "UT-TABLE-DEFINITION-006",
+            "UT-TABLE-DEFINITION-007",
+            "UT-TABLE-DEFINITION-008",
+            "UT-TABLE-DEFINITION-009"
           ]
         }
       ]
@@ -453,18 +493,57 @@
     },
     {
       "id": "indexes.primary_unique_non_unique",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "EXP-0007 verifies only the controlled DAO single-field nonunique dbText index pair; Rust index support and the broader primary/unique/nonunique capability remain unimplemented.",
-      "evidence": []
+      "reason": "Table-definition parsing preserves primary, unique, required, and nonunique logical-index flags and typed physical root references. Index-tree traversal, lookup, and key interpretation remain unimplemented; exploratory VM observations are not DAO differential evidence.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/index_definition.rs",
+          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "indexes.primary_unique_non_unique"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/table_definition_tests.rs",
+          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "indexes.primary_unique_non_unique",
+          "scenario_ids": [
+            "UT-TABLE-DEFINITION-001",
+            "UT-TABLE-DEFINITION-006"
+          ]
+        }
+      ]
     },
     {
       "id": "indexes.composite_ascending_descending",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "Table-definition parsing preserves composite field slots and each observed ascending/descending marker. Index-tree traversal, lookup, and ordering behavior remain unimplemented; exploratory VM observations are not DAO differential evidence.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/index_definition.rs",
+          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "indexes.composite_ascending_descending"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/table_definition_tests.rs",
+          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
+          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "capability_id": "indexes.composite_ascending_descending",
+          "scenario_ids": [
+            "UT-TABLE-DEFINITION-001",
+            "UT-TABLE-DEFINITION-006"
+          ]
+        }
+      ]
     },
     {
       "id": "indexes.crud_maintenance",
