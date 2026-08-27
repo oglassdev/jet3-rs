@@ -75,7 +75,8 @@ fn supported_header(bytes: &mut [u8; DATABASE_BYTES]) {
 }
 
 fn relationship_definition(bytes: &mut [u8; DATABASE_BYTES]) {
-    let mut logical = vec![0_u8; 43];
+    let mut logical = [0x5a_u8; PAGE_BYTES + 34];
+    logical[..43].fill(0);
     logical[..4].copy_from_slice(&[0x02, 0x01, 0x56, 0x43]);
     logical[4..8].copy_from_slice(&4_u32.to_le_bytes());
     logical[20] = 0x4e;
@@ -85,15 +86,15 @@ fn relationship_definition(bytes: &mut [u8; DATABASE_BYTES]) {
     logical[31..33].copy_from_slice(&1_u16.to_le_bytes());
     logical[35..39].copy_from_slice(&[0, 2, 0, 0]);
     logical[39..43].copy_from_slice(&[1, 2, 0, 0]);
-    logical.extend_from_slice(&[0; 8]);
+    logical[43..51].fill(0);
     let mut column = [0_u8; 18];
     column[0] = 4;
     column[7..9].copy_from_slice(&1_u16.to_le_bytes());
     column[9..13].copy_from_slice(&[0x09, 0x04, 0xe4, 0x04]);
     column[13] = 3;
     column[16..18].copy_from_slice(&4_u16.to_le_bytes());
-    logical.extend_from_slice(&column);
-    logical.extend_from_slice(&[2, b'I', b'd']);
+    logical[51..69].copy_from_slice(&column);
+    logical[69..72].copy_from_slice(&[2, b'I', b'd']);
     let mut physical = [0_u8; 39];
     for slot in 0..10 {
         physical[slot * 3..slot * 3 + 2].copy_from_slice(&u16::MAX.to_le_bytes());
@@ -102,17 +103,16 @@ fn relationship_definition(bytes: &mut [u8; DATABASE_BYTES]) {
     physical[2] = 1;
     physical[31..34].copy_from_slice(&[2, 0, 0]);
     physical[34..38].copy_from_slice(&3_u32.to_le_bytes());
-    logical.extend_from_slice(&physical);
+    logical[72..111].copy_from_slice(&physical);
     let mut index = [0_u8; 20];
     index[8] = 2;
     index[9..13].copy_from_slice(&1_u32.to_le_bytes());
     index[13..17].copy_from_slice(&5_u32.to_le_bytes());
     index[17..19].copy_from_slice(&[1, 1]);
     index[19] = 2;
-    logical.extend_from_slice(&index);
-    logical.extend_from_slice(&[3, b'R', b'e', b'l']);
-    logical.resize(PAGE_BYTES + 32, 0x5a);
-    logical.extend_from_slice(&[0xff, 0xff]);
+    logical[111..131].copy_from_slice(&index);
+    logical[131..135].copy_from_slice(&[3, b'R', b'e', b'l']);
+    logical[PAGE_BYTES + 32..].copy_from_slice(&[0xff, 0xff]);
     let logical_length = logical.len() as u32;
     logical[8..12].copy_from_slice(&logical_length.to_le_bytes());
 

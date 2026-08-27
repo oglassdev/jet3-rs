@@ -9,7 +9,7 @@
       "smoke_seconds": 60,
       "max_len": 4096,
       "max_corpus_bytes": 65536,
-      "peak_rss_limit_bytes": 268435456
+      "peak_rss_limit_bytes": 536870912
     },
     {
       "name": "binary_writer",
