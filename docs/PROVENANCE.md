@@ -328,7 +328,8 @@ Use `not applicable` explicitly rather than omitting a field.
   numeric values when creating the four controlled field kinds. They are API
   enumeration values only; they do not identify MDB type bytes, physical
   layouts, long-value thresholds, page classes, or storage strategies.
-- Usage: `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`
+- Usage: `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -358,8 +359,7 @@ Use `not applicable` explicitly rather than omitting a field.
   plans therefore declare `size` only for `dbText`; they do not invent sizes
   for `dbBinary`, `dbMemo`, or `dbLongBinary`. The source does not specify an
   on-disk width field, encoding, row layout, or long-value cutoff.
-- Usage: contextual provenance for controlled DAO schema design; not currently
-  cited outside this ledger
+- Usage: `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -433,7 +433,8 @@ Use `not applicable` explicitly rather than omitting a field.
   planned lengths are experiment points, not documented storage thresholds.
   Nothing here establishes page, tag, pointer, row, or long-value layout.
 - Usage: `file:oracle/windows-dao/scripts/preflight-m1-controlled.ps1`;
-  `file:oracle/windows-dao/tests/test_m1_preflight_contract.py`
+  `file:oracle/windows-dao/tests/test_m1_preflight_contract.py`;
+  `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -962,6 +963,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage:
   `file:oracle/windows-dao/scripts/dev/TableDefinition.TypeInputs.json`;
   `file:oracle/windows-dao/scripts/dev/TableDefinition.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`;
   `file:crates/jet3/src/column_definition.rs`;
   `file:docs/validation/repository-contract.json`
 - Rights: citations to public Microsoft documentation; no documentation
@@ -1006,6 +1008,43 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `file:oracle/windows-dao/scripts/dev/Row.DevJob.ps1`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
+- Review: pending independent review
+
+### SRC-0025 — Unicode mappings for Windows code pages 1251 and 1252
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public primary mapping tables
+- Question: Which exact single-byte values map to Unicode scalars in Windows
+  code pages 1251 and 1252, including undefined byte positions?
+- Origin: Unicode Consortium, Microsoft-vendor mapping directory, “cp1251 to
+  Unicode table” and “cp1252 to Unicode table,” table version 2.01 dated
+  1998-04-15, accessed 2026-08-27:
+  https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1251.TXT
+  and
+  https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1252.TXT
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, system code page, and time zone are not applicable
+- Protocol: transcribe the complete 128-entry upper-half mapping for each
+  table, preserve undefined positions as errors, and verify every lower-half
+  byte maps to the same Unicode scalar value
+- Artifacts: the cited public text tables; repository tests use selected exact
+  byte/scalar pairs and do not redistribute the source files
+- Observation: both tables define bytes `00` through `7f` identically. CP1251
+  maps `80` to U+0402, `88` to U+20AC, `c0` to U+0410, and `ff` to U+044F,
+  with `98` undefined. CP1252 maps `80` to U+20AC, `8c` to U+0152, `9f` to
+  U+0178, and `ff` to U+00FF, with `81`, `8d`, `8f`, `90`, and `9d`
+  undefined.
+- Interpretation: an explicitly selected text decoder may map these two code
+  pages byte for byte and must reject an undefined input while retaining its
+  raw bytes. These tables do not establish which code page an MDB uses or how
+  a database declares it.
+- Usage: `file:crates/jet3/src/text.rs`;
+  `file:crates/jet3/src/text_tests.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:fuzz/README.md`;
+  `file:docs/validation/repository-contract.json`
+- Rights: citations to Unicode Consortium mapping data; no table file is
+  redistributed
 - Review: pending independent review
 
 ## Observed behavior
@@ -5541,6 +5580,98 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:crates/jet3/src/row_directory.rs`;
   `file:crates/jet3/src/row.rs`;
   `file:fuzz/fuzz_targets/row_parsing.rs`;
+  `file:docs/validation/repository-contract.json`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0061 — Local DAO scalar, text, and long-value observations
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Which bounded physical scalar encodings, CP1252 text bytes, and
+  Memo/OLE inline and chained representations are stable across controlled Jet
+  3 values?
+- Origin: one project-authored, explicitly allowlisted staged `value` job using
+  the checked DAO types and operations in `SRC-0009`, `SRC-0010`, `SRC-0012`,
+  `SRC-0023`, and `EXP-0006`; the row boundaries in `EXP-0060`; and no
+  third-party MDB implementation
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM and provider as `EXP-0060`; system ANSI code page 1252. The
+  CP1252 cases used `;LANGID=0x0409;CP=1252;COUNTRY=0`; the diagnostic CP1251
+  cases used `;LANGID=0x0419;CP=1251;COUNTRY=0`.
+- Protocol: in three independent fresh databases per case, create four
+  scalar-boundary rows (null, minimum, representative, maximum), three CP1252
+  text rows (null, empty, discriminator), three diagnostic CP1251 text rows,
+  and one Memo or OLE value at each length 32, 512, 2048, and 4096. Require DAO
+  readback, close every object, retain at most 4 MiB per database, never compact,
+  and compare physical facts only when identical in all three replicas. Five
+  failed assignment/readback pilots and two earlier successful construction
+  pilots without final readback/metadata were diagnostics and were excluded.
+- Artifacts: development run id `20260827T045000Z-value-layout`; `result.json`
+  SHA-256
+  `2120d336cebec2626107ce7a12f81ab807e4e77913d95498be9d339d505601d9`;
+  `value-job-result.json` SHA-256
+  `513322679823b72d71fb5ad35fdb9148cf648822a546b5ebc0baa7162ad3a77d`;
+  SHA-256 of the sorted 33-line MDB SHA-256 manifest
+  `812512916d151ba70fdf630cc942ada63d67d4ca2d06ef105f1e3a6bd7e4973e`.
+  Raw MDBs, the manifest, and complete output remain outside the repository.
+- Observation: for present fixed values, Byte was one raw byte; Integer and
+  Long were little-endian signed 16- and 32-bit integers; Currency was a
+  little-endian signed 64-bit integer scaled by 10,000; Single and Double were
+  their little-endian IEEE-754 bit patterns; and Date was the little-endian
+  IEEE-754 bit pattern of DAO's OLE Automation day value. Binary retained its
+  exact fixed bytes. Replication IDs stored the first 32-bit, 16-bit, and
+  16-bit groups little-endian followed by the final eight bytes in display
+  order. The four boundary rows and DAO readback agreed in all replicas.
+- Observation: assigning Null to the Boolean control read back as false. Its
+  row bit was clear for both that row and explicit false and set for true; it
+  consumed no fixed byte. Other clear presence bits represented Null, while an
+  empty Text value remained present with a zero-length slice.
+- Observation: the CP1252 discriminator `Café € Œ Ÿ` stored exact bytes
+  `43 61 66 e9 20 80 20 8c 20 9f` in all replicas. The diagnostic database
+  declared with the CP1251 locale stored `Euro €` as `45 75 72 6f 20 80`, not
+  the `88` mapping in `SRC-0025`, and DAO read it back as Euro on the CP1252
+  host. Therefore this run does not establish CP1251 selection or physical
+  encoding; production must not infer a code page from that diagnostic alone.
+- Observation: every long field began with a 12-byte header. Its first
+  little-endian `u32` held the 24-bit decoded length and exactly one observed
+  storage flag: `0x80000000` inline, `0x40000000` single-page, or zero chained.
+  Inline headers had eight zero bytes followed by the exact payload. External
+  headers stored a row slot plus a three-byte little-endian page at `[4,8)` and
+  four zero bytes at `[8,12)`. Length 32 was inline, 512 single-page, and 2048
+  and 4096 chained for both Memo and OLE; these are controls, not inferred
+  universal thresholds.
+- Observation: external targets were tag-`01` data pages with ASCII owner
+  `LVAL` at `[4,8)` and the `EXP-0060` row directory. A single-page row was
+  exactly the declared payload. Each chained row began with another
+  slot-plus-u24 pointer and then a payload fragment; an all-zero pointer ended
+  the chain. The 2048 controls used fragments 2032 and 16; the 4096 controls
+  used 2032, 2032, and 32. Memo raw payload bytes were the encoded text bytes;
+  DAO `FieldSize` reported twice the ASCII character count, while OLE reported
+  the byte count.
+- Interpretation: scalar and explicitly selected single-byte text decoders may
+  retain raw bytes beside typed output and charge the decoded output length
+  before constructing it. A long-value cursor may stream inline, single-page,
+  and chained payloads through one fixed page, but must validate flags, reserved
+  bytes, exact total length, page kind/owner/directory/slot, termination,
+  repeats, self-links, truncation, and operation-wide resource limits. No
+  universal storage threshold, automatic database code-page selection, write
+  support, DAO differential result, or compatibility claim follows.
+- Usage: `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Publish.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`;
+  `file:crates/jet3/src/value.rs`;
+  `file:crates/jet3/src/text.rs`;
+  `file:crates/jet3/src/long_value.rs`;
+  `file:fuzz/fuzz_targets/long_values.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/LOCAL_WINDOWS_VM.md`;
+  `file:fuzz/README.md`;
   `file:docs/validation/repository-contract.json`
 - Rights: project-generated licensed-provider outputs are private local
   development material and are neither committed nor redistributed

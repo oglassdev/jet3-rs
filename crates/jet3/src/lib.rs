@@ -18,6 +18,7 @@ pub mod header;
 pub mod index_definition;
 pub mod jet3_page;
 pub mod limits;
+pub mod long_value;
 pub mod map_location;
 pub mod offset;
 pub mod page;
@@ -28,7 +29,9 @@ pub mod row;
 pub mod row_directory;
 pub mod source;
 pub mod table_definition;
+pub mod text;
 pub mod usage_map;
+pub mod value;
 
 pub use allocation::{
     AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
@@ -72,6 +75,10 @@ pub use index_definition::{
 };
 pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
+pub use long_value::{
+    ExternalLongValueStorage, InlineLongValue, LongValue, LongValueChunk, LongValueChunkValue,
+    LongValueCursor, LongValueError, LongValueKind, LongValueReference,
+};
 pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
@@ -82,7 +89,9 @@ pub use row::{RawField, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};
 pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError};
+pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
+pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";

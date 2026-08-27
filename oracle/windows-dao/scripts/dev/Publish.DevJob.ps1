@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -58,6 +58,19 @@ switch ($Job) {
                 "fixed-only", "variable-only", "mixed", "all-null",
                 "page-boundary", "growing", "shrinking", "deleted", "overflowing"
             )) { [void]$names.Add("row-r$replica-$scenario.mdb") }
+        }
+    }
+    "value" {
+        [void]$names.Add("value-job-result.json")
+        foreach ($replica in 1..3) {
+            [void]$names.Add("value-r$replica-scalars.mdb")
+            [void]$names.Add("value-r$replica-cp1252.mdb")
+            [void]$names.Add("value-r$replica-cp1251.mdb")
+            foreach ($kind in @("memo", "ole")) {
+                foreach ($length in @(32, 512, 2048, 4096)) {
+                    [void]$names.Add("value-r$replica-$kind-$($length.ToString('D5')).mdb")
+                }
+            }
         }
     }
 }

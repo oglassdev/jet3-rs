@@ -1,7 +1,7 @@
-//! Bounded streaming Jet 3 row access from `EXP-0060`.
+//! Bounded streaming Jet 3 row access from `EXP-0060` with `EXP-0061` value composition.
 //!
-//! This layer validates row storage and returns lossless physical field slices.
-//! It deliberately does not assign scalar, text, or long-value meanings.
+//! This layer validates row storage, returns lossless physical field slices,
+//! and delegates typed interpretation to the value layer.
 
 use std::fmt;
 use std::mem::size_of;
@@ -10,8 +10,8 @@ use std::ops::Range;
 use crate::row_directory::{RowDirectory, RowDirectoryError, RowEntry};
 use crate::{
     AllocationTraversalError, ByteCount, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
-    DatabaseReader, Error, JET3_PAGE_SIZE, OwnedPages, PageKind, PageNumber, ReadAt,
-    ResourceBudget, RowLocator, TableDefinition,
+    DatabaseReader, DecodedValue, Error, JET3_PAGE_SIZE, OwnedPages, PageKind, PageNumber, ReadAt,
+    ResourceBudget, RowLocator, TableDefinition, TextCodePage, ValueError,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -49,6 +49,7 @@ pub struct RowView<'row, 'schema> {
     raw: &'row [u8],
     definition: &'schema TableDefinition,
     layout: RowLayout,
+    budget: &'row mut ResourceBudget,
 }
 
 impl<'row> RowView<'row, '_> {
@@ -70,23 +71,68 @@ impl<'row> RowView<'row, '_> {
     #[must_use]
     pub fn field(&self, ordinal: ColumnOrdinal) -> Option<RawField<'row>> {
         let column = self.definition.columns().get(usize::from(ordinal.get()))?;
+        if column.physical_type() == ColumnPhysicalType::Boolean {
+            let empty = self.layout.fixed_boundary..self.layout.fixed_boundary;
+            return Some(RawField::Bytes(&self.raw[empty]));
+        }
         if !self.layout.present(self.raw, ordinal) {
             return Some(RawField::Null);
         }
         let range = match column.storage() {
             ColumnStorageClass::Fixed { offset } => {
-                if column.physical_type() == ColumnPhysicalType::Boolean {
-                    self.layout.fixed_boundary..self.layout.fixed_boundary
-                } else {
-                    let start = 1 + usize::from(offset);
-                    start..start + usize::from(column.size())
-                }
+                let start = 1 + usize::from(offset);
+                start..start + usize::from(column.size())
             }
             ColumnStorageClass::Variable { index } => {
                 self.layout.variable_range(self.raw, index)?
             }
         };
         Some(RawField::Bytes(&self.raw[range]))
+    }
+
+    /// Decodes one field with an explicitly selected text code page.
+    ///
+    /// The same operation-wide budget used by the row cursor is charged before
+    /// decoded output is produced. No database code page is inferred.
+    pub fn value(
+        &mut self,
+        ordinal: ColumnOrdinal,
+        code_page: TextCodePage,
+    ) -> Result<Option<DecodedValue<'_>>, ValueError> {
+        let Some(column) = self.definition.columns().get(usize::from(ordinal.get())) else {
+            return Ok(None);
+        };
+        let physical_type = column.physical_type();
+        let boolean_bit = self.layout.present(self.raw, ordinal);
+        let field = if physical_type == ColumnPhysicalType::Boolean {
+            let empty = self.layout.fixed_boundary..self.layout.fixed_boundary;
+            RawField::Bytes(&self.raw[empty])
+        } else if !boolean_bit {
+            RawField::Null
+        } else {
+            let range = match column.storage() {
+                ColumnStorageClass::Fixed { offset } => {
+                    let start = 1 + usize::from(offset);
+                    start..start + usize::from(column.size())
+                }
+                ColumnStorageClass::Variable { index } => self
+                    .layout
+                    .variable_range(self.raw, index)
+                    .ok_or(ValueError::Resource(Error::Arithmetic {
+                        operation: "access validated variable field",
+                    }))?,
+            };
+            RawField::Bytes(&self.raw[range])
+        };
+        crate::value::decode_value(
+            physical_type,
+            field,
+            boolean_bit,
+            self.locator,
+            code_page,
+            self.budget,
+        )
+        .map(Some)
     }
 }
 
@@ -167,10 +213,10 @@ impl std::error::Error for RowError {
 pub struct RowCursor<'operation, 'schema, S> {
     root: PageNumber,
     definition: &'schema TableDefinition,
-    owned: OwnedPages<'operation, S>,
-    page: [u8; PAGE_BYTES],
-    current_page: Option<PageNumber>,
-    resume_page: Option<PageNumber>,
+    pub(crate) owned: OwnedPages<'operation, S>,
+    pub(crate) page: [u8; PAGE_BYTES],
+    pub(crate) current_page: Option<PageNumber>,
+    pub(crate) resume_page: Option<PageNumber>,
     directory: Option<RowDirectory>,
     chain: Vec<RowLocator>,
     failed: bool,
@@ -247,12 +293,18 @@ impl<'operation, 'schema, S: ReadAt> RowCursor<'operation, 'schema, S> {
                 return Err(error);
             }
         };
-        Ok(metadata.map(|metadata| RowView {
+        let Some(metadata) = metadata else {
+            return Ok(None);
+        };
+        let raw = &self.page[metadata.start..metadata.end];
+        let budget = self.owned.budget_mut();
+        Ok(Some(RowView {
             locator: metadata.locator,
             storage_locator: metadata.storage_locator,
-            raw: &self.page[metadata.start..metadata.end],
+            raw,
             definition: self.definition,
             layout: metadata.layout,
+            budget,
         }))
     }
 

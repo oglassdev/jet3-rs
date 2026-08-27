@@ -118,6 +118,15 @@
       "max_len": 4096,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 536870912
+    },
+    {
+      "name": "long_values",
+      "source": "fuzz/fuzz_targets/long_values.rs",
+      "corpus": "fuzz/corpus/long_values",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 536870912
     }
   ]
 }

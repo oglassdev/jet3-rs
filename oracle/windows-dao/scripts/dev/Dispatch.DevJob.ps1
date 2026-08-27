@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row")]
+    [ValidateSet("catalog", "table-definition", "row", "value")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -12,7 +12,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$TableDefinitionTypeInputPath,
     [Parameter(Mandatory = $true)]
-    [string]$RowJobPath
+    [string]$RowJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$ValueJobPath
 )
 
 Set-StrictMode -Version Latest
@@ -33,6 +35,7 @@ $scriptPath = switch ($Job) {
     "catalog" { $CatalogJobPath }
     "table-definition" { $TableDefinitionJobPath }
     "row" { $RowJobPath }
+    "value" { $ValueJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -57,6 +60,7 @@ $resultName = switch ($Job) {
     "catalog" { "catalog-job-result.json" }
     "table-definition" { "table-definition-job-result.json" }
     "row" { "row-job-result.json" }
+    "value" { "value-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -69,6 +73,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         table_definition_checkpoints = @()
         table_definition_type_results = @()
         row_scenarios = @()
+        value_scenarios = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
     exit 1
@@ -79,12 +84,14 @@ $catalogCheckpoints = @()
 $tableDefinitionCheckpoints = @()
 $tableDefinitionTypeResults = @()
 $rowScenarios = @()
+$valueScenarios = @()
 if ($Job -ceq "catalog") { $catalogCheckpoints = @($jobResult.checkpoints) }
 elseif ($Job -ceq "table-definition") {
     $tableDefinitionCheckpoints = @($jobResult.checkpoints)
     $tableDefinitionTypeResults = @($jobResult.type_results)
 }
 elseif ($Job -ceq "row") { $rowScenarios = @($jobResult.scenarios) }
+elseif ($Job -ceq "value") { $valueScenarios = @($jobResult.scenarios) }
 $result = [ordered]@{
     development_only = $true
     job = $Job
@@ -94,6 +101,7 @@ $result = [ordered]@{
     table_definition_checkpoints = @($tableDefinitionCheckpoints)
     table_definition_type_results = @($tableDefinitionTypeResults)
     row_scenarios = @($rowScenarios)
+    value_scenarios = @($valueScenarios)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
 exit $jobExitCode

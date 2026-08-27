@@ -56,3 +56,6 @@ windows-dev-table-definition:
 
 windows-dev-row:
     "{{PYTHON}}" scripts/windows-dao-dev.py row --timeout 300
+
+windows-dev-value:
+    "{{PYTHON}}" scripts/windows-dao-dev.py value --timeout 600

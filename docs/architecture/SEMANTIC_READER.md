@@ -31,16 +31,20 @@ captured-length `ReadAt` source and, using one caller-owned `ResourceBudget`:
     classifying but never traversing index roots (`EXP-0059`); and
 11. streams table-owned primary rows as borrowed `RowView` values, follows the
     observed overflow pointer form, and exposes validated lossless raw field
-    slices without interpreting scalar values (`EXP-0060`).
+    slices (`EXP-0060`); and
+12. decodes the closed observed scalar inventory, explicitly selected CP1251 or
+    CP1252 text, and inline or externally streamed Memo/OLE values while
+    retaining sourced bytes (`SRC-0025`, `EXP-0061`).
 
 Success establishes only this narrow opening envelope. It identifies the
 exploratory Jet 3, unencrypted, no-password discriminator tuple, but does not
 validate the rest of page zero, any page header or payload beyond the
 experimental byte-zero tag, database allocation state beyond table ownership,
-typed values, or compatibility. Unknown and contextually unsupported tags are
+automatic database code-page selection, or compatibility. Unknown and contextually unsupported tags are
 retained as successful `Unknown(u8)` classifications. `EXP-0056`, `EXP-0058`,
-`EXP-0059`, and `EXP-0060` are local development evidence and do not revise the
-inconclusive official `EXP-0018` result or advance a release claim.
+`EXP-0059`, `EXP-0060`, and `EXP-0061` are local development evidence and do
+not revise the inconclusive official `EXP-0018` result or advance a release
+claim.
 
 The physical layer composes the detached `SRC-0020` usage-map primitives with
 the development-only facts in `EXP-0057`. From a caller-supplied table root it
@@ -60,6 +64,11 @@ charged locator scratch, validates row directories and fixed/variable/null
 boundaries, skips deleted and hidden storage rows, and follows overflow links
 iteratively with owner, kind, cycle, and resource checks. The observations and
 implementation remain internal-only and do not establish DAO compatibility.
+Value decoding preserves the exact physical field or long-value fragment,
+charges decoded output through the same operation budget, requires an explicit
+supported text code page, and streams external long values through the row
+cursor's single page buffer. It does not infer a database code page or collect
+a complete external Memo/OLE value.
 
 ## Planned dependency sequence
 
@@ -74,7 +83,7 @@ must not reach around these boundaries to decode numeric offsets directly.
 | 3. Catalog bootstrap | Streaming catalog records sufficient to locate user objects | Exploratory `EXP-0058` supplies a dynamic root discriminator, the minimal active-record fields, table-definition references, and raw name/code-page context | Allocation charged before buffers/sets; exact count and page limits; no recursive traversal | Implemented experimentally/internal-only; active records stream from allocation-admitted pages, raw names remain lossless, malformed directories/records/references and duplicate identifiers fail closed; no table-definition decoding, DAO verification, or compatibility claim |
 | 4. Table definitions | Immutable typed definitions for columns, indexes, and referenced roots | Exploratory `EXP-0059` supplies TDEF chains, counts, column records, definition-only index records, and minimum relationship references | Checked counts/offsets/references; iterative cycle-bounded chains; cumulative allocation and item work; index roots classified but not traversed | Implemented experimentally/internal-only; unknown sourced bytes remain lossless; individual cascade semantics, DAO verification, and compatibility remain open |
 | 5. Row streaming | A lending `RowCursor` yielding one borrowed `RowView` at a time | Exploratory `EXP-0060` supplies row directories, deleted/hidden state, fixed/variable/null boundaries, and the observed overflow pointer | No whole-table collection; one retained row page; charged locator scratch; row/page/chain limits; owner/kind/cycle rejection | Implemented experimentally/internal-only for direct rows, short variable layouts, and the observed one-variable wide layout; wider multi-variable rows, value interpretation, DAO verification, and compatibility remain open |
-| 6. Value streaming | Typed values plus lossless raw representations where required | Provenance for each physical type, byte order, text/code-page rules, and long-value representation | Per-value and cumulative decoded-byte limits; long values streamed across bounded chains | Blocked on physical evidence |
+| 6. Value streaming | Typed values plus lossless raw representations where required | `SRC-0025` supplies CP1251/CP1252 mappings; exploratory `EXP-0061` supplies scalar byte order and the observed long-value forms | Per-value and cumulative decoded-byte limits; long values streamed across bounded chains | Implemented experimentally/internal-only for the closed type inventory, explicitly selected CP1251/CP1252, and observed inline/single-page/chained long values; automatic code-page selection, DAO verification, and compatibility remain open |
 
 Page classification must precede allocation parsing: allocation logic cannot
 use an inferred page type. Allocation must precede catalog traversal: merely
@@ -114,9 +123,14 @@ or speculative modules.
   row delimiting, including deleted, overflow-pointer, and hidden-storage flags.
 - `row.rs`: lending row cursor, iterative overflow resolution, validated row
   layout, and lossless raw field views. It delegates physical value decoding.
-- `value.rs` and `long_value.rs`: future bounded scalar and chained-value
-  decoders. Text decoding must preserve raw bytes when a lossless conversion
-  cannot be proven.
+- `value.rs`: lossless scalar and short-value decoding from validated row
+  fields, including exact Currency scale, OLE Automation day counts, and GUID
+  display-byte ordering.
+- `text.rs`: explicitly selected CP1251/CP1252 conversion with raw bytes beside
+  decoded Unicode and structured rejection of undefined mapping bytes.
+- `long_value.rs`: bounded inline decoding and lending external Memo/OLE
+  fragment streaming with owner, directory, length, termination, cycle, and
+  resource checks.
 
 Modules must be split before 800 production lines. Format constants and checked
 binary operations stay in their physical layer; orchestration receives typed
@@ -211,16 +225,19 @@ The current provenance does not establish any of the following:
 - the meaning of row-directory bit `0x2000`, wider layouts with more than one
   variable column, overflow representations beyond the observed slot-plus-u24
   pointer, or row insertion/update allocation rules;
-- scalar value encodings, text/code-page selection, date/currency/GUID rules;
-  or
-- Memo/OLE/long-value pointers, fragments, and chain termination.
+- automatic database code-page selection, code pages beyond explicitly
+  selected CP1251/CP1252, or proof that the diagnostic CP1251 database option
+  changes Jet 3 physical bytes; and
+- long-value storage forms beyond the observed inline, single-page, and
+  slot-plus-u24 chained representations, universal inline/external thresholds,
+  or write allocation rules.
 
 `SRC-0020` is a reverse-engineered secondary documentation lineage, not
-independent corroboration. `EXP-0057` through `EXP-0060` supply only the
-narrow, development-only Stage 2 through Stage 5 facts listed above; they do
-not unblock value interpretation. `SRC-0007` names several physical concepts
-but
-expressly publishes none of their binary encodings. The
+independent corroboration. `EXP-0057` through `EXP-0061` supply only the
+narrow, development-only Stage 2 through Stage 6 facts listed above.
+`SRC-0025` pins two public byte mappings but does not establish which code page
+a database selected. `SRC-0007` names several physical concepts but expressly
+publishes none of their binary encodings. The
 independently validated A3 result does not fill the remaining gaps, and no
 local exploratory result establishes DAO compatibility or release evidence.
 

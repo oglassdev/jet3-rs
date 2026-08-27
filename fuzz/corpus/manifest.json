@@ -970,6 +970,57 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '333334overflow-mutation' > fuzz/corpus/row_parsing/overflow_mutation"
+    },
+    {
+      "id": "FUZZ-SEED-LONG-VALUES-001",
+      "path": "fuzz/corpus/long_values/valid_values",
+      "size_bytes": 21,
+      "sha256": "4c6ac60e484fd2b9b94c5c513f419c1098177d0267e0d5a6ea220cd2b9dd0682",
+      "purpose": "Select generous limits and preserve the complete project-authored inline Memo and chained OLE stream.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, EXP-0059, EXP-0060, and EXP-0061; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33333330valid-values' > fuzz/corpus/long_values/valid_values"
+    },
+    {
+      "id": "FUZZ-SEED-LONG-VALUES-002",
+      "path": "fuzz/corpus/long_values/tight_resources",
+      "size_bytes": 24,
+      "sha256": "e87be5294c54bd72faae9c8509db348f9907e62692e657e402ee53054d88809a",
+      "purpose": "Select zero allocation, decoded-value, cumulative decoded-byte, item, work, visit, and chain ceilings against the valid synthetic value database.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0061; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '00000000tight-resources' > fuzz/corpus/long_values/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-LONG-VALUES-003",
+      "path": "fuzz/corpus/long_values/chain_mutation",
+      "size_bytes": 23,
+      "sha256": "e863e7bcbd3d5b4dbd5252cbeab8d06bdb6c03ee0993375d0afa614da17be549",
+      "purpose": "Mutate the terminal synthetic LVAL page while retaining bounded schema, row, header, and first-chain-fragment parsing.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0061; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33333335chain-mutation' > fuzz/corpus/long_values/chain_mutation"
     }
   ]
 }

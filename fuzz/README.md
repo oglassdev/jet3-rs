@@ -52,7 +52,11 @@ exactly. The checked targets are:
 - `row_parsing`: bounded table-owned row streaming over a fixed synthetic
   database, including reverse-packed directories, deleted/hidden rows,
   fixed/variable/null boundaries, overflow links, and operation-wide resource
-  limits (`EXP-0060`).
+  limits (`EXP-0060`); and
+- `long_values`: lossless inline value decoding and external Memo/OLE fragment
+  streaming over a fixed synthetic database, including headers, LVAL
+  directories, chains, termination, text conversion, and decoded-byte limits
+  (`SRC-0025`, `EXP-0061`).
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
@@ -93,6 +97,11 @@ input-selected budget.
 synthetic database and target row on the stack, mutates only one selected page,
 and returns after at most 64 rows and their bounded fields while schema, owned
 pages, overflow traversal, and row layout share one input-selected budget.
+`long_values` borrows at most one 4 KiB input, constructs one fixed six-page
+synthetic database on the stack, mutates only one selected page, decodes two
+bounded fields, and streams at most 16 external fragments while schema, rows,
+text conversion, long-value traversal, and all scratch state share one
+input-selected budget.
 The checked corpus covers zero/tight limits, primitive reads, arithmetic
 boundary-shaped values, all documented generic Jet signature kinds, unknown
 and truncated signatures, exact/partial Jet 3 geometry,
@@ -117,6 +126,9 @@ Catalog coverage includes a valid self-identifying root, CP1252-shaped raw
 name bytes, malformed directories, and zero resource ceilings.
 Row coverage includes valid direct and overflow layouts, a fully valid
 non-mutated path, selected page mutations, and tight operation limits.
+Long-value coverage includes a valid inline CP1252 Memo, a two-page chained
+OLE value, selected page mutations, and independent zero/tight allocation,
+decoded-byte, item, work, page-visit, and chain limits.
 `corpus/manifest.json` records each seed's stable ID,
 purpose, exact bytes and hash, origin, environment, rights, and reproduction
 command.
