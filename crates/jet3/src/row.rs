@@ -21,12 +21,15 @@ const OVERFLOW_POINTER_LEN: usize = 4;
 /// A sourced field that is either null or represented by exact physical bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawField<'row> {
+    /// The row marks the field absent.
     Null,
+    /// The exact physical field bytes.
     Bytes(&'row [u8]),
 }
 
 impl RawField<'_> {
     #[must_use]
+    /// Reports whether the field is physically absent.
     pub const fn is_null(self) -> bool {
         matches!(self, Self::Null)
     }
@@ -34,6 +37,7 @@ impl RawField<'_> {
 
 impl<'row> RawField<'row> {
     #[must_use]
+    /// Returns physical bytes, or `None` for a null field.
     pub const fn raw_bytes(self) -> Option<&'row [u8]> {
         match self {
             Self::Null => None,
@@ -55,21 +59,25 @@ pub struct RowView<'row, 'schema> {
 
 impl<'row> RowView<'row, '_> {
     #[must_use]
+    /// Returns the logical row locator requested by the stream.
     pub const fn locator(&self) -> RowLocator {
         self.locator
     }
 
     #[must_use]
+    /// Returns the row that physically stores the returned bytes.
     pub const fn storage_locator(&self) -> RowLocator {
         self.storage_locator
     }
 
     #[must_use]
+    /// Returns the complete physical row bytes.
     pub const fn raw_bytes(&self) -> &'row [u8] {
         self.raw
     }
 
     #[must_use]
+    /// Returns a lossless field view, or `None` for an unknown ordinal.
     pub fn field(&self, ordinal: ColumnOrdinal) -> Option<RawField<'row>> {
         let column = self.definition.columns().get(usize::from(ordinal.get()))?;
         if column.physical_type() == ColumnPhysicalType::Boolean {
@@ -141,54 +149,91 @@ impl<'row> RowView<'row, '_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RowError {
+    /// Table allocation-map traversal failed.
     Allocation(AllocationTraversalError),
+    /// A data-page row directory is malformed.
     Directory(RowDirectoryError),
+    /// An owned table page has the wrong classification.
     UnexpectedOwnedPageKind {
+        /// Owned page that violated the data-page invariant.
         page: PageNumber,
+        /// Observed page classification.
         actual: PageKind,
     },
+    /// The schema has more columns than the physical row count can represent.
     ColumnCountNotRepresentable {
+        /// Schema column count.
         count: usize,
     },
+    /// The physical row column count differs from the schema.
     ColumnCountMismatch {
+        /// Schema column count.
         expected: u8,
+        /// Sourced row column count.
         actual: u8,
     },
+    /// The row is shorter than its fixed header and null bitmap.
     RowTooShort {
+        /// Observed row length.
         length: usize,
+        /// Minimum required length.
         minimum: usize,
     },
+    /// The fixed-value region does not end where the schema requires.
     InvalidFixedBoundary {
+        /// Boundary derived from the schema.
         expected: usize,
+        /// Boundary sourced from the row trailer.
         actual: usize,
     },
+    /// The row's variable-field count differs from the schema.
     VariableCountMismatch {
+        /// Schema variable-field count.
         expected: u8,
+        /// Sourced row variable-field count.
         actual: u8,
     },
+    /// The row requires the unimplemented wide-offset representation.
     UnsupportedWideVariableOffsets {
+        /// Sourced variable-field count.
         variable_count: u8,
+        /// Complete row length.
         row_length: usize,
     },
+    /// One variable field has reversed or out-of-range bounds.
     InvalidVariableBounds {
+        /// Zero-based variable-field index.
         index: u16,
+        /// Inclusive field start.
         start: usize,
+        /// Exclusive field end.
         end: usize,
+        /// Exclusive end of the variable-data region.
         data_end: usize,
     },
+    /// Unused high bits in the final null-bitmap byte are nonzero.
     NonzeroUnusedNullBits {
+        /// Sourced final bitmap byte.
         raw: u8,
+        /// Mask selecting unused bits.
         mask: u8,
     },
+    /// An overflow pointer names the null locator or an invalid page.
     InvalidOverflowTarget {
+        /// Sourced overflow target.
         locator: RowLocator,
     },
+    /// An overflow row links to itself.
     SelfLink {
+        /// Self-referential row.
         locator: RowLocator,
     },
+    /// Overflow traversal repeats an earlier row.
     Cycle {
+        /// Repeated row.
         locator: RowLocator,
     },
+    /// Resource policy rejected row traversal or validation work.
     Resource(Error),
 }
 

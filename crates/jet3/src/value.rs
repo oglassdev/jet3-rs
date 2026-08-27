@@ -15,11 +15,13 @@ pub struct CurrencyValue {
 
 impl CurrencyValue {
     #[must_use]
+    /// Returns the exact stored integer before applying the decimal scale.
     pub const fn scaled(self) -> i64 {
         self.scaled
     }
 
     #[must_use]
+    /// Returns the fixed number of decimal places.
     pub const fn scale(self) -> u32 {
         4
     }
@@ -33,6 +35,7 @@ pub struct DateTimeValue {
 
 impl DateTimeValue {
     #[must_use]
+    /// Returns the exact OLE Automation day count.
     pub const fn days(self) -> f64 {
         self.days
     }
@@ -46,6 +49,7 @@ pub struct GuidValue {
 
 impl GuidValue {
     #[must_use]
+    /// Returns bytes in conventional GUID display order.
     pub const fn display_bytes(self) -> [u8; 16] {
         self.display_bytes
     }
@@ -55,18 +59,31 @@ impl GuidValue {
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ValueKind<'raw> {
+    /// A physically absent value.
     Null,
+    /// A Boolean sourced from the row's null-bit region.
     Boolean(bool),
+    /// An unsigned eight-bit integer.
     Byte(u8),
+    /// A signed 16-bit integer.
     Integer(i16),
+    /// A signed 32-bit integer.
     Long(i32),
+    /// A fixed-scale currency value.
     Currency(CurrencyValue),
+    /// An IEEE-754 single-precision value.
     Single(f32),
+    /// An IEEE-754 double-precision value.
     Double(f64),
+    /// An OLE Automation date/time value.
     DateTime(DateTimeValue),
+    /// Borrowed short binary bytes.
     Binary(&'raw [u8]),
+    /// Decoded short text retaining its source bytes.
     Text(DecodedText<'raw>),
+    /// A replication identifier.
     Guid(GuidValue),
+    /// Inline data or an external long-value reference.
     LongValue(LongValue<'raw>),
 }
 
@@ -79,11 +96,13 @@ pub struct DecodedValue<'raw> {
 
 impl<'raw> DecodedValue<'raw> {
     #[must_use]
+    /// Returns the exact physical bytes, or `None` for a null value.
     pub const fn raw_bytes(&self) -> Option<&'raw [u8]> {
         self.raw
     }
 
     #[must_use]
+    /// Returns the interpreted value.
     pub const fn kind(&self) -> &ValueKind<'raw> {
         &self.kind
     }
@@ -93,13 +112,20 @@ impl<'raw> DecodedValue<'raw> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ValueError {
+    /// A fixed-width value has the wrong physical byte length.
     InvalidWidth {
+        /// Column type whose width was validated.
         physical_type: ColumnPhysicalType,
+        /// Required physical byte length.
         expected: usize,
+        /// Observed physical byte length.
         actual: usize,
     },
+    /// Text decoding failed.
     Text(TextError),
+    /// Long-value header decoding failed.
     LongValue(LongValueError),
+    /// Resource policy rejected decoded output.
     Resource(Error),
 }
 

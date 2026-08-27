@@ -40,36 +40,43 @@ pub struct TableDefinition {
 
 impl TableDefinition {
     #[must_use]
+    /// Returns the table-definition root page.
     pub const fn root(&self) -> PageNumber {
         self.root
     }
 
     #[must_use]
+    /// Returns the declared logical definition length.
     pub const fn logical_length(&self) -> u32 {
         self.logical_length
     }
 
     #[must_use]
+    /// Returns the table's free-space and owned-page map locations.
     pub const fn maps(&self) -> TableMapLocations {
         self.maps
     }
 
     #[must_use]
+    /// Returns physical column definitions in ordinal order.
     pub fn columns(&self) -> &[ColumnDefinition] {
         &self.columns
     }
 
     #[must_use]
+    /// Returns decoded physical index records.
     pub fn physical_indexes(&self) -> &[PhysicalIndexDefinition] {
         &self.physical_indexes
     }
 
     #[must_use]
+    /// Returns named logical index definitions.
     pub fn indexes(&self) -> &[IndexDefinition] {
         &self.indexes
     }
 
     #[must_use]
+    /// Returns the complete sourced definition header.
     pub const fn raw_header(&self) -> &[u8; DEFINITION_HEADER_LEN] {
         &self.raw_header
     }
@@ -85,96 +92,167 @@ impl TableDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TableDefinitionError {
+    /// Continuation-chain traversal failed.
     Chain(AllocationTraversalError),
+    /// Allocation-map location decoding failed.
     MapLocation(MapLocationError),
+    /// Reading or classifying a referenced page failed.
     Page(DatabasePageError),
+    /// Physical or logical index decoding failed.
     Index(IndexDefinitionError),
+    /// The root page lacks the observed table-definition prefix.
     InvalidPrefix {
+        /// Root page being decoded.
         page: PageNumber,
+        /// Sourced four-byte prefix.
         actual: [u8; 4],
     },
+    /// The declared definition length is outside supported bounds.
     InvalidLogicalLength {
+        /// Sourced logical length.
         length: u32,
+        /// Minimum complete definition length.
         minimum: usize,
+        /// Maximum bytes available from captured geometry.
         maximum: u64,
     },
+    /// The continuation chain ended before the declared length.
     TruncatedChain {
+        /// Last page read from the chain.
         page: PageNumber,
+        /// Definition bytes still required.
         remaining: usize,
     },
+    /// A chain link remains after the declared definition length.
     TrailingChainReference {
+        /// Page containing the trailing link.
         page: PageNumber,
+        /// Unexpected next page.
         next: PageNumber,
     },
+    /// The table header marker differs from the observed constant.
     InvalidHeaderMarker {
+        /// Sourced marker byte.
         raw: u8,
     },
+    /// Repeated header column counts disagree.
     InconsistentColumnCount {
+        /// First sourced count.
         first: u16,
+        /// Repeated sourced count.
         repeated: u16,
     },
+    /// A reserved header count is nonzero.
     UnsupportedReservedCount {
+        /// Sourced reserved count.
         raw: u16,
     },
+    /// The definition ended before a complete field.
     Truncated {
+        /// Byte offset where decoding stopped.
         offset: usize,
+        /// Additional bytes required.
         needed: usize,
+        /// Available definition length.
         length: usize,
     },
+    /// A column record's ordinal fields disagree with its position.
     InvalidColumnOrdinal {
+        /// Zero-based record ordinal.
         record: u16,
+        /// First sourced ordinal.
         first: u16,
+        /// Repeated sourced ordinal.
         repeated: u16,
     },
+    /// A column record's running variable counter is inconsistent.
     InvalidVariableCounter {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Sourced counter.
         raw: u16,
+        /// Counter derived from preceding columns.
         expected: u16,
     },
+    /// The decoded variable-column count differs from the header.
     InconsistentVariableCount {
+        /// Sourced header count.
         header: u16,
+        /// Count derived from decoded columns.
         decoded: u16,
     },
+    /// A column physical-type byte is outside the admitted inventory.
     UnsupportedPhysicalType {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Sourced physical-type byte.
         raw: u8,
     },
+    /// A column storage-class byte is incompatible with its type.
     UnsupportedColumnClass {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Decoded physical type.
         physical_type: ColumnPhysicalType,
+        /// Sourced class byte.
         raw: u8,
     },
+    /// A column size is incompatible with its physical type.
     UnsupportedColumnSize {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Decoded physical type.
         physical_type: ColumnPhysicalType,
+        /// Sourced size.
         size: u16,
     },
+    /// A fixed column does not begin at the next derived offset.
     InvalidFixedOffset {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Sourced fixed offset.
         raw: u16,
+        /// Offset derived from preceding fixed columns.
         expected: u16,
     },
+    /// A sourced column constant differs from the observed value.
     InvalidColumnConstant {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Sourced constant.
         raw: u16,
     },
+    /// A column's name-encoding context differs from the observed bytes.
     InvalidColumnEncodingContext {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Sourced context bytes.
         raw: [u8; 4],
     },
+    /// A column name is empty or duplicates an earlier name.
     InvalidColumnName {
+        /// Zero-based column ordinal.
         ordinal: u16,
+        /// Whether the name duplicates an earlier column name.
         duplicate: bool,
     },
+    /// The definition does not end with the observed terminator.
     InvalidTerminator {
+        /// Terminator byte offset.
         offset: usize,
+        /// Sourced terminator bytes.
         actual: [u8; 2],
     },
+    /// A typed page reference has the wrong classification.
     UnexpectedReferenceKind {
+        /// Semantic role of the reference.
         role: &'static str,
+        /// Referenced page.
         page: PageNumber,
+        /// Observed page classification.
         actual: PageKind,
     },
+    /// Resource policy rejected decoding work or owned storage.
     Resource(Error),
 }
 

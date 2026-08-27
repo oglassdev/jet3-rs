@@ -9,12 +9,15 @@ const UNDEFINED: u32 = 0;
 /// One explicitly selected Windows ANSI code page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextCodePage {
+    /// Windows Cyrillic code page 1251.
     Windows1251,
+    /// Windows Western European code page 1252.
     Windows1252,
 }
 
 impl TextCodePage {
     #[must_use]
+    /// Returns the Windows code-page number.
     pub const fn number(self) -> u16 {
         match self {
             Self::Windows1251 => 1251,
@@ -33,16 +36,19 @@ pub struct DecodedText<'raw> {
 
 impl<'raw> DecodedText<'raw> {
     #[must_use]
+    /// Returns the exact source bytes.
     pub const fn raw_bytes(&self) -> &'raw [u8] {
         self.raw
     }
 
     #[must_use]
+    /// Returns the decoded Unicode text.
     pub fn as_str(&self) -> &str {
         &self.text
     }
 
     #[must_use]
+    /// Returns the code page used for decoding.
     pub const fn code_page(&self) -> TextCodePage {
         self.code_page
     }
@@ -52,11 +58,16 @@ impl<'raw> DecodedText<'raw> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TextError {
+    /// The selected code page does not assign a character to one byte.
     UndefinedByte {
+        /// Code page selected by the caller.
         code_page: TextCodePage,
+        /// Zero-based byte index in the source value.
         index: usize,
+        /// Unassigned source byte.
         byte: u8,
     },
+    /// Resource policy rejected decoded output or owned storage.
     Resource(Error),
 }
 

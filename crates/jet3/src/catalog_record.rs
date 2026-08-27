@@ -216,34 +216,72 @@ impl<'row> CatalogRecordView<'row> {
 #[non_exhaustive]
 pub enum CatalogRecordError {
     /// A row count cannot fit a complete directory.
-    RowCountTooLarge { row_count: u16, maximum: usize },
+    RowCountTooLarge {
+        /// Declared row count.
+        row_count: u16,
+        /// Maximum count that can fit in the page directory.
+        maximum: usize,
+    },
     /// A directory entry contains an unobserved flag bit.
-    UnknownDirectoryFlag { row: u16, raw_offset: u16 },
+    UnknownDirectoryFlag {
+        /// Zero-based directory entry.
+        row: u16,
+        /// Sourced offset and flag word.
+        raw_offset: u16,
+    },
     /// A masked row offset is outside the page.
-    RowOffsetOutOfPage { row: u16, raw_offset: u16 },
+    RowOffsetOutOfPage {
+        /// Zero-based directory entry.
+        row: u16,
+        /// Sourced offset and flag word.
+        raw_offset: u16,
+    },
     /// Row bounds overlap the directory or reverse incorrectly.
     InvalidRowBounds {
+        /// Zero-based directory entry.
         row: u16,
+        /// Inclusive row start.
         start: usize,
+        /// Exclusive row end.
         end: usize,
+        /// First byte occupied by the reverse directory.
         directory_end: usize,
     },
     /// An active catalog row has the overflow flag.
-    ActiveOverflowRow { row: u16 },
+    ActiveOverflowRow {
+        /// Zero-based directory entry.
+        row: u16,
+    },
     /// A catalog record is shorter than its minimum fields and trailer.
-    RecordTooShort { length: usize, minimum: usize },
+    RecordTooShort {
+        /// Observed record length.
+        length: usize,
+        /// Minimum required length.
+        minimum: usize,
+    },
     /// A selected catalog row has an unexpected column count.
-    UnexpectedColumnCount { observed: u8 },
+    UnexpectedColumnCount {
+        /// Sourced catalog column count.
+        observed: u8,
+    },
     /// The minimum reverse trailer does not match the observed layout.
     InvalidNameTrailer {
+        /// Decoded inclusive name start.
         name_start: usize,
+        /// Decoded exclusive name end.
         name_end: usize,
+        /// Sourced fixed-field boundary marker.
         fixed_boundary: u8,
+        /// Sourced trailer marker.
         marker: u8,
+        /// Complete record length.
         record_length: usize,
     },
     /// Object flags are outside the two observed exact classifications.
-    UnsupportedObjectFlags { raw: u32 },
+    UnsupportedObjectFlags {
+        /// Sourced object flags.
+        raw: u32,
+    },
     /// Resource policy rejected directory or record work.
     Resource(Error),
 }

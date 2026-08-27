@@ -113,78 +113,141 @@ impl IndexDefinition {
 pub enum IndexDefinitionError {
     /// The definition ended before a complete sourced record or name.
     Truncated {
+        /// Byte offset where decoding stopped.
         offset: usize,
+        /// Additional bytes required.
         needed: usize,
+        /// Available definition length.
         length: usize,
     },
     /// A used key slot followed an unused `0xffff` slot.
-    KeyAfterUnusedSlot { physical_index: u16, slot: u8 },
+    KeyAfterUnusedSlot {
+        /// Zero-based physical-index ordinal.
+        physical_index: u16,
+        /// Key slot found after the terminator.
+        slot: u8,
+    },
     /// A used key slot references an invalid table column.
     InvalidColumnOrdinal {
+        /// Zero-based physical-index ordinal.
         physical_index: u16,
+        /// Zero-based key slot.
         slot: u8,
+        /// Sourced column ordinal.
         ordinal: u16,
+        /// Table column count.
         column_count: u16,
     },
     /// One physical key repeats a table column.
-    DuplicateKeyColumn { physical_index: u16, ordinal: u16 },
+    DuplicateKeyColumn {
+        /// Zero-based physical-index ordinal.
+        physical_index: u16,
+        /// Repeated column ordinal.
+        ordinal: u16,
+    },
     /// A used key slot has an unsupported direction byte.
     UnsupportedDirection {
+        /// Zero-based physical-index ordinal.
         physical_index: u16,
+        /// Zero-based key slot.
         slot: u8,
+        /// Sourced direction byte.
         raw: u8,
     },
     /// A physical index has no used key fields.
-    EmptyPhysicalIndex { physical_index: u16 },
+    EmptyPhysicalIndex {
+        /// Zero-based physical-index ordinal.
+        physical_index: u16,
+    },
     /// Physical flags contain an unobserved bit.
-    UnsupportedPhysicalFlags { physical_index: u16, raw: u8 },
+    UnsupportedPhysicalFlags {
+        /// Zero-based physical-index ordinal.
+        physical_index: u16,
+        /// Sourced physical flags.
+        raw: u8,
+    },
     /// A required physical reference is zero.
     NullPhysicalReference {
+        /// Zero-based physical-index ordinal.
         physical_index: u16,
+        /// Semantic role of the null reference.
         role: &'static str,
     },
     /// A physical reference is beyond captured geometry.
     InvalidPhysicalReference {
+        /// Zero-based physical-index ordinal.
         physical_index: u16,
+        /// Semantic role of the reference.
         role: &'static str,
+        /// Sourced page reference.
         page: PageNumber,
+        /// Geometry validation failure.
         source: Error,
     },
     /// A logical definition references no physical index.
     InvalidPhysicalIndexOrdinal {
+        /// Zero-based logical-index ordinal.
         logical_index: u16,
+        /// Sourced physical-index ordinal.
         ordinal: u32,
+        /// Physical-index count.
         physical_count: u16,
     },
     /// An ordinary index's two physical selectors differ.
     InconsistentOrdinarySelectors {
+        /// Zero-based logical-index ordinal.
         logical_index: u16,
+        /// First sourced selector.
         first: u32,
+        /// Second sourced selector.
         second: u32,
     },
     /// A logical record has unsupported class/context fields.
     UnsupportedLogicalRecord {
+        /// Zero-based logical-index ordinal.
         logical_index: u16,
+        /// Sourced logical class byte.
         class: u8,
+        /// Sourced two-byte context.
         context: [u8; 2],
+        /// Sourced marker byte.
         marker: u8,
     },
     /// An ordinary logical record carries relationship-only fields.
-    UnexpectedOrdinaryRelationshipFields { logical_index: u16 },
+    UnexpectedOrdinaryRelationshipFields {
+        /// Zero-based logical-index ordinal.
+        logical_index: u16,
+    },
     /// A relationship reference is zero, self-referential, or out of range.
     InvalidRelationshipReference {
+        /// Zero-based logical-index ordinal.
         logical_index: u16,
+        /// Sourced related-table page.
         page: PageNumber,
+        /// Geometry validation failure, when one occurred.
         source: Option<Error>,
     },
     /// More than one primary logical index was declared.
     DuplicatePrimaryIndex,
     /// A primary logical record does not map to unique+required physical flags.
-    InvalidPrimaryFlags { logical_index: u16, raw: u8 },
+    InvalidPrimaryFlags {
+        /// Zero-based logical-index ordinal.
+        logical_index: u16,
+        /// Sourced physical flags.
+        raw: u8,
+    },
     /// A logical index name is empty or duplicates an earlier name.
-    InvalidLogicalName { logical_index: u16, duplicate: bool },
+    InvalidLogicalName {
+        /// Zero-based logical-index ordinal.
+        logical_index: u16,
+        /// Whether the name duplicates an earlier logical name.
+        duplicate: bool,
+    },
     /// At least one physical record is unreachable from the logical records.
-    UnreferencedPhysicalIndex { physical_index: u16 },
+    UnreferencedPhysicalIndex {
+        /// Zero-based physical-index ordinal.
+        physical_index: u16,
+    },
     /// Resource policy rejected count work or owned storage.
     Resource(Error),
 }

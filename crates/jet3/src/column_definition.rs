@@ -24,6 +24,7 @@ impl ColumnOrdinal {
     }
 
     #[must_use]
+    /// Returns the zero-based ordinal as an integer.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -32,23 +33,37 @@ impl ColumnOrdinal {
 /// Closed Jet 3 physical type inventory admitted by the checked DAO provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColumnPhysicalType {
+    /// Boolean value encoded in the row presence bitmap.
     Boolean,
+    /// Unsigned eight-bit integer.
     Byte,
+    /// Signed 16-bit integer.
     Integer,
+    /// Signed 32-bit integer.
     Long,
+    /// Signed fixed-scale currency integer.
     Currency,
+    /// IEEE-754 single-precision value.
     Single,
+    /// IEEE-754 double-precision value.
     Double,
+    /// OLE Automation date/time value.
     DateTime,
+    /// Short binary value.
     Binary,
+    /// Short database-code-page text value.
     Text,
+    /// External or inline OLE long value.
     LongBinary,
+    /// External or inline memo text value.
     Memo,
+    /// Replication identifier.
     Guid,
 }
 
 impl ColumnPhysicalType {
     #[must_use]
+    /// Returns the sourced Jet physical-type byte.
     pub const fn raw(self) -> u8 {
         match self {
             Self::Boolean => 1,
@@ -71,8 +86,16 @@ impl ColumnPhysicalType {
 /// Physical fixed/variable storage class for one column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColumnStorageClass {
-    Fixed { offset: u16 },
-    Variable { index: u16 },
+    /// Bytes occupy a fixed row offset.
+    Fixed {
+        /// Zero-based offset in the row's fixed-value region.
+        offset: u16,
+    },
+    /// Bytes are located through a variable-offset entry.
+    Variable {
+        /// Zero-based variable-column index.
+        index: u16,
+    },
 }
 
 /// One immutable, lossless column definition.
@@ -93,46 +116,57 @@ pub struct ColumnDefinition {
 
 impl ColumnDefinition {
     #[must_use]
+    /// Returns the lossless column name.
     pub const fn name(&self) -> &DefinitionName {
         &self.name
     }
     #[must_use]
+    /// Returns the column's zero-based ordinal.
     pub const fn ordinal(&self) -> ColumnOrdinal {
         self.ordinal
     }
     #[must_use]
+    /// Returns the interpreted physical type.
     pub const fn physical_type(&self) -> ColumnPhysicalType {
         self.physical_type
     }
     #[must_use]
+    /// Returns the row storage class and offset or index.
     pub const fn storage(&self) -> ColumnStorageClass {
         self.storage
     }
     #[must_use]
+    /// Returns the sourced maximum or fixed byte size.
     pub const fn size(&self) -> u16 {
         self.size
     }
     #[must_use]
+    /// Reports whether the physical class marks auto-increment behavior.
     pub const fn auto_increment(&self) -> bool {
         self.auto_increment
     }
     #[must_use]
+    /// Returns the sourced running variable-column counter.
     pub const fn raw_variable_counter(&self) -> u16 {
         self.raw_variable_counter
     }
     #[must_use]
+    /// Returns the sourced constant field without assigning extra meaning.
     pub const fn sourced_constant(&self) -> u16 {
         self.sourced_constant
     }
     #[must_use]
+    /// Returns the sourced four-byte name-encoding context.
     pub const fn raw_encoding_context(&self) -> &[u8; 4] {
         &self.raw_encoding_context
     }
     #[must_use]
+    /// Returns the physical class and auto-increment flag byte.
     pub const fn raw_class_flags(&self) -> u8 {
         self.raw_class_flags
     }
     #[must_use]
+    /// Returns the complete sourced physical column record.
     pub const fn raw_record(&self) -> &[u8; COLUMN_RECORD_LEN] {
         &self.raw_record
     }

@@ -31,25 +31,40 @@ pub enum CatalogError {
     /// A catalog data-page directory or object record is malformed.
     Record(CatalogRecordError),
     /// An owned page is not a data page.
-    UnexpectedOwnedPageKind { page: PageNumber, actual: PageKind },
+    UnexpectedOwnedPageKind {
+        /// Owned page that violated the catalog data-page invariant.
+        page: PageNumber,
+        /// Observed page classification.
+        actual: PageKind,
+    },
     /// No self-identifying catalog root was found.
     RootNotFound,
     /// More than one self-identifying catalog root was found.
     DuplicateRoot {
+        /// First self-identifying root.
         first: PageNumber,
+        /// Later self-identifying root.
         duplicate: PageNumber,
     },
     /// An active catalog identifier occurred more than once.
-    DuplicateObjectId { id: CatalogObjectId },
+    DuplicateObjectId {
+        /// Repeated active object identifier.
+        id: CatalogObjectId,
+    },
     /// A table identifier is outside the captured page range.
     InvalidTableDefinitionReference {
+        /// Table object identifier that supplied the reference.
         id: CatalogObjectId,
+        /// Derived table-definition page.
         page: PageNumber,
+        /// Geometry validation failure.
         source: Error,
     },
     /// A table identifier names a page not classified as a table definition.
     UnexpectedTableDefinitionReference {
+        /// Table object identifier that supplied the reference.
         id: CatalogObjectId,
+        /// Referenced page with the wrong classification.
         page: PageNumber,
     },
     /// Resource policy rejected discovery or cursor state.

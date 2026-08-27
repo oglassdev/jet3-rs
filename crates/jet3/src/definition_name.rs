@@ -7,6 +7,7 @@ use crate::{ByteCount, Error, ResourceBudget};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DefinitionNameEncoding {
+    /// Bytes use the database's configured ANSI code page.
     DatabaseCodePage,
 }
 
@@ -33,16 +34,19 @@ impl DefinitionName {
     }
 
     #[must_use]
+    /// Returns the name bytes exactly as stored.
     pub fn raw_bytes(&self) -> &[u8] {
         &self.raw
     }
 
     #[must_use]
+    /// Returns the sourced encoding context.
     pub const fn encoding(&self) -> DefinitionNameEncoding {
         self.encoding
     }
 
     #[must_use]
+    /// Returns the name as UTF-8 when every sourced byte is ASCII.
     pub fn decoded_ascii(&self) -> Option<&str> {
         self.raw
             .is_ascii()

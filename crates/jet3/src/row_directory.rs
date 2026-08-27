@@ -23,11 +23,13 @@ impl RowLocator {
     }
 
     #[must_use]
+    /// Returns the containing data page.
     pub const fn page(self) -> PageNumber {
         self.page
     }
 
     #[must_use]
+    /// Returns the zero-based row slot.
     pub const fn slot(self) -> u8 {
         self.slot
     }
@@ -37,44 +39,74 @@ impl RowLocator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RowDirectoryError {
+    /// The data page's owner does not match the table being read.
     UnexpectedOwner {
+        /// Required table-definition root.
         expected: PageNumber,
+        /// Sourced owner page.
         actual: PageNumber,
     },
+    /// The declared row count cannot fit in a page directory.
     RowCountTooLarge {
+        /// Declared row count.
         row_count: u16,
+        /// Maximum count that can fit.
         maximum: usize,
     },
+    /// The row count exceeds the public eight-bit slot representation.
     RowSlotNotRepresentable {
+        /// Declared row count.
         row_count: u16,
     },
+    /// A directory entry contains an unobserved flag.
     UnknownFlag {
+        /// Zero-based row slot.
         row: u8,
+        /// Sourced offset and flag word.
         raw_offset: u16,
     },
+    /// A masked row offset is outside the page.
     OffsetOutOfPage {
+        /// Zero-based row slot.
         row: u8,
+        /// Sourced offset and flag word.
         raw_offset: u16,
     },
+    /// Row bounds overlap the directory or reverse incorrectly.
     InvalidBounds {
+        /// Zero-based row slot.
         row: u8,
+        /// Inclusive row start.
         start: usize,
+        /// Exclusive row end.
         end: usize,
+        /// First byte occupied by the reverse directory.
         directory_end: usize,
     },
+    /// An overflow row does not contain exactly one row locator.
     InvalidOverflowPointerLength {
+        /// Zero-based row slot.
         row: u8,
+        /// Observed row byte length.
         length: usize,
     },
+    /// A requested row slot is absent from the directory.
     MissingRow {
+        /// Requested zero-based row slot.
         row: u8,
+        /// Declared row count.
         row_count: u16,
     },
+    /// The caller supplied bytes from a different page version.
     DirectoryChanged {
+        /// Page whose directory was revalidated.
         page: PageNumber,
+        /// Row count captured by the directory.
         previous_row_count: u16,
+        /// Row count observed during access.
         current_row_count: u16,
     },
+    /// Resource policy rejected directory validation work.
     Resource(Error),
 }
 

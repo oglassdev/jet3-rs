@@ -23,7 +23,9 @@ const OFFSET_MASK: u16 = 0x1fff;
 /// The semantic kind of a Jet long value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LongValueKind {
+    /// Database-code-page memo text.
     Memo,
+    /// OLE or other uninterpreted binary data.
     Ole,
 }
 
@@ -31,14 +33,18 @@ pub enum LongValueKind {
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum InlineLongValue<'raw> {
+    /// Decoded memo text retaining its source bytes.
     Text(DecodedText<'raw>),
+    /// Borrowed OLE payload bytes.
     Binary(&'raw [u8]),
 }
 
 /// The observed storage form of an external long value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExternalLongValueStorage {
+    /// The complete payload occupies one row.
     SinglePage,
+    /// Payload rows form a forward-linked chain.
     Chained,
 }
 
@@ -56,36 +62,43 @@ pub struct LongValueReference {
 
 impl LongValueReference {
     #[must_use]
+    /// Returns the exact 12-byte value header.
     pub const fn raw_header(self) -> [u8; HEADER_LEN] {
         self.raw_header
     }
 
     #[must_use]
+    /// Returns the logical row that contained the reference.
     pub const fn source(self) -> RowLocator {
         self.source
     }
 
     #[must_use]
+    /// Returns the first external payload row.
     pub const fn target(self) -> RowLocator {
         self.target
     }
 
     #[must_use]
+    /// Returns the declared decoded payload length.
     pub const fn length(self) -> u32 {
         self.length
     }
 
     #[must_use]
+    /// Returns the observed external storage form.
     pub const fn storage(self) -> ExternalLongValueStorage {
         self.storage
     }
 
     #[must_use]
+    /// Returns the semantic payload kind.
     pub const fn kind(self) -> LongValueKind {
         self.kind
     }
 
     #[must_use]
+    /// Returns the code page selected for memo decoding.
     pub const fn code_page(self) -> TextCodePage {
         self.code_page
     }
@@ -95,10 +108,14 @@ impl LongValueReference {
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum LongValue<'raw> {
+    /// Payload bytes stored beside the header in the row.
     Inline {
+        /// Exact 12-byte value header.
         raw_header: [u8; HEADER_LEN],
+        /// Interpreted inline payload.
         value: InlineLongValue<'raw>,
     },
+    /// Validated reference to externally stored payload rows.
     External(LongValueReference),
 }
 
@@ -209,11 +226,13 @@ pub struct LongValueChunk<'page> {
 
 impl<'page> LongValueChunk<'page> {
     #[must_use]
+    /// Returns the complete sourced payload row.
     pub const fn raw_row(&self) -> &'page [u8] {
         self.raw_row
     }
 
     #[must_use]
+    /// Returns the interpreted payload fragment.
     pub const fn value(&self) -> &LongValueChunkValue<'page> {
         &self.value
     }
@@ -223,7 +242,9 @@ impl<'page> LongValueChunk<'page> {
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum LongValueChunkValue<'page> {
+    /// Decoded memo fragment retaining its source bytes.
     Text(DecodedText<'page>),
+    /// Borrowed binary fragment.
     Binary(&'page [u8]),
 }
 
@@ -231,23 +252,92 @@ pub enum LongValueChunkValue<'page> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LongValueError {
-    HeaderTooShort { actual: usize },
-    ExternalHeaderLength { actual: usize },
-    UnsupportedFlags { raw: u32 },
+    /// The value is shorter than the required header.
+    HeaderTooShort {
+        /// Observed byte length.
+        actual: usize,
+    },
+    /// An external reference contains trailing bytes.
+    ExternalHeaderLength {
+        /// Observed byte length.
+        actual: usize,
+    },
+    /// The control word contains an unobserved storage flag.
+    UnsupportedFlags {
+        /// Sourced flag bits.
+        raw: u32,
+    },
+    /// A reserved header byte is nonzero.
     NonzeroReservedHeader,
+    /// An external header contains the null row locator.
     MissingExternalTarget,
-    UnexpectedPageKind { page: PageNumber, actual: PageKind },
-    InvalidOwner { page: PageNumber, actual: [u8; 4] },
-    InvalidDirectory { page: PageNumber },
-    MissingRow { locator: RowLocator, row_count: u16 },
-    InvalidRowFlags { locator: RowLocator, raw: u16 },
-    ChainRowTooShort { locator: RowLocator, actual: usize },
-    LengthMismatch { expected: u32, actual: u64 },
-    NonterminalAtLength { locator: RowLocator },
-    SelfLink { locator: RowLocator },
-    Cycle { locator: RowLocator },
+    /// An owned payload page has the wrong classification.
+    UnexpectedPageKind {
+        /// Owned page that violated the data-page invariant.
+        page: PageNumber,
+        /// Observed page classification.
+        actual: PageKind,
+    },
+    /// A payload page has the wrong owner marker.
+    InvalidOwner {
+        /// Payload page being validated.
+        page: PageNumber,
+        /// Sourced four-byte owner marker.
+        actual: [u8; 4],
+    },
+    /// A payload page has a malformed row directory.
+    InvalidDirectory {
+        /// Payload page being validated.
+        page: PageNumber,
+    },
+    /// A referenced payload row does not exist.
+    MissingRow {
+        /// Referenced row.
+        locator: RowLocator,
+        /// Declared row count on its page.
+        row_count: u16,
+    },
+    /// A payload row carries unsupported directory flags.
+    InvalidRowFlags {
+        /// Referenced row.
+        locator: RowLocator,
+        /// Sourced offset and flag word.
+        raw: u16,
+    },
+    /// A chained row is too short to contain its next locator.
+    ChainRowTooShort {
+        /// Referenced row.
+        locator: RowLocator,
+        /// Observed byte length.
+        actual: usize,
+    },
+    /// Streamed bytes do not equal the declared payload length.
+    LengthMismatch {
+        /// Declared payload length.
+        expected: u32,
+        /// Observed or streamed payload length.
+        actual: u64,
+    },
+    /// A chained row links onward after the declared length is complete.
+    NonterminalAtLength {
+        /// Row containing the unexpected link.
+        locator: RowLocator,
+    },
+    /// A chained row links to itself.
+    SelfLink {
+        /// Self-referential row.
+        locator: RowLocator,
+    },
+    /// A chained row repeats an earlier row.
+    Cycle {
+        /// Repeated row.
+        locator: RowLocator,
+    },
+    /// Allocation-map traversal failed.
     Allocation(AllocationTraversalError),
+    /// Memo text decoding failed.
     Text(TextError),
+    /// Resource policy rejected streaming or decoded output.
     Resource(Error),
 }
 
