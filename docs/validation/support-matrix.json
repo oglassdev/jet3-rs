@@ -442,24 +442,90 @@
     },
     {
       "id": "values.all_dao_jet3_table_types",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "implemented",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "EXP-0007 verifies DAO-only generation/readback for controlled dbBinary, dbText, dbLongBinary, and dbMemo cases; no Rust table-value implementation or differential result exists.",
-      "evidence": []
+      "reason": "The value layer decodes every member of the closed 13-type Jet 3 table inventory from validated row fields, retaining exact field bytes and streaming external Memo/OLE fragments. Text code pages remain explicit, unsupported forms fail closed, and EXP-0061 plus synthetic tests are development-only/internal_only rather than the required DAO differential verification.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/value.rs",
+          "sha256": "033b09b84e72712faa4a1faa98b98fa192430025417d9ba4ef237e44ddeaec2f",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.all_dao_jet3_table_types"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/text.rs",
+          "sha256": "15fedb4795903cc037424a7271f29e0b7b66e2c207f88edb62b63bf2d408a8c4",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.all_dao_jet3_table_types"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/long_value.rs",
+          "sha256": "c11795ad7e3d08862a67d0fc9dab4808e13b4bee64e9da2af57361308b5f5787",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.all_dao_jet3_table_types"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/value_tests.rs",
+          "sha256": "5b088017d785ecf11240cef1ea875214ef72fa62a862b6bea85fbdfb476993c4",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.all_dao_jet3_table_types",
+          "scenario_ids": [
+            "UT-VALUE-001",
+            "UT-VALUE-002",
+            "UT-VALUE-003"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/text_tests.rs",
+          "sha256": "2fbbf33adc1d572b903d2d0000d3a681cb21f6ce24bae22e13d936a52f70dab9",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.all_dao_jet3_table_types",
+          "scenario_ids": [
+            "UT-TEXT-001",
+            "UT-TEXT-002",
+            "UT-TEXT-003"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/long_value_tests.rs",
+          "sha256": "a995253a6f3b42b8f850d7cda8899d9ffad835d72a9c0fa91162b1cd6a856fa8",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.all_dao_jet3_table_types",
+          "scenario_ids": [
+            "UT-LONG-VALUE-001",
+            "UT-LONG-VALUE-002",
+            "UT-LONG-VALUE-003",
+            "UT-LONG-VALUE-004"
+          ]
+        }
+      ]
     },
     {
       "id": "values.null_fixed_variable",
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "The row layer validates the observed presence map and fixed/variable field boundaries and exposes exact nullable raw slices without interpreting them. Scalar and Boolean meaning, typed decoding, decoded-byte accounting, text, and long values remain unimplemented; EXP-0060 is development-only and provides no DAO differential verification or compatibility claim.",
+      "reason": "RowView validates fixed and variable boundaries, preserves present empty values distinctly from null, interprets the observed Boolean bit as true/false rather than nullable storage, and delegates typed output through one operation-wide decoded-byte budget. EXP-0060/EXP-0061 and synthetic tests are internal_only and provide no DAO differential verification or compatibility claim.",
       "evidence": [
         {
           "kind": "source",
           "path": "crates/jet3/src/row.rs",
-          "sha256": "13e9fed43a277afd6d1f6aa63f0e6e85dc86162d8b601482855b418dc2cede98",
-          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "sha256": "a77c5734e24b9644ac638c865ec55ee73750f48cb179ac1a27325b5d614015fb",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.null_fixed_variable"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/value.rs",
+          "sha256": "033b09b84e72712faa4a1faa98b98fa192430025417d9ba4ef237e44ddeaec2f",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
           "capability_id": "values.null_fixed_variable"
         },
         {
@@ -472,30 +538,103 @@
             "UT-ROW-001",
             "UT-ROW-003"
           ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/value_tests.rs",
+          "sha256": "5b088017d785ecf11240cef1ea875214ef72fa62a862b6bea85fbdfb476993c4",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.null_fixed_variable",
+          "scenario_ids": [
+            "UT-VALUE-002",
+            "UT-VALUE-003"
+          ]
         }
       ]
     },
     {
       "id": "values.code_pages_lossless_raw",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "implemented",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "The text layer implements complete public CP1251 and CP1252 byte mappings, rejects undefined bytes, retains exact source bytes beside Unicode output, and requires callers to select the code page explicitly. EXP-0061 does not prove physical CP1251 selection, and no DAO differential verification or compatibility claim follows.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/text.rs",
+          "sha256": "15fedb4795903cc037424a7271f29e0b7b66e2c207f88edb62b63bf2d408a8c4",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.code_pages_lossless_raw"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/text_tests.rs",
+          "sha256": "2fbbf33adc1d572b903d2d0000d3a681cb21f6ce24bae22e13d936a52f70dab9",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.code_pages_lossless_raw",
+          "scenario_ids": [
+            "UT-TEXT-001",
+            "UT-TEXT-002",
+            "UT-TEXT-003"
+          ]
+        }
+      ]
     },
     {
       "id": "values.date_currency_binary_guid_replication",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "implemented",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "The scalar layer retains exact bytes and exposes OLE Automation day counts, Currency's exact scale-4 integer, short binary slices, and GUID display-byte ordering with width and decoded-byte checks. EXP-0061 and synthetic tests are internal_only and do not satisfy the required DAO differential verification.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/value.rs",
+          "sha256": "033b09b84e72712faa4a1faa98b98fa192430025417d9ba4ef237e44ddeaec2f",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.date_currency_binary_guid_replication"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/value_tests.rs",
+          "sha256": "5b088017d785ecf11240cef1ea875214ef72fa62a862b6bea85fbdfb476993c4",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.date_currency_binary_guid_replication",
+          "scenario_ids": [
+            "UT-VALUE-001",
+            "UT-VALUE-003"
+          ]
+        }
+      ]
     },
     {
       "id": "values.memo_ole_multi_page",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "implemented",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "EXP-0007 verifies only DAO readback of the controlled memo and long-binary boundary ladders through 32769 bytes; Rust long-value support remains unimplemented and unverified.",
-      "evidence": []
+      "reason": "The lending long-value cursor decodes inline values and streams the observed single-page or chained Memo/OLE forms through one row-page buffer. It retains exact headers/fragments and rejects malformed flags, reserved bytes, owners, directories, offsets, lengths, termination, self-links, cycles, truncation, and resource exhaustion. Storage thresholds and other forms remain unsupported; EXP-0061 and synthetic tests are internal_only rather than DAO differential verification.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/long_value.rs",
+          "sha256": "c11795ad7e3d08862a67d0fc9dab4808e13b4bee64e9da2af57361308b5f5787",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.memo_ole_multi_page"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/long_value_tests.rs",
+          "sha256": "a995253a6f3b42b8f850d7cda8899d9ffad835d72a9c0fa91162b1cd6a856fa8",
+          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
+          "capability_id": "values.memo_ole_multi_page",
+          "scenario_ids": [
+            "UT-LONG-VALUE-001",
+            "UT-LONG-VALUE-002",
+            "UT-LONG-VALUE-003",
+            "UT-LONG-VALUE-004"
+          ]
+        }
+      ]
     },
     {
       "id": "rows.streaming_read",
