@@ -56,7 +56,11 @@ exactly. The checked targets are:
 - `long_values`: lossless inline value decoding and external Memo/OLE fragment
   streaming over a fixed synthetic database, including headers, LVAL
   directories, chains, termination, text conversion, and decoded-byte limits
-  (`SRC-0025`, `EXP-0061`).
+  (`SRC-0025`, `EXP-0061`); and
+- `index_traversal`: bounded iterative traversal of a fixed synthetic branch
+  and leaf tree, including compressed keys, row and child references, sibling
+  links, cycles, corrupt boundaries, unsupported raw keys, and operation-wide
+  resource limits (`EXP-0062`).
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no

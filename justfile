@@ -59,3 +59,7 @@ windows-dev-row:
 
 windows-dev-value:
     "{{PYTHON}}" scripts/windows-dao-dev.py value --timeout 600
+
+# Discover index-tree pages, key encodings, and relationship metadata.
+windows-dev-index:
+    "{{PYTHON}}" scripts/windows-dao-dev.py index --timeout 600

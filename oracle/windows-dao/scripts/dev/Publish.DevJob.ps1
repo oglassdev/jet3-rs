@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -72,6 +72,15 @@ switch ($Job) {
                 }
             }
         }
+    }
+    "index" {
+        [void]$names.Add("index-job-result.json")
+        foreach ($name in @(
+            "long-ascending", "long-descending", "long-permuted",
+            "composite-descending", "key-types", "relationship-base",
+            "relationship-created", "relationship-update", "relationship-delete",
+            "relationship-cascade", "relationship-deleted"
+        )) { [void]$names.Add("index-$name.mdb") }
     }
 }
 

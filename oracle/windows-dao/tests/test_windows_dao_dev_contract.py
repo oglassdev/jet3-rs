@@ -56,6 +56,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "table-definition",
                 "row",
                 "value",
+                "index",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -94,6 +95,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                     CLIENT.STAGED_PUBLICATION.name,
                     CLIENT.ROW_JOB.name,
                     CLIENT.VALUE_JOB.name,
+                    CLIENT.INDEX_JOB.name,
                 },
             )
 
@@ -137,7 +139,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -232,8 +234,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -253,8 +255,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -262,6 +264,29 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             self.assertIn(scenario, value.lower())
             self.assertIn(scenario, self.publication.lower())
         self.assertNotIn("CompactDatabase", value)
+
+    def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
+        index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index")]', self.dispatch)
+        self.assertIn("$MaximumRows = 4096", index)
+        self.assertIn("$MaximumDatabaseBytes = 16MB", index)
+        for scenario in (
+            "long-ascending",
+            "long-descending",
+            "long-permuted",
+            "composite-descending",
+            "key-types",
+            "relationship-base",
+            "relationship-created",
+            "relationship-update",
+            "relationship-delete",
+            "relationship-cascade",
+            "relationship-deleted",
+        ):
+            self.assertIn(f'"{scenario}"', index)
+            self.assertIn(f'"{scenario}"', self.publication)
+        self.assertNotIn("CompactDatabase", index)
 
 
 if __name__ == "__main__":

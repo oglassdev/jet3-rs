@@ -36,6 +36,7 @@ just windows-dev-catalog
 just windows-dev-table-definition
 just windows-dev-row
 just windows-dev-value
+just windows-dev-index
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -78,6 +79,14 @@ and 4096, each repeated three times with DAO readback. Every database stays
 under 4 MiB, no job compacts, and publication accepts only the fixed expected
 filenames. The diagnostic CP1251 option is not evidence that Jet selected
 CP1251 physical bytes; code-page selection remains explicit in Rust.
+
+`index` creates bounded Long ascending, descending, and permuted trees; a
+mixed-direction composite tree; isolated key-type definitions; and
+relationship checkpoints for each cascade-option combination and deletion.
+It closes DAO before publishing the fixed 11 MDB filenames, never compacts,
+and keeps every database below 16 MiB. Populated GUID keys remain outside the
+observed inventory because this local provider rejected their first indexed
+insertion.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and

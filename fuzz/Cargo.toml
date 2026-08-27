@@ -109,5 +109,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "index_traversal"
+path = "fuzz_targets/index_traversal.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

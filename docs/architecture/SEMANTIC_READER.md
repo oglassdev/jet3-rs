@@ -34,7 +34,10 @@ captured-length `ReadAt` source and, using one caller-owned `ResourceBudget`:
     slices (`EXP-0060`); and
 12. decodes the closed observed scalar inventory, explicitly selected CP1251 or
     CP1252 text, and inline or externally streamed Memo/OLE values while
-    retaining sourced bytes (`SRC-0025`, `EXP-0061`).
+    retaining sourced bytes (`SRC-0025`, `EXP-0061`); and
+13. traverses a selected physical index iteratively with checked branch, leaf,
+    sibling, prefix, key, row, and child references, while exposing isolated
+    relationship cascade flags (`EXP-0062`).
 
 Success establishes only this narrow opening envelope. It identifies the
 exploratory Jet 3, unencrypted, no-password discriminator tuple, but does not
@@ -42,9 +45,9 @@ validate the rest of page zero, any page header or payload beyond the
 experimental byte-zero tag, database allocation state beyond table ownership,
 automatic database code-page selection, or compatibility. Unknown and contextually unsupported tags are
 retained as successful `Unknown(u8)` classifications. `EXP-0056`, `EXP-0058`,
-`EXP-0059`, `EXP-0060`, and `EXP-0061` are local development evidence and do
-not revise the inconclusive official `EXP-0018` result or advance a release
-claim.
+`EXP-0059`, `EXP-0060`, `EXP-0061`, and `EXP-0062` are local development
+evidence and do not revise the inconclusive official `EXP-0018` result or
+advance a release claim.
 
 The physical layer composes the detached `SRC-0020` usage-map primitives with
 the development-only facts in `EXP-0057`. From a caller-supplied table root it
@@ -56,10 +59,11 @@ candidate, and streams validated active records while rejecting duplicate
 object identifiers and invalid table-definition references. Table-definition
 decoding follows an iterative, cycle-checked continuation chain; admits the
 closed observed type/class combinations; preserves raw names, contexts,
-records, and suffix bytes; validates usage-map, index-root, and related-TDEF
-page kinds; and does not traverse index trees. It does not report global
-allocation state, select pages for insertion, decode individual relationship
-cascade flags, or interpret values. Row streaming retains one fixed page plus
+records, and suffix bytes; and validates usage-map, index-root, and
+related-TDEF page kinds. Index traversal separately retains raw keys, follows
+branch children iteratively, and validates exact depth, sibling, owner,
+boundary, and reference invariants. It does not report global allocation state
+or select pages for insertion. Row streaming retains one fixed page plus
 charged locator scratch, validates row directories and fixed/variable/null
 boundaries, skips deleted and hidden storage rows, and follows overflow links
 iteratively with owner, kind, cycle, and resource checks. The observations and
@@ -84,6 +88,7 @@ must not reach around these boundaries to decode numeric offsets directly.
 | 4. Table definitions | Immutable typed definitions for columns, indexes, and referenced roots | Exploratory `EXP-0059` supplies TDEF chains, counts, column records, definition-only index records, and minimum relationship references | Checked counts/offsets/references; iterative cycle-bounded chains; cumulative allocation and item work; index roots classified but not traversed | Implemented experimentally/internal-only; unknown sourced bytes remain lossless; individual cascade semantics, DAO verification, and compatibility remain open |
 | 5. Row streaming | A lending `RowCursor` yielding one borrowed `RowView` at a time | Exploratory `EXP-0060` supplies row directories, deleted/hidden state, fixed/variable/null boundaries, and the observed overflow pointer | No whole-table collection; one retained row page; charged locator scratch; row/page/chain limits; owner/kind/cycle rejection | Implemented experimentally/internal-only for direct rows, short variable layouts, and the observed one-variable wide layout; wider multi-variable rows, value interpretation, DAO verification, and compatibility remain open |
 | 6. Value streaming | Typed values plus lossless raw representations where required | `SRC-0025` supplies CP1251/CP1252 mappings; exploratory `EXP-0061` supplies scalar byte order and the observed long-value forms | Per-value and cumulative decoded-byte limits; long values streamed across bounded chains | Implemented experimentally/internal-only for the closed type inventory, explicitly selected CP1251/CP1252, and observed inline/single-page/chained long values; automatic code-page selection, DAO verification, and compatibility remain open |
+| 7. Index traversal and relationships | Ordered lossless keys, row locators, typed relationship options, and checked node metadata | Exploratory `EXP-0062` supplies branch/leaf layout, boundary bitmap, sibling/child links, supported single-field key shapes, and isolated cascade bytes | Iterative breadth-first traversal; checked references and uniform leaf depth; cycle, repeat, self-link, allocation, item, page, work, and depth limits | Implemented experimentally/internal-only; composite and unsupported key bytes remain lossless; GUID key bytes, write allocation, DAO verification, and compatibility remain open |
 
 Page classification must precede allocation parsing: allocation logic cannot
 use an inferred page type. Allocation must precede catalog traversal: merely
@@ -116,9 +121,14 @@ or speculative modules.
   database-code-page names, and lossless column records.
 - `table_definition.rs`: iterative TDEF-chain composition, immutable schema
   output, raw header/suffix retention, and referenced-page classification.
-- `index_definition.rs`: definition-only physical/logical index records and
-  minimum raw relationship references. It never traverses index roots or
-  assigns unproven cascade semantics.
+- `index_definition.rs`: physical/logical index records and typed, lossless
+  relationship references.
+- `relationships.rs`: allocation-free relationship inventory over logical
+  indexes, including raw and isolated cascade-option bytes.
+- `index_tree.rs`, `index_tree_page.rs`, and `index_tree_rows.rs`: bounded
+  iterative index traversal, allocation-free page-layout validation, lossless
+  keys, child/sibling references, and row locators validated against their
+  owned data-page directories.
 - `row_directory.rs`: provenance-bound data-page ownership and reverse-packed
   row delimiting, including deleted, overflow-pointer, and hidden-storage flags.
 - `row.rs`: lending row cursor, iterative overflow resolution, validated row
@@ -220,8 +230,8 @@ The current provenance does not establish any of the following:
 - catalog fields beyond the minimal active-record subset in `EXP-0058`, and
   semantics for catalog object kinds other than the observed table kind;
 - table-definition fields beyond the `EXP-0059` records, unsupported
-  type/class combinations, individual relationship cascade semantics, or any
-  index-tree layout/traversal;
+  type/class combinations, GUID key bytes, composite component boundaries,
+  and index write/allocation rules beyond the `EXP-0062` traversal facts;
 - the meaning of row-directory bit `0x2000`, wider layouts with more than one
   variable column, overflow representations beyond the observed slot-plus-u24
   pointer, or row insertion/update allocation rules;

@@ -1,8 +1,8 @@
 //! Bounded immutable Jet 3 table definitions from `EXP-0059`, composed with
 //! the table allocation-map locators from `EXP-0057`.
 //!
-//! Definitions retain sourced bytes and typed references. Index roots are
-//! classified but never traversed.
+//! Definitions retain sourced bytes and typed references. Callers can pass a
+//! decoded definition to [`crate::DatabaseReader::index_tree`] separately.
 
 use std::fmt;
 

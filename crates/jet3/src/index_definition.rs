@@ -1,7 +1,8 @@
-//! Lossless physical and logical index definitions from `EXP-0059`.
+//! Lossless physical and logical index definitions from `EXP-0059` and
+//! relationship options isolated by `EXP-0062`.
 //!
-//! This module decodes references and metadata only. It never traverses an
-//! index root.
+//! This module decodes references and metadata only. Index-tree traversal is
+//! provided separately by [`crate::index_tree`].
 
 use std::fmt;
 use std::mem::size_of;
@@ -33,6 +34,7 @@ pub struct RelationshipReference {
     related_table: PageNumber,
     raw_selector: u32,
     raw_relation_ordinal: u32,
+    raw_context: [u8; 2],
 }
 
 impl RelationshipReference {
@@ -54,10 +56,28 @@ impl RelationshipReference {
         self.raw_selector
     }
 
-    /// Returns the sourced relationship ordinal without cascade interpretation.
+    /// Returns the sourced relationship ordinal.
     #[must_use]
     pub const fn raw_relation_ordinal(self) -> u32 {
         self.raw_relation_ordinal
+    }
+
+    /// Returns the two sourced relationship option bytes.
+    #[must_use]
+    pub const fn raw_context(self) -> [u8; 2] {
+        self.raw_context
+    }
+
+    /// Returns whether DAO requested cascade updates for this relationship.
+    #[must_use]
+    pub const fn cascade_updates(self) -> bool {
+        self.raw_context[0] == 1
+    }
+
+    /// Returns whether DAO requested cascade deletes for this relationship.
+    #[must_use]
+    pub const fn cascade_deletes(self) -> bool {
+        self.raw_context[1] == 1
     }
 }
 
@@ -442,7 +462,7 @@ pub(crate) fn decode_indexes(
                 }
             }
             2 => {
-                if context_bytes != [1, 1] {
+                if !context_bytes.iter().all(|value| *value <= 1) {
                     return Err(IndexDefinitionError::UnsupportedLogicalRecord {
                         logical_index,
                         class,
@@ -485,6 +505,7 @@ pub(crate) fn decode_indexes(
                     related_table,
                     raw_selector: first,
                     raw_relation_ordinal: relation_ordinal,
+                    raw_context: context_bytes,
                 })
             }
             _ => {
