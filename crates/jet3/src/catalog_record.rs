@@ -1,4 +1,7 @@
 //! Minimum Jet 3 catalog-page and object-record decoding from `EXP-0058`.
+//!
+//! Catalog data pages compose the common Jet 3 row-directory grammar from
+//! `SRC-0020` through the shared bounded directory decoder.
 
 use std::fmt;
 

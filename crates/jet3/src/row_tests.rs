@@ -1,8 +1,9 @@
 use super::{RawField, RowError};
 use crate::{
     ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource,
+    ResourceLimitKind, ResourceLimits, SliceSource, TextCodePage, ValueKind,
 };
+use std::error::Error as _;
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const ROOT: usize = 1;
@@ -136,11 +137,33 @@ fn streams_direct_and_overflow_rows_with_lossless_field_slices()
     let mut rows = database.rows(&definition, &mut budget)?;
 
     {
-        let first = rows.next_row()?.ok_or("missing direct row")?;
+        let mut first = rows.next_row()?.ok_or("missing direct row")?;
         assert_eq!(first.locator().page(), PageNumber::new(FIRST_DATA as u64));
         assert_eq!(first.storage_locator(), first.locator());
         assert_eq!(first.field(id), Some(RawField::Bytes(&1_u32.to_le_bytes())));
         assert_eq!(first.field(payload), Some(RawField::Bytes(b"a")));
+        assert!(!first.field(id).ok_or("missing id")?.is_null());
+        assert!(RawField::Null.is_null());
+        assert_eq!(RawField::Null.raw_bytes(), None);
+        assert_eq!(
+            first
+                .value(id, TextCodePage::Windows1252)?
+                .ok_or("missing id value")?
+                .kind(),
+            &ValueKind::Long(1)
+        );
+        let payload_value = first
+            .value(payload, TextCodePage::Windows1252)?
+            .ok_or("missing payload value")?;
+        let ValueKind::Text(text) = payload_value.kind() else {
+            return Err("payload was not text".into());
+        };
+        assert_eq!(text.as_str(), "a");
+        assert!(
+            first
+                .value(crate::ColumnOrdinal::new(99), TextCodePage::Windows1252)?
+                .is_none()
+        );
     }
     {
         let overflow = rows.next_row()?.ok_or("missing overflow row")?;
@@ -164,6 +187,26 @@ fn streams_direct_and_overflow_rows_with_lossless_field_slices()
     assert!(rows.next_row()?.is_none());
     assert_eq!(rows.owned.budget_mut().total_work_units(), work);
     Ok(())
+}
+
+#[test]
+fn row_errors_expose_display_and_nested_sources() {
+    let plain = RowError::RowTooShort {
+        length: 0,
+        minimum: 1,
+    };
+    assert!(plain.to_string().contains("row stream failed"));
+    assert!(plain.source().is_none());
+
+    let resource = RowError::Resource(Error::Arithmetic {
+        operation: "test row source",
+    });
+    assert!(resource.source().is_some());
+    let directory = RowError::Directory(crate::RowDirectoryError::UnexpectedOwner {
+        expected: PageNumber::new(1),
+        actual: PageNumber::new(2),
+    });
+    assert!(directory.source().is_some());
 }
 
 #[test]

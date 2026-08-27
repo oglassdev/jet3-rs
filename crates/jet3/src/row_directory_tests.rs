@@ -1,5 +1,6 @@
 use super::{PAGE_BYTES, RowDirectory, RowDirectoryError};
-use crate::{PageNumber, ResourceBudget, ResourceLimits};
+use crate::{Error, PageNumber, ResourceBudget, ResourceLimits};
+use std::error::Error as _;
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
@@ -33,8 +34,36 @@ fn validates_reverse_rows_and_skips_deleted_or_overflow_storage()
     )?;
     let first = directory.next_primary(&page)?.ok_or("missing first row")?;
     assert_eq!(&page[first.range()], b"first");
+    assert_eq!(first.locator().page(), PageNumber::new(9));
+    assert_eq!(first.locator().slot(), 0);
+    assert!(!first.overflow());
+    assert!(!first.hidden());
     assert!(directory.next_primary(&page)?.is_none());
     assert_eq!(resources.item_work(), 3);
+    Ok(())
+}
+
+#[test]
+fn direct_entry_access_and_errors_preserve_context() -> Result<(), Box<dyn std::error::Error>> {
+    let page = page(7, &[(b"first", 0), (b"target", 0xc000)]);
+    let directory =
+        RowDirectory::validate(PageNumber::new(9), PageNumber::new(7), &page, &mut budget())?;
+    let target = directory.entry(&page, 1)?;
+    assert!(target.overflow());
+    assert!(target.hidden());
+    assert_eq!(&page[target.range()], b"target");
+    assert!(matches!(
+        directory.entry(&page, 2),
+        Err(RowDirectoryError::MissingRow { .. })
+    ));
+
+    let plain = RowDirectoryError::InvalidOverflowPointerLength { row: 0, length: 3 };
+    assert!(plain.to_string().contains("row directory failed"));
+    assert!(plain.source().is_none());
+    let resource = RowDirectoryError::Resource(Error::Arithmetic {
+        operation: "test row directory source",
+    });
+    assert!(resource.source().is_some());
     Ok(())
 }
 
@@ -98,6 +127,18 @@ fn rejects_owner_flags_offsets_overlap_and_truncation() {
             &mut budget(),
         ),
         Err(RowDirectoryError::InvalidBounds { .. })
+    ));
+
+    let mut out_of_page = valid;
+    out_of_page[10..12].copy_from_slice(&2048_u16.to_le_bytes());
+    assert!(matches!(
+        RowDirectory::validate(
+            PageNumber::new(3),
+            PageNumber::new(7),
+            &out_of_page,
+            &mut budget(),
+        ),
+        Err(RowDirectoryError::OffsetOutOfPage { .. })
     ));
 
     let mut count = valid;

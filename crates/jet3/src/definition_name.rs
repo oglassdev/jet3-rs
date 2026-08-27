@@ -1,4 +1,5 @@
-//! Lossless definition names shared by column and index metadata.
+//! Lossless definition names shared by column and index metadata from
+//! `EXP-0059`.
 
 use crate::{ByteCount, Error, ResourceBudget};
 

@@ -1,8 +1,9 @@
 use super::{CatalogError, CatalogObjectClass, CatalogObjectKind};
 use crate::{
-    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource,
+    ByteCount, CatalogRecordError, DatabaseReader, Error, JET3_PAGE_SIZE, PageKind, PageNumber,
+    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
 };
+use std::error::Error as _;
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
@@ -241,5 +242,60 @@ fn bad_table_references_are_distinguished() -> Result<(), Box<dyn std::error::Er
         catalog.next_record(),
         Err(CatalogError::UnexpectedTableDefinitionReference { .. })
     ));
+    Ok(())
+}
+
+#[test]
+fn catalog_errors_expose_context_and_nested_sources() -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(b"MSysObjects", 4, 1, false);
+    let mut resources = operation(&bytes);
+    let mut database = open(&bytes, &mut resources)?;
+    let id = database
+        .catalog(&mut resources)?
+        .next_record()?
+        .ok_or("missing catalog record")?
+        .id();
+
+    let plain = [
+        CatalogError::UnexpectedOwnedPageKind {
+            page: PageNumber::new(3),
+            actual: PageKind::LeafIndex,
+        },
+        CatalogError::RootNotFound,
+        CatalogError::DuplicateRoot {
+            first: PageNumber::new(1),
+            duplicate: PageNumber::new(2),
+        },
+        CatalogError::DuplicateObjectId { id },
+        CatalogError::UnexpectedTableDefinitionReference {
+            id,
+            page: PageNumber::new(3),
+        },
+    ];
+    for error in plain {
+        assert!(!error.to_string().is_empty());
+        assert!(error.source().is_none());
+    }
+
+    let nested = [
+        CatalogError::Record(CatalogRecordError::RecordTooShort {
+            length: 1,
+            minimum: 37,
+        }),
+        CatalogError::InvalidTableDefinitionReference {
+            id,
+            page: PageNumber::new(9),
+            source: Error::Arithmetic {
+                operation: "test invalid catalog reference",
+            },
+        },
+        CatalogError::Resource(Error::Arithmetic {
+            operation: "test catalog resource",
+        }),
+    ];
+    for error in nested {
+        assert!(!error.to_string().is_empty());
+        assert!(error.source().is_some());
+    }
     Ok(())
 }

@@ -1,4 +1,7 @@
 //! Shared structural decoding for Jet 3 data-page row directories.
+//!
+//! `EXP-0060` and `EXP-0061` establish the row and long-value constraints
+//! composed here.
 
 use std::ops::Range;
 

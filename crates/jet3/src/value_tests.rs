@@ -1,8 +1,9 @@
 use super::{CurrencyValue, DateTimeValue, GuidValue, ValueError, ValueKind, decode_value};
 use crate::{
-    ByteCount, ColumnPhysicalType, PageNumber, RawField, ResourceBudget, ResourceLimits,
+    ByteCount, ColumnPhysicalType, Error, PageNumber, RawField, ResourceBudget, ResourceLimits,
     RowLocator, TextCodePage,
 };
+use std::error::Error as _;
 
 fn source() -> RowLocator {
     RowLocator::new(PageNumber::new(3), 1)
@@ -60,6 +61,7 @@ fn decodes_fixed_scalars_and_retains_exact_bytes() -> Result<(), Box<dyn std::er
         &ValueKind::Currency(CurrencyValue { scaled: -1_234_567 })
     );
     assert_eq!(CurrencyValue { scaled: 1 }.scale(), 4);
+    assert_eq!(CurrencyValue { scaled: -1_234_567 }.scaled(), -1_234_567);
 
     let single_raw = (-3.5_f32).to_bits().to_le_bytes();
     let single = decode(ColumnPhysicalType::Single, &single_raw, false, &mut budget)?;
@@ -75,6 +77,7 @@ fn decodes_fixed_scalars_and_retains_exact_bytes() -> Result<(), Box<dyn std::er
         date.kind(),
         &ValueKind::DateTime(DateTimeValue { days: 45_000.25 })
     );
+    assert_eq!(DateTimeValue { days: 45_000.25 }.days(), 45_000.25);
 
     let guid_raw = [
         0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee,
@@ -91,7 +94,36 @@ fn decodes_fixed_scalars_and_retains_exact_bytes() -> Result<(), Box<dyn std::er
         })
     );
     assert_eq!(guid.raw_bytes(), Some(&guid_raw[..]));
+    assert_eq!(
+        GuidValue {
+            display_bytes: [1; 16]
+        }
+        .display_bytes(),
+        [1; 16]
+    );
     Ok(())
+}
+
+#[test]
+fn value_errors_expose_display_and_nested_sources() {
+    let plain = ValueError::InvalidWidth {
+        physical_type: ColumnPhysicalType::Long,
+        expected: 4,
+        actual: 3,
+    };
+    assert!(plain.to_string().contains("value decoding failed"));
+    assert!(plain.source().is_none());
+
+    let resource = ValueError::Resource(Error::Arithmetic {
+        operation: "test value source",
+    });
+    assert!(resource.source().is_some());
+    let text = ValueError::Text(super::super::text::TextError::UndefinedByte {
+        code_page: TextCodePage::Windows1252,
+        index: 0,
+        byte: 0x81,
+    });
+    assert!(text.source().is_some());
 }
 
 #[test]

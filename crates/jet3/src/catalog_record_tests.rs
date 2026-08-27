@@ -3,7 +3,8 @@ use super::{
     CatalogRecordError, decode_catalog_record,
 };
 use crate::{
-    ByteCount, Error, JET3_PAGE_SIZE, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
+    ByteCount, CatalogNameEncoding, Error, JET3_PAGE_SIZE, ReadLimits, ResourceBudget,
+    ResourceLimitKind, ResourceLimits,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -48,13 +49,76 @@ fn decodes_minimum_fields_and_preserves_cp1252_bytes() -> Result<(), Box<dyn std
     let view = decode_catalog_record(&bytes, &mut resources)?;
     assert_eq!(view.id().get(), 23);
     assert_eq!(view.kind(), CatalogObjectKind::Table);
+    assert_eq!(view.kind().raw(), 1);
     assert_eq!(view.class(), CatalogObjectClass::User);
     assert_eq!(view.name_bytes(), b"Caf\xe9_Euro\x80");
     let owned = view.into_owned(Some(crate::PageNumber::new(23)), &mut resources)?;
+    assert_eq!(owned.id().get(), 23);
+    assert_eq!(owned.kind(), CatalogObjectKind::Table);
+    assert_eq!(owned.class(), CatalogObjectClass::User);
+    assert_eq!(owned.raw_flags(), 0);
     assert_eq!(owned.name().raw_bytes(), b"Caf\xe9_Euro\x80");
+    assert_eq!(
+        owned.name().encoding(),
+        CatalogNameEncoding::DatabaseCodePage
+    );
     assert_eq!(owned.name().decoded_ascii(), None);
+    assert_eq!(owned.table_definition(), Some(crate::PageNumber::new(23)));
     assert_eq!(resources.allocation_bytes(), ByteCount::new(10));
     Ok(())
+}
+
+#[test]
+fn catalog_record_errors_have_stable_display_and_sources() {
+    use std::error::Error as _;
+
+    let plain = CatalogRecordError::RecordTooShort {
+        length: 1,
+        minimum: 37,
+    };
+    assert!(plain.to_string().contains("below minimum"));
+    assert!(plain.source().is_none());
+
+    let resource = CatalogRecordError::Resource(Error::Arithmetic {
+        operation: "test catalog record source",
+    });
+    assert!(resource.to_string().contains("catalog record rejected"));
+    assert!(resource.source().is_some());
+
+    let variants = [
+        CatalogRecordError::RowCountTooLarge {
+            row_count: 2,
+            maximum: 1,
+        },
+        CatalogRecordError::UnknownDirectoryFlag {
+            row: 1,
+            raw_offset: 0x2000,
+        },
+        CatalogRecordError::RowOffsetOutOfPage {
+            row: 1,
+            raw_offset: 2048,
+        },
+        CatalogRecordError::InvalidRowBounds {
+            row: 1,
+            start: 2,
+            end: 1,
+            directory_end: 12,
+        },
+        CatalogRecordError::ActiveOverflowRow { row: 1 },
+        CatalogRecordError::UnexpectedColumnCount { observed: 1 },
+        CatalogRecordError::InvalidNameTrailer {
+            name_start: 1,
+            name_end: 0,
+            fixed_boundary: 0,
+            marker: 0,
+            record_length: 37,
+        },
+        CatalogRecordError::UnsupportedObjectFlags { raw: 1 },
+    ];
+    for error in variants {
+        assert!(!error.to_string().is_empty());
+        assert!(error.source().is_none());
+    }
 }
 
 #[test]

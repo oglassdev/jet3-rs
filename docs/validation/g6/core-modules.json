@@ -40,7 +40,7 @@
     {
       "path": "crates/jet3/src/catalog_record.rs",
       "classification": "format_safety",
-      "sha256": "ce1a5f5997204406eb5e278126d7768f8a4dbd81597310fa51b4908016ed6ce9"
+      "sha256": "a690fc7b81067a80366bf50b2d17c0d3896407544067f009facb5a99bcb3b8c6"
     },
     {
       "path": "crates/jet3/src/column_definition.rs",
@@ -55,7 +55,7 @@
     {
       "path": "crates/jet3/src/data_page_directory.rs",
       "classification": "format_safety",
-      "sha256": "4912c4b194d822557608fe77b87fb232cbf6f907ddd9894117481036c2277916"
+      "sha256": "324bf7f535172d5f5a691d8833c2c965bc1908f9a3f1c2396829316ce9547b0e"
     },
     {
       "path": "crates/jet3/src/database.rs",
@@ -70,7 +70,7 @@
     {
       "path": "crates/jet3/src/definition_name.rs",
       "classification": "format_safety",
-      "sha256": "fe265365d8a08cb6489fce3f739fefd757c7129542eaa1fb0a8d076c2110d33f"
+      "sha256": "6e66f63291d7d71324fd9ebc63d80b4b0ed3cafbacda72e5cdcce09fa83e0438"
     },
     {
       "path": "crates/jet3/src/error.rs",
