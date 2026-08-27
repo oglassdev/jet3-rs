@@ -88,5 +88,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "table_definition_parsing"
+path = "fuzz_targets/table_definition_parsing.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

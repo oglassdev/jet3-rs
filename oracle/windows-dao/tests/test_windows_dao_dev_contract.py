@@ -51,6 +51,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "opening-matrix",
                 "allocation-map",
                 "catalog",
+                "table-definition",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -83,6 +84,8 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                     CLIENT.REMOTE_RUNNER.name,
                     CLIENT.PROVIDER_PROBE.name,
                     CLIENT.CATALOG_JOB.name,
+                    CLIENT.TABLE_DEFINITION_JOB.name,
+                    CLIENT.TABLE_DEFINITION_TYPES.name,
                 },
             )
 
@@ -124,7 +127,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -176,6 +179,39 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             "allocation-07-reinserted.mdb",
         ):
             self.assertIn(name, self.remote)
+
+    def test_table_definition_job_is_staged_checked_and_bounded(self) -> None:
+        job = CLIENT.TABLE_DEFINITION_JOB.read_text(encoding="utf-8")
+        inputs = json.loads(CLIENT.TABLE_DEFINITION_TYPES.read_text(encoding="utf-8"))
+        self.assertIn('$Job -ceq "table-definition"', self.remote)
+        self.assertIn("TableDefinitionJobPath", self.remote)
+        self.assertIn("TableDefinitionTypeInputPath", self.remote)
+        self.assertIn("development_only = $true", job)
+        self.assertEqual(inputs["schema_version"], 1)
+        self.assertEqual(len(inputs["candidates"]), 31)
+        self.assertEqual(len({item["name"] for item in inputs["candidates"]}), 31)
+        self.assertEqual(len({item["value"] for item in inputs["candidates"]}), 31)
+        self.assertIn("$MaximumTypes = 32", job)
+        self.assertIn("$MaximumFields = 64", job)
+        self.assertIn("$MaximumIndexes = 32", job)
+        self.assertIn("$ordinal -lt 64", job)
+        for name in (
+            "00-empty",
+            "01-type-inventory",
+            "02-column-probe",
+            "03-boundary-probe",
+            "04-index-base",
+            "05-index-primary",
+            "06-index-composite",
+            "07-index-required",
+            "08-relationship-base",
+            "09-relationship-created",
+        ):
+            self.assertIn(name, job)
+        self.assertLess(
+            job.index("Get-SchemaSnapshot -Path $Source"),
+            job.index("Copy-Item -LiteralPath $Source"),
+        )
 
     def test_database_is_closed_before_atomic_publication(self) -> None:
         self.assertLess(

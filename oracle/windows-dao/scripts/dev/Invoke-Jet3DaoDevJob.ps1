@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -12,6 +12,10 @@ param(
     [string]$SharedOutputPath,
     [Parameter(Mandatory = $true)]
     [string]$CatalogJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$TableDefinitionJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$TableDefinitionTypeInputPath,
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
 )
 
@@ -359,7 +363,17 @@ function Publish-DevelopmentOutput {
             "catalog-job-result.json", "catalog-00-empty.mdb",
             "catalog-01-ascii-created.mdb", "catalog-02-ascii-dropped.mdb",
             "catalog-03-ascii-recreated.mdb", "catalog-04-cp1252-created.mdb",
-            "catalog-05-cp1252-dropped.mdb", "catalog-06-cp1252-recreated.mdb"
+            "catalog-05-cp1252-dropped.mdb", "catalog-06-cp1252-recreated.mdb",
+            "table-definition-job-result.json", "table-definition-00-empty.mdb",
+            "table-definition-01-type-inventory.mdb",
+            "table-definition-02-column-probe.mdb",
+            "table-definition-03-boundary-probe.mdb",
+            "table-definition-04-index-base.mdb",
+            "table-definition-05-index-primary.mdb",
+            "table-definition-06-index-composite.mdb",
+            "table-definition-07-index-required.mdb",
+            "table-definition-08-relationship-base.mdb",
+            "table-definition-09-relationship-created.mdb"
         )) {
             $sourcePath = Join-Path $Source $name
             if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
@@ -382,6 +396,12 @@ if (-not (Test-Path -LiteralPath $ProviderProbePath -PathType Leaf)) {
 }
 if ($Job -ceq "catalog" -and -not (Test-Path -LiteralPath $CatalogJobPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: catalog job does not exist.")
+    exit 2
+}
+if ($Job -ceq "table-definition" -and
+    (-not (Test-Path -LiteralPath $TableDefinitionJobPath -PathType Leaf) -or
+     -not (Test-Path -LiteralPath $TableDefinitionTypeInputPath -PathType Leaf))) {
+    [Console]::Error.WriteLine("INVALID: table-definition job inputs do not exist.")
     exit 2
 }
 
@@ -409,6 +429,8 @@ $allocationPayloadBytes = $null
 $allocationExtendedDetectedAtRows = $null
 $allocationMultiSlotMap = $null
 $catalogCheckpoints = @()
+$tableDefinitionCheckpoints = @()
+$tableDefinitionTypeResults = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -659,6 +681,33 @@ elseif ($Job -ceq "catalog" -and $probeExitCode -eq 0) {
         }
     }
 }
+elseif ($Job -ceq "table-definition" -and $probeExitCode -eq 0) {
+    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
+        $detail = "The ready provider is not DAO.DBEngine.36."
+    }
+    else {
+        & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
+            -ExecutionPolicy Bypass -File $TableDefinitionJobPath -RunRoot $runRoot `
+            -TypeInputPath $TableDefinitionTypeInputPath
+        $tableDefinitionExitCode = [int]$LASTEXITCODE
+        $tableDefinitionResultPath = Join-Path $runRoot "table-definition-job-result.json"
+        if (-not (Test-Path -LiteralPath $tableDefinitionResultPath -PathType Leaf)) {
+            $status = "fail"
+            $detail = "The staged table-definition job did not write its bounded result."
+            $exitCode = 1
+        }
+        else {
+            $tableDefinitionResult = Get-Content `
+                -LiteralPath $tableDefinitionResultPath -Raw | ConvertFrom-Json
+            $tableDefinitionCheckpoints = @($tableDefinitionResult.checkpoints)
+            $tableDefinitionTypeResults = @($tableDefinitionResult.type_results)
+            $status = [string]$tableDefinitionResult.status
+            $detail = [string]$tableDefinitionResult.detail
+            $exitCode = $tableDefinitionExitCode
+        }
+    }
+}
 
 $result = [ordered]@{
     development_only = $true
@@ -676,6 +725,8 @@ $result = [ordered]@{
     allocation_extended_detected_at_rows = $allocationExtendedDetectedAtRows
     allocation_multi_slot_map = $allocationMultiSlotMap
     catalog_checkpoints = @($catalogCheckpoints)
+    table_definition_checkpoints = @($tableDefinitionCheckpoints)
+    table_definition_type_results = @($tableDefinitionTypeResults)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

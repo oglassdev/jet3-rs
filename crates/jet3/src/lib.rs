@@ -9,11 +9,13 @@ pub mod binary_writer;
 pub mod candidate;
 pub mod catalog;
 pub mod catalog_record;
+pub mod column_definition;
 pub mod commit_state;
 pub mod database;
 pub mod database_header;
 pub mod error;
 pub mod header;
+pub mod index_definition;
 pub mod jet3_page;
 pub mod limits;
 pub mod map_location;
@@ -23,6 +25,7 @@ pub mod page_kind;
 pub mod raw_page_stream;
 pub mod resource;
 pub mod source;
+pub mod table_definition;
 pub mod usage_map;
 
 pub use allocation::{
@@ -43,6 +46,10 @@ pub use catalog_record::{
     CatalogName, CatalogNameEncoding, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
     CatalogRecord, CatalogRecordError,
 };
+pub use column_definition::{
+    ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass, DefinitionName,
+    DefinitionNameEncoding,
+};
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
@@ -57,6 +64,10 @@ pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{
     HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
 };
+pub use index_definition::{
+    IndexDefinition, IndexDefinitionError, IndexDefinitionKind, IndexDirection, IndexField,
+    IndexUsageMapReference, PhysicalIndexDefinition, RelationshipReference, RelationshipSide,
+};
 pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
 pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
@@ -66,6 +77,7 @@ pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_
 pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use source::{FileSource, ReadAt, SliceSource};
+pub use table_definition::{TableDefinition, TableDefinitionError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 
 /// Human-readable name of the only database format targeted by this crate.

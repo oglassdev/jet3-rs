@@ -2,16 +2,19 @@
 //!
 //! `EXP-0058` supplies the self-identifying catalog-root rule and minimum
 //! object record fields. Owned-page traversal remains delegated to
-//! `EXP-0057`; this layer does not traverse indexes or table rows.
+//! `EXP-0057`; `EXP-0059` establishes that tag-`02` continuation pages need
+//! not contain admissible root map locators. This layer does not traverse
+//! indexes or table rows.
 
 use std::fmt;
 use std::mem::size_of;
 
 use crate::catalog_record::{CatalogPageDirectory, CatalogRecordView, decode_catalog_record};
 use crate::{
-    AllocationTraversalError, ByteCount, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
-    CatalogRecord, CatalogRecordError, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
-    OwnedPages, PageKind, PageNumber, ReadAt, ResourceBudget, VisitedPages,
+    AllocationMapError, AllocationTraversalError, ByteCount, CatalogObjectClass, CatalogObjectId,
+    CatalogObjectKind, CatalogRecord, CatalogRecordError, DatabasePageError, DatabaseReader, Error,
+    JET3_PAGE_SIZE, MapLocationError, OwnedPages, PageKind, PageNumber, ReadAt, ResourceBudget,
+    UsageMapError, VisitedPages,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -294,25 +297,44 @@ fn candidate_self_identifies<S: ReadAt>(
     candidate: PageNumber,
     budget: &mut ResourceBudget,
 ) -> Result<bool, CatalogError> {
-    let mut owned = database
-        .owned_pages(candidate, budget)
-        .map_err(CatalogError::Allocation)?;
+    let mut owned = match database.owned_pages(candidate, budget) {
+        Ok(owned) => owned,
+        Err(source) if recoverable_candidate_allocation_error(&source) => return Ok(false),
+        Err(source) => return Err(CatalogError::Allocation(source)),
+    };
     let mut page_bytes = [0_u8; PAGE_BYTES];
-    while let Some((page, kind)) = owned
-        .next_classified_page_into(&mut page_bytes)
-        .map_err(CatalogError::Allocation)?
-    {
+    loop {
+        let next = match owned.next_classified_page_into(&mut page_bytes) {
+            Ok(next) => next,
+            Err(source) if recoverable_candidate_allocation_error(&source) => return Ok(false),
+            Err(source) => return Err(CatalogError::Allocation(source)),
+        };
+        let Some((_page, kind)) = next else { break };
         if kind != PageKind::Data {
-            return Err(CatalogError::UnexpectedOwnedPageKind { page, actual: kind });
+            return Ok(false);
         }
-        let mut directory = CatalogPageDirectory::validate(&page_bytes, owned.budget_mut())
-            .map_err(CatalogError::Record)?;
-        while let Some(row) = directory
-            .next_active(&page_bytes)
-            .map_err(CatalogError::Record)?
-        {
-            let Ok(record) = decode_catalog_record(row, owned.budget_mut()) else {
-                continue;
+        let mut directory = match CatalogPageDirectory::validate(&page_bytes, owned.budget_mut()) {
+            Ok(directory) => directory,
+            Err(CatalogRecordError::Resource(source)) => {
+                return Err(CatalogError::Record(CatalogRecordError::Resource(source)));
+            }
+            Err(_) => return Ok(false),
+        };
+        loop {
+            let row = match directory.next_active(&page_bytes) {
+                Ok(row) => row,
+                Err(CatalogRecordError::Resource(source)) => {
+                    return Err(CatalogError::Record(CatalogRecordError::Resource(source)));
+                }
+                Err(_) => return Ok(false),
+            };
+            let Some(row) = row else { break };
+            let record = match decode_catalog_record(row, owned.budget_mut()) {
+                Ok(record) => record,
+                Err(CatalogRecordError::Resource(source)) => {
+                    return Err(CatalogError::Record(CatalogRecordError::Resource(source)));
+                }
+                Err(_) => continue,
             };
             if record.kind() == CatalogObjectKind::Table
                 && record.class() == CatalogObjectClass::System
@@ -324,6 +346,17 @@ fn candidate_self_identifies<S: ReadAt>(
         }
     }
     Ok(false)
+}
+
+fn recoverable_candidate_allocation_error(source: &AllocationTraversalError) -> bool {
+    !matches!(
+        source,
+        AllocationTraversalError::Page(_)
+            | AllocationTraversalError::Resource(_)
+            | AllocationTraversalError::MapLocation(MapLocationError::Resource(_))
+            | AllocationTraversalError::UsageMap(UsageMapError::Resource(_))
+            | AllocationTraversalError::AllocationMap(AllocationMapError::Resource(_))
+    )
 }
 
 #[cfg(test)]

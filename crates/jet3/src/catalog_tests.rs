@@ -190,6 +190,22 @@ fn root_discovery_rejects_zero_and_multiple_matches() -> Result<(), Box<dyn std:
 }
 
 #[test]
+fn discovery_skips_unadmitted_tag_two_candidates() -> Result<(), Box<dyn std::error::Error>> {
+    let mut bytes = database_bytes(b"MSysObjects", 4, 1, true);
+    write_rows(
+        &mut bytes[5 * PAGE_BYTES..6 * PAGE_BYTES],
+        &[record(9, 1, 0x8000_0000, b"NotTheCatalog")],
+    );
+    bytes[5 * PAGE_BYTES] = 2;
+    bytes[5 * PAGE_BYTES + 35..5 * PAGE_BYTES + 39].copy_from_slice(&[0, 0xff, 0xff, 0xff]);
+    let mut resources = operation(&bytes);
+    let mut database = open(&bytes, &mut resources)?;
+    let catalog = database.catalog(&mut resources)?;
+    assert_eq!(catalog.root().get(), 1);
+    Ok(())
+}
+
+#[test]
 fn duplicate_ids_exhaust_the_cursor() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = database_bytes(b"MSysObjects", 1, 1, false);
     let mut resources = operation(&bytes);

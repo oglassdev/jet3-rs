@@ -100,6 +100,15 @@
       "max_len": 4096,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "table_definition_parsing",
+      "source": "fuzz/fuzz_targets/table_definition_parsing.rs",
+      "corpus": "fuzz/corpus/table_definition_parsing",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
     }
   ]
 }

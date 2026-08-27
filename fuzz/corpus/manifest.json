@@ -868,6 +868,57 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '00000' > fuzz/corpus/catalog_parsing/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-001",
+      "path": "fuzz/corpus/table_definition_parsing/valid_definition",
+      "size_bytes": 23,
+      "sha256": "0d1d51265e2e8f27b2592e6b453da5da29f520f9c7acb4cd28ec47fcd56c139d",
+      "purpose": "Select generous limits and preserve the complete project-authored synthetic multi-page relationship table definition.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, and EXP-0059; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '555555valid-definition' > fuzz/corpus/table_definition_parsing/valid_definition"
+    },
+    {
+      "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-002",
+      "path": "fuzz/corpus/table_definition_parsing/tight_resources",
+      "size_bytes": 22,
+      "sha256": "16d2063ab2106533a8b929db54aacf31576db97040e448d49fe72105b1aae577",
+      "purpose": "Select zero allocation, item, work, visit, and chain ceilings against the valid synthetic table definition.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0059; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000000tight-resources' > fuzz/corpus/table_definition_parsing/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-003",
+      "path": "fuzz/corpus/table_definition_parsing/continuation_mutation",
+      "size_bytes": 28,
+      "sha256": "734c32d3880c3b002af1ef476a18f559c8d97a9c87f7211faca1355cf788c44a",
+      "purpose": "Select generous limits and mutate the synthetic continuation page to exercise prefix, link, truncation, and terminator rejection.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0059; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '555554continuation-mutation' > fuzz/corpus/table_definition_parsing/continuation_mutation"
     }
   ]
 }

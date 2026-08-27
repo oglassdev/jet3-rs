@@ -33,6 +33,7 @@ just windows-dev-empty
 just windows-dev-opening
 just windows-dev-allocation
 just windows-dev-catalog
+just windows-dev-table-definition
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -55,6 +56,11 @@ empty, ASCII table create/drop/recreate, then CP1252-discriminating table
 create/drop/recreate. The job snapshots bounded DAO table metadata, closes DAO
 before every MDB copy, and constructs the non-ASCII name from code points so
 script-file encoding cannot affect the observation.
+
+`table-definition` probes the complete checked DAO `DataTypeEnum` input in
+isolated disposable databases, then captures bounded column, index, and
+relationship checkpoints in one fresh Jet 3 database. DAO schema snapshots are
+collected and every DAO object is closed before the corresponding MDB copy.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and

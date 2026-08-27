@@ -49,3 +49,7 @@ windows-dev-allocation:
 # Discover catalog location and records with bounded create/drop/recreate checkpoints.
 windows-dev-catalog:
     "{{PYTHON}}" scripts/windows-dao-dev.py catalog --timeout 180
+
+# Discover table-definition, column, index, and relationship metadata.
+windows-dev-table-definition:
+    "{{PYTHON}}" scripts/windows-dao-dev.py table-definition --timeout 300
