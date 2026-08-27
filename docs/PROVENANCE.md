@@ -968,6 +968,46 @@ Use `not applicable` explicitly rather than omitting a field.
   content is redistributed
 - Review: pending independent review
 
+### SRC-0024 — DAO record mutation methods for local row discovery
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public source
+- Question: Which documented DAO operations may the local row-discovery job
+  use to create null rows, update existing rows, locate controlled records,
+  and delete a record without assigning meaning to an MDB byte?
+- Origin: Microsoft Learn, “Recordset.AddNew method (DAO),” “Recordset.Edit
+  method (DAO),” “Recordset.Update method (DAO),” “Recordset.FindFirst method
+  (DAO),” “Recordset.NoMatch property (DAO),” and “Recordset.Delete method
+  (DAO),” accessed 2026-08-27:
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-addnew-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-edit-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-update-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-findfirst-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-nomatch-property-dao,
+  and
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-delete-method-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: inspect only the method/property contracts needed to construct the
+  bounded local scenarios. Use AddNew/Update for inserted rows, the documented
+  default Null state for unassigned fields, FindFirst plus NoMatch before
+  Edit/Update or Delete, and close DAO before retaining a checkpoint.
+- Artifacts: the cited public documentation pages; no documentation content is
+  redistributed by this repository
+- Observation: AddNew prepares a new record and defaults fields without an
+  explicit default to Null; Update persists AddNew or Edit changes. Edit
+  prepares the current record for changes. FindFirst locates the first record
+  matching controlled criteria and NoMatch reports failure. Delete removes the
+  current record.
+- Interpretation: these are bounded DAO API operations only. They assign no
+  physical meaning to MDB bytes and establish no Rust correctness or
+  compatibility. Physical row facts require the separately repeated
+  `EXP-0060` observation.
+- Usage: `file:oracle/windows-dao/scripts/dev/Row.DevJob.ps1`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
@@ -5416,6 +5456,91 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:crates/jet3/src/table_definition.rs`;
   `file:crates/jet3/src/index_definition.rs`;
   `file:fuzz/fuzz_targets/table_definition_parsing.rs`;
+  `file:docs/validation/repository-contract.json`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0060 — Local DAO row-directory and raw-row observations
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Which bounded physical directory, deletion, overflow, null, fixed,
+  and variable boundaries are stable across controlled Jet 3 row mutations?
+- Origin: one project-authored, explicitly allowlisted local Windows
+  development job using the DAO operations in `SRC-0024`, types in `SRC-0023`,
+  and the table/allocation primitives in `EXP-0057` through `EXP-0059`; no
+  third-party MDB implementation was inspected
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM as `EXP-0056`; the job accepted `DAO.DBEngine.36` version 3.6
+  from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  databases used `;LANGID=0x0409;CP=1252;COUNTRY=0`
+- Protocol: run one bounded staged `row` job. In three independent fresh
+  databases per scenario, create fixed-only, variable-only, mixed, all-null,
+  page-boundary, growing, shrinking, deleted, and overflowing rows. Bound each
+  database to at most 64 DAO-visible rows; close all DAO objects before each
+  retained MDB; never compact. Compare physical facts only when identical in
+  all three replicas of a scenario. The two preceding failed local pilots were
+  diagnostics and were excluded.
+- Artifacts: development run id `20260826T192000Z-row-layout`; `result.json`
+  SHA-256
+  `f339bcea3da693da385ceab803ff7a0121b37a874810033b8e0f633a052e437c`;
+  `row-job-result.json` SHA-256
+  `94e8d32dd870a32b6d921873f1f6e72e8968ec1e9ca1d7df51eafcc22eca4f13`;
+  SHA-256 of the sorted 27-line MDB SHA-256 manifest
+  `f2bc3cd96b29c6def347db8508f3f00da532f8ff7157582d3e9bd5bf4a7433e8`.
+  Raw MDBs, the manifest, and complete outputs remain outside the repository.
+- Observation: every selected user data page stored its table-definition root
+  as a little-endian `u32` at `[4,8)`, row count as little-endian `u16` at
+  `[8,10)`, then two-byte reverse-packed directory entries from byte 10. The
+  low 13 bits selected the row start; each row ended at the prior start or
+  page end. Bit `0x2000` did not occur. Primary rows had `0x8000` clear. A
+  deleted slot was zero-length with `0xc000`; an overflow-storage row had
+  `0x8000` with its sourced row bytes retained but was not a second primary
+  row.
+- Observation: growing a packed primary row beyond its source page replaced
+  its bytes with one four-byte `0x4000` directory row. Those four bytes were a
+  target row slot followed by a three-byte little-endian target data-page
+  number. The target page repeated the same table root, and the named target
+  slot carried `0x8000` and the complete logical row. In every overflow
+  replica, source page 23 slot 4 contained `08 18 00 00`, naming page 24 slot
+  8. No general chain shape beyond this pointer representation was inferred.
+- Observation: a logical row began with its one-byte column count. Fixed data
+  began at byte 1 and followed the fixed offsets from `EXP-0059`; Boolean did
+  not consume a fixed byte. The final `ceil(column_count/8)` bytes were a
+  little-endian-by-ordinal presence map: set meant present and the all-null
+  control was zero. Bytes reserved for null fixed fields were not interpreted.
+  With no variable columns, fixed data met the presence map directly.
+- Observation: for rows shorter than 256 bytes, the byte before the presence
+  map was the variable-column count. Immediately before it were
+  `variable_count + 1` one-byte boundaries in reverse order: logical variable
+  end boundaries followed by the fixed/variable boundary. The variable-only
+  control `02 41 42 43 44 45 06 02 01 02 03` and mixed control
+  `03 40 30 20 10 2a 6d 69 78 65 64 0b 06 01 07` repeated exactly. The
+  265-byte, one-variable overflow target stored low boundary bytes `04 05`,
+  jump byte `01`, variable count `01`, and presence byte `03`, yielding sourced
+  boundaries 5 and 260. Wider rows with multiple variable columns remain
+  unsupported because this experiment did not isolate their jump encoding.
+- Interpretation: the reader may stream table-owned primary rows, skip hidden
+  deletion/overflow-storage entries, follow the observed slot-plus-u24
+  overflow representation iteratively, and expose validated raw fixed and
+  variable field slices while preserving the complete logical row. It must
+  reject wrong owners/page kinds, count or trailer disagreement, nonzero
+  unused presence bits, offsets outside or overlapping admitted data,
+  malformed targets, self-links, cycles, and operation resource exhaustion.
+  This does not decode scalar values, Boolean truth, text, long values, index
+  trees, writes, or DAO compatibility.
+- Usage: `file:oracle/windows-dao/scripts/dev/Row.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Publish.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`;
+  `file:crates/jet3/src/row_directory.rs`;
+  `file:crates/jet3/src/row.rs`;
+  `file:fuzz/fuzz_targets/row_parsing.rs`;
   `file:docs/validation/repository-contract.json`
 - Rights: project-generated licensed-provider outputs are private local
   development material and are neither committed nor redistributed

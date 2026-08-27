@@ -48,7 +48,11 @@ exactly. The checked targets are:
 - `catalog_parsing`: bounded catalog-root discovery and streaming minimum
   catalog records over a fixed synthetic database, including directories,
   flags, identifiers, kinds, raw names, TDEF references, duplicates, and
-  operation-wide resource limits (`EXP-0058`).
+  operation-wide resource limits (`EXP-0058`); and
+- `row_parsing`: bounded table-owned row streaming over a fixed synthetic
+  database, including reverse-packed directories, deleted/hidden rows,
+  fixed/variable/null boundaries, overflow links, and operation-wide resource
+  limits (`EXP-0060`).
 
 `binary_cursor` treats input as both the cursor's bytes and a stream of
 nine-byte commands. It executes at most 256 commands and performs no
@@ -85,6 +89,10 @@ five-page synthetic database, mutates only one selected bounded physical
 region, and returns after at most 32 catalog records while discovery,
 allocation traversal, name retention, and duplicate tracking share one
 input-selected budget.
+`row_parsing` borrows at most one 4 KiB input, constructs one fixed five-page
+synthetic database and target row on the stack, mutates only one selected page,
+and returns after at most 64 rows and their bounded fields while schema, owned
+pages, overflow traversal, and row layout share one input-selected budget.
 The checked corpus covers zero/tight limits, primitive reads, arithmetic
 boundary-shaped values, all documented generic Jet signature kinds, unknown
 and truncated signatures, exact/partial Jet 3 geometry,
@@ -107,6 +115,8 @@ slots, repeated direct references, references beyond captured input, and
 slot-relative type-05 bitmap traversal.
 Catalog coverage includes a valid self-identifying root, CP1252-shaped raw
 name bytes, malformed directories, and zero resource ceilings.
+Row coverage includes valid direct and overflow layouts, a fully valid
+non-mutated path, selected page mutations, and tight operation limits.
 `corpus/manifest.json` records each seed's stable ID,
 purpose, exact bytes and hash, origin, environment, rights, and reproduction
 command.

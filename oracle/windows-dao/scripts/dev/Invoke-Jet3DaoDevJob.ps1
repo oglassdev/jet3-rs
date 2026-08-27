@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -16,6 +16,12 @@ param(
     [string]$TableDefinitionJobPath,
     [Parameter(Mandatory = $true)]
     [string]$TableDefinitionTypeInputPath,
+    [Parameter(Mandatory = $true)]
+    [string]$DispatchPath,
+    [Parameter(Mandatory = $true)]
+    [string]$PublicationPath,
+    [Parameter(Mandatory = $true)]
+    [string]$RowJobPath,
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
 )
 
@@ -341,55 +347,6 @@ function Save-AllocationCheckpoint {
     }
 }
 
-function Publish-DevelopmentOutput {
-    param([string]$Source, [string]$Destination)
-
-    if (Test-Path -LiteralPath $Destination) {
-        throw "Shared output path already exists."
-    }
-    $parent = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Destination))
-    [IO.Directory]::CreateDirectory($parent) | Out-Null
-    $staging = $Destination + ".building." + [Guid]::NewGuid().ToString("N")
-    try {
-        [IO.Directory]::CreateDirectory($staging) | Out-Null
-        foreach ($name in @(
-            "environment.json", "result.json", "empty.mdb",
-            "v30-u-n.mdb", "v30-e-n.mdb", "v30-u-p.mdb", "v30-e-p.mdb",
-            "v40-u-n.mdb", "v40-e-n.mdb", "v40-u-p.mdb", "v40-e-p.mdb",
-            "allocation-00-empty.mdb", "allocation-01-created.mdb",
-            "allocation-02-seeded.mdb", "allocation-03-before-extended.mdb",
-            "allocation-04-after-extended.mdb", "allocation-05-grown.mdb",
-            "allocation-06-deleted.mdb", "allocation-07-reinserted.mdb",
-            "catalog-job-result.json", "catalog-00-empty.mdb",
-            "catalog-01-ascii-created.mdb", "catalog-02-ascii-dropped.mdb",
-            "catalog-03-ascii-recreated.mdb", "catalog-04-cp1252-created.mdb",
-            "catalog-05-cp1252-dropped.mdb", "catalog-06-cp1252-recreated.mdb",
-            "table-definition-job-result.json", "table-definition-00-empty.mdb",
-            "table-definition-01-type-inventory.mdb",
-            "table-definition-02-column-probe.mdb",
-            "table-definition-03-boundary-probe.mdb",
-            "table-definition-04-index-base.mdb",
-            "table-definition-05-index-primary.mdb",
-            "table-definition-06-index-composite.mdb",
-            "table-definition-07-index-required.mdb",
-            "table-definition-08-relationship-base.mdb",
-            "table-definition-09-relationship-created.mdb"
-        )) {
-            $sourcePath = Join-Path $Source $name
-            if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
-                Copy-Item -LiteralPath $sourcePath -Destination $staging
-            }
-        }
-        [IO.Directory]::Move($staging, $Destination)
-    }
-    catch {
-        if (Test-Path -LiteralPath $staging) {
-            Remove-Item -LiteralPath $staging -Recurse -Force
-        }
-        throw
-    }
-}
-
 if (-not (Test-Path -LiteralPath $ProviderProbePath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: provider probe does not exist.")
     exit 2
@@ -403,6 +360,12 @@ if ($Job -ceq "table-definition" -and
      -not (Test-Path -LiteralPath $TableDefinitionTypeInputPath -PathType Leaf))) {
     [Console]::Error.WriteLine("INVALID: table-definition job inputs do not exist.")
     exit 2
+}
+foreach ($requiredHelper in @($DispatchPath, $PublicationPath, $RowJobPath)) {
+    if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
+        [Console]::Error.WriteLine("INVALID: staged development helper does not exist.")
+        exit 2
+    }
 }
 
 $runRoot = Join-Path ([IO.Path]::GetFullPath($GuestOutputRoot)) ("runs\" + $RunId)
@@ -431,6 +394,7 @@ $allocationMultiSlotMap = $null
 $catalogCheckpoints = @()
 $tableDefinitionCheckpoints = @()
 $tableDefinitionTypeResults = @()
+$rowScenarios = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -656,55 +620,33 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -ceq "catalog" -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
     }
     else {
         & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
-            -ExecutionPolicy Bypass -File $CatalogJobPath -RunRoot $runRoot
-        $catalogExitCode = [int]$LASTEXITCODE
-        $catalogResultPath = Join-Path $runRoot "catalog-job-result.json"
-        if (-not (Test-Path -LiteralPath $catalogResultPath -PathType Leaf)) {
+            -ExecutionPolicy Bypass -File $DispatchPath -Job $Job -RunRoot $runRoot `
+            -CatalogJobPath $CatalogJobPath -TableDefinitionJobPath $TableDefinitionJobPath `
+            -TableDefinitionTypeInputPath $TableDefinitionTypeInputPath -RowJobPath $RowJobPath
+        $dispatchExitCode = [int]$LASTEXITCODE
+        $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
+        if (-not (Test-Path -LiteralPath $dispatchResultPath -PathType Leaf)) {
             $status = "fail"
-            $detail = "The staged catalog job did not write its bounded result."
+            $detail = "The staged dispatcher did not write its bounded result."
             $exitCode = 1
         }
         else {
-            $catalogResult = Get-Content -LiteralPath $catalogResultPath -Raw |
+            $dispatchResult = Get-Content -LiteralPath $dispatchResultPath -Raw |
                 ConvertFrom-Json
-            $catalogCheckpoints = @($catalogResult.checkpoints)
-            $status = [string]$catalogResult.status
-            $detail = [string]$catalogResult.detail
-            $exitCode = $catalogExitCode
-        }
-    }
-}
-elseif ($Job -ceq "table-definition" -and $probeExitCode -eq 0) {
-    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
-    if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
-        $detail = "The ready provider is not DAO.DBEngine.36."
-    }
-    else {
-        & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
-            -ExecutionPolicy Bypass -File $TableDefinitionJobPath -RunRoot $runRoot `
-            -TypeInputPath $TableDefinitionTypeInputPath
-        $tableDefinitionExitCode = [int]$LASTEXITCODE
-        $tableDefinitionResultPath = Join-Path $runRoot "table-definition-job-result.json"
-        if (-not (Test-Path -LiteralPath $tableDefinitionResultPath -PathType Leaf)) {
-            $status = "fail"
-            $detail = "The staged table-definition job did not write its bounded result."
-            $exitCode = 1
-        }
-        else {
-            $tableDefinitionResult = Get-Content `
-                -LiteralPath $tableDefinitionResultPath -Raw | ConvertFrom-Json
-            $tableDefinitionCheckpoints = @($tableDefinitionResult.checkpoints)
-            $tableDefinitionTypeResults = @($tableDefinitionResult.type_results)
-            $status = [string]$tableDefinitionResult.status
-            $detail = [string]$tableDefinitionResult.detail
-            $exitCode = $tableDefinitionExitCode
+            $catalogCheckpoints = @($dispatchResult.catalog_checkpoints)
+            $tableDefinitionCheckpoints = @($dispatchResult.table_definition_checkpoints)
+            $tableDefinitionTypeResults = @($dispatchResult.table_definition_type_results)
+            $rowScenarios = @($dispatchResult.row_scenarios)
+            $status = [string]$dispatchResult.status
+            $detail = [string]$dispatchResult.detail
+            $exitCode = $dispatchExitCode
         }
     }
 }
@@ -727,12 +669,18 @@ $result = [ordered]@{
     catalog_checkpoints = @($catalogCheckpoints)
     table_definition_checkpoints = @($tableDefinitionCheckpoints)
     table_definition_type_results = @($tableDefinitionTypeResults)
+    row_scenarios = @($rowScenarios)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result
 
 try {
-    Publish-DevelopmentOutput -Source $runRoot -Destination $SharedOutputPath
+    & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
+        -ExecutionPolicy Bypass -File $PublicationPath -Job $Job `
+        -Source $runRoot -Destination $SharedOutputPath
+    if ([int]$LASTEXITCODE -ne 0) {
+        throw "The staged publication helper failed."
+    }
 }
 catch {
     [Console]::Error.WriteLine("ERROR: development publication failed: " + $_.Exception.Message)

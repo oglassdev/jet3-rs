@@ -514,6 +514,18 @@ impl<'operation, S: ReadAt> OwnedPages<'operation, S> {
         self.budget
     }
 
+    pub(crate) fn read_classified_page_into(
+        &mut self,
+        page: PageNumber,
+        destination: &mut [u8; PAGE_BYTES],
+    ) -> Result<PageKind, AllocationTraversalError> {
+        let classified = self
+            .database
+            .read_classified_page(page, destination, self.budget)
+            .map_err(AllocationTraversalError::Page)?;
+        Ok(classified.kind())
+    }
+
     fn next_page_inner(&mut self) -> Result<Option<PageNumber>, AllocationTraversalError> {
         loop {
             match &mut self.state {

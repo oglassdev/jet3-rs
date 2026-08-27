@@ -919,6 +919,57 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '555554continuation-mutation' > fuzz/corpus/table_definition_parsing/continuation_mutation"
+    },
+    {
+      "id": "FUZZ-SEED-ROW-PARSING-001",
+      "path": "fuzz/corpus/row_parsing/valid_rows",
+      "size_bytes": 17,
+      "sha256": "befd657e9cf6e46d8adea16f089ea25c099d7c8b0a818b5dfc981742ede28e92",
+      "purpose": "Select generous limits and preserve the complete project-authored synthetic direct and overflow row stream.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, EXP-0059, and EXP-0060; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333330valid-rows' > fuzz/corpus/row_parsing/valid_rows"
+    },
+    {
+      "id": "FUZZ-SEED-ROW-PARSING-002",
+      "path": "fuzz/corpus/row_parsing/tight_resources",
+      "size_bytes": 22,
+      "sha256": "16d2063ab2106533a8b929db54aacf31576db97040e448d49fe72105b1aae577",
+      "purpose": "Select zero allocation, item, work, visit, and chain ceilings against the valid synthetic row database.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0060; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000000tight-resources' > fuzz/corpus/row_parsing/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-ROW-PARSING-003",
+      "path": "fuzz/corpus/row_parsing/overflow_mutation",
+      "size_bytes": 24,
+      "sha256": "ed0fc3da8cccba3ec9fc4ecbbed64023dd64bdceda823fa8be04f928f8a9a8df",
+      "purpose": "Mutate the synthetic overflow target page while retaining bounded table definition, allocation-map, and source-row traversal.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0060; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333334overflow-mutation' > fuzz/corpus/row_parsing/overflow_mutation"
     }
   ]
 }

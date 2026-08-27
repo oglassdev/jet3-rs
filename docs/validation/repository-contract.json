@@ -48,7 +48,7 @@
           "SRC-0020",
           "EXP-0057"
         ],
-        "sha256": "49765944254374fb6b7bd227faf48eb674ae42e7d6ff5dae475d45526b23607e"
+        "sha256": "815fe531b2e0f8da231a1bddd7dc2f983a0f42956d3b6581c39394541453b3ab"
       },
       {
         "path": "crates/jet3/src/candidate.rs",
@@ -156,6 +156,20 @@
         "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367"
       },
       {
+        "path": "crates/jet3/src/row.rs",
+        "provenance_ids": [
+          "EXP-0060"
+        ],
+        "sha256": "13e9fed43a277afd6d1f6aa63f0e6e85dc86162d8b601482855b418dc2cede98"
+      },
+      {
+        "path": "crates/jet3/src/row_directory.rs",
+        "provenance_ids": [
+          "EXP-0060"
+        ],
+        "sha256": "dc25a29bce44e56ea706f0a456271f79047be2c27774d850adf8cbe10dc817eb"
+      },
+      {
         "path": "crates/jet3/src/table_definition.rs",
         "provenance_ids": [
           "EXP-0057",
@@ -256,7 +270,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "bd50298a5fc336c3e96b746a6856baa5f45ee49601abeac99d01f9507a026c01"
+        "sha256": "d5222d28f1642588cad51fa6e25f3ea3975c0f67f7b2e8956849cdb1489edcd5"
       },
       {
         "path": "crates/jet3/src/limits.rs",
@@ -297,6 +311,16 @@
         "path": "crates/jet3/src/resource_tests.rs",
         "reason": "Test-only verification of format-neutral resource budgets.",
         "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f"
+      },
+      {
+        "path": "crates/jet3/src/row_directory_tests.rs",
+        "reason": "Test-only verification of EXP-0060 row-directory ownership, flag, offset, overlap, and truncation boundaries.",
+        "sha256": "c1ab888eb090786951b595ea1842c4151ae43d08e3eb0d440d2deaca66bc2c17"
+      },
+      {
+        "path": "crates/jet3/src/row_tests.rs",
+        "reason": "Test-only verification of EXP-0060 direct and overflow row streaming, raw field boundaries, cycles, ownership, corruption, and resource limits.",
+        "sha256": "82ddd92ef43956464f35e9cb09b6e2fad65ffe017de61f42f1d376f240a002f1"
       },
       {
         "path": "crates/jet3/src/source.rs",

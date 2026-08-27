@@ -53,3 +53,6 @@ windows-dev-catalog:
 # Discover table-definition, column, index, and relationship metadata.
 windows-dev-table-definition:
     "{{PYTHON}}" scripts/windows-dao-dev.py table-definition --timeout 300
+
+windows-dev-row:
+    "{{PYTHON}}" scripts/windows-dao-dev.py row --timeout 300

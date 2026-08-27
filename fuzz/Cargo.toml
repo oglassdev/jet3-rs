@@ -95,5 +95,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "row_parsing"
+path = "fuzz_targets/row_parsing.rs"
+test = false
+doc = false
+bench = false
+
 # Keep this cargo-fuzz package independent of the production workspace.
 [workspace]

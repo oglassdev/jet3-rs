@@ -18,6 +18,8 @@ REMOTE_PATH = (
     / "dev"
     / "Invoke-Jet3DaoDevJob.ps1"
 )
+DISPATCH_PATH = REMOTE_PATH.with_name("Dispatch.DevJob.ps1")
+PUBLICATION_PATH = REMOTE_PATH.with_name("Publish.DevJob.ps1")
 SPEC = importlib.util.spec_from_file_location("windows_dao_dev", CLIENT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 CLIENT = importlib.util.module_from_spec(SPEC)
@@ -52,6 +54,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "allocation-map",
                 "catalog",
                 "table-definition",
+                "row",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -86,6 +89,9 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                     CLIENT.CATALOG_JOB.name,
                     CLIENT.TABLE_DEFINITION_JOB.name,
                     CLIENT.TABLE_DEFINITION_TYPES.name,
+                    CLIENT.STAGED_DISPATCH.name,
+                    CLIENT.STAGED_PUBLICATION.name,
+                    CLIENT.ROW_JOB.name,
                 },
             )
 
@@ -124,17 +130,19 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.remote = REMOTE_PATH.read_text(encoding="utf-8")
+        cls.dispatch = DISPATCH_PATH.read_text(encoding="utf-8")
+        cls.publication = PUBLICATION_PATH.read_text(encoding="utf-8")
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
         for name in ("v30-u-n", "v30-e-n", "v30-u-p", "v30-e-p"):
-            self.assertIn(name, self.remote)
+            self.assertIn(name, self.publication)
         for name in ("v40-u-n", "v40-e-n", "v40-u-p", "v40-e-p"):
-            self.assertIn(name, self.remote)
+            self.assertIn(name, self.publication)
         self.assertNotIn("Invoke-Expression", self.remote)
         self.assertNotIn("ScriptBlock::Create", self.remote)
 
@@ -178,7 +186,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             "allocation-06-deleted.mdb",
             "allocation-07-reinserted.mdb",
         ):
-            self.assertIn(name, self.remote)
+            self.assertIn(name, self.publication)
 
     def test_table_definition_job_is_staged_checked_and_bounded(self) -> None:
         job = CLIENT.TABLE_DEFINITION_JOB.read_text(encoding="utf-8")
@@ -216,9 +224,30 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
     def test_database_is_closed_before_atomic_publication(self) -> None:
         self.assertLess(
             self.remote.index("$database.Close()"),
-            self.remote.index("Publish-DevelopmentOutput -Source"),
+            self.remote.index("-File $PublicationPath"),
         )
-        self.assertIn("[IO.Directory]::Move($staging, $Destination)", self.remote)
+        self.assertIn("[IO.Directory]::Move($staging, $Destination)", self.publication)
+
+    def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
+        row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
+        self.assertIn('$Job -in @("catalog", "table-definition", "row")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row")]', self.dispatch)
+        self.assertIn("$MaximumRows = 64", row)
+        self.assertIn("foreach ($replica in 1..3)", row)
+        for scenario in (
+            "fixed-only",
+            "variable-only",
+            "mixed",
+            "all-null",
+            "page-boundary",
+            "growing",
+            "shrinking",
+            "deleted",
+            "overflowing",
+        ):
+            self.assertIn(f'"{scenario}"', row)
+            self.assertIn(f'"{scenario}"', self.publication)
+        self.assertNotIn("CompactDatabase", row)
 
 
 if __name__ == "__main__":

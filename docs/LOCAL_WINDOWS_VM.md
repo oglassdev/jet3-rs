@@ -34,6 +34,7 @@ just windows-dev-opening
 just windows-dev-allocation
 just windows-dev-catalog
 just windows-dev-table-definition
+just windows-dev-row
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -61,6 +62,14 @@ script-file encoding cannot affect the observation.
 isolated disposable databases, then captures bounded column, index, and
 relationship checkpoints in one fresh Jet 3 database. DAO schema snapshots are
 collected and every DAO object is closed before the corresponding MDB copy.
+
+`row` dispatches through the checked development-only helper allowlist and runs
+fixed-only, variable-only, mixed, all-null, page-boundary, growing, shrinking,
+deleted, and overflowing scenarios three times each in fresh databases. Each
+database is bounded to 64 DAO-visible rows, no job compacts a database, and the
+publication helper accepts only the 27 expected MDB filenames. The staged
+dispatcher and publisher keep substantial row logic out of the host runner and
+fail closed on unknown jobs or artifacts.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and
