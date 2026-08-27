@@ -696,24 +696,51 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Table-definition parsing preserves primary, unique, required, and nonunique logical-index flags and typed physical root references. Index-tree traversal, lookup, and key interpretation remain unimplemented; exploratory VM observations are not DAO differential evidence.",
+      "reason": "Table-definition parsing preserves primary, unique, required, and nonunique logical-index flags and typed physical root references, and bounded iterative index-tree traversal yields ordered lossless keys with validated row locators for the observed single-field key encodings. Keyed lookup, composite key interpretation, and index maintenance remain open; exploratory VM observations and Rust self-reads are internal_only and are not DAO differential evidence.",
       "evidence": [
         {
           "kind": "source",
           "path": "crates/jet3/src/index_definition.rs",
-          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "sha256": "53713edf32671f438e838c49057c75e6038ada0b10d87b8b2266890ed635af13",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
           "capability_id": "indexes.primary_unique_non_unique"
         },
         {
           "kind": "test",
           "path": "crates/jet3/src/table_definition_tests.rs",
-          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "sha256": "6285b0b22b6964ce06ca625466abbf18e4ee463d25a33e24c20093de1342c6c6",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
           "capability_id": "indexes.primary_unique_non_unique",
           "scenario_ids": [
             "UT-TABLE-DEFINITION-001",
             "UT-TABLE-DEFINITION-006"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/index_tree.rs",
+          "sha256": "40f2d099b6416c09e70b51366d51a4555238ab031d94b51ef1fc416085d679bc",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
+          "capability_id": "indexes.primary_unique_non_unique"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/index_tree_tests.rs",
+          "sha256": "5a33d9b1a55a2a6fc4f1c0df3ec25b3b311accedfca28e3216be0d0f439bb2a5",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
+          "capability_id": "indexes.primary_unique_non_unique",
+          "scenario_ids": [
+            "UT-INDEX-TREE-001",
+            "UT-INDEX-TREE-002",
+            "UT-INDEX-TREE-003",
+            "UT-INDEX-TREE-004",
+            "UT-INDEX-TREE-005",
+            "UT-INDEX-TREE-006",
+            "UT-INDEX-TREE-007",
+            "UT-INDEX-TREE-008",
+            "UT-INDEX-TREE-009",
+            "UT-INDEX-TREE-010",
+            "UT-INDEX-TREE-011"
           ]
         }
       ]
@@ -723,24 +750,43 @@
       "implementation": "partial",
       "verification": "internal_only",
       "required_verification": "dao_differential",
-      "reason": "Table-definition parsing preserves composite field slots and each observed ascending/descending marker. Index-tree traversal, lookup, and ordering behavior remain unimplemented; exploratory VM observations are not DAO differential evidence.",
+      "reason": "Table-definition parsing preserves composite field slots and each observed ascending/descending marker, and bounded index-tree traversal retains composite and descending key bytes losslessly in physical order without interpreting them. Typed composite key decoding, lookup, and ordering semantics remain open; exploratory VM observations and Rust self-reads are internal_only and are not DAO differential evidence.",
       "evidence": [
         {
           "kind": "source",
           "path": "crates/jet3/src/index_definition.rs",
-          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "sha256": "53713edf32671f438e838c49057c75e6038ada0b10d87b8b2266890ed635af13",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
           "capability_id": "indexes.composite_ascending_descending"
         },
         {
           "kind": "test",
           "path": "crates/jet3/src/table_definition_tests.rs",
-          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
+          "sha256": "6285b0b22b6964ce06ca625466abbf18e4ee463d25a33e24c20093de1342c6c6",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
           "capability_id": "indexes.composite_ascending_descending",
           "scenario_ids": [
             "UT-TABLE-DEFINITION-001",
             "UT-TABLE-DEFINITION-006"
+          ]
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/index_tree.rs",
+          "sha256": "40f2d099b6416c09e70b51366d51a4555238ab031d94b51ef1fc416085d679bc",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
+          "capability_id": "indexes.composite_ascending_descending"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/index_tree_tests.rs",
+          "sha256": "5a33d9b1a55a2a6fc4f1c0df3ec25b3b311accedfca28e3216be0d0f439bb2a5",
+          "commit": "1b47f277033c1c49aa1fb38803a6c7c0919b87bb",
+          "capability_id": "indexes.composite_ascending_descending",
+          "scenario_ids": [
+            "UT-INDEX-TREE-001",
+            "UT-INDEX-TREE-004",
+            "UT-INDEX-TREE-008"
           ]
         }
       ]

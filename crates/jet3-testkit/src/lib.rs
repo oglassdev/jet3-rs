@@ -4,6 +4,7 @@
 mod canonical_json;
 mod canonical_snapshot;
 mod classifier_snapshot;
+mod semantic_snapshot;
 
 pub use canonical_snapshot::{
     CanonicalSnapshot, Column, FiniteF32, FiniteF64, Guid, HexString, Index, IndexField,
@@ -14,6 +15,9 @@ pub use canonical_snapshot::{
 pub use classifier_snapshot::{
     ClassifiedFixture, ClassifierSnapshot, ClassifierSnapshotError, CommitId, PageKindHistogram,
     classify_fixture,
+};
+pub use semantic_snapshot::{
+    SemanticSnapshotError, SemanticSnapshotOptions, UnsupportedValueForm, snapshot_database,
 };
 
 /// Returns the format name used in fixture metadata.
@@ -26,6 +30,8 @@ pub const fn fixture_format_name() -> &'static str {
 mod canonical_order_tests;
 #[cfg(test)]
 mod canonical_value_tests;
+#[cfg(test)]
+mod semantic_snapshot_tests;
 
 #[cfg(test)]
 mod tests {
