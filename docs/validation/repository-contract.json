@@ -155,7 +155,7 @@
         "provenance_ids": [
           "EXP-0062"
         ],
-        "sha256": "53a455cd4da994360900854f55e1c639e512b47ac9b553305c851292cbba1bc5"
+        "sha256": "40f2d099b6416c09e70b51366d51a4555238ab031d94b51ef1fc416085d679bc"
       },
       {
         "path": "crates/jet3/src/index_tree_page.rs",
@@ -170,7 +170,7 @@
           "EXP-0060",
           "EXP-0062"
         ],
-        "sha256": "8239cbf0b5f90e90169f6a2c355e7c59f9f3d39c4aa22fb5094242dd31862c2c"
+        "sha256": "d702307f87223133f7109ae217e463cb99188c8c494ebcd4efbf27231450409e"
       },
       {
         "path": "crates/jet3/src/long_value.rs",
@@ -346,7 +346,7 @@
       {
         "path": "crates/jet3/src/index_tree_tests.rs",
         "reason": "Test-only verification of EXP-0062 index traversal, raw key retention, child and sibling graphs, corruption, and resource boundaries.",
-        "sha256": "1caaed33c29a6a24f0992e252073a579a825bf9da5e2f9f7fc22b9e249252714"
+        "sha256": "5a33d9b1a55a2a6fc4f1c0df3ec25b3b311accedfca28e3216be0d0f439bb2a5"
       },
       {
         "path": "crates/jet3/src/lib.rs",

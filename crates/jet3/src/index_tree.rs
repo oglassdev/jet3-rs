@@ -676,7 +676,7 @@ fn validate_reference(
 const MIN_GROWTH_CAPACITY: usize = 4;
 
 /// Pushes with amortized doubling, charging every reserved element up front.
-fn push_charged<T>(
+pub(crate) fn push_charged<T>(
     values: &mut Vec<T>,
     value: T,
     budget: &mut ResourceBudget,

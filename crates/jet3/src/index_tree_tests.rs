@@ -109,8 +109,8 @@ fn composite_definition() -> Vec<u8> {
 }
 
 /// Writes a table-owned data page holding `rows` one-byte rows.
-fn write_row_page(bytes: &mut [u8], rows: usize) {
-    let page = &mut bytes[ROW_PAGE * PAGE_BYTES..(ROW_PAGE + 1) * PAGE_BYTES];
+fn write_row_page(bytes: &mut [u8], page_number: usize, rows: usize) {
+    let page = &mut bytes[page_number * PAGE_BYTES..(page_number + 1) * PAGE_BYTES];
     page[0] = 1;
     page[4..8].copy_from_slice(&(ROOT as u32).to_le_bytes());
     page[8..10].copy_from_slice(&(rows as u16).to_le_bytes());
@@ -129,7 +129,7 @@ fn database_with_definition(definition: &[u8]) -> Vec<u8> {
     ]);
     bytes[ROOT * PAGE_BYTES..ROOT * PAGE_BYTES + definition.len()].copy_from_slice(definition);
     bytes[MAP_PAGE * PAGE_BYTES] = 1;
-    write_row_page(&mut bytes, 4);
+    write_row_page(&mut bytes, ROW_PAGE, 4);
     bytes
 }
 
@@ -444,6 +444,46 @@ fn item_work_is_charged_online_for_nodes_entries_and_rows() -> Result<(), Box<dy
             ..
         }))
     ));
+    Ok(())
+}
+
+#[test]
+fn interleaved_row_pages_are_validated_once_each() -> Result<(), Box<dyn std::error::Error>> {
+    const SECOND_ROW_PAGE: usize = 7;
+    let mut bytes = database_bytes(4, 3, 4);
+    write_row_page(&mut bytes, SECOND_ROW_PAGE, 1);
+    let entries: Vec<Vec<u8>> = (0..4_u8)
+        .map(|ordinal| {
+            let mut entry = leaf_entry(&[0x7f, 0x80, 0, 0, ordinal], 0);
+            entry[7] = if ordinal % 2 == 0 {
+                ROW_PAGE
+            } else {
+                SECOND_ROW_PAGE
+            } as u8;
+            entry
+        })
+        .collect();
+    let entry_refs: Vec<&[u8]> = entries.iter().map(Vec::as_slice).collect();
+    write_node(
+        &mut bytes,
+        NodeSpec {
+            page: INDEX_ROOT,
+            tag: 4,
+            previous: 0,
+            next: 0,
+            tail_child: 0,
+            prefix: &[],
+            entries: &entry_refs,
+        },
+    );
+    let mut opened = ResourceBudget::new(limits(&bytes));
+    let source = SliceSource::new(&bytes, opened.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut opened)?;
+    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut opened)?;
+    let before = opened.page_visits();
+    database.index_tree(&definition, 0, &mut opened)?;
+    // One leaf visit plus one visit for each of the two distinct row pages.
+    assert_eq!(opened.page_visits() - before, 3);
     Ok(())
 }
 

@@ -5756,6 +5756,7 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:crates/jet3/src/index_definition.rs`;
   `file:crates/jet3/src/index_tree.rs`;
   `file:crates/jet3/src/index_tree_page.rs`;
+  `file:crates/jet3/src/index_tree_rows.rs`;
   `file:crates/jet3/src/relationships.rs`;
   `file:fuzz/fuzz_targets/index_traversal.rs`;
   `file:docs/architecture/SEMANTIC_READER.md`;

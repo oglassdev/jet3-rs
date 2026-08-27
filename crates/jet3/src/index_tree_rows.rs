@@ -1,6 +1,6 @@
 //! Row-reference validation for index leaf entries from `EXP-0060`/`EXP-0062`.
 
-use crate::index_tree::IndexTreeError;
+use crate::index_tree::{IndexTreeError, push_charged};
 use crate::row_directory::{RowDirectory, RowDirectoryError};
 use crate::{
     DatabaseReader, JET3_PAGE_SIZE, PageKind, PageNumber, ReadAt, ResourceBudget, RowLocator,
@@ -10,11 +10,13 @@ const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 /// Validates leaf row locators against their data-page directories.
 ///
-/// The most recently validated page is cached so runs of entries on one page
-/// cost one read; every distinct page read remains charged as a page visit.
+/// Every validated page's row count is retained in charged scratch, so each
+/// distinct data page costs one read per traversal regardless of how leaf
+/// entries interleave across pages. The scratch is bounded by the page-visit
+/// ceiling because each retained page was read exactly once.
 #[derive(Debug, Default)]
 pub(crate) struct RowReferenceValidator {
-    validated: Option<(PageNumber, u16)>,
+    validated: Vec<(PageNumber, u16)>,
 }
 
 impl RowReferenceValidator {
@@ -26,9 +28,14 @@ impl RowReferenceValidator {
         scratch: &mut [u8; PAGE_BYTES],
         budget: &mut ResourceBudget,
     ) -> Result<(), IndexTreeError> {
-        let row_count = match self.validated {
-            Some((page, row_count)) if page == locator.page() => row_count,
-            _ => {
+        let cached = self
+            .validated
+            .iter()
+            .find(|(page, _)| *page == locator.page())
+            .map(|(_, row_count)| *row_count);
+        let row_count = match cached {
+            Some(row_count) => row_count,
+            None => {
                 let kind = database
                     .read_classified_page(locator.page(), scratch, budget)
                     .map_err(IndexTreeError::Page)?
@@ -45,7 +52,12 @@ impl RowReferenceValidator {
                         source,
                     })?;
                 let row_count = directory.row_count();
-                self.validated = Some((locator.page(), row_count));
+                push_charged(
+                    &mut self.validated,
+                    (locator.page(), row_count),
+                    budget,
+                    "reserve validated row page",
+                )?;
                 row_count
             }
         };
