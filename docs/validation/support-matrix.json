@@ -450,10 +450,30 @@
     },
     {
       "id": "values.null_fixed_variable",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "partial",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "The row layer validates the observed presence map and fixed/variable field boundaries and exposes exact nullable raw slices without interpreting them. Scalar and Boolean meaning, typed decoding, decoded-byte accounting, text, and long values remain unimplemented; EXP-0060 is development-only and provides no DAO differential verification or compatibility claim.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/row.rs",
+          "sha256": "13e9fed43a277afd6d1f6aa63f0e6e85dc86162d8b601482855b418dc2cede98",
+          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "capability_id": "values.null_fixed_variable"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/row_tests.rs",
+          "sha256": "82ddd92ef43956464f35e9cb09b6e2fad65ffe017de61f42f1d376f240a002f1",
+          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "capability_id": "values.null_fixed_variable",
+          "scenario_ids": [
+            "UT-ROW-001",
+            "UT-ROW-003"
+          ]
+        }
+      ]
     },
     {
       "id": "values.code_pages_lossless_raw",
@@ -479,10 +499,51 @@
     },
     {
       "id": "rows.streaming_read",
-      "implementation": "not_started",
-      "verification": "unverified",
+      "implementation": "implemented",
+      "verification": "internal_only",
       "required_verification": "dao_differential",
-      "evidence": []
+      "reason": "The bounded lending RowCursor streams allocation-admitted table-owned rows using one row-page buffer plus pre-charged bounded overflow scratch. It validates reverse-packed directories, ownership, flags, fixed/variable/null boundaries, skips deleted and hidden storage slots, follows observed slot-plus-u24 overflow pointers iteratively, and rejects wrong kinds/owners, malformed offsets, overlap, truncation, self-links, cycles, directory drift, and resource exhaustion. Wider multi-variable layouts and pointer forms beyond EXP-0060 remain unsupported; exploratory evidence and synthetic tests are internal_only and make no compatibility claim.",
+      "evidence": [
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/row_directory.rs",
+          "sha256": "dc25a29bce44e56ea706f0a456271f79047be2c27774d850adf8cbe10dc817eb",
+          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "capability_id": "rows.streaming_read"
+        },
+        {
+          "kind": "source",
+          "path": "crates/jet3/src/row.rs",
+          "sha256": "13e9fed43a277afd6d1f6aa63f0e6e85dc86162d8b601482855b418dc2cede98",
+          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "capability_id": "rows.streaming_read"
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/row_directory_tests.rs",
+          "sha256": "c1ab888eb090786951b595ea1842c4151ae43d08e3eb0d440d2deaca66bc2c17",
+          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "capability_id": "rows.streaming_read",
+          "scenario_ids": [
+            "UT-ROW-DIRECTORY-001",
+            "UT-ROW-DIRECTORY-002",
+            "UT-ROW-DIRECTORY-003",
+            "UT-ROW-DIRECTORY-004"
+          ]
+        },
+        {
+          "kind": "test",
+          "path": "crates/jet3/src/row_tests.rs",
+          "sha256": "82ddd92ef43956464f35e9cb09b6e2fad65ffe017de61f42f1d376f240a002f1",
+          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
+          "capability_id": "rows.streaming_read",
+          "scenario_ids": [
+            "UT-ROW-001",
+            "UT-ROW-002",
+            "UT-ROW-003"
+          ]
+        }
+      ]
     },
     {
       "id": "rows.insert_update_delete",
