@@ -174,72 +174,126 @@ impl IndexTree {
 #[non_exhaustive]
 pub enum IndexTreeError {
     /// The caller selected no physical index at this ordinal.
-    InvalidPhysicalIndexOrdinal { ordinal: u16, count: usize },
+    InvalidPhysicalIndexOrdinal {
+        /// Requested zero-based physical-index ordinal.
+        ordinal: u16,
+        /// Number of physical indexes present in the table definition.
+        count: usize,
+    },
     /// A node page could not be read or classified.
     Page(DatabasePageError),
     /// A followed child was neither an intermediate nor a leaf node.
-    UnexpectedPageKind { page: PageNumber, actual: PageKind },
+    UnexpectedPageKind {
+        /// Referenced node page.
+        page: PageNumber,
+        /// Classified kind found on that page.
+        actual: PageKind,
+    },
     /// The node owner did not match the table-definition root.
     UnexpectedOwner {
+        /// Referenced node page.
         page: PageNumber,
+        /// Table-definition page that owns the selected index.
         expected: PageNumber,
+        /// Owner stored by the node.
         actual: PageNumber,
     },
     /// A fixed header or node-class marker was not observed.
     InvalidHeaderMarker {
+        /// Referenced node page.
         page: PageNumber,
+        /// Page-local marker offset.
         offset: usize,
+        /// Sourced marker byte.
         raw: u8,
     },
     /// Free-space accounting disagreed with the boundary bitmap.
     InvalidFreeSpace {
+        /// Referenced node page.
         page: PageNumber,
+        /// Sourced free-space value.
         raw: u16,
+        /// Free space derived from the last entry boundary.
         expected: usize,
     },
     /// An entry boundary was outside or reversed within the fixed entry area.
     InvalidEntryBoundary {
+        /// Referenced node page.
         page: PageNumber,
+        /// Rejected boundary offset within the entry area.
         boundary: usize,
+        /// Immediately preceding boundary or common-prefix length.
         previous: usize,
     },
     /// A set boundary bit named one of the eight nonexistent trailing bytes.
-    BoundaryOutsideEntryArea { page: PageNumber, boundary: usize },
+    BoundaryOutsideEntryArea {
+        /// Referenced node page.
+        page: PageNumber,
+        /// Rejected boundary offset within the entry area.
+        boundary: usize,
+    },
     /// A branch or leaf entry was too short for its required trailer.
     TruncatedEntry {
+        /// Referenced node page.
         page: PageNumber,
+        /// Zero-based entry ordinal on the page.
         entry: usize,
+        /// Reconstructed entry length.
         length: usize,
     },
     /// An intermediate node contained no child-bearing separator entries.
-    EmptyIntermediate { page: PageNumber },
+    EmptyIntermediate {
+        /// Referenced intermediate page.
+        page: PageNumber,
+    },
     /// A required child was null or a leaf carried an unexpected child.
-    InvalidTailChild { page: PageNumber, child: PageNumber },
+    InvalidTailChild {
+        /// Referenced node page.
+        page: PageNumber,
+        /// Sourced tail-child reference.
+        child: PageNumber,
+    },
     /// A sourced page reference was outside captured geometry.
     InvalidReference {
+        /// Page containing the rejected reference.
         page: PageNumber,
+        /// Stable semantic role of the reference.
         role: &'static str,
+        /// Sourced page reference.
         reference: PageNumber,
+        /// Geometry error that rejected the reference.
         source: Error,
     },
     /// A child or sibling link referred to its containing node.
     SelfReference {
+        /// Page containing the self-reference.
         page: PageNumber,
+        /// Stable semantic role of the reference.
         role: &'static str,
     },
     /// A child graph reached one page twice, including cycles.
-    RepeatedPage { page: PageNumber },
+    RepeatedPage {
+        /// Repeated page reference.
+        page: PageNumber,
+    },
     /// Leaves occurred at different depths or below an already reached leaf.
     InconsistentLeafDepth {
+        /// Page found at the inconsistent depth.
         page: PageNumber,
+        /// Depth established by the first leaf.
         expected: u64,
+        /// Depth of this page.
         actual: u64,
     },
     /// A sibling link did not match left-to-right child traversal.
     InvalidSiblingLink {
+        /// Page containing the inconsistent link.
         page: PageNumber,
+        /// Stable semantic role of the sibling link.
         role: &'static str,
+        /// Link required by left-to-right traversal order.
         expected: Option<PageNumber>,
+        /// Sourced sibling link.
         actual: Option<PageNumber>,
     },
     /// Resource policy rejected traversal work or retained output.

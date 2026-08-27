@@ -216,6 +216,7 @@ fn decodes_fixed_column_and_primary_index_losslessly() -> Result<(), Box<dyn std
     assert_eq!(definition.indexes()[0].physical_index(), 0);
     assert_eq!(definition.indexes()[0].kind(), IndexDefinitionKind::Primary);
     assert_eq!(definition.indexes()[0].raw_record()[19], 1);
+    assert!(definition.relationships().next().is_none());
     Ok(())
 }
 
@@ -245,7 +246,16 @@ fn preserves_minimum_relationship_reference_without_cascade_claims()
         .ok_or("missing relationship")?;
     assert_eq!(relationship.name().decoded_ascii(), Some("Rel"));
     assert_eq!(relationship.physical_index(), 0);
+    assert_eq!(relationship.side(), RelationshipSide::ForeignTable);
+    assert_eq!(
+        relationship.related_table(),
+        PageNumber::new(RELATED_ROOT as u64)
+    );
+    assert_eq!(relationship.raw_selector(), 0);
+    assert_eq!(relationship.raw_relation_ordinal(), 1);
     assert_eq!(relationship.raw_context(), [1, 1]);
+    assert_eq!(relationship.raw_record()[8], 2);
+    assert_eq!(definition.relationships().size_hint(), (0, Some(1)));
     assert!(definition.relationships().nth(1).is_none());
 
     for context in [[0, 0], [1, 0], [0, 1], [1, 1]] {

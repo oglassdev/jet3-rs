@@ -90,7 +90,7 @@
     {
       "path": "crates/jet3/src/index_tree.rs",
       "classification": "format_safety",
-      "sha256": "7d39eb94228fcd35eedd47ba21615a7b29529e16be015ff319255701ab8279bd"
+      "sha256": "6ed01488ebd0d9daa3d896ff5e790e966f80e898edc422f22ae0fbea7a0f4596"
     },
     {
       "path": "crates/jet3/src/index_tree_page.rs",

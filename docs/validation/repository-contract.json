@@ -155,7 +155,7 @@
         "provenance_ids": [
           "EXP-0062"
         ],
-        "sha256": "7d39eb94228fcd35eedd47ba21615a7b29529e16be015ff319255701ab8279bd"
+        "sha256": "6ed01488ebd0d9daa3d896ff5e790e966f80e898edc422f22ae0fbea7a0f4596"
       },
       {
         "path": "crates/jet3/src/index_tree_page.rs",
@@ -338,7 +338,7 @@
       {
         "path": "crates/jet3/src/index_tree_tests.rs",
         "reason": "Test-only verification of EXP-0062 index traversal, raw key retention, child and sibling graphs, corruption, and resource boundaries.",
-        "sha256": "6a3a37bdd1584ca4d0e5e1808f033d677b5dfc98882b6c95e10f6594f0755ecd"
+        "sha256": "11e418b1a25d56f6231277a2bd089ce14886907c13bd48c6d70aed2dc4f74094"
       },
       {
         "path": "crates/jet3/src/lib.rs",
@@ -408,7 +408,7 @@
       {
         "path": "crates/jet3/src/table_definition_tests.rs",
         "reason": "Test-only verification of EXP-0059 and EXP-0062 table-definition, column, index, relationship, chain, corruption, and resource boundaries.",
-        "sha256": "89ba4c4d229f45f2234965e25293d8e0eeff5441e64189719b7f401a69566fc3"
+        "sha256": "6285b0b22b6964ce06ca625466abbf18e4ee463d25a33e24c20093de1342c6c6"
       },
       {
         "path": "crates/jet3/src/text_tests.rs",
