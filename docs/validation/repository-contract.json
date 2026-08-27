@@ -48,7 +48,7 @@
           "SRC-0020",
           "EXP-0057"
         ],
-        "sha256": "852ae84e46f8821db4f78acbfcde4d5809abddd1a48679e7cd923a46265273eb"
+        "sha256": "815fe531b2e0f8da231a1bddd7dc2f983a0f42956d3b6581c39394541453b3ab"
       },
       {
         "path": "crates/jet3/src/candidate.rs",
@@ -59,11 +59,44 @@
         "sha256": "0c5c1b59022efcf9c6032e7176a21786c38cc7b7cf31d88219e127384105b486"
       },
       {
+        "path": "crates/jet3/src/catalog.rs",
+        "provenance_ids": [
+          "EXP-0057",
+          "EXP-0058",
+          "EXP-0059"
+        ],
+      "sha256": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33"
+      },
+      {
+        "path": "crates/jet3/src/catalog_record.rs",
+        "provenance_ids": [
+          "SRC-0020",
+          "EXP-0058"
+        ],
+      "sha256": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144"
+      },
+      {
         "path": "crates/jet3/src/commit_state.rs",
         "provenance_ids": [
           "SRC-0013"
         ],
         "sha256": "d51cdbaef9c49599e36d40595feb596b6c675556821aef25deeba898150f0acd"
+      },
+      {
+        "path": "crates/jet3/src/column_definition.rs",
+        "provenance_ids": [
+          "SRC-0023",
+          "EXP-0059"
+        ],
+      "sha256": "99b763a1bd0ccd47318f24f169d6ffd261b756e0cda2ae7919bfc480123ca9ce"
+      },
+      {
+        "path": "crates/jet3/src/data_page_directory.rs",
+        "provenance_ids": [
+          "EXP-0060",
+          "EXP-0061"
+        ],
+        "sha256": "324bf7f535172d5f5a691d8833c2c965bc1908f9a3f1c2396829316ce9547b0e"
       },
       {
         "path": "crates/jet3/src/database.rs",
@@ -75,7 +108,7 @@
           "EXP-0056",
           "EXP-0057"
         ],
-        "sha256": "5b01a5e65810b19e2eee78d67a73cb702f396fbd1efeb366b2024f97f43b1b54"
+        "sha256": "46bbecc16e6eb0c389f64aae741aa7a2d514b25e249b0ddca1825cd86ddd1c9c"
       },
       {
         "path": "crates/jet3/src/database_header.rs",
@@ -86,6 +119,13 @@
           "EXP-0056"
         ],
         "sha256": "4a9340d94b67f4f97e07575a93b11b92d34738d118add7f3e196162131f3a968"
+      },
+      {
+        "path": "crates/jet3/src/definition_name.rs",
+        "provenance_ids": [
+          "EXP-0059"
+        ],
+      "sha256": "622c3c285a01453f3f50700ae9a4fc0c886c8bd95d0876314f3cf6ee5cba5f1a"
       },
       {
         "path": "crates/jet3/src/header.rs",
@@ -103,6 +143,20 @@
         "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6"
       },
       {
+        "path": "crates/jet3/src/index_definition.rs",
+        "provenance_ids": [
+          "EXP-0059"
+        ],
+      "sha256": "1cad64f9b243cfc682bd67041f1d74f579264382cbb6db27a8bc1b49a41a504e"
+      },
+      {
+        "path": "crates/jet3/src/long_value.rs",
+        "provenance_ids": [
+          "EXP-0061"
+        ],
+      "sha256": "0fe9ec300202d10e8ced2329012283e5f81e0e861ad4f54a0d5529ac76e581df"
+      },
+      {
         "path": "crates/jet3/src/map_location.rs",
         "provenance_ids": [
           "EXP-0057"
@@ -117,11 +171,49 @@
         "sha256": "fb2699d75e5fcbef9c88bafc7583e19340dd0021e60c465ef69f1b5f8955f497"
       },
       {
+        "path": "crates/jet3/src/physical_index_definition.rs",
+        "provenance_ids": [
+          "EXP-0059"
+        ],
+        "sha256": "e448c8627c0f1a8598ac332463a5756636b10a6de6a3bfe3f4be28bc8a1f3c6d"
+      },
+      {
         "path": "crates/jet3/src/raw_page_stream.rs",
         "provenance_ids": [
           "SRC-0005"
         ],
         "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367"
+      },
+      {
+        "path": "crates/jet3/src/row.rs",
+        "provenance_ids": [
+          "EXP-0060",
+          "EXP-0061"
+        ],
+      "sha256": "921f9d4154e6684a348a3f3f4bf14e088a456bed498d4f035b660079cbf03348"
+      },
+      {
+        "path": "crates/jet3/src/row_directory.rs",
+        "provenance_ids": [
+          "EXP-0060"
+        ],
+      "sha256": "ede4361a8dec1a2f0771cd6e43f2000b85e044a797b986674ded22c11f82a38a"
+      },
+      {
+        "path": "crates/jet3/src/table_definition.rs",
+        "provenance_ids": [
+          "EXP-0057",
+          "EXP-0059"
+        ],
+      "sha256": "859c093f574830d80ec0d02ed9fa49ba28e4f95601029c867c763a8c9d031fc6"
+      },
+      {
+        "path": "crates/jet3/src/text.rs",
+        "provenance_ids": [
+          "SRC-0025",
+          "EXP-0061"
+        ],
+      "sha256": "892b2b2218b52d09f1c2bf2c32aad11f7e0759118681df68f83122a0751192a2"
       },
       {
         "path": "crates/jet3/src/usage_map.rs",
@@ -130,6 +222,13 @@
           "EXP-0057"
         ],
         "sha256": "091f54f1b7f495215d5ff6c9ef07bdef406cf8171bf64f912f808f35b13ad0ec"
+      },
+      {
+        "path": "crates/jet3/src/value.rs",
+        "provenance_ids": [
+          "EXP-0061"
+        ],
+      "sha256": "1d87c71aec821aedf3007179bcd9437f1c953ba2e8b3b74a342ad9ab51c1872f"
       }
     ],
     "reviewed_non_assertion_files": [
@@ -174,6 +273,16 @@
         "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e"
       },
       {
+        "path": "crates/jet3/src/catalog_record_tests.rs",
+        "reason": "Test-only verification of EXP-0058 catalog directory and minimum record decoding.",
+        "sha256": "f81c1b27f5bc4d98dfe6e2884c391170c3b63c8e2b86f13ceccad8b85288ff1a"
+      },
+      {
+        "path": "crates/jet3/src/catalog_tests.rs",
+        "reason": "Test-only verification of bounded EXP-0058 catalog discovery and streaming.",
+        "sha256": "81c187177374a741cbc9b5e948fe78d645818d451e6a1107350337dbc1d0c15f"
+      },
+      {
         "path": "crates/jet3/src/database_header_tests.rs",
         "reason": "Test-only verification of the provenance-bound database header page composition in database_header.rs.",
         "sha256": "7b95662b982035cf25f0907c4e9abc9e541cfff211bdb2e4fb484d40f53f1bf6"
@@ -206,7 +315,12 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "5789d5cd0cbab7f6166c28effb9d96bff68c040b4269c274bcf947a5d80a550c"
+        "sha256": "0327f97f897f18a4b27ecb849094fa1339d43a87c045f9c943373a36fee579d8"
+      },
+      {
+        "path": "crates/jet3/src/long_value_tests.rs",
+        "reason": "Test-only verification of EXP-0061 inline and external long-value decoding, corruption, termination, and resource boundaries.",
+        "sha256": "69292e630ab6ba61435fd218d28bdcec98a41403326c2265c80b8e2180136bcf"
       },
       {
         "path": "crates/jet3/src/limits.rs",
@@ -249,14 +363,39 @@
         "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f"
       },
       {
+        "path": "crates/jet3/src/row_directory_tests.rs",
+        "reason": "Test-only verification of EXP-0060 row-directory ownership, flag, offset, overlap, and truncation boundaries.",
+        "sha256": "53c35a7cb60408fe1dfa9e20217bd38bf4148ab5749456c03760985ff8696e72"
+      },
+      {
+        "path": "crates/jet3/src/row_tests.rs",
+        "reason": "Test-only verification of EXP-0060 direct and overflow row streaming, raw field boundaries, cycles, ownership, corruption, and resource limits.",
+        "sha256": "5ded9ccd533f9909c9b06c911aea4fd6c207c409f980e56f06e4ace0d7ec470f"
+      },
+      {
         "path": "crates/jet3/src/source.rs",
         "reason": "Format-neutral bounded random-access byte sources.",
         "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a"
       },
       {
+        "path": "crates/jet3/src/table_definition_tests.rs",
+        "reason": "Test-only verification of EXP-0059 table-definition, column, index, relationship-reference, chain, corruption, and resource boundaries.",
+        "sha256": "29f062aa54591c3c9fcbb60181969b0adfdba7b5ec6f910859181a5e7810aee5"
+      },
+      {
+        "path": "crates/jet3/src/text_tests.rs",
+        "reason": "Test-only verification of SRC-0025 mappings, raw retention, undefined bytes, and decoded-output resource limits.",
+        "sha256": "d0042b9151540e1f97ef4c6a9da3f654d4b7c9b6d5eca3860e8fa69654de3664"
+      },
+      {
         "path": "crates/jet3/src/usage_map_tests.rs",
         "reason": "Test-only verification of bounded provenance-bound usage-map row delimiting in usage_map.rs.",
         "sha256": "ea80281a393b3a709b9a483f40b9ab461dec586edda3d95d69975623996e51b8"
+      },
+      {
+        "path": "crates/jet3/src/value_tests.rs",
+        "reason": "Test-only verification of EXP-0061 scalar encodings, null and Boolean meaning, raw retention, widths, and resource limits.",
+        "sha256": "7466aae4b0d93848017ca9d06a9928acb01527f962d21bda1153ed5282712f42"
       }
     ]
   },

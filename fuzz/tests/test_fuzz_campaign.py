@@ -151,7 +151,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         command = [
             executable_path, "/tmp/corpus",
             "-max_total_time=60", "-seed=789231", "-max_len=4096",
-            "-rss_limit_mb=256",
+            "-rss_limit_mb=256", "-artifact_prefix=/tmp/artifacts/",
         ]
         observer = {
             "schema_version": 1,
@@ -894,7 +894,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         report["observed"]["finished_at"] = "2026-07-24T12:10:00.200000Z"
         observer_path = self.bundle / "observer.json"
         observer = json.loads(observer_path.read_text(encoding="utf-8"))
-        observer["command"][-4] = "-max_total_time=600"
+        observer["command"][2] = "-max_total_time=600"
         observer["finished_at"] = "2026-07-24T12:10:00.200000Z"
         observer["wall_clock_seconds"] = 600.2
         write_json(observer_path, observer)

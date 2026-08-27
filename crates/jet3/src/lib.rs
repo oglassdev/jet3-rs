@@ -7,21 +7,34 @@ pub mod atomic;
 pub mod binary;
 pub mod binary_writer;
 pub mod candidate;
+pub mod catalog;
+pub mod catalog_record;
+pub mod column_definition;
 pub mod commit_state;
+mod data_page_directory;
 pub mod database;
 pub mod database_header;
+mod definition_name;
 pub mod error;
 pub mod header;
+pub mod index_definition;
 pub mod jet3_page;
 pub mod limits;
+pub mod long_value;
 pub mod map_location;
 pub mod offset;
 pub mod page;
 pub mod page_kind;
+mod physical_index_definition;
 pub mod raw_page_stream;
 pub mod resource;
+pub mod row;
+pub mod row_directory;
 pub mod source;
+pub mod table_definition;
+pub mod text;
 pub mod usage_map;
+pub mod value;
 
 pub use allocation::{
     AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
@@ -36,6 +49,14 @@ pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_h
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
 pub use candidate::{CandidateError, RawJet3Candidate};
+pub use catalog::{CatalogCursor, CatalogError};
+pub use catalog_record::{
+    CatalogName, CatalogNameEncoding, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
+    CatalogRecord, CatalogRecordError,
+};
+pub use column_definition::{
+    ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
+};
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
@@ -46,20 +67,34 @@ pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
     DatabaseProtection, DatabaseVersion, SupportedDatabaseFormat,
 };
+pub use definition_name::{DefinitionName, DefinitionNameEncoding};
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{
     HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
 };
+pub use index_definition::{
+    IndexDefinition, IndexDefinitionError, IndexDefinitionKind, IndexDirection, IndexField,
+    IndexUsageMapReference, PhysicalIndexDefinition, RelationshipReference, RelationshipSide,
+};
 pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
+pub use long_value::{
+    ExternalLongValueStorage, InlineLongValue, LongValue, LongValueChunk, LongValueChunkValue,
+    LongValueCursor, LongValueError, LongValueKind, LongValueReference,
+};
 pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
 pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use resource::{ResourceBudget, ResourceLimits};
+pub use row::{RawField, RowCursor, RowError, RowView};
+pub use row_directory::{RowDirectoryError, RowLocator};
 pub use source::{FileSource, ReadAt, SliceSource};
+pub use table_definition::{TableDefinition, TableDefinitionError};
+pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
+pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";

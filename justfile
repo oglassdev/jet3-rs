@@ -45,3 +45,17 @@ windows-dev-opening:
 # Discover allocation-map transitions without assuming a conversion threshold.
 windows-dev-allocation:
     "{{PYTHON}}" scripts/windows-dao-dev.py allocation-map --timeout 900
+
+# Discover catalog location and records with bounded create/drop/recreate checkpoints.
+windows-dev-catalog:
+    "{{PYTHON}}" scripts/windows-dao-dev.py catalog --timeout 180
+
+# Discover table-definition, column, index, and relationship metadata.
+windows-dev-table-definition:
+    "{{PYTHON}}" scripts/windows-dao-dev.py table-definition --timeout 300
+
+windows-dev-row:
+    "{{PYTHON}}" scripts/windows-dao-dev.py row --timeout 300
+
+windows-dev-value:
+    "{{PYTHON}}" scripts/windows-dao-dev.py value --timeout 600

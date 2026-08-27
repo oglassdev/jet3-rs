@@ -91,6 +91,42 @@
       "max_len": 4096,
       "max_corpus_bytes": 65536,
       "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "catalog_parsing",
+      "source": "fuzz/fuzz_targets/catalog_parsing.rs",
+      "corpus": "fuzz/corpus/catalog_parsing",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 268435456
+    },
+    {
+      "name": "table_definition_parsing",
+      "source": "fuzz/fuzz_targets/table_definition_parsing.rs",
+      "corpus": "fuzz/corpus/table_definition_parsing",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 536870912
+    },
+    {
+      "name": "row_parsing",
+      "source": "fuzz/fuzz_targets/row_parsing.rs",
+      "corpus": "fuzz/corpus/row_parsing",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 536870912
+    },
+    {
+      "name": "long_values",
+      "source": "fuzz/fuzz_targets/long_values.rs",
+      "corpus": "fuzz/corpus/long_values",
+      "smoke_seconds": 60,
+      "max_len": 4096,
+      "max_corpus_bytes": 65536,
+      "peak_rss_limit_bytes": 536870912
     }
   ]
 }

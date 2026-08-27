@@ -817,6 +817,210 @@
       },
       "rights": "Project-authored; MIT OR Apache-2.0.",
       "reproduction_command": "printf '%s\\n' '19990000' > fuzz/corpus/usage_map_traverse/zero_slots"
+    },
+    {
+      "id": "FUZZ-SEED-CATALOG-PARSING-001",
+      "path": "fuzz/corpus/catalog_parsing/valid_catalog",
+      "size_bytes": 19,
+      "sha256": "9ca4d614f7a0ef2387335ac639ac5764b31970eabf3f47f82a559f4664477864",
+      "purpose": "Select generous resource controls and preserve the complete project-authored synthetic self-identifying catalog with one system and one CP1252-shaped user table record.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, and EXP-0058; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33330valid-catalog' > fuzz/corpus/catalog_parsing/valid_catalog"
+    },
+    {
+      "id": "FUZZ-SEED-CATALOG-PARSING-002",
+      "path": "fuzz/corpus/catalog_parsing/malformed_directory",
+      "size_bytes": 8,
+      "sha256": "5538b5f5bca3ab98fbbdab0d32d4f79d5e9ec4f2e77e677a1f2334e1b45bf38e",
+      "purpose": "Overwrite the synthetic catalog row-count bytes with an oversized ASCII-shaped value and exercise fail-closed directory validation.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020 and EXP-0058; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33330zz' > fuzz/corpus/catalog_parsing/malformed_directory"
+    },
+    {
+      "id": "FUZZ-SEED-CATALOG-PARSING-003",
+      "path": "fuzz/corpus/catalog_parsing/tight_resources",
+      "size_bytes": 21,
+      "sha256": "4d16aa6a3167f545712b53e3200a2cf4f4363671d141cab4961171b97ed4f3f5",
+      "purpose": "Select zero item, work, visit, and allocation ceilings against the valid synthetic catalog to exercise early resource rejection.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0058; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '00000tight-resources' > fuzz/corpus/catalog_parsing/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-001",
+      "path": "fuzz/corpus/table_definition_parsing/valid_definition",
+      "size_bytes": 23,
+      "sha256": "d1748e1c79d106922782e2bf5ddaf16d1059908ba833d296fb266a4791a044c6",
+      "purpose": "Select generous limits and preserve the complete project-authored synthetic multi-page relationship table definition.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, and EXP-0059; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333330valid-definition' > fuzz/corpus/table_definition_parsing/valid_definition"
+    },
+    {
+      "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-002",
+      "path": "fuzz/corpus/table_definition_parsing/tight_resources",
+      "size_bytes": 22,
+      "sha256": "16d2063ab2106533a8b929db54aacf31576db97040e448d49fe72105b1aae577",
+      "purpose": "Select zero allocation, item, work, visit, and chain ceilings against the valid synthetic table definition.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0059; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000000tight-resources' > fuzz/corpus/table_definition_parsing/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-TABLE-DEFINITION-PARSING-003",
+      "path": "fuzz/corpus/table_definition_parsing/continuation_mutation",
+      "size_bytes": 28,
+      "sha256": "82d3bf022cf5c2845ec854f454f1dcf234da1b3d759008c5865b1a1f35a97002",
+      "purpose": "Select generous limits and mutate the synthetic continuation page to exercise prefix, link, truncation, and terminator rejection.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0059; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333331continuation-mutation' > fuzz/corpus/table_definition_parsing/continuation_mutation"
+    },
+    {
+      "id": "FUZZ-SEED-ROW-PARSING-001",
+      "path": "fuzz/corpus/row_parsing/valid_rows",
+      "size_bytes": 17,
+      "sha256": "befd657e9cf6e46d8adea16f089ea25c099d7c8b0a818b5dfc981742ede28e92",
+      "purpose": "Select generous limits and preserve the complete project-authored synthetic direct and overflow row stream.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, EXP-0059, and EXP-0060; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333330valid-rows' > fuzz/corpus/row_parsing/valid_rows"
+    },
+    {
+      "id": "FUZZ-SEED-ROW-PARSING-002",
+      "path": "fuzz/corpus/row_parsing/tight_resources",
+      "size_bytes": 22,
+      "sha256": "16d2063ab2106533a8b929db54aacf31576db97040e448d49fe72105b1aae577",
+      "purpose": "Select zero allocation, item, work, visit, and chain ceilings against the valid synthetic row database.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0060; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '000000tight-resources' > fuzz/corpus/row_parsing/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-ROW-PARSING-003",
+      "path": "fuzz/corpus/row_parsing/overflow_mutation",
+      "size_bytes": 24,
+      "sha256": "ed0fc3da8cccba3ec9fc4ecbbed64023dd64bdceda823fa8be04f928f8a9a8df",
+      "purpose": "Mutate the synthetic overflow target page while retaining bounded table definition, allocation-map, and source-row traversal.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0060; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '333334overflow-mutation' > fuzz/corpus/row_parsing/overflow_mutation"
+    },
+    {
+      "id": "FUZZ-SEED-LONG-VALUES-001",
+      "path": "fuzz/corpus/long_values/valid_values",
+      "size_bytes": 21,
+      "sha256": "4c6ac60e484fd2b9b94c5c513f419c1098177d0267e0d5a6ea220cd2b9dd0682",
+      "purpose": "Select generous limits and preserve the complete project-authored inline Memo and chained OLE stream.",
+      "origin": "Project-authored synthetic ASCII control bytes based on SRC-0020, EXP-0057, EXP-0059, EXP-0060, and EXP-0061; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33333330valid-values' > fuzz/corpus/long_values/valid_values"
+    },
+    {
+      "id": "FUZZ-SEED-LONG-VALUES-002",
+      "path": "fuzz/corpus/long_values/tight_resources",
+      "size_bytes": 24,
+      "sha256": "e87be5294c54bd72faae9c8509db348f9907e62692e657e402ee53054d88809a",
+      "purpose": "Select zero allocation, decoded-value, cumulative decoded-byte, item, work, visit, and chain ceilings against the valid synthetic value database.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0061; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '00000000tight-resources' > fuzz/corpus/long_values/tight_resources"
+    },
+    {
+      "id": "FUZZ-SEED-LONG-VALUES-003",
+      "path": "fuzz/corpus/long_values/chain_mutation",
+      "size_bytes": 23,
+      "sha256": "e863e7bcbd3d5b4dbd5252cbeab8d06bdb6c03ee0993375d0afa614da17be549",
+      "purpose": "Mutate the terminal synthetic LVAL page while retaining bounded schema, row, header, and first-chain-fragment parsing.",
+      "origin": "Project-authored synthetic ASCII control bytes based on EXP-0061; contains no MDB fixture content.",
+      "generator": "POSIX printf",
+      "environment": {
+        "os": "platform-independent",
+        "architecture": "platform-independent",
+        "encoding": "ASCII",
+        "line_endings": "LF"
+      },
+      "rights": "Project-authored; MIT OR Apache-2.0.",
+      "reproduction_command": "printf '%s\\n' '33333335chain-mutation' > fuzz/corpus/long_values/chain_mutation"
     }
   ]
 }

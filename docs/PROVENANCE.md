@@ -328,7 +328,8 @@ Use `not applicable` explicitly rather than omitting a field.
   numeric values when creating the four controlled field kinds. They are API
   enumeration values only; they do not identify MDB type bytes, physical
   layouts, long-value thresholds, page classes, or storage strategies.
-- Usage: `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`
+- Usage: `file:oracle/windows-dao/scripts/m1/M1.Dao.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
 - Review: pending independent review
@@ -358,8 +359,7 @@ Use `not applicable` explicitly rather than omitting a field.
   plans therefore declare `size` only for `dbText`; they do not invent sizes
   for `dbBinary`, `dbMemo`, or `dbLongBinary`. The source does not specify an
   on-disk width field, encoding, row layout, or long-value cutoff.
-- Usage: contextual provenance for controlled DAO schema design; not currently
-  cited outside this ledger
+- Usage: `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -433,7 +433,8 @@ Use `not applicable` explicitly rather than omitting a field.
   planned lengths are experiment points, not documented storage thresholds.
   Nothing here establishes page, tag, pointer, row, or long-value layout.
 - Usage: `file:oracle/windows-dao/scripts/preflight-m1-controlled.ps1`;
-  `file:oracle/windows-dao/tests/test_m1_preflight_contract.py`
+  `file:oracle/windows-dao/tests/test_m1_preflight_contract.py`;
+  `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`
 - Rights: citations to public Microsoft documentation; no documentation
   content is redistributed
 - Review: pending independent review
@@ -841,6 +842,9 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:fuzz/fuzz_targets/page_classification.rs`; `file:tests/manifest.json`
   Additional tracked Usage:
   `file:crates/jet3/src/usage_map.rs`;
+  `file:crates/jet3/src/catalog_record.rs`;
+  `file:fuzz/fuzz_targets/table_definition_parsing.rs`;
+  `file:fuzz/fuzz_targets/catalog_parsing.rs`;
   `file:fuzz/fuzz_targets/usage_map_traverse.rs`;
   `file:oracle/windows-dao/experiments/a4/README.md`;
   `file:oracle/windows-dao/experiments/a4/a4-row-anchored-maps.plan.json`;
@@ -913,6 +917,134 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
+- Review: pending independent review
+
+### SRC-0023 — DAO type, field, index, and relation constants for local discovery
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public source
+- Question: Which complete documented DAO type candidates and field/relation
+  attributes may the local table-definition discovery job pass to DAO without
+  reproducing an inventory from memory?
+- Origin: Microsoft Learn documentation source pinned at MicrosoftDocs
+  `office-developer-client-docs` commit
+  `eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5`: “DataTypeEnum enumeration
+  (DAO),” “Field.Attributes property (DAO),” “Database.CreateRelation method
+  (DAO),” and “RelationAttributeEnum enumeration (DAO),” accessed 2026-08-26
+  and 2026-08-27:
+  https://github.com/MicrosoftDocs/office-developer-client-docs/blob/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/datatypeenum-enumeration-dao.md,
+  https://github.com/MicrosoftDocs/office-developer-client-docs/blob/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/field-attributes-property-dao.md,
+  https://github.com/MicrosoftDocs/office-developer-client-docs/blob/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/database-createrelation-method-dao.md,
+  and
+  https://github.com/MicrosoftDocs/office-developer-client-docs/blob/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/relationattributeenum-enumeration-dao.md
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: inspect the complete DataTypeEnum table, the fixed/variable and
+  auto-increment field-attribute rows, the CreateRelation signature, and the
+  update/delete cascade relation-attribute rows. Preserve the complete type
+  table as checked JSON input and let the pinned DAO provider accept or reject
+  every candidate in an isolated fresh Jet 3 database.
+- Artifacts: pinned `datatypeenum-enumeration-dao.md` SHA-256
+  `51147cb927489b36583de4729355fccc78cc0781032453775f2a011f58535d7b`;
+  pinned `field-attributes-property-dao.md` SHA-256
+  `08c0417611d7f71d786d6fff035c2718046a529c1e25ff07c29bc8c3633f036a`;
+  pinned `database-createrelation-method-dao.md` SHA-256
+  `91d8314d5a8f734f879bb79145e46df84be65f947d303b6aa97439ec057d0bfa`;
+  pinned `relationattributeenum-enumeration-dao.md` SHA-256
+  `cb41bbd96eb4122b30056772427b81e514e27d6876507a6c51f42af4e9f754c0`;
+  none of the documentation files is redistributed by this repository
+- Observation: the documentation supplies 31 distinct DataTypeEnum values,
+  field attributes 1 (fixed), 2 (variable), and 16 (auto-increment), and
+  relation attributes 256 (cascade update) and 4096 (cascade delete).
+- Interpretation: these are bounded DAO API inputs only. They assign no
+  meaning to MDB bytes and establish no physical layout, Rust correctness, or
+  compatibility. Physical meanings require a separately recorded repeated
+  observation.
+- Usage:
+  `file:oracle/windows-dao/scripts/dev/TableDefinition.TypeInputs.json`;
+  `file:oracle/windows-dao/scripts/dev/TableDefinition.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`;
+  `file:crates/jet3/src/column_definition.rs`;
+  `file:docs/validation/repository-contract.json`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0024 — DAO record mutation methods for local row discovery
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public source
+- Question: Which documented DAO operations may the local row-discovery job
+  use to create null rows, update existing rows, locate controlled records,
+  and delete a record without assigning meaning to an MDB byte?
+- Origin: Microsoft Learn, “Recordset.AddNew method (DAO),” “Recordset.Edit
+  method (DAO),” “Recordset.Update method (DAO),” “Recordset.FindFirst method
+  (DAO),” “Recordset.NoMatch property (DAO),” and “Recordset.Delete method
+  (DAO),” accessed 2026-08-27:
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-addnew-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-edit-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-update-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-findfirst-method-dao,
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-nomatch-property-dao,
+  and
+  https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/recordset-delete-method-dao
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code pages, and time zone are not applicable
+- Protocol: inspect only the method/property contracts needed to construct the
+  bounded local scenarios. Use AddNew/Update for inserted rows, the documented
+  default Null state for unassigned fields, FindFirst plus NoMatch before
+  Edit/Update or Delete, and close DAO before retaining a checkpoint.
+- Artifacts: the cited public documentation pages; no documentation content is
+  redistributed by this repository
+- Observation: AddNew prepares a new record and defaults fields without an
+  explicit default to Null; Update persists AddNew or Edit changes. Edit
+  prepares the current record for changes. FindFirst locates the first record
+  matching controlled criteria and NoMatch reports failure. Delete removes the
+  current record.
+- Interpretation: these are bounded DAO API operations only. They assign no
+  physical meaning to MDB bytes and establish no Rust correctness or
+  compatibility. Physical row facts require the separately repeated
+  `EXP-0060` observation.
+- Usage: `file:oracle/windows-dao/scripts/dev/Row.DevJob.ps1`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0025 — Unicode mappings for Windows code pages 1251 and 1252
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public primary mapping tables
+- Question: Which exact single-byte values map to Unicode scalars in Windows
+  code pages 1251 and 1252, including undefined byte positions?
+- Origin: Unicode Consortium, Microsoft-vendor mapping directory, “cp1251 to
+  Unicode table” and “cp1252 to Unicode table,” table version 2.01 dated
+  1998-04-15, accessed 2026-08-27:
+  https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1251.TXT
+  and
+  https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1252.TXT
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, system code page, and time zone are not applicable
+- Protocol: transcribe the complete 128-entry upper-half mapping for each
+  table, preserve undefined positions as errors, and verify every lower-half
+  byte maps to the same Unicode scalar value
+- Artifacts: the cited public text tables; repository tests use selected exact
+  byte/scalar pairs and do not redistribute the source files
+- Observation: both tables define bytes `00` through `7f` identically. CP1251
+  maps `80` to U+0402, `88` to U+20AC, `c0` to U+0410, and `ff` to U+044F,
+  with `98` undefined. CP1252 maps `80` to U+20AC, `8c` to U+0152, `9f` to
+  U+0178, and `ff` to U+00FF, with `81`, `8d`, `8f`, `90`, and `9d`
+  undefined.
+- Interpretation: an explicitly selected text decoder may map these two code
+  pages byte for byte and must reject an undefined input while retaining its
+  raw bytes. These tables do not establish which code page an MDB uses or how
+  a database declares it.
+- Usage: `file:crates/jet3/src/text.rs`;
+  `file:crates/jet3/src/text_tests.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:fuzz/README.md`;
+  `file:docs/validation/repository-contract.json`
+- Rights: citations to Unicode Consortium mapping data; no table file is
+  redistributed
 - Review: pending independent review
 
 ## Observed behavior
@@ -5140,7 +5272,407 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:crates/jet3/src/usage_map.rs`;
   `file:crates/jet3/src/allocation_traverse.rs`;
   `file:crates/jet3/src/database.rs`;
+  `file:fuzz/fuzz_targets/table_definition_parsing.rs`;
   `file:fuzz/fuzz_targets/usage_map_traverse.rs`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0058 — Local DAO catalog bootstrap observations
+
+- Recorded: 2026-08-26, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Can a Jet 3 catalog root be found without an absolute page
+  assumption, and which minimum row fields identify table objects, system
+  classification, raw names, and table-definition roots?
+- Origin: the project-authored, explicitly allowlisted local Windows
+  development runner using DAO database, table-definition, field, append, and
+  delete APIs documented in `SRC-0001`, `SRC-0009`, `SRC-0010`, `SRC-0012`,
+  and the database locale from `SRC-0014`; page classification, row-directory
+  bounds, and allocation traversal were restricted to `SRC-0020` and
+  `EXP-0057`; no third-party MDB implementation was inspected
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM as `EXP-0056`; every run accepted `DAO.DBEngine.36` version
+  3.6 from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  each database was created with
+  `;LANGID=0x0409;CP=1252;COUNTRY=0`
+- Protocol: run three independent `catalog` jobs. Each job created one fresh
+  Jet 3 database and captured seven checkpoints: empty; create, drop, and
+  recreate `CatalogAscii`; then create, drop, and recreate
+  `Café_Euro€`. The non-ASCII name was constructed from Unicode code points,
+  not decoded from the PowerShell source file. Each checkpoint reopened DAO
+  only to capture at most 128 table names and attributes, closed every DAO and
+  COM object, forced finalization, and only then copied the MDB. The physical
+  analysis enumerated every tag-`02` page rather than assuming a catalog page,
+  traversed each candidate's owned map, admitted only tag-`01` pages, and used
+  complete `SRC-0020` row-directory bounds. It required the same observations
+  in all three runs before interpretation.
+- Artifacts: development run ids `20260827T001825Z-catalog1`,
+  `20260827T001844Z-catalog2`, and `20260827T001855Z-catalog3`; respective
+  `result.json` SHA-256 values
+  `0d8458f40920c32eef1b4552bb68c813a993579ef2e8b3afacdb8eee309bb3ac`,
+  `dacb635ecec6c3a8ef81b90a786c9fc542cbcb6b9d67047e7321d8a5c68bc716`,
+  and `98694b637fc6c1cba135236abaa9854744f41dc5e7d6a3dea6e4d08dfd831c4a`.
+  The job-specific result was byte-identical in all three runs, SHA-256
+  `b711efd74ff44cdf20cf6cc5b19a4bba8fb1e9cd0babc0860c0dc3355391d092`.
+  Raw MDBs and complete outputs remain outside the repository.
+- Observation: the empty databases had 20 pages and tag-`02` candidates 2, 3,
+  4, and 5. At every checkpoint, traversing candidate 2's owned map admitted
+  tag-`01` page 18, which contained exactly one active table record whose raw
+  name was `MSysObjects`, whose identifier was 2, whose raw kind was 1, and
+  whose flags were `0x80000000`. No other tag-`02` candidate had that
+  self-identifying record. Candidate 3's owned page also changed during table
+  operations, so change alone is not a unique catalog-root discriminator.
+- Observation: every active catalog record began with column count 17. The
+  little-endian identifier occupied row bytes `[1,5)`, the little-endian raw
+  kind occupied `[9,11)`, and the little-endian object flags occupied
+  `[27,31)`. In each row, the fifth byte from the end was name-start offset 31,
+  the sixth byte from the end was the exclusive name-end offset, the fourth
+  byte from the end was fixed boundary 11, and the third byte from the end was
+  `0xff`; the name range was nonempty and ended before this six-byte trailer.
+  Table records had raw kind 1. DAO's four system table definitions correlated
+  with object flags `0x80000000`; both user tables correlated with flags 0.
+  The identifier of every observed table record was also its in-range,
+  tag-`02` table-definition page: 2 through 5 for the system tables, 20 for
+  `CatalogAscii`, and 23 for `Café_Euro€`. Drop/recreate reused the same
+  physical table-definition identifier in this no-compaction scenario, so the
+  identifier is not interpreted as a lifetime-unique generation.
+- Observation: the ASCII name was stored as its 12 ASCII bytes. Under the
+  recorded CP1252 database locale, `Café_Euro€` was stored exactly as
+  `43 61 66 e9 5f 45 75 72 6f 80`, not either UTF-8 byte sequence. Dropping a
+  table changed its directory entry to flags `0xc000`; after a later append,
+  the masked dropped-row start equaled the next active row's end and delimited
+  an empty tombstone. Active catalog entries used no directory flags.
+- Interpretation: catalog discovery may scan the captured page range under the
+  operation budget, consider only correctly classified tag-`02` candidates,
+  traverse candidate-owned pages using `EXP-0057`, require those pages to be
+  tag `01`, and select the unique candidate containing the self-identifying
+  active `MSysObjects` system-table record above. It must reject zero or
+  multiple roots. On the selected owned pages it may decode the recorded
+  minimum fields, preserve unknown kind values, require exact system/user flag
+  values, retain raw name bytes with database-code-page context, and expose the
+  identifier as a checked table-definition reference only for raw table kind
+  1. Deleted `0xc000` tombstones are skipped; unknown directory flags, active
+  overflow entries, malformed bounds/trailers, duplicate active identifiers,
+  and invalid references fail closed. This does not establish a general row
+  grammar, decode arbitrary text, traverse index trees, validate DAO
+  compatibility, or revise any hosted-campaign result.
+- Usage: `file:oracle/windows-dao/scripts/dev/Catalog.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`; `file:crates/jet3/src/catalog.rs`;
+  `file:crates/jet3/src/catalog_record.rs`;
+  `file:fuzz/fuzz_targets/catalog_parsing.rs`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0059 — Local DAO table-definition observations
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: How does a catalog table reference lead to bounded Jet 3 column,
+  physical-index, logical-index, and minimum relationship metadata without
+  traversing any index tree?
+- Origin: the project-authored, explicitly allowlisted local Windows
+  development runner using only the DAO inputs documented in `SRC-0023`, the
+  catalog reference established by `EXP-0058`, and page/allocation primitives
+  from `SRC-0020` and `EXP-0057`; no third-party MDB implementation was
+  inspected
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM as `EXP-0056`; every run accepted `DAO.DBEngine.36` version
+  3.6 from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  each database was created with
+  `;LANGID=0x0409;CP=1252;COUNTRY=0`
+- Protocol: run three independent `table-definition` jobs. Each tested all 31
+  checked DataTypeEnum candidates in separate fresh databases, then captured
+  a main database at empty, accepted-type, column-property, three incremental
+  index, and combined-cascade parent/child relationship checkpoints. A
+  separate fresh database held a 64-column long-name boundary table so its
+  multi-page definition could not consume the main scenario's DAO resources.
+  Every snapshot was bounded, DAO was closed and COM objects finalized before
+  the MDB was copied, and no compaction or index traversal occurred. Physical
+  analysis used catalog identifiers rather than absolute table-page
+  assumptions and required the observations below in all three final runs.
+- Artifacts: development run ids `20260827T034000Z-tdef1`,
+  `20260827T034030Z-tdef2`, and `20260827T034100Z-tdef3`; respective
+  `result.json` SHA-256 values
+  `889faaa4d7810625220e4f6c732066bb49854373a11e487a2b921183d0953476`,
+  `727e77b89afd0c2070728319106f458833255187069cdd0e4adffb15607ac85c`,
+  and `91d49d9d6888c35d494e6f172e4a03183117a2ac55eac82446d371ccf7cd69bc`.
+  The job-specific result was byte-identical in all three runs, SHA-256
+  `63ad30b3a84283533d10d9658bc3afc446038086127968eb6cd9e53df829eca4`.
+  Raw MDBs and complete outputs remain outside the repository.
+- Observation: exactly 13 of the 31 checked type candidates were accepted in
+  all runs: physical values 1 Boolean, 2 Byte, 3 Integer, 4 Long, 5 Currency,
+  6 Single, 7 Double, 8 Date, 9 Binary, 10 Text, 11 LongBinary, 12 Memo, and 15
+  GUID. Each other checked value was rejected by the provider with HRESULT
+  `-2146825029`. The DAO snapshots reported sizes 1, 1, 2, 4, 8, 4, 8, 8,
+  caller-selected 13, caller-selected 13, 0, 0, and 16 respectively.
+- Observation: every catalog table identifier examined named its tag-`02`
+  table-definition root. A definition page began `02 01 56 43`; bytes `[4,8)`
+  held a little-endian next-definition-page reference, where zero terminated
+  the chain, and root bytes `[8,12)` held the total logical definition length.
+  The root contributed bytes `[0,2048)` and each continuation contributed
+  `[8,2048)`. The 4,333-byte boundary definition followed pages 20, 172, 171,
+  then zero in every run. Continuations repeated the four-byte prefix. The
+  final page can contain bytes beyond the admitted logical length, so those
+  bytes are not definition input.
+- Observation: in the admitted logical bytes, byte 20 was `0x4e`; little-endian
+  counts at `[21,23)`, `[23,25)`, and `[25,27)` were respectively total
+  columns, variable columns, and repeated total columns. Counts at `[27,29)`
+  and `[31,33)` were respectively logical and physical indexes; `[29,31)` was
+  zero in the controls. The map locators at `[35,43)` retained the meanings
+  established in `EXP-0057`. Starting at byte 43, each physical index had an
+  eight-byte sourced prefix (zero in these controls), followed by one 18-byte
+  record per column, then one byte-length-prefixed raw name per column, one
+  39-byte record per physical index, one 20-byte record per logical index, and
+  one byte-length-prefixed raw name per logical index. The logical definition
+  ended in `ff ff`; bytes between the last known name and that terminator were
+  present for some variable/long columns and remain uninterpreted raw suffix.
+- Observation: each 18-byte column record held physical type at byte 0,
+  little-endian ordinal at `[1,3)` and again at `[5,7)`, variable-column index
+  at `[3,5)` for variable columns, sourced value 1 at `[7,9)`, four raw locale
+  context bytes `09 04 e4 04` at `[9,13)`, class/flags at byte 13, a
+  little-endian fixed offset at `[14,16)` for fixed columns, and declared size
+  at `[16,18)`. Class 2 correlated with variable Binary, Text, LongBinary, and
+  Memo; class 3 with fixed fields, including fixed Text; class 7 with the
+  auto-increment Long. Fixed offsets advanced by fixed sizes except Boolean,
+  which occupied a bit and did not advance the next byte offset. Bytes
+  `[14,16)` of variable records and direction bytes belonging to unused index
+  slots varied between repeat runs and have no assigned meaning. Required and
+  nullable versions of otherwise identical Long and GUID fields had identical
+  physical column records, so this slice does not infer requiredness there.
+  Column names were raw database-code-page bytes.
+- Observation: each 39-byte physical-index record began with ten three-byte
+  key slots: a little-endian column ordinal followed by direction 0 descending
+  or 1 ascending. Used slots formed a prefix; unused ordinals were `0xffff` and
+  their direction byte was uninterpreted. Byte 30 plus the three-byte
+  little-endian page number at `[31,34)` formed the index's data-page usage-map
+  locator. `[34,38)` held an in-range tag-`04` index-root page in the controls;
+  it was recorded but never traversed. Byte 38 flags were `0x09` for primary,
+  `0x01` for unique, `0x08` for required non-unique, and zero for the foreign
+  child index.
+- Observation: ordinary 20-byte logical-index records mapped to their
+  physical-index ordinal at both `[0,4)` and `[4,8)`, held byte 8 zero,
+  `0xffffffff` at `[9,13)`, zero reference at `[13,17)`, raw context `04 04`
+  at `[17,19)`, and class 0 ordinary or 1 primary at byte 19. Logical names
+  were stored in DAO's reported sorted order while those ordinal fields mapped
+  them back to physical creation order. The composite control mapped Code
+  descending then Sequence ascending.
+- Observation: creating the one-field relationship added a foreign physical
+  index to the child and sourced logical records on both tables. The parent
+  gained hidden raw name `.rB`, physical selectors 1 and 0 at `[0,4)` and
+  `[4,8)`, byte 8 value 1, raw value 0 at `[9,13)`, child TDEF reference 33,
+  context `01 01`, and class 2. The child's named `ParentChild` record had
+  selectors 0 and 0, byte 8 value 2, raw value 1 at `[9,13)`, parent TDEF
+  reference 30, context `01 01`, and class 2. These sourced fields and names
+  are retained losslessly. The combined DAO cascade attributes were not
+  isolated to a proven physical field, so individual cascade semantics and
+  the roadmap relationship checkbox remain open for a focused follow-up.
+- Interpretation: the reader may follow a catalog table reference through a
+  checked, iterative tag-`02` definition chain, charge the total admitted
+  bytes before allocation, decode the exact counts and records above, preserve
+  all raw unknown/context/suffix bytes, and validate referenced pages by kind
+  without traversing index roots. It must reject truncated chains, zero/too
+  large lengths, cycles, out-of-range or wrong-kind references, inconsistent
+  counts/ordinals, holes in used index slots, unsupported type/size/class and
+  index flag combinations, malformed names/terminator, and resource
+  exhaustion. Relationship records may be exposed as raw typed references but
+  must not claim independently decoded cascade semantics. This is
+  internal-only format discovery and establishes no DAO compatibility.
+- Usage:
+  `file:oracle/windows-dao/scripts/dev/TableDefinition.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/TableDefinition.TypeInputs.json`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`;
+  `file:crates/jet3/src/column_definition.rs`;
+  `file:crates/jet3/src/table_definition.rs`;
+  `file:crates/jet3/src/index_definition.rs`;
+  `file:fuzz/fuzz_targets/table_definition_parsing.rs`;
+  `file:docs/validation/repository-contract.json`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0060 — Local DAO row-directory and raw-row observations
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Which bounded physical directory, deletion, overflow, null, fixed,
+  and variable boundaries are stable across controlled Jet 3 row mutations?
+- Origin: one project-authored, explicitly allowlisted local Windows
+  development job using the DAO operations in `SRC-0024`, types in `SRC-0023`,
+  and the table/allocation primitives in `EXP-0057` through `EXP-0059`; no
+  third-party MDB implementation was inspected
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM as `EXP-0056`; the job accepted `DAO.DBEngine.36` version 3.6
+  from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  databases used `;LANGID=0x0409;CP=1252;COUNTRY=0`
+- Protocol: run one bounded staged `row` job. In three independent fresh
+  databases per scenario, create fixed-only, variable-only, mixed, all-null,
+  page-boundary, growing, shrinking, deleted, and overflowing rows. Bound each
+  database to at most 64 DAO-visible rows; close all DAO objects before each
+  retained MDB; never compact. Compare physical facts only when identical in
+  all three replicas of a scenario. The two preceding failed local pilots were
+  diagnostics and were excluded.
+- Artifacts: development run id `20260826T192000Z-row-layout`; `result.json`
+  SHA-256
+  `f339bcea3da693da385ceab803ff7a0121b37a874810033b8e0f633a052e437c`;
+  `row-job-result.json` SHA-256
+  `94e8d32dd870a32b6d921873f1f6e72e8968ec1e9ca1d7df51eafcc22eca4f13`;
+  SHA-256 of the sorted 27-line MDB SHA-256 manifest
+  `f2bc3cd96b29c6def347db8508f3f00da532f8ff7157582d3e9bd5bf4a7433e8`.
+  Raw MDBs, the manifest, and complete outputs remain outside the repository.
+- Observation: every selected user data page stored its table-definition root
+  as a little-endian `u32` at `[4,8)`, row count as little-endian `u16` at
+  `[8,10)`, then two-byte reverse-packed directory entries from byte 10. The
+  low 13 bits selected the row start; each row ended at the prior start or
+  page end. Bit `0x2000` did not occur. Primary rows had `0x8000` clear. A
+  deleted slot was zero-length with `0xc000`; an overflow-storage row had
+  `0x8000` with its sourced row bytes retained but was not a second primary
+  row.
+- Observation: growing a packed primary row beyond its source page replaced
+  its bytes with one four-byte `0x4000` directory row. Those four bytes were a
+  target row slot followed by a three-byte little-endian target data-page
+  number. The target page repeated the same table root, and the named target
+  slot carried `0x8000` and the complete logical row. In every overflow
+  replica, source page 23 slot 4 contained `08 18 00 00`, naming page 24 slot
+  8. No general chain shape beyond this pointer representation was inferred.
+- Observation: a logical row began with its one-byte column count. Fixed data
+  began at byte 1 and followed the fixed offsets from `EXP-0059`; Boolean did
+  not consume a fixed byte. The final `ceil(column_count/8)` bytes were a
+  little-endian-by-ordinal presence map: set meant present and the all-null
+  control was zero. Bytes reserved for null fixed fields were not interpreted.
+  With no variable columns, fixed data met the presence map directly.
+- Observation: for rows shorter than 256 bytes, the byte before the presence
+  map was the variable-column count. Immediately before it were
+  `variable_count + 1` one-byte boundaries in reverse order: logical variable
+  end boundaries followed by the fixed/variable boundary. The variable-only
+  control `02 41 42 43 44 45 06 02 01 02 03` and mixed control
+  `03 40 30 20 10 2a 6d 69 78 65 64 0b 06 01 07` repeated exactly. The
+  265-byte, one-variable overflow target stored low boundary bytes `04 05`,
+  jump byte `01`, variable count `01`, and presence byte `03`, yielding sourced
+  boundaries 5 and 260. Wider rows with multiple variable columns remain
+  unsupported because this experiment did not isolate their jump encoding.
+- Interpretation: the reader may stream table-owned primary rows, skip hidden
+  deletion/overflow-storage entries, follow the observed slot-plus-u24
+  overflow representation iteratively, and expose validated raw fixed and
+  variable field slices while preserving the complete logical row. It must
+  reject wrong owners/page kinds, count or trailer disagreement, nonzero
+  unused presence bits, offsets outside or overlapping admitted data,
+  malformed targets, self-links, cycles, and operation resource exhaustion.
+  This does not decode scalar values, Boolean truth, text, long values, index
+  trees, writes, or DAO compatibility.
+- Usage: `file:oracle/windows-dao/scripts/dev/Row.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Publish.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`;
+  `file:crates/jet3/src/row_directory.rs`;
+  `file:crates/jet3/src/row.rs`;
+  `file:fuzz/fuzz_targets/row_parsing.rs`;
+  `file:docs/validation/repository-contract.json`
+- Rights: project-generated licensed-provider outputs are private local
+  development material and are neither committed nor redistributed
+- Review: pending independent review
+
+### EXP-0061 — Local DAO scalar, text, and long-value observations
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: repeatable local exploratory observation with
+  `development_only = true`; diagnostic format discovery, not an official
+  evidence campaign, release result, or compatibility result
+- Question: Which bounded physical scalar encodings, CP1252 text bytes, and
+  Memo/OLE inline and chained representations are stable across controlled Jet
+  3 values?
+- Origin: one project-authored, explicitly allowlisted staged `value` job using
+  the checked DAO types and operations in `SRC-0009`, `SRC-0010`, `SRC-0012`,
+  `SRC-0023`, and `EXP-0006`; the row boundaries in `EXP-0060`; and no
+  third-party MDB implementation
+- Environment: the same private Windows Server 2022/x86 Windows PowerShell
+  development VM and provider as `EXP-0060`; system ANSI code page 1252. The
+  CP1252 cases used `;LANGID=0x0409;CP=1252;COUNTRY=0`; the diagnostic CP1251
+  cases used `;LANGID=0x0419;CP=1251;COUNTRY=0`.
+- Protocol: in three independent fresh databases per case, create four
+  scalar-boundary rows (null, minimum, representative, maximum), three CP1252
+  text rows (null, empty, discriminator), three diagnostic CP1251 text rows,
+  and one Memo or OLE value at each length 32, 512, 2048, and 4096. Require DAO
+  readback, close every object, retain at most 4 MiB per database, never compact,
+  and compare physical facts only when identical in all three replicas. Five
+  failed assignment/readback pilots and two earlier successful construction
+  pilots without final readback/metadata were diagnostics and were excluded.
+- Artifacts: development run id `20260827T045000Z-value-layout`; `result.json`
+  SHA-256
+  `2120d336cebec2626107ce7a12f81ab807e4e77913d95498be9d339d505601d9`;
+  `value-job-result.json` SHA-256
+  `513322679823b72d71fb5ad35fdb9148cf648822a546b5ebc0baa7162ad3a77d`;
+  SHA-256 of the sorted 33-line MDB SHA-256 manifest
+  `812512916d151ba70fdf630cc942ada63d67d4ca2d06ef105f1e3a6bd7e4973e`.
+  Raw MDBs, the manifest, and complete output remain outside the repository.
+- Observation: for present fixed values, Byte was one raw byte; Integer and
+  Long were little-endian signed 16- and 32-bit integers; Currency was a
+  little-endian signed 64-bit integer scaled by 10,000; Single and Double were
+  their little-endian IEEE-754 bit patterns; and Date was the little-endian
+  IEEE-754 bit pattern of DAO's OLE Automation day value. Binary retained its
+  exact fixed bytes. Replication IDs stored the first 32-bit, 16-bit, and
+  16-bit groups little-endian followed by the final eight bytes in display
+  order. The four boundary rows and DAO readback agreed in all replicas.
+- Observation: assigning Null to the Boolean control read back as false. Its
+  row bit was clear for both that row and explicit false and set for true; it
+  consumed no fixed byte. Other clear presence bits represented Null, while an
+  empty Text value remained present with a zero-length slice.
+- Observation: the CP1252 discriminator `Café € Œ Ÿ` stored exact bytes
+  `43 61 66 e9 20 80 20 8c 20 9f` in all replicas. The diagnostic database
+  declared with the CP1251 locale stored `Euro €` as `45 75 72 6f 20 80`, not
+  the `88` mapping in `SRC-0025`, and DAO read it back as Euro on the CP1252
+  host. Therefore this run does not establish CP1251 selection or physical
+  encoding; production must not infer a code page from that diagnostic alone.
+- Observation: every long field began with a 12-byte header. Its first
+  little-endian `u32` held the 24-bit decoded length and exactly one observed
+  storage flag: `0x80000000` inline, `0x40000000` single-page, or zero chained.
+  Inline headers had eight zero bytes followed by the exact payload. External
+  headers stored a row slot plus a three-byte little-endian page at `[4,8)` and
+  four zero bytes at `[8,12)`. Length 32 was inline, 512 single-page, and 2048
+  and 4096 chained for both Memo and OLE; these are controls, not inferred
+  universal thresholds.
+- Observation: external targets were tag-`01` data pages with ASCII owner
+  `LVAL` at `[4,8)` and the `EXP-0060` row directory. A single-page row was
+  exactly the declared payload. Each chained row began with another
+  slot-plus-u24 pointer and then a payload fragment; an all-zero pointer ended
+  the chain. The 2048 controls used fragments 2032 and 16; the 4096 controls
+  used 2032, 2032, and 32. Memo raw payload bytes were the encoded text bytes;
+  DAO `FieldSize` reported twice the ASCII character count, while OLE reported
+  the byte count.
+- Interpretation: scalar and explicitly selected single-byte text decoders may
+  retain raw bytes beside typed output and charge the decoded output length
+  before constructing it. A long-value cursor may stream inline, single-page,
+  and chained payloads through one fixed page, but must validate flags, reserved
+  bytes, exact total length, page kind/owner/directory/slot, termination,
+  repeats, self-links, truncation, and operation-wide resource limits. No
+  universal storage threshold, automatic database code-page selection, write
+  support, DAO differential result, or compatibility claim follows.
+- Usage: `file:oracle/windows-dao/scripts/dev/Value.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Publish.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`;
+  `file:scripts/windows-dao-dev.py`;
+  `file:crates/jet3/src/value.rs`;
+  `file:crates/jet3/src/text.rs`;
+  `file:crates/jet3/src/long_value.rs`;
+  `file:fuzz/fuzz_targets/long_values.rs`;
+  `file:docs/architecture/SEMANTIC_READER.md`;
+  `file:docs/LOCAL_WINDOWS_VM.md`;
+  `file:fuzz/README.md`;
+  `file:docs/validation/repository-contract.json`
 - Rights: project-generated licensed-provider outputs are private local
   development material and are neither committed nor redistributed
 - Review: pending independent review
