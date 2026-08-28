@@ -558,17 +558,11 @@ fn collect_rows<S: ReadAt>(
                 .insert(cursor.budget_mut(), &mut values, key, value)?;
             headers.push((column_index, raw_header));
         }
-        let row_bytes_bound = crate::semantic_json::properties_allocation_bound(&values)
-            .and_then(|bound| bound.checked_add(1))
-            .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
-                operation: "size retained row identity",
-            }))?;
-        context
-            .ledger
-            .charge(cursor.budget_mut(), row_bytes_bound)?;
-        let mut row_bytes =
-            crate::semantic_json::write_properties(&values, "$.tables[].rows[].values")?;
-        row_bytes.push(b'\n');
+        let row_bytes = crate::semantic_json::write_row_properties_budgeted(
+            &values,
+            "$.tables[].rows[].values",
+            cursor.budget_mut(),
+        )?;
         context.ledger.charge(cursor.budget_mut(), 64)?;
         let canonical_key = crate::semantic_protocol::sha256(&row_bytes)?;
         let acquisition_order = collected.len();

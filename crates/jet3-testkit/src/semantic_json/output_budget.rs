@@ -1,7 +1,8 @@
 //! Measurement and budgeted allocation for canonical semantic artifacts.
 
 use super::{
-    properties_allocation_bound, write_outcome_into, write_receipt_into, write_snapshot_into,
+    properties, row_properties_allocation_bound, write_outcome_into, write_receipt_into,
+    write_snapshot_into,
 };
 use crate::canonical_json::JsonWriter;
 use crate::{
@@ -41,6 +42,29 @@ pub(super) fn write_receipt_budgeted_validated(
     })
 }
 
+pub(super) fn write_row_properties_budgeted_validated(
+    values: &crate::PropertyMap,
+    path: &str,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<u8>, SemanticSnapshotError> {
+    let length = row_properties_allocation_bound(values).ok_or_else(|| {
+        SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical row JSON length is not representable",
+        })
+    })?;
+    let bound = ByteCount::from_usize(length).map_err(SemanticSnapshotError::Resource)?;
+    let mut writer = reserved_writer(bound, budget)?;
+    properties(&mut writer, values)?;
+    writer.bytes.push(b'\n');
+    writer.into_bytes().ok_or_else(|| {
+        SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
+    })
+}
+
 pub(super) fn measure_snapshot_allocation(snapshot: &SemanticSnapshot) -> Result<ByteCount, Error> {
     let mut writer = JsonWriter::counting();
     write_snapshot_into(&mut writer, snapshot).map_err(|_| Error::Arithmetic {
@@ -66,9 +90,8 @@ pub(super) fn canonicalization_allocation_bound(
     let mut bytes = super::snapshot_allocation_bound(snapshot)?.get();
     for table in &snapshot.tables {
         for row in &table.rows {
-            let row_bytes = properties_allocation_bound(&row.values)
-                .and_then(|value| value.checked_add(1))
-                .ok_or(Error::Arithmetic {
+            let row_bytes =
+                row_properties_allocation_bound(&row.values).ok_or(Error::Arithmetic {
                     operation: "size semantic row canonicalization",
                 })?;
             let row_bytes = u64::try_from(row_bytes).map_err(|_| Error::IntegerConversion {
@@ -183,4 +206,70 @@ fn preflight_artifact_output(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_row_properties_budgeted_validated;
+    use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind, ResourceLimits};
+
+    use crate::{PropertyMap, TypedValue};
+
+    fn values() -> PropertyMap {
+        PropertyMap::from([("A".to_owned(), TypedValue::Null { raw_hex: None })])
+    }
+
+    #[test]
+    fn row_output_has_exact_atomic_allocation_encoded_and_work_boundaries()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let values = values();
+        let mut expected = super::super::write_properties(&values, "$.row")?;
+        expected.push(b'\n');
+        let unbudgeted = super::super::write_row_properties(&values, "$.row")?;
+        assert_eq!(unbudgeted, expected);
+        assert_eq!(unbudgeted.capacity(), unbudgeted.len());
+        let length = ByteCount::from_usize(expected.len())?;
+        let work = length.get().checked_mul(2).ok_or("bounded row work")?;
+        let limits = ResourceLimits::default()
+            .with_max_allocation_bytes(length)
+            .with_max_encoded_bytes(length)
+            .with_max_total_work_units(work);
+        let mut exact = ResourceBudget::new(limits);
+        let output = write_row_properties_budgeted_validated(&values, "$.row", &mut exact)?;
+        assert_eq!(output, expected);
+        assert_eq!(output.capacity(), output.len());
+        assert_eq!(exact.allocation_bytes(), length);
+        assert_eq!(exact.encoded_bytes(), length);
+        assert_eq!(exact.total_work_units(), work);
+
+        for (limits, expected_kind) in [
+            (
+                ResourceLimits::default()
+                    .with_max_allocation_bytes(ByteCount::new(length.get() - 1)),
+                ResourceLimitKind::AllocationBytes,
+            ),
+            (
+                ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(length.get() - 1)),
+                ResourceLimitKind::EncodedBytes,
+            ),
+            (
+                ResourceLimits::default().with_max_total_work_units(work - 1),
+                ResourceLimitKind::TotalWorkUnits,
+            ),
+        ] {
+            let original = values.clone();
+            let mut rejected = ResourceBudget::new(limits);
+            assert!(matches!(
+                write_row_properties_budgeted_validated(&values, "$.row", &mut rejected),
+                Err(crate::SemanticSnapshotError::Resource(
+                    Error::ResourceLimitExceeded { kind, .. }
+                )) if kind == expected_kind
+            ));
+            assert_eq!(values, original);
+            assert_eq!(rejected.allocation_bytes(), ByteCount::new(0));
+            assert_eq!(rejected.encoded_bytes(), ByteCount::new(0));
+            assert_eq!(rejected.total_work_units(), 0);
+        }
+        Ok(())
+    }
 }

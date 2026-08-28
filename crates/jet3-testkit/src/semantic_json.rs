@@ -206,6 +206,7 @@ fn write_receipt_into(writer: &mut JsonWriter, receipt: &CoverageReceipt) {
     writer.bytes.push(b'\n');
 }
 
+#[cfg(test)]
 pub(super) fn write_properties(
     values: &crate::PropertyMap,
     path: &str,
@@ -233,9 +234,55 @@ pub(super) fn write_properties(
         })
 }
 
+pub(super) fn write_row_properties(
+    values: &crate::PropertyMap,
+    path: &str,
+) -> Result<Vec<u8>, SemanticProtocolError> {
+    let capacity = row_properties_allocation_bound(values).ok_or_else(|| {
+        SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical row JSON length is not representable",
+        }
+    })?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical row JSON allocation failed",
+        })?;
+    let mut writer = JsonWriter::with_output(bytes);
+    super::semantic_protocol::validate_property_map(values, path)?;
+    properties(&mut writer, values)?;
+    writer.bytes.push(b'\n');
+    writer
+        .into_bytes()
+        .ok_or_else(|| SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
+}
+
+pub(super) fn write_row_properties_budgeted(
+    values: &crate::PropertyMap,
+    path: &str,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<u8>, SemanticSnapshotError> {
+    super::semantic_protocol::validate_property_map(values, path)?;
+    output_budget::write_row_properties_budgeted_validated(values, path, budget)
+}
+
+#[cfg(test)]
 pub(crate) fn properties_allocation_bound(values: &crate::PropertyMap) -> Option<usize> {
     let mut writer = JsonWriter::counting();
     writer.properties(values).ok()?;
+    writer.counted_len()
+}
+
+pub(crate) fn row_properties_allocation_bound(values: &crate::PropertyMap) -> Option<usize> {
+    let mut writer = JsonWriter::counting();
+    writer.properties(values).ok()?;
+    writer.bytes.push(b'\n');
     writer.counted_len()
 }
 

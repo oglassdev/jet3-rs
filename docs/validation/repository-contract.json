@@ -456,12 +456,12 @@
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
         "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "1a5c0154a50ee727f24cc6cd4fde7752967ede94b614530566466e95fd93a535"
+        "sha256": "f32dbeac7988be0634a0b43adf2eff97fe00fc18e0d5b6972506f7b5fe134a35"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json/output_budget.rs",
         "reason": "Format-neutral measurement, allocation preflight, and reserved output construction for canonical protocol artifacts.",
-        "sha256": "fc861e927f52bdd9510430906fe2ac8309d93b4168647e5f2664a98d946cc8e0"
+        "sha256": "cd14beeebcdebb0f8ce3687517fefc8c0def8ffa482a49667121e66b0fb2ca66"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json/validation_budget.rs",
@@ -481,7 +481,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_rows.rs",
         "reason": "Protocol 1.2 row value-set validation, canonical newline-terminated row bytes, SHA-256 identity, collision rejection, deterministic acquisition-order tie breaking, and contiguous duplicate ordinals.",
-        "sha256": "7b72eeccff75e57e288d60317e1ec0a2c9cca824e092900d72df1560ce45941f"
+        "sha256": "742f8ecbaa13c1129bee24fe7b38171e7b8a6fba9e7b6c8be13611b9118c32ce"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
@@ -496,7 +496,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "740d2ce4d91d0a4e84793c49cbef5feb7a9fa23b0d49b5eca5f5b86e85445010"
+        "sha256": "8bf1d95a24aa06e10d64a3b5147d79493a8b9a9265e83b34d7e2520e92328ef7"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_finalization.rs",

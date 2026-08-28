@@ -61,7 +61,5 @@ pub(super) fn canonicalize_rows(table: &mut SemanticTable) -> Result<(), Semanti
 }
 
 pub(super) fn canonical_row_bytes(values: &PropertyMap) -> Result<Vec<u8>, SemanticProtocolError> {
-    let mut bytes = crate::semantic_json::write_properties(values, "$.tables[].rows[].values")?;
-    bytes.push(b'\n');
-    Ok(bytes)
+    crate::semantic_json::write_row_properties(values, "$.tables[].rows[].values")
 }
