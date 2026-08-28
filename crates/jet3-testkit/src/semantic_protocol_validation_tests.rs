@@ -13,6 +13,8 @@ const TEXT_CODE_PAGE_FIXTURES: &str =
 const RELATIONSHIP_FIELD_UNIQUENESS_FIXTURES: &str = include_str!(
     "../../../oracle/windows-dao/protocol/v1_2/fixtures/relationship-field-uniqueness-vectors.tsv"
 );
+const SEMANTIC_NAME_FIXTURES: &str =
+    include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/semantic-name-vectors.tsv");
 
 fn long(value: i32) -> Result<TypedValue, Box<dyn std::error::Error>> {
     Ok(TypedValue::Long {
@@ -87,6 +89,86 @@ fn valid_snapshot() -> Result<SemanticSnapshot, Box<dyn std::error::Error>> {
     );
     snapshot.canonicalize()?;
     Ok(snapshot)
+}
+
+fn apply_semantic_name_mutation(
+    snapshot: &mut SemanticSnapshot,
+    mutation: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    match mutation {
+        "none" => {}
+        "table_name" => snapshot.tables[0].name.clear(),
+        "column_name" => {
+            snapshot.tables[0].columns[0].name.clear();
+            snapshot.tables[0].indexes[0].fields[0].name.clear();
+            snapshot.relationships[0].fields[0].field.clear();
+            snapshot.relationships[0].fields[0].foreign_field.clear();
+            let value = snapshot.tables[0].rows[0]
+                .values
+                .pop_first()
+                .ok_or_else(|| test_error("expected row value"))?
+                .1;
+            snapshot.tables[0].rows[0]
+                .values
+                .insert(String::new(), value);
+        }
+        "index_name" => snapshot.tables[0].indexes[0].name.clear(),
+        "index_field" => snapshot.tables[0].indexes[0].fields[0].name.clear(),
+        "relationship_name" => snapshot.relationships[0].name.clear(),
+        "relationship_table" => snapshot.relationships[0].table.clear(),
+        "relationship_foreign_table" => snapshot.relationships[0].foreign_table.clear(),
+        "relationship_field" => snapshot.relationships[0].fields[0].field.clear(),
+        "relationship_foreign_field" => {
+            snapshot.relationships[0].fields[0].foreign_field.clear();
+        }
+        "database_property_name" => {
+            snapshot.database_properties.insert(
+                String::new(),
+                TypedValue::Boolean {
+                    value: true,
+                    raw_hex: None,
+                },
+            );
+        }
+        "raw_semantic_path" => snapshot.raw_preservation[0].semantic_path.clear(),
+        "raw_purpose" => snapshot.raw_preservation[0].purpose.clear(),
+        _ => return Err(test_error("unknown semantic-name mutation").into()),
+    }
+    Ok(())
+}
+
+#[test]
+fn shared_semantic_name_vectors_match_full_rust_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut seen = 0;
+    for (line_index, line) in SEMANTIC_NAME_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let [case, mutation, validation_layers, expected_valid] = fields.as_slice() else {
+            return Err(test_error("invalid semantic-name fixture shape").into());
+        };
+        if !matches!(*validation_layers, "schema_and_semantic" | "semantic_only") {
+            return Err(test_error("unknown semantic-name validation layers").into());
+        }
+        let mut snapshot = valid_snapshot()?;
+        apply_semantic_name_mutation(&mut snapshot, mutation)?;
+        let actual_valid = snapshot
+            .canonicalize()
+            .and_then(|()| snapshot.to_canonical_json())
+            .is_ok();
+        assert_eq!(
+            actual_valid,
+            expected_valid.parse::<bool>()?,
+            "{case} on line {}",
+            line_index + 1
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 13);
+    Ok(())
 }
 
 #[test]

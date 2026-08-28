@@ -125,6 +125,99 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
             "branches": sorted(required),
         }
 
+    def _apply_semantic_name_mutation(self, snapshot, mutation):
+        table = snapshot["tables"][0]
+
+        if mutation == "none":
+            return
+        if mutation == "table_name":
+            table["name"] = ""
+            return
+        if mutation == "column_name":
+            table["columns"][0]["name"] = ""
+            table["indexes"][0]["fields"][0]["name"] = ""
+            values = dict(table["rows"][0]["values"])
+            values[""] = values.pop("Id")
+            canonical_key = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
+            for row in table["rows"]:
+                row["values"] = json.loads(json.dumps(values))
+                row["canonical_key"] = canonical_key
+            return
+        if mutation == "index_name":
+            table["indexes"][0]["name"] = ""
+            return
+        if mutation == "index_field":
+            table["indexes"][0]["fields"][0]["name"] = ""
+            return
+        if mutation == "database_property_name":
+            snapshot["database_properties"][""] = {
+                "kind": "boolean",
+                "value": True,
+            }
+            return
+
+        relationship = {
+            "name": "Self",
+            "table": "Items",
+            "foreign_table": "Items",
+            "attributes": 0,
+            "fields": [{"field": "Id", "foreign_field": "Id"}],
+            "properties": {},
+        }
+        if mutation == "relationship_name":
+            relationship["name"] = ""
+        elif mutation == "relationship_table":
+            relationship["table"] = ""
+        elif mutation == "relationship_foreign_table":
+            relationship["foreign_table"] = ""
+        elif mutation == "relationship_field":
+            relationship["fields"][0]["field"] = ""
+        elif mutation == "relationship_foreign_field":
+            relationship["fields"][0]["foreign_field"] = ""
+        elif mutation in ("raw_semantic_path", "raw_purpose"):
+            raw = {
+                "semantic_path": "/tables/0",
+                "raw_hex": "00",
+                "purpose": "test",
+            }
+            raw["semantic_path" if mutation == "raw_semantic_path" else "purpose"] = ""
+            snapshot["raw_preservation"] = [raw]
+            return
+        else:
+            self.fail(f"unknown semantic-name mutation {mutation!r}")
+        snapshot["relationships"] = [relationship]
+
+    def test_shared_semantic_name_vectors_match_schema_and_python_validation(self):
+        fixture = v1_2.SCHEMA_DIR / "fixtures" / "semantic-name-vectors.tsv"
+        seen = 0
+        for line_number, line in enumerate(
+            fixture.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if line.startswith("#"):
+                continue
+            case, mutation, validation_layers, expected_valid = line.split("\t")
+            snapshot = self._snapshot()
+            self._apply_semantic_name_mutation(snapshot, mutation)
+            expected_valid = expected_valid == "true"
+            validators = [v1_2.validate_semantic_snapshot]
+            if validation_layers == "schema_and_semantic":
+                validators.insert(0, v1_2.SCHEMA_SET.validate)
+            elif validation_layers != "semantic_only":
+                self.fail(f"unknown validation layers {validation_layers!r}")
+            for validator in validators:
+                try:
+                    validator(snapshot)
+                    actual_valid = True
+                except ValidationError:
+                    actual_valid = False
+                self.assertEqual(
+                    actual_valid,
+                    expected_valid,
+                    f"{case} on line {line_number}: {validator.__name__}",
+                )
+            seen += 1
+        self.assertEqual(seen, 13)
+
     def test_source_revision_length_matches_shared_multibyte_vectors(self):
         fixture = (
             v1_2.SCHEMA_DIR / "fixtures" / "source-revision-length-vectors.tsv"

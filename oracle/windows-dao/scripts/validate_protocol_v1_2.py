@@ -445,6 +445,8 @@ def _validate_comparable_typed_value(value: dict[str, Any], location: str) -> No
 
 def _validate_property_map(properties: dict[str, Any], location: str) -> None:
     for name, value in properties.items():
+        if not name:
+            raise ValidationError(f"{location}: property names must not be empty")
         _validate_comparable_typed_value(value, f"{location}[{name!r}]")
 
 
@@ -452,6 +454,10 @@ def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
     _validate_property_map(table["properties"], f"{location}.properties")
     columns = {column["name"]: column for column in table["columns"]}
     for column_index, column in enumerate(table["columns"]):
+        if not column["name"]:
+            raise ValidationError(
+                f"{location}.columns[{column_index}].name: must not be empty"
+            )
         if column["dao_type"] not in KINDS_FOR_TYPE:
             raise ValidationError(f"{location}.columns[{column_index}].dao_type: unknown DAO type {column['dao_type']!r}")
         normalized_size = NORMALIZED_SIZE_FOR_TYPE.get(column["dao_type"])
@@ -481,6 +487,10 @@ def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
     if sum(index["primary"] for index in table["indexes"]) > 1:
         raise ValidationError(f"{location}.indexes: at most one primary index")
     for index_index, index in enumerate(table["indexes"]):
+        if not index["name"]:
+            raise ValidationError(
+                f"{location}.indexes[{index_index}].name: must not be empty"
+            )
         if index["primary"] and not (index["unique"] and index["required"]):
             raise ValidationError(
                 f"{location}.indexes[{index_index}]: primary indexes must be unique and required"
@@ -489,6 +499,10 @@ def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
             index["properties"], f"{location}.indexes[{index_index}].properties"
         )
         names = [entry["name"] for entry in index["fields"]]
+        if any(not name for name in names):
+            raise ValidationError(
+                f"{location}.indexes[{index_index}].fields: names must not be empty"
+            )
         if len(names) != len(set(names)):
             raise ValidationError(f"{location}.indexes[{index_index}].fields: repeated column")
         unknown = [name for name in names if name not in columns]
@@ -521,6 +535,9 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
     _validate_outcome_for_scenario(document, scenario)
     if document["outcome"] == "opening_failure":
         return
+    for table_index, table in enumerate(document["tables"]):
+        if not table["name"]:
+            raise ValidationError(f"$.tables[{table_index}].name: must not be empty")
     validate_snapshot(document)
     _validate_property_map(document["database_properties"], "$.database_properties")
     tables = {table["name"]: table for table in document["tables"]}
@@ -541,6 +558,15 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             previous = current
     for index, relationship in enumerate(document["relationships"]):
         location = f"$.relationships[{index}]"
+        for key in ("name", "table", "foreign_table"):
+            if not relationship[key]:
+                raise ValidationError(f"{location}.{key}: must not be empty")
+        for field_index, pair in enumerate(relationship["fields"]):
+            for key in ("field", "foreign_field"):
+                if not pair[key]:
+                    raise ValidationError(
+                        f"{location}.fields[{field_index}].{key}: must not be empty"
+                    )
         _validate_property_map(relationship["properties"], f"{location}.properties")
         for side, column_key in (("table", "field"), ("foreign_table", "foreign_field")):
             table = tables.get(relationship[side])
@@ -556,6 +582,12 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
         ]
         if len(field_pairs) != len(set(field_pairs)):
             raise ValidationError(f"{location}.fields: field pairs must be unique")
+    for index, entry in enumerate(document["raw_preservation"]):
+        for key in ("semantic_path", "purpose"):
+            if not entry[key]:
+                raise ValidationError(
+                    f"$.raw_preservation[{index}].{key}: must not be empty"
+                )
     raw_paths = [entry["semantic_path"] for entry in document["raw_preservation"]]
     if raw_paths != sorted(set(raw_paths)):
         raise ValidationError(

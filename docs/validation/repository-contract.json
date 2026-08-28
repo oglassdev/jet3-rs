@@ -480,8 +480,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
-        "reason": "Test-only mutation plus shared source-revision, strict text, and relationship field-pair uniqueness vector verification that direct protocol model construction cannot bypass validation.",
-        "sha256": "152b1e6144ed5d8c32da7cfb863dd46d2cf41e5a2f15bab641e99864f9488d28"
+        "reason": "Test-only mutation plus shared source-revision, strict text, relationship field-pair uniqueness, and semantic-name vector verification that direct protocol model construction cannot bypass validation.",
+        "sha256": "6b0c0667bcce7cefc39e01a862ace859465c9f0f12fd5d8662b698b485b57ba2"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",

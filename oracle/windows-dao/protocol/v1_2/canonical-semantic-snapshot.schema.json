@@ -168,7 +168,7 @@
         "properties"
       ],
       "properties": {
-        "name": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
         "ordinal": { "type": "integer", "minimum": 0 },
         "dao_type": { "type": "string", "minLength": 1 },
         "auto_increment": { "type": "boolean" },
@@ -185,7 +185,7 @@
       "additionalProperties": false,
       "required": ["name", "descending"],
       "properties": {
-        "name": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
         "descending": { "type": "boolean" }
       }
     },
@@ -194,7 +194,7 @@
       "additionalProperties": false,
       "required": ["name", "primary", "unique", "required", "fields", "properties"],
       "properties": {
-        "name": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
         "primary": { "type": "boolean" },
         "unique": { "type": "boolean" },
         "required": { "type": "boolean" },
@@ -235,7 +235,7 @@
         "rows"
       ],
       "properties": {
-        "name": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
         "kind": { "enum": ["user", "system", "linked"] },
         "attributes": { "type": "integer" },
         "columns": {
@@ -268,9 +268,9 @@
         "properties"
       ],
       "properties": {
-        "name": { "type": "string" },
-        "table": { "type": "string" },
-        "foreign_table": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "table": { "type": "string", "minLength": 1 },
+        "foreign_table": { "type": "string", "minLength": 1 },
         "attributes": { "type": "integer" },
         "fields": {
           "type": "array",
@@ -281,8 +281,8 @@
             "additionalProperties": false,
             "required": ["field", "foreign_field"],
             "properties": {
-              "field": { "type": "string" },
-              "foreign_field": { "type": "string" }
+              "field": { "type": "string", "minLength": 1 },
+              "foreign_field": { "type": "string", "minLength": 1 }
             }
           }
         },
