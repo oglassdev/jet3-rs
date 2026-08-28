@@ -148,6 +148,11 @@ jobs:
         run: python3 -m unittest discover -s tools/tests -v
       - name: Validate DAO oracle schemas without claiming provider coverage
         run: python3 oracle/windows-dao/scripts/validate_protocol.py schemas
+      - name: Validate DAO protocol 1.2 read inventory without claiming coverage
+        run: |
+          python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
+          python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
+          python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
       - name: Reconcile checked test inventory with Rust tests
         run: python3 tools/reconcile_tests.py --repo-root "$GITHUB_WORKSPACE"
 

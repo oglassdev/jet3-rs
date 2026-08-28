@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_2/scenarios.schema.json",
+  "title": "DAO differential scenario inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "document_type", "scenarios"],
+  "properties": {
+    "protocol_version": { "const": "1.2.0" },
+    "document_type": { "const": "dao_scenario_inventory" },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/scenario" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+    "capabilityId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
+    "branchId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
+    "jsonPointer": { "type": "string", "pattern": "^(?:/(?:[^/~]|~0|~1)*)*$" },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "content_sha256",
+        "capability_ids",
+        "boundary",
+        "operation",
+        "generator_recipe",
+        "required_branches",
+        "expected_snapshot_sha256",
+        "preserve_paths"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$" },
+        "content_sha256": { "$ref": "#/$defs/sha256" },
+        "capability_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capabilityId" }
+        },
+        "boundary": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["dimension", "position"],
+              "properties": {
+                "dimension": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+                "position": { "enum": ["below", "at", "above"] }
+              }
+            }
+          ]
+        },
+        "operation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "expected_outcome", "error_class"],
+          "properties": {
+            "mode": { "enum": ["rust_read_dao", "dao_open_rust", "dao_verify_rust_update"] },
+            "expected_outcome": { "enum": ["success", "expected_error"] },
+            "error_class": {
+              "anyOf": [
+                { "type": "null" },
+                { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+              ]
+            }
+          }
+        },
+        "generator_recipe": { "$ref": "#/$defs/generatorRecipe" },
+        "required_branches": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/branchId" }
+        },
+        "expected_snapshot_sha256": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+        },
+        "preserve_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/jsonPointer" }
+        }
+      }
+    },
+    "generatorRecipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producer", "database_version", "locale", "encrypted", "password", "steps"],
+      "properties": {
+        "producer": { "const": "dao" },
+        "database_version": { "enum": ["dbVersion30", "dbVersion40"] },
+        "locale": { "const": ";LANGID=0x0409;CP=1252;COUNTRY=0" },
+        "encrypted": { "type": "boolean" },
+        "password": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string", "minLength": 1, "maxLength": 20 }
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "daoType": {
+      "enum": [
+        "dbBoolean",
+        "dbByte",
+        "dbInteger",
+        "dbLong",
+        "dbCurrency",
+        "dbSingle",
+        "dbDouble",
+        "dbDate",
+        "dbBinary",
+        "dbText",
+        "dbLongBinary",
+        "dbMemo",
+        "dbGUID"
+      ]
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "dao_type", "size", "required"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "dao_type": { "$ref": "#/$defs/daoType" },
+        "size": {
+          "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1, "maximum": 255 }]
+        },
+        "required": { "type": "boolean" }
+      }
+    },
+    "indexField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "descending"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "descending": { "type": "boolean" }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "fields", "primary", "unique", "required", "ignore_nulls"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/indexField" }
+        },
+        "primary": { "type": "boolean" },
+        "unique": { "type": "boolean" },
+        "required": { "type": "boolean" },
+        "ignore_nulls": { "type": "boolean" }
+      }
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "encoding", "value"],
+      "properties": {
+        "field": { "$ref": "#/$defs/identifier" },
+        "encoding": {
+          "enum": [
+            "null",
+            "boolean",
+            "integer",
+            "invariant_decimal",
+            "ieee_bits_hex",
+            "invariant_datetime",
+            "lowercase_hex",
+            "unicode_string",
+            "repeat_byte",
+            "repeat_ascii",
+            "guid"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "boolean" },
+            { "type": "integer" },
+            { "type": "string" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["unit", "length"],
+              "properties": {
+                "unit": { "type": "string", "minLength": 1, "maxLength": 2 },
+                "length": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "step": {
+      "anyOf": [
+        { "$ref": "#/$defs/createDatabaseStep" },
+        { "$ref": "#/$defs/createTableStep" },
+        { "$ref": "#/$defs/createRelationshipStep" },
+        { "$ref": "#/$defs/insertRowsStep" },
+        { "$ref": "#/$defs/insertUntilPageCountStep" },
+        { "$ref": "#/$defs/deleteRowsStep" },
+        { "$ref": "#/$defs/dropTableStep" },
+        { "$ref": "#/$defs/reopenStep" },
+        { "$ref": "#/$defs/closeDatabaseStep" }
+      ]
+    },
+    "createDatabaseStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": { "action": { "const": "create_database" } }
+    },
+    "createTableStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "name", "fields", "indexes"],
+      "properties": {
+        "action": { "const": "create_table" },
+        "name": { "$ref": "#/$defs/identifier" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 255,
+          "items": { "$ref": "#/$defs/field" }
+        },
+        "indexes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/index" }
+        }
+      }
+    },
+    "createRelationshipStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "name",
+        "table",
+        "foreign_table",
+        "fields",
+        "cascade_updates",
+        "cascade_deletes"
+      ],
+      "properties": {
+        "action": { "const": "create_relationship" },
+        "name": { "$ref": "#/$defs/identifier" },
+        "table": { "$ref": "#/$defs/identifier" },
+        "foreign_table": { "$ref": "#/$defs/identifier" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "foreign_field"],
+            "properties": {
+              "field": { "$ref": "#/$defs/identifier" },
+              "foreign_field": { "$ref": "#/$defs/identifier" }
+            }
+          }
+        },
+        "cascade_updates": { "type": "boolean" },
+        "cascade_deletes": { "type": "boolean" }
+      }
+    },
+    "insertRowsStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "table", "rows", "repeat"],
+      "properties": {
+        "action": { "const": "insert_rows" },
+        "table": { "$ref": "#/$defs/identifier" },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "array",
+            "maxItems": 255,
+            "items": { "$ref": "#/$defs/value" }
+          }
+        },
+        "repeat": { "type": "integer", "minimum": 1, "maximum": 65536 }
+      }
+    },
+    "insertUntilPageCountStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "table", "row", "page_count"],
+      "properties": {
+        "action": { "const": "insert_until_page_count" },
+        "table": { "$ref": "#/$defs/identifier" },
+        "row": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 255,
+          "items": { "$ref": "#/$defs/value" }
+        },
+        "page_count": { "type": "integer", "minimum": 2, "maximum": 1048576 }
+      }
+    },
+    "deleteRowsStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "table", "count"],
+      "properties": {
+        "action": { "const": "delete_rows" },
+        "table": { "$ref": "#/$defs/identifier" },
+        "count": {
+          "anyOf": [{ "const": "all" }, { "type": "integer", "minimum": 1, "maximum": 1048576 }]
+        }
+      }
+    },
+    "dropTableStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "name"],
+      "properties": {
+        "action": { "const": "drop_table" },
+        "name": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "reopenStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": { "action": { "const": "reopen" } }
+    },
+    "closeDatabaseStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": { "action": { "const": "close_database" } }
+    }
+  }
+}
