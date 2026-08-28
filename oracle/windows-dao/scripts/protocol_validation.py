@@ -11,11 +11,15 @@ import datetime as dt
 import hashlib
 import json
 import math
+import os
 import re
+import stat
+import struct
 from pathlib import Path
 from typing import Any
 
 JSON_SCHEMA_DRAFT = "https://json-schema.org/draft/2020-12/schema"
+MAX_ENCODED_ARTIFACT_BYTES = 256 * 1024 * 1024
 JSON_TYPES = frozenset(
     ("null", "boolean", "integer", "number", "string", "array", "object")
 )
@@ -52,10 +56,51 @@ class ValidationError(Exception):
     """A protocol, schema, or bundle validation failure."""
 
 
+def _read_regular_artifact(path: Path) -> bytes:
+    """Read one bounded regular artifact without following symbolic links."""
+    descriptor = -1
+    try:
+        path_status = path.lstat()
+        if not stat.S_ISREG(path_status.st_mode):
+            raise ValidationError(f"{path}: JSON input must be a regular file")
+
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        descriptor = os.open(path, flags)
+        opened_status = os.fstat(descriptor)
+        if not stat.S_ISREG(opened_status.st_mode):
+            raise ValidationError(f"{path}: JSON input must be a regular file")
+        if (path_status.st_dev, path_status.st_ino) != (
+            opened_status.st_dev,
+            opened_status.st_ino,
+        ):
+            raise ValidationError(f"{path}: JSON input changed while opening")
+        if opened_status.st_size > MAX_ENCODED_ARTIFACT_BYTES:
+            raise ValidationError(
+                f"{path}: JSON input exceeds the "
+                f"{MAX_ENCODED_ARTIFACT_BYTES}-byte encoded artifact limit"
+            )
+
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            retained = handle.read(MAX_ENCODED_ARTIFACT_BYTES + 1)
+        if len(retained) > MAX_ENCODED_ARTIFACT_BYTES:
+            raise ValidationError(
+                f"{path}: JSON input exceeds the "
+                f"{MAX_ENCODED_ARTIFACT_BYTES}-byte encoded artifact limit"
+            )
+        return retained
+    except OSError as exc:
+        raise ValidationError(f"{path}: cannot read JSON: {exc}") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def load_json_with_bytes(path: Path) -> tuple[Any, bytes]:
     """Load strict UTF-8 JSON and retain the exact bytes from the same read."""
     try:
-        retained = path.read_bytes()
+        retained = _read_regular_artifact(path)
         if retained.startswith(b"\xef\xbb\xbf"):
             raise ValidationError(f"{path}: UTF-8 byte-order marks are forbidden")
         text = retained.decode("utf-8")
@@ -91,7 +136,7 @@ def canonical_json_bytes(document: dict[str, Any]) -> bytes:
     """Encode a protocol document in its canonical snapshot representation."""
     return (
         json.dumps(
-            document,
+            _normalize_single_values(document),
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
@@ -99,6 +144,31 @@ def canonical_json_bytes(document: dict[str, Any]) -> bytes:
         )
         + "\n"
     ).encode("utf-8")
+
+
+def _binary32_as_binary64(value: float) -> float:
+    """Round to IEEE binary32 and return its exact binary64 widening."""
+    try:
+        return struct.unpack(">f", struct.pack(">f", value))[0]
+    except (OverflowError, struct.error) as exc:
+        raise ValidationError("single value is outside the finite binary32 range") from exc
+
+
+def _normalize_single_values(value: Any) -> Any:
+    """Apply the protocol's binary32 normalization to typed Single values."""
+    if isinstance(value, list):
+        return [_normalize_single_values(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    normalized = {
+        key: item if key == "producer_extensions" else _normalize_single_values(item)
+        for key, item in value.items()
+    }
+    semantic = normalized.get("value")
+    if normalized.get("kind") == "single" and type(semantic) is float:
+        normalized["value"] = _binary32_as_binary64(semantic)
+    return normalized
 
 
 def resolve_local_ref(root_schema: dict[str, Any], ref: str) -> dict[str, Any]:
@@ -455,6 +525,13 @@ def _validate_typed_value(value: dict[str, Any], location: str) -> None:
         raise ValidationError(
             f"{location}.value: {kind} requires a finite JSON floating-point number"
         )
+    if kind == "single" and type(semantic) is float:
+        try:
+            _binary32_as_binary64(semantic)
+        except ValidationError as exc:
+            raise ValidationError(
+                f"{location}.value: single is outside the finite binary32 range"
+            ) from exc
     if kind in ("decimal", "currency") and (
         not isinstance(semantic, str)
         or re.fullmatch(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", semantic) is None

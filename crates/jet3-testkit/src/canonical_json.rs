@@ -556,7 +556,9 @@ impl TypedValue {
 }
 
 fn canonical_f32(value: FiniteF32) -> Result<NumberText, SnapshotError> {
-    let value = value.get();
+    // Render the exact binary64 widening so Python can reproduce every
+    // binary32 value without a separate float-to-decimal implementation.
+    let value = f64::from(value.get());
     let mut scientific = NumberText::new();
     write!(scientific, "{value:e}").map_err(|_| SnapshotError::NumberFormatting)?;
     canonical_float(

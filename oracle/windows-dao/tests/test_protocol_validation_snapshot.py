@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -243,9 +244,10 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
                 bits_value = struct.unpack(
                     unpack_format, bytes.fromhex(bits_hex)
                 )[0]
+                typed_bits = {"kind": kind, "value": bits_value}
                 self.assertEqual(
-                    canonical_json_bytes({"value": bits_value}),
-                    f'{{"value":{canonical_json}}}\n'.encode(),
+                    canonical_json_bytes(typed_bits),
+                    f'{{"kind":"{kind}","value":{canonical_json}}}\n'.encode(),
                     f"{case} on line {line_number}: fixture bits",
                 )
 
@@ -267,8 +269,10 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
                     expected_valid,
                     f"{case} on line {line_number}: validation outcome",
                 )
-                rendered = canonical_json_bytes({"value": semantic})
-                expected = f'{{"value":{canonical_json}}}\n'.encode()
+                rendered = canonical_json_bytes({"kind": kind, "value": semantic})
+                expected = (
+                    f'{{"kind":"{kind}","value":{canonical_json}}}\n'.encode()
+                )
                 if expected_valid:
                     self.assertEqual(rendered, expected, case)
                     self.assertIs(type(semantic), float, case)
@@ -276,7 +280,7 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
                     self.assertNotEqual(rendered, expected, case)
                     self.assertIn(type(semantic), (bool, int), case)
                 seen += 1
-        self.assertEqual(seen, 14)
+        self.assertEqual(seen, 18)
 
         for semantic in (float("nan"), float("inf"), float("-inf")):
             snapshot = self._snapshot()
@@ -289,6 +293,29 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
                 ValidationError, "finite JSON floating-point number"
             ):
                 v1_2.validate_semantic_snapshot(snapshot)
+
+        snapshot = self._snapshot()
+        snapshot["database_properties"]["Float"] = {
+            "kind": "single",
+            "raw_hex": "7f7fffff",
+            "value": 3.5e38,
+        }
+        with self.assertRaisesRegex(ValidationError, "finite binary32 range"):
+            v1_2.validate_semantic_snapshot(snapshot)
+
+    def test_single_normalization_keeps_producer_extensions_opaque(self):
+        single = {"kind": "single", "value": 0.1}
+        document = {
+            "database_properties": {"Float": single},
+            "producer_extensions": {"nested": {"same_shape": single}},
+        }
+
+        self.assertEqual(
+            canonical_json_bytes(document),
+            b'{"database_properties":{"Float":{"kind":"single",'
+            b'"value":0.10000000149011612}},"producer_extensions":'
+            b'{"nested":{"same_shape":{"kind":"single","value":0.1}}}}\n',
+        )
 
     def test_source_revision_length_matches_shared_multibyte_vectors(self):
         fixture = (
@@ -598,6 +625,15 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
             snapshot_path.write_bytes(canonical_json_bytes(snapshot))
             receipt_path.write_bytes(canonical_json_bytes(receipt))
             v1_2.validate_artifact_pair_paths(snapshot_path, receipt_path)
+            with mock.patch.object(
+                Path,
+                "read_bytes",
+                side_effect=AssertionError("canonical validation reread its input"),
+            ):
+                self.assertEqual(
+                    v1_2.validate_document_path(snapshot_path),
+                    "canonical_semantic_snapshot",
+                )
 
             snapshot_path.write_text(
                 json.dumps(snapshot, indent=2) + "\n", encoding="utf-8"

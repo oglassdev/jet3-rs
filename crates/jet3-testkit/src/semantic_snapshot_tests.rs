@@ -622,11 +622,18 @@ fn final_artifact_reservations_are_exactly_budgeted_before_growth()
     assert_eq!(snapshot.capacity(), snapshot.len());
     assert_eq!(receipt.capacity(), receipt.len());
     let exact = measured.allocation_bytes();
+    let snapshot_bytes = ByteCount::from_usize(snapshot.len())?;
+    let receipt_bytes = ByteCount::from_usize(receipt.len())?;
+    let exact_encoded = snapshot_bytes.checked_add(receipt_bytes)?;
+    assert_eq!(measured.encoded_bytes(), exact_encoded);
 
-    let exact_limits = limits(&bytes).with_max_allocation_bytes(exact);
+    let exact_limits = limits(&bytes)
+        .with_max_allocation_bytes(exact)
+        .with_max_encoded_bytes(exact_encoded);
     let mut exact_budget = ResourceBudget::new(exact_limits);
     artifacts.to_canonical_json(&mut exact_budget)?;
     assert_eq!(exact_budget.allocation_bytes(), exact);
+    assert_eq!(exact_budget.encoded_bytes(), exact_encoded);
 
     let one_less = ByteCount::new(exact.get() - 1);
     let mut rejected = ResourceBudget::new(limits(&bytes).with_max_allocation_bytes(one_less));
@@ -643,6 +650,28 @@ fn final_artifact_reservations_are_exactly_budgeted_before_growth()
         })
     ));
     assert!(rejected.allocation_bytes().get() < exact.get());
+
+    let original = artifacts.clone();
+    let one_less_encoded = ByteCount::new(exact_encoded.get() - 1);
+    let mut rejected = ResourceBudget::new(limits(&bytes).with_max_encoded_bytes(one_less_encoded));
+    let Err(error) = artifacts.to_canonical_json(&mut rejected) else {
+        return Err(
+            std::io::Error::other("one-over artifact encoding unexpectedly succeeded").into(),
+        );
+    };
+    assert!(matches!(
+        error,
+        SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::EncodedBytes,
+            ..
+        })
+    ));
+    assert_eq!(artifacts, original);
+    assert_eq!(rejected.encoded_bytes(), snapshot_bytes);
+    assert_eq!(
+        rejected.allocation_bytes(),
+        exact.checked_sub(receipt_bytes)?
+    );
     Ok(())
 }
 

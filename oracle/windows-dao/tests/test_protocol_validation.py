@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -13,13 +14,51 @@ from protocol_validation import (  # noqa: E402
     ValidationError,
     canonical_json_bytes,
     lint_schema,
+    load_json_with_bytes,
     validate_schema_value,
 )
 import build_v1_2_inventory  # noqa: E402
+import protocol_validation  # noqa: E402
 import validate_protocol_v1_2 as v1_2  # noqa: E402
 
 
 class SharedProtocolValidationTests(unittest.TestCase):
+    def test_json_artifact_exact_encoded_byte_limit_is_accepted(self):
+        payload = b"0" + (b" " * 15)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "artifact.json"
+            path.write_bytes(payload)
+            with mock.patch.object(
+                protocol_validation, "MAX_ENCODED_ARTIFACT_BYTES", len(payload)
+            ):
+                document, retained = load_json_with_bytes(path)
+        self.assertEqual(document, 0)
+        self.assertEqual(retained, payload)
+
+    def test_json_artifact_one_over_limit_is_rejected_before_parsing(self):
+        payload = b"0" + (b" " * 16)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "artifact.json"
+            path.write_bytes(payload)
+            with (
+                mock.patch.object(
+                    protocol_validation,
+                    "MAX_ENCODED_ARTIFACT_BYTES",
+                    len(payload) - 1,
+                ),
+                mock.patch.object(protocol_validation.os, "fdopen") as fdopen,
+                mock.patch.object(protocol_validation.json, "loads") as loads,
+                self.assertRaisesRegex(ValidationError, "encoded artifact limit"),
+            ):
+                load_json_with_bytes(path)
+            fdopen.assert_not_called()
+            loads.assert_not_called()
+
+    def test_json_artifact_non_regular_input_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValidationError, "must be a regular file"):
+                load_json_with_bytes(Path(temporary))
+
     def test_schema_lint_rejects_an_unimplemented_keyword(self):
         with self.assertRaisesRegex(ValidationError, "unsupported schema keywords"):
             lint_schema({"type": "integer", "multipleOf": 2})

@@ -38,7 +38,6 @@ pub(super) fn canonicalize_collected_rows(
         left.row
             .canonical_key
             .cmp(&right.row.canonical_key)
-            .then_with(|| left.canonical_bytes.cmp(&right.canonical_bytes))
             .then_with(|| left.acquisition_order.cmp(&right.acquisition_order))
     });
 
@@ -48,6 +47,13 @@ pub(super) fn canonicalize_collected_rows(
         {
             0
         } else {
+            let comparison_work = canonical_byte_comparison_work(
+                &collected[index - 1].canonical_bytes,
+                &collected[index].canonical_bytes,
+            )?;
+            budget
+                .charge_work_units(comparison_work)
+                .map_err(SemanticSnapshotError::Resource)?;
             if collected[index - 1].canonical_bytes != collected[index].canonical_bytes {
                 return Err(SemanticProtocolError::RowHashCollision {
                     table: table_name.to_owned(),
@@ -85,6 +91,25 @@ pub(super) fn canonicalize_collected_rows(
     Ok(rows)
 }
 
+fn canonical_byte_comparison_work(left: &[u8], right: &[u8]) -> Result<u64, SemanticSnapshotError> {
+    let left = u64::try_from(left.len()).map_err(|_| {
+        SemanticSnapshotError::Resource(jet3::Error::IntegerConversion {
+            value: left.len() as u128,
+            target: "u64",
+        })
+    })?;
+    let right = u64::try_from(right.len()).map_err(|_| {
+        SemanticSnapshotError::Resource(jet3::Error::IntegerConversion {
+            value: right.len() as u128,
+            target: "u64",
+        })
+    })?;
+    left.checked_add(right)
+        .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
+            operation: "size semantic row byte comparison work",
+        }))
+}
+
 fn canonical_row_order_work(row_count: usize) -> Result<u64, SemanticSnapshotError> {
     let rows = u64::try_from(row_count).map_err(|_| {
         SemanticSnapshotError::Resource(jet3::Error::IntegerConversion {
@@ -97,8 +122,9 @@ fn canonical_row_order_work(row_count: usize) -> Result<u64, SemanticSnapshotErr
     } else {
         u64::from(u64::BITS - (rows - 1).leading_zeros())
     };
-    // Account for the allocation-free canonical sort and the single
-    // duplicate-ordinal/association pass.
+    // Account for the fixed-width digest/acquisition sort and the single
+    // duplicate-ordinal/association pass. Payload comparisons are charged
+    // separately before they occur.
     let passes = levels
         .checked_add(1)
         .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
@@ -357,7 +383,7 @@ mod tests {
         let key = Sha256::new("11".repeat(32))?;
         let collected = || {
             (0..4)
-                .map(|_| CollectedSemanticRow {
+                .map(|acquisition_order| CollectedSemanticRow {
                     row: SemanticRow {
                         canonical_key: key.clone(),
                         duplicate_ordinal: 0,
@@ -365,7 +391,7 @@ mod tests {
                     },
                     canonical_bytes: vec![0],
                     headers: Vec::new(),
-                    acquisition_order: 0,
+                    acquisition_order,
                 })
                 .collect()
         };
@@ -389,6 +415,162 @@ mod tests {
         let (one_below, _) = run(ResourceLimits::default()
             .with_max_total_work_units(required.checked_sub(1).ok_or("zero work")?));
         assert!(one_below.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn wide_duplicate_payload_is_charged_before_comparison()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const PAYLOAD_BYTES: usize = 16 * 1_024;
+
+        let key = Sha256::new("11".repeat(32))?;
+        let collected = || {
+            [1, 0]
+                .map(|acquisition_order| CollectedSemanticRow {
+                    row: SemanticRow {
+                        canonical_key: key.clone(),
+                        duplicate_ordinal: 0,
+                        values: PropertyMap::new(),
+                    },
+                    canonical_bytes: vec![0x5a; PAYLOAD_BYTES],
+                    headers: Vec::new(),
+                    acquisition_order,
+                })
+                .into()
+        };
+        let ordering_work = canonical_row_order_work(2)?;
+        let comparison_work = u64::try_from(PAYLOAD_BYTES)?
+            .checked_mul(2)
+            .ok_or("work overflow")?;
+        let comparison_boundary = ordering_work
+            .checked_add(comparison_work)
+            .ok_or("work overflow")?;
+
+        let mut rejected_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_total_work_units(comparison_boundary.checked_sub(1).ok_or("zero work")?),
+        );
+        let rejected = canonicalize_collected_rows(
+            "Items",
+            0,
+            collected(),
+            &mut Vec::new(),
+            &mut rejected_budget,
+            &mut RetainedLedger::new(),
+        );
+        assert!(matches!(
+            rejected,
+            Err(super::SemanticSnapshotError::Resource(_))
+        ));
+        assert_eq!(rejected_budget.total_work_units(), ordering_work);
+
+        let mut measured_budget = ResourceBudget::new(ResourceLimits::default());
+        let measured = canonicalize_collected_rows(
+            "Items",
+            0,
+            collected(),
+            &mut Vec::new(),
+            &mut measured_budget,
+            &mut RetainedLedger::new(),
+        )?;
+        assert_eq!(
+            measured
+                .iter()
+                .map(|row| row.duplicate_ordinal)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        let required = measured_budget.total_work_units();
+        let mut exact_budget =
+            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(required));
+        canonicalize_collected_rows(
+            "Items",
+            0,
+            collected(),
+            &mut Vec::new(),
+            &mut exact_budget,
+            &mut RetainedLedger::new(),
+        )?;
+        assert_eq!(exact_budget.total_work_units(), required);
+        Ok(())
+    }
+
+    #[test]
+    fn row_hash_collision_requires_exact_payload_comparison_budget()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const PAYLOAD_BYTES: usize = 16 * 1_024;
+
+        let key = Sha256::new("11".repeat(32))?;
+        let collected = || {
+            let mut distinct = vec![0x5a; PAYLOAD_BYTES];
+            distinct[PAYLOAD_BYTES - 1] = 0x5b;
+            vec![
+                CollectedSemanticRow {
+                    row: SemanticRow {
+                        canonical_key: key.clone(),
+                        duplicate_ordinal: 0,
+                        values: PropertyMap::new(),
+                    },
+                    canonical_bytes: vec![0x5a; PAYLOAD_BYTES],
+                    headers: Vec::new(),
+                    acquisition_order: 1,
+                },
+                CollectedSemanticRow {
+                    row: SemanticRow {
+                        canonical_key: key.clone(),
+                        duplicate_ordinal: 0,
+                        values: PropertyMap::new(),
+                    },
+                    canonical_bytes: distinct,
+                    headers: Vec::new(),
+                    acquisition_order: 0,
+                },
+            ]
+        };
+        let ordering_work = canonical_row_order_work(2)?;
+        let comparison_work = u64::try_from(PAYLOAD_BYTES)?
+            .checked_mul(2)
+            .ok_or("work overflow")?;
+        let exact_boundary = ordering_work
+            .checked_add(comparison_work)
+            .ok_or("work overflow")?;
+
+        let mut one_below_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_total_work_units(exact_boundary.checked_sub(1).ok_or("zero work")?),
+        );
+        let one_below = canonicalize_collected_rows(
+            "Items",
+            0,
+            collected(),
+            &mut Vec::new(),
+            &mut one_below_budget,
+            &mut RetainedLedger::new(),
+        );
+        assert!(matches!(
+            one_below,
+            Err(super::SemanticSnapshotError::Resource(_))
+        ));
+        assert_eq!(one_below_budget.total_work_units(), ordering_work);
+
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default().with_max_total_work_units(exact_boundary),
+        );
+        let exact = canonicalize_collected_rows(
+            "Items",
+            0,
+            collected(),
+            &mut Vec::new(),
+            &mut exact_budget,
+            &mut RetainedLedger::new(),
+        );
+        assert!(matches!(
+            exact,
+            Err(super::SemanticSnapshotError::Protocol(
+                crate::SemanticProtocolError::RowHashCollision { .. }
+            ))
+        ));
+        assert_eq!(exact_budget.total_work_units(), exact_boundary);
         Ok(())
     }
 

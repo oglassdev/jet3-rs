@@ -6,7 +6,7 @@ use crate::{
     SemanticSnapshot, SemanticSnapshotError, SemanticSnapshotOutcome, SemanticTable, TableKind,
     TypedValue,
 };
-use jet3::{ByteCount, Error, ResourceBudget};
+use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind};
 use std::mem::size_of;
 
 pub(super) fn write_snapshot(
@@ -527,8 +527,12 @@ fn reserved_writer(
     bound: ByteCount,
     budget: &mut ResourceBudget,
 ) -> Result<JsonWriter, SemanticSnapshotError> {
+    preflight_artifact_output(bound, budget)?;
     budget
         .charge_allocation(bound)
+        .map_err(SemanticSnapshotError::Resource)?;
+    budget
+        .charge_encoded_bytes(bound)
         .map_err(SemanticSnapshotError::Resource)?;
     let capacity = usize::try_from(bound.get()).map_err(|_| {
         SemanticSnapshotError::Resource(Error::IntegerConversion {
@@ -544,6 +548,54 @@ fn reserved_writer(
         })
     })?;
     Ok(JsonWriter::with_output(bytes))
+}
+
+fn preflight_artifact_output(
+    bound: ByteCount,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    let limits = budget.limits();
+    let work = bound.get().checked_mul(2).ok_or({
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "preflight semantic artifact output work",
+        })
+    })?;
+    for (current, amount, maximum, kind) in [
+        (
+            budget.allocation_bytes().get(),
+            bound.get(),
+            limits.max_allocation_bytes().get(),
+            ResourceLimitKind::AllocationBytes,
+        ),
+        (
+            budget.encoded_bytes().get(),
+            bound.get(),
+            limits.max_encoded_bytes().get(),
+            ResourceLimitKind::EncodedBytes,
+        ),
+        (
+            budget.total_work_units(),
+            work,
+            limits.max_total_work_units(),
+            ResourceLimitKind::TotalWorkUnits,
+        ),
+    ] {
+        let requested = current
+            .checked_add(amount)
+            .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+                operation: "preflight semantic artifact output",
+            }))?;
+        if requested > maximum {
+            return Err(SemanticSnapshotError::Resource(
+                Error::ResourceLimitExceeded {
+                    kind,
+                    requested,
+                    maximum,
+                },
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn write_properties(

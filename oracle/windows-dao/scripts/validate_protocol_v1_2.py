@@ -740,9 +740,12 @@ def validate_document(document: Any, *, complete: bool = False) -> str:
 
 
 def validate_document_path(path: Path, *, complete: bool = False) -> str:
-    document = load_json(path)
+    document, retained = load_json_with_bytes(path)
     document_type = validate_document(document, complete=complete)
-    if document_type in ("canonical_semantic_snapshot", "rust_coverage_receipt") and path.read_bytes() != canonical_json_bytes(document):
+    if document_type in (
+        "canonical_semantic_snapshot",
+        "rust_coverage_receipt",
+    ) and retained != canonical_json_bytes(document):
         raise ValidationError(f"{path}: canonical document bytes are not normalized")
     return document_type
 

@@ -323,7 +323,7 @@ fn finite_numbers_are_normalized_and_nonfinite_values_are_rejected()
         );
         seen += 1;
     }
-    assert_eq!(seen, 14);
+    assert_eq!(seen, 18);
     Ok(())
 }
 
