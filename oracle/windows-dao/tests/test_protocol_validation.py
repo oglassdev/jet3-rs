@@ -194,6 +194,13 @@ class ProtocolV12Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "deferred although"):
             self._validate(stale)
 
+        semantic_drift = self._copy()
+        guid = self._find(semantic_drift, "DAO-READ-SCHEMA-TYPE-GUID")
+        guid["generator_recipe"]["steps"][1]["fields"][1]["dao_type"] = "dbLong"
+        self._rehash(guid)
+        with self.assertRaisesRegex(ValidationError, "differs from its generated contract"):
+            self._validate(semantic_drift)
+
     def test_branch_requirements_follow_recorded_storage_forms(self):
         fixed = self._find(self.inventory, "DAO-READ-VALUES-LONG-REP")
         text = self._find(self.inventory, "DAO-READ-VALUES-TEXT-REP")
@@ -214,9 +221,22 @@ class ProtocolV12Tests(unittest.TestCase):
         )
         for scenario in self.inventory["scenarios"]:
             if scenario["boundary"] is not None:
-                self.assertEqual(
-                    scenario["boundary"]["dimension"], "extended_slot_1_page_base"
+                boundary = scenario["boundary"]
+                self.assertEqual(boundary["dimension"], "extended_slot_0_page_capacity")
+                insert = next(
+                    step
+                    for step in scenario["generator_recipe"]["steps"]
+                    if step["action"] == "insert_until_page_count"
                 )
+                self.assertTrue(insert["require_exact_page_count"])
+                if boundary["position"] in ("below", "at"):
+                    self.assertIn(
+                        "allocation.extended_slot", boundary["forbidden_branches"]
+                    )
+                else:
+                    self.assertIn(
+                        "allocation.extended_slot", scenario["required_branches"]
+                    )
 
     def _snapshot(self):
         values = {
@@ -320,6 +340,33 @@ class ProtocolV12Tests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValidationError, "raw_hex"):
             v1_2.validate_document(no_raw)
+        property_no_raw = self._snapshot()
+        property_no_raw["database_properties"]["Version"] = {
+            "kind": "long",
+            "value": 1,
+        }
+        with self.assertRaisesRegex(ValidationError, "database_properties.*raw_hex"):
+            v1_2.validate_document(property_no_raw)
+        wrong_width = self._snapshot()
+        wrong_width["tables"][0]["rows"] = rows_with(
+            {
+                "Id": {"kind": "long", "raw_hex": "00", "value": 0},
+                "Flag": {"kind": "boolean", "value": True},
+            }
+        )
+        with self.assertRaisesRegex(ValidationError, "expected 4 bytes for dbLong"):
+            v1_2.validate_document(wrong_width)
+        text_without_code_page = self._snapshot()
+        text_without_code_page["tables"][0]["columns"][0]["dao_type"] = "dbText"
+        text_without_code_page["tables"][0]["columns"][0]["size"] = 32
+        text_without_code_page["tables"][0]["rows"] = rows_with(
+            {
+                "Id": {"kind": "text", "raw_hex": "41", "value": "A"},
+                "Flag": {"kind": "boolean", "value": True},
+            }
+        )
+        with self.assertRaisesRegex(ValidationError, "identify their code_page"):
+            v1_2.validate_document(text_without_code_page)
         bad_index = self._snapshot()
         bad_index["tables"][0]["indexes"][0]["fields"][0]["name"] = "Missing"
         with self.assertRaisesRegex(ValidationError, "unknown columns"):

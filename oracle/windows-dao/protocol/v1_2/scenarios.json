@@ -257,8 +257,9 @@
         "rows.streaming_read"
       ],
       "boundary": {
-        "dimension": "extended_slot_1_page_base",
-        "position": "above"
+        "dimension": "extended_slot_0_page_capacity",
+        "position": "above",
+        "forbidden_branches": []
       },
       "operation": {
         "mode": "rust_read_dao",
@@ -309,7 +310,8 @@
                 "value": "row"
               }
             ],
-            "page_count": 16353
+            "page_count": 16353,
+            "require_exact_page_count": true
           },
           {
             "action": "close_database"
@@ -330,7 +332,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "0c8b3d039516e0e0b26772f06d7c43fba5950894d83a64ba06975a506579f462"
+      "content_sha256": "e9cd5e00ea228feb3d771bc917890368b2ec966c90a9c9df914af2349405707e"
     },
     {
       "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-AT",
@@ -339,8 +341,11 @@
         "rows.streaming_read"
       ],
       "boundary": {
-        "dimension": "extended_slot_1_page_base",
-        "position": "at"
+        "dimension": "extended_slot_0_page_capacity",
+        "position": "at",
+        "forbidden_branches": [
+          "allocation.extended_slot"
+        ]
       },
       "operation": {
         "mode": "rust_read_dao",
@@ -391,7 +396,8 @@
                 "value": "row"
               }
             ],
-            "page_count": 16352
+            "page_count": 16352,
+            "require_exact_page_count": true
           },
           {
             "action": "close_database"
@@ -411,7 +417,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "cfad1a6677f24b61a6ce692e7d49397e7be5756dd7f63f04e4fc35c6c63c187c"
+      "content_sha256": "266d35a41080af5753d4f72d71114e4e910e2adbd0be95d445e47421313523e7"
     },
     {
       "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-BELOW",
@@ -420,8 +426,11 @@
         "rows.streaming_read"
       ],
       "boundary": {
-        "dimension": "extended_slot_1_page_base",
-        "position": "below"
+        "dimension": "extended_slot_0_page_capacity",
+        "position": "below",
+        "forbidden_branches": [
+          "allocation.extended_slot"
+        ]
       },
       "operation": {
         "mode": "rust_read_dao",
@@ -472,7 +481,8 @@
                 "value": "row"
               }
             ],
-            "page_count": 16351
+            "page_count": 16351,
+            "require_exact_page_count": true
           },
           {
             "action": "close_database"
@@ -492,7 +502,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "f9738e11de36f94495f98f1d29cfdad7f781c2804a06e717047b18de75bcbd8e"
+      "content_sha256": "698057a909c721c3b1a48d99bfa63b3ffaaaf906f48659a61643b5a81c5878ca"
     },
     {
       "id": "DAO-READ-ALLOC-IDLE-REOPEN",

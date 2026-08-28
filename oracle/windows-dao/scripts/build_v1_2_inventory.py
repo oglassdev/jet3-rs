@@ -218,18 +218,38 @@ def _open_scenarios() -> list[dict[str, Any]]:
 def _alloc_scenarios() -> list[dict[str, Any]]:
     caps = ["format.pages_allocation_usage", "rows.streaming_read"]
     scenarios = [_scenario("DAO-READ-ALLOC-SMALL-INLINE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES)]
-    for position, pages, branches in [
-        ("below", EXTENDED_SLOT_PAGES - 1, ["allocation.indirect_map"]),
-        ("at", EXTENDED_SLOT_PAGES, ["allocation.indirect_map"]),
-        ("above", EXTENDED_SLOT_PAGES + 1, ["allocation.indirect_map", "allocation.extended_slot"]),
+    for position, pages, branches, forbidden_branches in [
+        ("below", EXTENDED_SLOT_PAGES - 1, ["allocation.indirect_map"], ["allocation.extended_slot"]),
+        ("at", EXTENDED_SLOT_PAGES, ["allocation.indirect_map"], ["allocation.extended_slot"]),
+        (
+            "above",
+            EXTENDED_SLOT_PAGES + 1,
+            ["allocation.indirect_map", "allocation.extended_slot"],
+            [],
+        ),
     ]:
         scenarios.append(
             _scenario(
                 f"DAO-READ-ALLOC-EXTENDED-SLOT-1-{position.upper()}",
                 caps,
-                _recipe([_id_table(), {"action": "insert_until_page_count", "table": "Items", "row": _id_row(), "page_count": pages}]),
+                _recipe(
+                    [
+                        _id_table(),
+                        {
+                            "action": "insert_until_page_count",
+                            "table": "Items",
+                            "row": _id_row(),
+                            "page_count": pages,
+                            "require_exact_page_count": True,
+                        },
+                    ]
+                ),
                 TABLE_BRANCHES + branches,
-                boundary={"dimension": "extended_slot_1_page_base", "position": position},
+                boundary={
+                    "dimension": "extended_slot_0_page_capacity",
+                    "position": position,
+                    "forbidden_branches": forbidden_branches,
+                },
             )
         )
     scenarios += [

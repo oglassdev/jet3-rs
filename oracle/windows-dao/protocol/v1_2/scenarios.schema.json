@@ -63,10 +63,15 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["dimension", "position"],
+              "required": ["dimension", "position", "forbidden_branches"],
               "properties": {
                 "dimension": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-                "position": { "enum": ["below", "at", "above"] }
+                "position": { "enum": ["below", "at", "above"] },
+                "forbidden_branches": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "$ref": "#/$defs/branchId" }
+                }
               }
             }
           ]
@@ -319,7 +324,7 @@
     "insertUntilPageCountStep": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["action", "table", "row", "page_count"],
+      "required": ["action", "table", "row", "page_count", "require_exact_page_count"],
       "properties": {
         "action": { "const": "insert_until_page_count" },
         "table": { "$ref": "#/$defs/identifier" },
@@ -329,7 +334,8 @@
           "maxItems": 255,
           "items": { "$ref": "#/$defs/value" }
         },
-        "page_count": { "type": "integer", "minimum": 2, "maximum": 1048576 }
+        "page_count": { "type": "integer", "minimum": 2, "maximum": 1048576 },
+        "require_exact_page_count": { "const": true }
       }
     },
     "deleteRowsStep": {

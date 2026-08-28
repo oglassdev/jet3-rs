@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import build_v1_2_inventory
 from protocol_validation import (
     ProtocolSchemaSet,
     ValidationError,
@@ -91,6 +92,17 @@ KINDS_FOR_TYPE = {
 }
 # Kinds whose typed value has no physical field bytes to retain.
 RAW_EXEMPT_KINDS = frozenset({"null", "boolean"})
+# Physical widths of fixed-size non-null row values, in bytes.
+RAW_WIDTH_FOR_TYPE = {
+    "dbByte": 1,
+    "dbInteger": 2,
+    "dbLong": 4,
+    "dbCurrency": 8,
+    "dbSingle": 4,
+    "dbDouble": 8,
+    "dbDate": 8,
+    "dbGUID": 16,
+}
 INTEGER_RANGES = {"dbByte": (0, 255), "dbInteger": (-32768, 32767), "dbLong": (-2147483648, 2147483647)}
 IEEE_WIDTH = {"dbSingle": 8, "dbDouble": 16}
 VALUE_PATTERNS = {
@@ -297,7 +309,11 @@ def _validate_recipe(recipe: dict[str, Any], location: str) -> None:
 
 def validate_required_coverage(document: dict[str, Any], *, complete: bool) -> list[str]:
     """Check the plan's named minimum set; return the deferred requirement ids."""
-    present = {scenario["id"] for scenario in document["scenarios"]}
+    present = {scenario["id"]: scenario for scenario in document["scenarios"]}
+    generated = {
+        scenario["id"]: scenario
+        for scenario in build_v1_2_inventory.build_inventory()["scenarios"]
+    }
     deferred = [entry["requirement"] for entry in document["deferred_requirements"]]
     if deferred != sorted(deferred) or len(deferred) != len(set(deferred)):
         raise ValidationError("$.deferred_requirements: requirements must be unique and sorted")
@@ -310,6 +326,18 @@ def validate_required_coverage(document: dict[str, Any], *, complete: bool) -> l
             raise ValidationError(f"requirement {requirement}: missing scenarios {missing} and not deferred")
         if not missing and requirement in deferred:
             raise ValidationError(f"requirement {requirement}: deferred although its scenarios are present")
+        for scenario_id in scenario_ids:
+            if scenario_id not in present:
+                continue
+            expected = generated.get(scenario_id)
+            if expected is None:
+                raise ValidationError(
+                    f"requirement {requirement}: {scenario_id} has no generated contract"
+                )
+            if present[scenario_id] != expected:
+                raise ValidationError(
+                    f"requirement {requirement}: {scenario_id} differs from its generated contract"
+                )
     if complete and deferred:
         raise ValidationError(f"inventory is incomplete: deferred requirements {deferred}")
     return deferred
@@ -340,6 +368,19 @@ def validate_inventory(document: dict[str, Any], *, capability_ids: frozenset[st
         unknown = sorted(set(scenario["required_branches"]) - branch_ids)
         if unknown:
             raise ValidationError(f"{location}.required_branches: not in the branch registry: {unknown}")
+        boundary = scenario["boundary"]
+        if boundary is not None:
+            forbidden = set(boundary["forbidden_branches"])
+            unknown = sorted(forbidden - branch_ids)
+            if unknown:
+                raise ValidationError(
+                    f"{location}.boundary.forbidden_branches: not in the branch registry: {unknown}"
+                )
+            overlap = sorted(forbidden & set(scenario["required_branches"]))
+            if overlap:
+                raise ValidationError(
+                    f"{location}.boundary: branches cannot be both required and forbidden: {overlap}"
+                )
         if mode == "rust_read_dao" and scenario["preserve_paths"]:
             raise ValidationError(f"{location}.preserve_paths: read scenarios preserve nothing")
         recipe = scenario["generator_recipe"]
@@ -350,14 +391,36 @@ def validate_inventory(document: dict[str, Any], *, capability_ids: frozenset[st
     return validate_required_coverage(document, complete=complete)
 
 
+def _validate_comparable_typed_value(value: dict[str, Any], location: str) -> None:
+    kind = value["kind"]
+    if kind not in RAW_EXEMPT_KINDS and "raw_hex" not in value:
+        raise ValidationError(f"{location}: converted values must retain raw_hex")
+    if kind in RAW_EXEMPT_KINDS and "raw_hex" in value:
+        raise ValidationError(f"{location}: {kind} values carry no field bytes")
+    if kind in ("text", "memo") and "code_page" not in value:
+        raise ValidationError(f"{location}: {kind} values must identify their code_page")
+
+
+def _validate_property_map(properties: dict[str, Any], location: str) -> None:
+    for name, value in properties.items():
+        _validate_comparable_typed_value(value, f"{location}[{name!r}]")
+
+
 def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
+    _validate_property_map(table["properties"], f"{location}.properties")
     columns = {column["name"]: column for column in table["columns"]}
     for column_index, column in enumerate(table["columns"]):
         if column["dao_type"] not in KINDS_FOR_TYPE:
             raise ValidationError(f"{location}.columns[{column_index}].dao_type: unknown DAO type {column['dao_type']!r}")
+        _validate_property_map(
+            column["properties"], f"{location}.columns[{column_index}].properties"
+        )
     if sum(index["primary"] for index in table["indexes"]) > 1:
         raise ValidationError(f"{location}.indexes: at most one primary index")
     for index_index, index in enumerate(table["indexes"]):
+        _validate_property_map(
+            index["properties"], f"{location}.indexes[{index_index}].properties"
+        )
         names = [entry["name"] for entry in index["fields"]]
         if len(names) != len(set(names)):
             raise ValidationError(f"{location}.indexes[{index_index}].fields: repeated column")
@@ -373,15 +436,22 @@ def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
             allowed = KINDS_FOR_TYPE[columns[name]["dao_type"]] | {"null"}
             if kind not in allowed:
                 raise ValidationError(f"{where}[{name!r}].kind: {kind} is not admitted for {columns[name]['dao_type']}")
-            if kind not in RAW_EXEMPT_KINDS and "raw_hex" not in value:
-                raise ValidationError(f"{where}[{name!r}]: converted values must retain raw_hex")
-            if kind in RAW_EXEMPT_KINDS and "raw_hex" in value:
-                raise ValidationError(f"{where}[{name!r}]: {kind} values carry no field bytes")
+            value_location = f"{where}[{name!r}]"
+            _validate_comparable_typed_value(value, value_location)
+            expected_width = RAW_WIDTH_FOR_TYPE.get(columns[name]["dao_type"])
+            if kind != "null" and expected_width is not None:
+                actual_width = len(value["raw_hex"]) // 2
+                if actual_width != expected_width:
+                    raise ValidationError(
+                        f"{value_location}.raw_hex: expected {expected_width} bytes for "
+                        f"{columns[name]['dao_type']}, got {actual_width}"
+                    )
 
 
 def validate_semantic_snapshot(document: dict[str, Any]) -> None:
     """Validate 1.2 model integrity and row identity on top of the shared rules."""
     validate_snapshot(document)
+    _validate_property_map(document["database_properties"], "$.database_properties")
     tables = {table["name"]: table for table in document["tables"]}
     for table_index, table in enumerate(document["tables"]):
         location = f"$.tables[{table_index}]"
@@ -400,6 +470,7 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             previous = current
     for index, relationship in enumerate(document["relationships"]):
         location = f"$.relationships[{index}]"
+        _validate_property_map(relationship["properties"], f"{location}.properties")
         for side, column_key in (("table", "field"), ("foreign_table", "foreign_field")):
             table = tables.get(relationship[side])
             if table is None:

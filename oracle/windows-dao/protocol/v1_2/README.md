@@ -44,15 +44,21 @@ Every scenario has exactly `id`, `content_sha256`, `capability_ids`,
   sits below, at, or above it. Boundary cases exist only where a threshold is
   recorded: the extended-slot trio uses the 16,352-page type-05 bitmap span
   recorded by `EXP-0057` through the DAO-side `insert_until_page_count`
-  primitive, which inserts rows until the file page count reaches the target.
+  primitive. That step must attain the target page count exactly or fail, so
+  the trio is classified against the slot-0 capacity rather than a possibly
+  overshot file size. The below/at cases forbid `allocation.extended_slot`;
+  the above case requires it. Step 2 receipts must enforce both required and
+  forbidden branch sets.
   Memo/OLE cases use the `EXP-0061` controls (32 inline, 512 single-page,
   2,048 and 4,096 chained) as controls, not as thresholds.
 - `required_branches` lists only branches that recorded provenance ties to the
   case. Cases at unrecorded sizes (for example the 32,769-byte maximum) name
-  no storage-form branch; a coverage receipt may report more than required.
+  no storage-form branch; a coverage receipt may report more than required
+  except where a boundary explicitly lists `forbidden_branches`.
 - **Completeness is checked, not counted.** `validate_protocol_v1_2.py`
   encodes the plan's named minimum read set (`REQUIRED_SCENARIOS`) as exact
-  scenario ids. Every requirement is either present or listed in the
+  generated scenario objects, not merely ids. Every requirement is either
+  present without semantic drift or listed in the
   inventory's `deferred_requirements` with the provenance it needs; a silent
   omission fails validation, and `inventory --complete` rejects any deferral.
   The P8 step-4 read bundle must validate with `--complete`. Current
@@ -86,9 +92,11 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
 - **Model integrity and lossless raw are enforced.** Each row's `values`
   keys must equal the table's declared column names exactly, every typed
   value kind must match its column's DAO type (or be `null`), index fields and
-  relationship fields must name declared columns, and every converted row
-  value except `null` and `boolean` (which occupy no field bytes) must carry
-  `raw_hex`. Two producers can therefore only agree on a complete model.
+  relationship fields must name declared columns, and every comparable typed
+  value in rows or property maps except `null` and `boolean` (which occupy no
+  field bytes) must carry `raw_hex`. Fixed-width row values must carry exactly
+  the DAO type's physical width, and text/memo values must identify their
+  `code_page`. Two producers can therefore only agree on a complete model.
 - **Unavailable schema facts are not part of the compared model.** Column
   `nullable`/`required` and index `ignore_nulls` are removed from the
   canonical column and index objects because the recorded provenance shows
