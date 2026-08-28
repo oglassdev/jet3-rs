@@ -1,14 +1,14 @@
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 use std::{fs, io, path::PathBuf};
 
 use super::PublishError;
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 use super::{PublishHook, PublishPoint, RECEIPT_NAME, SNAPSHOT_NAME, publish_with};
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 struct FailAt(PublishPoint);
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 impl PublishHook for FailAt {
     fn before(&mut self, point: PublishPoint, _destination: &std::path::Path) -> io::Result<()> {
         if point == self.0 {
@@ -19,7 +19,7 @@ impl PublishHook for FailAt {
     }
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 fn stages(directory: &std::path::Path) -> Result<Vec<PathBuf>, io::Error> {
     fs::read_dir(directory)?
         .filter_map(|entry| match entry {
@@ -37,7 +37,7 @@ fn stages(directory: &std::path::Path) -> Result<Vec<PathBuf>, io::Error> {
         .collect()
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn complete_bundle_is_published_with_fixed_artifact_names() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -55,17 +55,17 @@ fn complete_bundle_is_published_with_fixed_artifact_names() -> Result<(), Box<dy
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 struct FailAtImpossible;
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 impl PublishHook for FailAtImpossible {
     fn before(&mut self, _point: PublishPoint, _destination: &std::path::Path) -> io::Result<()> {
         Ok(())
     }
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn every_pre_rename_failure_leaves_no_bundle_or_owned_stage()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -92,7 +92,7 @@ fn every_pre_rename_failure_leaves_no_bundle_or_owned_stage()
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn parent_sync_failure_reports_published_but_uncertain() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
@@ -111,10 +111,10 @@ fn parent_sync_failure_reports_published_but_uncertain() -> Result<(), Box<dyn s
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 struct CreateCompetitor;
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 impl PublishHook for CreateCompetitor {
     fn before(&mut self, point: PublishPoint, destination: &std::path::Path) -> io::Result<()> {
         if point == PublishPoint::RenameBundle {
@@ -125,7 +125,7 @@ impl PublishHook for CreateCompetitor {
     }
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn rename_collision_preserves_the_competitor_and_cleans_the_stage()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -141,7 +141,7 @@ fn rename_collision_preserves_the_competitor_and_cleans_the_stage()
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn existing_files_directories_and_hard_links_are_never_overwritten()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -168,7 +168,7 @@ fn existing_files_directories_and_hard_links_are_never_overwritten()
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn lexical_alias_to_an_existing_input_cannot_bypass_identity_rejection()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -193,7 +193,7 @@ fn lexical_alias_to_an_existing_input_cannot_bypass_identity_rejection()
 
 #[test]
 fn platform_contract_is_explicit_and_fail_closed_when_unsupported() {
-    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
     {
         assert_eq!(super::platform_preflight(), Ok(()));
         for (error, code) in [
@@ -225,7 +225,7 @@ fn platform_contract_is_explicit_and_fail_closed_when_unsupported() {
             assert_eq!(crate::publication_error_code(error), code);
         }
     }
-    #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+    #[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
     {
         assert_eq!(
             super::platform_preflight(),
@@ -236,6 +236,78 @@ fn platform_contract_is_explicit_and_fail_closed_when_unsupported() {
             "atomic_bundle_unsupported"
         );
     }
+}
+
+#[cfg(windows)]
+struct AssertSnapshotHandleDeniesWrite {
+    observed: bool,
+}
+
+#[cfg(windows)]
+impl PublishHook for AssertSnapshotHandleDeniesWrite {
+    fn before(&mut self, point: PublishPoint, destination: &std::path::Path) -> io::Result<()> {
+        if point != PublishPoint::CreateReceipt {
+            return Ok(());
+        }
+        let parent = destination
+            .parent()
+            .ok_or_else(|| io::Error::other("destination parent is missing"))?;
+        let stage = stages(parent)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| io::Error::other("owned stage is missing"))?;
+        let snapshot = stage.join("bundle").join(SNAPSHOT_NAME);
+        self.observed = fs::OpenOptions::new().write(true).open(snapshot).is_err();
+        if self.observed {
+            Ok(())
+        } else {
+            Err(io::Error::other(
+                "retained snapshot handle allowed mutation",
+            ))
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_retains_non_writable_artifact_handles_through_publication()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let destination = directory.path().join("bundle");
+    let mut hook = AssertSnapshotHandleDeniesWrite { observed: false };
+    publish_with(&destination, b"snapshot", b"receipt", &mut hook)?;
+    assert!(hook.observed);
+    assert_eq!(fs::read(destination.join(SNAPSHOT_NAME))?, b"snapshot");
+    assert_eq!(fs::read(destination.join(RECEIPT_NAME))?, b"receipt");
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_live_and_dangling_symlink_destinations_are_rejected()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::os::windows::fs::symlink_file;
+
+    for live in [false, true] {
+        let directory = tempfile::tempdir()?;
+        let target = directory.path().join("target");
+        if live {
+            fs::write(&target, b"target")?;
+        }
+        let destination = directory.path().join("bundle");
+        if let Err(error) = symlink_file(&target, &destination) {
+            if error.raw_os_error() == Some(1314) {
+                return Ok(());
+            }
+            return Err(error.into());
+        }
+        assert_eq!(
+            publish_with(&destination, b"new", b"new", &mut FailAtImpossible),
+            Err(PublishError::DestinationExists)
+        );
+        assert!(fs::symlink_metadata(&destination)?.file_type().is_symlink());
+    }
+    Ok(())
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -288,7 +360,7 @@ fn live_and_dangling_symlink_destinations_are_rejected_without_following()
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[test]
 fn lexical_parent_alias_is_resolved_before_staging_and_publication()
 -> Result<(), Box<dyn std::error::Error>> {

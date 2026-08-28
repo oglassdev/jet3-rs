@@ -2,10 +2,11 @@
 //!
 //! The publisher stages and syncs both fixed-name artifacts before one
 //! no-replace rename. It rejects existing destinations, lexical aliases,
-//! symlinks, and hard links. Once opened, parent and stage descriptors bind
-//! artifact writes and publication, while artifact cleanup is
-//! descriptor-relative. Focused tests cover ordinary failures, collisions,
-//! and parent or stage substitution in those intervals.
+//! symlinks, and hard links. Unix publication is descriptor-relative after
+//! opening the parent and stage. Windows retains native directory and artifact
+//! handles, denies later artifact write opens, and checks those identities
+//! before path-based publication or cleanup. Focused tests cover ordinary
+//! failures, collisions, and platform-specific handle guarantees.
 //!
 //! Hostile concurrent namespace mutation by another process with the same
 //! filesystem authority is outside the CLI threat model. The outer stage's
@@ -19,23 +20,25 @@ use std::path::Path;
 use std::ffi::{OsStr, OsString};
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 use std::fs::File;
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
+use std::io;
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-use std::io::{self, Write};
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+use std::io::Write;
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 pub(crate) const SNAPSHOT_NAME: &str = "snapshot.json";
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 pub(crate) const RECEIPT_NAME: &str = "coverage-receipt.json";
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 const STAGE_ATTEMPTS: u64 = 128;
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 const BUNDLE_DIRECTORY_NAME: &str = "bundle";
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 static NEXT_STAGE: AtomicU64 = AtomicU64::new(0);
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PublishPoint {
     CreateStage,
@@ -50,7 +53,7 @@ pub(crate) enum PublishPoint {
     SyncParentDirectory,
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PublishError {
     InvalidDestination,
@@ -67,7 +70,7 @@ pub(crate) enum PublishError {
     PublishedDurabilityUncertain,
 }
 
-#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+#[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PublishError {
     UnsupportedPlatform,
@@ -81,15 +84,15 @@ impl std::fmt::Display for PublishError {
 
 impl std::error::Error for PublishError {}
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 pub(crate) trait PublishHook {
     fn before(&mut self, point: PublishPoint, destination: &Path) -> io::Result<()>;
 }
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 struct NoFailures;
 
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
 impl PublishHook for NoFailures {
     fn before(&mut self, _point: PublishPoint, _destination: &Path) -> io::Result<()> {
         Ok(())
@@ -203,7 +206,26 @@ pub(crate) fn publish(
     publish_with(destination, snapshot, receipt, &mut NoFailures)
 }
 
-#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+#[cfg(windows)]
+pub(crate) fn publish(
+    destination: &Path,
+    snapshot: &[u8],
+    receipt: &[u8],
+) -> Result<(), PublishError> {
+    publish_with(destination, snapshot, receipt, &mut NoFailures)
+}
+
+#[cfg(windows)]
+fn publish_with(
+    destination: &Path,
+    snapshot: &[u8],
+    receipt: &[u8],
+    hook: &mut impl PublishHook,
+) -> Result<(), PublishError> {
+    windows::publish_with(destination, snapshot, receipt, hook)
+}
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
 pub(crate) fn publish(
     _destination: &Path,
     _snapshot: &[u8],
@@ -441,7 +463,12 @@ fn platform_preflight() -> Result<(), PublishError> {
     Ok(())
 }
 
-#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+#[cfg(windows)]
+fn platform_preflight() -> Result<(), PublishError> {
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
 fn platform_preflight() -> Result<(), PublishError> {
     Err(PublishError::UnsupportedPlatform)
 }
@@ -490,6 +517,10 @@ fn directory_identity_matches(
 ) -> io::Result<bool> {
     Ok(directory_identity_at(parent, leaf)?.is_some_and(|current| current.eq(expected)))
 }
+
+#[cfg(windows)]
+#[path = "snapshot_bundle_windows.rs"]
+mod windows;
 
 #[cfg(test)]
 #[path = "snapshot_bundle_tests.rs"]

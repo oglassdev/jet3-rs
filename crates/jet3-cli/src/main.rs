@@ -439,31 +439,31 @@ fn publication_error_code(error: snapshot_bundle::PublishError) -> &'static str 
     use snapshot_bundle::PublishError;
 
     match error {
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::InvalidDestination => "invalid_output_bundle",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::DestinationExists => "output_bundle_exists",
-        #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+        #[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
         PublishError::UnsupportedPlatform => "atomic_bundle_unsupported",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::StageFailed => "output_bundle_stage_failed",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::SnapshotFailed => "snapshot_output_failed",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::ReceiptFailed => "coverage_output_failed",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::StageSyncFailed => "output_bundle_stage_sync_failed",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::RenameFailed => "output_bundle_publish_failed",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::RenameCollision => "output_bundle_exists",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::CleanupFailed => "output_bundle_cleanup_failed",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::CleanupUncertain => "output_bundle_cleanup_uncertain",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::PublishedCleanupUncertain => "output_bundle_published_cleanup_uncertain",
-        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        #[cfg(any(target_os = "linux", target_vendor = "apple", windows))]
         PublishError::PublishedDurabilityUncertain => {
             "output_bundle_published_durability_uncertain"
         }

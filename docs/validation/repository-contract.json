@@ -76,12 +76,28 @@
       "purpose": "Safe no-replace atomic publication on supported Unix targets; supplies no MDB format knowledge."
     },
     {
+      "name": "same-file",
+      "version": "1.0.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
+      "allow_custom_build": false,
+      "purpose": "Safe retained Windows file-identity handles for atomic bundle publication; supplies no MDB format knowledge."
+    },
+    {
+      "name": "winapi-util",
+      "version": "0.1.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22",
+      "allow_custom_build": false,
+      "purpose": "Locked same-file closure for safe retained Windows file-identity handles; supplies no MDB format knowledge."
+    },
+    {
       "name": "windows-link",
       "version": "0.2.1",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "checksum": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
       "allow_custom_build": false,
-      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+      "purpose": "Locked rustix and same-file closure for target-specific safe atomic publication; supplies no MDB format knowledge."
     },
     {
       "name": "windows-sys",
@@ -89,7 +105,7 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "checksum": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
       "allow_custom_build": false,
-      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+      "purpose": "Locked rustix and same-file closure for target-specific safe atomic publication; supplies no MDB format knowledge."
     }
   ],
   "format_knowledge": {
@@ -102,7 +118,7 @@
           "EXP-0056",
           "EXP-0065"
         ],
-        "sha256": "13c7505e3341d81189bb0f2ede2458576c29203fd58dad5c176d9ec4f2a4fc8f"
+        "sha256": "946ca4f1d26e5c57886eabae99be28da287924aa3826c554bbc652fa751eaada"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -359,13 +375,18 @@
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle.rs",
-        "reason": "Format-neutral fixed-name atomic no-replace artifact-bundle publication with descriptor-pinned operations after stage opening and best-effort outer cleanup.",
-        "sha256": "ad29fc6e22e4071755ca6cd0ddcf57f2ea8a190d3e86623fc38e79b2f8bcf840"
+        "reason": "Format-neutral fixed-name atomic no-replace artifact-bundle publication with Unix descriptor-relative operations, Windows handle retention, and best-effort outer cleanup.",
+        "sha256": "900b9bc30d483c403f54a8ef3decde97a162362bcee4c367ba948898f6f18117"
+      },
+      {
+        "path": "crates/jet3-cli/src/snapshot_bundle_windows.rs",
+        "reason": "Safe Windows atomic fixed-pair publication with retained native identities and write-denying artifact handles; it introduces no physical format assertions.",
+        "sha256": "457b5d034ca6c0c937606582c01fa3960fb2a0a09361e921babf8c8868705e15"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
-        "reason": "Test-only verification of format-neutral atomic bundle publication, descriptor-relative parent and stage replacement resistance, alias rejection, and failure cleanup.",
-        "sha256": "168dd408dd71948947d2de9b4f1fcf6128f33e1d61f45b63daac1bbed15381d3"
+        "reason": "Test-only verification of cross-platform atomic bundle publication, platform handle guarantees, alias rejection, and failure cleanup.",
+        "sha256": "28a2e7e4e456eb6762149983a84854fc9ee406f5c779089fcf4345ac1f9a7556"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_input.rs",
