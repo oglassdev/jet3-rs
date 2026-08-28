@@ -298,70 +298,19 @@ impl SemanticSnapshot {
     ) -> Result<(), SemanticProtocolError> {
         self.tables
             .sort_by(|left, right| left.name.cmp(&right.name));
-        ensure_unique(
-            self.tables.iter().map(|table| table.name.as_str()),
-            "$.tables",
-        )?;
         for table in &mut self.tables {
             table.columns.sort_by_key(|column| column.ordinal);
-            if table.columns.iter().enumerate().any(|(index, column)| {
-                column.name.is_empty()
-                    || table.columns[..index]
-                        .iter()
-                        .any(|prior| prior.name == column.name)
-            }) {
-                return Err(invalid(
-                    "$.tables[].columns",
-                    "names must be non-empty and unique",
-                ));
-            }
-            for (expected, column) in table.columns.iter().enumerate() {
-                if column.ordinal != expected as u64 {
-                    return Err(invalid(
-                        "$.tables[].columns",
-                        "ordinals must be contiguous from zero",
-                    ));
-                }
-            }
             table
                 .indexes
                 .sort_by(|left, right| left.name.cmp(&right.name));
-            ensure_unique(
-                table.indexes.iter().map(|index| index.name.as_str()),
-                "$.tables[].indexes",
-            )?;
-            for index in &table.indexes {
-                if index.fields.is_empty()
-                    || index
-                        .fields
-                        .iter()
-                        .any(|field| !table.columns.iter().any(|column| column.name == field.name))
-                {
-                    return Err(invalid(
-                        "$.tables[].indexes[].fields",
-                        "unknown or empty field list",
-                    ));
-                }
-            }
             if derive_row_identities {
                 canonicalize_rows(table)?;
             }
         }
         self.relationships
             .sort_by(|left, right| left.name.cmp(&right.name));
-        ensure_unique(
-            self.relationships.iter().map(|value| value.name.as_str()),
-            "$.relationships",
-        )?;
-        validate_relationships(&self.tables, &self.relationships)?;
         self.raw_preservation
             .sort_by(|left, right| left.semantic_path.cmp(&right.semantic_path));
-        ensure_unique(
-            self.raw_preservation
-                .iter()
-                .map(|value| value.semantic_path.as_str()),
-            "$.raw_preservation",
-        )?;
         validation::validate_snapshot(self)
     }
 
@@ -419,37 +368,6 @@ pub(crate) fn sha256(bytes: &[u8]) -> Result<Sha256, SemanticProtocolError> {
     let text = crate::sha256_hex(bytes)
         .map_err(|_| invalid("SHA-256", "input length is not representable"))?;
     Sha256::new(text).map_err(Into::into)
-}
-
-fn validate_relationships(
-    tables: &[SemanticTable],
-    relationships: &[Relationship],
-) -> Result<(), SemanticProtocolError> {
-    for relationship in relationships {
-        let local = tables
-            .iter()
-            .find(|table| table.name == relationship.table)
-            .ok_or_else(|| invalid("$.relationships[].table", "unknown table"))?;
-        let foreign = tables
-            .iter()
-            .find(|table| table.name == relationship.foreign_table)
-            .ok_or_else(|| invalid("$.relationships[].foreign_table", "unknown table"))?;
-        if relationship.fields.is_empty()
-            || relationship.fields.iter().any(|pair| {
-                !local.columns.iter().any(|column| column.name == pair.field)
-                    || !foreign
-                        .columns
-                        .iter()
-                        .any(|column| column.name == pair.foreign_field)
-            })
-        {
-            return Err(invalid(
-                "$.relationships[].fields",
-                "unknown or empty field list",
-            ));
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn validate_property_map(
@@ -557,20 +475,6 @@ fn validate_text_payload(
         .map_err(|_| invalid(path, "text raw_hex contains an undefined code-page byte"))?;
     if decoded.as_str() != value {
         return Err(invalid(path, "text raw_hex must decode exactly to value"));
-    }
-    Ok(())
-}
-
-fn ensure_unique<'a>(
-    values: impl Iterator<Item = &'a str>,
-    path: &str,
-) -> Result<(), SemanticProtocolError> {
-    let mut previous = None;
-    for value in values {
-        if value.is_empty() || previous.is_some_and(|prior| prior == value) {
-            return Err(invalid(path, "names must be non-empty and unique"));
-        }
-        previous = Some(value);
     }
     Ok(())
 }

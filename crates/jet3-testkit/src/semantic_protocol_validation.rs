@@ -25,13 +25,15 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
         let path = format!("$.relationships[{index}]");
         let local = snapshot
             .tables
-            .iter()
-            .find(|table| table.name == relationship.table)
+            .binary_search_by(|table| table.name.as_str().cmp(&relationship.table))
+            .ok()
+            .map(|table_index| &snapshot.tables[table_index])
             .ok_or_else(|| invalid(format!("{path}.table"), "unknown table"))?;
         let foreign = snapshot
             .tables
-            .iter()
-            .find(|table| table.name == relationship.foreign_table)
+            .binary_search_by(|table| table.name.as_str().cmp(&relationship.foreign_table))
+            .ok()
+            .map(|table_index| &snapshot.tables[table_index])
             .ok_or_else(|| invalid(format!("{path}.foreign_table"), "unknown table"))?;
         if relationship.fields.is_empty() {
             return Err(invalid(
@@ -157,25 +159,24 @@ fn validate_table(table: &SemanticTable, path: &str) -> Result<(), SemanticProto
     let mut previous: Option<(&str, u64, Vec<u8>)> = None;
     for (row_index, row) in table.rows.iter().enumerate() {
         let row_path = format!("{path}.rows[{row_index}]");
-        if row.values.len() != table.columns.len()
-            || table
-                .columns
-                .iter()
-                .any(|column| row.values.get(&column.name).is_none())
-        {
+        if row.values.len() != table.columns.len() {
             return Err(invalid(
                 format!("{row_path}.values"),
                 "keys must equal declared columns",
             ));
         }
-        for (name, value) in &row.values {
-            let dao_type = table
-                .columns
-                .iter()
-                .find(|column| column.name == *name)
-                .map(|column| column.dao_type.as_str())
-                .ok_or_else(|| invalid(format!("{row_path}.values"), "unknown value column"))?;
-            validate_row_value(value, dao_type, &format!("{row_path}.values/{name}"))?;
+        for column in &table.columns {
+            let value = row.values.get(&column.name).ok_or_else(|| {
+                invalid(
+                    format!("{row_path}.values"),
+                    "keys must equal declared columns",
+                )
+            })?;
+            validate_row_value(
+                value,
+                &column.dao_type,
+                &format!("{row_path}.values/{}", column.name),
+            )?;
         }
         let bytes = super::canonical_row_bytes(&row.values)?;
         let digest = super::sha256(&bytes)?;

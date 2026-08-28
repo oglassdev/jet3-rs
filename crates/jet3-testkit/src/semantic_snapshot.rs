@@ -21,6 +21,8 @@ use jet3::{
 mod convert;
 #[path = "semantic_snapshot_coverage.rs"]
 mod coverage;
+#[path = "semantic_snapshot_finalization.rs"]
+mod finalization;
 #[path = "semantic_snapshot_long.rs"]
 mod long_metadata;
 #[path = "semantic_snapshot_retained.rs"]
@@ -33,6 +35,7 @@ use coverage::{
     collect_allocation_evidence, collect_index_evidence, record_value_branch,
     validate_pair_bindings,
 };
+use finalization::finalize_semantic_snapshot;
 use long_metadata::{
     CollectedSemanticRow, PendingLongValueHeader, append_hex, canonicalize_collected_rows,
     retain_long_value_headers,
@@ -387,13 +390,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
         &mut ledger,
     )?;
     snapshot.producer_extensions = producer_extensions.finish(budget)?;
-    let canonicalization_bound = crate::semantic_json::canonicalization_allocation_bound(&snapshot)
-        .map_err(SemanticSnapshotError::Resource)?;
-    budget
-        .charge_allocation(canonicalization_bound)
-        .map_err(SemanticSnapshotError::Resource)?;
-    snapshot.canonicalize_precomputed_rows()?;
-    snapshot.validate()?;
+    finalize_semantic_snapshot(&mut snapshot, budget)?;
     ledger.charge(budget, options.scenario_id.as_str().len())?;
     let scenario_id = options.scenario_id.clone();
     ledger.charge(budget, options.producer.source_revision().len())?;

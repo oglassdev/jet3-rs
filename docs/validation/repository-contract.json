@@ -466,7 +466,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
         "reason": "Protocol 1.2 model integrity, strict text-payload validation, ordering, source-independent row identity rules, and the budgeted producer path for precomputed row identities.",
-        "sha256": "244c53cebba8354bcea0e9e401dab6e17cf210ae1851c7884fd23f0e429a90e0"
+        "sha256": "5e3916770a75b05b81260065f7e724b2c9bc68df528568639a02c9243d6c14e5"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_rows.rs",
@@ -476,7 +476,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
         "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization.",
-        "sha256": "1cce1b0b51f7555a1b46f2f1aa41a9ca572e0f02ff4db7ee1a8b21bc6eabe7a5"
+        "sha256": "be087e064befb4b22f22dd3b668ced30eedb27d901f32b801d6fa134057f7e9c"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
@@ -486,7 +486,12 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "9a771d72ab050066169ce6751a03af1a6dbffdaf202a2974ddcb0ca12d9d1213"
+        "sha256": "740d2ce4d91d0a4e84793c49cbef5feb7a9fa23b0d49b5eca5f5b86e85445010"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_finalization.rs",
+        "reason": "Format-neutral conservative work accounting for semantic snapshot canonical ordering and validation, with an exact-boundary regression.",
+        "sha256": "3163c13a7002b851546397541a2e60e62c233c7e668f24e9dec8545be7b362ce"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
