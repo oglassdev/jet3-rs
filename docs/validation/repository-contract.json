@@ -118,7 +118,7 @@
           "EXP-0056",
           "EXP-0065"
         ],
-        "sha256": "5f93bf7f01d2347ac725041cd84873af63921f54b6ffb8c64dc8835760ab6015"
+        "sha256": "1aa9d3995bd30d3dbd715adf818b4983f05f55f71f18102460354bb39808f688"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -367,6 +367,11 @@
         "path": "crates/jet3-cli/src/build_identity.rs",
         "reason": "Build-bound semantic producer identity parsing and clean-state enforcement; it introduces no physical format assertions.",
         "sha256": "fa465d4bcc46df074e88dd83a860ab896462221ee98d3105faafab18eebc5612"
+      },
+      {
+        "path": "crates/jet3-cli/src/main_tests.rs",
+        "reason": "Test-only verification of command parsing, output error propagation, and snapshot artifact behavior extracted from the binary entry point.",
+        "sha256": "bf198acf7b9e450843992cf55f5d593c1b937d0136a31e0e6ce46ec0cc348e1c"
       },
       {
         "path": "crates/jet3-cli/src/scenario_expectation_tests.rs",
