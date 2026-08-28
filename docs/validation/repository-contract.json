@@ -456,7 +456,17 @@
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
         "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "94aa0bf4bf3effa85364d09051dbaac238d6f779dfbcd8259f33a4db753bef8e"
+        "sha256": "1a5c0154a50ee727f24cc6cd4fde7752967ede94b614530566466e95fd93a535"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_json/output_budget.rs",
+        "reason": "Format-neutral measurement, allocation preflight, and reserved output construction for canonical protocol artifacts.",
+        "sha256": "fc861e927f52bdd9510430906fe2ac8309d93b4168647e5f2664a98d946cc8e0"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_json/validation_budget.rs",
+        "reason": "Format-neutral allocation precharges for protocol model validation paths and values.",
+        "sha256": "d2d5cc097633a84406414f774e9c5c43dfbe9a4a62d0f14d915bae4d45808da3"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_outcome.rs",
