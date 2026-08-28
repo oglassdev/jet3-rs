@@ -37,7 +37,7 @@ use long_metadata::{
     CollectedSemanticRow, PendingLongValueHeader, append_hex, canonicalize_collected_rows,
     retain_long_value_headers,
 };
-use retained::RetainedLedger;
+use retained::{RetainedLedger, RetainedPropertyBatch};
 use schema::{
     CatalogTable, collect_relationship_sides, collect_user_tables, column_names,
     pair_relationships, retain_column_extensions,
@@ -288,7 +288,7 @@ struct CollectionContext<'a> {
     budget: &'a mut ResourceBudget,
     ledger: &'a mut RetainedLedger,
     branches: &'a mut CoverageBranches,
-    producer_extensions: &'a mut PropertyMap,
+    producer_extensions: &'a mut RetainedPropertyBatch,
     long_value_headers: &'a mut Vec<PendingLongValueHeader>,
     table_index: usize,
 }
@@ -341,6 +341,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
     let mut allocated_hasher = Sha256Hasher::new();
     let mut sides = Vec::new();
     let mut long_value_headers = Vec::new();
+    let mut producer_extensions = RetainedPropertyBatch::new();
     ledger.reserve_vec(budget, &mut snapshot.tables, catalog.len())?;
     for entry in &catalog {
         let definition = database
@@ -366,7 +367,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
                 budget,
                 ledger: &mut ledger,
                 branches: &mut branches,
-                producer_extensions: &mut snapshot.producer_extensions,
+                producer_extensions: &mut producer_extensions,
                 long_value_headers: &mut long_value_headers,
                 table_index: snapshot.tables.len(),
             },
@@ -378,19 +379,20 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
         ledger.push(budget, &mut snapshot.tables, table)?;
     }
     snapshot.relationships = pair_relationships(sides, budget, &mut ledger)?;
+    retain_long_value_headers(
+        &snapshot.tables,
+        &long_value_headers,
+        &mut producer_extensions,
+        budget,
+        &mut ledger,
+    )?;
+    snapshot.producer_extensions = producer_extensions.finish(budget)?;
     let canonicalization_bound = crate::semantic_json::canonicalization_allocation_bound(&snapshot)
         .map_err(SemanticSnapshotError::Resource)?;
     budget
         .charge_allocation(canonicalization_bound)
         .map_err(SemanticSnapshotError::Resource)?;
     snapshot.canonicalize_precomputed_rows()?;
-    retain_long_value_headers(
-        &snapshot.tables,
-        &long_value_headers,
-        &mut snapshot.producer_extensions,
-        budget,
-        &mut ledger,
-    )?;
     snapshot.validate()?;
     ledger.charge(budget, options.scenario_id.as_str().len())?;
     let scenario_id = options.scenario_id.clone();
@@ -440,11 +442,9 @@ fn collect_table<S: ReadAt>(
             .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
                 operation: "count retained producer extensions",
             }))?;
-    context.ledger.reserve_properties(
-        context.budget,
-        context.producer_extensions,
-        extension_count,
-    )?;
+    context
+        .producer_extensions
+        .reserve(context.budget, context.ledger, extension_count)?;
     for (column_index, (column, name)) in definition.columns().iter().zip(names).enumerate() {
         let name = context.ledger.text(context.budget, name)?;
         let column = convert_column(column, name, context.budget, context.ledger)?;

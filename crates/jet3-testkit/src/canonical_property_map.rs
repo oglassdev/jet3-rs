@@ -102,6 +102,13 @@ impl PropertyMap {
     ) -> Result<(), std::collections::TryReserveError> {
         self.entries.try_reserve_exact(additional)
     }
+
+    pub(crate) fn from_sorted_unique_entries(entries: Vec<(String, TypedValue)>) -> Option<Self> {
+        entries
+            .windows(2)
+            .all(|pair| pair[0].0 < pair[1].0)
+            .then_some(Self { entries })
+    }
 }
 
 impl<const N: usize> From<[(String, TypedValue); N]> for PropertyMap {

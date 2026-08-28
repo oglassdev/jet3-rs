@@ -13,6 +13,83 @@ use crate::{CoverageBranches, HexString, PropertyMap, TypedValue};
 
 pub(super) struct RetainedLedger;
 
+pub(super) struct RetainedPropertyBatch {
+    entries: Vec<(String, TypedValue)>,
+}
+
+impl RetainedPropertyBatch {
+    pub(super) const fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub(super) fn reserve(
+        &mut self,
+        budget: &mut ResourceBudget,
+        ledger: &mut RetainedLedger,
+        additional: usize,
+    ) -> Result<(), SemanticSnapshotError> {
+        let required = self
+            .entries
+            .len()
+            .checked_add(additional)
+            .ok_or_else(allocation_overflow)?;
+        if required <= self.entries.capacity() {
+            return Ok(());
+        }
+        let doubled = self
+            .entries
+            .capacity()
+            .checked_mul(2)
+            .ok_or_else(allocation_overflow)?;
+        let target = required.max(doubled).max(1);
+        let relocation_work = u64::try_from(self.entries.len()).map_err(|_| {
+            SemanticSnapshotError::Resource(Error::IntegerConversion {
+                value: self.entries.len() as u128,
+                target: "u64",
+            })
+        })?;
+        budget
+            .charge_work_units(relocation_work)
+            .map_err(SemanticSnapshotError::Resource)?;
+        let additional_capacity = target
+            .checked_sub(self.entries.len())
+            .ok_or_else(allocation_overflow)?;
+        ledger.reserve_vec(budget, &mut self.entries, additional_capacity)
+    }
+
+    pub(super) fn push(
+        &mut self,
+        budget: &mut ResourceBudget,
+        ledger: &mut RetainedLedger,
+        key: String,
+        value: TypedValue,
+    ) -> Result<(), SemanticSnapshotError> {
+        self.reserve(budget, ledger, 1)?;
+        self.entries.push((key, value));
+        Ok(())
+    }
+
+    pub(super) fn finish(
+        mut self,
+        budget: &mut ResourceBudget,
+    ) -> Result<PropertyMap, SemanticSnapshotError> {
+        budget
+            .charge_work_units(canonical_property_order_work(self.entries.len())?)
+            .map_err(SemanticSnapshotError::Resource)?;
+        self.entries
+            .sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        PropertyMap::from_sorted_unique_entries(self.entries).ok_or_else(|| {
+            crate::SemanticProtocolError::InvalidModel {
+                path: "$.producer_extensions".to_owned(),
+                reason: "keys must be unique",
+            }
+            .into()
+        })
+    }
+}
+
 impl RetainedLedger {
     pub(super) const fn new() -> Self {
         Self
@@ -222,6 +299,21 @@ impl RetainedLedger {
         key: String,
         value: TypedValue,
     ) -> Result<(), SemanticSnapshotError> {
+        let map_entries = u64::try_from(map.len()).map_err(|_| {
+            SemanticSnapshotError::Resource(Error::IntegerConversion {
+                value: map.len() as u128,
+                target: "u64",
+            })
+        })?;
+        let map_work = map_entries
+            .checked_mul(4)
+            .and_then(|work| work.checked_add(1))
+            .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+                operation: "size retained property insertion work",
+            }))?;
+        budget
+            .charge_work_units(map_work)
+            .map_err(SemanticSnapshotError::Resource)?;
         let present = map.get(&key).is_some();
         if !present {
             self.reserve_properties(budget, map, 1)?;
@@ -229,6 +321,30 @@ impl RetainedLedger {
         map.insert(key, value);
         Ok(())
     }
+}
+
+fn canonical_property_order_work(entry_count: usize) -> Result<u64, SemanticSnapshotError> {
+    let entries = u64::try_from(entry_count).map_err(|_| {
+        SemanticSnapshotError::Resource(Error::IntegerConversion {
+            value: entry_count as u128,
+            target: "u64",
+        })
+    })?;
+    let levels = if entries <= 1 {
+        0
+    } else {
+        u64::from(u64::BITS - (entries - 1).leading_zeros())
+    };
+    let passes = levels
+        .checked_add(1)
+        .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "size retained property ordering work",
+        }))?;
+    entries
+        .checked_mul(passes)
+        .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "size retained property ordering work",
+        }))
 }
 
 fn allocation_overflow() -> SemanticSnapshotError {
@@ -246,7 +362,7 @@ fn out_of_memory() -> SemanticSnapshotError {
 
 #[cfg(test)]
 mod tests {
-    use super::RetainedLedger;
+    use super::{RetainedLedger, RetainedPropertyBatch};
     use jet3::{ByteCount, ReadLimits, ResourceBudget, ResourceLimits};
     use std::mem::size_of;
 
@@ -359,6 +475,89 @@ mod tests {
         );
         assert_eq!(properties.capacity(), 0);
         assert!(properties.is_empty());
+        Ok(())
+    }
+
+    fn finish_batch(
+        count: usize,
+        limits: ResourceLimits,
+    ) -> (
+        Result<PropertyMap, super::SemanticSnapshotError>,
+        ResourceBudget,
+    ) {
+        let mut budget = ResourceBudget::new(limits);
+        let mut ledger = RetainedLedger::new();
+        let mut batch = RetainedPropertyBatch::new();
+        for index in (0..count).rev() {
+            let result = batch.push(
+                &mut budget,
+                &mut ledger,
+                format!("/tables/{index:05}/rows/0/values/Memo/header"),
+                TypedValue::Null { raw_hex: None },
+            );
+            if let Err(error) = result {
+                return (Err(error), budget);
+            }
+        }
+        (batch.finish(&mut budget), budget)
+    }
+
+    #[test]
+    fn producer_extension_batch_has_an_exact_total_work_boundary()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (measured, measured_budget) = finish_batch(1_024, ResourceLimits::default());
+        let measured = measured?;
+        assert_eq!(measured.len(), 1_024);
+        assert!(measured.keys().is_sorted());
+        let required = measured_budget.total_work_units();
+
+        let (exact, exact_budget) = finish_batch(
+            1_024,
+            ResourceLimits::default().with_max_total_work_units(required),
+        );
+        exact?;
+        assert_eq!(exact_budget.total_work_units(), required);
+
+        let (one_below, _) = finish_batch(
+            1_024,
+            ResourceLimits::default().with_max_total_work_units(required - 1),
+        );
+        assert!(one_below.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn producer_extension_batch_work_grows_subquadratically()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (small, small_budget) = finish_batch(4_096, ResourceLimits::default());
+        let (doubled, doubled_budget) = finish_batch(8_192, ResourceLimits::default());
+        assert!(small.is_ok());
+        assert!(doubled.is_ok());
+        let upper_bound = small_budget
+            .total_work_units()
+            .checked_mul(3)
+            .ok_or("bounded test work")?;
+        assert!(doubled_budget.total_work_units() < upper_bound);
+        Ok(())
+    }
+
+    #[test]
+    fn producer_extension_batch_rejects_duplicate_keys() -> Result<(), Box<dyn std::error::Error>> {
+        let mut budget = ResourceBudget::new(ResourceLimits::default());
+        let mut ledger = RetainedLedger::new();
+        let mut batch = RetainedPropertyBatch::new();
+        for marker in 0..2 {
+            batch.push(
+                &mut budget,
+                &mut ledger,
+                "/tables/0/rows/0/values/Memo/header".to_owned(),
+                TypedValue::Byte {
+                    value: marker,
+                    raw_hex: None,
+                },
+            )?;
+        }
+        assert!(batch.finish(&mut budget).is_err());
         Ok(())
     }
 }

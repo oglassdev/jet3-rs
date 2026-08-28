@@ -5,8 +5,8 @@ use std::fmt::Write as _;
 use jet3::ResourceBudget;
 
 use super::SemanticSnapshotError;
-use super::retained::RetainedLedger;
-use crate::{PropertyMap, SemanticProtocolError, SemanticRow, SemanticTable, TypedValue};
+use super::retained::{RetainedLedger, RetainedPropertyBatch};
+use crate::{SemanticProtocolError, SemanticRow, SemanticTable, TypedValue};
 
 pub(super) struct CollectedSemanticRow {
     pub(super) row: SemanticRow,
@@ -121,11 +121,11 @@ pub(super) fn append_hex(output: &mut String, bytes: &[u8]) {
 pub(super) fn retain_long_value_headers(
     tables: &[SemanticTable],
     pending: &[PendingLongValueHeader],
-    producer_extensions: &mut PropertyMap,
+    producer_extensions: &mut RetainedPropertyBatch,
     budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<(), SemanticSnapshotError> {
-    ledger.reserve_properties(budget, producer_extensions, pending.len())?;
+    producer_extensions.reserve(budget, ledger, pending.len())?;
     let association_work = u64::try_from(pending.len()).map_err(|_| {
         SemanticSnapshotError::Resource(jet3::Error::IntegerConversion {
             value: pending.len() as u128,
@@ -170,12 +170,7 @@ pub(super) fn retain_long_value_headers(
         debug_assert_eq!(key.len(), path_capacity);
         let value = ledger.hex(budget, &header.raw_header)?;
         let raw_hex = Some(ledger.hex(budget, &header.raw_header)?);
-        ledger.insert(
-            budget,
-            producer_extensions,
-            key,
-            TypedValue::Binary { value, raw_hex },
-        )?;
+        producer_extensions.push(budget, ledger, key, TypedValue::Binary { value, raw_hex })?;
     }
     Ok(())
 }
@@ -227,7 +222,7 @@ mod tests {
         CollectedSemanticRow, PendingLongValueHeader, canonical_row_order_work,
         canonicalize_collected_rows, retain_long_value_headers,
     };
-    use crate::semantic_snapshot::retained::RetainedLedger;
+    use crate::semantic_snapshot::retained::{RetainedLedger, RetainedPropertyBatch};
     use crate::{
         HexString, PropertyMap, SemanticColumn, SemanticRow, SemanticTable, Sha256, TableKind,
         TypedValue,
@@ -273,7 +268,7 @@ mod tests {
             row_index: 1,
             raw_header: [0x5a; 12],
         }];
-        let mut extensions = PropertyMap::new();
+        let mut extensions = RetainedPropertyBatch::new();
         let mut budget = ResourceBudget::new(ResourceLimits::default());
         retain_long_value_headers(
             &tables,
@@ -282,6 +277,7 @@ mod tests {
             &mut budget,
             &mut RetainedLedger::new(),
         )?;
+        let extensions = extensions.finish(&mut budget)?;
         assert_eq!(
             extensions.get("/tables/0/rows/1/values/A~0~1/jet_external_long_value_header"),
             Some(&TypedValue::Binary {

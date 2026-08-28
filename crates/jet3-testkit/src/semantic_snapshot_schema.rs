@@ -6,7 +6,7 @@ use jet3::{
 };
 
 use super::SemanticSnapshotError;
-use super::retained::RetainedLedger;
+use super::retained::{RetainedLedger, RetainedPropertyBatch};
 use crate::{PropertyMap, Relationship, RelationshipField, SemanticProtocolError, TypedValue};
 
 const DAO_RELATION_UPDATE_CASCADE: i64 = 256;
@@ -102,7 +102,7 @@ pub(super) fn retain_column_extensions(
     table_index: usize,
     column_index: usize,
     definition: &TableDefinition,
-    producer_extensions: &mut PropertyMap,
+    producer_extensions: &mut RetainedPropertyBatch,
     budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<(), SemanticSnapshotError> {
@@ -143,7 +143,7 @@ pub(super) fn retain_column_extensions(
             })
         })?;
         debug_assert_eq!(key.len(), key_length);
-        ledger.insert(budget, producer_extensions, key, value)?;
+        producer_extensions.push(budget, ledger, key, value)?;
     }
     Ok(())
 }

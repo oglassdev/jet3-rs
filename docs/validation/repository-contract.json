@@ -416,7 +416,7 @@
       {
         "path": "crates/jet3-testkit/src/canonical_property_map.rs",
         "reason": "Format-neutral canonical property storage with explicit contiguous allocation capacity.",
-        "sha256": "5635a2a515f54d83808ac831c8f888f3a0bb971f6ad2c14cfc713e5049853e1b"
+        "sha256": "f0df70ffc8d78a0d14fd2cd9de14841cf62c723630b45d295a3598a8cbbe6230"
       },
       {
         "path": "crates/jet3-testkit/src/canonical_snapshot.rs",
@@ -486,12 +486,12 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "f3749349627a2cb6769a6cc59ba5fa5b659dcda5159810c3ef29a52d5f130f36"
+        "sha256": "9a771d72ab050066169ce6751a03af1a6dbffdaf202a2974ddcb0ca12d9d1213"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
         "reason": "Comparison-excluded external long-value header association, deterministic acquisition-order tie breaking, bounded retention, and precharged canonical-row output allocation under the EXP-0064 protocol projection.",
-        "sha256": "84f00d8ba8ee094025d4d9b1ec678c95a14f89c220b318885210cdd6fa8010aa"
+        "sha256": "fcf3c1c48c372ff8520e93ccd91375d2816c36cc3dfdf1d99c372440ab6a1d8d"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
@@ -506,12 +506,12 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_retained.rs",
         "reason": "Format-neutral bounded allocation accounting for retained protocol state.",
-        "sha256": "bf60f861b10323bb5a53e97719ba81904f4c693e47bdcf6ce0d066a4adf5be98"
+        "sha256": "7f3a76001ce899d97920981b9b92c2657d5d9bb44af87169701af5619ac0ff9b"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_schema.rs",
         "reason": "High-level schema retention over public reader APIs, including comparison-excluded producer-only raw column facts.",
-        "sha256": "e665af2ac73a933a695cf55d1f8af808ad037242c0b01d374b0e60f6242a1cab"
+        "sha256": "a831f88321f6dc28fbea8850d5ea559c732e34434cdaeefa479193cb114cc9cc"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
