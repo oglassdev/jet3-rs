@@ -380,14 +380,6 @@ fn identifiers_hashes_and_producer_revisions_are_validated() -> Result<(), Snaps
         Producer::new(ProducerKind::Dao, ""),
         Err(SnapshotError::InvalidSourceRevision)
     );
-    assert_eq!(
-        Producer::new(ProducerKind::Dao, "é".repeat(201)),
-        Err(SnapshotError::InvalidSourceRevision)
-    );
-    assert_eq!(
-        Producer::new(ProducerKind::Dao, "é".repeat(200))?.source_revision(),
-        "é".repeat(200)
-    );
     Ok(())
 }
 

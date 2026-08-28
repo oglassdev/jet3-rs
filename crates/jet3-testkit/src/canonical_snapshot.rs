@@ -414,6 +414,10 @@ pub struct Producer {
     source_revision: String,
 }
 
+pub(crate) fn source_revision_is_valid(source_revision: &str) -> bool {
+    !source_revision.is_empty() && source_revision.chars().nth(200).is_none()
+}
+
 impl Producer {
     /// Constructs a producer after validating its non-empty bounded revision.
     pub fn new(
@@ -421,7 +425,7 @@ impl Producer {
         source_revision: impl Into<String>,
     ) -> Result<Self, SnapshotError> {
         let source_revision = source_revision.into();
-        if source_revision.is_empty() || source_revision.chars().count() > 200 {
+        if !source_revision_is_valid(&source_revision) {
             return Err(SnapshotError::InvalidSourceRevision);
         }
         Ok(Self {

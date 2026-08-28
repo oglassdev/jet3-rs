@@ -421,7 +421,7 @@
       {
         "path": "crates/jet3-testkit/src/canonical_snapshot.rs",
         "reason": "Typed protocol document model and validated semantic scalar wrappers; it reads no MDB bytes.",
-        "sha256": "21248e47a3a751d78452e9c65528dd44f3c09b9e639256e38969d5d901421c3f"
+        "sha256": "5bb40afe561cc85aa940feef6441f71acfa6cac571a5b9f6aa7930999f4511b2"
       },
       {
         "path": "crates/jet3-testkit/src/canonical_snapshot_validation.rs",
@@ -431,7 +431,7 @@
       {
         "path": "crates/jet3-testkit/src/canonical_value_tests.rs",
         "reason": "Test-only verification of canonical semantic scalar and JSON rules.",
-        "sha256": "8a2ef1b8a075337e982667bb8dfb6633a0c23a87e54ad28e85b7cbd0b4895fa5"
+        "sha256": "ce7bb5dbfa6bcdf4f1f3a569869cf8ac0bdcdf54f2c2caffb5c3123e8dfc32ff"
       },
       {
         "path": "crates/jet3-testkit/src/classifier_snapshot.rs",
@@ -466,7 +466,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
         "reason": "Protocol 1.2 model integrity, strict text-payload validation, ordering, source-independent row identity rules, and the budgeted producer path for precomputed row identities.",
-        "sha256": "5e3916770a75b05b81260065f7e724b2c9bc68df528568639a02c9243d6c14e5"
+        "sha256": "7e090631ce92eaed54c29b6465022668ac812741156ec84365cb50697bfa4aa0"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_rows.rs",
@@ -480,8 +480,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
-        "reason": "Test-only mutation and shared strict text-vector verification that direct protocol model construction cannot bypass validation.",
-        "sha256": "7a6392552ab8879edc6aea825bb76e809a89942bf14c4ea4e5a4e3fd2241d3c0"
+        "reason": "Test-only mutation plus shared source-revision and strict text-vector verification that direct protocol model construction cannot bypass validation.",
+        "sha256": "5bc70da7f2bc8bb8a1b0f77f8dd8ac1ff30341db3eb40580fa13fb9b73058456"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",

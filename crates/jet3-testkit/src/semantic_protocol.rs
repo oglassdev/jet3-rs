@@ -333,10 +333,10 @@ impl CoverageReceipt {
     }
 
     pub(crate) fn validate(&self) -> Result<(), SemanticProtocolError> {
-        if self.source_revision.is_empty() || self.source_revision.len() > 200 {
+        if !crate::canonical_snapshot::source_revision_is_valid(&self.source_revision) {
             return Err(invalid(
                 "$.source_revision",
-                "source revision must contain 1 through 200 bytes",
+                "source revision must contain 1 through 200 Unicode scalar values",
             ));
         }
         let rejected = self.branches.contains("open.rejected_format");

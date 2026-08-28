@@ -1,0 +1,3 @@
+# case	unicode_scalar	repetitions	expected_valid
+multibyte_200	é	200	true
+multibyte_201	é	201	false

@@ -1,9 +1,13 @@
 use crate::{
-    HexString, IndexField, Producer, ProducerKind, PropertyMap, RawPreservation, Relationship,
-    RelationshipField, ScenarioId, SemanticColumn, SemanticIndex, SemanticRow, SemanticSnapshot,
-    SemanticTable, Sha256, TableKind, TypedValue,
+    CoverageBranches, CoverageReceipt, CoverageReceiptOutcome, HexString, IndexField, Producer,
+    ProducerKind, PropertyMap, RawPreservation, Relationship, RelationshipField, ScenarioId,
+    SemanticColumn, SemanticIndex, SemanticRow, SemanticSnapshot, SemanticTable, Sha256, TableKind,
+    TypedValue,
 };
 
+const SOURCE_REVISION_FIXTURES: &str = include_str!(
+    "../../../oracle/windows-dao/protocol/v1_2/fixtures/source-revision-length-vectors.tsv"
+);
 const TEXT_CODE_PAGE_FIXTURES: &str =
     include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/text-code-page-vectors.tsv");
 
@@ -151,6 +155,54 @@ fn direct_construction_cannot_bypass_row_and_nested_value_validation()
     let mut wrong_key = valid_snapshot()?;
     wrong_key.tables[0].rows[0].canonical_key = Sha256::new("ff".repeat(32))?;
     assert!(wrong_key.to_canonical_json().is_err());
+    Ok(())
+}
+
+#[test]
+fn shared_source_revision_vectors_match_producer_and_receipt_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut seen = 0;
+    for (line_index, line) in SOURCE_REVISION_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let [case, scalar, repetitions, expected_valid] = fields.as_slice() else {
+            return Err(test_error("invalid source-revision fixture shape").into());
+        };
+        if scalar.chars().count() != 1 || scalar.len() == 1 {
+            return Err(test_error("source-revision fixture scalar must be multibyte").into());
+        }
+        let source_revision = scalar.repeat(repetitions.parse()?);
+        let expected_valid = expected_valid.parse::<bool>()?;
+        let producer_valid = Producer::new(ProducerKind::Rust, source_revision.clone()).is_ok();
+        let receipt_valid = CoverageReceipt {
+            scenario_id: ScenarioId::new("DAO-READ-ROWS-SINGLE")?,
+            source_revision,
+            database_sha256: Sha256::new("ab".repeat(32))?,
+            outcome: CoverageReceiptOutcome::Success {
+                allocated_set_sha256: Sha256::new("cd".repeat(32))?,
+            },
+            branches: CoverageBranches::new(),
+        }
+        .to_canonical_json()
+        .is_ok();
+        assert_eq!(
+            producer_valid,
+            expected_valid,
+            "producer {case} on line {}",
+            line_index + 1
+        );
+        assert_eq!(
+            receipt_valid,
+            expected_valid,
+            "receipt {case} on line {}",
+            line_index + 1
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 2);
     Ok(())
 }
 

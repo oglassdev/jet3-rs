@@ -498,6 +498,34 @@ class ProtocolV12Tests(unittest.TestCase):
             "branches": sorted(required),
         }
 
+    def test_source_revision_length_matches_shared_multibyte_vectors(self):
+        fixture = (
+            v1_2.SCHEMA_DIR / "fixtures" / "source-revision-length-vectors.tsv"
+        ).read_text(encoding="utf-8")
+        seen = 0
+        for line_number, line in enumerate(fixture.splitlines(), start=1):
+            if line.startswith("#"):
+                continue
+            case, scalar, repetitions, expected_valid = line.split("\t")
+            self.assertEqual(len(scalar), 1, case)
+            self.assertGreater(len(scalar.encode("utf-8")), 1, case)
+            source_revision = scalar * int(repetitions)
+            expected_valid = expected_valid == "true"
+            snapshot = self._snapshot()
+            snapshot["producer"]["source_revision"] = source_revision
+            receipt = self._success_receipt(snapshot)
+            for document in (snapshot, receipt):
+                try:
+                    v1_2.SCHEMA_SET.validate(document)
+                    actual_valid = True
+                except ValidationError:
+                    actual_valid = False
+                self.assertEqual(
+                    actual_valid, expected_valid, f"{case} line {line_number}"
+                )
+            seen += 1
+        self.assertEqual(seen, 2)
+
     def test_shared_column_normalization_vectors(self):
         fixture = (
             v1_2.SCHEMA_DIR / "fixtures" / "column-normalization-vectors.tsv"
