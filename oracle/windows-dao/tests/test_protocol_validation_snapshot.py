@@ -303,19 +303,58 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "finite binary32 range"):
             v1_2.validate_semantic_snapshot(snapshot)
 
-    def test_single_normalization_keeps_producer_extensions_opaque(self):
-        single = {"kind": "single", "value": 0.1}
-        document = {
-            "database_properties": {"Float": single},
-            "producer_extensions": {"nested": {"same_shape": single}},
-        }
-
-        self.assertEqual(
-            canonical_json_bytes(document),
-            b'{"database_properties":{"Float":{"kind":"single",'
-            b'"value":0.10000000149011612}},"producer_extensions":'
-            b'{"nested":{"same_shape":{"kind":"single","value":0.1}}}}\n',
+    def test_shared_producer_extension_normalization_vector_is_path_aware(self):
+        fixture = (
+            v1_2.SCHEMA_DIR
+            / "fixtures"
+            / "producer-extension-normalization-vector.tsv"
         )
+        seen = 0
+        for line_number, line in enumerate(
+            fixture.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if line.startswith("#"):
+                continue
+            (
+                case,
+                semantic_key,
+                bits_hex,
+                input_json,
+                canonical_json,
+                opaque_json,
+            ) = line.split("\t")
+            semantic = {"kind": "single", "value": json.loads(input_json)}
+            opaque = json.loads(opaque_json)
+            document = {
+                "document_type": "canonical_semantic_snapshot",
+                "tables": [
+                    {
+                        "columns": [
+                            {
+                                "properties": {semantic_key: semantic},
+                            }
+                        ],
+                        "rows": [{"values": {semantic_key: semantic}}],
+                    }
+                ],
+                "producer_extensions": opaque,
+            }
+
+            rendered = canonical_json_bytes(document)
+            expected_value = struct.unpack(">f", bytes.fromhex(bits_hex))[0]
+            self.assertEqual(expected_value, float(canonical_json), case)
+            self.assertEqual(
+                rendered.count(f'"value":{canonical_json}'.encode()),
+                2,
+                f"{case} on line {line_number}: semantic paths",
+            )
+            self.assertIn(
+                b'"producer_extensions":' + opaque_json.encode(),
+                rendered,
+                f"{case} on line {line_number}: opaque extension",
+            )
+            seen += 1
+        self.assertEqual(seen, 1)
 
     def test_source_revision_length_matches_shared_multibyte_vectors(self):
         fixture = (

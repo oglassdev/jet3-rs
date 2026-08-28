@@ -136,7 +136,7 @@ def canonical_json_bytes(document: dict[str, Any]) -> bytes:
     """Encode a protocol document in its canonical snapshot representation."""
     return (
         json.dumps(
-            _normalize_single_values(document),
+            _normalize_single_values(document, (), document.get("document_type")),
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
@@ -154,15 +154,25 @@ def _binary32_as_binary64(value: float) -> float:
         raise ValidationError("single value is outside the finite binary32 range") from exc
 
 
-def _normalize_single_values(value: Any) -> Any:
+def _normalize_single_values(
+    value: Any, path: tuple[str | int, ...], document_type: Any
+) -> Any:
     """Apply the protocol's binary32 normalization to typed Single values."""
+    if (
+        document_type == "canonical_semantic_snapshot"
+        and path == ("producer_extensions",)
+    ):
+        return value
     if isinstance(value, list):
-        return [_normalize_single_values(item) for item in value]
+        return [
+            _normalize_single_values(item, (*path, index), document_type)
+            for index, item in enumerate(value)
+        ]
     if not isinstance(value, dict):
         return value
 
     normalized = {
-        key: item if key == "producer_extensions" else _normalize_single_values(item)
+        key: _normalize_single_values(item, (*path, key), document_type)
         for key, item in value.items()
     }
     semantic = normalized.get("value")

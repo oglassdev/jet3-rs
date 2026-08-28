@@ -1,0 +1,2 @@
+# case	semantic key	IEEE binary32 bits	Python input JSON	expected semantic canonical JSON	opaque producer-extension JSON
+same_named_semantic_fields	producer_extensions	3dcccccd	0.1	0.10000000149011612	{"nested":{"same_shape":{"kind":"single","value":0.1}}}

@@ -1,8 +1,8 @@
 use crate::{
-    CoverageBranches, CoverageReceipt, CoverageReceiptOutcome, HexString, IndexField, Producer,
-    ProducerKind, PropertyMap, RawPreservation, Relationship, RelationshipField, ScenarioId,
-    SemanticColumn, SemanticIndex, SemanticRow, SemanticSnapshot, SemanticTable, Sha256, TableKind,
-    TypedValue,
+    CoverageBranches, CoverageReceipt, CoverageReceiptOutcome, FiniteF32, HexString, IndexField,
+    Producer, ProducerKind, PropertyMap, RawPreservation, Relationship, RelationshipField,
+    ScenarioId, SemanticColumn, SemanticIndex, SemanticRow, SemanticSnapshot, SemanticTable,
+    Sha256, TableKind, TypedValue,
 };
 
 const SOURCE_REVISION_FIXTURES: &str = include_str!(
@@ -15,6 +15,9 @@ const RELATIONSHIP_FIELD_UNIQUENESS_FIXTURES: &str = include_str!(
 );
 const SEMANTIC_NAME_FIXTURES: &str =
     include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/semantic-name-vectors.tsv");
+const PRODUCER_EXTENSION_NORMALIZATION_FIXTURES: &str = include_str!(
+    "../../../oracle/windows-dao/protocol/v1_2/fixtures/producer-extension-normalization-vector.tsv"
+);
 
 fn long(value: i32) -> Result<TypedValue, Box<dyn std::error::Error>> {
     Ok(TypedValue::Long {
@@ -168,6 +171,62 @@ fn shared_semantic_name_vectors_match_full_rust_validation()
         seen += 1;
     }
     assert_eq!(seen, 13);
+    Ok(())
+}
+
+#[test]
+fn shared_producer_extension_vector_normalizes_same_named_semantic_fields()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut seen = 0;
+    for (line_index, line) in PRODUCER_EXTENSION_NORMALIZATION_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let [
+            case,
+            semantic_key,
+            bits_hex,
+            input_json,
+            canonical_json,
+            opaque_json,
+        ] = fields.as_slice()
+        else {
+            return Err(test_error("invalid producer-extension fixture shape").into());
+        };
+        let bits = u32::from_str_radix(bits_hex, 16)?;
+        let value = TypedValue::Single {
+            value: FiniteF32::new(f32::from_bits(bits))?,
+            raw_hex: Some(HexString::new(*bits_hex)?),
+        };
+        let mut snapshot = valid_snapshot()?;
+        snapshot.tables[0].columns.push(SemanticColumn {
+            name: (*semantic_key).into(),
+            ordinal: 1,
+            dao_type: "dbSingle".into(),
+            auto_increment: false,
+            size: Some(4),
+            attributes: 1,
+            properties: PropertyMap::from([((*semantic_key).into(), value.clone())]),
+        });
+        snapshot.tables[0].rows[0]
+            .values
+            .insert((*semantic_key).into(), value);
+        snapshot.canonicalize()?;
+
+        let rendered = String::from_utf8(snapshot.to_canonical_json()?)?;
+        let expected = format!(
+            "\"{semantic_key}\":{{\"kind\":\"single\",\"raw_hex\":\"{bits_hex}\",\"value\":{canonical_json}}}"
+        );
+        assert_eq!(rendered.matches(&expected).count(), 2, "{case}");
+        assert_eq!(*input_json, "0.1", "{case}");
+        assert!(opaque_json.contains("\"value\":0.1"), "{case}");
+        assert!(!opaque_json.contains(canonical_json), "{case}");
+        seen += 1;
+        assert_eq!(line_index + 1, 2);
+    }
+    assert_eq!(seen, 1);
     Ok(())
 }
 
