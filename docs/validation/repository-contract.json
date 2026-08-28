@@ -406,7 +406,7 @@
       {
         "path": "crates/jet3-testkit/src/canonical_json.rs",
         "reason": "Format-neutral canonical JSON encoding for versioned comparison documents.",
-        "sha256": "c1df557d34f1dbbbfb1e8a4e6445b21bde67468d7ca5d04c673898ecd74b1b1d"
+        "sha256": "a2cec2c479f2aa707d8a810e0d5173337f3b9a5ff33555a8862771e137b61cb0"
       },
       {
         "path": "crates/jet3-testkit/src/canonical_order_tests.rs",
@@ -431,7 +431,7 @@
       {
         "path": "crates/jet3-testkit/src/canonical_value_tests.rs",
         "reason": "Test-only verification of canonical semantic scalar and JSON rules, including shared cross-language floating-point spellings and Python type outcomes.",
-        "sha256": "6b853b3a76db6179b5557277d9403e149a93f0e6aa89a9f5aadc62466d4e8c87"
+        "sha256": "3375bf9c2b9ba35760dc9dcd59959d26ec415e1479a5549c8cac727f65db8c6e"
       },
       {
         "path": "crates/jet3-testkit/src/classifier_snapshot.rs",
@@ -456,7 +456,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
         "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "54be02b9226099dc8418e642b6f72420c7d18e66e8bb2dcb954f37f05533ea46"
+        "sha256": "94aa0bf4bf3effa85364d09051dbaac238d6f779dfbcd8259f33a4db753bef8e"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_outcome.rs",
@@ -496,7 +496,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
         "reason": "Comparison-excluded external long-value header association, deterministic acquisition-order tie breaking, bounded retention, and precharged canonical-row output allocation under the EXP-0064 protocol projection.",
-        "sha256": "fcf3c1c48c372ff8520e93ccd91375d2816c36cc3dfdf1d99c372440ab6a1d8d"
+        "sha256": "630e5a3724d815cb5b210ff9363cfb744cac3ab99ea0139ebc0aaf89c9474a95"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
@@ -521,7 +521,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
         "reason": "Test-only synthetic verification of the public semantic producer composition and fixed-pair registry closure.",
-        "sha256": "5e499f4401fe5eb363d2839f50f6dca89370f23bbf4b5be57496b730d929ba25"
+        "sha256": "d82be47b8b6047bedf0bc091ad2cc97218a3c89cf466b608dcca3ba6eaaba7e8"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",
