@@ -12,6 +12,7 @@ pub(super) struct CollectedSemanticRow {
     pub(super) row: SemanticRow,
     pub(super) canonical_bytes: Vec<u8>,
     pub(super) headers: Vec<(usize, [u8; 12])>,
+    pub(super) acquisition_order: usize,
 }
 
 pub(super) struct PendingLongValueHeader {
@@ -33,11 +34,12 @@ pub(super) fn canonicalize_collected_rows(
     budget
         .charge_work_units(work)
         .map_err(SemanticSnapshotError::Resource)?;
-    collected.sort_by(|left, right| {
+    collected.sort_unstable_by(|left, right| {
         left.row
             .canonical_key
             .cmp(&right.row.canonical_key)
             .then_with(|| left.canonical_bytes.cmp(&right.canonical_bytes))
+            .then_with(|| left.acquisition_order.cmp(&right.acquisition_order))
     });
 
     for index in 0..collected.len() {
@@ -95,11 +97,10 @@ fn canonical_row_order_work(row_count: usize) -> Result<u64, SemanticSnapshotErr
     } else {
         u64::from(u64::BITS - (rows - 1).leading_zeros())
     };
-    // Account for this stable canonical sort, the protocol canonicalizer's
-    // idempotent sort, and the single duplicate-ordinal/association pass.
+    // Account for the allocation-free canonical sort and the single
+    // duplicate-ordinal/association pass.
     let passes = levels
-        .checked_mul(2)
-        .and_then(|value| value.checked_add(1))
+        .checked_add(1)
         .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
             operation: "size semantic row ordering work",
         }))?;
@@ -296,7 +297,7 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         let first_key = Sha256::new("11".repeat(32))?;
         let second_key = Sha256::new("22".repeat(32))?;
-        let row = |canonical_key, marker, header| CollectedSemanticRow {
+        let row = |canonical_key, marker, header, acquisition_order| CollectedSemanticRow {
             row: SemanticRow {
                 canonical_key,
                 duplicate_ordinal: 0,
@@ -310,11 +311,12 @@ mod tests {
             },
             canonical_bytes: vec![marker],
             headers: vec![(0, [header; 12])],
+            acquisition_order,
         };
         let collected = vec![
-            row(second_key, 2, 0x22),
-            row(first_key.clone(), 1, 0x10),
-            row(first_key, 1, 0x11),
+            row(second_key, 2, 0x22, 0),
+            row(first_key.clone(), 1, 0x11, 2),
+            row(first_key, 1, 0x10, 1),
         ];
         let mut pending = Vec::new();
         let mut budget = ResourceBudget::new(ResourceLimits::default());
@@ -367,6 +369,7 @@ mod tests {
                     },
                     canonical_bytes: vec![0],
                     headers: Vec::new(),
+                    acquisition_order: 0,
                 })
                 .collect()
         };
@@ -390,6 +393,53 @@ mod tests {
         let (one_below, _) = run(ResourceLimits::default()
             .with_max_total_work_units(required.checked_sub(1).ok_or("zero work")?));
         assert!(one_below.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn canonical_row_output_allocation_is_charged_before_growth()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let collected = || {
+            (0_u8..=127)
+                .rev()
+                .enumerate()
+                .map(|(acquisition_order, marker)| {
+                    Ok(CollectedSemanticRow {
+                        row: SemanticRow {
+                            canonical_key: Sha256::new(format!("{marker:02x}").repeat(32))?,
+                            duplicate_ordinal: 0,
+                            values: PropertyMap::new(),
+                        },
+                        canonical_bytes: vec![marker],
+                        headers: Vec::new(),
+                        acquisition_order,
+                    })
+                })
+                .collect::<Result<Vec<_>, crate::SemanticProtocolError>>()
+        };
+        let run = |limits| -> Result<_, Box<dyn std::error::Error>> {
+            let mut budget = ResourceBudget::new(limits);
+            let result = canonicalize_collected_rows(
+                "Items",
+                0,
+                collected()?,
+                &mut Vec::new(),
+                &mut budget,
+                &mut RetainedLedger::new(),
+            );
+            Ok((result, budget.allocation_bytes()))
+        };
+
+        let (measured, exact) = run(ResourceLimits::default())?;
+        measured?;
+        let (accepted, charged) = run(ResourceLimits::default().with_max_allocation_bytes(exact))?;
+        accepted?;
+        assert_eq!(charged, exact);
+        let one_below = exact.checked_sub(jet3::ByteCount::new(1))?;
+        let (rejected, charged) =
+            run(ResourceLimits::default().with_max_allocation_bytes(one_below))?;
+        assert!(rejected.is_err());
+        assert_eq!(charged, jet3::ByteCount::new(0));
         Ok(())
     }
 }

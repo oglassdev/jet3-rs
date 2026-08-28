@@ -8,8 +8,12 @@ use crate::{
     ScenarioId, Sha256, SnapshotError, TableKind, TypedValue,
 };
 
+#[path = "semantic_protocol_rows.rs"]
+mod rows;
 #[path = "semantic_protocol_validation.rs"]
 mod validation;
+
+use rows::{canonical_row_bytes, canonicalize_rows};
 
 /// A protocol 1.2 column, containing only facts in the comparison projection.
 #[derive(Clone, Debug, PartialEq)]
@@ -281,6 +285,17 @@ impl SemanticSnapshot {
 
     /// Sorts the model, validates cross-references, and derives row identities.
     pub fn canonicalize(&mut self) -> Result<(), SemanticProtocolError> {
+        self.canonicalize_model(true)
+    }
+
+    pub(crate) fn canonicalize_precomputed_rows(&mut self) -> Result<(), SemanticProtocolError> {
+        self.canonicalize_model(false)
+    }
+
+    fn canonicalize_model(
+        &mut self,
+        derive_row_identities: bool,
+    ) -> Result<(), SemanticProtocolError> {
         self.tables
             .sort_by(|left, right| left.name.cmp(&right.name));
         ensure_unique(
@@ -328,7 +343,9 @@ impl SemanticSnapshot {
                     ));
                 }
             }
-            canonicalize_rows(table)?;
+            if derive_row_identities {
+                canonicalize_rows(table)?;
+            }
         }
         self.relationships
             .sort_by(|left, right| left.name.cmp(&right.name));
@@ -402,50 +419,6 @@ pub(crate) fn sha256(bytes: &[u8]) -> Result<Sha256, SemanticProtocolError> {
     let text = crate::sha256_hex(bytes)
         .map_err(|_| invalid("SHA-256", "input length is not representable"))?;
     Sha256::new(text).map_err(Into::into)
-}
-
-fn canonicalize_rows(table: &mut SemanticTable) -> Result<(), SemanticProtocolError> {
-    let mut keyed = Vec::with_capacity(table.rows.len());
-    for mut row in table.rows.drain(..) {
-        if row.values.len() != table.columns.len()
-            || table
-                .columns
-                .iter()
-                .any(|column| row.values.get(&column.name).is_none())
-        {
-            return Err(invalid(
-                "$.tables[].rows[].values",
-                "keys must equal declared columns",
-            ));
-        }
-        let bytes = canonical_row_bytes(&row.values)?;
-        row.canonical_key = sha256(&bytes)?;
-        keyed.push((row.canonical_key.clone(), bytes, row));
-    }
-    keyed.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
-    let mut previous: Option<(Sha256, Vec<u8>, u64)> = None;
-    for (digest, bytes, mut row) in keyed {
-        row.duplicate_ordinal = match &previous {
-            Some((prior_digest, prior_bytes, ordinal)) if prior_digest == &digest => {
-                if prior_bytes != &bytes {
-                    return Err(SemanticProtocolError::RowHashCollision {
-                        table: table.name.clone(),
-                    });
-                }
-                ordinal + 1
-            }
-            _ => 0,
-        };
-        previous = Some((digest, bytes, row.duplicate_ordinal));
-        table.rows.push(row);
-    }
-    Ok(())
-}
-
-fn canonical_row_bytes(values: &PropertyMap) -> Result<Vec<u8>, SemanticProtocolError> {
-    let mut bytes = crate::semantic_json::write_properties(values, "$.tables[].rows[].values")?;
-    bytes.push(b'\n');
-    Ok(bytes)
 }
 
 fn validate_relationships(

@@ -413,7 +413,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
     budget
         .charge_allocation(canonicalization_bound)
         .map_err(SemanticSnapshotError::Resource)?;
-    snapshot.canonicalize()?;
+    snapshot.canonicalize_precomputed_rows()?;
     retain_long_value_headers(
         &snapshot.tables,
         &long_value_headers,
@@ -555,7 +555,7 @@ fn collect_table<S: ReadAt>(
 ///
 /// The adapter derives the shared key from canonical typed-value JSON, keeps
 /// external-header metadata attached through canonical ordering, and assigns
-/// duplicate ordinals in one adjacent-row pass. The shared canonicalizer then
+/// duplicate ordinals in one adjacent-row pass. Full protocol validation then
 /// revalidates the same ordering and identity convention.
 fn collect_rows<S: ReadAt>(
     database: &mut DatabaseReader<S>,
@@ -604,6 +604,7 @@ fn collect_rows<S: ReadAt>(
         row_bytes.push(b'\n');
         context.ledger.charge(cursor.budget_mut(), 64)?;
         let canonical_key = crate::semantic_protocol::sha256(&row_bytes)?;
+        let acquisition_order = collected.len();
         context.ledger.push(
             cursor.budget_mut(),
             &mut collected,
@@ -615,6 +616,7 @@ fn collect_rows<S: ReadAt>(
                 },
                 canonical_bytes: row_bytes,
                 headers,
+                acquisition_order,
             },
         )?;
     }
