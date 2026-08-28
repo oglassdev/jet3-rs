@@ -22,14 +22,29 @@ pub(super) fn finalize_semantic_snapshot(
 
 fn finalization_work(snapshot: &SemanticSnapshot) -> Result<u64, SemanticSnapshotError> {
     let table_count = count(snapshot.tables.len())?;
-    let mut work = ordering_work(table_count)?;
+    let mut work = ordering_work(
+        snapshot.tables.len(),
+        "size semantic snapshot finalization work",
+    )?;
     let mut maximum_columns = 0;
     for table in &snapshot.tables {
         let columns = count(table.columns.len())?;
         maximum_columns = maximum_columns.max(columns);
-        add(&mut work, ordering_work(columns)?)?;
+        add(
+            &mut work,
+            ordering_work(
+                table.columns.len(),
+                "size semantic snapshot finalization work",
+            )?,
+        )?;
         add(&mut work, square(columns)?)?;
-        add(&mut work, ordering_work(count(table.indexes.len())?)?)?;
+        add(
+            &mut work,
+            ordering_work(
+                table.indexes.len(),
+                "size semantic snapshot finalization work",
+            )?,
+        )?;
         for index in &table.indexes {
             let fields = count(index.fields.len())?;
             add(&mut work, product(fields, columns)?)?;
@@ -41,8 +56,13 @@ fn finalization_work(snapshot: &SemanticSnapshot) -> Result<u64, SemanticSnapsho
         add(&mut work, product(count(table.rows.len())?, row_lookup)?)?;
     }
 
-    let relationships = count(snapshot.relationships.len())?;
-    add(&mut work, ordering_work(relationships)?)?;
+    add(
+        &mut work,
+        ordering_work(
+            snapshot.relationships.len(),
+            "size semantic snapshot finalization work",
+        )?,
+    )?;
     let table_lookup = ordering_passes(table_count)?;
     for relationship in &snapshot.relationships {
         let fields = count(relationship.fields.len())?;
@@ -52,13 +72,24 @@ fn finalization_work(snapshot: &SemanticSnapshot) -> Result<u64, SemanticSnapsho
     }
     add(
         &mut work,
-        ordering_work(count(snapshot.raw_preservation.len())?)?,
+        ordering_work(
+            snapshot.raw_preservation.len(),
+            "size semantic snapshot finalization work",
+        )?,
     )?;
     Ok(work)
 }
 
-fn ordering_work(items: u64) -> Result<u64, SemanticSnapshotError> {
-    product(items, ordering_passes(items)?)
+pub(super) fn ordering_work(
+    items: usize,
+    operation: &'static str,
+) -> Result<u64, SemanticSnapshotError> {
+    let items = count(items)?;
+    items
+        .checked_mul(ordering_passes(items)?)
+        .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation,
+        }))
 }
 
 fn ordering_passes(items: u64) -> Result<u64, SemanticSnapshotError> {

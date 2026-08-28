@@ -6,6 +6,7 @@ use jet3::{
 };
 
 use super::SemanticSnapshotError;
+use super::finalization::ordering_work;
 use super::retained::{RetainedLedger, RetainedPropertyBatch};
 use crate::{PropertyMap, Relationship, RelationshipField, SemanticProtocolError, TypedValue};
 
@@ -66,11 +67,20 @@ pub(super) fn collect_user_tables<S: ReadAt>(
             },
         )?;
     }
-    canonicalize_catalog_tables(&mut tables)?;
+    canonicalize_catalog_tables(&mut tables, budget)?;
     Ok(tables)
 }
 
-fn canonicalize_catalog_tables(tables: &mut [CatalogTable]) -> Result<(), SemanticSnapshotError> {
+fn canonicalize_catalog_tables(
+    tables: &mut [CatalogTable],
+    budget: &mut ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    budget
+        .charge_work_units(ordering_work(
+            tables.len(),
+            "size catalog table ordering work",
+        )?)
+        .map_err(SemanticSnapshotError::Resource)?;
     tables.sort_by(|left, right| left.name.cmp(&right.name));
     if tables.windows(2).any(|pair| pair[0].name == pair[1].name) {
         return Err(SemanticSnapshotError::Protocol(
@@ -205,7 +215,7 @@ pub(super) fn pair_relationships(
     budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<Vec<Relationship>, SemanticSnapshotError> {
-    sides.sort_by(|left, right| left.name.cmp(&right.name));
+    canonicalize_relationship_sides(&mut sides, budget)?;
     let mut relationships = Vec::new();
     ledger.reserve_vec(budget, &mut relationships, sides.len() / 2)?;
     let mut remaining = sides.into_iter().peekable();
@@ -290,6 +300,20 @@ pub(super) fn pair_relationships(
     Ok(relationships)
 }
 
+fn canonicalize_relationship_sides(
+    sides: &mut [RelationshipSideRecord],
+    budget: &mut ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    budget
+        .charge_work_units(ordering_work(
+            sides.len(),
+            "size relationship side ordering work",
+        )?)
+        .map_err(SemanticSnapshotError::Resource)?;
+    sides.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(())
+}
+
 const fn relationship_attributes(cascade_updates: bool, cascade_deletes: bool) -> i64 {
     let updates = if cascade_updates {
         DAO_RELATION_UPDATE_CASCADE
@@ -307,13 +331,17 @@ const fn relationship_attributes(cascade_updates: bool, cascade_deletes: bool) -
 #[cfg(test)]
 mod tests {
     use super::{
-        CatalogTable, RelationshipSideRecord, canonicalize_catalog_tables, pair_relationships,
+        CatalogTable, RelationshipSideRecord, canonicalize_catalog_tables,
+        canonicalize_relationship_sides, pair_relationships,
     };
     use crate::{
         Producer, ProducerKind, PropertyMap, ScenarioId, SemanticColumn, SemanticSnapshot,
-        SemanticTable, Sha256, TableKind, TypedValue,
+        SemanticSnapshotError, SemanticTable, Sha256, TableKind, TypedValue,
     };
-    use jet3::{PageNumber, ReadLimits, RelationshipSide, ResourceBudget, ResourceLimits};
+    use jet3::{
+        Error, PageNumber, ReadLimits, RelationshipSide, ResourceBudget, ResourceLimitKind,
+        ResourceLimits,
+    };
 
     use super::super::retained::RetainedLedger;
 
@@ -329,7 +357,8 @@ mod tests {
     fn physical_catalog_order_is_canonicalized_before_traversal()
     -> Result<(), Box<dyn std::error::Error>> {
         let mut tables = [table("Zulu", 4), table("Alpha", 5)];
-        canonicalize_catalog_tables(&mut tables)?;
+        let mut budget = ResourceBudget::new(ResourceLimits::default());
+        canonicalize_catalog_tables(&mut tables, &mut budget)?;
         assert_eq!(tables.map(|table| table.name), ["Alpha", "Zulu"]);
         Ok(())
     }
@@ -337,14 +366,44 @@ mod tests {
     #[test]
     fn duplicate_catalog_names_reject_before_traversal_begins() {
         let mut tables = [table("Same", 4), table("Same", 5)];
+        let mut budget = ResourceBudget::new(ResourceLimits::default());
         let mut traversed = 0;
-        let result = canonicalize_catalog_tables(&mut tables).map(|()| {
+        let result = canonicalize_catalog_tables(&mut tables, &mut budget).map(|()| {
             for _ in &tables {
                 traversed += 1;
             }
         });
         assert!(result.is_err());
         assert_eq!(traversed, 0);
+    }
+
+    #[test]
+    fn catalog_ordering_has_exact_total_work_boundary() -> Result<(), Box<dyn std::error::Error>> {
+        const REQUIRED: u64 = 4;
+
+        let mut exact = [table("Zulu", 4), table("Alpha", 5)];
+        let mut exact_budget =
+            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(REQUIRED));
+        canonicalize_catalog_tables(&mut exact, &mut exact_budget)?;
+        assert_eq!(exact.map(|table| table.name), ["Alpha", "Zulu"]);
+        assert_eq!(exact_budget.total_work_units(), REQUIRED);
+
+        let mut rejected = [table("Zulu", 4), table("Alpha", 5)];
+        let mut rejected_budget =
+            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(REQUIRED - 1));
+        let result = canonicalize_catalog_tables(&mut rejected, &mut rejected_budget);
+        assert!(matches!(
+            result,
+            Err(SemanticSnapshotError::Resource(
+                Error::ResourceLimitExceeded {
+                    kind: ResourceLimitKind::TotalWorkUnits,
+                    ..
+                }
+            ))
+        ));
+        assert_eq!(rejected.map(|table| table.name), ["Zulu", "Alpha"]);
+        assert_eq!(rejected_budget.total_work_units(), 0);
+        Ok(())
     }
 
     fn relationship_side(
@@ -386,6 +445,59 @@ mod tests {
             properties: PropertyMap::new(),
             rows: Vec::new(),
         }
+    }
+
+    #[test]
+    fn relationship_side_ordering_has_exact_total_work_boundary()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const REQUIRED: u64 = 4;
+        let sides = || {
+            let mut zulu = relationship_side(
+                "Parent",
+                4,
+                RelationshipSide::PrimaryTable,
+                5,
+                "Id",
+                false,
+                false,
+            );
+            zulu.name = "Zulu".into();
+            let mut alpha = relationship_side(
+                "Child",
+                5,
+                RelationshipSide::ForeignTable,
+                4,
+                "ParentId",
+                false,
+                false,
+            );
+            alpha.name = "Alpha".into();
+            [zulu, alpha]
+        };
+
+        let mut exact = sides();
+        let mut exact_budget =
+            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(REQUIRED));
+        canonicalize_relationship_sides(&mut exact, &mut exact_budget)?;
+        assert_eq!(exact.map(|side| side.name), ["Alpha", "Zulu"]);
+        assert_eq!(exact_budget.total_work_units(), REQUIRED);
+
+        let mut rejected = sides();
+        let mut rejected_budget =
+            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(REQUIRED - 1));
+        let result = canonicalize_relationship_sides(&mut rejected, &mut rejected_budget);
+        assert!(matches!(
+            result,
+            Err(SemanticSnapshotError::Resource(
+                Error::ResourceLimitExceeded {
+                    kind: ResourceLimitKind::TotalWorkUnits,
+                    ..
+                }
+            ))
+        ));
+        assert_eq!(rejected.map(|side| side.name), ["Zulu", "Alpha"]);
+        assert_eq!(rejected_budget.total_work_units(), 0);
+        Ok(())
     }
 
     #[test]

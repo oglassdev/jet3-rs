@@ -491,7 +491,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_finalization.rs",
         "reason": "Format-neutral conservative work accounting for semantic snapshot canonical ordering and validation, with an exact-boundary regression.",
-        "sha256": "3163c13a7002b851546397541a2e60e62c233c7e668f24e9dec8545be7b362ce"
+        "sha256": "1c78be516de26d784a2584810bdc3ae5e05fafceab8963ca29b92909510f2e3a"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
@@ -516,7 +516,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_schema.rs",
         "reason": "High-level schema retention over public reader APIs, including comparison-excluded producer-only raw column facts.",
-        "sha256": "a831f88321f6dc28fbea8850d5ea559c732e34434cdaeefa479193cb114cc9cc"
+        "sha256": "dc4430ac4e175926c5fb227c4db338648f208b4b71d4f0a55e9304db8494745b"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
