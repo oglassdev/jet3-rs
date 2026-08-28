@@ -29,7 +29,10 @@ mod retained;
 mod schema;
 
 use convert::{convert_column, convert_index, convert_value};
-use coverage::{collect_allocation_evidence, collect_index_evidence, record_value_branch};
+use coverage::{
+    collect_allocation_evidence, collect_index_evidence, record_value_branch,
+    validate_pair_bindings,
+};
 use long_metadata::{
     CollectedSemanticRow, PendingLongValueHeader, append_hex, canonicalize_collected_rows,
     retain_long_value_headers,
@@ -239,7 +242,7 @@ impl SemanticSnapshotArtifacts {
     ) -> Result<(Vec<u8>, Vec<u8>), SemanticSnapshotError> {
         crate::semantic_json::validate_outcome_budgeted(&self.snapshot, budget)?;
         crate::semantic_json::validate_receipt_budgeted(&self.coverage_receipt, budget)?;
-        self.validate_pair_bindings()?;
+        validate_pair_bindings(self)?;
         let snapshot =
             crate::semantic_json::write_outcome_budgeted_validated(&self.snapshot, budget)?;
         let receipt =
@@ -277,39 +280,6 @@ impl SemanticSnapshotArtifacts {
             snapshot: SemanticSnapshotOutcome::OpeningFailure(failure),
             coverage_receipt,
         })
-    }
-
-    fn validate_pair_bindings(&self) -> Result<(), SemanticSnapshotError> {
-        let (scenario_id, source_revision, database_sha256, error_class) = match &self.snapshot {
-            SemanticSnapshotOutcome::Success(snapshot) => (
-                &snapshot.scenario_id,
-                snapshot.producer.source_revision(),
-                &snapshot.database_sha256,
-                None,
-            ),
-            SemanticSnapshotOutcome::OpeningFailure(failure) => (
-                &failure.scenario_id,
-                failure.producer.source_revision(),
-                &failure.database_sha256,
-                Some(failure.error_class),
-            ),
-        };
-        let receipt_error = match &self.coverage_receipt.outcome {
-            CoverageReceiptOutcome::Success { .. } => None,
-            CoverageReceiptOutcome::OpeningFailure { error_class } => Some(*error_class),
-        };
-        if scenario_id != &self.coverage_receipt.scenario_id
-            || source_revision != self.coverage_receipt.source_revision
-            || database_sha256 != &self.coverage_receipt.database_sha256
-            || error_class != receipt_error
-        {
-            return Err(SemanticProtocolError::InvalidModel {
-                path: "$".to_owned(),
-                reason: "snapshot and coverage receipt bindings must match exactly",
-            }
-            .into());
-        }
-        Ok(())
     }
 }
 

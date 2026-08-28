@@ -450,6 +450,38 @@ fn malformed_row_pages_reject_with_nested_sources() {
 }
 
 #[test]
+fn artifact_pair_rejects_non_rust_producer_and_unsatisfied_index_scenario()
+-> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(SecondColumn::Text, 1);
+    let original = artifacts(&bytes, limits(&bytes))?;
+
+    let mut wrong_producer = original.clone();
+    let SemanticSnapshotOutcome::Success(snapshot) = &mut wrong_producer.snapshot else {
+        return Err(std::io::Error::other("synthetic snapshot unexpectedly failed to open").into());
+    };
+    snapshot.producer = Producer::new(ProducerKind::Dao, "test")?;
+    let mut budget = ResourceBudget::new(limits(&bytes));
+    assert!(matches!(
+        wrong_producer.to_canonical_json(&mut budget),
+        Err(SemanticSnapshotError::Protocol(_))
+    ));
+
+    let mut wrong_scenario = original;
+    let index_scenario = ScenarioId::new("DAO-READ-SCHEMA-INDEX-PRIMARY")?;
+    let SemanticSnapshotOutcome::Success(snapshot) = &mut wrong_scenario.snapshot else {
+        return Err(std::io::Error::other("synthetic snapshot unexpectedly failed to open").into());
+    };
+    snapshot.scenario_id = index_scenario.clone();
+    wrong_scenario.coverage_receipt.scenario_id = index_scenario;
+    let mut budget = ResourceBudget::new(limits(&bytes));
+    assert!(matches!(
+        wrong_scenario.to_canonical_json(&mut budget),
+        Err(SemanticSnapshotError::Protocol(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn final_artifact_reservations_are_exactly_budgeted_before_growth()
 -> Result<(), Box<dyn std::error::Error>> {
     let bytes = database_bytes(SecondColumn::Text, 1);

@@ -432,6 +432,12 @@ fn scenario_error_code(error: ScenarioExpectationError) -> &'static str {
             "scenario_expected_opening_failure"
         }
         ScenarioExpectationError::ErrorClassMismatch { .. } => "scenario_error_class_mismatch",
+        ScenarioExpectationError::MissingRequiredBranch { .. } => {
+            "scenario_missing_required_branch"
+        }
+        ScenarioExpectationError::ForbiddenBranchObserved { .. } => {
+            "scenario_forbidden_branch_observed"
+        }
     }
 }
 

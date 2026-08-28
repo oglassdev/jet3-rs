@@ -118,7 +118,7 @@
           "EXP-0056",
           "EXP-0065"
         ],
-        "sha256": "946ca4f1d26e5c57886eabae99be28da287924aa3826c554bbc652fa751eaada"
+        "sha256": "5f93bf7f01d2347ac725041cd84873af63921f54b6ffb8c64dc8835760ab6015"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -440,13 +440,13 @@
       },
       {
         "path": "crates/jet3-testkit/src/scenario_inventory.rs",
-        "reason": "Format-neutral typed protocol 1.2 scenario resolution and pre-publication outcome validation over generated inventory data.",
-        "sha256": "906bbd1c04d0cd15963984bf12b82d1e413286fdf41c570ea263cc100724bf67"
+        "reason": "Format-neutral typed protocol 1.2 scenario resolution plus pre-publication outcome and branch validation over generated inventory data.",
+        "sha256": "55074a76556c4c6f1229d4992b1f8146cf8298b21c940225967df272131e6d6c"
       },
       {
         "path": "crates/jet3-testkit/src/scenario_inventory_generated.rs",
-        "reason": "Generated format-neutral mapping from every closed protocol 1.2 scenario identifier to its declared outcome and normalized rejection class.",
-        "sha256": "83ab500c5d0d43f382aa9511ed374a58fb52dc9f0537f08b8832c4baf219cb4c"
+        "reason": "Generated format-neutral mapping from every closed protocol 1.2 scenario identifier to its outcome, normalized rejection class, and required/forbidden branches.",
+        "sha256": "89360d157d112d0e7eb4f56651e6cc1b0f4fe887e741d5ad5ca1bf12801cf735"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
@@ -476,7 +476,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "45f235e723341857051c38609cda6d9aed4237a1017d867b9e04785015d6ec83"
+        "sha256": "f3749349627a2cb6769a6cc59ba5fa5b659dcda5159810c3ef29a52d5f130f36"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
@@ -490,8 +490,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_coverage.rs",
-        "reason": "Receipt observations over public reader branch and traversal results; it introduces no physical byte assertions.",
-        "sha256": "7a173f530e32d5803857d440c9ebad6a9287657cea6dab0885b9a1e85bbf346f"
+        "reason": "Receipt observations and format-neutral pair bindings over public reader branch and traversal results; it introduces no physical byte assertions.",
+        "sha256": "2ab1f545eedd4b593efa80eaa67d808133fcbd879b4f3ec8ddbef6c8d6a372c4"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_retained.rs",
@@ -506,7 +506,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
         "reason": "Test-only synthetic verification of the public semantic producer composition.",
-        "sha256": "91ce59823fa58cd4c7d6d218fb9c55546f8b9e3da9698a2fa57c4d19998b2211"
+        "sha256": "c1540fa7d62f9611c39ded703990c26a5ee3156cd88d14e9b5c89242179f464c"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",

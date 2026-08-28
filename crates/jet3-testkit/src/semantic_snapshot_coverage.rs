@@ -2,12 +2,67 @@
 
 use super::retained::RetainedLedger;
 use super::{CatalogTable, SemanticSnapshotError};
-use crate::{CoverageBranches, SemanticProtocolError, Sha256Hasher, TypedValue};
+use crate::{
+    CoverageBranches, CoverageReceiptOutcome, ProducerKind, ProtocolScenario,
+    SemanticProtocolError, SemanticSnapshotArtifacts, SemanticSnapshotOutcome, Sha256Hasher,
+    TypedValue,
+};
 use jet3::{
     AllocationMap, DatabaseReader, IndexDefinitionKind, IndexDirection, IndexKeyEncoding,
     IndexNodeKind, ReadAt, ResourceBudget, TableDefinition, TextCodePage, decode_allocation_map,
     locate_usage_map,
 };
+
+pub(super) fn validate_pair_bindings(
+    artifacts: &SemanticSnapshotArtifacts,
+) -> Result<(), SemanticSnapshotError> {
+    let (scenario_id, producer, database_sha256, error_class) = match &artifacts.snapshot {
+        SemanticSnapshotOutcome::Success(snapshot) => (
+            &snapshot.scenario_id,
+            &snapshot.producer,
+            &snapshot.database_sha256,
+            None,
+        ),
+        SemanticSnapshotOutcome::OpeningFailure(failure) => (
+            &failure.scenario_id,
+            &failure.producer,
+            &failure.database_sha256,
+            Some(failure.error_class),
+        ),
+    };
+    let receipt_error = match &artifacts.coverage_receipt.outcome {
+        CoverageReceiptOutcome::Success { .. } => None,
+        CoverageReceiptOutcome::OpeningFailure { error_class } => Some(*error_class),
+    };
+    if producer.kind != ProducerKind::Rust {
+        return Err(SemanticProtocolError::InvalidModel {
+            path: "$.producer.kind".to_owned(),
+            reason: "Rust artifact pairs require a Rust producer",
+        }
+        .into());
+    }
+    if scenario_id != &artifacts.coverage_receipt.scenario_id
+        || producer.source_revision() != artifacts.coverage_receipt.source_revision
+        || database_sha256 != &artifacts.coverage_receipt.database_sha256
+        || error_class != receipt_error
+    {
+        return Err(SemanticProtocolError::InvalidModel {
+            path: "$".to_owned(),
+            reason: "snapshot and coverage receipt bindings must match exactly",
+        }
+        .into());
+    }
+    ProtocolScenario::validate_artifact(
+        scenario_id,
+        error_class,
+        &artifacts.coverage_receipt.branches,
+    )
+    .map_err(|_| SemanticProtocolError::InvalidModel {
+        path: "$.coverage_receipt".to_owned(),
+        reason: "receipt outcome and branches must satisfy its closed scenario",
+    })?;
+    Ok(())
+}
 
 pub(super) fn collect_index_evidence<S: ReadAt>(
     database: &mut DatabaseReader<S>,

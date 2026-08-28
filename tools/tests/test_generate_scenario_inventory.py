@@ -20,13 +20,35 @@ class ScenarioInventoryGenerationTests(unittest.TestCase):
         _, entries = GENERATOR.load_entries()
 
         self.assertEqual(
-            [identifier for identifier, _ in entries],
+            [identifier for identifier, *_ in entries],
             [scenario["id"] for scenario in inventory["scenarios"]],
         )
         self.assertEqual(
             GENERATOR.OUTPUT.read_text(encoding="utf-8"),
             GENERATOR.render(),
         )
+
+    def test_overlapping_scenario_branches_are_rejected(self) -> None:
+        inventory = json.loads(GENERATOR.INVENTORY.read_text(encoding="utf-8"))
+        scenario = inventory["scenarios"][0]
+        branch = scenario["required_branches"][0]
+        scenario["boundary"] = {
+            "dimension": "page_count",
+            "position": "at",
+            "forbidden_branches": [branch],
+        }
+        path = self._temporary_inventory(inventory)
+        try:
+            with self.assertRaisesRegex(ValueError, "cannot require and forbid"):
+                GENERATOR.load_entries(path)
+        finally:
+            path.unlink()
+
+    def _temporary_inventory(self, inventory: object) -> Path:
+        path = ROOT / "target" / "scenario-inventory-generator-test.json"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps(inventory), encoding="utf-8")
+        return path
 
 
 if __name__ == "__main__":
