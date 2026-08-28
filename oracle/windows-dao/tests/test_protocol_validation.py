@@ -256,6 +256,66 @@ class ProtocolV12Tests(unittest.TestCase):
                         "allocation.extended_slot", scenario["required_branches"]
                     )
 
+    def test_table_branch_requirements_match_recipe_shape(self):
+        allocation_forms = {"allocation.inline_map", "allocation.indirect_map"}
+        definition_forms = {"tdef.single_page", "tdef.continuation_chain"}
+        scenarios_with_active_rows = 0
+        scenarios_without_active_rows = 0
+
+        for scenario in self.inventory["scenarios"]:
+            if scenario["operation"]["expected_outcome"] != "success":
+                continue
+            steps = scenario["generator_recipe"]["steps"]
+            tables = {}
+            for step in steps:
+                action = step["action"]
+                if action == "create_table":
+                    tables[step["name"]] = 0
+                elif action == "drop_table":
+                    tables.pop(step["name"], None)
+                elif action == "insert_rows":
+                    tables[step["table"]] += len(step["rows"]) * step["repeat"]
+                elif action == "insert_until_page_count":
+                    tables[step["table"]] += 1
+                elif action == "delete_rows":
+                    if step["count"] == "all":
+                        tables[step["table"]] = 0
+                    else:
+                        tables[step["table"]] = max(
+                            0, tables[step["table"]] - step["count"]
+                        )
+
+            required = set(scenario["required_branches"])
+            has_tables = bool(tables)
+            has_active_rows = any(count > 0 for count in tables.values())
+            with self.subTest(scenario=scenario["id"]):
+                if has_tables:
+                    self.assertEqual(len(required & allocation_forms), 1)
+                    self.assertEqual(len(required & definition_forms), 1)
+                self.assertEqual("rows.direct" in required, has_active_rows)
+            scenarios_with_active_rows += has_active_rows
+            scenarios_without_active_rows += not has_active_rows
+
+        self.assertGreater(scenarios_with_active_rows, 0)
+        self.assertGreater(scenarios_without_active_rows, 0)
+
+    def test_extended_and_wide_scenarios_require_only_their_actual_forms(self):
+        indirect = self._find(
+            self.inventory, "DAO-READ-ALLOC-EXTENDED-SLOT-1-ABOVE"
+        )["required_branches"]
+        wide = self._find(
+            self.inventory, "DAO-READ-SCHEMA-WIDE-TABLE"
+        )["required_branches"]
+        empty = self._find(
+            self.inventory, "DAO-READ-ROWS-EMPTY-TABLE"
+        )["required_branches"]
+
+        self.assertIn("allocation.indirect_map", indirect)
+        self.assertNotIn("allocation.inline_map", indirect)
+        self.assertIn("tdef.continuation_chain", wide)
+        self.assertNotIn("tdef.single_page", wide)
+        self.assertNotIn("rows.direct", empty)
+
     def test_row_branch_registry_tracks_decomposed_module_owners(self):
         registry = json.loads(v1_2.BRANCH_REGISTRY.read_text(encoding="utf-8"))
         owners = {
@@ -540,6 +600,46 @@ class ProtocolV12Tests(unittest.TestCase):
         legacy["tables"][0]["columns"][0]["nullable"] = True
         with self.assertRaises(ValidationError):
             v1_2.validate_document(legacy)
+
+    def test_snapshot_column_ordinals_are_contiguous_from_zero(self):
+        self.assertEqual(
+            [column["ordinal"] for column in self._snapshot()["tables"][0]["columns"]],
+            [0, 1],
+        )
+
+        missing_zero = self._snapshot()
+        missing_zero["tables"][0]["columns"][0]["ordinal"] = 1
+        with self.assertRaisesRegex(ValidationError, "contiguous from zero"):
+            v1_2.validate_document(missing_zero)
+
+        gap = self._snapshot()
+        gap["tables"][0]["columns"][1]["ordinal"] = 2
+        with self.assertRaisesRegex(ValidationError, "contiguous from zero"):
+            v1_2.validate_document(gap)
+
+    def test_snapshot_raw_preservation_paths_are_unique_and_canonical(self):
+        valid = self._snapshot()
+        valid["raw_preservation"] = [
+            {"semantic_path": "/tables/0", "raw_hex": "00", "purpose": "table"},
+            {
+                "semantic_path": "/tables/0/rows/0",
+                "raw_hex": "01",
+                "purpose": "row",
+            },
+        ]
+        self.assertEqual(
+            v1_2.validate_document(valid), "canonical_semantic_snapshot"
+        )
+
+        duplicate = json.loads(json.dumps(valid))
+        duplicate["raw_preservation"][1]["semantic_path"] = "/tables/0"
+        with self.assertRaisesRegex(ValidationError, "unique and canonically ordered"):
+            v1_2.validate_document(duplicate)
+
+        reversed_paths = json.loads(json.dumps(valid))
+        reversed_paths["raw_preservation"].reverse()
+        with self.assertRaisesRegex(ValidationError, "unique and canonically ordered"):
+            v1_2.validate_document(reversed_paths)
 
     def test_snapshot_comparison_projection_requires_both_exclusions(self):
         for projection in ([], ["/producer"]):

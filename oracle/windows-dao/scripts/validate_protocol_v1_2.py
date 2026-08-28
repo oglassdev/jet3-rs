@@ -549,6 +549,11 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             unknown = [pair[column_key] for pair in relationship["fields"] if pair[column_key] not in known]
             if unknown:
                 raise ValidationError(f"{location}.fields: unknown {column_key} columns {unknown}")
+    raw_paths = [entry["semantic_path"] for entry in document["raw_preservation"]]
+    if raw_paths != sorted(set(raw_paths)):
+        raise ValidationError(
+            "$.raw_preservation: semantic paths must be unique and canonically ordered"
+        )
     for key in document["producer_extensions"]:
         if JSON_POINTER.fullmatch(key) is None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")

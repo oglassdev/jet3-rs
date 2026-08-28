@@ -28,11 +28,24 @@ EXTENDED_SLOT_PAGES = 16_352
 
 OPEN_BRANCHES = ["open.signature_geometry", "open.header_page"]
 CATALOG_BRANCHES = ["catalog.root_discovery", "catalog.record_stream"]
-TABLE_BRANCHES = OPEN_BRANCHES + CATALOG_BRANCHES + [
+BASE_TABLE_BRANCHES = OPEN_BRANCHES + CATALOG_BRANCHES + [
+    "tdef.column_types",
+]
+INLINE_TABLE_BRANCHES = BASE_TABLE_BRANCHES + [
     "allocation.inline_map",
     "tdef.single_page",
-    "tdef.column_types",
+]
+INLINE_ROW_BRANCHES = INLINE_TABLE_BRANCHES + [
     "rows.direct",
+]
+INDIRECT_ROW_BRANCHES = BASE_TABLE_BRANCHES + [
+    "allocation.indirect_map",
+    "tdef.single_page",
+    "rows.direct",
+]
+CONTINUATION_TABLE_BRANCHES = BASE_TABLE_BRANCHES + [
+    "allocation.inline_map",
+    "tdef.continuation_chain",
 ]
 ALL_TYPES = "values.all_dao_jet3_table_types"
 STORAGE_BRANCH = {
@@ -74,7 +87,7 @@ class TypeCase:
         return ["rows.streaming_read", ALL_TYPES, self.capability]
 
     def point_branches(self, point: Point) -> list[str]:
-        return TABLE_BRANCHES + STORAGE_BRANCH[self.storage] + list(self.branches) + list(point.branches)
+        return INLINE_ROW_BRANCHES + STORAGE_BRANCH[self.storage] + list(self.branches) + list(point.branches)
 
 
 def _ladder(unit: str, encoding: str) -> tuple[Point, ...]:
@@ -203,7 +216,7 @@ def _open_scenarios() -> list[dict[str, Any]]:
             "DAO-READ-OPEN-GROWN",
             caps + ["format.pages_allocation_usage"],
             _recipe([_id_table(), _insert("Items", [_id_row()], 256), {"action": "delete_rows", "table": "Items", "count": "all"}, {"action": "reopen"}]),
-            TABLE_BRANCHES + ["rows.deleted_skip"],
+            INLINE_TABLE_BRANCHES + ["rows.deleted_skip"],
         ),
     ]
     for suffix, options, error_class in [
@@ -217,7 +230,7 @@ def _open_scenarios() -> list[dict[str, Any]]:
 
 def _alloc_scenarios() -> list[dict[str, Any]]:
     caps = ["format.pages_allocation_usage", "rows.streaming_read"]
-    scenarios = [_scenario("DAO-READ-ALLOC-SMALL-INLINE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES)]
+    scenarios = [_scenario("DAO-READ-ALLOC-SMALL-INLINE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8)]), INLINE_ROW_BRANCHES)]
     for position, pages, branches, forbidden_branches in [
         ("below", EXTENDED_SLOT_PAGES - 1, ["allocation.indirect_map"], ["allocation.extended_slot"]),
         ("at", EXTENDED_SLOT_PAGES, ["allocation.indirect_map"], ["allocation.extended_slot"]),
@@ -244,7 +257,7 @@ def _alloc_scenarios() -> list[dict[str, Any]]:
                         },
                     ]
                 ),
-                TABLE_BRANCHES + branches,
+                INDIRECT_ROW_BRANCHES + branches,
                 boundary={
                     "dimension": "extended_slot_0_page_capacity",
                     "position": position,
@@ -253,10 +266,10 @@ def _alloc_scenarios() -> list[dict[str, Any]]:
             )
         )
     scenarios += [
-        _scenario("DAO-READ-ALLOC-DELETE-REINSERT", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "delete_rows", "table": "Items", "count": 32}, _insert("Items", [_id_row()], 32)]), TABLE_BRANCHES + ["rows.deleted_skip"]),
-        _scenario("DAO-READ-ALLOC-DROP-RECREATE", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "drop_table", "name": "Items"}, _id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ALLOC-IDLE-REOPEN", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8), {"action": "reopen"}, {"action": "reopen"}]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
+        _scenario("DAO-READ-ALLOC-DELETE-REINSERT", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "delete_rows", "table": "Items", "count": 32}, _insert("Items", [_id_row()], 32)]), INLINE_ROW_BRANCHES + ["rows.deleted_skip"]),
+        _scenario("DAO-READ-ALLOC-DROP-RECREATE", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "drop_table", "name": "Items"}, _id_table(), _insert("Items", [_id_row()], 8)]), INLINE_ROW_BRANCHES),
+        _scenario("DAO-READ-ALLOC-IDLE-REOPEN", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8), {"action": "reopen"}, {"action": "reopen"}]), INLINE_ROW_BRANCHES),
+        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]), INLINE_ROW_BRANCHES + ["rows.overflow_pointer"]),
     ]
     return scenarios
 
@@ -265,10 +278,10 @@ def _schema_scenarios() -> list[dict[str, Any]]:
     caps = ["schema.catalog_and_table_definitions"]
     scenarios = []
     for case in TYPE_CASES:
-        scenarios.append(_scenario(f"DAO-READ-SCHEMA-TYPE-{case.name}", caps + [ALL_TYPES], _recipe([_table("Typed", [_field("Id", "dbLong"), case.field()])]), TABLE_BRANCHES))
+        scenarios.append(_scenario(f"DAO-READ-SCHEMA-TYPE-{case.name}", caps + [ALL_TYPES], _recipe([_table("Typed", [_field("Id", "dbLong"), case.field()])]), INLINE_TABLE_BRANCHES))
     for suffix, size in [("TEXT-SIZE-1", 1), ("TEXT-SIZE-255", 255)]:
-        scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", caps, _recipe([_table("Typed", [_field("Value", "dbText", size)])]), TABLE_BRANCHES))
-    scenarios.append(_scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps + [ALL_TYPES], _recipe([_table("Wide", [_field(f"F{index:02d}", TYPE_CASES[index % len(TYPE_CASES)].dao_type) for index in range(64)])]), TABLE_BRANCHES + ["tdef.continuation_chain"]))
+        scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", caps, _recipe([_table("Typed", [_field("Value", "dbText", size)])]), INLINE_TABLE_BRANCHES))
+    scenarios.append(_scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps + [ALL_TYPES], _recipe([_table("Wide", [_field(f"F{index:02d}", TYPE_CASES[index % len(TYPE_CASES)].dao_type) for index in range(64)])]), CONTINUATION_TABLE_BRANCHES))
     index_caps = caps + ["indexes.primary_unique_non_unique"]
     two_columns = [_field("Id", "dbLong"), _field("Code", "dbText", 16)]
     for suffix, index, extra in [
@@ -279,7 +292,7 @@ def _schema_scenarios() -> list[dict[str, Any]]:
         ("INDEX-COMPOSITE-DESCENDING", _index("ByIdCodeDesc", [("Id", True), ("Code", True)]), ["indexes.composite_ascending_descending"]),
         ("INDEX-COMPOSITE-MIXED", _index("ByIdAscCodeDesc", [("Id", False), ("Code", True)]), ["indexes.composite_ascending_descending"]),
     ]:
-        branches = TABLE_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index", "index.branch_leaf_traversal"]
+        branches = INLINE_ROW_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index", "index.branch_leaf_traversal"]
         branches.append("index.composite_key_lossless" if len(index["fields"]) > 1 else "index.single_field_key")
         rows = [[_value("Id", "integer", number), _value("Code", "unicode_string", f"C{number:02d}")] for number in (3, 1, 2)]
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", index_caps + extra, _recipe([_table("Keyed", two_columns, [index]), _insert("Keyed", rows)]), branches))
@@ -288,7 +301,7 @@ def _schema_scenarios() -> list[dict[str, Any]]:
     child = _table("Child", [_field("Id", "dbLong"), _field("ParentId", "dbLong")])
     for suffix, cascade in [("RELATIONSHIP", (False, False)), ("RELATIONSHIP-CASCADE", (True, True))]:
         step = dict(relationship, cascade_updates=cascade[0], cascade_deletes=cascade[1])
-        scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", index_caps, _recipe([parent, child, step]), TABLE_BRANCHES + ["tdef.physical_index", "tdef.logical_index", "tdef.relationship_reference"]))
+        scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", index_caps, _recipe([parent, child, step]), INLINE_TABLE_BRANCHES + ["tdef.physical_index", "tdef.logical_index", "tdef.relationship_reference"]))
     return scenarios
 
 
@@ -297,7 +310,7 @@ def _value_scenarios() -> list[dict[str, Any]]:
     for case in TYPE_CASES:
         table = _table("Typed", [_field("Id", "dbLong"), case.field()])
         if case.dao_type != "dbBoolean":
-            scenarios.append(_scenario(f"DAO-READ-VALUES-{case.name}-NULL", ["rows.streaming_read", ALL_TYPES, "values.null_fixed_variable"], _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", "null", None)]])]), TABLE_BRANCHES + ["values.null_field"]))
+            scenarios.append(_scenario(f"DAO-READ-VALUES-{case.name}-NULL", ["rows.streaming_read", ALL_TYPES, "values.null_fixed_variable"], _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", "null", None)]])]), INLINE_ROW_BRANCHES + ["values.null_field"]))
         for point in case.points:
             scenarios.append(_scenario(f"DAO-READ-VALUES-{case.name}-{point.label}", case.capabilities(), _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", point.encoding, point.value)]])]), case.point_branches(point)))
     return scenarios
@@ -308,12 +321,12 @@ def _rows_scenarios() -> list[dict[str, Any]]:
     table = _table("Items", [_field("Id", "dbLong"), _field("Name", "dbText", 255), _field("Note", "dbText", 255)])
     long_row = [_value("Id", "integer", 1), _value("Name", "repeat_ascii", {"unit": "N", "length": 255}), _value("Note", "repeat_ascii", {"unit": "O", "length": 255})]
     return [
-        _scenario("DAO-READ-ROWS-EMPTY-TABLE", caps, _recipe([_id_table()]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ROWS-SINGLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()])]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ROWS-DUPLICATES", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 3)]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), TABLE_BRANCHES + ["values.variable_short", "rows.overflow_pointer", "rows.wide_variable_layout"]),
-        _scenario("DAO-READ-ROWS-DELETED-MIDDLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 9), {"action": "delete_rows", "table": "Items", "count": 4}, _insert("Items", [_id_row()], 2)]), TABLE_BRANCHES + ["rows.deleted_skip"]),
-        _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096)]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
+        _scenario("DAO-READ-ROWS-EMPTY-TABLE", caps, _recipe([_id_table()]), INLINE_TABLE_BRANCHES),
+        _scenario("DAO-READ-ROWS-SINGLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()])]), INLINE_ROW_BRANCHES),
+        _scenario("DAO-READ-ROWS-DUPLICATES", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 3)]), INLINE_ROW_BRANCHES),
+        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), INLINE_ROW_BRANCHES + ["values.variable_short", "rows.overflow_pointer", "rows.wide_variable_layout"]),
+        _scenario("DAO-READ-ROWS-DELETED-MIDDLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 9), {"action": "delete_rows", "table": "Items", "count": 4}, _insert("Items", [_id_row()], 2)]), INLINE_ROW_BRANCHES + ["rows.deleted_skip"]),
+        _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096)]), INLINE_ROW_BRANCHES + ["rows.overflow_pointer"]),
     ]
 
 

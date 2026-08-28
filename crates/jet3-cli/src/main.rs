@@ -420,6 +420,7 @@ fn snapshot_with_producer(
     let (snapshot, receipt) = artifacts
         .to_canonical_json(&mut budget)
         .map_err(|_| "snapshot_failed")?;
+    staged.close()?;
     snapshot_bundle::publish(&output_bundle, &snapshot, &receipt).map_err(publication_error_code)
 }
 
@@ -439,18 +440,31 @@ fn publication_error_code(error: snapshot_bundle::PublishError) -> &'static str 
     use snapshot_bundle::PublishError;
 
     match error {
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::InvalidDestination => "invalid_output_bundle",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::DestinationExists => "output_bundle_exists",
+        #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
         PublishError::UnsupportedPlatform => "atomic_bundle_unsupported",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::StageFailed => "output_bundle_stage_failed",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::SnapshotFailed => "snapshot_output_failed",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::ReceiptFailed => "coverage_output_failed",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::StageSyncFailed => "output_bundle_stage_sync_failed",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::RenameFailed => "output_bundle_publish_failed",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::RenameCollision => "output_bundle_exists",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::CleanupFailed => "output_bundle_cleanup_failed",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::CleanupUncertain => "output_bundle_cleanup_uncertain",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::PublishedCleanupUncertain => "output_bundle_published_cleanup_uncertain",
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
         PublishError::PublishedDurabilityUncertain => {
             "output_bundle_published_durability_uncertain"
         }

@@ -321,7 +321,6 @@
       "required_branches": [
         "allocation.extended_slot",
         "allocation.indirect_map",
-        "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
         "open.header_page",
@@ -332,7 +331,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "e9cd5e00ea228feb3d771bc917890368b2ec966c90a9c9df914af2349405707e"
+      "content_sha256": "e42dba3175a06981148f4188683b3a039f43fd76ea363d55820851bbd20a7a54"
     },
     {
       "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-AT",
@@ -406,7 +405,6 @@
       },
       "required_branches": [
         "allocation.indirect_map",
-        "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
         "open.header_page",
@@ -417,7 +415,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "266d35a41080af5753d4f72d71114e4e910e2adbd0be95d445e47421313523e7"
+      "content_sha256": "f47042da834fd50e06c96cbf8c4c96300b3ecd6a73c4b597e9af3827889666eb"
     },
     {
       "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-BELOW",
@@ -491,7 +489,6 @@
       },
       "required_branches": [
         "allocation.indirect_map",
-        "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
         "open.header_page",
@@ -502,7 +499,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "698057a909c721c3b1a48d99bfa63b3ffaaaf906f48659a61643b5a81c5878ca"
+      "content_sha256": "2dcdc47c59c60a40eb8415cc6aaee3d7622fb37a970dd70bdaf8ee4bd132a97d"
     },
     {
       "id": "DAO-READ-ALLOC-IDLE-REOPEN",
@@ -943,13 +940,12 @@
         "open.header_page",
         "open.signature_geometry",
         "rows.deleted_skip",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "a709ebd4cb91e650db9d607f58031a5061b6ab2fe6abbcf5796097db737842a6"
+      "content_sha256": "5da50f5a50a444447f489e099ced373cf96662683b5fd7d25ec3128ce0527835"
     },
     {
       "id": "DAO-READ-OPEN-REJECT-ENCRYPTED",
@@ -1348,13 +1344,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "ef337b7bc732bd1edc4a64e89537fecd6ad4e5812a64477fa83a0644fcf188ca"
+      "content_sha256": "76cc6c832fbedbff63549d846a22dd0d7ee85be2f63f9017feb2f6b179ba7ea7"
     },
     {
       "id": "DAO-READ-ROWS-MANY",
@@ -2452,7 +2447,6 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
@@ -2461,7 +2455,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "dbcf3093ff9dfaa1f606e549a0f2aefb1bea1bc95c71286de2bc093c58e1b9b2"
+      "content_sha256": "15976ef0189d9bdbfdded57faa1c0780d2040b4134096891581c35f2318e886b"
     },
     {
       "id": "DAO-READ-SCHEMA-RELATIONSHIP-CASCADE",
@@ -2556,7 +2550,6 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
@@ -2565,7 +2558,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "dca762b5a5a58d972c670cc201ada98a3974eb23e988ff8c0b10080611ef48ad"
+      "content_sha256": "7d35cfa1cbe7fc82918b36d5fcaa29799c274e1a42245bb8f0fb5ae71da0226b"
     },
     {
       "id": "DAO-READ-SCHEMA-TEXT-SIZE-1",
@@ -2612,13 +2605,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "44ab9040fb5bc1a438df8e1f6a74dabc02bb7ae49f3ee81d677595dfc90862f6"
+      "content_sha256": "15950655a5251c4c5f5f3bc56e80b06ead08017db271870f4a4f9d1e16a68e99"
     },
     {
       "id": "DAO-READ-SCHEMA-TEXT-SIZE-255",
@@ -2665,13 +2657,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "03691a71e44257a03ec000e72bca1eda2355398bc6a58bd648f9fb5bccdbbe89"
+      "content_sha256": "176c4e44891c4aba8576ea852ab2dbd597caa5f49d9e2b02103496fd9006d156"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-BINARY",
@@ -2725,13 +2716,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "f87afcc40e5cc20c1390d816efeedcc25466039b034d02632293c92378124c12"
+      "content_sha256": "1a1d81265ca84607e78e9c4f1bdc2c3fefec708776f4f96f0426d6a300bb3795"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-BOOLEAN",
@@ -2785,13 +2775,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "0593f2182faea494ae018448742c59b8d98f1dd8d4dc2073b62393c432fae6d7"
+      "content_sha256": "6af38853e34107c7cb023f02f630c320e37be0b69fd44d3c4069702354fd01b6"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-BYTE",
@@ -2845,13 +2834,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "9b9309f0f21aa3abf543ead201880bc00acbcfb60e8a462c2ae970481e2ff22d"
+      "content_sha256": "bd330dc405b8051eb8b93d0cc9917bc32f1b45121e14fc6cc3656010b28130a4"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-CURRENCY",
@@ -2905,13 +2893,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "e078f6efa606ef5afc2b0a512b58936f2dc1fae5edfbc7ecd7aafc9a8a5dd288"
+      "content_sha256": "e6f75c737e26ead1967c0f0ef7eca0f550ab466897f52ad74c9957a0675e15c5"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-DATE",
@@ -2965,13 +2952,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "c945d0346320712c270842019c336a2c7e118fa19bdf5edfcce86cb76fba7c80"
+      "content_sha256": "dc4ed6fc49fbe501e356a3eba35f08118101dd647ea34478b0d9c869c36ef55c"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-DOUBLE",
@@ -3025,13 +3011,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "1ad85eaadd27617cd6d2e06137399cd7c551dfa357211f8716773be60258e2e1"
+      "content_sha256": "9e44ace90fcd786e4f62f07d3f03f8af20d1e43652aa33f279b7b60bd1fe0d2a"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-GUID",
@@ -3085,13 +3070,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "678c935f6be9d689cebeb2967e38f3dfe2122f5eaa9d5773badf7c0d819ca514"
+      "content_sha256": "bb0196f2024f14aa738f1ef0ed0466666639755d1e6c5c052819869c7dc322df"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-INTEGER",
@@ -3145,13 +3129,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "f66fb66e5fdea9c6faad34660a89ad05012e91517f6e8368ebf465564f827589"
+      "content_sha256": "b0933798e9f70411ab2a5b71639699b3bbe8b5136cb7742ad7aa50cc2d17c29d"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-LONG",
@@ -3205,13 +3188,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "5d22800fd59b1f825615bbb2677dd2600c2ab064ad436c750614ea1afe636b30"
+      "content_sha256": "410bc411bb7cc3433f59f79b3728a2f86874ed06b3df5a9118bc233fa582e4d2"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-LONGBINARY",
@@ -3265,13 +3247,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "ef35c7001a084c559f97c335446282a653611b9c5f382a391cbed8087e453644"
+      "content_sha256": "0b3e32c29d3914ceb43bbf1fa2d548ab6ce32151f576ca785e85cb71cd1cfc96"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-MEMO",
@@ -3325,13 +3306,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "fed20a1be549cf831c3299cbcfe865cd44f29997d69b54a912f2d4a54d485f0f"
+      "content_sha256": "e0792f2a4b43d12f3789194e61e8bceb5abfd41c29997f1d632acf73371ac25d"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-SINGLE",
@@ -3385,13 +3365,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "8438218025edffe746a2feb5fc368ff877a8e6a1f39aa0400a656799a23daf2d"
+      "content_sha256": "b13bd0da00476f943599bbece9f0358e2b216dab10fa74ed1b902383569e0891"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-TEXT",
@@ -3445,13 +3424,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "c9b1bf6e583acc812753ad993858c2668a9dcfb5448c5c54a7ebfc9ab217494f"
+      "content_sha256": "d752658f82fef268b1aad57a8a4b9fc44e7246e309c3210df45fff00c9456262"
     },
     {
       "id": "DAO-READ-SCHEMA-WIDE-TABLE",
@@ -3877,14 +3855,12 @@
         "catalog.root_discovery",
         "open.header_page",
         "open.signature_geometry",
-        "rows.direct",
         "tdef.column_types",
-        "tdef.continuation_chain",
-        "tdef.single_page"
+        "tdef.continuation_chain"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "198141a31d9a2d2e3d8c97be45ab1b18e04295ce98e49db73ec4728f0aed10b3"
+      "content_sha256": "701089fd594caf9b22edf970af3bc12ee72cb00c69617aaa8d55273ecb808b9d"
     },
     {
       "id": "DAO-READ-VALUES-BINARY-MAX",

@@ -37,11 +37,11 @@ pub(crate) enum PublishPoint {
     SyncParentDirectory,
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PublishError {
     InvalidDestination,
     DestinationExists,
-    UnsupportedPlatform,
     StageFailed,
     SnapshotFailed,
     ReceiptFailed,
@@ -52,6 +52,12 @@ pub(crate) enum PublishError {
     CleanupUncertain,
     PublishedCleanupUncertain,
     PublishedDurabilityUncertain,
+}
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PublishError {
+    UnsupportedPlatform,
 }
 
 impl std::fmt::Display for PublishError {
@@ -128,7 +134,7 @@ impl OwnedStage<'_> {
     fn remove_outer(&self) -> io::Result<OuterCleanup> {
         use rustix::fs::{AtFlags, unlinkat};
 
-        if directory_identity_at(self.parent, &self.outer_leaf)? != Some(self.outer_identity) {
+        if !directory_identity_matches(self.parent, &self.outer_leaf, &self.outer_identity)? {
             return Ok(OuterCleanup::Displaced);
         }
         match unlinkat(self.parent, &self.outer_leaf, AtFlags::REMOVEDIR) {
@@ -156,11 +162,17 @@ impl Drop for OwnedStage<'_> {
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct DirectoryIdentity {
-    device: u128,
-    inode: u128,
+struct DirectoryIdentity(rustix::fs::Stat);
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+impl PartialEq for DirectoryIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.st_dev == other.0.st_dev && self.0.st_ino == other.0.st_ino
+    }
 }
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+impl Eq for DirectoryIdentity {}
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -333,8 +345,8 @@ fn create_stage<'parent>(
                 )
                 .is_err()
                 {
-                    if directory_identity_at(parent, &outer_leaf).ok().flatten()
-                        == Some(outer_identity)
+                    if directory_identity_matches(parent, &outer_leaf, &outer_identity)
+                        .unwrap_or(false)
                     {
                         let _ = unlinkat(parent, &outer_leaf, AtFlags::REMOVEDIR);
                     }
@@ -349,8 +361,8 @@ fn create_stage<'parent>(
                     Ok(directory) => File::from(directory),
                     Err(_) => {
                         let _ = unlinkat(&outer, BUNDLE_DIRECTORY_NAME, AtFlags::REMOVEDIR);
-                        if directory_identity_at(parent, &outer_leaf).ok().flatten()
-                            == Some(outer_identity)
+                        if directory_identity_matches(parent, &outer_leaf, &outer_identity)
+                            .unwrap_or(false)
                         {
                             let _ = unlinkat(parent, &outer_leaf, AtFlags::REMOVEDIR);
                         }
@@ -411,12 +423,14 @@ fn write_artifact(
         .map_err(|_| artifact_error)
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 fn platform_preflight() -> Result<(), PublishError> {
-    if cfg!(any(target_os = "linux", target_vendor = "apple")) {
-        Ok(())
-    } else {
-        Err(PublishError::UnsupportedPlatform)
-    }
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+fn platform_preflight() -> Result<(), PublishError> {
+    Err(PublishError::UnsupportedPlatform)
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -441,10 +455,7 @@ fn rename_no_replace(
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 fn directory_identity(directory: &File) -> io::Result<DirectoryIdentity> {
     let stat = rustix::fs::fstat(directory).map_err(io::Error::from)?;
-    Ok(DirectoryIdentity {
-        device: u128::from(stat.st_dev),
-        inode: u128::from(stat.st_ino),
-    })
+    Ok(DirectoryIdentity(stat))
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -452,13 +463,19 @@ fn directory_identity_at(parent: &File, leaf: &OsStr) -> io::Result<Option<Direc
     use rustix::fs::{AtFlags, statat};
 
     match statat(parent, leaf, AtFlags::SYMLINK_NOFOLLOW) {
-        Ok(stat) => Ok(Some(DirectoryIdentity {
-            device: u128::from(stat.st_dev),
-            inode: u128::from(stat.st_ino),
-        })),
+        Ok(stat) => Ok(Some(DirectoryIdentity(stat))),
         Err(rustix::io::Errno::NOENT) => Ok(None),
         Err(error) => Err(io::Error::from(error)),
     }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+fn directory_identity_matches(
+    parent: &File,
+    leaf: &OsStr,
+    expected: &DirectoryIdentity,
+) -> io::Result<bool> {
+    Ok(directory_identity_at(parent, leaf)?.is_some_and(|current| current.eq(expected)))
 }
 
 #[cfg(test)]

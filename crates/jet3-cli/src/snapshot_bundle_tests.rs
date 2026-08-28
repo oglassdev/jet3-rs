@@ -193,12 +193,76 @@ fn lexical_alias_to_an_existing_input_cannot_bypass_identity_rejection()
 
 #[test]
 fn platform_contract_is_explicit_and_fail_closed_when_unsupported() {
-    let result = super::platform_preflight();
-    if cfg!(any(target_os = "linux", target_vendor = "apple")) {
-        assert_eq!(result, Ok(()));
-    } else {
-        assert_eq!(result, Err(PublishError::UnsupportedPlatform));
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    {
+        assert_eq!(super::platform_preflight(), Ok(()));
+        for (error, code) in [
+            (PublishError::InvalidDestination, "invalid_output_bundle"),
+            (PublishError::DestinationExists, "output_bundle_exists"),
+            (PublishError::StageFailed, "output_bundle_stage_failed"),
+            (PublishError::SnapshotFailed, "snapshot_output_failed"),
+            (PublishError::ReceiptFailed, "coverage_output_failed"),
+            (
+                PublishError::StageSyncFailed,
+                "output_bundle_stage_sync_failed",
+            ),
+            (PublishError::RenameFailed, "output_bundle_publish_failed"),
+            (PublishError::RenameCollision, "output_bundle_exists"),
+            (PublishError::CleanupFailed, "output_bundle_cleanup_failed"),
+            (
+                PublishError::CleanupUncertain,
+                "output_bundle_cleanup_uncertain",
+            ),
+            (
+                PublishError::PublishedCleanupUncertain,
+                "output_bundle_published_cleanup_uncertain",
+            ),
+            (
+                PublishError::PublishedDurabilityUncertain,
+                "output_bundle_published_durability_uncertain",
+            ),
+        ] {
+            assert_eq!(crate::publication_error_code(error), code);
+        }
     }
+    #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+    {
+        assert_eq!(
+            super::platform_preflight(),
+            Err(PublishError::UnsupportedPlatform)
+        );
+        assert_eq!(
+            crate::publication_error_code(PublishError::UnsupportedPlatform),
+            "atomic_bundle_unsupported"
+        );
+    }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[test]
+fn native_directory_identity_distinguishes_a_replacement_entry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let entry = directory.path().join("entry");
+    let displaced = directory.path().join("displaced");
+    fs::create_dir(&entry)?;
+    let parent = fs::File::open(directory.path())?;
+    let held = fs::File::open(&entry)?;
+    let identity = super::directory_identity(&held)?;
+
+    assert!(super::directory_identity_matches(
+        &parent,
+        std::ffi::OsStr::new("entry"),
+        &identity,
+    )?);
+    fs::rename(&entry, &displaced)?;
+    fs::create_dir(&entry)?;
+    assert!(!super::directory_identity_matches(
+        &parent,
+        std::ffi::OsStr::new("entry"),
+        &identity,
+    )?);
+    Ok(())
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]

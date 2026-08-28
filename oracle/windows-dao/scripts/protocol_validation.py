@@ -507,9 +507,9 @@ def validate_snapshot(document: dict[str, Any]) -> None:
         columns = table["columns"]
         ordinals = [column["ordinal"] for column in columns]
         column_names = [column["name"] for column in columns]
-        if ordinals != sorted(ordinals) or len(ordinals) != len(set(ordinals)):
+        if ordinals != list(range(len(columns))):
             raise ValidationError(
-                f"{location}.columns: ordinals must be unique and sorted"
+                f"{location}.columns: ordinals must be contiguous from zero"
             )
         if len(column_names) != len(set(column_names)):
             raise ValidationError(f"{location}.columns: names must be unique")

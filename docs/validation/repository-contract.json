@@ -102,7 +102,7 @@
           "EXP-0056",
           "EXP-0065"
         ],
-        "sha256": "bb6969e6c4a3299627641795a66640f85a6c50f45414c0249f223710c06e4c2e"
+        "sha256": "cbffd25efd8b1b1339afbc6cba61e0a9a008baa93f4387db8fef1a02f829a7d0"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -360,17 +360,17 @@
       {
         "path": "crates/jet3-cli/src/snapshot_bundle.rs",
         "reason": "Format-neutral fixed-name atomic artifact-bundle publication and cleanup mechanics.",
-        "sha256": "49c375040dd4722dc58e04a8715d3721b720d4e8bb60bf30b91fb0100c5eaa6c"
+        "sha256": "1785863816dbd8d7c8c10feb2a416ca590eeb051fbeddb094984f478453f26f2"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
         "reason": "Test-only verification of format-neutral atomic bundle publication, descriptor-relative parent and stage replacement resistance, alias rejection, and failure cleanup.",
-        "sha256": "ae51b94b6345efd82ccab818e4e75213cab5f48c1c5a3f8b2d279c3dc158b65d"
+        "sha256": "168dd408dd71948947d2de9b4f1fcf6128f33e1d61f45b63daac1bbed15381d3"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_input.rs",
         "reason": "Format-neutral bounded immutable input staging and identity hashing over the exact staged bytes.",
-        "sha256": "33ef918490e42af352ae6aefe69cecb58e06d5ae723afc346c960f7301f48d67"
+        "sha256": "c61690d42b41cda6e9d6c319fac42d2a907e35f0bb7377e3ad93f039ad5cce29"
       },
       {
         "path": "crates/jet3-testkit/src/bin/jet3-classifier-snapshot.rs",
@@ -425,7 +425,7 @@
       {
         "path": "crates/jet3-testkit/src/scenario_inventory_generated.rs",
         "reason": "Generated format-neutral mapping from every closed protocol 1.2 scenario identifier to its declared outcome and normalized rejection class.",
-        "sha256": "bcb5debe9ae7881e35d0099c8337ba38f34fda2fe74c2f4d44019c5c30629023"
+        "sha256": "869b4f93115b55a98f612a61c08c1e0c0e1661d2082fbced92ac7033018a12f8"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
