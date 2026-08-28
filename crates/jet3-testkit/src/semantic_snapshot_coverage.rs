@@ -1,9 +1,8 @@
 //! Coverage receipt observations collected through the public reader API.
 
-use std::collections::BTreeSet;
-
+use super::retained::RetainedLedger;
 use super::{CatalogTable, SemanticSnapshotError};
-use crate::{SemanticProtocolError, Sha256Hasher, TypedValue};
+use crate::{CoverageBranches, SemanticProtocolError, Sha256Hasher, TypedValue};
 use jet3::{
     AllocationMap, DatabaseReader, IndexDefinitionKind, IndexDirection, IndexKeyEncoding,
     IndexNodeKind, ReadAt, ResourceBudget, TableDefinition, TextCodePage, decode_allocation_map,
@@ -14,7 +13,8 @@ pub(super) fn collect_index_evidence<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     definition: &TableDefinition,
     budget: &mut ResourceBudget,
-    branches: &mut BTreeSet<String>,
+    ledger: &mut RetainedLedger,
+    branches: &mut CoverageBranches,
 ) -> Result<(), SemanticSnapshotError> {
     for logical in definition.indexes() {
         if matches!(logical.kind(), IndexDefinitionKind::Relationship(_)) {
@@ -39,7 +39,7 @@ pub(super) fn collect_index_evidence<S: ReadAt>(
                 .iter()
                 .any(|node| node.kind() == IndexNodeKind::Leaf)
         {
-            branches.insert("index.branch_leaf_traversal".to_owned());
+            ledger.branch(budget, branches, "index.branch_leaf_traversal")?;
         }
         if physical.fields().len() == 1
             && !tree.entries().is_empty()
@@ -48,7 +48,7 @@ pub(super) fn collect_index_evidence<S: ReadAt>(
                 .iter()
                 .all(|entry| entry.key().encoding() != IndexKeyEncoding::Unsupported)
         {
-            branches.insert("index.single_field_key".to_owned());
+            ledger.branch(budget, branches, "index.single_field_key")?;
         }
         if physical.fields().len() > 1
             || physical
@@ -56,7 +56,7 @@ pub(super) fn collect_index_evidence<S: ReadAt>(
                 .iter()
                 .any(|field| field.direction() == IndexDirection::Descending)
         {
-            branches.insert("index.composite_key_lossless".to_owned());
+            ledger.branch(budget, branches, "index.composite_key_lossless")?;
         }
     }
     Ok(())
@@ -67,7 +67,8 @@ pub(super) fn collect_allocation_evidence<S: ReadAt>(
     entry: &CatalogTable,
     definition: &TableDefinition,
     budget: &mut ResourceBudget,
-    branches: &mut BTreeSet<String>,
+    ledger: &mut RetainedLedger,
+    branches: &mut CoverageBranches,
     hasher: &mut Sha256Hasher,
 ) -> Result<(), SemanticSnapshotError> {
     let name_length = u64::try_from(entry.name.len()).map_err(|_| {
@@ -91,10 +92,10 @@ pub(super) fn collect_allocation_evidence<S: ReadAt>(
         .map_err(SemanticSnapshotError::AllocationMap)?
     {
         AllocationMap::Inline(_) => {
-            branches.insert("allocation.inline_map".to_owned());
+            ledger.branch(budget, branches, "allocation.inline_map")?;
         }
         AllocationMap::Indirect(map) => {
-            branches.insert("allocation.indirect_map".to_owned());
+            ledger.branch(budget, branches, "allocation.indirect_map")?;
             let mut references = map.map_page_references();
             let mut slot = 0_u64;
             while let Some(reference) = references
@@ -102,7 +103,7 @@ pub(super) fn collect_allocation_evidence<S: ReadAt>(
                 .map_err(SemanticSnapshotError::AllocationMap)?
             {
                 if slot > 0 && reference != 0 {
-                    branches.insert("allocation.extended_slot".to_owned());
+                    ledger.branch(budget, branches, "allocation.extended_slot")?;
                 }
                 slot = slot.checked_add(1).ok_or(SemanticSnapshotError::Resource(
                     jet3::Error::Arithmetic {
@@ -132,9 +133,9 @@ pub(super) fn collect_allocation_evidence<S: ReadAt>(
     }
     hash_update(hasher, &u64::MAX.to_le_bytes())?;
     if u64::from(definition.logical_length()) > jet3::JET3_PAGE_SIZE.get() {
-        branches.insert("tdef.continuation_chain".to_owned());
+        ledger.branch(budget, branches, "tdef.continuation_chain")?;
     } else {
-        branches.insert("tdef.single_page".to_owned());
+        ledger.branch(budget, branches, "tdef.single_page")?;
     }
     Ok(())
 }
@@ -151,29 +152,23 @@ fn hash_update(hasher: &mut Sha256Hasher, bytes: &[u8]) -> Result<(), SemanticSn
 pub(super) fn record_value_branch(
     value: &TypedValue,
     code_page: TextCodePage,
-    branches: &mut BTreeSet<String>,
-) {
-    match value {
-        TypedValue::Null { .. } => {
-            branches.insert("values.null_field".to_owned());
-        }
-        TypedValue::Text { .. } | TypedValue::Binary { .. } => {
-            branches.insert("values.variable_short".to_owned());
-        }
-        TypedValue::Memo { .. } | TypedValue::Ole { .. } => {
-            branches.insert("long_value.inline".to_owned());
-        }
-        _ => {
-            branches.insert("values.fixed_scalar".to_owned());
-        }
-    }
+    budget: &mut ResourceBudget,
+    ledger: &mut RetainedLedger,
+    branches: &mut CoverageBranches,
+) -> Result<(), SemanticSnapshotError> {
+    let branch = match value {
+        TypedValue::Null { .. } => "values.null_field",
+        TypedValue::Text { .. } | TypedValue::Binary { .. } => "values.variable_short",
+        TypedValue::Memo { .. } | TypedValue::Ole { .. } => "long_value.inline",
+        _ => "values.fixed_scalar",
+    };
+    ledger.branch(budget, branches, branch)?;
     if matches!(value, TypedValue::Text { .. } | TypedValue::Memo { .. }) {
-        branches.insert(
-            match code_page {
-                TextCodePage::Windows1251 => "values.text_cp1251",
-                TextCodePage::Windows1252 => "values.text_cp1252",
-            }
-            .to_owned(),
-        );
+        let branch = match code_page {
+            TextCodePage::Windows1251 => "values.text_cp1251",
+            TextCodePage::Windows1252 => "values.text_cp1252",
+        };
+        ledger.branch(budget, branches, branch)?;
     }
+    Ok(())
 }

@@ -1,5 +1,7 @@
 //! Canonical JSON emission for the typed snapshot model.
 
+use std::fmt::{self, Write as _};
+
 use crate::{
     CanonicalSnapshot, ClassifierSnapshot, Column, FiniteF32, FiniteF64, Index, IndexField,
     Producer, ProducerKind, PropertyMap, RawPreservation, Relationship, RelationshipField, Row,
@@ -13,13 +15,13 @@ pub(crate) fn write_snapshot(snapshot: &CanonicalSnapshot) -> Result<Vec<u8>, Sn
     let mut writer = JsonWriter::new();
     writer.snapshot(snapshot)?;
     writer.bytes.push(b'\n');
-    Ok(writer.bytes)
+    writer.into_bytes().ok_or(SnapshotError::NumberFormatting)
 }
 
 pub(crate) fn write_properties(properties: &PropertyMap) -> Result<Vec<u8>, SnapshotError> {
     let mut writer = JsonWriter::new();
     writer.properties(properties)?;
-    Ok(writer.bytes)
+    writer.into_bytes().ok_or(SnapshotError::NumberFormatting)
 }
 
 pub(crate) fn write_classifier_snapshot(snapshot: &ClassifierSnapshot) -> Vec<u8> {
@@ -77,16 +79,44 @@ pub(crate) fn write_classifier_snapshot(snapshot: &ClassifierSnapshot) -> Vec<u8
     writer.string(snapshot.source_commit().as_str());
     writer.bytes.push(b'}');
     writer.bytes.push(b'\n');
-    writer.bytes
+    writer.into_bytes().unwrap_or_default()
 }
 
 pub(crate) struct JsonWriter {
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: JsonBytes,
 }
 
 impl JsonWriter {
     pub(crate) fn new() -> Self {
-        Self { bytes: Vec::new() }
+        Self {
+            bytes: JsonBytes::Output(Vec::new()),
+        }
+    }
+
+    pub(crate) fn counting() -> Self {
+        Self {
+            bytes: JsonBytes::Count(0),
+        }
+    }
+
+    pub(crate) fn with_output(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes: JsonBytes::Output(bytes),
+        }
+    }
+
+    pub(crate) fn counted_len(&self) -> Option<usize> {
+        match self.bytes {
+            JsonBytes::Count(length) => Some(length),
+            JsonBytes::Output(_) => None,
+        }
+    }
+
+    pub(crate) fn into_bytes(self) -> Option<Vec<u8>> {
+        match self.bytes {
+            JsonBytes::Output(bytes) => Some(bytes),
+            JsonBytes::Count(_) => None,
+        }
     }
 
     fn snapshot(&mut self, snapshot: &CanonicalSnapshot) -> Result<(), SnapshotError> {
@@ -162,8 +192,7 @@ impl JsonWriter {
         let mut first = true;
         if let Some(code_page) = value.code_page() {
             self.key(&mut first, "code_page");
-            self.bytes
-                .extend_from_slice(code_page.to_string().as_bytes());
+            self.unsigned(u64::from(code_page));
         }
         self.key(&mut first, "kind");
         self.string(value.kind());
@@ -428,16 +457,51 @@ impl JsonWriter {
     }
 
     pub(crate) fn integer(&mut self, value: i64) {
-        self.bytes.extend_from_slice(value.to_string().as_bytes());
+        if value.is_negative() {
+            self.bytes.push(b'-');
+        }
+        self.unsigned(value.unsigned_abs());
     }
 
     pub(crate) fn unsigned(&mut self, value: u64) {
-        self.bytes.extend_from_slice(value.to_string().as_bytes());
+        let mut digits = [0_u8; 20];
+        let mut start = digits.len();
+        let mut remaining = value;
+        loop {
+            start -= 1;
+            digits[start] = b'0' + (remaining % 10) as u8;
+            remaining /= 10;
+            if remaining == 0 {
+                break;
+            }
+        }
+        self.bytes.extend_from_slice(&digits[start..]);
     }
 
     pub(crate) fn comma(&mut self, index: usize) {
         if index != 0 {
             self.bytes.push(b',');
+        }
+    }
+}
+
+pub(crate) enum JsonBytes {
+    Count(usize),
+    Output(Vec<u8>),
+}
+
+impl JsonBytes {
+    pub(crate) fn push(&mut self, byte: u8) {
+        match self {
+            Self::Count(length) => *length = length.saturating_add(1),
+            Self::Output(bytes) => bytes.push(byte),
+        }
+    }
+
+    pub(crate) fn extend_from_slice(&mut self, value: &[u8]) {
+        match self {
+            Self::Count(length) => *length = length.saturating_add(value.len()),
+            Self::Output(bytes) => bytes.extend_from_slice(value),
         }
     }
 }
@@ -491,23 +555,27 @@ impl TypedValue {
     }
 }
 
-fn canonical_f32(value: FiniteF32) -> Result<String, SnapshotError> {
+fn canonical_f32(value: FiniteF32) -> Result<NumberText, SnapshotError> {
     let value = value.get();
+    let mut scientific = NumberText::new();
+    write!(scientific, "{value:e}").map_err(|_| SnapshotError::NumberFormatting)?;
     canonical_float(
-        format!("{value:e}"),
+        scientific.as_str(),
         value == 0.0 && value.is_sign_negative(),
     )
 }
 
-fn canonical_f64(value: FiniteF64) -> Result<String, SnapshotError> {
+fn canonical_f64(value: FiniteF64) -> Result<NumberText, SnapshotError> {
     let value = value.get();
+    let mut scientific = NumberText::new();
+    write!(scientific, "{value:e}").map_err(|_| SnapshotError::NumberFormatting)?;
     canonical_float(
-        format!("{value:e}"),
+        scientific.as_str(),
         value == 0.0 && value.is_sign_negative(),
     )
 }
 
-fn canonical_float(scientific: String, negative_zero: bool) -> Result<String, SnapshotError> {
+fn canonical_float(scientific: &str, negative_zero: bool) -> Result<NumberText, SnapshotError> {
     let (mantissa, exponent) = scientific
         .split_once('e')
         .ok_or(SnapshotError::NumberFormatting)?;
@@ -517,56 +585,110 @@ fn canonical_float(scientific: String, negative_zero: bool) -> Result<String, Sn
     let (sign, unsigned_mantissa) = mantissa
         .strip_prefix('-')
         .map_or(("", mantissa), |unsigned| ("-", unsigned));
-    let digits: String = unsigned_mantissa
-        .chars()
-        .filter(|character| *character != '.')
-        .collect();
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+    let mut digits = NumberText::new();
+    for byte in unsigned_mantissa.bytes().filter(|byte| *byte != b'.') {
+        digits.push_byte(byte)?;
+    }
+    if digits.as_str().is_empty() || !digits.as_str().bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(SnapshotError::NumberFormatting);
     }
-    if digits.bytes().all(|byte| byte == b'0') {
-        return Ok(if negative_zero {
-            "-0.0".to_owned()
-        } else {
-            "0.0".to_owned()
-        });
+    if digits.as_str().bytes().all(|byte| byte == b'0') {
+        return NumberText::from_str(if negative_zero { "-0.0" } else { "0.0" });
     }
     if !(-4..16).contains(&exponent) {
         let exponent_sign = if exponent.is_negative() { '-' } else { '+' };
         let magnitude = exponent.unsigned_abs();
-        return Ok(format!(
+        let mut output = NumberText::new();
+        write!(
+            output,
             "{sign}{unsigned_mantissa}e{exponent_sign}{magnitude:02}"
-        ));
+        )
+        .map_err(|_| SnapshotError::NumberFormatting)?;
+        return Ok(output);
     }
     let decimal_index = i64::from(exponent) + 1;
-    let digit_count = i64::try_from(digits.len()).map_err(|_| SnapshotError::NumberFormatting)?;
-    let mut output = String::with_capacity(
-        sign.len()
-            .saturating_add(digits.len())
-            .saturating_add(exponent.unsigned_abs() as usize)
-            .saturating_add(2),
-    );
-    output.push_str(sign);
+    let digit_count =
+        i64::try_from(digits.as_str().len()).map_err(|_| SnapshotError::NumberFormatting)?;
+    let mut output = NumberText::new();
+    output.push_text(sign)?;
     if decimal_index <= 0 {
-        output.push_str("0.");
+        output.push_text("0.")?;
         for _ in 0..decimal_index.unsigned_abs() {
-            output.push('0');
+            output.push_byte(b'0')?;
         }
-        output.push_str(&digits);
+        output.push_text(digits.as_str())?;
     } else if decimal_index >= digit_count {
-        output.push_str(&digits);
+        output.push_text(digits.as_str())?;
         for _ in 0..(decimal_index - digit_count) {
-            output.push('0');
+            output.push_byte(b'0')?;
         }
     } else {
         let split = usize::try_from(decimal_index).map_err(|_| SnapshotError::NumberFormatting)?;
-        let (integer, fraction) = digits.split_at(split);
-        output.push_str(integer);
-        output.push('.');
-        output.push_str(fraction);
+        let (integer, fraction) = digits.as_str().split_at(split);
+        output.push_text(integer)?;
+        output.push_byte(b'.')?;
+        output.push_text(fraction)?;
     }
-    if !output.contains('.') {
-        output.push_str(".0");
+    if !output.as_str().contains('.') {
+        output.push_text(".0")?;
     }
     Ok(output)
+}
+
+struct NumberText {
+    bytes: [u8; 64],
+    length: usize,
+}
+
+impl NumberText {
+    const fn new() -> Self {
+        Self {
+            bytes: [0; 64],
+            length: 0,
+        }
+    }
+
+    fn from_str(value: &str) -> Result<Self, SnapshotError> {
+        let mut output = Self::new();
+        output.push_text(value)?;
+        Ok(output)
+    }
+
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.length]).unwrap_or_default()
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.length]
+    }
+
+    fn push_byte(&mut self, byte: u8) -> Result<(), SnapshotError> {
+        let destination = self
+            .bytes
+            .get_mut(self.length)
+            .ok_or(SnapshotError::NumberFormatting)?;
+        *destination = byte;
+        self.length += 1;
+        Ok(())
+    }
+
+    fn push_text(&mut self, value: &str) -> Result<(), SnapshotError> {
+        let end = self
+            .length
+            .checked_add(value.len())
+            .ok_or(SnapshotError::NumberFormatting)?;
+        let destination = self
+            .bytes
+            .get_mut(self.length..end)
+            .ok_or(SnapshotError::NumberFormatting)?;
+        destination.copy_from_slice(value.as_bytes());
+        self.length = end;
+        Ok(())
+    }
+}
+
+impl fmt::Write for NumberText {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        self.push_text(value).map_err(|_| fmt::Error)
+    }
 }

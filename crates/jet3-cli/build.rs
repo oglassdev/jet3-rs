@@ -6,13 +6,25 @@ use std::process::Command;
 
 const NON_GIT_IDENTITY: &str = "diagnostic-non-git-build";
 const UNKNOWN_GIT_IDENTITY: &str = "diagnostic-git-state-unavailable";
+const GIT_REPOSITORY_ENVIRONMENT: [&str; 9] = [
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_DIR",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_INDEX_FILE",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_WORK_TREE",
+];
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=GIT_DIR");
-    println!("cargo:rerun-if-env-changed=GIT_WORK_TREE");
+    for variable in GIT_REPOSITORY_ENVIRONMENT {
+        println!("cargo:rerun-if-env-changed={variable}");
+    }
 
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap_or_default());
-    let Some(worktree) = git_path(&manifest_dir, &["rev-parse", "--show-toplevel"]) else {
+    let Some(worktree) = discover_workspace(&manifest_dir) else {
         println!("cargo:rustc-env=JET3_BUILD_IDENTITY={NON_GIT_IDENTITY}");
         return;
     };
@@ -28,13 +40,23 @@ fn main() {
     }
     let Some(status) = git_output(
         &worktree,
-        &["status", "--porcelain=v1", "--untracked-files=no"],
+        &["status", "--porcelain=v1", "--untracked-files=all"],
     ) else {
         println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
         return;
     };
     let suffix = if status.is_empty() { "" } else { "-dirty" };
     println!("cargo:rustc-env=JET3_BUILD_IDENTITY={revision}{suffix}");
+}
+
+fn discover_workspace(manifest_dir: &Path) -> Option<PathBuf> {
+    let manifest_dir = std::fs::canonicalize(manifest_dir).ok()?;
+    let workspace = manifest_dir
+        .ancestors()
+        .find(|candidate| candidate.join(".git").exists())?;
+    let resolved = git_path(workspace, &["rev-parse", "--show-toplevel"])?;
+    let resolved = std::fs::canonicalize(resolved).ok()?;
+    (resolved == workspace).then(|| workspace.to_owned())
 }
 
 fn register_git_inputs(worktree: &Path) {
@@ -90,11 +112,18 @@ fn git_text(directory: &Path, arguments: &[&str]) -> Option<String> {
 }
 
 fn git_output(directory: &Path, arguments: &[&str]) -> Option<Vec<u8>> {
-    let output = Command::new("git")
-        .args(arguments)
-        .current_dir(directory)
-        .output()
-        .ok()?;
+    let mut command = Command::new("git");
+    command.args(arguments).current_dir(directory);
+    for (name, _) in env::vars_os() {
+        if name
+            .to_string_lossy()
+            .to_ascii_uppercase()
+            .starts_with("GIT_")
+        {
+            command.env_remove(name);
+        }
+    }
+    let output = command.output().ok()?;
     output.status.success().then_some(output.stdout)
 }
 

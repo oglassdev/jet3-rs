@@ -87,6 +87,7 @@ pub(super) fn column_names(
     ledger: &mut RetainedLedger,
 ) -> Result<Vec<String>, SemanticSnapshotError> {
     let mut names = Vec::new();
+    ledger.reserve_vec(budget, &mut names, definition.columns().len())?;
     for column in definition.columns() {
         let name = ledger.ascii_name(budget, column.name().raw_bytes(), Some(table))?;
         ledger.push(budget, &mut names, name)?;
@@ -102,14 +103,13 @@ pub(super) fn retain_column_extensions(
     budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<(), SemanticSnapshotError> {
+    use std::fmt::Write as _;
+
     let column = &definition.columns()[column_index];
     let base_length = "/tables/".len()
         + decimal_digits(table_index)
         + "/columns/".len()
         + decimal_digits(column_index);
-    ledger.charge(budget, base_length)?;
-    let base = format!("/tables/{table_index}/columns/{column_index}");
-    debug_assert_eq!(base.len(), base_length);
     for (suffix, value) in [
         (
             "jet_raw_class",
@@ -126,9 +126,20 @@ pub(super) fn retain_column_extensions(
             },
         ),
     ] {
-        let mut key = ledger.text(budget, &base)?;
-        ledger.append_text(budget, &mut key, "/")?;
-        ledger.append_text(budget, &mut key, suffix)?;
+        let key_length = base_length
+            .checked_add(1)
+            .and_then(|length| length.checked_add(suffix.len()))
+            .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
+                operation: "size producer-extension key",
+            }))?;
+        let mut key = String::new();
+        ledger.reserve_string(budget, &mut key, key_length)?;
+        write!(key, "/tables/{table_index}/columns/{column_index}/{suffix}").map_err(|_| {
+            SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
+                operation: "format producer-extension key",
+            })
+        })?;
+        debug_assert_eq!(key.len(), key_length);
         ledger.insert(budget, producer_extensions, key, value)?;
     }
     Ok(())
@@ -151,6 +162,8 @@ pub(super) fn collect_relationship_sides(
     budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<(), SemanticSnapshotError> {
+    let relationship_count = definition.relationships().count();
+    ledger.reserve_vec(budget, sides, relationship_count)?;
     for relationship in definition.relationships() {
         let missing = SemanticSnapshotError::InvalidIndexReference {
             table: entry.root,
@@ -161,6 +174,7 @@ pub(super) fn collect_relationship_sides(
             .get(usize::from(relationship.physical_index()))
             .ok_or_else(|| missing.clone())?;
         let mut fields = Vec::new();
+        ledger.reserve_vec(budget, &mut fields, physical.fields().len())?;
         for field in physical.fields() {
             let name = names
                 .get(usize::from(field.column().get()))
@@ -190,6 +204,7 @@ pub(super) fn pair_relationships(
 ) -> Result<Vec<Relationship>, SemanticSnapshotError> {
     sides.sort_by(|left, right| left.name.cmp(&right.name));
     let mut relationships = Vec::new();
+    ledger.reserve_vec(budget, &mut relationships, sides.len() / 2)?;
     let mut remaining = sides.into_iter().peekable();
     while let Some(first) = remaining.next() {
         let second = remaining
@@ -225,6 +240,7 @@ pub(super) fn pair_relationships(
             });
         }
         let mut properties = PropertyMap::new();
+        ledger.reserve_properties(budget, &mut properties, 2)?;
         for (key, value) in [
             ("cascade_deletes", foreign.cascade_deletes),
             ("cascade_updates", foreign.cascade_updates),
@@ -241,6 +257,7 @@ pub(super) fn pair_relationships(
             )?;
         }
         let mut fields = Vec::new();
+        ledger.reserve_vec(budget, &mut fields, primary.fields.len())?;
         for (field, foreign_field) in primary.fields.into_iter().zip(foreign.fields) {
             ledger.push(
                 budget,

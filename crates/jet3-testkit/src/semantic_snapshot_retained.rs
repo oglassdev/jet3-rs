@@ -9,10 +9,7 @@ use std::mem::size_of;
 use jet3::{ByteCount, Error, PageNumber, ResourceBudget};
 
 use super::SemanticSnapshotError;
-use crate::{HexString, PropertyMap, TypedValue};
-
-/// Approximate per-entry overhead of one ordered-map node beyond its payload.
-const MAP_NODE_OVERHEAD: usize = 32;
+use crate::{CoverageBranches, HexString, PropertyMap, TypedValue};
 
 pub(super) struct RetainedLedger;
 
@@ -48,11 +45,8 @@ impl RetainedLedger {
         if !raw.is_ascii() {
             return Err(SemanticSnapshotError::NonAsciiName { table });
         }
-        self.charge(budget, raw.len())?;
         let mut owned = String::new();
-        owned
-            .try_reserve_exact(raw.len())
-            .map_err(|_| out_of_memory())?;
+        self.reserve_string(budget, &mut owned, raw.len())?;
         for byte in raw {
             owned.push(char::from(*byte));
         }
@@ -65,27 +59,45 @@ impl RetainedLedger {
         budget: &mut ResourceBudget,
         value: &str,
     ) -> Result<String, SemanticSnapshotError> {
-        self.charge(budget, value.len())?;
         let mut owned = String::new();
-        owned
-            .try_reserve_exact(value.len())
-            .map_err(|_| out_of_memory())?;
+        self.reserve_string(budget, &mut owned, value.len())?;
         owned.push_str(value);
         Ok(owned)
     }
 
     /// Appends decoded text after charging and reserving its exact byte length.
+    #[cfg(test)]
     pub(super) fn append_text(
         &mut self,
         budget: &mut ResourceBudget,
         output: &mut String,
         value: &str,
     ) -> Result<(), SemanticSnapshotError> {
-        self.charge(budget, value.len())?;
-        output
-            .try_reserve(value.len())
-            .map_err(|_| out_of_memory())?;
+        self.reserve_string(budget, output, value.len())?;
         output.push_str(value);
+        Ok(())
+    }
+
+    /// Precharges and reserves the exact additional string capacity required.
+    pub(super) fn reserve_string(
+        &mut self,
+        budget: &mut ResourceBudget,
+        output: &mut String,
+        additional: usize,
+    ) -> Result<(), SemanticSnapshotError> {
+        let required = output
+            .len()
+            .checked_add(additional)
+            .ok_or_else(allocation_overflow)?;
+        let growth = required.saturating_sub(output.capacity());
+        if growth == 0 {
+            return Ok(());
+        }
+        self.charge(budget, growth)?;
+        output
+            .try_reserve_exact(required - output.len())
+            .map_err(|_| out_of_memory())?;
+        debug_assert!(output.capacity() >= required);
         Ok(())
     }
 
@@ -95,8 +107,15 @@ impl RetainedLedger {
         budget: &mut ResourceBudget,
         bytes: &[u8],
     ) -> Result<HexString, SemanticSnapshotError> {
-        self.charge(budget, bytes.len().saturating_mul(2))?;
-        Ok(HexString::from_bytes(bytes))
+        const DIGITS: &[u8; 16] = b"0123456789abcdef";
+        let length = bytes.len().checked_mul(2).ok_or_else(allocation_overflow)?;
+        let mut output = String::new();
+        self.reserve_string(budget, &mut output, length)?;
+        for byte in bytes {
+            output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+            output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+        }
+        Ok(HexString::new(output)?)
     }
 
     /// Retains one element in a vector after charging and reserving for it.
@@ -106,13 +125,96 @@ impl RetainedLedger {
         vector: &mut Vec<T>,
         item: T,
     ) -> Result<(), SemanticSnapshotError> {
-        self.charge(budget, size_of::<T>())?;
-        vector.try_reserve(1).map_err(|_| out_of_memory())?;
+        self.reserve_vec(budget, vector, 1)?;
         vector.push(item);
         Ok(())
     }
 
-    /// Retains one property after charging for its map node.
+    /// Precharges and reserves the exact additional vector capacity required.
+    pub(super) fn reserve_vec<T>(
+        &mut self,
+        budget: &mut ResourceBudget,
+        vector: &mut Vec<T>,
+        additional: usize,
+    ) -> Result<(), SemanticSnapshotError> {
+        if size_of::<T>() == 0 {
+            return Ok(());
+        }
+        let required = vector
+            .len()
+            .checked_add(additional)
+            .ok_or_else(allocation_overflow)?;
+        let elements = required.saturating_sub(vector.capacity());
+        if elements == 0 {
+            return Ok(());
+        }
+        let bytes = elements
+            .checked_mul(size_of::<T>())
+            .ok_or_else(allocation_overflow)?;
+        self.charge(budget, bytes)?;
+        vector
+            .try_reserve_exact(required - vector.len())
+            .map_err(|_| out_of_memory())?;
+        debug_assert!(vector.capacity() >= required);
+        Ok(())
+    }
+
+    /// Precharges exact contiguous property capacity before keys are built.
+    pub(super) fn reserve_properties(
+        &mut self,
+        budget: &mut ResourceBudget,
+        map: &mut PropertyMap,
+        additional: usize,
+    ) -> Result<(), SemanticSnapshotError> {
+        let required = map
+            .len()
+            .checked_add(additional)
+            .ok_or_else(allocation_overflow)?;
+        let elements = required.saturating_sub(map.capacity());
+        if elements == 0 {
+            return Ok(());
+        }
+        let bytes = elements
+            .checked_mul(size_of::<(String, TypedValue)>())
+            .ok_or_else(allocation_overflow)?;
+        self.charge(budget, bytes)?;
+        map.try_reserve_exact(required - map.len())
+            .map_err(|_| out_of_memory())?;
+        debug_assert!(map.capacity() >= required);
+        Ok(())
+    }
+
+    /// Retains one unique coverage branch in chargeable contiguous storage.
+    pub(super) fn branch(
+        &mut self,
+        budget: &mut ResourceBudget,
+        branches: &mut CoverageBranches,
+        value: &'static str,
+    ) -> Result<(), SemanticSnapshotError> {
+        if branches.contains(value) {
+            return Ok(());
+        }
+        let required = branches
+            .len()
+            .checked_add(1)
+            .ok_or_else(allocation_overflow)?;
+        let elements = required.saturating_sub(branches.capacity());
+        if elements != 0 {
+            let bytes = elements
+                .checked_mul(size_of::<String>())
+                .ok_or_else(allocation_overflow)?;
+            self.charge(budget, bytes)?;
+            branches
+                .try_reserve_exact(required - branches.len())
+                .map_err(|_| out_of_memory())?;
+        }
+        let value = self.text(budget, value)?;
+        let inserted = branches.insert(value);
+        debug_assert!(inserted);
+        Ok(())
+    }
+
+    /// Retains one property in the map's chargeable contiguous storage.
     pub(super) fn insert(
         &mut self,
         budget: &mut ResourceBudget,
@@ -120,13 +222,19 @@ impl RetainedLedger {
         key: String,
         value: TypedValue,
     ) -> Result<(), SemanticSnapshotError> {
-        self.charge(
-            budget,
-            size_of::<String>() + size_of::<TypedValue>() + MAP_NODE_OVERHEAD,
-        )?;
+        let present = map.get(&key).is_some();
+        if !present {
+            self.reserve_properties(budget, map, 1)?;
+        }
         map.insert(key, value);
         Ok(())
     }
+}
+
+fn allocation_overflow() -> SemanticSnapshotError {
+    SemanticSnapshotError::Resource(Error::Arithmetic {
+        operation: "size retained snapshot allocation",
+    })
 }
 
 fn out_of_memory() -> SemanticSnapshotError {
@@ -140,6 +248,9 @@ fn out_of_memory() -> SemanticSnapshotError {
 mod tests {
     use super::RetainedLedger;
     use jet3::{ByteCount, ReadLimits, ResourceBudget, ResourceLimits};
+    use std::mem::size_of;
+
+    use crate::{PropertyMap, TypedValue};
 
     fn budget(maximum: u64) -> ResourceBudget {
         ResourceBudget::new(
@@ -178,6 +289,76 @@ mod tests {
         ledger.append_text(&mut budget, &mut destination, "xx")?;
         assert_eq!(destination, "xx");
         assert_eq!(budget.allocation_bytes(), ByteCount::new(11));
+        Ok(())
+    }
+
+    #[test]
+    fn string_growth_charges_only_the_actual_capacity_delta()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut exact = budget(5);
+        let mut ledger = RetainedLedger::new();
+        let mut destination = String::new();
+        ledger.reserve_string(&mut exact, &mut destination, 4)?;
+        destination.push_str("ab");
+        ledger.append_text(&mut exact, &mut destination, "cde")?;
+        assert_eq!(destination, "abcde");
+        assert_eq!(destination.capacity(), 5);
+        assert_eq!(exact.allocation_bytes(), ByteCount::new(5));
+
+        let mut rejected = budget(4);
+        let mut destination = String::new();
+        ledger.reserve_string(&mut rejected, &mut destination, 4)?;
+        destination.push_str("ab");
+        assert!(
+            ledger
+                .append_text(&mut rejected, &mut destination, "cde")
+                .is_err()
+        );
+        assert_eq!(destination, "ab");
+        assert_eq!(destination.capacity(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn vector_capacity_growth_matches_the_precharged_bytes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let item_bytes = size_of::<u64>() as u64;
+        let mut exact = budget(item_bytes);
+        let mut ledger = RetainedLedger::new();
+        let mut values = Vec::new();
+        ledger.push(&mut exact, &mut values, 7_u64)?;
+        assert_eq!(values.capacity(), 1);
+        assert_eq!(exact.allocation_bytes(), ByteCount::new(item_bytes));
+
+        let mut rejected = budget(item_bytes - 1);
+        let mut values = Vec::new();
+        assert!(ledger.push(&mut rejected, &mut values, 7_u64).is_err());
+        assert_eq!(values.capacity(), 0);
+        assert_eq!(rejected.allocation_bytes(), ByteCount::new(0));
+        Ok(())
+    }
+
+    #[test]
+    fn property_capacity_has_an_exact_success_and_failure_boundary()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let entry_bytes = size_of::<(String, TypedValue)>() as u64;
+        let value = || TypedValue::Null { raw_hex: None };
+        let mut exact = budget(entry_bytes);
+        let mut ledger = RetainedLedger::new();
+        let mut properties = PropertyMap::new();
+        ledger.insert(&mut exact, &mut properties, String::new(), value())?;
+        assert_eq!(properties.capacity(), 1);
+        assert_eq!(exact.allocation_bytes(), ByteCount::new(entry_bytes));
+
+        let mut rejected = budget(entry_bytes - 1);
+        let mut properties = PropertyMap::new();
+        assert!(
+            ledger
+                .insert(&mut rejected, &mut properties, String::new(), value())
+                .is_err()
+        );
+        assert_eq!(properties.capacity(), 0);
+        assert!(properties.is_empty());
         Ok(())
     }
 }

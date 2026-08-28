@@ -9,14 +9,13 @@
 //! guessed. A snapshot is a Rust self-read; it never establishes DAO
 //! compatibility on its own.
 
-use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt;
 
 use crate::{
-    CoverageReceipt, HexString, Producer, PropertyMap, ScenarioId, SemanticProtocolError,
-    SemanticRow, SemanticSnapshot, SemanticTable, Sha256, Sha256Hasher, SnapshotError, TableKind,
-    TypedValue, hex_digest,
+    CoverageBranches, CoverageReceipt, HexString, Producer, PropertyMap, ScenarioId,
+    SemanticProtocolError, SemanticRow, SemanticSnapshot, SemanticTable, Sha256, Sha256Hasher,
+    SnapshotError, TableKind, TypedValue, hex_digest,
 };
 use jet3::{
     AllocationMapError, AllocationTraversalError, CatalogError, DatabasePageError, DatabaseReader,
@@ -249,7 +248,7 @@ struct CollectionContext<'a> {
     code_page: TextCodePage,
     budget: &'a mut ResourceBudget,
     ledger: &'a mut RetainedLedger,
-    branches: &'a mut BTreeSet<String>,
+    branches: &'a mut CoverageBranches,
     producer_extensions: &'a mut PropertyMap,
     table_index: usize,
 }
@@ -278,19 +277,25 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
 ) -> Result<SemanticSnapshotArtifacts, SemanticSnapshotError> {
     let mut ledger = RetainedLedger::new();
     let catalog = collect_user_tables(database, budget, &mut ledger)?;
-    let mut snapshot = SemanticSnapshot::new(
-        options.scenario_id.clone(),
-        options.producer.clone(),
-        options.database_sha256.clone(),
-    );
-    let mut branches = BTreeSet::from([
-        "open.signature_geometry".to_owned(),
-        "open.header_page".to_owned(),
-        "catalog.root_discovery".to_owned(),
-        "catalog.record_stream".to_owned(),
-    ]);
+    ledger.charge(budget, options.scenario_id.as_str().len())?;
+    let scenario_id = options.scenario_id.clone();
+    ledger.charge(budget, options.producer.source_revision().len())?;
+    let producer = options.producer.clone();
+    ledger.charge(budget, options.database_sha256.as_str().len())?;
+    let database_sha256 = options.database_sha256.clone();
+    let mut snapshot = SemanticSnapshot::new(scenario_id, producer, database_sha256);
+    let mut branches = CoverageBranches::new();
+    for branch in [
+        "open.signature_geometry",
+        "open.header_page",
+        "catalog.root_discovery",
+        "catalog.record_stream",
+    ] {
+        ledger.branch(budget, &mut branches, branch)?;
+    }
     let mut allocated_hasher = Sha256Hasher::new();
     let mut sides = Vec::new();
+    ledger.reserve_vec(budget, &mut snapshot.tables, catalog.len())?;
     for entry in &catalog {
         let definition = database
             .table_definition(entry.root, budget)
@@ -300,6 +305,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
             entry,
             &definition,
             budget,
+            &mut ledger,
             &mut branches,
             &mut allocated_hasher,
         )?;
@@ -320,27 +326,36 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
         )?;
         collect_relationship_sides(entry, &definition, &names, &mut sides, budget, &mut ledger)?;
         if definition.relationships().next().is_some() {
-            branches.insert("tdef.relationship_reference".to_owned());
+            ledger.branch(budget, &mut branches, "tdef.relationship_reference")?;
         }
         ledger.push(budget, &mut snapshot.tables, table)?;
     }
     snapshot.relationships = pair_relationships(sides, budget, &mut ledger)?;
-    let canonicalization_bound = crate::semantic_json::snapshot_allocation_bound(&snapshot)
+    let canonicalization_bound = crate::semantic_json::canonicalization_allocation_bound(&snapshot)
         .map_err(SemanticSnapshotError::Resource)?;
     budget
         .charge_allocation(canonicalization_bound)
         .map_err(SemanticSnapshotError::Resource)?;
     snapshot.canonicalize()?;
-    let receipt = CoverageReceipt {
-        scenario_id: options.scenario_id.clone(),
-        source_revision: options.producer.source_revision().to_owned(),
-        database_sha256: options.database_sha256.clone(),
-        allocated_set_sha256: Sha256::new(hex_digest(allocated_hasher.finalize().map_err(
-            |_| SemanticProtocolError::InvalidModel {
+    ledger.charge(budget, options.scenario_id.as_str().len())?;
+    let scenario_id = options.scenario_id.clone();
+    ledger.charge(budget, options.producer.source_revision().len())?;
+    let source_revision = options.producer.source_revision().to_owned();
+    ledger.charge(budget, options.database_sha256.as_str().len())?;
+    let database_sha256 = options.database_sha256.clone();
+    ledger.charge(budget, 64)?;
+    let allocated_set_sha256 =
+        Sha256::new(hex_digest(allocated_hasher.finalize().map_err(|_| {
+            SemanticProtocolError::InvalidModel {
                 path: "$.allocated_set_sha256".to_owned(),
                 reason: "SHA-256 length is not representable",
-            },
-        )?))?,
+            }
+        })?))?;
+    let receipt = CoverageReceipt {
+        scenario_id,
+        source_revision,
+        database_sha256,
+        allocated_set_sha256,
         branches,
     };
     Ok(SemanticSnapshotArtifacts {
@@ -357,6 +372,22 @@ fn collect_table<S: ReadAt>(
     context: &mut CollectionContext<'_>,
 ) -> Result<SemanticTable, SemanticSnapshotError> {
     let mut columns = Vec::new();
+    context
+        .ledger
+        .reserve_vec(context.budget, &mut columns, definition.columns().len())?;
+    let extension_count =
+        definition
+            .columns()
+            .len()
+            .checked_mul(2)
+            .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
+                operation: "count retained producer extensions",
+            }))?;
+    context.ledger.reserve_properties(
+        context.budget,
+        context.producer_extensions,
+        extension_count,
+    )?;
     for (column_index, (column, name)) in definition.columns().iter().zip(names).enumerate() {
         let name = context.ledger.text(context.budget, name)?;
         let column = convert_column(column, name, context.budget, context.ledger)?;
@@ -371,6 +402,14 @@ fn collect_table<S: ReadAt>(
         )?;
     }
     let mut indexes = Vec::new();
+    let index_count = definition
+        .indexes()
+        .iter()
+        .filter(|index| !matches!(index.kind(), IndexDefinitionKind::Relationship(_)))
+        .count();
+    context
+        .ledger
+        .reserve_vec(context.budget, &mut indexes, index_count)?;
     for logical in definition.indexes() {
         let primary = match logical.kind() {
             IndexDefinitionKind::Primary => true,
@@ -388,12 +427,24 @@ fn collect_table<S: ReadAt>(
         )?;
         context.ledger.push(context.budget, &mut indexes, index)?;
     }
-    collect_index_evidence(database, definition, context.budget, context.branches)?;
+    collect_index_evidence(
+        database,
+        definition,
+        context.budget,
+        context.ledger,
+        context.branches,
+    )?;
     let rows = collect_rows(database, definition, entry.root, names, context)?;
-    context.branches.insert("tdef.column_types".to_owned());
+    context
+        .ledger
+        .branch(context.budget, context.branches, "tdef.column_types")?;
     if !indexes.is_empty() {
-        context.branches.insert("tdef.logical_index".to_owned());
-        context.branches.insert("tdef.physical_index".to_owned());
+        context
+            .ledger
+            .branch(context.budget, context.branches, "tdef.logical_index")?;
+        context
+            .ledger
+            .branch(context.budget, context.branches, "tdef.physical_index")?;
     }
     Ok(SemanticTable {
         name: context.ledger.text(context.budget, &entry.name)?,
@@ -406,12 +457,12 @@ fn collect_table<S: ReadAt>(
     })
 }
 
-/// Streams and retains every row with an empty producer key.
+/// Streams and retains every row for the shared protocol v1.2 row-key contract.
 ///
-/// The binding P8 row-key contract (protocol v1.2) is not created yet. Until
-/// it is, rows carry no declared key, so the shared canonicalizer orders them
-/// purely by the canonical tuple over all lossless typed values; this adapter
-/// deliberately implements no other row-identity convention.
+/// Rows enter canonicalization without a precomputed key. The shared
+/// canonicalizer derives each key from the canonical JSON encoding of all
+/// lossless typed values and assigns duplicate ordinals; this adapter defines
+/// no separate row-identity convention.
 fn collect_rows<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     definition: &TableDefinition,
@@ -440,6 +491,7 @@ fn collect_rows<S: ReadAt>(
                 .ledger
                 .insert(cursor.budget_mut(), &mut values, key, value)?;
         }
+        context.ledger.charge(cursor.budget_mut(), 64)?;
         context.ledger.push(
             cursor.budget_mut(),
             &mut rows,
@@ -458,7 +510,9 @@ fn collect_rows<S: ReadAt>(
         (coverage.wide_variable_layout(), "rows.wide_variable_layout"),
     ] {
         if covered {
-            context.branches.insert(branch.to_owned());
+            context
+                .ledger
+                .branch(cursor.budget_mut(), context.branches, branch)?;
         }
     }
     Ok(rows)
@@ -471,7 +525,7 @@ fn collect_row(
     names: &[String],
     code_page: TextCodePage,
     ledger: &mut RetainedLedger,
-    branches: &mut BTreeSet<String>,
+    branches: &mut CoverageBranches,
 ) -> Result<(PropertyMap, Vec<(String, LongValueReference)>), SemanticSnapshotError> {
     let mut values = PropertyMap::new();
     let mut external = Vec::new();
@@ -489,7 +543,7 @@ fn collect_row(
             ledger.push(view.budget_mut(), &mut external, (key, *reference))?;
         } else {
             let value = convert_value(&decoded, table, ordinal.get(), view.budget_mut(), ledger)?;
-            record_value_branch(&value, code_page, branches);
+            record_value_branch(&value, code_page, view.budget_mut(), ledger, branches)?;
             ledger.insert(view.budget_mut(), &mut values, key, value)?;
         }
     }
@@ -500,15 +554,13 @@ fn stream_external_value<S: ReadAt>(
     rows: &mut jet3::RowCursor<'_, '_, S>,
     reference: LongValueReference,
     ledger: &mut RetainedLedger,
-    branches: &mut BTreeSet<String>,
+    branches: &mut CoverageBranches,
 ) -> Result<TypedValue, SemanticSnapshotError> {
-    branches.insert(
-        match reference.storage() {
-            ExternalLongValueStorage::SinglePage => "long_value.single_page",
-            ExternalLongValueStorage::Chained => "long_value.chained",
-        }
-        .to_owned(),
-    );
+    let branch = match reference.storage() {
+        ExternalLongValueStorage::SinglePage => "long_value.single_page",
+        ExternalLongValueStorage::Chained => "long_value.chained",
+    };
+    ledger.branch(rows.budget_mut(), branches, branch)?;
     let raw_hex = Some(ledger.hex(rows.budget_mut(), &reference.raw_header())?);
     let retained_capacity = match reference.kind() {
         LongValueKind::Memo => usize::try_from(reference.length())

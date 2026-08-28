@@ -1,7 +1,5 @@
 //! Complete validation for protocol 1.2 semantic snapshot models.
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use super::{SemanticProtocolError, SemanticSnapshot, SemanticTable, invalid};
 use crate::{HexString, PropertyMap, TypedValue};
 
@@ -11,18 +9,9 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
         snapshot.tables.iter().map(|table| table.name.as_str()),
         "$.tables",
     )?;
-    let mut tables = BTreeMap::new();
     for (table_index, table) in snapshot.tables.iter().enumerate() {
         let path = format!("$.tables[{table_index}]");
         validate_table(table, &path)?;
-        tables.insert(
-            table.name.as_str(),
-            table
-                .columns
-                .iter()
-                .map(|column| column.name.as_str())
-                .collect::<BTreeSet<_>>(),
-        );
     }
 
     validate_strict_names(
@@ -34,11 +23,15 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
     )?;
     for (index, relationship) in snapshot.relationships.iter().enumerate() {
         let path = format!("$.relationships[{index}]");
-        let local = tables
-            .get(relationship.table.as_str())
+        let local = snapshot
+            .tables
+            .iter()
+            .find(|table| table.name == relationship.table)
             .ok_or_else(|| invalid(format!("{path}.table"), "unknown table"))?;
-        let foreign = tables
-            .get(relationship.foreign_table.as_str())
+        let foreign = snapshot
+            .tables
+            .iter()
+            .find(|table| table.name == relationship.foreign_table)
             .ok_or_else(|| invalid(format!("{path}.foreign_table"), "unknown table"))?;
         if relationship.fields.is_empty() {
             return Err(invalid(
@@ -46,13 +39,17 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
                 "field list must not be empty",
             ));
         }
-        let mut pairs = BTreeSet::new();
-        for pair in &relationship.fields {
+        for (pair_index, pair) in relationship.fields.iter().enumerate() {
             if pair.field.is_empty()
                 || pair.foreign_field.is_empty()
-                || !local.contains(pair.field.as_str())
-                || !foreign.contains(pair.foreign_field.as_str())
-                || !pairs.insert((pair.field.as_str(), pair.foreign_field.as_str()))
+                || !local.columns.iter().any(|column| column.name == pair.field)
+                || !foreign
+                    .columns
+                    .iter()
+                    .any(|column| column.name == pair.foreign_field)
+                || relationship.fields[..pair_index].iter().any(|prior| {
+                    prior.field == pair.field && prior.foreign_field == pair.foreign_field
+                })
             {
                 return Err(invalid(
                     format!("{path}.fields"),
@@ -91,10 +88,17 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
 
 fn validate_table(table: &SemanticTable, path: &str) -> Result<(), SemanticProtocolError> {
     validate_properties(&table.properties, &format!("{path}.properties"))?;
-    validate_unique_names(
-        table.columns.iter().map(|column| column.name.as_str()),
-        &format!("{path}.columns"),
-    )?;
+    if table.columns.iter().enumerate().any(|(index, column)| {
+        column.name.is_empty()
+            || table.columns[..index]
+                .iter()
+                .any(|prior| prior.name == column.name)
+    }) {
+        return Err(invalid(
+            format!("{path}.columns"),
+            "names must be non-empty and unique",
+        ));
+    }
     for (index, column) in table.columns.iter().enumerate() {
         let column_path = format!("{path}.columns[{index}]");
         if column.ordinal != index as u64 {
@@ -110,11 +114,6 @@ fn validate_table(table: &SemanticTable, path: &str) -> Result<(), SemanticProto
         table.indexes.iter().map(|index| index.name.as_str()),
         &format!("{path}.indexes"),
     )?;
-    let columns = table
-        .columns
-        .iter()
-        .map(|column| column.name.as_str())
-        .collect::<BTreeSet<_>>();
     let mut primary_count = 0;
     for (index_ordinal, index) in table.indexes.iter().enumerate() {
         let index_path = format!("{path}.indexes[{index_ordinal}]");
@@ -131,11 +130,12 @@ fn validate_table(table: &SemanticTable, path: &str) -> Result<(), SemanticProto
                 "field list must not be empty",
             ));
         }
-        let mut names = BTreeSet::new();
-        if index.fields.iter().any(|field| {
+        if index.fields.iter().enumerate().any(|(field_index, field)| {
             field.name.is_empty()
-                || !columns.contains(field.name.as_str())
-                || !names.insert(field.name.as_str())
+                || !table.columns.iter().any(|column| column.name == field.name)
+                || index.fields[..field_index]
+                    .iter()
+                    .any(|prior| prior.name == field.name)
         }) {
             return Err(invalid(
                 format!("{index_path}.fields"),
@@ -151,20 +151,14 @@ fn validate_table(table: &SemanticTable, path: &str) -> Result<(), SemanticProto
         ));
     }
 
-    let column_by_name = table
-        .columns
-        .iter()
-        .map(|column| (column.name.as_str(), column.dao_type.as_str()))
-        .collect::<BTreeMap<_, _>>();
     let mut previous: Option<(&str, u64, Vec<u8>)> = None;
     for (row_index, row) in table.rows.iter().enumerate() {
         let row_path = format!("{path}.rows[{row_index}]");
-        if row
-            .values
-            .keys()
-            .map(String::as_str)
-            .collect::<BTreeSet<_>>()
-            != columns
+        if row.values.len() != table.columns.len()
+            || table
+                .columns
+                .iter()
+                .any(|column| row.values.get(&column.name).is_none())
         {
             return Err(invalid(
                 format!("{row_path}.values"),
@@ -172,7 +166,12 @@ fn validate_table(table: &SemanticTable, path: &str) -> Result<(), SemanticProto
             ));
         }
         for (name, value) in &row.values {
-            let dao_type = column_by_name[name.as_str()];
+            let dao_type = table
+                .columns
+                .iter()
+                .find(|column| column.name == *name)
+                .map(|column| column.dao_type.as_str())
+                .ok_or_else(|| invalid(format!("{row_path}.values"), "unknown value column"))?;
             validate_row_value(value, dao_type, &format!("{row_path}.values/{name}"))?;
         }
         let bytes = super::canonical_row_bytes(&row.values)?;
@@ -311,20 +310,6 @@ fn validate_strict_names<'a>(
             ));
         }
         previous = Some(value);
-    }
-    Ok(())
-}
-
-fn validate_unique_names<'a>(
-    values: impl Iterator<Item = &'a str>,
-    path: &str,
-) -> Result<(), SemanticProtocolError> {
-    let mut seen = BTreeSet::new();
-    if values
-        .into_iter()
-        .any(|value| value.is_empty() || !seen.insert(value))
-    {
-        return Err(invalid(path, "names must be non-empty and unique"));
     }
     Ok(())
 }

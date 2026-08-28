@@ -106,6 +106,7 @@ pub(super) fn convert_index(
         .get(usize::from(logical.physical_index()))
         .ok_or_else(|| missing.clone())?;
     let mut fields = Vec::new();
+    ledger.reserve_vec(budget, &mut fields, physical.fields().len())?;
     for field in physical.fields() {
         let name = column_names
             .get(usize::from(field.column().get()))

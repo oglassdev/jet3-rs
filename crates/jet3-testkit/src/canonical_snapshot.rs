@@ -3,12 +3,16 @@
 //! This module models and serializes the protocol document. It does not read
 //! MDB bytes and does not provide compatibility evidence.
 
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
+#[path = "canonical_property_map.rs"]
+mod property_map;
+
 #[path = "canonical_snapshot_validation.rs"]
 mod validation;
+
+pub use property_map::PropertyMap;
 
 use validation::{
     canonicalize_rows, ensure_named_order, ensure_ordinal_order, ensure_row_order,
@@ -392,9 +396,6 @@ pub enum TypedValue {
         raw_hex: Option<HexString>,
     },
 }
-
-/// A canonically key-ordered property map.
-pub type PropertyMap = BTreeMap<String, TypedValue>;
 
 /// Snapshot producer kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -10,6 +10,7 @@ from .repository_common import (
     ContractError,
     FIXTURE_ROOTS,
     FUZZ_ID,
+    CHECKED_PROTOCOL_TEST_RESOURCES,
     PROVENANCE_ID,
     SCENARIO_ID,
     SHA256,
@@ -31,6 +32,28 @@ def fixture_candidates(tracked: set[str]) -> set[str]:
         if any(path.is_relative_to(root) for root in FIXTURE_ROOTS):
             candidates.add(raw)
     return candidates
+
+
+def valid_protocol_test_resource_reference(
+    root: Path, tracked: set[str], path: Any, digest: Any
+) -> bool:
+    """Recognize an exact, tracked, content-bound protocol test resource."""
+    if (
+        not isinstance(path, str)
+        or path not in CHECKED_PROTOCOL_TEST_RESOURCES
+        or path not in tracked
+    ):
+        return False
+    try:
+        resource, relative = resolve_file(root, path, "protocol test resource")
+    except ContractError:
+        return False
+    return (
+        relative == path
+        and isinstance(digest, str)
+        and SHA256.fullmatch(digest) is not None
+        and sha256(resource) == digest
+    )
 
 
 def validate_repository_fixtures(
@@ -139,7 +162,10 @@ def validate_repository_fixtures(
                 if not isinstance(reference, dict):
                     continue
                 path = reference.get("path")
-                if indexed.get(path) != reference.get("sha256"):
+                digest = reference.get("sha256")
+                if indexed.get(path) != digest and not valid_protocol_test_resource_reference(
+                    root, tracked, path, digest
+                ):
                     errors.append(
                         f"test {case.get('id')} references an unmanifested fixture {path}"
                     )

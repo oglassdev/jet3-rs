@@ -1,6 +1,5 @@
 //! Versioned protocol 1.2 semantic snapshot and Rust coverage receipt.
 
-use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
@@ -111,7 +110,87 @@ pub struct CoverageReceipt {
     /// SHA-256 binding the traversed allocated-page sets.
     pub allocated_set_sha256: Sha256,
     /// Closed registry branch identifiers observed by the producer.
-    pub branches: BTreeSet<String>,
+    pub branches: CoverageBranches,
+}
+
+/// A canonically ordered set of observed coverage branch identifiers.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CoverageBranches {
+    values: Vec<String>,
+}
+
+impl CoverageBranches {
+    /// Constructs an empty branch set.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { values: Vec::new() }
+    }
+
+    /// Inserts a branch while preserving canonical ordering.
+    pub fn insert(&mut self, value: String) -> bool {
+        match self.values.binary_search(&value) {
+            Ok(_) => false,
+            Err(index) => {
+                self.values.insert(index, value);
+                true
+            }
+        }
+    }
+
+    /// Iterates over branches in canonical order.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.values.iter()
+    }
+
+    /// Returns whether `value` was observed.
+    #[must_use]
+    pub fn contains(&self, value: &str) -> bool {
+        self.values
+            .binary_search_by(|candidate| candidate.as_str().cmp(value))
+            .is_ok()
+    }
+
+    /// Returns the number of observed branches.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Returns whether no branches were observed.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    pub(crate) const fn capacity(&self) -> usize {
+        self.values.capacity()
+    }
+
+    pub(crate) fn try_reserve_exact(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), std::collections::TryReserveError> {
+        self.values.try_reserve_exact(additional)
+    }
+}
+
+impl FromIterator<String> for CoverageBranches {
+    fn from_iter<T: IntoIterator<Item = String>>(values: T) -> Self {
+        let mut branches = Self::new();
+        for value in values {
+            branches.insert(value);
+        }
+        branches
+    }
+}
+
+impl<'a> IntoIterator for &'a CoverageBranches {
+    type Item = &'a String;
+    type IntoIter = std::slice::Iter<'a, String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.iter()
+    }
 }
 
 /// A protocol 1.2 model or canonical serialization failure.
@@ -210,10 +289,17 @@ impl SemanticSnapshot {
         )?;
         for table in &mut self.tables {
             table.columns.sort_by_key(|column| column.ordinal);
-            ensure_unique(
-                table.columns.iter().map(|column| column.name.as_str()),
-                "$.tables[].columns",
-            )?;
+            if table.columns.iter().enumerate().any(|(index, column)| {
+                column.name.is_empty()
+                    || table.columns[..index]
+                        .iter()
+                        .any(|prior| prior.name == column.name)
+            }) {
+                return Err(invalid(
+                    "$.tables[].columns",
+                    "names must be non-empty and unique",
+                ));
+            }
             for (expected, column) in table.columns.iter().enumerate() {
                 if column.ordinal != expected as u64 {
                     return Err(invalid(
@@ -229,17 +315,12 @@ impl SemanticSnapshot {
                 table.indexes.iter().map(|index| index.name.as_str()),
                 "$.tables[].indexes",
             )?;
-            let columns = table
-                .columns
-                .iter()
-                .map(|column| column.name.clone())
-                .collect::<BTreeSet<_>>();
             for index in &table.indexes {
                 if index.fields.is_empty()
                     || index
                         .fields
                         .iter()
-                        .any(|field| !columns.contains(&field.name))
+                        .any(|field| !table.columns.iter().any(|column| column.name == field.name))
                 {
                     return Err(invalid(
                         "$.tables[].indexes[].fields",
@@ -247,7 +328,7 @@ impl SemanticSnapshot {
                     ));
                 }
             }
-            canonicalize_rows(table, &columns)?;
+            canonicalize_rows(table)?;
         }
         self.relationships
             .sort_by(|left, right| left.name.cmp(&right.name));
@@ -292,13 +373,15 @@ pub(crate) fn sha256(bytes: &[u8]) -> Result<Sha256, SemanticProtocolError> {
     Sha256::new(text).map_err(Into::into)
 }
 
-fn canonicalize_rows(
-    table: &mut SemanticTable,
-    columns: &BTreeSet<String>,
-) -> Result<(), SemanticProtocolError> {
+fn canonicalize_rows(table: &mut SemanticTable) -> Result<(), SemanticProtocolError> {
     let mut keyed = Vec::with_capacity(table.rows.len());
     for mut row in table.rows.drain(..) {
-        if row.values.keys().cloned().collect::<BTreeSet<_>>() != *columns {
+        if row.values.len() != table.columns.len()
+            || table
+                .columns
+                .iter()
+                .any(|column| row.values.get(&column.name).is_none())
+        {
             return Err(invalid(
                 "$.tables[].rows[].values",
                 "keys must equal declared columns",
@@ -338,30 +421,22 @@ fn validate_relationships(
     tables: &[SemanticTable],
     relationships: &[Relationship],
 ) -> Result<(), SemanticProtocolError> {
-    let known = tables
-        .iter()
-        .map(|table| {
-            (
-                table.name.as_str(),
-                table
-                    .columns
-                    .iter()
-                    .map(|column| column.name.as_str())
-                    .collect::<BTreeSet<_>>(),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
     for relationship in relationships {
-        let local = known
-            .get(relationship.table.as_str())
+        let local = tables
+            .iter()
+            .find(|table| table.name == relationship.table)
             .ok_or_else(|| invalid("$.relationships[].table", "unknown table"))?;
-        let foreign = known
-            .get(relationship.foreign_table.as_str())
+        let foreign = tables
+            .iter()
+            .find(|table| table.name == relationship.foreign_table)
             .ok_or_else(|| invalid("$.relationships[].foreign_table", "unknown table"))?;
         if relationship.fields.is_empty()
             || relationship.fields.iter().any(|pair| {
-                !local.contains(pair.field.as_str())
-                    || !foreign.contains(pair.foreign_field.as_str())
+                !local.columns.iter().any(|column| column.name == pair.field)
+                    || !foreign
+                        .columns
+                        .iter()
+                        .any(|column| column.name == pair.foreign_field)
             })
         {
             return Err(invalid(
@@ -421,11 +496,12 @@ fn ensure_unique<'a>(
     values: impl Iterator<Item = &'a str>,
     path: &str,
 ) -> Result<(), SemanticProtocolError> {
-    let mut seen = BTreeSet::new();
+    let mut previous = None;
     for value in values {
-        if value.is_empty() || !seen.insert(value) {
+        if value.is_empty() || previous.is_some_and(|prior| prior == value) {
             return Err(invalid(path, "names must be non-empty and unique"));
         }
+        previous = Some(value);
     }
     Ok(())
 }

@@ -454,6 +454,8 @@ fn final_artifact_reservations_are_exactly_budgeted_before_growth()
     let mut measured = ResourceBudget::new(limits(&bytes));
     let (snapshot, receipt) = artifacts.to_canonical_json(&mut measured)?;
     assert!(!snapshot.is_empty() && !receipt.is_empty());
+    assert_eq!(snapshot.capacity(), snapshot.len());
+    assert_eq!(receipt.capacity(), receipt.len());
     let exact = measured.allocation_bytes();
 
     let exact_limits = limits(&bytes).with_max_allocation_bytes(exact);

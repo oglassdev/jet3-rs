@@ -5850,6 +5850,8 @@ Use `not applicable` explicitly rather than omitting a field.
   `producer_extensions` JSON pointer map.
 - Artifacts:
   `oracle/windows-dao/protocol/v1_2/fixtures/column-normalization-vectors.tsv`,
+  SHA-256
+  `4c37c78610cd02e3726a2685cf21ef9d97dfb9480309d6719cda14a369437f6e`,
   consumed by the Rust and Python protocol tests
 - Observation: none; this entry defines a deterministic cross-producer
   projection from previously recorded facts

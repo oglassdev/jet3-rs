@@ -35,7 +35,7 @@
     {
       "path": "crates/jet3/src/catalog.rs",
       "classification": "format_safety",
-      "sha256": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33"
+      "sha256": "1f8e8536ec24d97a6c9e6302888e6e488c782367c2a4c492041f219b26d3557e"
     },
     {
       "path": "crates/jet3/src/catalog_record.rs",
@@ -110,7 +110,7 @@
     {
       "path": "crates/jet3/src/lib.rs",
       "classification": "format_safety",
-      "sha256": "c0dcd2a9340d97b997e44946aadad18e6eb99dbb6a0429415683f1d9de0fdd5f"
+      "sha256": "c1b80efc32dde6516dc45eb7a3a1a9d5a80be5a6d79f79e79d8434fb764c5334"
     },
     {
       "path": "crates/jet3/src/limits.rs",
@@ -120,7 +120,7 @@
     {
       "path": "crates/jet3/src/long_value.rs",
       "classification": "format_safety",
-      "sha256": "0fe9ec300202d10e8ced2329012283e5f81e0e861ad4f54a0d5529ac76e581df"
+      "sha256": "8de0a96b20cbfc78dc04094dd656d4cfe3a7cc847afa0e328ad1d280d15535da"
     },
     {
       "path": "crates/jet3/src/map_location.rs",
@@ -165,12 +165,22 @@
     {
       "path": "crates/jet3/src/row.rs",
       "classification": "format_safety",
-      "sha256": "6f9e66cbee98fd1c51c0f749b444d2db5abfb28e2ba2c5720980449f77f2e0b2"
+      "sha256": "94917196106eb5cdf831346fdc436b20a9f6a31edf29af267a5930582353842b"
+    },
+    {
+      "path": "crates/jet3/src/row_cursor.rs",
+      "classification": "format_safety",
+      "sha256": "a3799f5f22327f6ada6c9f7d330418bb65ec03e64e0451e6d175d2a96eafd0ed"
     },
     {
       "path": "crates/jet3/src/row_directory.rs",
       "classification": "format_safety",
       "sha256": "8132c1cce00cd8457cde54119c2186b63341135ca75bec3af4d2cb1d126817df"
+    },
+    {
+      "path": "crates/jet3/src/row_layout.rs",
+      "classification": "format_safety",
+      "sha256": "bcd2f66d0a04774917a8c65adee13638d69fbea5aefcfec14f77c53dc9ee323f"
     },
     {
       "path": "crates/jet3/src/source.rs",

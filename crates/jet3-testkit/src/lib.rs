@@ -20,8 +20,8 @@ pub use classifier_snapshot::{
     classify_fixture,
 };
 pub use semantic_protocol::{
-    CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError, SemanticRow,
-    SemanticSnapshot, SemanticTable,
+    CoverageBranches, CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError,
+    SemanticRow, SemanticSnapshot, SemanticTable,
 };
 pub use semantic_snapshot::{
     SemanticSnapshotArtifacts, SemanticSnapshotError, SemanticSnapshotOptions,

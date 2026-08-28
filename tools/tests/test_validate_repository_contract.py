@@ -703,14 +703,35 @@ class FixtureInventoryTests(unittest.TestCase):
             ]
         }
 
-    def validate(self, manifest: dict | None = None, tracked: set[str] | None = None) -> list[str]:
+    def validate(
+        self,
+        manifest: dict | None = None,
+        tracked: set[str] | None = None,
+        tests: dict | None = None,
+    ) -> list[str]:
         return contract.validate_repository_fixtures(
             self.root,
-            manifest or self.manifest,
-            tracked or self.tracked,
+            self.manifest if manifest is None else manifest,
+            self.tracked if tracked is None else tracked,
             self.provenance,
-            self.tests,
+            self.tests if tests is None else tests,
         )
+
+    def protocol_reference(
+        self, path: str, data: bytes = b"protocol resource"
+    ) -> tuple[dict, set[str]]:
+        resource = self.root / path
+        resource.parent.mkdir(parents=True, exist_ok=True)
+        resource.write_bytes(data)
+        tests = {
+            "cases": [
+                {
+                    "id": "UT-PROTOCOL-RESOURCE-001",
+                    "fixtures": [{"path": path, "sha256": digest(data)}],
+                }
+            ]
+        }
+        return tests, self.tracked | {path}
 
     def test_complete_repository_fixture_passes(self) -> None:
         self.assertEqual(self.validate(), [])
@@ -724,6 +745,43 @@ class FixtureInventoryTests(unittest.TestCase):
         self.assertTrue(any(".license: expected non-empty" in error for error in errors))
         missing = self.validate({"schema_version": 1, "fixtures": []})
         self.assertTrue(any("inventory mismatch" in error for error in missing))
+
+    def test_exact_protocol_test_resource_with_current_hash_passes(self) -> None:
+        path = "oracle/windows-dao/protocol/v1_2/fixtures/row-key-vectors.tsv"
+        tests, tracked = self.protocol_reference(path)
+        self.assertEqual(self.validate(tracked=tracked, tests=tests), [])
+
+    def test_other_unmanifested_protocol_path_fails(self) -> None:
+        path = "oracle/windows-dao/protocol/v1_2/fixtures/other.tsv"
+        tests, tracked = self.protocol_reference(path)
+        errors = self.validate(tracked=tracked, tests=tests)
+        self.assertTrue(any("unmanifested fixture" in error for error in errors))
+
+    def test_protocol_test_resource_with_stale_hash_fails(self) -> None:
+        path = "oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json"
+        tests, tracked = self.protocol_reference(path)
+        tests["cases"][0]["fixtures"][0]["sha256"] = "0" * 64
+        errors = self.validate(tracked=tracked, tests=tests)
+        self.assertTrue(any("unmanifested fixture" in error for error in errors))
+
+    def test_protocol_test_resource_must_be_tracked_regular_and_present(self) -> None:
+        path = "oracle/windows-dao/protocol/v1_2/scenarios.json"
+        tests, tracked = self.protocol_reference(path)
+        resource = self.root / path
+
+        with self.subTest("untracked"):
+            errors = self.validate(tests=tests)
+            self.assertTrue(any("unmanifested fixture" in error for error in errors))
+
+        with self.subTest("missing"):
+            resource.unlink()
+            errors = self.validate(tracked=tracked, tests=tests)
+            self.assertTrue(any("unmanifested fixture" in error for error in errors))
+
+        with self.subTest("nonregular"):
+            resource.mkdir()
+            errors = self.validate(tracked=tracked, tests=tests)
+            self.assertTrue(any("unmanifested fixture" in error for error in errors))
 
 
 class SeedAndExternalCorpusTests(unittest.TestCase):

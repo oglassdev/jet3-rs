@@ -3,27 +3,44 @@
 use crate::canonical_json::JsonWriter;
 use crate::{
     CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError, SemanticSnapshot,
-    SemanticSnapshotError, SemanticTable, TableKind, TypedValue,
+    SemanticSnapshotError, SemanticTable, TableKind,
 };
 use jet3::{ByteCount, Error, ResourceBudget};
+use std::mem::size_of;
 
 pub(super) fn write_snapshot(
     snapshot: &SemanticSnapshot,
 ) -> Result<Vec<u8>, SemanticProtocolError> {
+    snapshot.validate()?;
     let mut writer = JsonWriter::new();
     write_snapshot_into(&mut writer, snapshot)?;
-    Ok(writer.bytes)
+    writer
+        .into_bytes()
+        .ok_or_else(|| SemanticProtocolError::InvalidModel {
+            path: "$".to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
 }
 
 pub(super) fn write_snapshot_budgeted(
     snapshot: &SemanticSnapshot,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, SemanticSnapshotError> {
+    let validation =
+        canonicalization_allocation_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
+    budget
+        .charge_allocation(validation)
+        .map_err(SemanticSnapshotError::Resource)?;
     snapshot.validate()?;
     let bound = snapshot_allocation_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
     let mut writer = reserved_writer(bound, budget)?;
     write_snapshot_into(&mut writer, snapshot)?;
-    Ok(writer.bytes)
+    writer.into_bytes().ok_or_else(|| {
+        SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
+            path: "$".to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
+    })
 }
 
 fn write_snapshot_into(
@@ -37,11 +54,7 @@ fn write_snapshot_into(
         .bytes
         .extend_from_slice(br#"["/producer","/producer_extensions"]"#);
     writer.key(&mut first, "database_properties");
-    properties(
-        writer,
-        &snapshot.database_properties,
-        "$.database_properties",
-    )?;
+    properties(writer, &snapshot.database_properties)?;
     writer.key(&mut first, "database_sha256");
     writer.string(snapshot.database_sha256.as_str());
     writer.key(&mut first, "document_type");
@@ -51,22 +64,12 @@ fn write_snapshot_into(
     writer.key(&mut first, "producer");
     writer.producer(&snapshot.producer);
     writer.key(&mut first, "producer_extensions");
-    properties(
-        writer,
-        &snapshot.producer_extensions,
-        "$.producer_extensions",
-    )?;
+    properties(writer, &snapshot.producer_extensions)?;
     writer.key(&mut first, "protocol_version");
     writer.string("1.2.0");
     writer.key(&mut first, "raw_preservation");
     writer.raw_preservation(&snapshot.raw_preservation);
     writer.key(&mut first, "relationships");
-    for (index, relationship) in snapshot.relationships.iter().enumerate() {
-        super::semantic_protocol::validate_property_map(
-            &relationship.properties,
-            &format!("$.relationships[{index}].properties"),
-        )?;
-    }
     writer.relationships(&snapshot.relationships)?;
     writer.key(&mut first, "scenario_id");
     writer.string(snapshot.scenario_id.as_str());
@@ -80,7 +83,12 @@ fn write_snapshot_into(
 pub(super) fn write_receipt(receipt: &CoverageReceipt) -> Result<Vec<u8>, SemanticProtocolError> {
     let mut writer = JsonWriter::new();
     write_receipt_into(&mut writer, receipt);
-    Ok(writer.bytes)
+    writer
+        .into_bytes()
+        .ok_or_else(|| SemanticProtocolError::InvalidModel {
+            path: "$".to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
 }
 
 pub(super) fn write_receipt_budgeted(
@@ -90,7 +98,12 @@ pub(super) fn write_receipt_budgeted(
     let bound = receipt_allocation_bound(receipt).map_err(SemanticSnapshotError::Resource)?;
     let mut writer = reserved_writer(bound, budget)?;
     write_receipt_into(&mut writer, receipt);
-    Ok(writer.bytes)
+    writer.into_bytes().ok_or_else(|| {
+        SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
+            path: "$".to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
+    })
 }
 
 fn write_receipt_into(writer: &mut JsonWriter, receipt: &CoverageReceipt) {
@@ -120,65 +133,62 @@ fn write_receipt_into(writer: &mut JsonWriter, receipt: &CoverageReceipt) {
 }
 
 pub(super) fn snapshot_allocation_bound(snapshot: &SemanticSnapshot) -> Result<ByteCount, Error> {
-    let mut bound = AllocationBound::new(4_096);
-    bound.string(snapshot.scenario_id.as_str())?;
-    bound.string(snapshot.producer.source_revision())?;
-    bound.properties(&snapshot.database_properties)?;
-    bound.properties(&snapshot.producer_extensions)?;
+    let mut writer = JsonWriter::counting();
+    write_snapshot_into(&mut writer, snapshot).map_err(|_| Error::Arithmetic {
+        operation: "measure canonical semantic snapshot JSON",
+    })?;
+    counted_bytes(&writer, "measure canonical semantic snapshot JSON")
+}
+
+pub(super) fn canonicalization_allocation_bound(
+    snapshot: &SemanticSnapshot,
+) -> Result<ByteCount, Error> {
+    const SHA256_TEXT_BYTES: u64 = 64;
+    let mut bytes = snapshot_allocation_bound(snapshot)?.get();
     for table in &snapshot.tables {
-        bound.object(1_024)?;
-        bound.string(&table.name)?;
-        bound.properties(&table.properties)?;
-        for column in &table.columns {
-            bound.object(512)?;
-            bound.string(&column.name)?;
-            bound.string(&column.dao_type)?;
-            bound.properties(&column.properties)?;
-        }
-        for index in &table.indexes {
-            bound.object(512)?;
-            bound.string(&index.name)?;
-            bound.properties(&index.properties)?;
-            for field in &index.fields {
-                bound.object(128)?;
-                bound.string(&field.name)?;
-            }
-        }
         for row in &table.rows {
-            bound.object(512)?;
-            bound.properties(&row.values)?;
+            let row_bytes = properties_allocation_bound(&row.values)
+                .and_then(|value| value.checked_add(1))
+                .ok_or(Error::Arithmetic {
+                    operation: "size semantic row canonicalization",
+                })?;
+            let row_bytes = u64::try_from(row_bytes).map_err(|_| Error::IntegerConversion {
+                value: row_bytes as u128,
+                target: "u64",
+            })?;
+            bytes = bytes
+                .checked_add(row_bytes.checked_mul(2).ok_or(Error::Arithmetic {
+                    operation: "size semantic row canonicalization passes",
+                })?)
+                .and_then(|value| {
+                    value.checked_add(
+                        size_of::<(crate::Sha256, Vec<u8>, crate::SemanticRow)>() as u64
+                    )
+                })
+                .and_then(|value| value.checked_add(SHA256_TEXT_BYTES * 3))
+                .ok_or(Error::Arithmetic {
+                    operation: "size semantic snapshot canonicalization",
+                })?;
         }
     }
-    for relationship in &snapshot.relationships {
-        bound.object(768)?;
-        bound.string(&relationship.name)?;
-        bound.string(&relationship.table)?;
-        bound.string(&relationship.foreign_table)?;
-        bound.properties(&relationship.properties)?;
-        for field in &relationship.fields {
-            bound.object(256)?;
-            bound.string(&field.field)?;
-            bound.string(&field.foreign_field)?;
-        }
-    }
-    for raw in &snapshot.raw_preservation {
-        bound.object(512)?;
-        bound.string(&raw.semantic_path)?;
-        bound.string(raw.raw_hex.as_str())?;
-        bound.string(&raw.purpose)?;
-    }
-    Ok(ByteCount::new(bound.bytes))
+    Ok(ByteCount::new(bytes))
 }
 
 fn receipt_allocation_bound(receipt: &CoverageReceipt) -> Result<ByteCount, Error> {
-    let mut bound = AllocationBound::new(4_096);
-    bound.string(receipt.scenario_id.as_str())?;
-    bound.string(&receipt.source_revision)?;
-    for branch in &receipt.branches {
-        bound.string(branch)?;
-        bound.object(64)?;
-    }
-    Ok(ByteCount::new(bound.bytes))
+    let mut writer = JsonWriter::counting();
+    write_receipt_into(&mut writer, receipt);
+    counted_bytes(&writer, "measure canonical coverage receipt JSON")
+}
+
+fn counted_bytes(writer: &JsonWriter, operation: &'static str) -> Result<ByteCount, Error> {
+    let length = writer
+        .counted_len()
+        .ok_or(Error::Arithmetic { operation })?;
+    let length = u64::try_from(length).map_err(|_| Error::IntegerConversion {
+        value: length as u128,
+        target: "u64",
+    })?;
+    Ok(ByteCount::new(length))
 }
 
 fn reserved_writer(
@@ -201,100 +211,46 @@ fn reserved_writer(
             kind: std::io::ErrorKind::OutOfMemory,
         })
     })?;
-    Ok(JsonWriter { bytes })
-}
-
-struct AllocationBound {
-    bytes: u64,
-}
-
-impl AllocationBound {
-    const fn new(bytes: u64) -> Self {
-        Self { bytes }
-    }
-
-    fn object(&mut self, bytes: u64) -> Result<(), Error> {
-        self.bytes = self.bytes.checked_add(bytes).ok_or(Error::Arithmetic {
-            operation: "size canonical semantic JSON allocation",
-        })?;
-        Ok(())
-    }
-
-    fn string(&mut self, value: &str) -> Result<(), Error> {
-        let bytes = u64::try_from(value.len()).map_err(|_| Error::IntegerConversion {
-            value: value.len() as u128,
-            target: "u64",
-        })?;
-        self.object(bytes.checked_mul(6).ok_or(Error::Arithmetic {
-            operation: "size escaped canonical JSON string",
-        })?)?;
-        self.object(32)
-    }
-
-    fn properties(&mut self, properties: &crate::PropertyMap) -> Result<(), Error> {
-        self.object(256)?;
-        for (key, value) in properties {
-            self.string(key)?;
-            self.typed_value(value)?;
-        }
-        Ok(())
-    }
-
-    fn typed_value(&mut self, value: &TypedValue) -> Result<(), Error> {
-        self.object(512)?;
-        match value {
-            TypedValue::Text { value, .. } | TypedValue::Memo { value, .. } => {
-                self.string(value)?;
-            }
-            TypedValue::Binary { value, .. } | TypedValue::Ole { value, .. } => {
-                self.string(value.as_str())?;
-            }
-            TypedValue::Guid { value, .. } => self.string(value.as_str())?,
-            TypedValue::Decimal { value, .. } | TypedValue::Currency { value, .. } => {
-                self.string(value.as_str())?;
-            }
-            TypedValue::DateTime { value, .. } => self.string(value.as_str())?,
-            _ => {}
-        }
-        let raw = match value {
-            TypedValue::Null { raw_hex }
-            | TypedValue::Boolean { raw_hex, .. }
-            | TypedValue::Byte { raw_hex, .. }
-            | TypedValue::Integer { raw_hex, .. }
-            | TypedValue::Long { raw_hex, .. }
-            | TypedValue::Single { raw_hex, .. }
-            | TypedValue::Double { raw_hex, .. }
-            | TypedValue::Decimal { raw_hex, .. }
-            | TypedValue::Currency { raw_hex, .. }
-            | TypedValue::DateTime { raw_hex, .. }
-            | TypedValue::Text { raw_hex, .. }
-            | TypedValue::Binary { raw_hex, .. }
-            | TypedValue::Guid { raw_hex, .. }
-            | TypedValue::Memo { raw_hex, .. }
-            | TypedValue::Ole { raw_hex, .. } => raw_hex.as_ref(),
-        };
-        if let Some(raw) = raw {
-            self.string(raw.as_str())?;
-        }
-        Ok(())
-    }
+    Ok(JsonWriter::with_output(bytes))
 }
 
 pub(super) fn write_properties(
     values: &crate::PropertyMap,
     path: &str,
 ) -> Result<Vec<u8>, SemanticProtocolError> {
-    let mut writer = JsonWriter::new();
-    properties(&mut writer, values, path)?;
-    Ok(writer.bytes)
+    let capacity =
+        properties_allocation_bound(values).ok_or_else(|| SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical property JSON length is not representable",
+        })?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical property JSON allocation failed",
+        })?;
+    let mut writer = JsonWriter::with_output(bytes);
+    super::semantic_protocol::validate_property_map(values, path)?;
+    properties(&mut writer, values)?;
+    writer
+        .into_bytes()
+        .ok_or_else(|| SemanticProtocolError::InvalidModel {
+            path: path.to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
+}
+
+fn properties_allocation_bound(values: &crate::PropertyMap) -> Option<usize> {
+    let mut writer = JsonWriter::counting();
+    writer.properties(values).ok()?;
+    writer.counted_len()
 }
 
 fn properties(
     writer: &mut JsonWriter,
     values: &crate::PropertyMap,
-    path: &str,
 ) -> Result<(), SemanticProtocolError> {
-    super::semantic_protocol::validate_property_map(values, path)?;
     writer.properties(values).map_err(Into::into)
 }
 
@@ -319,26 +275,21 @@ fn tables(writer: &mut JsonWriter, tables: &[SemanticTable]) -> Result<(), Seman
     writer.bytes.push(b'[');
     for (index, table) in tables.iter().enumerate() {
         writer.comma(index);
-        table_json(writer, table, index)?;
+        table_json(writer, table)?;
     }
     writer.bytes.push(b']');
     Ok(())
 }
 
-fn table_json(
-    writer: &mut JsonWriter,
-    table: &SemanticTable,
-    table_index: usize,
-) -> Result<(), SemanticProtocolError> {
-    let path = format!("$.tables[{table_index}]");
+fn table_json(writer: &mut JsonWriter, table: &SemanticTable) -> Result<(), SemanticProtocolError> {
     writer.bytes.push(b'{');
     let mut first = true;
     writer.key(&mut first, "attributes");
     writer.integer(table.attributes);
     writer.key(&mut first, "columns");
-    columns(writer, &table.columns, &path)?;
+    columns(writer, &table.columns)?;
     writer.key(&mut first, "indexes");
-    indexes(writer, &table.indexes, &path)?;
+    indexes(writer, &table.indexes)?;
     writer.key(&mut first, "kind");
     writer.string(match table.kind {
         TableKind::User => "user",
@@ -348,7 +299,7 @@ fn table_json(
     writer.key(&mut first, "name");
     writer.string(&table.name);
     writer.key(&mut first, "properties");
-    properties(writer, &table.properties, &format!("{path}.properties"))?;
+    properties(writer, &table.properties)?;
     writer.key(&mut first, "rows");
     writer.bytes.push(b'[');
     for (index, row) in table.rows.iter().enumerate() {
@@ -360,7 +311,7 @@ fn table_json(
         writer.key(&mut first, "duplicate_ordinal");
         writer.unsigned(row.duplicate_ordinal);
         writer.key(&mut first, "values");
-        properties(writer, &row.values, &format!("{path}.rows[{index}].values"))?;
+        properties(writer, &row.values)?;
         writer.bytes.push(b'}');
     }
     writer.bytes.push(b']');
@@ -371,7 +322,6 @@ fn table_json(
 fn columns(
     writer: &mut JsonWriter,
     columns: &[SemanticColumn],
-    path: &str,
 ) -> Result<(), SemanticProtocolError> {
     writer.bytes.push(b'[');
     for (index, column) in columns.iter().enumerate() {
@@ -389,11 +339,7 @@ fn columns(
         writer.key(&mut first, "ordinal");
         writer.unsigned(column.ordinal);
         writer.key(&mut first, "properties");
-        properties(
-            writer,
-            &column.properties,
-            &format!("{path}.columns[{index}].properties"),
-        )?;
+        properties(writer, &column.properties)?;
         writer.key(&mut first, "size");
         if let Some(size) = column.size {
             writer.unsigned(size);
@@ -409,7 +355,6 @@ fn columns(
 fn indexes(
     writer: &mut JsonWriter,
     indexes: &[SemanticIndex],
-    path: &str,
 ) -> Result<(), SemanticProtocolError> {
     writer.bytes.push(b'[');
     for (index, value) in indexes.iter().enumerate() {
@@ -434,11 +379,7 @@ fn indexes(
         writer.key(&mut first, "primary");
         writer.boolean(value.primary);
         writer.key(&mut first, "properties");
-        properties(
-            writer,
-            &value.properties,
-            &format!("{path}.indexes[{index}].properties"),
-        )?;
+        properties(writer, &value.properties)?;
         writer.key(&mut first, "required");
         writer.boolean(value.required);
         writer.key(&mut first, "unique");

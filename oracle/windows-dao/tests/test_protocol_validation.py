@@ -256,6 +256,26 @@ class ProtocolV12Tests(unittest.TestCase):
                         "allocation.extended_slot", scenario["required_branches"]
                     )
 
+    def test_row_branch_registry_tracks_decomposed_module_owners(self):
+        registry = json.loads(v1_2.BRANCH_REGISTRY.read_text(encoding="utf-8"))
+        owners = {
+            branch["id"]: branch["module"]
+            for branch in registry["branches"]
+            if branch["id"] in {
+                "rows.direct",
+                "rows.overflow_pointer",
+                "rows.wide_variable_layout",
+            }
+        }
+        self.assertEqual(
+            owners,
+            {
+                "rows.direct": "crates/jet3/src/row_cursor.rs",
+                "rows.overflow_pointer": "crates/jet3/src/row_cursor.rs",
+                "rows.wide_variable_layout": "crates/jet3/src/row_layout.rs",
+            },
+        )
+
     def _snapshot(self):
         values = {
             "Id": {"kind": "long", "raw_hex": "01000000", "value": 1},
