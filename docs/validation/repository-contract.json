@@ -496,7 +496,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_coverage.rs",
         "reason": "Receipt observations and format-neutral pair bindings over public reader branch and traversal results; it introduces no physical byte assertions.",
-        "sha256": "2ab1f545eedd4b593efa80eaa67d808133fcbd879b4f3ec8ddbef6c8d6a372c4"
+        "sha256": "ced87e6142dfc88b59e523b7a96ca918433fc70235af92c9ab772e7e8fed6742"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_retained.rs",
@@ -511,7 +511,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
         "reason": "Test-only synthetic verification of the public semantic producer composition.",
-        "sha256": "c1540fa7d62f9611c39ded703990c26a5ee3156cd88d14e9b5c89242179f464c"
+        "sha256": "fd4a0199aaf06e5f241a3e8ef5cf5289322980fc18718a9fe247b5a5e6cd4f51"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",

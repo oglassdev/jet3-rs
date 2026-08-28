@@ -105,12 +105,17 @@ pub(super) fn collect_index_evidence<S: ReadAt>(
         {
             ledger.branch(budget, branches, "index.single_field_key")?;
         }
-        if physical.fields().len() > 1
+        let requires_lossless_keys = physical.fields().len() > 1
             || physical
                 .fields()
                 .iter()
-                .any(|field| field.direction() == IndexDirection::Descending)
-        {
+                .any(|field| field.direction() == IndexDirection::Descending);
+        let retained_all_keys = !tree.entries().is_empty()
+            && tree
+                .entries()
+                .iter()
+                .all(|entry| !entry.key().raw_bytes().is_empty());
+        if requires_lossless_keys && retained_all_keys {
             ledger.branch(budget, branches, "index.composite_key_lossless")?;
         }
     }

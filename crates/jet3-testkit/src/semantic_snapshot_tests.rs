@@ -73,15 +73,18 @@ fn column_record(
     record
 }
 
-fn physical_index() -> [u8; 39] {
+fn physical_index(fields: &[(u16, bool)]) -> [u8; 39] {
     let mut record = [0_u8; 39];
     for slot in 0..10 {
         let offset = slot * 3;
         record[offset..offset + 2].copy_from_slice(&u16::MAX.to_le_bytes());
         record[offset + 2] = 0xa0_u8.saturating_add(u8::try_from(slot).unwrap_or_default());
     }
-    record[..2].copy_from_slice(&0_u16.to_le_bytes());
-    record[2] = 1;
+    for (slot, (column, ascending)) in fields.iter().enumerate() {
+        let offset = slot * 3;
+        record[offset..offset + 2].copy_from_slice(&column.to_le_bytes());
+        record[offset + 2] = u8::from(*ascending);
+    }
     record[31..34].copy_from_slice(&[MAP_PAGE as u8, 0, 0]);
     record[34..38].copy_from_slice(&(INDEX_ROOT as u32).to_le_bytes());
     record[38] = 9;
@@ -89,8 +92,8 @@ fn physical_index() -> [u8; 39] {
 }
 
 /// A two-column user table `Items(Id Long fixed, Name Text|DateTime)` with
-/// one primary index `PK` on `Id`.
-fn user_definition(second: SecondColumn) -> Vec<u8> {
+/// one primary index `PK` over the selected fields.
+fn user_definition_with_index(second: SecondColumn, fields: &[(u16, bool)]) -> Vec<u8> {
     let mut bytes = vec![0_u8; 43];
     bytes[..4].copy_from_slice(&[0x02, 0x01, 0x56, 0x43]);
     bytes[20] = 0x4e;
@@ -110,7 +113,7 @@ fn user_definition(second: SecondColumn) -> Vec<u8> {
         SecondColumn::DateTime => bytes.extend_from_slice(&column_record(8, 1, 3, 4, 8)),
     }
     bytes.extend_from_slice(&[2, b'I', b'd', 4, b'N', b'a', b'm', b'e']);
-    bytes.extend_from_slice(&physical_index());
+    bytes.extend_from_slice(&physical_index(fields));
     let mut logical = [0_u8; 20];
     logical[9..13].copy_from_slice(&u32::MAX.to_le_bytes());
     logical[17..19].copy_from_slice(&[4, 4]);
@@ -121,6 +124,10 @@ fn user_definition(second: SecondColumn) -> Vec<u8> {
     let length = u32::try_from(bytes.len()).unwrap_or_default();
     bytes[8..12].copy_from_slice(&length.to_le_bytes());
     bytes
+}
+
+fn user_definition(second: SecondColumn) -> Vec<u8> {
+    user_definition_with_index(second, &[(0, true)])
 }
 
 fn text_row(id: u32, name: &[u8]) -> Vec<u8> {
@@ -196,6 +203,42 @@ fn database_bytes(second: SecondColumn, user_kind: u16) -> Vec<u8> {
     bytes
 }
 
+fn composite_database_bytes() -> Vec<u8> {
+    let mut bytes = database_bytes(SecondColumn::Text, 1);
+    let definition = user_definition_with_index(SecondColumn::Text, &[(0, true), (1, true)]);
+    let table = &mut bytes[TABLE_ROOT * PAGE_BYTES..(TABLE_ROOT + 1) * PAGE_BYTES];
+    table.fill(0);
+    table[..definition.len()].copy_from_slice(&definition);
+    bytes
+}
+
+fn write_index_leaf_entries(bytes: &mut [u8], keys: &[&[u8]]) {
+    let page = &mut bytes[INDEX_ROOT * PAGE_BYTES..(INDEX_ROOT + 1) * PAGE_BYTES];
+    page.fill(0);
+    page[0] = 4;
+    page[1] = 1;
+    page[4..8].copy_from_slice(&(TABLE_ROOT as u32).to_le_bytes());
+    let mut boundary = 0_usize;
+    for (slot, key) in keys.iter().enumerate() {
+        let start = 248 + boundary;
+        page[start..start + key.len()].copy_from_slice(key);
+        let trailer = start + key.len();
+        page[trailer..trailer + 4].copy_from_slice(&[
+            0,
+            0,
+            TABLE_DATA as u8,
+            u8::try_from(slot).unwrap_or_default(),
+        ]);
+        boundary += key.len() + 4;
+        page[22 + boundary / 8] |= 1 << (boundary % 8);
+    }
+    page[2..4].copy_from_slice(
+        &u16::try_from(PAGE_BYTES - 248 - boundary)
+            .unwrap_or_default()
+            .to_le_bytes(),
+    );
+}
+
 fn limits(bytes: &[u8]) -> ResourceLimits {
     ResourceLimits::new(ReadLimits::new(
         ByteCount::new(bytes.len() as u64),
@@ -205,8 +248,12 @@ fn limits(bytes: &[u8]) -> ResourceLimits {
 }
 
 fn options() -> Result<SemanticSnapshotOptions, Box<dyn std::error::Error>> {
+    options_for("DAO-READ-ROWS-SINGLE")
+}
+
+fn options_for(scenario_id: &str) -> Result<SemanticSnapshotOptions, Box<dyn std::error::Error>> {
     Ok(SemanticSnapshotOptions {
-        scenario_id: ScenarioId::new("DAO-READ-ROWS-SINGLE")?,
+        scenario_id: ScenarioId::new(scenario_id)?,
         producer: Producer::new(ProducerKind::Rust, "test")?,
         database_sha256: Sha256::new("ab".repeat(32))?,
         code_page: TextCodePage::Windows1252,
@@ -237,6 +284,14 @@ fn artifacts(
     bytes: &[u8],
     limits: ResourceLimits,
 ) -> Result<crate::SemanticSnapshotArtifacts, SemanticSnapshotError> {
+    artifacts_for_scenario(bytes, limits, "DAO-READ-ROWS-SINGLE")
+}
+
+fn artifacts_for_scenario(
+    bytes: &[u8],
+    limits: ResourceLimits,
+    scenario_id: &str,
+) -> Result<crate::SemanticSnapshotArtifacts, SemanticSnapshotError> {
     let mut budget = ResourceBudget::new(limits);
     let source =
         SliceSource::new(bytes, budget.read_budget()).map_err(SemanticSnapshotError::Resource)?;
@@ -245,12 +300,63 @@ fn artifacts(
             operation: "open synthetic snapshot database",
         })
     })?;
-    let options = options().map_err(|_| {
+    let options = options_for(scenario_id).map_err(|_| {
         SemanticSnapshotError::Resource(Error::Arithmetic {
             operation: "build snapshot options",
         })
     })?;
     snapshot_database_with_receipt(&mut database, &options, &mut budget)
+}
+
+#[test]
+fn composite_scenario_rejects_empty_or_keyless_index_evidence()
+-> Result<(), Box<dyn std::error::Error>> {
+    const SCENARIO: &str = "DAO-READ-SCHEMA-INDEX-COMPOSITE-ASCENDING";
+    let empty = composite_database_bytes();
+    let empty_artifacts = artifacts_for_scenario(&empty, limits(&empty), SCENARIO)?;
+    assert!(
+        !empty_artifacts
+            .coverage_receipt
+            .branches
+            .contains("index.composite_key_lossless")
+    );
+    let mut budget = ResourceBudget::new(limits(&empty));
+    assert!(matches!(
+        empty_artifacts.to_canonical_json(&mut budget),
+        Err(SemanticSnapshotError::Protocol(_))
+    ));
+
+    let mut keyless = composite_database_bytes();
+    write_index_leaf_entries(&mut keyless, &[&[]]);
+    assert!(matches!(
+        artifacts_for_scenario(&keyless, limits(&keyless), SCENARIO),
+        Err(SemanticSnapshotError::IndexTree(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn composite_scenario_records_observed_lossless_key_bytes() -> Result<(), Box<dyn std::error::Error>>
+{
+    const SCENARIO: &str = "DAO-READ-SCHEMA-INDEX-COMPOSITE-ASCENDING";
+    let mut bytes = composite_database_bytes();
+    write_index_leaf_entries(
+        &mut bytes,
+        &[
+            &[0x7f, 0x80, 0, 0, 1, 0x7f, 0x60],
+            &[0x7f, 0x80, 0, 0, 2, 0x7f, 0x61],
+        ],
+    );
+    let artifacts = artifacts_for_scenario(&bytes, limits(&bytes), SCENARIO)?;
+    assert!(
+        artifacts
+            .coverage_receipt
+            .branches
+            .contains("index.composite_key_lossless")
+    );
+    let mut budget = ResourceBudget::new(limits(&bytes));
+    artifacts.to_canonical_json(&mut budget)?;
+    Ok(())
 }
 
 fn snapshot_allocation(
