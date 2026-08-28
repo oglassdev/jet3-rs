@@ -550,6 +550,12 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             unknown = [pair[column_key] for pair in relationship["fields"] if pair[column_key] not in known]
             if unknown:
                 raise ValidationError(f"{location}.fields: unknown {column_key} columns {unknown}")
+        field_pairs = [
+            (pair["field"], pair["foreign_field"])
+            for pair in relationship["fields"]
+        ]
+        if len(field_pairs) != len(set(field_pairs)):
+            raise ValidationError(f"{location}.fields: field pairs must be unique")
     raw_paths = [entry["semantic_path"] for entry in document["raw_preservation"]]
     if raw_paths != sorted(set(raw_paths)):
         raise ValidationError(

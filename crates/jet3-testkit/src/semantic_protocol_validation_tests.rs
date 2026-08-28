@@ -10,6 +10,9 @@ const SOURCE_REVISION_FIXTURES: &str = include_str!(
 );
 const TEXT_CODE_PAGE_FIXTURES: &str =
     include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/text-code-page-vectors.tsv");
+const RELATIONSHIP_FIELD_UNIQUENESS_FIXTURES: &str = include_str!(
+    "../../../oracle/windows-dao/protocol/v1_2/fixtures/relationship-field-uniqueness-vectors.tsv"
+);
 
 fn long(value: i32) -> Result<TypedValue, Box<dyn std::error::Error>> {
     Ok(TypedValue::Long {
@@ -255,6 +258,46 @@ fn shared_text_code_page_vectors_match_full_rust_validation()
         seen += 1;
     }
     assert_eq!(seen, 8);
+    Ok(())
+}
+
+#[test]
+fn shared_relationship_field_uniqueness_vectors_match_full_rust_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut seen = 0;
+    for (line_index, line) in RELATIONSHIP_FIELD_UNIQUENESS_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let [case, field, foreign_field, expected_valid] = fields.as_slice() else {
+            return Err(test_error("invalid relationship-field fixture shape").into());
+        };
+        let mut snapshot = valid_snapshot()?;
+        snapshot.tables[0].rows.clear();
+        snapshot.tables[0].columns.push(SemanticColumn {
+            name: "Flag".into(),
+            ordinal: 1,
+            dao_type: "dbBoolean".into(),
+            auto_increment: false,
+            size: Some(1),
+            attributes: 1,
+            properties: PropertyMap::new(),
+        });
+        snapshot.relationships[0].fields.push(RelationshipField {
+            field: (*field).into(),
+            foreign_field: (*foreign_field).into(),
+        });
+        assert_eq!(
+            snapshot.to_canonical_json().is_ok(),
+            expected_valid.parse::<bool>()?,
+            "{case} on line {}",
+            line_index + 1
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 2);
     Ok(())
 }
 

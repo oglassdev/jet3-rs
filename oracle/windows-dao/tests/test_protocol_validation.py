@@ -631,6 +631,51 @@ class ProtocolV12Tests(unittest.TestCase):
             seen += 1
         self.assertEqual(seen, 8)
 
+    def test_shared_relationship_field_uniqueness_vectors_match_schema_and_python_validation(self):
+        fixture = (
+            v1_2.SCHEMA_DIR
+            / "fixtures"
+            / "relationship-field-uniqueness-vectors.tsv"
+        )
+        seen = 0
+        for line_number, line in enumerate(
+            fixture.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if line.startswith("#"):
+                continue
+            case, field, foreign_field, expected_valid = line.split("\t")
+            snapshot = self._snapshot()
+            snapshot["relationships"] = [
+                {
+                    "name": "Self",
+                    "table": "Items",
+                    "foreign_table": "Items",
+                    "attributes": 0,
+                    "fields": [
+                        {"field": "Id", "foreign_field": "Id"},
+                        {"field": field, "foreign_field": foreign_field},
+                    ],
+                    "properties": {},
+                }
+            ]
+            expected_valid = expected_valid == "true"
+            for validator in (
+                v1_2.SCHEMA_SET.validate,
+                v1_2.validate_semantic_snapshot,
+            ):
+                try:
+                    validator(snapshot)
+                    actual_valid = True
+                except ValidationError:
+                    actual_valid = False
+                self.assertEqual(
+                    actual_valid,
+                    expected_valid,
+                    f"{case} on line {line_number}: {validator.__name__}",
+                )
+            seen += 1
+        self.assertEqual(seen, 2)
+
     def test_rejected_format_outcomes_follow_shared_normalization_vectors(self):
         fixture = (
             v1_2.SCHEMA_DIR

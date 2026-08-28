@@ -1,0 +1,3 @@
+# case	second_field	second_foreign_field	expected_valid
+distinct_pair	Flag	Flag	true
+duplicate_pair	Id	Id	false

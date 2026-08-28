@@ -32,6 +32,7 @@ CHECKED_PROTOCOL_TEST_RESOURCES = frozenset(
         "oracle/windows-dao/protocol/v1_2/fixtures/column-normalization-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/fixtures/long-value-comparison-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/fixtures/rejected-format-normalization-vectors.tsv",
+        "oracle/windows-dao/protocol/v1_2/fixtures/relationship-field-uniqueness-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/fixtures/row-key-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/fixtures/source-revision-length-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/fixtures/text-code-page-vectors.tsv",
