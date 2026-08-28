@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json",
+  "title": "Canonical DAO/Rust semantic snapshot (differential read program)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "scenario_id",
+    "producer",
+    "database_sha256",
+    "ordering",
+    "comparison_projection",
+    "database_properties",
+    "tables",
+    "relationships",
+    "raw_preservation",
+    "producer_extensions"
+  ],
+  "properties": {
+    "protocol_version": { "const": "1.2.0" },
+    "document_type": { "const": "canonical_semantic_snapshot" },
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$"
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source_revision"],
+      "properties": {
+        "kind": { "enum": ["dao", "rust"] },
+        "source_revision": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "database_sha256": { "$ref": "#/$defs/sha256" },
+    "ordering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objects",
+        "columns",
+        "indexes",
+        "relationships",
+        "rows",
+        "object_keys"
+      ],
+      "properties": {
+        "objects": { "const": "name_codepoint_ascending" },
+        "columns": { "const": "ordinal_ascending" },
+        "indexes": { "const": "name_codepoint_ascending" },
+        "relationships": { "const": "name_codepoint_ascending" },
+        "rows": { "const": "values_sha256_then_duplicate_ordinal" },
+        "object_keys": { "const": "unicode_codepoint_ascending" }
+      }
+    },
+    "comparison_projection": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "/producer" },
+        { "const": "/producer_extensions" }
+      ],
+      "items": false
+    },
+    "database_properties": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/typedValue" }
+    },
+    "tables": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/table" }
+    },
+    "relationships": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relationship" }
+    },
+    "raw_preservation": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rawField" }
+    },
+    "producer_extensions": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/typedValue" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hex": { "type": "string", "pattern": "^(?:[0-9a-f]{2})*$" },
+    "typedValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "null",
+            "boolean",
+            "byte",
+            "integer",
+            "long",
+            "single",
+            "double",
+            "decimal",
+            "currency",
+            "datetime",
+            "text",
+            "binary",
+            "guid",
+            "memo",
+            "ole"
+          ]
+        },
+        "value": {
+          "type": ["null", "boolean", "integer", "number", "string"]
+        },
+        "raw_hex": { "$ref": "#/$defs/hex" },
+        "code_page": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "ordinal",
+        "dao_type",
+        "auto_increment",
+        "size",
+        "attributes",
+        "properties"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "dao_type": { "type": "string", "minLength": 1 },
+        "auto_increment": { "type": "boolean" },
+        "size": { "type": ["integer", "null"], "minimum": 0 },
+        "attributes": { "type": "integer" },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        }
+      }
+    },
+    "indexField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "descending"],
+      "properties": {
+        "name": { "type": "string" },
+        "descending": { "type": "boolean" }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "primary", "unique", "required", "fields", "properties"],
+      "properties": {
+        "name": { "type": "string" },
+        "primary": { "type": "boolean" },
+        "unique": { "type": "boolean" },
+        "required": { "type": "boolean" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/indexField" }
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_key", "duplicate_ordinal", "values"],
+      "properties": {
+        "canonical_key": { "$ref": "#/$defs/sha256" },
+        "duplicate_ordinal": { "type": "integer", "minimum": 0 },
+        "values": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        }
+      }
+    },
+    "table": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "attributes",
+        "columns",
+        "indexes",
+        "properties",
+        "rows"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "enum": ["user", "system", "linked"] },
+        "attributes": { "type": "integer" },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "indexes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/index" }
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        },
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/row" }
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "table",
+        "foreign_table",
+        "attributes",
+        "fields",
+        "properties"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "table": { "type": "string" },
+        "foreign_table": { "type": "string" },
+        "attributes": { "type": "integer" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "foreign_field"],
+            "properties": {
+              "field": { "type": "string" },
+              "foreign_field": { "type": "string" }
+            }
+          }
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        }
+      }
+    },
+    "rawField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_path", "raw_hex", "purpose"],
+      "properties": {
+        "semantic_path": { "type": "string", "minLength": 1 },
+        "raw_hex": { "$ref": "#/$defs/hex" },
+        "purpose": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_2/branch-registry.schema.json",
+  "title": "Closed registry of Rust reader coverage branches",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "document_type", "branches"],
+  "properties": {
+    "protocol_version": { "const": "1.2.0" },
+    "document_type": { "const": "dao_branch_registry" },
+    "branches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "module", "description"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
+          "module": { "type": "string", "pattern": "^crates/jet3/src/[a-z_]+\\.rs$" },
+          "description": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    }
+  }
+}
