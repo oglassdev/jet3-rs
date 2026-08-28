@@ -95,7 +95,9 @@ class ContractShapeTests(unittest.TestCase):
 
     def test_workspace_package_must_be_classified_once(self) -> None:
         changed = copy.deepcopy(self.document)
-        changed["workspace_packages"]["support"][0]["name"] = "jet3"
+        duplicate = copy.deepcopy(changed["workspace_packages"]["production"][0])
+        duplicate.pop("crate_root")
+        changed["workspace_packages"]["support"].append(duplicate)
         errors = contract.validate_contract_shape(changed)
         self.assertTrue(any("duplicate package jet3" in error for error in errors))
 
