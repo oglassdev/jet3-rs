@@ -17,11 +17,19 @@ SPEC.loader.exec_module(GENERATOR)
 class ScenarioInventoryGenerationTests(unittest.TestCase):
     def test_checked_rust_table_recomputes_from_every_inventory_entry(self) -> None:
         inventory = json.loads(GENERATOR.INVENTORY.read_text(encoding="utf-8"))
+        branch_registry = json.loads(
+            GENERATOR.BRANCH_REGISTRY.read_text(encoding="utf-8")
+        )
         _, entries = GENERATOR.load_entries()
+        _, branch_ids = GENERATOR.load_branch_ids()
 
         self.assertEqual(
             [identifier for identifier, *_ in entries],
             [scenario["id"] for scenario in inventory["scenarios"]],
+        )
+        self.assertEqual(
+            list(branch_ids),
+            [branch["id"] for branch in branch_registry["branches"]],
         )
         self.assertEqual(
             GENERATOR.OUTPUT.read_text(encoding="utf-8"),
@@ -40,6 +48,17 @@ class ScenarioInventoryGenerationTests(unittest.TestCase):
         path = self._temporary_inventory(inventory)
         try:
             with self.assertRaisesRegex(ValueError, "cannot require and forbid"):
+                GENERATOR.load_entries(path)
+        finally:
+            path.unlink()
+
+    def test_unregistered_scenario_branch_is_rejected(self) -> None:
+        inventory = json.loads(GENERATOR.INVENTORY.read_text(encoding="utf-8"))
+        inventory["scenarios"][0]["required_branches"].append("rows.imaginary")
+        inventory["scenarios"][0]["required_branches"].sort()
+        path = self._temporary_inventory(inventory)
+        try:
+            with self.assertRaisesRegex(ValueError, "contains unregistered branches"):
                 GENERATOR.load_entries(path)
         finally:
             path.unlink()

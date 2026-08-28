@@ -6,9 +6,9 @@ use jet3::{
 };
 
 use crate::{
-    Producer, ProducerKind, ScenarioId, SemanticSnapshotError, SemanticSnapshotOptions,
-    SemanticSnapshotOutcome, Sha256, TableKind, TypedValue, snapshot_database,
-    snapshot_database_with_receipt,
+    Producer, ProducerKind, ScenarioId, SemanticProtocolError, SemanticSnapshotError,
+    SemanticSnapshotOptions, SemanticSnapshotOutcome, Sha256, TableKind, TypedValue,
+    snapshot_database, snapshot_database_with_receipt,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -584,6 +584,29 @@ fn artifact_pair_rejects_non_rust_producer_and_unsatisfied_index_scenario()
         wrong_scenario.to_canonical_json(&mut budget),
         Err(SemanticSnapshotError::Protocol(_))
     ));
+    Ok(())
+}
+
+#[test]
+fn artifact_pair_rejects_branch_outside_the_protocol_registry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(SecondColumn::Text, 1);
+    let mut artifacts = artifacts(&bytes, limits(&bytes))?;
+    artifacts
+        .coverage_receipt
+        .branches
+        .insert("rows.imaginary".to_owned());
+
+    let mut budget = ResourceBudget::new(limits(&bytes));
+    assert_eq!(
+        artifacts.to_canonical_json(&mut budget),
+        Err(SemanticSnapshotError::Protocol(
+            SemanticProtocolError::InvalidModel {
+                path: "$.coverage_receipt.branches".to_owned(),
+                reason: "coverage receipt branch is not in the closed protocol registry",
+            }
+        ))
+    );
     Ok(())
 }
 

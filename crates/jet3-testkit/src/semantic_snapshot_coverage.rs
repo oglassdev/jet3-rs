@@ -52,6 +52,18 @@ pub(super) fn validate_pair_bindings(
         }
         .into());
     }
+    if artifacts
+        .coverage_receipt
+        .branches
+        .iter()
+        .any(|branch| !ProtocolScenario::is_registered_branch(branch))
+    {
+        return Err(SemanticProtocolError::InvalidModel {
+            path: "$.coverage_receipt.branches".to_owned(),
+            reason: "coverage receipt branch is not in the closed protocol registry",
+        }
+        .into());
+    }
     ProtocolScenario::validate_artifact(
         scenario_id,
         error_class,

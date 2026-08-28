@@ -445,13 +445,13 @@
       },
       {
         "path": "crates/jet3-testkit/src/scenario_inventory.rs",
-        "reason": "Format-neutral typed protocol 1.2 scenario resolution plus pre-publication outcome and branch validation over generated inventory data.",
-        "sha256": "55074a76556c4c6f1229d4992b1f8146cf8298b21c940225967df272131e6d6c"
+        "reason": "Format-neutral typed protocol 1.2 scenario resolution plus pre-publication outcome and closed-registry branch validation over generated inventory data.",
+        "sha256": "47755621687ab5548ed5626e3dec482a9b74e4ef78473079f9f814057de081cd"
       },
       {
         "path": "crates/jet3-testkit/src/scenario_inventory_generated.rs",
-        "reason": "Generated format-neutral mapping from every closed protocol 1.2 scenario identifier to its outcome, normalized rejection class, and required/forbidden branches.",
-        "sha256": "89360d157d112d0e7eb4f56651e6cc1b0f4fe887e741d5ad5ca1bf12801cf735"
+        "reason": "Generated format-neutral mapping from the protocol 1.2 branch registry and every closed scenario identifier to its outcome, normalized rejection class, and required/forbidden branches.",
+        "sha256": "916bdbe7eb5ae65ad039a9454f15a55274893183e140ef7ed10216849b70fac2"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
@@ -505,8 +505,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_coverage.rs",
-        "reason": "Receipt observations and format-neutral pair bindings over public reader branch and traversal results; it introduces no physical byte assertions.",
-        "sha256": "ced87e6142dfc88b59e523b7a96ca918433fc70235af92c9ab772e7e8fed6742"
+        "reason": "Receipt observations and format-neutral pair bindings, including closed protocol branch-registry admission, over public reader traversal results; it introduces no physical byte assertions.",
+        "sha256": "2f599b0647111287a763034670c47fdb5cca171c7b009283c4904bbd34c6d831"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_retained.rs",
@@ -520,8 +520,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
-        "reason": "Test-only synthetic verification of the public semantic producer composition.",
-        "sha256": "fd4a0199aaf06e5f241a3e8ef5cf5289322980fc18718a9fe247b5a5e6cd4f51"
+        "reason": "Test-only synthetic verification of the public semantic producer composition and fixed-pair registry closure.",
+        "sha256": "5e499f4401fe5eb363d2839f50f6dca89370f23bbf4b5be57496b730d929ba25"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",

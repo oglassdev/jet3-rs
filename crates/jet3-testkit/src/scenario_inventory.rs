@@ -37,6 +37,11 @@ impl ScenarioDefinition {
             || self
                 .required_branches
                 .iter()
+                .chain(self.forbidden_branches)
+                .any(|branch| !ProtocolScenario::is_registered_branch(branch))
+            || self
+                .required_branches
+                .iter()
                 .any(|branch| self.forbidden_branches.binary_search(branch).is_ok())
         {
             return Err(ScenarioExpectationError::InvalidInventory);
@@ -62,6 +67,10 @@ pub struct ProtocolScenario {
 }
 
 impl ProtocolScenario {
+    pub(crate) fn is_registered_branch(value: &str) -> bool {
+        REGISTERED_BRANCHES.binary_search(&value).is_ok()
+    }
+
     /// Resolves only identifiers present in the checked protocol 1.2 inventory.
     pub fn resolve(value: &str) -> Result<Self, ScenarioExpectationError> {
         let index = SCENARIOS
@@ -229,8 +238,8 @@ include!("scenario_inventory_generated.rs");
 #[cfg(test)]
 mod tests {
     use super::{
-        INVENTORY_SHA256, ProtocolScenario, SCENARIOS, ScenarioExpectation,
-        ScenarioExpectationError,
+        BRANCH_REGISTRY_SHA256, INVENTORY_SHA256, ProtocolScenario, REGISTERED_BRANCHES, SCENARIOS,
+        ScenarioExpectation, ScenarioExpectationError,
     };
     use crate::{RejectedFormatErrorClass, ScenarioId, Sha256Hasher, hex_digest};
 
@@ -244,6 +253,19 @@ mod tests {
         let mut hasher = Sha256Hasher::new();
         hasher.update(inventory)?;
         assert_eq!(hex_digest(hasher.finalize()?), INVENTORY_SHA256);
+
+        let registry = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../oracle/windows-dao/protocol/v1_2/branch-registry.json"
+        ));
+        let mut hasher = Sha256Hasher::new();
+        hasher.update(registry)?;
+        assert_eq!(hex_digest(hasher.finalize()?), BRANCH_REGISTRY_SHA256);
+        assert!(
+            REGISTERED_BRANCHES
+                .iter()
+                .all(|branch| ProtocolScenario::is_registered_branch(branch))
+        );
 
         for definition in SCENARIOS {
             let scenario = ProtocolScenario::resolve(definition.identifier)?;
