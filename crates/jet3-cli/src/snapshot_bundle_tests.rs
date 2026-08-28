@@ -239,14 +239,14 @@ fn platform_contract_is_explicit_and_fail_closed_when_unsupported() {
 }
 
 #[cfg(windows)]
-struct AssertSnapshotHandleDeniesWrite {
+struct AssertArtifactHandlesDenyWrite {
     observed: bool,
 }
 
 #[cfg(windows)]
-impl PublishHook for AssertSnapshotHandleDeniesWrite {
+impl PublishHook for AssertArtifactHandlesDenyWrite {
     fn before(&mut self, point: PublishPoint, destination: &std::path::Path) -> io::Result<()> {
-        if point != PublishPoint::CreateReceipt {
+        if point != PublishPoint::RenameBundle {
             return Ok(());
         }
         let parent = destination
@@ -256,13 +256,18 @@ impl PublishHook for AssertSnapshotHandleDeniesWrite {
             .into_iter()
             .next()
             .ok_or_else(|| io::Error::other("owned stage is missing"))?;
-        let snapshot = stage.join("bundle").join(SNAPSHOT_NAME);
-        self.observed = fs::OpenOptions::new().write(true).open(snapshot).is_err();
+        let bundle = stage.join("bundle");
+        self.observed = [SNAPSHOT_NAME, RECEIPT_NAME].into_iter().all(|leaf| {
+            fs::OpenOptions::new()
+                .write(true)
+                .open(bundle.join(leaf))
+                .is_err()
+        });
         if self.observed {
             Ok(())
         } else {
             Err(io::Error::other(
-                "retained snapshot handle allowed mutation",
+                "retained artifact handle allowed mutation",
             ))
         }
     }
@@ -270,11 +275,11 @@ impl PublishHook for AssertSnapshotHandleDeniesWrite {
 
 #[cfg(windows)]
 #[test]
-fn windows_retains_non_writable_artifact_handles_through_publication()
+fn windows_retains_non_writable_artifact_handles_through_staging()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let destination = directory.path().join("bundle");
-    let mut hook = AssertSnapshotHandleDeniesWrite { observed: false };
+    let mut hook = AssertArtifactHandlesDenyWrite { observed: false };
     publish_with(&destination, b"snapshot", b"receipt", &mut hook)?;
     assert!(hook.observed);
     assert_eq!(fs::read(destination.join(SNAPSHOT_NAME))?, b"snapshot");

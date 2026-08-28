@@ -1,12 +1,15 @@
 //! Safe Windows implementation of fixed-pair bundle publication.
 //!
-//! Both artifact handles deny later write opens and remain live through the
-//! same-parent directory rename. Directory handles and native file identities
-//! detect ordinary path displacement without treating the separate path checks
-//! as a security boundary against a hostile same-authority process.
+//! Both artifact handles deny later write opens while the fixed pair is staged.
+//! Immediately before the same-parent directory rename, the publisher validates
+//! every retained identity and the exact artifact bytes, then releases all
+//! handles because Windows can reject a directory rename with open descendants.
+//! The subsequent path-based rename and cleanup assume an ordinary uncontended
+//! namespace; hostile mutation by another same-authority process is outside the
+//! CLI threat model.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Seek, Write};
 use std::os::windows::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
@@ -29,7 +32,7 @@ struct ArtifactHandle {
 
 struct OwnedStage {
     parent_path: PathBuf,
-    parent_identity: Handle,
+    parent_identity: Option<Handle>,
     outer_path: PathBuf,
     outer_identity: Option<Handle>,
     bundle_path: PathBuf,
@@ -39,26 +42,34 @@ struct OwnedStage {
 }
 
 impl OwnedStage {
-    fn validate_opened_paths(&self) -> std::io::Result<bool> {
-        if !identity_matches(&self.parent_path, &self.parent_identity)?
-            || !identity_matches(
-                &self.outer_path,
-                self.outer_identity
-                    .as_ref()
-                    .ok_or_else(|| std::io::Error::other("outer handle was released"))?,
-            )?
-            || !identity_matches(
-                &self.bundle_path,
-                self.bundle_identity
-                    .as_ref()
-                    .ok_or_else(|| std::io::Error::other("bundle handle was released"))?,
-            )?
-        {
+    fn validate_opened_paths(&mut self, snapshot: &[u8], receipt: &[u8]) -> std::io::Result<bool> {
+        if !identity_matches(
+            &self.parent_path,
+            self.parent_identity
+                .as_ref()
+                .ok_or_else(|| std::io::Error::other("parent handle was released"))?,
+        )? || !identity_matches(
+            &self.outer_path,
+            self.outer_identity
+                .as_ref()
+                .ok_or_else(|| std::io::Error::other("outer handle was released"))?,
+        )? || !identity_matches(
+            &self.bundle_path,
+            self.bundle_identity
+                .as_ref()
+                .ok_or_else(|| std::io::Error::other("bundle handle was released"))?,
+        )? {
             return Ok(false);
         }
-        for artifact in &self.artifacts {
+        for artifact in &mut self.artifacts {
+            let expected = match artifact.leaf {
+                SNAPSHOT_NAME => snapshot,
+                RECEIPT_NAME => receipt,
+                _ => return Ok(false),
+            };
             if artifact.handle.metadata().is_err()
                 || !identity_matches(&self.bundle_path.join(artifact.leaf), &artifact.identity)?
+                || !file_matches(&mut artifact.handle, expected)?
             {
                 return Ok(false);
             }
@@ -66,23 +77,27 @@ impl OwnedStage {
         Ok(fs::read_dir(&self.bundle_path)?.count() == self.artifacts.len())
     }
 
-    fn prepare_rename(&mut self) -> std::io::Result<bool> {
-        if !self.validate_opened_paths()? {
+    fn prepare_rename(&mut self, snapshot: &[u8], receipt: &[u8]) -> std::io::Result<bool> {
+        if !self.validate_opened_paths(snapshot, receipt)? {
             return Ok(false);
         }
+        self.artifacts.clear();
         drop(self.bundle_identity.take());
+        drop(self.outer_identity.take());
+        drop(self.parent_identity.take());
         Ok(true)
     }
 
     fn cleanup(mut self, error: PublishError) -> Result<(), PublishError> {
         self.settled = true;
-        let outer_matches = self
-            .outer_identity
-            .as_ref()
-            .is_some_and(|identity| identity_matches(&self.outer_path, identity).unwrap_or(false));
+        let outer_matches = self.parent_identity.is_none()
+            || self.outer_identity.as_ref().is_some_and(|identity| {
+                identity_matches(&self.outer_path, identity).unwrap_or(false)
+            });
         self.artifacts.clear();
         drop(self.bundle_identity.take());
         drop(self.outer_identity.take());
+        drop(self.parent_identity.take());
         if !outer_matches {
             return Err(PublishError::CleanupUncertain);
         }
@@ -94,11 +109,16 @@ impl OwnedStage {
 
     fn finish_publication(&mut self) -> std::io::Result<bool> {
         self.settled = true;
-        let outer_matches = match self.outer_identity.as_ref() {
-            Some(identity) => identity_matches(&self.outer_path, identity)?,
-            None => false,
+        let outer_matches = if self.parent_identity.is_none() {
+            true
+        } else {
+            match self.outer_identity.as_ref() {
+                Some(identity) => identity_matches(&self.outer_path, identity)?,
+                None => false,
+            }
         };
         drop(self.outer_identity.take());
+        drop(self.parent_identity.take());
         if !outer_matches {
             return Ok(false);
         }
@@ -112,13 +132,14 @@ impl Drop for OwnedStage {
         if self.settled {
             return;
         }
-        let outer_matches = self
-            .outer_identity
-            .as_ref()
-            .is_some_and(|identity| identity_matches(&self.outer_path, identity).unwrap_or(false));
+        let outer_matches = self.parent_identity.is_none()
+            || self.outer_identity.as_ref().is_some_and(|identity| {
+                identity_matches(&self.outer_path, identity).unwrap_or(false)
+            });
         self.artifacts.clear();
         drop(self.bundle_identity.take());
         drop(self.outer_identity.take());
+        drop(self.parent_identity.take());
         if outer_matches {
             let _ = fs::remove_dir_all(&self.outer_path);
         }
@@ -177,7 +198,9 @@ pub(super) fn publish_with(
     if hook
         .before(PublishPoint::SyncStageDirectory, &destination)
         .is_err()
-        || !stage.validate_opened_paths().unwrap_or(false)
+        || !stage
+            .validate_opened_paths(snapshot, receipt)
+            .unwrap_or(false)
     {
         return stage.cleanup(PublishError::StageSyncFailed);
     }
@@ -187,7 +210,7 @@ pub(super) fn publish_with(
     {
         return stage.cleanup(PublishError::RenameFailed);
     }
-    if !stage.prepare_rename().unwrap_or(false) {
+    if !stage.prepare_rename(snapshot, receipt).unwrap_or(false) {
         return stage.cleanup(PublishError::RenameFailed);
     }
     if fs::rename(&stage.bundle_path, &destination).is_err() {
@@ -203,7 +226,6 @@ pub(super) fn publish_with(
     if hook
         .before(PublishPoint::SyncParentDirectory, &destination)
         .is_err()
-        || !identity_matches(&stage.parent_path, &stage.parent_identity).unwrap_or(false)
     {
         return Err(PublishError::PublishedDurabilityUncertain);
     }
@@ -258,7 +280,7 @@ fn open_stage(
         let bundle_identity = Handle::from_path(&bundle_path)?;
         Ok(OwnedStage {
             parent_path,
-            parent_identity,
+            parent_identity: Some(parent_identity),
             outer_path: outer_path.clone(),
             outer_identity: Some(outer_identity),
             bundle_path,
@@ -292,6 +314,7 @@ fn write_artifact(
     hook.before(create_point, destination)
         .map_err(|_| artifact_error)?;
     let mut handle = OpenOptions::new()
+        .read(true)
         .write(true)
         .create_new(true)
         .share_mode(ARTIFACT_SHARE_MODE)
@@ -312,6 +335,25 @@ fn write_artifact(
         handle,
         identity,
     })
+}
+
+fn file_matches(file: &mut File, expected: &[u8]) -> std::io::Result<bool> {
+    if file.metadata()?.len() != expected.len() as u64 {
+        return Ok(false);
+    }
+    file.rewind()?;
+    let mut offset = 0;
+    let mut buffer = [0_u8; 8 * 1024];
+    while offset < expected.len() {
+        let length = buffer.len().min(expected.len() - offset);
+        file.read_exact(&mut buffer[..length])?;
+        if buffer[..length] != expected[offset..offset + length] {
+            return Ok(false);
+        }
+        offset += length;
+    }
+    let mut trailing = [0_u8; 1];
+    Ok(file.read(&mut trailing)? == 0)
 }
 
 fn identity_matches(path: &Path, expected: &Handle) -> std::io::Result<bool> {

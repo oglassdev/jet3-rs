@@ -81,7 +81,7 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "checksum": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
       "allow_custom_build": false,
-      "purpose": "Safe retained Windows file-identity handles for atomic bundle publication; supplies no MDB format knowledge."
+      "purpose": "Safe Windows file-identity handles retained through final staging validation and released before atomic bundle rename; supplies no MDB format knowledge."
     },
     {
       "name": "winapi-util",
@@ -89,7 +89,7 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "checksum": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22",
       "allow_custom_build": false,
-      "purpose": "Locked same-file closure for safe retained Windows file-identity handles; supplies no MDB format knowledge."
+      "purpose": "Locked same-file closure for safe Windows file-identity handles through final staging validation; supplies no MDB format knowledge."
     },
     {
       "name": "windows-link",
@@ -375,18 +375,18 @@
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle.rs",
-        "reason": "Format-neutral fixed-name atomic no-replace artifact-bundle publication with Unix descriptor-relative operations, Windows handle retention, and best-effort outer cleanup.",
-        "sha256": "900b9bc30d483c403f54a8ef3decde97a162362bcee4c367ba948898f6f18117"
+        "reason": "Format-neutral fixed-name atomic no-replace artifact-bundle publication with Unix descriptor-relative operations, Windows staging-handle validation and release, and best-effort outer cleanup.",
+        "sha256": "4336e0d4a4b23f1b50237c9ab3d426465199503432ea1d47e2c8c790073be18b"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_windows.rs",
-        "reason": "Safe Windows atomic fixed-pair publication with retained native identities and write-denying artifact handles; it introduces no physical format assertions.",
-        "sha256": "ac34a9acfe1930c4500c5e9ca2bd77fa8aa498ed65174678a2eef18359ef2f2e"
+        "reason": "Safe Windows atomic fixed-pair publication with native identity and exact-byte validation, write-denying staged artifact handles, and explicit pre-rename handle release; it introduces no physical format assertions.",
+        "sha256": "f64084c8400eb306f1147692daee3b9222cf470f497677bc882d7d64d558c5fd"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
-        "reason": "Test-only verification of cross-platform atomic bundle publication, platform handle guarantees, alias rejection, and failure cleanup.",
-        "sha256": "28a2e7e4e456eb6762149983a84854fc9ee406f5c779089fcf4345ac1f9a7556"
+        "reason": "Test-only verification of cross-platform atomic bundle publication, platform staging-handle guarantees, alias rejection, and failure cleanup.",
+        "sha256": "15ffd73274e8cad1f3846ea4cd791f29fc2d157e415303dee96ac0102fcf0411"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_input.rs",

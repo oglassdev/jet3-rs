@@ -4,15 +4,17 @@
 //! no-replace rename. It rejects existing destinations, lexical aliases,
 //! symlinks, and hard links. Unix publication is descriptor-relative after
 //! opening the parent and stage. Windows retains native directory and artifact
-//! handles, denies later artifact write opens, and checks those identities
-//! before path-based publication or cleanup. Focused tests cover ordinary
-//! failures, collisions, and platform-specific handle guarantees.
+//! handles while staging, denies later artifact write opens, validates the
+//! exact paths and bytes, then releases every handle immediately before its
+//! path-based rename. Focused tests cover ordinary failures, collisions, and
+//! platform-specific handle guarantees.
 //!
 //! Hostile concurrent namespace mutation by another process with the same
-//! filesystem authority is outside the CLI threat model. The outer stage's
+//! filesystem authority is outside the CLI threat model. Windows publication
+//! must release its validated handles before rename, and the outer stage's
 //! create/open and identity-check/remove pairs are separate portable
-//! operations, so their identity checks are best-effort detection rather than
-//! an atomic security boundary against that principal.
+//! operations. These path operations are therefore ordinary-condition safety
+//! checks, not an atomic security boundary against that principal.
 
 use std::path::Path;
 
