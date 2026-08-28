@@ -111,6 +111,23 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "value"],
+      "anyOf": [
+        {
+          "required": ["code_page"],
+          "properties": { "kind": { "enum": ["text", "memo"] } }
+        },
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "null", "boolean", "byte", "integer", "long", "single",
+                "double", "decimal", "currency", "datetime", "binary",
+                "guid", "ole"
+              ]
+            }
+          }
+        }
+      ],
       "properties": {
         "kind": {
           "enum": [
@@ -135,7 +152,7 @@
           "type": ["null", "boolean", "integer", "number", "string"]
         },
         "raw_hex": { "$ref": "#/$defs/comparableRawHex" },
-        "code_page": { "type": "integer", "minimum": 0 }
+        "code_page": { "type": "integer", "enum": [1251, 1252] }
       }
     },
     "column": {

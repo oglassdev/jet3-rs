@@ -417,6 +417,32 @@ class ProtocolV12Tests(unittest.TestCase):
         self.assertEqual(seen, 8)
         self.assertTrue(all(len(hashes) == 1 for hashes in hashes_by_kind.values()))
 
+    def test_shared_text_code_page_vectors_match_full_python_validation(self):
+        fixture = v1_2.SCHEMA_DIR / "fixtures" / "text-code-page-vectors.tsv"
+        seen = 0
+        for line in fixture.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                continue
+            case, kind, code_page, raw_hex, value, expected_valid = line.split("\t")
+            document = self._snapshot()
+            document["database_properties"]["TextVector"] = {
+                "kind": kind,
+                "code_page": json.loads(code_page),
+                "raw_hex": raw_hex,
+                "value": value,
+            }
+            with self.subTest(case=case):
+                if expected_valid == "true":
+                    self.assertEqual(
+                        v1_2.validate_document(document),
+                        "canonical_semantic_snapshot",
+                    )
+                else:
+                    with self.assertRaises(ValidationError):
+                        v1_2.validate_document(document)
+            seen += 1
+        self.assertEqual(seen, 8)
+
     def test_rejected_format_outcomes_follow_shared_normalization_vectors(self):
         fixture = (
             v1_2.SCHEMA_DIR
@@ -540,7 +566,12 @@ class ProtocolV12Tests(unittest.TestCase):
         wrong_kind = self._snapshot()
         wrong_kind["tables"][0]["rows"] = rows_with(
             {
-                "Id": {"kind": "text", "raw_hex": "31", "value": "1"},
+                "Id": {
+                    "kind": "text",
+                    "raw_hex": "31",
+                    "code_page": 1252,
+                    "value": "1",
+                },
                 "Flag": {"kind": "boolean", "value": True},
             }
         )
@@ -577,7 +608,7 @@ class ProtocolV12Tests(unittest.TestCase):
                 "Flag": {"kind": "boolean", "value": True},
             }
         )
-        with self.assertRaisesRegex(ValidationError, "identify their code_page"):
+        with self.assertRaisesRegex(ValidationError, "code_page"):
             v1_2.validate_document(text_without_code_page)
         bad_index = self._snapshot()
         bad_index["tables"][0]["indexes"][0]["fields"][0]["name"] = "Missing"

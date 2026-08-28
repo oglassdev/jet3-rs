@@ -18,6 +18,8 @@ pub(crate) const RECEIPT_NAME: &str = "coverage-receipt.json";
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 const STAGE_ATTEMPTS: u64 = 128;
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+const BUNDLE_DIRECTORY_NAME: &str = "bundle";
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 static NEXT_STAGE: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -47,6 +49,8 @@ pub(crate) enum PublishError {
     RenameFailed,
     RenameCollision,
     CleanupFailed,
+    CleanupUncertain,
+    PublishedCleanupUncertain,
     PublishedDurabilityUncertain,
 }
 
@@ -76,32 +80,43 @@ impl PublishHook for NoFailures {
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 struct OwnedStage<'parent> {
     parent: &'parent File,
-    directory: File,
-    leaf: OsString,
-    published: bool,
+    outer: File,
+    bundle: File,
+    outer_leaf: OsString,
+    outer_identity: DirectoryIdentity,
+    bundle_published: bool,
+    settled: bool,
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 impl OwnedStage<'_> {
     fn cleanup(mut self, error: PublishError) -> Result<(), PublishError> {
-        self.published = true;
-        self.remove().map_err(|_| PublishError::CleanupFailed)?;
-        Err(error)
+        self.settled = true;
+        self.remove_bundle()
+            .map_err(|_| PublishError::CleanupFailed)?;
+        match self.remove_outer() {
+            Ok(OuterCleanup::Removed) => Err(error),
+            Ok(OuterCleanup::Displaced) => Err(PublishError::CleanupUncertain),
+            Err(_) => Err(PublishError::CleanupFailed),
+        }
     }
 
-    fn remove(&self) -> io::Result<()> {
+    fn remove_bundle(&self) -> io::Result<()> {
         use rustix::fs::{AtFlags, unlinkat};
 
+        if self.bundle_published {
+            return Ok(());
+        }
         let mut first_error = None;
         for artifact in [SNAPSHOT_NAME, RECEIPT_NAME] {
-            if let Err(error) = unlinkat(&self.directory, artifact, AtFlags::empty())
+            if let Err(error) = unlinkat(&self.bundle, artifact, AtFlags::empty())
                 && error != rustix::io::Errno::NOENT
                 && first_error.is_none()
             {
                 first_error = Some(io::Error::from(error));
             }
         }
-        if let Err(error) = unlinkat(self.parent, &self.leaf, AtFlags::REMOVEDIR)
+        if let Err(error) = unlinkat(&self.outer, BUNDLE_DIRECTORY_NAME, AtFlags::REMOVEDIR)
             && error != rustix::io::Errno::NOENT
             && first_error.is_none()
         {
@@ -109,15 +124,49 @@ impl OwnedStage<'_> {
         }
         first_error.map_or(Ok(()), Err)
     }
+
+    fn remove_outer(&self) -> io::Result<OuterCleanup> {
+        use rustix::fs::{AtFlags, unlinkat};
+
+        if directory_identity_at(self.parent, &self.outer_leaf)? != Some(self.outer_identity) {
+            return Ok(OuterCleanup::Displaced);
+        }
+        match unlinkat(self.parent, &self.outer_leaf, AtFlags::REMOVEDIR) {
+            Ok(()) => Ok(OuterCleanup::Removed),
+            Err(rustix::io::Errno::NOENT) => Ok(OuterCleanup::Displaced),
+            Err(error) => Err(io::Error::from(error)),
+        }
+    }
+
+    fn finish_publication(&mut self) -> io::Result<OuterCleanup> {
+        self.bundle_published = true;
+        self.settled = true;
+        self.remove_outer()
+    }
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 impl Drop for OwnedStage<'_> {
     fn drop(&mut self) {
-        if !self.published {
-            let _ = self.remove();
+        if !self.settled {
+            let _ = self.remove_bundle();
+            let _ = self.remove_outer();
         }
     }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct DirectoryIdentity {
+    device: u128,
+    inode: u128,
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OuterCleanup {
+    Removed,
+    Displaced,
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -168,7 +217,7 @@ fn publish_with(
     let stage = create_stage(&parent, hook, &destination)?;
 
     if let Err(error) = write_artifact(
-        &stage.directory,
+        &stage.bundle,
         SNAPSHOT_NAME,
         snapshot,
         PublishPoint::CreateSnapshot,
@@ -180,7 +229,7 @@ fn publish_with(
         return stage.cleanup(error);
     }
     if let Err(error) = write_artifact(
-        &stage.directory,
+        &stage.bundle,
         RECEIPT_NAME,
         receipt,
         PublishPoint::CreateReceipt,
@@ -193,7 +242,8 @@ fn publish_with(
     }
     if hook
         .before(PublishPoint::SyncStageDirectory, &destination)
-        .and_then(|()| stage.directory.sync_all())
+        .and_then(|()| stage.bundle.sync_all())
+        .and_then(|()| stage.outer.sync_all())
         .is_err()
     {
         return stage.cleanup(PublishError::StageSyncFailed);
@@ -204,7 +254,12 @@ fn publish_with(
     {
         return stage.cleanup(PublishError::RenameFailed);
     }
-    if let Err(error) = rename_no_replace(&parent, &stage.leaf, leaf) {
+    if let Err(error) = rename_no_replace(
+        &stage.outer,
+        OsStr::new(BUNDLE_DIRECTORY_NAME),
+        &parent,
+        leaf,
+    ) {
         let publication_error = if error.kind() == io::ErrorKind::AlreadyExists {
             PublishError::RenameCollision
         } else {
@@ -214,7 +269,7 @@ fn publish_with(
     }
 
     let mut stage = stage;
-    stage.published = true;
+    let outer_cleanup = stage.finish_publication();
     if hook
         .before(PublishPoint::SyncParentDirectory, &destination)
         .and_then(|()| parent.sync_all())
@@ -222,7 +277,10 @@ fn publish_with(
     {
         return Err(PublishError::PublishedDurabilityUncertain);
     }
-    Ok(())
+    match outer_cleanup {
+        Ok(OuterCleanup::Removed) => Ok(()),
+        Ok(OuterCleanup::Displaced) | Err(_) => Err(PublishError::PublishedCleanupUncertain),
+    }
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -248,29 +306,65 @@ fn create_stage<'parent>(
         .map_err(|_| PublishError::StageFailed)?;
     for _ in 0..STAGE_ATTEMPTS {
         let sequence = NEXT_STAGE.fetch_add(1, Ordering::Relaxed);
-        let leaf = OsString::from(format!(
+        let outer_leaf = OsString::from(format!(
             ".jet3-bundle-stage-{}-{sequence}",
             std::process::id()
         ));
-        match mkdirat(parent, &leaf, Mode::RUSR | Mode::WUSR | Mode::XUSR) {
+        match mkdirat(parent, &outer_leaf, Mode::RUSR | Mode::WUSR | Mode::XUSR) {
             Ok(()) => {
-                let directory = match openat(
+                let outer = match openat(
                     parent,
-                    &leaf,
+                    &outer_leaf,
                     OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
                     Mode::empty(),
                 ) {
                     Ok(directory) => File::from(directory),
                     Err(_) => {
-                        let _ = unlinkat(parent, &leaf, AtFlags::REMOVEDIR);
+                        let _ = unlinkat(parent, &outer_leaf, AtFlags::REMOVEDIR);
+                        return Err(PublishError::StageFailed);
+                    }
+                };
+                let outer_identity =
+                    directory_identity(&outer).map_err(|_| PublishError::StageFailed)?;
+                if mkdirat(
+                    &outer,
+                    BUNDLE_DIRECTORY_NAME,
+                    Mode::RUSR | Mode::WUSR | Mode::XUSR,
+                )
+                .is_err()
+                {
+                    if directory_identity_at(parent, &outer_leaf).ok().flatten()
+                        == Some(outer_identity)
+                    {
+                        let _ = unlinkat(parent, &outer_leaf, AtFlags::REMOVEDIR);
+                    }
+                    return Err(PublishError::StageFailed);
+                }
+                let bundle = match openat(
+                    &outer,
+                    BUNDLE_DIRECTORY_NAME,
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                    Mode::empty(),
+                ) {
+                    Ok(directory) => File::from(directory),
+                    Err(_) => {
+                        let _ = unlinkat(&outer, BUNDLE_DIRECTORY_NAME, AtFlags::REMOVEDIR);
+                        if directory_identity_at(parent, &outer_leaf).ok().flatten()
+                            == Some(outer_identity)
+                        {
+                            let _ = unlinkat(parent, &outer_leaf, AtFlags::REMOVEDIR);
+                        }
                         return Err(PublishError::StageFailed);
                     }
                 };
                 return Ok(OwnedStage {
                     parent,
-                    directory,
-                    leaf,
-                    published: false,
+                    outer,
+                    bundle,
+                    outer_leaf,
+                    outer_identity,
+                    bundle_published: false,
+                    settled: false,
                 });
             }
             Err(rustix::io::Errno::EXIST) => continue,
@@ -326,11 +420,45 @@ fn platform_preflight() -> Result<(), PublishError> {
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-fn rename_no_replace(parent: &File, stage: &OsStr, destination: &OsStr) -> io::Result<()> {
+fn rename_no_replace(
+    source_parent: &File,
+    source: &OsStr,
+    destination_parent: &File,
+    destination: &OsStr,
+) -> io::Result<()> {
     use rustix::fs::{RenameFlags, renameat_with};
 
-    renameat_with(parent, stage, parent, destination, RenameFlags::NOREPLACE)
-        .map_err(io::Error::from)
+    renameat_with(
+        source_parent,
+        source,
+        destination_parent,
+        destination,
+        RenameFlags::NOREPLACE,
+    )
+    .map_err(io::Error::from)
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+fn directory_identity(directory: &File) -> io::Result<DirectoryIdentity> {
+    let stat = rustix::fs::fstat(directory).map_err(io::Error::from)?;
+    Ok(DirectoryIdentity {
+        device: u128::from(stat.st_dev),
+        inode: u128::from(stat.st_ino),
+    })
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+fn directory_identity_at(parent: &File, leaf: &OsStr) -> io::Result<Option<DirectoryIdentity>> {
+    use rustix::fs::{AtFlags, statat};
+
+    match statat(parent, leaf, AtFlags::SYMLINK_NOFOLLOW) {
+        Ok(stat) => Ok(Some(DirectoryIdentity {
+            device: u128::from(stat.st_dev),
+            inode: u128::from(stat.st_ino),
+        })),
+        Err(rustix::io::Errno::NOENT) => Ok(None),
+        Err(error) => Err(io::Error::from(error)),
+    }
 }
 
 #[cfg(test)]

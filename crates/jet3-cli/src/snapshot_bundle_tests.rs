@@ -321,3 +321,125 @@ fn parent_replacement_cannot_redirect_artifacts_publication_or_cleanup()
     }
     Ok(())
 }
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+struct SwapStageAtRename {
+    moved_stage: PathBuf,
+    fail_after_swap: bool,
+    replacement_stage: Option<PathBuf>,
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+impl PublishHook for SwapStageAtRename {
+    fn before(&mut self, point: PublishPoint, destination: &std::path::Path) -> io::Result<()> {
+        if point != PublishPoint::RenameBundle {
+            return Ok(());
+        }
+        let parent = destination
+            .parent()
+            .ok_or_else(|| io::Error::other("destination parent is missing"))?;
+        let owned_stage = stages(parent)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| io::Error::other("owned stage is missing"))?;
+        let stage_leaf = owned_stage
+            .file_name()
+            .ok_or_else(|| io::Error::other("owned stage leaf is missing"))?
+            .to_owned();
+        fs::rename(&owned_stage, &self.moved_stage)?;
+
+        let replacement_stage = parent.join(stage_leaf);
+        fs::create_dir(&replacement_stage)?;
+        fs::write(replacement_stage.join(SNAPSHOT_NAME), b"forged snapshot")?;
+        fs::write(replacement_stage.join(RECEIPT_NAME), b"forged receipt")?;
+        self.replacement_stage = Some(replacement_stage);
+
+        if self.fail_after_swap {
+            Err(io::Error::other("injected post-swap failure"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+fn assert_stage_swap_preserved(
+    replacement_stage: &std::path::Path,
+    moved_stage: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(
+        fs::read(replacement_stage.join(SNAPSHOT_NAME))?,
+        b"forged snapshot"
+    );
+    assert_eq!(
+        fs::read(replacement_stage.join(RECEIPT_NAME))?,
+        b"forged receipt"
+    );
+    assert_eq!(fs::read_dir(moved_stage)?.count(), 0);
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[test]
+fn stage_entry_swap_cannot_publish_forged_replacement_bytes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let destination = directory.path().join("bundle");
+    let moved_stage = directory.path().join("displaced-owned-stage");
+    let mut hook = SwapStageAtRename {
+        moved_stage: moved_stage.clone(),
+        fail_after_swap: false,
+        replacement_stage: None,
+    };
+
+    assert_eq!(
+        publish_with(
+            &destination,
+            b"genuine snapshot",
+            b"genuine receipt",
+            &mut hook
+        ),
+        Err(PublishError::PublishedCleanupUncertain)
+    );
+    assert_eq!(
+        fs::read(destination.join(SNAPSHOT_NAME))?,
+        b"genuine snapshot"
+    );
+    assert_eq!(
+        fs::read(destination.join(RECEIPT_NAME))?,
+        b"genuine receipt"
+    );
+    let replacement_stage = hook
+        .replacement_stage
+        .ok_or("replacement stage was not created")?;
+    assert_stage_swap_preserved(&replacement_stage, &moved_stage)
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[test]
+fn stage_entry_swap_failure_cleans_only_the_owned_bundle() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempfile::tempdir()?;
+    let destination = directory.path().join("bundle");
+    let moved_stage = directory.path().join("displaced-owned-stage");
+    let mut hook = SwapStageAtRename {
+        moved_stage: moved_stage.clone(),
+        fail_after_swap: true,
+        replacement_stage: None,
+    };
+
+    assert_eq!(
+        publish_with(
+            &destination,
+            b"genuine snapshot",
+            b"genuine receipt",
+            &mut hook
+        ),
+        Err(PublishError::CleanupUncertain)
+    );
+    assert!(!destination.exists());
+    let replacement_stage = hook
+        .replacement_stage
+        .ok_or("replacement stage was not created")?;
+    assert_stage_swap_preserved(&replacement_stage, &moved_stage)
+}

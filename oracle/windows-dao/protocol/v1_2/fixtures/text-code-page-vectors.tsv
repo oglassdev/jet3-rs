@@ -1,0 +1,9 @@
+# case	kind	code_page	raw_hex	value	expected_valid
+cp1252_non_ascii	text	1252	636166e92080	café €	true
+cp1251_non_ascii	memo	1251	cff0e8e2e5f220a8	Привет Ё	true
+value_raw_mismatch	memo	1252	636166e9	cafe	false
+unsupported_code_page	text	65001	41	A	false
+non_integer_code_page	text	1252.0	41	A	false
+cp1252_undefined_byte	memo	1252	81	undefined	false
+cp1251_undefined_byte	text	1251	98	undefined	false
+invalid_hex	memo	1252	zz	invalid	false

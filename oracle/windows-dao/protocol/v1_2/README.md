@@ -127,7 +127,12 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   value in rows or property maps except `null` and `boolean` (which occupy no
   field bytes) must carry `raw_hex`. Fixed-width row values must carry exactly
   the DAO type's physical width, and text/memo values must identify their
-  `code_page`. Two producers can therefore only agree on a complete model.
+  `code_page`, which is exactly integer `1251` or `1252`. For both `text` and
+  `memo`, the validator strictly decodes `raw_hex` with that Windows mapping
+  and requires exact equality to `value`; unsupported pages, malformed hex,
+  undefined bytes, replacement decoding, and mismatches fail closed. The
+  shared `fixtures/text-code-page-vectors.tsv` records this rule once for both
+  validators. Two producers can therefore only agree on a complete model.
 - **Long values compare by logical payload.** For `memo` and `ole`, comparable
   `raw_hex` is exactly the logical payload byte sequence, independent of
   inline, single-page, or chained Jet storage. It excludes the 12-byte Jet

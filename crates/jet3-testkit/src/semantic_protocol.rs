@@ -4,8 +4,8 @@ use std::error::Error;
 use std::fmt;
 
 use crate::{
-    CoverageReceiptOutcome, Producer, PropertyMap, RawPreservation, Relationship, ScenarioId,
-    Sha256, SnapshotError, TableKind, TypedValue,
+    CoverageReceiptOutcome, HexString, Producer, PropertyMap, RawPreservation, Relationship,
+    ScenarioId, Sha256, SnapshotError, TableKind, TypedValue,
 };
 
 #[path = "semantic_protocol_validation.rs"]
@@ -520,6 +520,19 @@ fn validate_typed_value(value: &TypedValue, path: &str) -> Result<(), SemanticPr
     if needs_code_page && code_page.is_none() {
         return Err(SemanticProtocolError::MissingCodePage { path: path.into() });
     }
+    if let TypedValue::Text {
+        value,
+        raw_hex: Some(raw),
+        code_page: Some(code_page),
+    }
+    | TypedValue::Memo {
+        value,
+        raw_hex: Some(raw),
+        code_page: Some(code_page),
+    } = value
+    {
+        validate_text_payload(value, raw, *code_page, path)?;
+    }
     if let TypedValue::Ole {
         value,
         raw_hex: Some(raw),
@@ -530,6 +543,47 @@ fn validate_typed_value(value: &TypedValue, path: &str) -> Result<(), SemanticPr
             path,
             "OLE raw_hex must equal logical payload bytes",
         ));
+    }
+    Ok(())
+}
+
+fn validate_text_payload(
+    value: &str,
+    raw_hex: &HexString,
+    code_page: u32,
+    path: &str,
+) -> Result<(), SemanticProtocolError> {
+    let code_page = match code_page {
+        1251 => jet3::TextCodePage::Windows1251,
+        1252 => jet3::TextCodePage::Windows1252,
+        _ => {
+            return Err(invalid(
+                path,
+                "text code_page must be Windows-1251 or Windows-1252",
+            ));
+        }
+    };
+    let mut raw = Vec::new();
+    raw.try_reserve_exact(raw_hex.as_str().len() / 2)
+        .map_err(|_| {
+            invalid(
+                path,
+                "text raw_hex cannot be decoded within resource limits",
+            )
+        })?;
+    for pair in raw_hex.as_str().as_bytes().chunks_exact(2) {
+        let digits = std::str::from_utf8(pair)
+            .map_err(|_| invalid(path, "text raw_hex must be valid lowercase hexadecimal"))?;
+        raw.push(
+            u8::from_str_radix(digits, 16)
+                .map_err(|_| invalid(path, "text raw_hex must be valid lowercase hexadecimal"))?,
+        );
+    }
+    let mut budget = jet3::ResourceBudget::new(jet3::ResourceLimits::default());
+    let decoded = jet3::decode_text(&raw, code_page, &mut budget)
+        .map_err(|_| invalid(path, "text raw_hex contains an undefined code-page byte"))?;
+    if decoded.as_str() != value {
+        return Err(invalid(path, "text raw_hex must decode exactly to value"));
     }
     Ok(())
 }
@@ -586,7 +640,7 @@ mod row_key_tests {
                 (
                     "説明".into(),
                     TypedValue::Text {
-                        value: "café 東京".into(),
+                        value: "café ??".into(),
                         raw_hex: Some(hex("636166e9203f3f")?),
                         code_page: Some(1252),
                     },

@@ -5964,6 +5964,51 @@ Use `not applicable` explicitly rather than omitting a field.
   committed or redistributed
 - Review: pending independent review
 
+### EXP-0066 — Derived strict protocol text-payload rule
+
+- Recorded: 2026-08-28, OpenAI Codex
+- Kind: additive derived protocol rule from an already recorded public mapping
+  source and protocol projection; no new acquisition or compatibility result
+- Question: How must protocol 1.2 validate comparable Text and Memo source
+  bytes so producer differences cannot be hidden by an unsupported code page,
+  an undefined byte, or lossy replacement decoding?
+- Origin: the complete Windows-1251 and Windows-1252 mappings and undefined
+  positions recorded in `SRC-0025`, plus the logical Memo payload projection
+  recorded in `EXP-0064`; no MDB, provider output, DAO execution, or
+  third-party MDB implementation was inspected
+- Environment: repository-only derivation and shared-vector validation on
+  Linux; no DAO or COM execution
+- Protocol: admit exactly integer code pages 1251 and 1252 for every comparable
+  Text or Memo typed value. Decode `raw_hex` strictly with the selected Windows
+  mapping and require exact Unicode equality to `value`. Reject malformed hex,
+  unsupported pages, undefined source bytes, replacement decoding, and value
+  mismatches. Apply the same rule in the schema-backed Python validator and
+  Rust full-model validation.
+- Artifacts:
+  `oracle/windows-dao/protocol/v1_2/fixtures/text-code-page-vectors.tsv`,
+  SHA-256
+  `e7b40f87daccfda9bf14fbcf780827fad2d818f8ff5b2d1ca4ffe09e1e39eb09`,
+  consumed by the Rust and Python protocol tests. The existing synthetic
+  `row-key-vectors.tsv` Text case was corrected from a nonrepresentable Unicode
+  value to the exact decoded CP1252 payload, yielding SHA-256
+  `ffa78868a6e032985a6be2fd283b49300b70653515dc681a139ee440b9818dcc`.
+- Observation: none; the shared vectors contain repository-authored text and
+  mapping boundary cases only
+- Interpretation: comparable protocol text is a closed `(value, raw_hex,
+  code_page)` triple. Acceptance cannot depend on a producer's fallback codec
+  policy. This deterministic validation rule does not establish equal producer
+  output, DAO compatibility, or a support-matrix verification transition.
+- Usage: `file:crates/jet3/src/text.rs`;
+  `file:crates/jet3-testkit/src/semantic_protocol.rs`;
+  `file:oracle/windows-dao/scripts/validate_protocol_v1_2.py`;
+  `file:oracle/windows-dao/protocol/v1_2/README.md`;
+  `file:oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json`;
+  `file:tools/validation/repository_common.py`;
+  `file:docs/validation/repository-contract.json`
+- Rights: repository-authored derived rule and fixture; no provider bytes are
+  committed or redistributed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

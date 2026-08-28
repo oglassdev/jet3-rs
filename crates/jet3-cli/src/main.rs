@@ -18,10 +18,15 @@ use jet3::{
     ByteCount, CandidateError, DatabaseFormatError, DatabaseOpenError, DatabaseReader, FileSource,
     JET3_PAGE_SIZE, JetFileKind, ReadLimits, ResourceBudget, ResourceLimits, TextCodePage,
 };
+use jet3_testkit::{
+    ProtocolScenario, ScenarioExpectationError, SemanticSnapshotOptions,
+    snapshot_database_with_receipt,
+};
 use jet3_testkit::{RejectedFormatErrorClass, SemanticOpenFailure, SemanticSnapshotArtifacts};
-use jet3_testkit::{ScenarioId, SemanticSnapshotOptions, snapshot_database_with_receipt};
 
 mod build_identity;
+#[cfg(test)]
+mod scenario_expectation_tests;
 mod snapshot_bundle;
 mod snapshot_input;
 
@@ -67,7 +72,7 @@ struct ProbeOptions {
 #[derive(Debug)]
 struct SnapshotOptions {
     path: PathBuf,
-    scenario_id: ScenarioId,
+    scenario: ProtocolScenario,
     code_page: TextCodePage,
     output_bundle: PathBuf,
     max_input_bytes: u64,
@@ -214,6 +219,7 @@ fn parse_snapshot(
     let scenario_id = scenario_id
         .and_then(|value| value.into_string().ok())
         .ok_or("invalid_scenario_id")?;
+    let scenario = ProtocolScenario::resolve(&scenario_id).map_err(scenario_error_code)?;
     let code_page = code_page
         .and_then(|value| value.into_string().ok())
         .ok_or("invalid_code_page")?;
@@ -227,7 +233,7 @@ fn parse_snapshot(
         .ok_or("missing_output_bundle")?;
     Ok(Command::Snapshot(SnapshotOptions {
         path,
-        scenario_id: ScenarioId::new(scenario_id).map_err(|_| "invalid_scenario_id")?,
+        scenario,
         code_page,
         output_bundle,
         max_input_bytes,
@@ -356,7 +362,7 @@ fn snapshot_with_producer(
 ) -> Result<(), &'static str> {
     let SnapshotOptions {
         path,
-        scenario_id,
+        scenario,
         code_page,
         output_bundle,
         max_input_bytes,
@@ -378,24 +384,30 @@ fn snapshot_with_producer(
     let source = FileSource::from_file(staged.traversal_file()?, budget.read_budget())
         .map_err(|_| "open_failed")?;
     let artifacts = match DatabaseReader::from_source(source, &mut budget) {
-        Ok(mut database) => snapshot_database_with_receipt(
-            &mut database,
-            &SemanticSnapshotOptions {
-                scenario_id,
-                producer,
-                database_sha256,
-                code_page,
-            },
-            &mut budget,
-        )
-        .map_err(|_| "snapshot_failed")?,
+        Ok(mut database) => {
+            scenario.validate_success().map_err(scenario_error_code)?;
+            snapshot_database_with_receipt(
+                &mut database,
+                &SemanticSnapshotOptions {
+                    scenario_id: scenario.scenario_id().clone(),
+                    producer,
+                    database_sha256,
+                    code_page,
+                },
+                &mut budget,
+            )
+            .map_err(|_| "snapshot_failed")?
+        }
         Err(error) => {
             // `EXP-0065` closes normalization to the three format variants.
             let error_class = RejectedFormatErrorClass::from_open_error(&error)
                 .ok_or_else(|| open_error_code(error))?;
+            scenario
+                .validate_opening_failure(error_class)
+                .map_err(scenario_error_code)?;
             SemanticSnapshotArtifacts::opening_failure(
                 SemanticOpenFailure {
-                    scenario_id,
+                    scenario_id: scenario.scenario_id().clone(),
                     producer,
                     database_sha256,
                     error_class,
@@ -409,6 +421,18 @@ fn snapshot_with_producer(
         .to_canonical_json(&mut budget)
         .map_err(|_| "snapshot_failed")?;
     snapshot_bundle::publish(&output_bundle, &snapshot, &receipt).map_err(publication_error_code)
+}
+
+fn scenario_error_code(error: ScenarioExpectationError) -> &'static str {
+    match error {
+        ScenarioExpectationError::UnknownScenarioId => "unknown_scenario_id",
+        ScenarioExpectationError::InvalidInventory => "invalid_scenario_inventory",
+        ScenarioExpectationError::ExpectedSuccess => "scenario_expected_success",
+        ScenarioExpectationError::ExpectedOpeningFailure { .. } => {
+            "scenario_expected_opening_failure"
+        }
+        ScenarioExpectationError::ErrorClassMismatch { .. } => "scenario_error_class_mismatch",
+    }
 }
 
 fn publication_error_code(error: snapshot_bundle::PublishError) -> &'static str {
@@ -425,6 +449,8 @@ fn publication_error_code(error: snapshot_bundle::PublishError) -> &'static str 
         PublishError::RenameFailed => "output_bundle_publish_failed",
         PublishError::RenameCollision => "output_bundle_exists",
         PublishError::CleanupFailed => "output_bundle_cleanup_failed",
+        PublishError::CleanupUncertain => "output_bundle_cleanup_uncertain",
+        PublishError::PublishedCleanupUncertain => "output_bundle_published_cleanup_uncertain",
         PublishError::PublishedDurabilityUncertain => {
             "output_bundle_published_durability_uncertain"
         }
@@ -517,7 +543,9 @@ mod tests {
     use std::io::{self, Write};
 
     use jet3::TextCodePage;
-    use jet3_testkit::{Producer, ProducerKind, ScenarioId, sha256_hex};
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    use jet3_testkit::sha256_hex;
+    use jet3_testkit::{Producer, ProducerKind, ProtocolScenario};
 
     struct RejectWrites;
 
@@ -635,6 +663,7 @@ mod tests {
         ));
     }
 
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
     #[test]
     fn expected_open_rejections_publish_canonical_validated_bundles()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -672,7 +701,7 @@ mod tests {
             snapshot_with_producer(
                 SnapshotOptions {
                     path: input,
-                    scenario_id: ScenarioId::new(scenario)?,
+                    scenario: ProtocolScenario::resolve(scenario)?,
                     code_page: TextCodePage::Windows1252,
                     output_bundle: bundle.clone(),
                     max_input_bytes: bytes.len() as u64,
@@ -703,7 +732,7 @@ mod tests {
         let error = snapshot_with_producer(
             SnapshotOptions {
                 path: input,
-                scenario_id: ScenarioId::new("DAO-READ-OPEN-REJECT-JET4")?,
+                scenario: ProtocolScenario::resolve("DAO-READ-OPEN-REJECT-JET4")?,
                 code_page: TextCodePage::Windows1252,
                 output_bundle: bundle.clone(),
                 max_input_bytes: bytes.len() as u64,

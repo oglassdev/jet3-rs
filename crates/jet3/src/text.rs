@@ -1,4 +1,5 @@
-//! Explicit single-byte text decoding from `SRC-0025` and `EXP-0061`.
+//! Explicit single-byte text decoding from `SRC-0025`, `EXP-0061`, and
+//! `EXP-0066`.
 
 use std::fmt;
 
@@ -86,7 +87,11 @@ impl std::error::Error for TextError {
     }
 }
 
-pub(crate) fn decode_text<'raw>(
+/// Decodes exact source bytes with the selected Windows code page.
+///
+/// Undefined bytes and resource-limit failures are reported without emitting
+/// a lossy replacement character.
+pub fn decode_text<'raw>(
     raw: &'raw [u8],
     code_page: TextCodePage,
     budget: &mut ResourceBudget,

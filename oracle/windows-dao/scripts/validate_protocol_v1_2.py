@@ -413,16 +413,33 @@ def _validate_comparable_typed_value(value: dict[str, Any], location: str) -> No
         raise ValidationError(f"{location}: converted values must retain raw_hex")
     if kind in RAW_EXEMPT_KINDS and "raw_hex" in value:
         raise ValidationError(f"{location}: {kind} values carry no field bytes")
-    if kind in ("text", "memo") and "code_page" not in value:
-        raise ValidationError(f"{location}: {kind} values must identify their code_page")
+    if kind in ("text", "memo"):
+        if "code_page" not in value:
+            raise ValidationError(f"{location}: {kind} values must identify their code_page")
+        code_page = value["code_page"]
+        codec = {1251: "cp1251", 1252: "cp1252"}.get(code_page)
+        if codec is None:
+            raise ValidationError(
+                f"{location}: text code_page must be Windows-1251 or Windows-1252"
+            )
+        try:
+            raw = bytes.fromhex(value["raw_hex"])
+        except ValueError as exc:
+            raise ValidationError(
+                f"{location}: text raw_hex must be valid lowercase hexadecimal"
+            ) from exc
+        try:
+            decoded = raw.decode(codec, errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ValidationError(
+                f"{location}: text raw_hex contains an undefined code-page byte"
+            ) from exc
+        if decoded != value["value"]:
+            raise ValidationError(
+                f"{location}: text raw_hex must decode exactly to value"
+            )
     if kind == "ole" and value.get("raw_hex") != value["value"]:
         raise ValidationError(f"{location}: OLE raw_hex must equal the logical payload bytes")
-    if kind == "memo" and value.get("code_page") == 1252:
-        expected = value["value"].encode("cp1252", errors="replace").hex()
-        if value.get("raw_hex") != expected:
-            raise ValidationError(
-                f"{location}: Memo raw_hex must equal the code-page logical payload bytes"
-            )
 
 
 def _validate_property_map(properties: dict[str, Any], location: str) -> None:

@@ -102,7 +102,7 @@ pub use row::{RawField, RowCoverage, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};
 pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError};
-pub use text::{DecodedText, TextCodePage, TextError};
+pub use text::{DecodedText, TextCodePage, TextError, decode_text};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 

@@ -102,7 +102,7 @@
           "EXP-0056",
           "EXP-0065"
         ],
-        "sha256": "265b02eb120d0e60547cee2195b015108925b1f91d0acb9713b44f199f162c28"
+        "sha256": "bb6969e6c4a3299627641795a66640f85a6c50f45414c0249f223710c06e4c2e"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -325,9 +325,10 @@
         "path": "crates/jet3/src/text.rs",
         "provenance_ids": [
           "SRC-0025",
-          "EXP-0061"
+          "EXP-0061",
+          "EXP-0066"
         ],
-        "sha256": "892b2b2218b52d09f1c2bf2c32aad11f7e0759118681df68f83122a0751192a2"
+        "sha256": "710a7c027068e2b8757ba7023fae9b7287bd26b86f052fcf4f477b7699d8ec43"
       },
       {
         "path": "crates/jet3/src/usage_map.rs",
@@ -352,14 +353,19 @@
         "sha256": "fa465d4bcc46df074e88dd83a860ab896462221ee98d3105faafab18eebc5612"
       },
       {
+        "path": "crates/jet3-cli/src/scenario_expectation_tests.rs",
+        "reason": "Test-only verification that protocol scenario outcome and normalized rejection-class mismatches cannot reach artifact publication.",
+        "sha256": "a511dcd4a3b1e6946611f7f4f0834764c2ee50bdf0a08420329bd21c923cfed0"
+      },
+      {
         "path": "crates/jet3-cli/src/snapshot_bundle.rs",
         "reason": "Format-neutral fixed-name atomic artifact-bundle publication and cleanup mechanics.",
-        "sha256": "1f57e1fece6df3e2210ffcefb1d889ecd13709a3ed155346e8e9e01969dc111f"
+        "sha256": "49c375040dd4722dc58e04a8715d3721b720d4e8bb60bf30b91fb0100c5eaa6c"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
-        "reason": "Test-only verification of format-neutral atomic bundle publication, descriptor-relative parent-replacement resistance, alias rejection, and failure cleanup.",
-        "sha256": "1936d73a1cf43617b0ea6bc20cc2ed53e67c04b468095deed0ab4f49154612cb"
+        "reason": "Test-only verification of format-neutral atomic bundle publication, descriptor-relative parent and stage replacement resistance, alias rejection, and failure cleanup.",
+        "sha256": "ae51b94b6345efd82ccab818e4e75213cab5f48c1c5a3f8b2d279c3dc158b65d"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_input.rs",
@@ -409,7 +415,17 @@
       {
         "path": "crates/jet3-testkit/src/lib.rs",
         "reason": "Public protocol-support re-exports and product-scope labels only.",
-        "sha256": "10e260d545ebbb1e678f182dc2d737e48ed014eb05270177b9fdd00b13e24dad"
+        "sha256": "5689e9daa9918f1aaa945476bc0a9c771f13f0713d445d456461fecf12448151"
+      },
+      {
+        "path": "crates/jet3-testkit/src/scenario_inventory.rs",
+        "reason": "Format-neutral typed protocol 1.2 scenario resolution and pre-publication outcome validation over generated inventory data.",
+        "sha256": "906bbd1c04d0cd15963984bf12b82d1e413286fdf41c570ea263cc100724bf67"
+      },
+      {
+        "path": "crates/jet3-testkit/src/scenario_inventory_generated.rs",
+        "reason": "Generated format-neutral mapping from every closed protocol 1.2 scenario identifier to its declared outcome and normalized rejection class.",
+        "sha256": "bcb5debe9ae7881e35d0099c8337ba38f34fda2fe74c2f4d44019c5c30629023"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
@@ -423,8 +439,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
-        "reason": "Protocol 1.2 model integrity, ordering, and source-independent row identity rules.",
-        "sha256": "adfb2ec20fe788ab5ac9cd8b56273d1747d23837a015a742da41247cb4713c1b"
+        "reason": "Protocol 1.2 model integrity, strict text-payload validation, ordering, and source-independent row identity rules.",
+        "sha256": "43ec0a02a0b0550696af75f7575bb7284fb81f6494fe8446baff2345f9c6e8c5"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
@@ -433,8 +449,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
-        "reason": "Test-only mutation verification that direct protocol model construction cannot bypass validation.",
-        "sha256": "ebb504f12a7c86c8ca5f9ebdb2f8860109e828921027067e047cee89578f5183"
+        "reason": "Test-only mutation and shared strict text-vector verification that direct protocol model construction cannot bypass validation.",
+        "sha256": "7a6392552ab8879edc6aea825bb76e809a89942bf14c4ea4e5a4e3fd2241d3c0"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
@@ -564,7 +580,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "c1b80efc32dde6516dc45eb7a3a1a9d5a80be5a6d79f79e79d8434fb764c5334"
+        "sha256": "59886de01847767b4b1790cbfbfa25de54d2d9487d51fd90555e7a689d175465"
       },
       {
         "path": "crates/jet3/src/long_value_tests.rs",

@@ -4,6 +4,9 @@ use crate::{
     SemanticTable, Sha256, TableKind, TypedValue,
 };
 
+const TEXT_CODE_PAGE_FIXTURES: &str =
+    include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/text-code-page-vectors.tsv");
+
 fn long(value: i32) -> Result<TypedValue, Box<dyn std::error::Error>> {
     Ok(TypedValue::Long {
         value,
@@ -148,6 +151,58 @@ fn direct_construction_cannot_bypass_row_and_nested_value_validation()
     let mut wrong_key = valid_snapshot()?;
     wrong_key.tables[0].rows[0].canonical_key = Sha256::new("ff".repeat(32))?;
     assert!(wrong_key.to_canonical_json().is_err());
+    Ok(())
+}
+
+#[test]
+fn shared_text_code_page_vectors_match_full_rust_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut seen = 0;
+    for (line_index, line) in TEXT_CODE_PAGE_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        if fields.len() != 6 {
+            return Err(test_error("invalid text code-page fixture shape").into());
+        }
+        let [case, kind, code_page, raw_hex, value, expected_valid] = fields.as_slice() else {
+            return Err(test_error("invalid text code-page fixture shape").into());
+        };
+        let expected_valid = expected_valid.parse::<bool>()?;
+        let actual_valid = match (code_page.parse::<u32>(), HexString::new(*raw_hex)) {
+            (Ok(code_page), Ok(raw_hex)) => {
+                let typed = match *kind {
+                    "text" => TypedValue::Text {
+                        value: (*value).into(),
+                        raw_hex: Some(raw_hex),
+                        code_page: Some(code_page),
+                    },
+                    "memo" => TypedValue::Memo {
+                        value: (*value).into(),
+                        raw_hex: Some(raw_hex),
+                        code_page: Some(code_page),
+                    },
+                    _ => return Err(test_error("unknown text code-page fixture kind").into()),
+                };
+                let mut snapshot = valid_snapshot()?;
+                snapshot
+                    .database_properties
+                    .insert("TextVector".into(), typed);
+                snapshot.to_canonical_json().is_ok()
+            }
+            (Err(_), _) | (_, Err(_)) => false,
+        };
+        assert_eq!(
+            actual_valid,
+            expected_valid,
+            "{case} on line {}",
+            line_index + 1
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 8);
     Ok(())
 }
 

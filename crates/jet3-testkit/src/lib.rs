@@ -4,6 +4,7 @@
 mod canonical_json;
 mod canonical_snapshot;
 mod classifier_snapshot;
+mod scenario_inventory;
 mod semantic_json;
 mod semantic_outcome;
 mod semantic_protocol;
@@ -20,6 +21,7 @@ pub use classifier_snapshot::{
     ClassifiedFixture, ClassifierSnapshot, ClassifierSnapshotError, CommitId, PageKindHistogram,
     classify_fixture,
 };
+pub use scenario_inventory::{ProtocolScenario, ScenarioExpectation, ScenarioExpectationError};
 pub use semantic_outcome::{
     CoverageReceiptOutcome, RejectedFormatErrorClass, SemanticOpenFailure, SemanticSnapshotOutcome,
 };
