@@ -460,8 +460,13 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
-        "reason": "Protocol 1.2 model integrity, strict text-payload validation, ordering, and source-independent row identity rules.",
-        "sha256": "43ec0a02a0b0550696af75f7575bb7284fb81f6494fe8446baff2345f9c6e8c5"
+        "reason": "Protocol 1.2 model integrity, strict text-payload validation, ordering, source-independent row identity rules, and the budgeted producer path for precomputed row identities.",
+        "sha256": "244c53cebba8354bcea0e9e401dab6e17cf210ae1851c7884fd23f0e429a90e0"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_protocol_rows.rs",
+        "reason": "Protocol 1.2 row value-set validation, canonical newline-terminated row bytes, SHA-256 identity, collision rejection, deterministic acquisition-order tie breaking, and contiguous duplicate ordinals.",
+        "sha256": "7b72eeccff75e57e288d60317e1ec0a2c9cca824e092900d72df1560ce45941f"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
@@ -480,8 +485,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
-        "reason": "Comparison-excluded external long-value header association and bounded retention under the EXP-0064 protocol projection.",
-        "sha256": "43dc5893ccf8e721f23df214d1f023e8d408f5c7d879e6f66e6fbb0949c5dfe9"
+        "reason": "Comparison-excluded external long-value header association, deterministic acquisition-order tie breaking, bounded retention, and precharged canonical-row output allocation under the EXP-0064 protocol projection.",
+        "sha256": "84f00d8ba8ee094025d4d9b1ec678c95a14f89c220b318885210cdd6fa8010aa"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
