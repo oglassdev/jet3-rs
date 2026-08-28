@@ -78,14 +78,23 @@ class ProtocolV12Tests(unittest.TestCase):
         cls.branches = v1_2.load_branch_ids()
         cls.inventory = build_v1_2_inventory.build_inventory()
 
-    def _validate(self, inventory):
+    def _validate(self, inventory, complete=False):
         v1_2.SCHEMA_SET.validate(inventory)
-        v1_2.validate_inventory(
-            inventory, capability_ids=self.capabilities, branch_ids=self.branches
+        return v1_2.validate_inventory(
+            inventory,
+            capability_ids=self.capabilities,
+            branch_ids=self.branches,
+            complete=complete,
         )
 
     def _copy(self):
         return json.loads(json.dumps(self.inventory))
+
+    def _rehash(self, scenario):
+        scenario["content_sha256"] = v1_2.scenario_content_sha256(scenario)
+
+    def _find(self, inventory, scenario_id):
+        return next(s for s in inventory["scenarios"] if s["id"] == scenario_id)
 
     def test_schemas_lint_and_committed_inventory_is_reproducible_and_valid(self):
         v1_2.validate_schemas()
@@ -95,7 +104,6 @@ class ProtocolV12Tests(unittest.TestCase):
             v1_2.validate_document_path(build_v1_2_inventory.INVENTORY),
             "dao_scenario_inventory",
         )
-        self.assertGreaterEqual(len(self.inventory["scenarios"]), 90)
         self.assertTrue(
             all(s["expected_snapshot_sha256"] is None for s in self.inventory["scenarios"])
         )
@@ -135,35 +143,98 @@ class ProtocolV12Tests(unittest.TestCase):
         ):
             edited = self._copy()
             edited["scenarios"][0][field] = value
-            edited["scenarios"][0]["content_sha256"] = v1_2.scenario_content_sha256(
-                edited["scenarios"][0]
-            )
+            self._rehash(edited["scenarios"][0])
             with self.assertRaisesRegex(ValidationError, message):
                 self._validate(edited)
         write = self._copy()
         scenario = write["scenarios"][0]
         scenario["id"] = "DAO-WRITE-SMOKE"
         scenario["operation"]["mode"] = "dao_open_rust"
-        scenario["content_sha256"] = v1_2.scenario_content_sha256(scenario)
+        self._rehash(scenario)
         write["scenarios"].sort(key=lambda entry: entry["id"])
         with self.assertRaisesRegex(ValidationError, "not enabled"):
             self._validate(write)
 
     def test_recipe_values_must_match_declared_types(self):
         edited = self._copy()
-        scenario = next(
-            s for s in edited["scenarios"] if s["id"] == "DAO-READ-VALUES-LONG-REP"
-        )
-        insert = scenario["generator_recipe"]["steps"][2]
-        insert["rows"][0][1]["value"] = 2**31
-        scenario["content_sha256"] = v1_2.scenario_content_sha256(scenario)
+        scenario = self._find(edited, "DAO-READ-VALUES-LONG-REP")
+        scenario["generator_recipe"]["steps"][2]["rows"][0][1]["value"] = 2**31
+        self._rehash(scenario)
         with self.assertRaisesRegex(ValidationError, "range"):
             self._validate(edited)
 
-    def test_snapshot_rows_are_keyed_by_value_digest_and_duplicate_ordinal(self):
-        values = {"Id": {"kind": "long", "value": 1}}
+    def test_plan_minimum_set_is_present_or_explicitly_deferred(self):
+        deferred = self._validate(self._copy())
+        self.assertEqual(
+            deferred,
+            [
+                "allocation.further_extended_slots",
+                "allocation.inline_capacity_boundary",
+                "open.largest_supported_size",
+                "values.code_page_cp1251",
+            ],
+        )
+        with self.assertRaisesRegex(ValidationError, "incomplete"):
+            self._validate(self._copy(), complete=True)
+        silent = self._copy()
+        silent["scenarios"] = [
+            s for s in silent["scenarios"] if s["id"] != "DAO-READ-SCHEMA-TYPE-GUID"
+        ]
+        with self.assertRaisesRegex(ValidationError, "schema.every_type.*not deferred"):
+            self._validate(silent)
+        stale = self._copy()
+        stale["deferred_requirements"].append(
+            {
+                "requirement": "allocation.small_inline",
+                "reason": "x",
+                "provenance_needed": "y",
+            }
+        )
+        stale["deferred_requirements"].sort(key=lambda entry: entry["requirement"])
+        with self.assertRaisesRegex(ValidationError, "deferred although"):
+            self._validate(stale)
+
+    def test_branch_requirements_follow_recorded_storage_forms(self):
+        fixed = self._find(self.inventory, "DAO-READ-VALUES-LONG-REP")
+        text = self._find(self.inventory, "DAO-READ-VALUES-TEXT-REP")
+        memo_2048 = self._find(self.inventory, "DAO-READ-VALUES-MEMO-CHAINED-2048")
+        memo_max = self._find(self.inventory, "DAO-READ-VALUES-MEMO-MAX-32769")
+        self.assertIn("values.fixed_scalar", fixed["required_branches"])
+        self.assertNotIn("values.fixed_scalar", text["required_branches"])
+        self.assertIn("values.variable_short", text["required_branches"])
+        self.assertIn("long_value.chained", memo_2048["required_branches"])
+        self.assertFalse(
+            [b for b in memo_max["required_branches"] if b.startswith("long_value.")]
+        )
+        self.assertNotIn("values.fixed_scalar", memo_2048["required_branches"])
+        all_types = "values.all_dao_jet3_table_types"
+        self.assertIn(all_types, fixed["capability_ids"])
+        self.assertIn(
+            all_types, self._find(self.inventory, "DAO-READ-SCHEMA-TYPE-GUID")["capability_ids"]
+        )
+        for scenario in self.inventory["scenarios"]:
+            if scenario["boundary"] is not None:
+                self.assertEqual(
+                    scenario["boundary"]["dimension"], "extended_slot_1_page_base"
+                )
+
+    def _snapshot(self):
+        values = {
+            "Id": {"kind": "long", "raw_hex": "01000000", "value": 1},
+            "Flag": {"kind": "boolean", "value": True},
+        }
         key = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
-        snapshot = {
+        column = {
+            "name": "Id",
+            "ordinal": 0,
+            "dao_type": "dbLong",
+            "auto_increment": False,
+            "size": 4,
+            "attributes": 0,
+            "properties": {},
+        }
+        flag = dict(column, name="Flag", ordinal=1, dao_type="dbBoolean", size=1)
+        return {
             "protocol_version": "1.2.0",
             "document_type": "canonical_semantic_snapshot",
             "scenario_id": "DAO-READ-ROWS-DUPLICATES",
@@ -184,18 +255,17 @@ class ProtocolV12Tests(unittest.TestCase):
                     "name": "Items",
                     "kind": "user",
                     "attributes": 0,
-                    "columns": [
+                    "columns": [column, flag],
+                    "indexes": [
                         {
-                            "name": "Id",
-                            "ordinal": 0,
-                            "dao_type": "dbLong",
-                            "auto_increment": False,
-                            "size": 4,
-                            "attributes": 0,
+                            "name": "PK",
+                            "primary": True,
+                            "unique": True,
+                            "required": True,
+                            "fields": [{"name": "Id", "descending": False}],
                             "properties": {},
                         }
                     ],
-                    "indexes": [],
                     "properties": {},
                     "rows": [
                         {"canonical_key": key, "duplicate_ordinal": 0, "values": values},
@@ -205,21 +275,68 @@ class ProtocolV12Tests(unittest.TestCase):
             ],
             "relationships": [],
             "raw_preservation": [],
-            "producer_extensions": {},
+            "producer_extensions": {"/tables/0/columns/0/required": {"kind": "boolean", "value": True}},
         }
+
+    def test_snapshot_rows_are_keyed_by_value_digest_and_duplicate_ordinal(self):
+        snapshot = self._snapshot()
         self.assertEqual(v1_2.validate_document(snapshot), "canonical_semantic_snapshot")
-        broken = json.loads(json.dumps(snapshot))
+        broken = self._snapshot()
         broken["tables"][0]["rows"][1]["duplicate_ordinal"] = 2
         with self.assertRaisesRegex(ValidationError, "duplicate_ordinal"):
             v1_2.validate_document(broken)
-        broken = json.loads(json.dumps(snapshot))
+        broken = self._snapshot()
         broken["tables"][0]["rows"][0]["canonical_key"] = "0" * 64
         with self.assertRaisesRegex(ValidationError, "canonical_key"):
             v1_2.validate_document(broken)
-        legacy = json.loads(json.dumps(snapshot))
+        legacy = self._snapshot()
         legacy["tables"][0]["columns"][0]["nullable"] = True
         with self.assertRaises(ValidationError):
             v1_2.validate_document(legacy)
+
+    def test_snapshot_model_integrity_and_lossless_raw_are_enforced(self):
+        def rows_with(values):
+            key = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
+            return [{"canonical_key": key, "duplicate_ordinal": 0, "values": values}]
+
+        missing_column = self._snapshot()
+        missing_column["tables"][0]["rows"] = rows_with(
+            {"Id": {"kind": "long", "raw_hex": "01000000", "value": 1}}
+        )
+        with self.assertRaisesRegex(ValidationError, "declared column names"):
+            v1_2.validate_document(missing_column)
+        wrong_kind = self._snapshot()
+        wrong_kind["tables"][0]["rows"] = rows_with(
+            {
+                "Id": {"kind": "text", "raw_hex": "31", "value": "1"},
+                "Flag": {"kind": "boolean", "value": True},
+            }
+        )
+        with self.assertRaisesRegex(ValidationError, "not admitted for dbLong"):
+            v1_2.validate_document(wrong_kind)
+        no_raw = self._snapshot()
+        no_raw["tables"][0]["rows"] = rows_with(
+            {"Id": {"kind": "long", "value": 1}, "Flag": {"kind": "boolean", "value": True}}
+        )
+        with self.assertRaisesRegex(ValidationError, "raw_hex"):
+            v1_2.validate_document(no_raw)
+        bad_index = self._snapshot()
+        bad_index["tables"][0]["indexes"][0]["fields"][0]["name"] = "Missing"
+        with self.assertRaisesRegex(ValidationError, "unknown columns"):
+            v1_2.validate_document(bad_index)
+        bad_relationship = self._snapshot()
+        bad_relationship["relationships"] = [
+            {
+                "name": "R",
+                "table": "Items",
+                "foreign_table": "Nowhere",
+                "attributes": 0,
+                "fields": [{"field": "Id", "foreign_field": "Id"}],
+                "properties": {},
+            }
+        ]
+        with self.assertRaisesRegex(ValidationError, "unknown table"):
+            v1_2.validate_document(bad_relationship)
 
 
 if __name__ == "__main__":

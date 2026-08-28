@@ -29,6 +29,7 @@
     {"id": "values.fixed_scalar", "module": "crates/jet3/src/value.rs", "description": "Fixed-width scalar decoding with exact physical bytes retained."},
     {"id": "values.null_field", "module": "crates/jet3/src/value.rs", "description": "SQL null distinguished from empty text and empty binary."},
     {"id": "values.text_cp1251", "module": "crates/jet3/src/text.rs", "description": "Short text decoded through the explicitly selected CP1251 mapping."},
-    {"id": "values.text_cp1252", "module": "crates/jet3/src/text.rs", "description": "Short text decoded through the explicitly selected CP1252 mapping."}
+    {"id": "values.text_cp1252", "module": "crates/jet3/src/text.rs", "description": "Short text decoded through the explicitly selected CP1252 mapping."},
+    {"id": "values.variable_short", "module": "crates/jet3/src/row.rs", "description": "Short Text or Binary field located through the validated variable-offset region."}
   ]
 }

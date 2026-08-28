@@ -1,6 +1,28 @@
 {
   "protocol_version": "1.2.0",
   "document_type": "dao_scenario_inventory",
+  "deferred_requirements": [
+    {
+      "requirement": "allocation.further_extended_slots",
+      "reason": "EXP-0057 observed slot ordinals 0 and 1 only; boundaries of later slots are formula-derived, not observed.",
+      "provenance_needed": "An experiment observing a third or later type-05 slot reference."
+    },
+    {
+      "requirement": "allocation.inline_capacity_boundary",
+      "reason": "The inline usage-map page capacity is only an A3 design example, not an observation; no below/at/above page counts can be declared.",
+      "provenance_needed": "An experiment recording the inline-to-indirect transition page count for a dbVersion30 table map."
+    },
+    {
+      "requirement": "open.largest_supported_size",
+      "reason": "No recorded source or experiment fixes the largest supported Jet 3 database size; the scenario would guess a page count.",
+      "provenance_needed": "A source or experiment entry recording the maximum dbVersion30 page count."
+    },
+    {
+      "requirement": "values.code_page_cp1251",
+      "reason": "EXP-0061 records that its CP1251 diagnostic did not establish CP1251 selection or physical encoding.",
+      "provenance_needed": "An experiment establishing CP1251 database creation and its stored text bytes."
+    }
+  ],
   "scenarios": [
     {
       "id": "DAO-READ-ALLOC-DELETE-REINSERT",
@@ -229,6 +251,250 @@
       "content_sha256": "90f60aa8d18422ffd47084186870a484fdc15fc4650957092b0b3397f71d0328"
     },
     {
+      "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-ABOVE",
+      "capability_ids": [
+        "format.pages_allocation_usage",
+        "rows.streaming_read"
+      ],
+      "boundary": {
+        "dimension": "extended_slot_1_page_base",
+        "position": "above"
+      },
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Items",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Name",
+                "dao_type": "dbText",
+                "size": 32,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_until_page_count",
+            "table": "Items",
+            "row": [
+              {
+                "field": "Id",
+                "encoding": "integer",
+                "value": 1
+              },
+              {
+                "field": "Name",
+                "encoding": "unicode_string",
+                "value": "row"
+              }
+            ],
+            "page_count": 16353
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.extended_slot",
+        "allocation.indirect_map",
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "0c8b3d039516e0e0b26772f06d7c43fba5950894d83a64ba06975a506579f462"
+    },
+    {
+      "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-AT",
+      "capability_ids": [
+        "format.pages_allocation_usage",
+        "rows.streaming_read"
+      ],
+      "boundary": {
+        "dimension": "extended_slot_1_page_base",
+        "position": "at"
+      },
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Items",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Name",
+                "dao_type": "dbText",
+                "size": 32,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_until_page_count",
+            "table": "Items",
+            "row": [
+              {
+                "field": "Id",
+                "encoding": "integer",
+                "value": 1
+              },
+              {
+                "field": "Name",
+                "encoding": "unicode_string",
+                "value": "row"
+              }
+            ],
+            "page_count": 16352
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.indirect_map",
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "cfad1a6677f24b61a6ce692e7d49397e7be5756dd7f63f04e4fc35c6c63c187c"
+    },
+    {
+      "id": "DAO-READ-ALLOC-EXTENDED-SLOT-1-BELOW",
+      "capability_ids": [
+        "format.pages_allocation_usage",
+        "rows.streaming_read"
+      ],
+      "boundary": {
+        "dimension": "extended_slot_1_page_base",
+        "position": "below"
+      },
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Items",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Name",
+                "dao_type": "dbText",
+                "size": 32,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_until_page_count",
+            "table": "Items",
+            "row": [
+              {
+                "field": "Id",
+                "encoding": "integer",
+                "value": 1
+              },
+              {
+                "field": "Name",
+                "encoding": "unicode_string",
+                "value": "row"
+              }
+            ],
+            "page_count": 16351
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.indirect_map",
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "f9738e11de36f94495f98f1d29cfdad7f781c2804a06e717047b18de75bcbd8e"
+    },
+    {
       "id": "DAO-READ-ALLOC-IDLE-REOPEN",
       "capability_ids": [
         "format.pages_allocation_usage",
@@ -312,248 +578,6 @@
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
       "content_sha256": "f1f11f9da352d8a35e522ceebbb54953d5af83e26ac4ff70ac2e9a865f0aac5b"
-    },
-    {
-      "id": "DAO-READ-ALLOC-INLINE-CAPACITY-ABOVE",
-      "capability_ids": [
-        "format.pages_allocation_usage",
-        "rows.streaming_read"
-      ],
-      "boundary": {
-        "dimension": "inline_usage_map_page_capacity",
-        "position": "above"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Items",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Name",
-                "dao_type": "dbText",
-                "size": 32,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_until_page_count",
-            "table": "Items",
-            "row": [
-              {
-                "field": "Id",
-                "encoding": "integer",
-                "value": 1
-              },
-              {
-                "field": "Name",
-                "encoding": "unicode_string",
-                "value": "row"
-              }
-            ],
-            "page_count": 1025
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.extended_slot",
-        "allocation.indirect_map",
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "fc3bdddd4b4832c5d6908c40239a890c672e8e44511680c5dadcbd2503164dda"
-    },
-    {
-      "id": "DAO-READ-ALLOC-INLINE-CAPACITY-AT",
-      "capability_ids": [
-        "format.pages_allocation_usage",
-        "rows.streaming_read"
-      ],
-      "boundary": {
-        "dimension": "inline_usage_map_page_capacity",
-        "position": "at"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Items",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Name",
-                "dao_type": "dbText",
-                "size": 32,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_until_page_count",
-            "table": "Items",
-            "row": [
-              {
-                "field": "Id",
-                "encoding": "integer",
-                "value": 1
-              },
-              {
-                "field": "Name",
-                "encoding": "unicode_string",
-                "value": "row"
-              }
-            ],
-            "page_count": 1024
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "8243d2e09075f2ebfe78dfbc48a1f935aa8404b41c4f946dbc74a370425c9f7c"
-    },
-    {
-      "id": "DAO-READ-ALLOC-INLINE-CAPACITY-BELOW",
-      "capability_ids": [
-        "format.pages_allocation_usage",
-        "rows.streaming_read"
-      ],
-      "boundary": {
-        "dimension": "inline_usage_map_page_capacity",
-        "position": "below"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Items",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Name",
-                "dao_type": "dbText",
-                "size": 32,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_until_page_count",
-            "table": "Items",
-            "row": [
-              {
-                "field": "Id",
-                "encoding": "integer",
-                "value": 1
-              },
-              {
-                "field": "Name",
-                "encoding": "unicode_string",
-                "value": "row"
-              }
-            ],
-            "page_count": 1023
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "8b58575d24fadb9c7d2b93c0d48b9a9e9503cc9abee5046276fb69eb02d9cd87"
     },
     {
       "id": "DAO-READ-ALLOC-MULTIPLE-TABLES",
@@ -1493,11 +1517,12 @@
         "rows.overflow_pointer",
         "rows.wide_variable_layout",
         "tdef.column_types",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "926b60dc7111f7a23c81cbbd5257a534352d55284995f4c707a6219c5f736a57"
+      "content_sha256": "9df460bb17e097b483919c99d97cf712375c6bbd807ec3dfebf51f1d643ba4d5"
     },
     {
       "id": "DAO-READ-ROWS-SINGLE",
@@ -1697,11 +1722,12 @@
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "7c705639046e5bb2830f6802c5ada319e8cf27f73fc5d88a39585a01e995b89f"
+      "content_sha256": "ba20a600d264aa7acba5942110ecefd06c7df50a36e84cfc388a2fa1ec8f2a44"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-COMPOSITE-DESCENDING",
@@ -1823,11 +1849,12 @@
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "29d85bf8a392a904089d57efc7da1a654b31b405cfb612c826722734dbf5e371"
+      "content_sha256": "e0abc83c8c8d382e5a76406adeb7fccd64cb2b9cda52f651a7337b986c941d8a"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-COMPOSITE-MIXED",
@@ -1949,11 +1976,12 @@
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "dc5e39989ad43c85a0ccafac7d3902ee8cd87dddc940cb05326e346be5309123"
+      "content_sha256": "d18332940efc531d1bd3e1b24cc0716233a863f11b730cc89072930cd53cd3e9"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-NONUNIQUE",
@@ -2070,11 +2098,12 @@
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "8e680660336d60f06393e25ec1851275f538dca232da942e739446fa948a292e"
+      "content_sha256": "4bd0224050de2ad316cc4ce6bca004b59008afe2dc82b819bb459edf811957da"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-PRIMARY",
@@ -2191,11 +2220,12 @@
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "18c72b76835536495b297b0c6bd36f71086645a84eafc5860ce68360f0742bd9"
+      "content_sha256": "24f031c508c308c656ed7fa07cc2c77a7cf30199ec6efab3172944c65c80592c"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-UNIQUE",
@@ -2312,11 +2342,12 @@
         "tdef.column_types",
         "tdef.logical_index",
         "tdef.physical_index",
-        "tdef.single_page"
+        "tdef.single_page",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "fa1c15574aa3b63eb2c8e8e22f07c09d9580cc25adfbfab9edbf144c121d343e"
+      "content_sha256": "51d4bf65bd3edffbb28e3a0e5c9afa09c0654a5cdb920cdf9b4843fa85cd1acf"
     },
     {
       "id": "DAO-READ-SCHEMA-RELATIONSHIP",
@@ -2635,7 +2666,8 @@
     {
       "id": "DAO-READ-SCHEMA-TYPE-BINARY",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -2689,12 +2721,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "afe4e631c3e069a9ce79d21714b970c0eec01ad21aace606f84b2256302fe76d"
+      "content_sha256": "f87afcc40e5cc20c1390d816efeedcc25466039b034d02632293c92378124c12"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-BOOLEAN",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -2748,12 +2781,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "ab658331721f16f519bd8f32a44923f52828e8dc08f4c872ed5aaa47b68aef9a"
+      "content_sha256": "0593f2182faea494ae018448742c59b8d98f1dd8d4dc2073b62393c432fae6d7"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-BYTE",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -2807,12 +2841,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "52fc92d107c130bd8db0d491499cba4eb17f79923bf2fa028a0bdc06683eb99f"
+      "content_sha256": "9b9309f0f21aa3abf543ead201880bc00acbcfb60e8a462c2ae970481e2ff22d"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-CURRENCY",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -2866,12 +2901,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "638f7685fb37ce3e76b5bd0ab504f490aa7f8fe167186332ff07e4c100c0e6b0"
+      "content_sha256": "e078f6efa606ef5afc2b0a512b58936f2dc1fae5edfbc7ecd7aafc9a8a5dd288"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-DATE",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -2925,12 +2961,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "2236bf628615f93ac0f1e408f6385ee365655da3d84f198ea47bb7157288a0cd"
+      "content_sha256": "c945d0346320712c270842019c336a2c7e118fa19bdf5edfcce86cb76fba7c80"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-DOUBLE",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -2984,12 +3021,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "afef0c2b5193dc78b164280898fbcb125339be3d0133c799d615d5d3f1723e1c"
+      "content_sha256": "1ad85eaadd27617cd6d2e06137399cd7c551dfa357211f8716773be60258e2e1"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-GUID",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3043,12 +3081,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "d0e714c8db762b1ffb2e9ff87a5e7846f97175b1186877c8ea158d68ffee2715"
+      "content_sha256": "678c935f6be9d689cebeb2967e38f3dfe2122f5eaa9d5773badf7c0d819ca514"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-INTEGER",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3102,12 +3141,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "3f4b6f0e7d6227fa2fd84711701a3499aef22ed5244d9fc9d2ed1335f5f856fa"
+      "content_sha256": "f66fb66e5fdea9c6faad34660a89ad05012e91517f6e8368ebf465564f827589"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-LONG",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3161,12 +3201,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "da59ef82118bd25d67848797a840c19c5958c5e78db8d57951ec92f0f34167e7"
+      "content_sha256": "5d22800fd59b1f825615bbb2677dd2600c2ab064ad436c750614ea1afe636b30"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-LONGBINARY",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3220,12 +3261,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "422530023e9cd32910ecbd0e006f6c9523330449bee74ea5e1b7f20e67fe2213"
+      "content_sha256": "ef35c7001a084c559f97c335446282a653611b9c5f382a391cbed8087e453644"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-MEMO",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3279,12 +3321,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "20ee8beacd1402ae78f31272d644ee599fc4e867ed96e5474b396b0a1a387132"
+      "content_sha256": "fed20a1be549cf831c3299cbcfe865cd44f29997d69b54a912f2d4a54d485f0f"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-SINGLE",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3338,12 +3381,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "fd5c82bebe6fadd02a45c76ebd63706328190b2786f23e596ddb317d9ec7c4d2"
+      "content_sha256": "8438218025edffe746a2feb5fc368ff877a8e6a1f39aa0400a656799a23daf2d"
     },
     {
       "id": "DAO-READ-SCHEMA-TYPE-TEXT",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3397,12 +3441,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "6773a3ded7ad161f6b5f017b9deb430228cdb004664f6807b5519ad2830cede8"
+      "content_sha256": "c9b1bf6e583acc812753ad993858c2668a9dcfb5448c5c54a7ebfc9ab217494f"
     },
     {
       "id": "DAO-READ-SCHEMA-WIDE-TABLE",
       "capability_ids": [
-        "schema.catalog_and_table_definitions"
+        "schema.catalog_and_table_definitions",
+        "values.all_dao_jet3_table_types"
       ],
       "boundary": null,
       "operation": {
@@ -3829,12 +3874,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "ba2f3c0b1b039c32ef72f3b5fe605b07057183ff683ba19fe795d75f7d13c73e"
+      "content_sha256": "198141a31d9a2d2e3d8c97be45ab1b18e04295ce98e49db73ec4728f0aed10b3"
     },
     {
       "id": "DAO-READ-VALUES-BINARY-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -3908,16 +3954,17 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.fixed_scalar"
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "afe2d5a45117ebd74c1927f3dbdd35e4c56b28ce04e01bf6aea092e7ad21c737"
+      "content_sha256": "7e646e525c77cb8788952aa3ebf4a7527bc05eb0c228e698b351022f7c2a6cb9"
     },
     {
       "id": "DAO-READ-VALUES-BINARY-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -3988,16 +4035,17 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.fixed_scalar"
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "5a36ccc21b652518fd77f16cf65eacc413b814426fb45f6a593ac208e4a60ac9"
+      "content_sha256": "92f88e0d6dfefde400c5b0b753fe7028667832b0a4fbfd2a0f2d3a889bb68823"
     },
     {
       "id": "DAO-READ-VALUES-BINARY-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4072,12 +4120,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "1612905df1aa7a340e101beb53463a64367731997febf928e8c47dbf48e6a46e"
+      "content_sha256": "432e2c57d072bcaae8ffb7b48ef9ac331def1329a204068283738c39ce57d808"
     },
     {
       "id": "DAO-READ-VALUES-BINARY-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -4148,16 +4197,17 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.fixed_scalar"
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "6fc83eba727264a0667d9ff830d54940c7cf2ec48bcbd0a87c76f6a79d47064f"
+      "content_sha256": "d61e555f560641cb402ce1c7079503373bb0e40818882853a0f3207c576e9278"
     },
     {
-      "id": "DAO-READ-VALUES-BOOLEAN-MIN",
+      "id": "DAO-READ-VALUES-BOOLEAN-FALSE",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4232,12 +4282,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "dd8c6c58b3e77c8e271367e0b9fd21bba2c02555a08b3d6c1ef52ea8aaae2499"
+      "content_sha256": "98d004315c4233c9bd1b1159f6105926cfb010df7b1f89a8c08293ffdb0be2aa"
     },
     {
-      "id": "DAO-READ-VALUES-BOOLEAN-REP",
+      "id": "DAO-READ-VALUES-BOOLEAN-TRUE",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4312,12 +4363,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "ff3d238101218b1f19e1ae215efa145f3f1e502a623484fa55e934b8f0cc56ed"
+      "content_sha256": "069cfd7e964247865a2469a089ae914ccc15071ce5e7670411a0048b443419b0"
     },
     {
       "id": "DAO-READ-VALUES-BYTE-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4392,12 +4444,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "7f529b9c4ff33abe53a6877cee8f3a051080e6384ac1466766bc2f01536e3a64"
+      "content_sha256": "d2133d91d76c52db133ea80a20457384b37a55b3d901c9dd0a841c3dff7f115d"
     },
     {
       "id": "DAO-READ-VALUES-BYTE-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4472,12 +4525,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "bcec817e73591ad5952772e4e0237a3f6771755431057ea9e57f072a29da7f0d"
+      "content_sha256": "522eb906e1161158964307df050d626329954e2ae487f1fbf5161a919e4d2b41"
     },
     {
       "id": "DAO-READ-VALUES-BYTE-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4552,12 +4606,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "205b31ed199622309c9fe23e684b6b8773bf362bf9c8e00777210f43e8feb9db"
+      "content_sha256": "d140f5582c6ac2db0f7ad9c76fe6c93ae9363ae72235c996f5b7f4cf39b92828"
     },
     {
       "id": "DAO-READ-VALUES-BYTE-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4632,12 +4687,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "c7a99035d858de2f624eb58e7bb315247afcf81339b175976ac30b62eb96f162"
+      "content_sha256": "2fbece45292fce99f4bc3ef7576df51a35bbb75cb7865f21790ce3a1326379ab"
     },
     {
       "id": "DAO-READ-VALUES-CURRENCY-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -4712,12 +4768,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "0c0ad51795b475d3a9d8b690ba206d82c4171eb5b9bf6c20feacc020c779d1f7"
+      "content_sha256": "7ec5f41b65d4de76ca40df587d5c1951b1d206baa187421e9fadc6e15e51ae47"
     },
     {
       "id": "DAO-READ-VALUES-CURRENCY-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -4792,12 +4849,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "4ef925d9d6725acfa72a74b3d49d6484e8f125ac8b7a56d3a50bb0e47bf901a4"
+      "content_sha256": "e06a4bcaa63c02ceb98ee58a638308dd7cd54209666d93751ed295beb15c5ac2"
     },
     {
       "id": "DAO-READ-VALUES-CURRENCY-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -4872,12 +4930,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "1df9747e1278bf92ac7a9b0abfedecb30968525f8fe996b91eddad3a7e3ae545"
+      "content_sha256": "c965d177a2187cb92f9f4d89d98e3260af1d88f5f85fedac9fea40bbc7523803"
     },
     {
       "id": "DAO-READ-VALUES-CURRENCY-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -4952,12 +5011,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "5bd64a0598a64b9573703d06c1cd206a0bbdfb675e3831f29d64e0c2e9cd2ad6"
+      "content_sha256": "c6aec0d182fffa95a71b927c0cba2dd10cd3d7216c682fd251378b904adede01"
     },
     {
       "id": "DAO-READ-VALUES-DATE-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -5032,12 +5092,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "7c99a4cfd29b8d23ba5295ae1417b2a638fca7e3e8af35f656ae7a395b4059f4"
+      "content_sha256": "319507151dcb1614ad52c13d3bdd159a6da12dd9c9e024d63a615370c9eee1e8"
     },
     {
       "id": "DAO-READ-VALUES-DATE-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -5112,12 +5173,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "eac8ae2349857516bf4fa8037aec3aa51a47edbeeb68ebe82bb4b3b645999d1e"
+      "content_sha256": "b1459b03f9168982b0c07c5bb2ead2a7ade7fb1402154a924ce5b63799dab635"
     },
     {
       "id": "DAO-READ-VALUES-DATE-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5192,12 +5254,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "d34ea0bdeb2300ae0d17de301fce546c065f041e5bcb1ae2969e84b3c053551d"
+      "content_sha256": "7ebf3351de96d6ecf7291505efb8068465170feffc44ad6b192a5895c2acfc06"
     },
     {
       "id": "DAO-READ-VALUES-DATE-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -5272,12 +5335,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "738fc2155cb9007a3d11c8b4ca7b5471b1ec5b633df60a0f80be6788932bd2c2"
+      "content_sha256": "9b7d2173d8be58d8808fa4e104b0ee49318ec63c486d3cac80f4fb59303b680f"
     },
     {
       "id": "DAO-READ-VALUES-DOUBLE-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5352,12 +5416,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "7469cd888680dce9a91f1b9d76665a6488e0ec8922f71e13ecf439a9a402d0c0"
+      "content_sha256": "547ba1bff5a3ad400993ca10fda5ebfe333e5390ab72c117b0cb1aa2852e1f61"
     },
     {
       "id": "DAO-READ-VALUES-DOUBLE-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5432,12 +5497,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "f7517051e3139a9044ab777e249de40af1584029a2b93dc751be47581d70ed6e"
+      "content_sha256": "77904237549c6b5a3300e2f703971612b6cbe5c523c9ad9bc8522ab98635a57f"
     },
     {
       "id": "DAO-READ-VALUES-DOUBLE-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5512,12 +5578,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "770a5886307a9ae9357ca7d35d63f53239ecc9b3c463eb7b65218f33d02765e8"
+      "content_sha256": "2af9a271089bf35a05441576d2d1d1b9e652b6220098638c2be169ff11f655fd"
     },
     {
       "id": "DAO-READ-VALUES-DOUBLE-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5592,12 +5659,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "8d8d98222356c3d3d7aea8bcda4519ced502b47158fe501db606afeefdfa672c"
+      "content_sha256": "e996b167961585200f35f8d730c279938c4bea9ffa9677320d2bff5ff9186593"
     },
     {
       "id": "DAO-READ-VALUES-GUID-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -5672,12 +5740,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "44414cfa373cc39765aaee0fba04f511142f43507b17072d1050313d1d716af4"
+      "content_sha256": "93d9f630e2095083a662a95fd7c1b403a075b454728cadacd01a2226126aab61"
     },
     {
       "id": "DAO-READ-VALUES-GUID-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -5752,12 +5821,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "3bd53cee60cec7651010d33d601341b2ecf205d5db49276b13ee04edbcaf566d"
+      "content_sha256": "c9d34a1a6e3e50380c297f84646cfd088a45648d9647745cf44151a3fad4348d"
     },
     {
       "id": "DAO-READ-VALUES-GUID-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5832,12 +5902,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "e81b970896a69e1e951d034ad590cabdf72d1e8768ae55b90d55e4f1462ec078"
+      "content_sha256": "d39e465cf3f27e2fb916ca577263a7ddb0a4b38f41528e03f906f29d168c480a"
     },
     {
       "id": "DAO-READ-VALUES-GUID-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.date_currency_binary_guid_replication"
       ],
       "boundary": null,
@@ -5912,12 +5983,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "3280ceaee220dedde8ab21e7561fe3f74da9a7f6311fe69837ccf24ade5b952f"
+      "content_sha256": "1536d8f8717cf0f6760f71a47b1420eb05a8998ed0cec24806dd3cbd0708e6e7"
     },
     {
       "id": "DAO-READ-VALUES-INTEGER-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -5992,12 +6064,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "830bdb409bd1b381e61e9b4a6a6bd37a6edd653e7792a9b0a6ba10b6495425f5"
+      "content_sha256": "1c8706fd3e1e8597f8def4e23babd1b679ed9db62bf99e762529635c26e594c7"
     },
     {
       "id": "DAO-READ-VALUES-INTEGER-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6072,12 +6145,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "824b4d3ab6f5cc7a0784adb3ca04341e53f7bd7fea6ed55bb24eecf25264cacb"
+      "content_sha256": "97792b44f9423f18ed95a1c8aed0fa8468acfd12cae6ee1b0c64740b372dfda2"
     },
     {
       "id": "DAO-READ-VALUES-INTEGER-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6152,12 +6226,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "309121b7391266299b4d2e972f12fb6ff628982744f6f51693f9698da8a011f9"
+      "content_sha256": "eac3b642dfc0068afc7cb1364b978a7820475857479aff1f23b18248476c3d9d"
     },
     {
       "id": "DAO-READ-VALUES-INTEGER-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6232,12 +6307,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "b88823e5c16169b0b29c29e5ee028a9c4ccc91db0a2db036c96175acaff1fa56"
+      "content_sha256": "430271ee4c5b06cc2828a0cc994b3b5f5ea2e1d56dcaab16bbb0b20303babf12"
     },
     {
       "id": "DAO-READ-VALUES-LONG-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6312,12 +6388,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "212afcad645c3bad279a3b2a730f4179ce0efbeb12e4cf4be114ee57dc2d22ac"
+      "content_sha256": "1daed8520a5411e70facdb380269b047dc88ba2cc550335473b3703107387659"
     },
     {
       "id": "DAO-READ-VALUES-LONG-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6392,12 +6469,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "05d79a7e23acb3bc46ae7713a8577badc975a3a8463b8dddb377aa1ecbd9c1c9"
+      "content_sha256": "99bb7753e9319d0350b2b108400d293077c7bca4b0b3b4283736329b34ea8f05"
     },
     {
       "id": "DAO-READ-VALUES-LONG-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6472,12 +6550,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "1e15a6417acfef3cf051b64d0e940cdc18c8d1ba09387e03b236f91a1de53f2e"
+      "content_sha256": "3c5d8be2cd9bd81ef2ea04920e4ecc3ee7c9aa559db52eda93aab6449d2108c9"
     },
     {
       "id": "DAO-READ-VALUES-LONG-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6552,12 +6631,265 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "35a1ed41686ab657d9feee4391d9033e3cd965d864276bc56069db49ee1b2659"
+      "content_sha256": "c4530aaeb9e0b1f5e1de724763e618f3f9ed3b30d2bb831dca099cf36ce71ce2"
     },
     {
-      "id": "DAO-READ-VALUES-LONGBINARY-MAX",
+      "id": "DAO-READ-VALUES-LONGBINARY-CHAINED-2048",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
+        "values.memo_ole_multi_page"
+      ],
+      "boundary": null,
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Typed",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Value",
+                "dao_type": "dbLongBinary",
+                "size": null,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_rows",
+            "table": "Typed",
+            "rows": [
+              [
+                {
+                  "field": "Id",
+                  "encoding": "integer",
+                  "value": 1
+                },
+                {
+                  "field": "Value",
+                  "encoding": "repeat_byte",
+                  "value": {
+                    "unit": "a5",
+                    "length": 2048
+                  }
+                }
+              ]
+            ],
+            "repeat": 1
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "long_value.chained",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "1e7dddac5064b19a61a9377c24b3d6f516174c0e4a8142342fb385a2a3a44aeb"
+    },
+    {
+      "id": "DAO-READ-VALUES-LONGBINARY-CHAINED-4096",
+      "capability_ids": [
+        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
+        "values.memo_ole_multi_page"
+      ],
+      "boundary": null,
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Typed",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Value",
+                "dao_type": "dbLongBinary",
+                "size": null,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_rows",
+            "table": "Typed",
+            "rows": [
+              [
+                {
+                  "field": "Id",
+                  "encoding": "integer",
+                  "value": 1
+                },
+                {
+                  "field": "Value",
+                  "encoding": "repeat_byte",
+                  "value": {
+                    "unit": "a5",
+                    "length": 4096
+                  }
+                }
+              ]
+            ],
+            "repeat": 1
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "long_value.chained",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "40c8ed50c67a11ce4db19d6709b1b484e1ba79ef96fcd975cef3c3c6c63d29d8"
+    },
+    {
+      "id": "DAO-READ-VALUES-LONGBINARY-INLINE-32",
+      "capability_ids": [
+        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
+        "values.memo_ole_multi_page"
+      ],
+      "boundary": null,
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Typed",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Value",
+                "dao_type": "dbLongBinary",
+                "size": null,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_rows",
+            "table": "Typed",
+            "rows": [
+              [
+                {
+                  "field": "Id",
+                  "encoding": "integer",
+                  "value": 1
+                },
+                {
+                  "field": "Value",
+                  "encoding": "repeat_byte",
+                  "value": {
+                    "unit": "a5",
+                    "length": 32
+                  }
+                }
+              ]
+            ],
+            "repeat": 1
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "long_value.inline",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "1d8f3f8573847aaf565bbab3cf22679ccaffec3b93b35d63d2d984c5a73f0391"
+    },
+    {
+      "id": "DAO-READ-VALUES-LONGBINARY-MAX-32769",
+      "capability_ids": [
+        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.memo_ole_multi_page"
       ],
       "boundary": null,
@@ -6626,103 +6958,21 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "long_value.chained",
         "open.header_page",
         "open.signature_geometry",
         "rows.direct",
         "tdef.column_types",
-        "tdef.single_page",
-        "values.fixed_scalar"
+        "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "3da8bf416790784acc0ee44175d7f81861c40e40adfaafb4dfaa92e664e442b1"
-    },
-    {
-      "id": "DAO-READ-VALUES-LONGBINARY-MIN",
-      "capability_ids": [
-        "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": null,
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "lowercase_hex",
-                  "value": "00"
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.inline",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page",
-        "values.fixed_scalar"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "8f0c1f72fd7cd482da0d1ae9b4588d61ace1989d1f46a75eff6c3d94626c5976"
+      "content_sha256": "ad3ccbdffb758503ac2388b9754cf792f0d0de6c09a6a4d36669de0a88d3a526"
     },
     {
       "id": "DAO-READ-VALUES-LONGBINARY-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -6797,270 +7047,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "1b088b7d38892b8329c29643b67b9e17458362f0a41e479e141c9784c44a22c4"
+      "content_sha256": "f7cc255e8ab6d58a58c494782127e557cfd0ef2b25ff0483ecf4bd41e36b508d"
     },
     {
-      "id": "DAO-READ-VALUES-LONGBINARY-PAGE-ABOVE",
+      "id": "DAO-READ-VALUES-LONGBINARY-SINGLE-PAGE-512",
       "capability_ids": [
         "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": {
-        "dimension": "long_value_page_payload",
-        "position": "above"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "repeat_byte",
-                  "value": {
-                    "unit": "a5",
-                    "length": 2049
-                  }
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.chained",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "193bd8a128e3934d2850ae6bb1874227916e53658574aa21a89782b121d077fe"
-    },
-    {
-      "id": "DAO-READ-VALUES-LONGBINARY-PAGE-AT",
-      "capability_ids": [
-        "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": {
-        "dimension": "long_value_page_payload",
-        "position": "at"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "repeat_byte",
-                  "value": {
-                    "unit": "a5",
-                    "length": 2048
-                  }
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.single_page",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "5debbbec1699519ad038930185291477e3fa85157794f2c88c5643610819adbf"
-    },
-    {
-      "id": "DAO-READ-VALUES-LONGBINARY-PAGE-BELOW",
-      "capability_ids": [
-        "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": {
-        "dimension": "long_value_page_payload",
-        "position": "below"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "repeat_byte",
-                  "value": {
-                    "unit": "a5",
-                    "length": 2047
-                  }
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.single_page",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "56c8ec92210e2b19c77226238f34819ff7bec2df2ae161321c0f83fd58d28f4e"
-    },
-    {
-      "id": "DAO-READ-VALUES-LONGBINARY-REP",
-      "capability_ids": [
-        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.memo_ole_multi_page"
       ],
       "boundary": null,
@@ -7113,7 +7106,259 @@
                   "encoding": "repeat_byte",
                   "value": {
                     "unit": "a5",
-                    "length": 64
+                    "length": 512
+                  }
+                }
+              ]
+            ],
+            "repeat": 1
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "long_value.single_page",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "c271573f8241da98b853374234d55a817b4157b612478a9e0e9e985a45bba7b0"
+    },
+    {
+      "id": "DAO-READ-VALUES-MEMO-CHAINED-2048",
+      "capability_ids": [
+        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
+        "values.memo_ole_multi_page"
+      ],
+      "boundary": null,
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Typed",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Value",
+                "dao_type": "dbMemo",
+                "size": null,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_rows",
+            "table": "Typed",
+            "rows": [
+              [
+                {
+                  "field": "Id",
+                  "encoding": "integer",
+                  "value": 1
+                },
+                {
+                  "field": "Value",
+                  "encoding": "repeat_ascii",
+                  "value": {
+                    "unit": "M",
+                    "length": 2048
+                  }
+                }
+              ]
+            ],
+            "repeat": 1
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "long_value.chained",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "3f47b26ab927c131d61ab195de5fb4ec471262af381b7d110453af34580dbe53"
+    },
+    {
+      "id": "DAO-READ-VALUES-MEMO-CHAINED-4096",
+      "capability_ids": [
+        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
+        "values.memo_ole_multi_page"
+      ],
+      "boundary": null,
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Typed",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Value",
+                "dao_type": "dbMemo",
+                "size": null,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_rows",
+            "table": "Typed",
+            "rows": [
+              [
+                {
+                  "field": "Id",
+                  "encoding": "integer",
+                  "value": 1
+                },
+                {
+                  "field": "Value",
+                  "encoding": "repeat_ascii",
+                  "value": {
+                    "unit": "M",
+                    "length": 4096
+                  }
+                }
+              ]
+            ],
+            "repeat": 1
+          },
+          {
+            "action": "close_database"
+          }
+        ]
+      },
+      "required_branches": [
+        "allocation.inline_map",
+        "catalog.record_stream",
+        "catalog.root_discovery",
+        "long_value.chained",
+        "open.header_page",
+        "open.signature_geometry",
+        "rows.direct",
+        "tdef.column_types",
+        "tdef.single_page"
+      ],
+      "expected_snapshot_sha256": null,
+      "preserve_paths": [],
+      "content_sha256": "03a153a04d2ed4eec0caa52632d1b824f932cf885cb39ad6a95065ad2e30dd58"
+    },
+    {
+      "id": "DAO-READ-VALUES-MEMO-INLINE-32",
+      "capability_ids": [
+        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
+        "values.memo_ole_multi_page"
+      ],
+      "boundary": null,
+      "operation": {
+        "mode": "rust_read_dao",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "generator_recipe": {
+        "producer": "dao",
+        "database_version": "dbVersion30",
+        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
+        "encrypted": false,
+        "password": null,
+        "steps": [
+          {
+            "action": "create_database"
+          },
+          {
+            "action": "create_table",
+            "name": "Typed",
+            "fields": [
+              {
+                "name": "Id",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Value",
+                "dao_type": "dbMemo",
+                "size": null,
+                "required": false
+              }
+            ],
+            "indexes": []
+          },
+          {
+            "action": "insert_rows",
+            "table": "Typed",
+            "rows": [
+              [
+                {
+                  "field": "Id",
+                  "encoding": "integer",
+                  "value": 1
+                },
+                {
+                  "field": "Value",
+                  "encoding": "repeat_ascii",
+                  "value": {
+                    "unit": "M",
+                    "length": 32
                   }
                 }
               ]
@@ -7134,17 +7379,17 @@
         "open.signature_geometry",
         "rows.direct",
         "tdef.column_types",
-        "tdef.single_page",
-        "values.fixed_scalar"
+        "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "e1f4f6f67cc3578738340b37d93c52ac13a5d931f129481c3cd40e5104c370fa"
+      "content_sha256": "77acd6ad8e9961ae9504d4596e34a1ad1034ae072d08e43e993e6ba2a0f8f8b6"
     },
     {
-      "id": "DAO-READ-VALUES-MEMO-MAX",
+      "id": "DAO-READ-VALUES-MEMO-MAX-32769",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.memo_ole_multi_page"
       ],
       "boundary": null,
@@ -7213,103 +7458,21 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "long_value.chained",
         "open.header_page",
         "open.signature_geometry",
         "rows.direct",
         "tdef.column_types",
-        "tdef.single_page",
-        "values.fixed_scalar"
+        "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "c0b7d388f7dd3a31e94e226622bd2205e0d1f3ef2fcf7bcffe0bcc9aedd35cfd"
-    },
-    {
-      "id": "DAO-READ-VALUES-MEMO-MIN",
-      "capability_ids": [
-        "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": null,
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "unicode_string",
-                  "value": "M"
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.inline",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page",
-        "values.fixed_scalar"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "c8dc0a8a378eca40da8a360b1f5bbf6435e0418c3efd1de5928c50ceb52f6411"
+      "content_sha256": "ff259fa0e807e4afb993305c0706ed42e48fdf0516db00c9882608369fcfc53e"
     },
     {
       "id": "DAO-READ-VALUES-MEMO-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -7384,270 +7547,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "3b9bedcf361e596f8cfe7a3b0b8fb05bceec7ad93ef7ccfa75cfd20204f75191"
+      "content_sha256": "bec521322eeffba8879b60f8a5e4b9a0457113ad907584f8031b2302fb8179c4"
     },
     {
-      "id": "DAO-READ-VALUES-MEMO-PAGE-ABOVE",
+      "id": "DAO-READ-VALUES-MEMO-SINGLE-PAGE-512",
       "capability_ids": [
         "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": {
-        "dimension": "long_value_page_payload",
-        "position": "above"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "repeat_ascii",
-                  "value": {
-                    "unit": "M",
-                    "length": 2049
-                  }
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.chained",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "5b17897c758a2623aeaf919e8c9c58cf598c509bbd71d4f17f01029d28678fcb"
-    },
-    {
-      "id": "DAO-READ-VALUES-MEMO-PAGE-AT",
-      "capability_ids": [
-        "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": {
-        "dimension": "long_value_page_payload",
-        "position": "at"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "repeat_ascii",
-                  "value": {
-                    "unit": "M",
-                    "length": 2048
-                  }
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.single_page",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "6134d9c8fdcbbbdcb5add8116964c6c84d8bf30383ddb547b1d3b7de411ef24c"
-    },
-    {
-      "id": "DAO-READ-VALUES-MEMO-PAGE-BELOW",
-      "capability_ids": [
-        "rows.streaming_read",
-        "values.memo_ole_multi_page"
-      ],
-      "boundary": {
-        "dimension": "long_value_page_payload",
-        "position": "below"
-      },
-      "operation": {
-        "mode": "rust_read_dao",
-        "expected_outcome": "success",
-        "error_class": null
-      },
-      "generator_recipe": {
-        "producer": "dao",
-        "database_version": "dbVersion30",
-        "locale": ";LANGID=0x0409;CP=1252;COUNTRY=0",
-        "encrypted": false,
-        "password": null,
-        "steps": [
-          {
-            "action": "create_database"
-          },
-          {
-            "action": "create_table",
-            "name": "Typed",
-            "fields": [
-              {
-                "name": "Id",
-                "dao_type": "dbLong",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "Value",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              }
-            ],
-            "indexes": []
-          },
-          {
-            "action": "insert_rows",
-            "table": "Typed",
-            "rows": [
-              [
-                {
-                  "field": "Id",
-                  "encoding": "integer",
-                  "value": 1
-                },
-                {
-                  "field": "Value",
-                  "encoding": "repeat_ascii",
-                  "value": {
-                    "unit": "M",
-                    "length": 2047
-                  }
-                }
-              ]
-            ],
-            "repeat": 1
-          },
-          {
-            "action": "close_database"
-          }
-        ]
-      },
-      "required_branches": [
-        "allocation.inline_map",
-        "catalog.record_stream",
-        "catalog.root_discovery",
-        "long_value.single_page",
-        "open.header_page",
-        "open.signature_geometry",
-        "rows.direct",
-        "tdef.column_types",
-        "tdef.single_page"
-      ],
-      "expected_snapshot_sha256": null,
-      "preserve_paths": [],
-      "content_sha256": "650710482cc6599c3db26cfe934eab2235f4e0313b6572c5fc7e090fae80ca40"
-    },
-    {
-      "id": "DAO-READ-VALUES-MEMO-REP",
-      "capability_ids": [
-        "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.memo_ole_multi_page"
       ],
       "boundary": null,
@@ -7697,8 +7603,11 @@
                 },
                 {
                   "field": "Value",
-                  "encoding": "unicode_string",
-                  "value": "Memo text"
+                  "encoding": "repeat_ascii",
+                  "value": {
+                    "unit": "M",
+                    "length": 512
+                  }
                 }
               ]
             ],
@@ -7713,22 +7622,22 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "long_value.inline",
+        "long_value.single_page",
         "open.header_page",
         "open.signature_geometry",
         "rows.direct",
         "tdef.column_types",
-        "tdef.single_page",
-        "values.fixed_scalar"
+        "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "4221346ed71317d2fbd80ebb7ff2d44bac1140f28c0e3a272c3ea362daebd35d"
+      "content_sha256": "92ad8099298c3dfb65f4656d47d3c5f8fd435419a4fc43d8b271245aece111fe"
     },
     {
       "id": "DAO-READ-VALUES-SINGLE-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -7803,12 +7712,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "8c52815d3a03316dbff4a708a2420882f2cbedb81868891966c0e3def8c9de9e"
+      "content_sha256": "20de21a1aad369c5bfb62484c27ae7c3a586b8d976768fbff4c249b9eaa205d3"
     },
     {
       "id": "DAO-READ-VALUES-SINGLE-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -7883,12 +7793,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "c0c377c2c4ded37c88f0785fef38dcd99ff37a69ba3513f4914c19de3210b7bd"
+      "content_sha256": "6b7a8565351da2b71b1343b5ae816866c7feabe34903f1420e8b3f80c5e62f6b"
     },
     {
       "id": "DAO-READ-VALUES-SINGLE-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -7963,12 +7874,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "2c72f1f082f04c8b122171ab377cd24b1577c5d28c6084c4d3d8f2e51bdd0a84"
+      "content_sha256": "2934ae1861cbdefe59a7c5d1937b5e8e3dfbc33ee70b975d5fb6cbd388230c11"
     },
     {
       "id": "DAO-READ-VALUES-SINGLE-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -8043,12 +7955,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "d9b18fe27188686e7af9863371f805b22acd3dc1a730e38c738aae8bd09c40f4"
+      "content_sha256": "87e348c448d9df98d2aa75ee20d63369110faaaacf7c15e66882764fbe1742e2"
     },
     {
-      "id": "DAO-READ-VALUES-TEXT-CP1252-HIGH",
+      "id": "DAO-READ-VALUES-TEXT-EMPTY",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.code_pages_lossless_raw"
       ],
       "boundary": null,
@@ -8080,7 +7993,7 @@
               {
                 "name": "Value",
                 "dao_type": "dbText",
-                "size": 16,
+                "size": 255,
                 "required": false
               }
             ],
@@ -8099,7 +8012,7 @@
                 {
                   "field": "Value",
                   "encoding": "unicode_string",
-                  "value": "Café €"
+                  "value": ""
                 }
               ]
             ],
@@ -8119,16 +8032,18 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.text_cp1252"
+        "values.text_cp1252",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "467daa47ae47b8948a695dde179cf17da068722ec2e28b0b366e4ac603b3ef66"
+      "content_sha256": "44718b09f44d1b8afff73cc6f84090f8e60c91b642bbb08eb3183a67fee622f5"
     },
     {
       "id": "DAO-READ-VALUES-TEXT-MAX",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.code_pages_lossless_raw"
       ],
       "boundary": null,
@@ -8202,17 +8117,18 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.fixed_scalar",
-        "values.text_cp1252"
+        "values.text_cp1252",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "5730639d4856a578135992d57b154a117f69f1635c92ebc11f63a47d65895a41"
+      "content_sha256": "857e283458f7a53194ffb585643598b748f23bd5e4dbf2f5e7d6106e248e2633"
     },
     {
       "id": "DAO-READ-VALUES-TEXT-MIN",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.code_pages_lossless_raw"
       ],
       "boundary": null,
@@ -8283,17 +8199,18 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.fixed_scalar",
-        "values.text_cp1252"
+        "values.text_cp1252",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "67a332c73bbef08c3fd9498e80ee9f8dd6ccd9f7ccd39aec00e6b7a6d6e97e90"
+      "content_sha256": "2d7b16d914e38143defeab1ef94a7c93a380b0abcfb4df3e7cc9a3a21a69a764"
     },
     {
       "id": "DAO-READ-VALUES-TEXT-NULL",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.null_fixed_variable"
       ],
       "boundary": null,
@@ -8368,12 +8285,13 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "2d74f67f82785b0a3a535c7279bb1f5353ae62e985dbfcce2919c6b13e1d178b"
+      "content_sha256": "9719d269f188002aa30869ff40e02825b8293e33abd9bd098797edccfa4343e9"
     },
     {
       "id": "DAO-READ-VALUES-TEXT-REP",
       "capability_ids": [
         "rows.streaming_read",
+        "values.all_dao_jet3_table_types",
         "values.code_pages_lossless_raw"
       ],
       "boundary": null,
@@ -8424,7 +8342,7 @@
                 {
                   "field": "Value",
                   "encoding": "unicode_string",
-                  "value": "JET3 read"
+                  "value": "Café € Œ Ÿ"
                 }
               ]
             ],
@@ -8444,12 +8362,12 @@
         "rows.direct",
         "tdef.column_types",
         "tdef.single_page",
-        "values.fixed_scalar",
-        "values.text_cp1252"
+        "values.text_cp1252",
+        "values.variable_short"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "45fcf4a3b0edf5d5aed7fac06a9b8cef5fbd24fad57fb0e6fc5ad5e25200452d"
+      "content_sha256": "f7d09cb33b5e03e9d51ed6ea25998843ea8bab9ba20e8e4a4d437501d3cd9ef5"
     }
   ]
 }

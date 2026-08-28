@@ -3,6 +3,10 @@
 
 The inventory is declarative experiment input. It records no observation and
 its `expected_snapshot_sha256` members stay null until an accepted DAO run.
+Required branches are declared only where recorded provenance establishes
+which reader branch a case exercises; boundary cases exist only where a
+threshold is recorded, and every plan-required case without a recorded
+threshold is listed under `deferred_requirements` instead of being guessed.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +22,9 @@ from protocol_validation import canonical_json_bytes
 
 ROOT = Path(__file__).resolve().parent.parent
 INVENTORY = ROOT / "protocol" / "v1_2" / "scenarios.json"
-INLINE_MAP_PAGE_CAPACITY = 1024
+# EXP-0057 / SRC-0020: one type-05 bitmap covers 16,352 pages; absolute page is
+# slot_ordinal * 16_352 + bit_index.
+EXTENDED_SLOT_PAGES = 16_352
 
 OPEN_BRANCHES = ["open.signature_geometry", "open.header_page"]
 CATALOG_BRANCHES = ["catalog.root_discovery", "catalog.record_stream"]
@@ -27,97 +34,98 @@ TABLE_BRANCHES = OPEN_BRANCHES + CATALOG_BRANCHES + [
     "tdef.column_types",
     "rows.direct",
 ]
-DAO_TYPES = [
-    "dbBoolean",
-    "dbByte",
-    "dbInteger",
-    "dbLong",
-    "dbCurrency",
-    "dbSingle",
-    "dbDouble",
-    "dbDate",
-    "dbBinary",
-    "dbText",
-    "dbLongBinary",
-    "dbMemo",
-    "dbGUID",
+ALL_TYPES = "values.all_dao_jet3_table_types"
+STORAGE_BRANCH = {
+    "fixed": ["values.fixed_scalar"],
+    "variable": ["values.variable_short"],
+    "long": [],
+}
+
+
+@dataclass(frozen=True)
+class Point:
+    """One value case of a type: its encoding, payload, and recorded branches."""
+
+    label: str
+    encoding: str
+    value: Any
+    branches: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class TypeCase:
+    """One DAO type with its storage form, capability, and value cases."""
+
+    dao_type: str
+    storage: str
+    capability: str
+    size: int | None = None
+    branches: tuple[str, ...] = ()
+    points: tuple[Point, ...] = ()
+
+    @property
+    def name(self) -> str:
+        return self.dao_type[2:].upper()
+
+    def field(self, name: str = "Value") -> dict[str, Any]:
+        return {"name": name, "dao_type": self.dao_type, "size": self.size, "required": False}
+
+    def capabilities(self) -> list[str]:
+        return ["rows.streaming_read", ALL_TYPES, self.capability]
+
+    def point_branches(self, point: Point) -> list[str]:
+        return TABLE_BRANCHES + STORAGE_BRANCH[self.storage] + list(self.branches) + list(point.branches)
+
+
+def _ladder(unit: str, encoding: str) -> tuple[Point, ...]:
+    # EXP-0061 controls: 32 inline, 512 single-page, 2048 and 4096 chained.
+    return (
+        Point("INLINE-32", encoding, {"unit": unit, "length": 32}, ("long_value.inline",)),
+        Point("SINGLE-PAGE-512", encoding, {"unit": unit, "length": 512}, ("long_value.single_page",)),
+        Point("CHAINED-2048", encoding, {"unit": unit, "length": 2048}, ("long_value.chained",)),
+        Point("CHAINED-4096", encoding, {"unit": unit, "length": 4096}, ("long_value.chained",)),
+        Point("MAX-32769", encoding, {"unit": unit, "length": 32769}),
+    )
+
+
+TYPE_CASES: tuple[TypeCase, ...] = (
+    TypeCase("dbBoolean", "fixed", "values.null_fixed_variable", points=(Point("FALSE", "boolean", False), Point("TRUE", "boolean", True))),
+    TypeCase("dbByte", "fixed", "values.null_fixed_variable", points=(Point("MIN", "integer", 0), Point("REP", "integer", 97), Point("MAX", "integer", 255))),
+    TypeCase("dbInteger", "fixed", "values.null_fixed_variable", points=(Point("MIN", "integer", -32768), Point("REP", "integer", 12345), Point("MAX", "integer", 32767))),
+    TypeCase("dbLong", "fixed", "values.null_fixed_variable", points=(Point("MIN", "integer", -2147483648), Point("REP", "integer", 123456789), Point("MAX", "integer", 2147483647))),
+    TypeCase("dbCurrency", "fixed", "values.date_currency_binary_guid_replication", points=(Point("MIN", "invariant_decimal", "-922337203685477.5808"), Point("REP", "invariant_decimal", "12.3456"), Point("MAX", "invariant_decimal", "922337203685477.5807"))),
+    TypeCase("dbSingle", "fixed", "values.null_fixed_variable", points=(Point("MIN", "ieee_bits_hex", "ff7fffff"), Point("REP", "ieee_bits_hex", "3fc00000"), Point("MAX", "ieee_bits_hex", "7f7fffff"))),
+    TypeCase("dbDouble", "fixed", "values.null_fixed_variable", points=(Point("MIN", "ieee_bits_hex", "ffefffffffffffff"), Point("REP", "ieee_bits_hex", "3ff8000000000000"), Point("MAX", "ieee_bits_hex", "7fefffffffffffff"))),
+    TypeCase("dbDate", "fixed", "values.date_currency_binary_guid_replication", points=(Point("MIN", "invariant_datetime", "0100-01-01T00:00:00"), Point("REP", "invariant_datetime", "1999-12-31T23:59:59"), Point("MAX", "invariant_datetime", "9999-12-31T23:59:59"))),
+    TypeCase("dbBinary", "variable", "values.date_currency_binary_guid_replication", size=255, points=(Point("MIN", "lowercase_hex", "00"), Point("REP", "lowercase_hex", "0011223344556677"), Point("MAX", "repeat_byte", {"unit": "a5", "length": 255}))),
+    TypeCase("dbText", "variable", "values.code_pages_lossless_raw", size=255, branches=("values.text_cp1252",), points=(Point("EMPTY", "unicode_string", ""), Point("MIN", "unicode_string", "A"), Point("REP", "unicode_string", "Café € Œ Ÿ"), Point("MAX", "repeat_ascii", {"unit": "T", "length": 255}))),
+    TypeCase("dbLongBinary", "long", "values.memo_ole_multi_page", points=_ladder("a5", "repeat_byte")),
+    TypeCase("dbMemo", "long", "values.memo_ole_multi_page", points=_ladder("M", "repeat_ascii")),
+    TypeCase("dbGUID", "fixed", "values.date_currency_binary_guid_replication", points=(Point("MIN", "guid", "00000000-0000-0000-0000-000000000000"), Point("REP", "guid", "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"), Point("MAX", "guid", "ffffffff-ffff-ffff-ffff-ffffffffffff"))),
+)
+
+DEFERRED_REQUIREMENTS = [
+    {
+        "requirement": "open.largest_supported_size",
+        "reason": "No recorded source or experiment fixes the largest supported Jet 3 database size; the scenario would guess a page count.",
+        "provenance_needed": "A source or experiment entry recording the maximum dbVersion30 page count.",
+    },
+    {
+        "requirement": "allocation.inline_capacity_boundary",
+        "reason": "The inline usage-map page capacity is only an A3 design example, not an observation; no below/at/above page counts can be declared.",
+        "provenance_needed": "An experiment recording the inline-to-indirect transition page count for a dbVersion30 table map.",
+    },
+    {
+        "requirement": "allocation.further_extended_slots",
+        "reason": "EXP-0057 observed slot ordinals 0 and 1 only; boundaries of later slots are formula-derived, not observed.",
+        "provenance_needed": "An experiment observing a third or later type-05 slot reference.",
+    },
+    {
+        "requirement": "values.code_page_cp1251",
+        "reason": "EXP-0061 records that its CP1251 diagnostic did not establish CP1251 selection or physical encoding.",
+        "provenance_needed": "An experiment establishing CP1251 database creation and its stored text bytes.",
+    },
 ]
-TYPE_CAPABILITY = {
-    "dbBoolean": "values.null_fixed_variable",
-    "dbByte": "values.null_fixed_variable",
-    "dbInteger": "values.null_fixed_variable",
-    "dbLong": "values.null_fixed_variable",
-    "dbCurrency": "values.date_currency_binary_guid_replication",
-    "dbSingle": "values.null_fixed_variable",
-    "dbDouble": "values.null_fixed_variable",
-    "dbDate": "values.date_currency_binary_guid_replication",
-    "dbBinary": "values.date_currency_binary_guid_replication",
-    "dbText": "values.code_pages_lossless_raw",
-    "dbLongBinary": "values.memo_ole_multi_page",
-    "dbMemo": "values.memo_ole_multi_page",
-    "dbGUID": "values.date_currency_binary_guid_replication",
-}
-# (min, representative, max) encodings per type; None means no such point.
-TYPE_VALUES: dict[str, list[tuple[str, str, Any]]] = {
-    "dbBoolean": [("MIN", "boolean", False), ("REP", "boolean", True)],
-    "dbByte": [("MIN", "integer", 0), ("REP", "integer", 97), ("MAX", "integer", 255)],
-    "dbInteger": [("MIN", "integer", -32768), ("REP", "integer", 12345), ("MAX", "integer", 32767)],
-    "dbLong": [("MIN", "integer", -2147483648), ("REP", "integer", 123456789), ("MAX", "integer", 2147483647)],
-    "dbCurrency": [
-        ("MIN", "invariant_decimal", "-922337203685477.5808"),
-        ("REP", "invariant_decimal", "12.3456"),
-        ("MAX", "invariant_decimal", "922337203685477.5807"),
-    ],
-    "dbSingle": [
-        ("MIN", "ieee_bits_hex", "ff7fffff"),
-        ("REP", "ieee_bits_hex", "3fc00000"),
-        ("MAX", "ieee_bits_hex", "7f7fffff"),
-    ],
-    "dbDouble": [
-        ("MIN", "ieee_bits_hex", "ffefffffffffffff"),
-        ("REP", "ieee_bits_hex", "3ff8000000000000"),
-        ("MAX", "ieee_bits_hex", "7fefffffffffffff"),
-    ],
-    "dbDate": [
-        ("MIN", "invariant_datetime", "0100-01-01T00:00:00"),
-        ("REP", "invariant_datetime", "1999-12-31T23:59:59"),
-        ("MAX", "invariant_datetime", "9999-12-31T23:59:59"),
-    ],
-    "dbBinary": [
-        ("MIN", "lowercase_hex", "00"),
-        ("REP", "lowercase_hex", "0011223344556677"),
-        ("MAX", "repeat_byte", {"unit": "a5", "length": 255}),
-    ],
-    "dbText": [
-        ("MIN", "unicode_string", "A"),
-        ("REP", "unicode_string", "JET3 read"),
-        ("MAX", "repeat_ascii", {"unit": "T", "length": 255}),
-    ],
-    "dbLongBinary": [
-        ("MIN", "lowercase_hex", "00"),
-        ("REP", "repeat_byte", {"unit": "a5", "length": 64}),
-        ("MAX", "repeat_byte", {"unit": "a5", "length": 32769}),
-    ],
-    "dbMemo": [
-        ("MIN", "unicode_string", "M"),
-        ("REP", "unicode_string", "Memo text"),
-        ("MAX", "repeat_ascii", {"unit": "M", "length": 32769}),
-    ],
-    "dbGUID": [
-        ("MIN", "guid", "00000000-0000-0000-0000-000000000000"),
-        ("REP", "guid", "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"),
-        ("MAX", "guid", "ffffffff-ffff-ffff-ffff-ffffffffffff"),
-    ],
-}
-LONG_VALUE_BRANCHES = {
-    ("dbLongBinary", "MIN"): ["long_value.inline"],
-    ("dbLongBinary", "REP"): ["long_value.inline"],
-    ("dbLongBinary", "MAX"): ["long_value.chained"],
-    ("dbMemo", "MIN"): ["long_value.inline"],
-    ("dbMemo", "REP"): ["long_value.inline"],
-    ("dbMemo", "MAX"): ["long_value.chained"],
-}
-TEXT_BRANCH = {"dbText": ["values.text_cp1252"]}
 
 
 def _field(name: str, dao_type: str, size: int | None = None, required: bool = False) -> dict[str, Any]:
@@ -129,7 +137,7 @@ def _field(name: str, dao_type: str, size: int | None = None, required: bool = F
 def _index(name: str, fields: list[tuple[str, bool]], *, primary: bool = False, unique: bool = False, required: bool = False) -> dict[str, Any]:
     return {
         "name": name,
-        "fields": [{"name": field, "descending": descending} for field, descending in fields],
+        "fields": [{"name": column, "descending": descending} for column, descending in fields],
         "primary": primary,
         "unique": unique,
         "required": required,
@@ -137,8 +145,8 @@ def _index(name: str, fields: list[tuple[str, bool]], *, primary: bool = False, 
     }
 
 
-def _value(field: str, encoding: str, value: Any) -> dict[str, Any]:
-    return {"field": field, "encoding": encoding, "value": value}
+def _value(column: str, encoding: str, value: Any) -> dict[str, Any]:
+    return {"field": column, "encoding": encoding, "value": value}
 
 
 def _recipe(steps: list[dict[str, Any]], *, version: str = "dbVersion30", encrypted: bool = False, password: str | None = None) -> dict[str, Any]:
@@ -160,18 +168,10 @@ def _insert(table: str, rows: list[list[dict[str, Any]]], repeat: int = 1) -> di
     return {"action": "insert_rows", "table": table, "rows": rows, "repeat": repeat}
 
 
-def _scenario(
-    scenario_id: str,
-    capabilities: list[str],
-    recipe: dict[str, Any],
-    branches: list[str],
-    *,
-    boundary: dict[str, Any] | None = None,
-    error_class: str | None = None,
-) -> dict[str, Any]:
+def _scenario(scenario_id: str, capabilities: list[str], recipe: dict[str, Any], branches: list[str], *, boundary: dict[str, Any] | None = None, error_class: str | None = None) -> dict[str, Any]:
     scenario = {
         "id": scenario_id,
-        "capability_ids": sorted(capabilities),
+        "capability_ids": sorted(set(capabilities)),
         "boundary": boundary,
         "operation": {
             "mode": "rust_read_dao",
@@ -206,68 +206,37 @@ def _open_scenarios() -> list[dict[str, Any]]:
             TABLE_BRANCHES + ["rows.deleted_skip"],
         ),
     ]
-    negatives = [
+    for suffix, options, error_class in [
         ("JET4", {"version": "dbVersion40"}, "unsupported_version"),
         ("ENCRYPTED", {"encrypted": True}, "encrypted_database"),
         ("PASSWORD", {"password": "jet3"}, "password_protected"),
-    ]
-    for suffix, options, error_class in negatives:
-        scenarios.append(
-            _scenario(
-                f"DAO-READ-OPEN-REJECT-{suffix}",
-                caps,
-                _recipe([_id_table()], **options),
-                OPEN_BRANCHES + ["open.rejected_format"],
-                error_class=error_class,
-            )
-        )
+    ]:
+        scenarios.append(_scenario(f"DAO-READ-OPEN-REJECT-{suffix}", caps, _recipe([_id_table()], **options), OPEN_BRANCHES + ["open.rejected_format"], error_class=error_class))
     return scenarios
 
 
 def _alloc_scenarios() -> list[dict[str, Any]]:
     caps = ["format.pages_allocation_usage", "rows.streaming_read"]
-    scenarios = [
-        _scenario("DAO-READ-ALLOC-SMALL-INLINE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES),
-    ]
-    for suffix, position, pages, branches in [
-        ("INLINE-CAPACITY-BELOW", "below", INLINE_MAP_PAGE_CAPACITY - 1, ["allocation.inline_map"]),
-        ("INLINE-CAPACITY-AT", "at", INLINE_MAP_PAGE_CAPACITY, ["allocation.inline_map"]),
-        ("INLINE-CAPACITY-ABOVE", "above", INLINE_MAP_PAGE_CAPACITY + 1, ["allocation.indirect_map", "allocation.extended_slot"]),
+    scenarios = [_scenario("DAO-READ-ALLOC-SMALL-INLINE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES)]
+    for position, pages, branches in [
+        ("below", EXTENDED_SLOT_PAGES - 1, ["allocation.indirect_map"]),
+        ("at", EXTENDED_SLOT_PAGES, ["allocation.indirect_map"]),
+        ("above", EXTENDED_SLOT_PAGES + 1, ["allocation.indirect_map", "allocation.extended_slot"]),
     ]:
         scenarios.append(
             _scenario(
-                f"DAO-READ-ALLOC-{suffix}",
+                f"DAO-READ-ALLOC-EXTENDED-SLOT-1-{position.upper()}",
                 caps,
                 _recipe([_id_table(), {"action": "insert_until_page_count", "table": "Items", "row": _id_row(), "page_count": pages}]),
                 TABLE_BRANCHES + branches,
-                boundary={"dimension": "inline_usage_map_page_capacity", "position": position},
+                boundary={"dimension": "extended_slot_1_page_base", "position": position},
             )
         )
     scenarios += [
-        _scenario(
-            "DAO-READ-ALLOC-DELETE-REINSERT",
-            caps,
-            _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "delete_rows", "table": "Items", "count": 32}, _insert("Items", [_id_row()], 32)]),
-            TABLE_BRANCHES + ["rows.deleted_skip"],
-        ),
-        _scenario(
-            "DAO-READ-ALLOC-DROP-RECREATE",
-            caps + ["schema.catalog_and_table_definitions"],
-            _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "drop_table", "name": "Items"}, _id_table(), _insert("Items", [_id_row()], 8)]),
-            TABLE_BRANCHES,
-        ),
-        _scenario(
-            "DAO-READ-ALLOC-IDLE-REOPEN",
-            caps,
-            _recipe([_id_table(), _insert("Items", [_id_row()], 8), {"action": "reopen"}, {"action": "reopen"}]),
-            TABLE_BRANCHES,
-        ),
-        _scenario(
-            "DAO-READ-ALLOC-MULTIPLE-TABLES",
-            caps + ["schema.catalog_and_table_definitions"],
-            _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]),
-            TABLE_BRANCHES + ["rows.overflow_pointer"],
-        ),
+        _scenario("DAO-READ-ALLOC-DELETE-REINSERT", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "delete_rows", "table": "Items", "count": 32}, _insert("Items", [_id_row()], 32)]), TABLE_BRANCHES + ["rows.deleted_skip"]),
+        _scenario("DAO-READ-ALLOC-DROP-RECREATE", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "drop_table", "name": "Items"}, _id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES),
+        _scenario("DAO-READ-ALLOC-IDLE-REOPEN", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8), {"action": "reopen"}, {"action": "reopen"}]), TABLE_BRANCHES),
+        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
     ]
     return scenarios
 
@@ -275,20 +244,11 @@ def _alloc_scenarios() -> list[dict[str, Any]]:
 def _schema_scenarios() -> list[dict[str, Any]]:
     caps = ["schema.catalog_and_table_definitions"]
     scenarios = []
-    for dao_type in DAO_TYPES:
-        scenarios.append(
-            _scenario(
-                f"DAO-READ-SCHEMA-TYPE-{dao_type[2:].upper()}",
-                caps,
-                _recipe([_table("Typed", [_field("Id", "dbLong"), _field("Value", dao_type)])]),
-                TABLE_BRANCHES,
-            )
-        )
+    for case in TYPE_CASES:
+        scenarios.append(_scenario(f"DAO-READ-SCHEMA-TYPE-{case.name}", caps + [ALL_TYPES], _recipe([_table("Typed", [_field("Id", "dbLong"), case.field()])]), TABLE_BRANCHES))
     for suffix, size in [("TEXT-SIZE-1", 1), ("TEXT-SIZE-255", 255)]:
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", caps, _recipe([_table("Typed", [_field("Value", "dbText", size)])]), TABLE_BRANCHES))
-    scenarios.append(
-        _scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps, _recipe([_table("Wide", [_field(f"F{index:02d}", DAO_TYPES[index % len(DAO_TYPES)]) for index in range(64)])]), TABLE_BRANCHES + ["tdef.continuation_chain"])
-    )
+    scenarios.append(_scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps + [ALL_TYPES], _recipe([_table("Wide", [_field(f"F{index:02d}", TYPE_CASES[index % len(TYPE_CASES)].dao_type) for index in range(64)])]), TABLE_BRANCHES + ["tdef.continuation_chain"]))
     index_caps = caps + ["indexes.primary_unique_non_unique"]
     two_columns = [_field("Id", "dbLong"), _field("Code", "dbText", 16)]
     for suffix, index, extra in [
@@ -299,19 +259,11 @@ def _schema_scenarios() -> list[dict[str, Any]]:
         ("INDEX-COMPOSITE-DESCENDING", _index("ByIdCodeDesc", [("Id", True), ("Code", True)]), ["indexes.composite_ascending_descending"]),
         ("INDEX-COMPOSITE-MIXED", _index("ByIdAscCodeDesc", [("Id", False), ("Code", True)]), ["indexes.composite_ascending_descending"]),
     ]:
-        branches = TABLE_BRANCHES + ["tdef.physical_index", "tdef.logical_index", "index.branch_leaf_traversal"]
-        branches += ["index.composite_key_lossless"] if len(index["fields"]) > 1 else ["index.single_field_key"]
+        branches = TABLE_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index", "index.branch_leaf_traversal"]
+        branches.append("index.composite_key_lossless" if len(index["fields"]) > 1 else "index.single_field_key")
         rows = [[_value("Id", "integer", number), _value("Code", "unicode_string", f"C{number:02d}")] for number in (3, 1, 2)]
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", index_caps + extra, _recipe([_table("Keyed", two_columns, [index]), _insert("Keyed", rows)]), branches))
-    relationship = {
-        "action": "create_relationship",
-        "name": "ParentChild",
-        "table": "Parent",
-        "foreign_table": "Child",
-        "fields": [{"field": "Id", "foreign_field": "ParentId"}],
-        "cascade_updates": False,
-        "cascade_deletes": False,
-    }
+    relationship = {"action": "create_relationship", "name": "ParentChild", "table": "Parent", "foreign_table": "Child", "fields": [{"field": "Id", "foreign_field": "ParentId"}], "cascade_updates": False, "cascade_deletes": False}
     parent = _table("Parent", [_field("Id", "dbLong")], [_index("PrimaryKey", [("Id", False)], primary=True, unique=True, required=True)])
     child = _table("Child", [_field("Id", "dbLong"), _field("ParentId", "dbLong")])
     for suffix, cascade in [("RELATIONSHIP", (False, False)), ("RELATIONSHIP-CASCADE", (True, True))]:
@@ -322,52 +274,12 @@ def _schema_scenarios() -> list[dict[str, Any]]:
 
 def _value_scenarios() -> list[dict[str, Any]]:
     scenarios = []
-    for dao_type in DAO_TYPES:
-        capability = TYPE_CAPABILITY[dao_type]
-        type_name = dao_type[2:].upper()
-        table = _table("Typed", [_field("Id", "dbLong"), _field("Value", dao_type)])
-        base_branches = TABLE_BRANCHES + ["values.fixed_scalar"] + TEXT_BRANCH.get(dao_type, [])
-        if dao_type != "dbBoolean":
-            scenarios.append(
-                _scenario(
-                    f"DAO-READ-VALUES-{type_name}-NULL",
-                    ["rows.streaming_read", "values.null_fixed_variable"],
-                    _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", "null", None)]])]),
-                    TABLE_BRANCHES + ["values.null_field"],
-                )
-            )
-        for suffix, encoding, value in TYPE_VALUES[dao_type]:
-            branches = base_branches + LONG_VALUE_BRANCHES.get((dao_type, suffix), [])
-            scenarios.append(
-                _scenario(
-                    f"DAO-READ-VALUES-{type_name}-{suffix}",
-                    ["rows.streaming_read", capability],
-                    _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", encoding, value)]])]),
-                    branches,
-                )
-            )
-    for dao_type, unit, branch in [("dbMemo", "M", "long_value.single_page"), ("dbLongBinary", "a5", "long_value.single_page")]:
-        type_name = dao_type[2:].upper()
-        table = _table("Typed", [_field("Id", "dbLong"), _field("Value", dao_type)])
-        encoding = "repeat_ascii" if dao_type == "dbMemo" else "repeat_byte"
-        for length, position in [(2047, "below"), (2048, "at"), (2049, "above")]:
-            scenarios.append(
-                _scenario(
-                    f"DAO-READ-VALUES-{type_name}-PAGE-{position.upper()}",
-                    ["rows.streaming_read", "values.memo_ole_multi_page"],
-                    _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", encoding, {"unit": unit, "length": length})]])]),
-                    TABLE_BRANCHES + [branch if position != "above" else "long_value.chained"],
-                    boundary={"dimension": "long_value_page_payload", "position": position},
-                )
-            )
-    scenarios.append(
-        _scenario(
-            "DAO-READ-VALUES-TEXT-CP1252-HIGH",
-            ["rows.streaming_read", "values.code_pages_lossless_raw"],
-            _recipe([_table("Typed", [_field("Id", "dbLong"), _field("Value", "dbText", 16)]), _insert("Typed", [[_value("Id", "integer", 1), _value("Value", "unicode_string", "Café €")]])]),
-            TABLE_BRANCHES + ["values.text_cp1252"],
-        )
-    )
+    for case in TYPE_CASES:
+        table = _table("Typed", [_field("Id", "dbLong"), case.field()])
+        if case.dao_type != "dbBoolean":
+            scenarios.append(_scenario(f"DAO-READ-VALUES-{case.name}-NULL", ["rows.streaming_read", ALL_TYPES, "values.null_fixed_variable"], _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", "null", None)]])]), TABLE_BRANCHES + ["values.null_field"]))
+        for point in case.points:
+            scenarios.append(_scenario(f"DAO-READ-VALUES-{case.name}-{point.label}", case.capabilities(), _recipe([table, _insert("Typed", [[_value("Id", "integer", 1), _value("Value", point.encoding, point.value)]])]), case.point_branches(point)))
     return scenarios
 
 
@@ -379,7 +291,7 @@ def _rows_scenarios() -> list[dict[str, Any]]:
         _scenario("DAO-READ-ROWS-EMPTY-TABLE", caps, _recipe([_id_table()]), TABLE_BRANCHES),
         _scenario("DAO-READ-ROWS-SINGLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()])]), TABLE_BRANCHES),
         _scenario("DAO-READ-ROWS-DUPLICATES", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 3)]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), TABLE_BRANCHES + ["rows.overflow_pointer", "rows.wide_variable_layout"]),
+        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), TABLE_BRANCHES + ["values.variable_short", "rows.overflow_pointer", "rows.wide_variable_layout"]),
         _scenario("DAO-READ-ROWS-DELETED-MIDDLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 9), {"action": "delete_rows", "table": "Items", "count": 4}, _insert("Items", [_id_row()], 2)]), TABLE_BRANCHES + ["rows.deleted_skip"]),
         _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096)]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
     ]
@@ -388,7 +300,12 @@ def _rows_scenarios() -> list[dict[str, Any]]:
 def build_inventory() -> dict[str, Any]:
     scenarios = _open_scenarios() + _alloc_scenarios() + _schema_scenarios() + _value_scenarios() + _rows_scenarios()
     scenarios.sort(key=lambda scenario: scenario["id"])
-    return {"protocol_version": "1.2.0", "document_type": "dao_scenario_inventory", "scenarios": scenarios}
+    return {
+        "protocol_version": "1.2.0",
+        "document_type": "dao_scenario_inventory",
+        "deferred_requirements": sorted(DEFERRED_REQUIREMENTS, key=lambda entry: entry["requirement"]),
+        "scenarios": scenarios,
+    }
 
 
 def render(document: dict[str, Any]) -> str:

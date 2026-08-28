@@ -4,10 +4,24 @@
   "title": "DAO differential scenario inventory",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocol_version", "document_type", "scenarios"],
+  "required": ["protocol_version", "document_type", "deferred_requirements", "scenarios"],
   "properties": {
     "protocol_version": { "const": "1.2.0" },
     "document_type": { "const": "dao_scenario_inventory" },
+    "deferred_requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requirement", "reason", "provenance_needed"],
+        "properties": {
+          "requirement": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 400 },
+          "provenance_needed": { "type": "string", "minLength": 1, "maxLength": 400 }
+        }
+      }
+    },
     "scenarios": {
       "type": "array",
       "minItems": 1,
