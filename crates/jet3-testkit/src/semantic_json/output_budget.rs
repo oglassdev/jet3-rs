@@ -16,6 +16,8 @@ pub(super) fn write_outcome_budgeted_validated(
     outcome: &SemanticSnapshotOutcome,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, SemanticSnapshotError> {
+    let minimum = measure_outcome_unescaped(outcome).map_err(SemanticSnapshotError::Resource)?;
+    preflight_artifact_output(minimum, budget)?;
     let bound = outcome_allocation_bound(outcome).map_err(SemanticSnapshotError::Resource)?;
     let mut writer = reserved_writer(bound, budget)?;
     write_outcome_into(&mut writer, outcome)?;
@@ -31,6 +33,8 @@ pub(super) fn write_receipt_budgeted_validated(
     receipt: &CoverageReceipt,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, SemanticSnapshotError> {
+    let minimum = measure_receipt_unescaped(receipt).map_err(SemanticSnapshotError::Resource)?;
+    preflight_artifact_output(minimum, budget)?;
     let bound = receipt_allocation_bound(receipt).map_err(SemanticSnapshotError::Resource)?;
     let mut writer = reserved_writer(bound, budget)?;
     write_receipt_into(&mut writer, receipt);
@@ -47,6 +51,8 @@ pub(super) fn write_row_properties_budgeted_validated(
     path: &str,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, SemanticSnapshotError> {
+    let minimum = measure_row_unescaped(values, path)?;
+    preflight_artifact_output(minimum, budget)?;
     let length = row_properties_allocation_bound(values).ok_or_else(|| {
         SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
             path: path.to_owned(),
@@ -86,18 +92,95 @@ pub(super) fn outcome_allocation_bound(
 pub(super) fn canonicalization_allocation_bound(
     snapshot: &SemanticSnapshot,
 ) -> Result<ByteCount, Error> {
+    canonicalization_bound(snapshot, measure_snapshot_allocation(snapshot)?, |values| {
+        let length = row_properties_allocation_bound(values).ok_or(Error::Arithmetic {
+            operation: "size semantic row canonicalization",
+        })?;
+        ByteCount::from_usize(length)
+    })
+}
+
+pub(super) fn preflight_canonicalization_measurement(
+    snapshot: &SemanticSnapshot,
+    budget: &ResourceBudget,
+    additional_work: u64,
+) -> Result<(), SemanticSnapshotError> {
+    preflight_allocation_and_work(ByteCount::new(0), additional_work, budget)?;
+    let minimum =
+        canonicalization_unescaped_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
+    preflight_allocation_and_work(minimum, additional_work, budget)
+}
+
+pub(super) fn preflight_outcome_measurement(
+    outcome: &SemanticSnapshotOutcome,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    let minimum = measure_outcome_unescaped(outcome).map_err(SemanticSnapshotError::Resource)?;
+    preflight_allocation_and_work(minimum, 0, budget)
+}
+
+pub(super) fn preflight_receipt_measurement(
+    receipt: &CoverageReceipt,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    let minimum = measure_receipt_unescaped(receipt).map_err(SemanticSnapshotError::Resource)?;
+    preflight_allocation_and_work(minimum, 0, budget)
+}
+
+pub(super) fn preflight_allocation_and_work(
+    allocation: ByteCount,
+    additional_work: u64,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    let work = allocation.get().checked_add(additional_work).ok_or({
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "preflight semantic measurement work",
+        })
+    })?;
+    let limits = budget.limits();
+    for (current, amount, maximum, kind) in [
+        (
+            budget.allocation_bytes().get(),
+            allocation.get(),
+            limits.max_allocation_bytes().get(),
+            ResourceLimitKind::AllocationBytes,
+        ),
+        (
+            budget.total_work_units(),
+            work,
+            limits.max_total_work_units(),
+            ResourceLimitKind::TotalWorkUnits,
+        ),
+    ] {
+        preflight_limit(
+            current,
+            amount,
+            maximum,
+            kind,
+            "preflight semantic measurement",
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn canonicalization_unescaped_bound(
+    snapshot: &SemanticSnapshot,
+) -> Result<ByteCount, Error> {
+    canonicalization_bound(snapshot, measure_snapshot_unescaped(snapshot)?, |values| {
+        measure_row_unescaped_resource(values)
+    })
+}
+
+fn canonicalization_bound(
+    snapshot: &SemanticSnapshot,
+    snapshot_bytes: ByteCount,
+    mut measure_row: impl FnMut(&crate::PropertyMap) -> Result<ByteCount, Error>,
+) -> Result<ByteCount, Error> {
     const SHA256_TEXT_BYTES: u64 = 64;
-    let mut bytes = super::snapshot_allocation_bound(snapshot)?.get();
+    let mut bytes = snapshot_bytes.get();
     for table in &snapshot.tables {
         for row in &table.rows {
-            let row_bytes =
-                row_properties_allocation_bound(&row.values).ok_or(Error::Arithmetic {
-                    operation: "size semantic row canonicalization",
-                })?;
-            let row_bytes = u64::try_from(row_bytes).map_err(|_| Error::IntegerConversion {
-                value: row_bytes as u128,
-                target: "u64",
-            })?;
+            let row_bytes = measure_row(&row.values)?.get();
             bytes = bytes
                 .checked_add(row_bytes.checked_mul(2).ok_or(Error::Arithmetic {
                     operation: "size semantic row canonicalization passes",
@@ -120,6 +203,52 @@ pub(super) fn receipt_allocation_bound(receipt: &CoverageReceipt) -> Result<Byte
     let mut writer = JsonWriter::counting();
     write_receipt_into(&mut writer, receipt);
     counted_bytes(&writer, "measure canonical coverage receipt JSON")
+}
+
+fn measure_snapshot_unescaped(snapshot: &SemanticSnapshot) -> Result<ByteCount, Error> {
+    let mut writer = JsonWriter::counting_unescaped();
+    write_snapshot_into(&mut writer, snapshot).map_err(|_| Error::Arithmetic {
+        operation: "preflight canonical semantic snapshot JSON",
+    })?;
+    counted_bytes(&writer, "preflight canonical semantic snapshot JSON")
+}
+
+fn measure_outcome_unescaped(outcome: &SemanticSnapshotOutcome) -> Result<ByteCount, Error> {
+    let mut writer = JsonWriter::counting_unescaped();
+    write_outcome_into(&mut writer, outcome).map_err(|_| Error::Arithmetic {
+        operation: "preflight canonical semantic outcome JSON",
+    })?;
+    counted_bytes(&writer, "preflight canonical semantic outcome JSON")
+}
+
+fn measure_receipt_unescaped(receipt: &CoverageReceipt) -> Result<ByteCount, Error> {
+    let mut writer = JsonWriter::counting_unescaped();
+    write_receipt_into(&mut writer, receipt);
+    counted_bytes(&writer, "preflight canonical coverage receipt JSON")
+}
+
+fn measure_row_unescaped(
+    values: &crate::PropertyMap,
+    path: &str,
+) -> Result<ByteCount, SemanticSnapshotError> {
+    measure_row_unescaped_resource(values).map_err(|error| match error {
+        Error::Arithmetic { .. } => {
+            SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
+                path: path.to_owned(),
+                reason: "canonical row JSON length is not representable",
+            })
+        }
+        error => SemanticSnapshotError::Resource(error),
+    })
+}
+
+fn measure_row_unescaped_resource(values: &crate::PropertyMap) -> Result<ByteCount, Error> {
+    let mut writer = JsonWriter::counting_unescaped();
+    properties(&mut writer, values).map_err(|_| Error::Arithmetic {
+        operation: "preflight canonical semantic row JSON",
+    })?;
+    writer.bytes.push(b'\n');
+    counted_bytes(&writer, "preflight canonical semantic row JSON")
 }
 
 fn counted_bytes(writer: &JsonWriter, operation: &'static str) -> Result<ByteCount, Error> {
@@ -190,30 +319,53 @@ fn preflight_artifact_output(
             ResourceLimitKind::TotalWorkUnits,
         ),
     ] {
-        let requested = current
-            .checked_add(amount)
-            .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
-                operation: "preflight semantic artifact output",
-            }))?;
-        if requested > maximum {
-            return Err(SemanticSnapshotError::Resource(
-                Error::ResourceLimitExceeded {
-                    kind,
-                    requested,
-                    maximum,
-                },
-            ));
-        }
+        preflight_limit(
+            current,
+            amount,
+            maximum,
+            kind,
+            "preflight semantic artifact output",
+        )?;
+    }
+    Ok(())
+}
+
+fn preflight_limit(
+    current: u64,
+    amount: u64,
+    maximum: u64,
+    kind: ResourceLimitKind,
+    operation: &'static str,
+) -> Result<(), SemanticSnapshotError> {
+    let requested = current
+        .checked_add(amount)
+        .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation,
+        }))?;
+    if requested > maximum {
+        return Err(SemanticSnapshotError::Resource(
+            Error::ResourceLimitExceeded {
+                kind,
+                requested,
+                maximum,
+            },
+        ));
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::write_row_properties_budgeted_validated;
+    use super::{
+        measure_outcome_unescaped, measure_row_unescaped, write_outcome_budgeted_validated,
+        write_row_properties_budgeted_validated,
+    };
     use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind, ResourceLimits};
 
-    use crate::{PropertyMap, TypedValue};
+    use crate::{
+        HexString, Producer, ProducerKind, PropertyMap, ScenarioId, SemanticSnapshot,
+        SemanticSnapshotOutcome, Sha256, TypedValue,
+    };
 
     fn values() -> PropertyMap {
         PropertyMap::from([("A".to_owned(), TypedValue::Null { raw_hex: None })])
@@ -270,6 +422,134 @@ mod tests {
             assert_eq!(rejected.encoded_bytes(), ByteCount::new(0));
             assert_eq!(rejected.total_work_units(), 0);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn large_snapshot_and_row_strings_preflight_before_exact_escaping()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let escaped = "\\\n".repeat(4_096);
+        let raw_hex = "5c0a".repeat(4_096);
+        let values = PropertyMap::from([(
+            "Memo".to_owned(),
+            TypedValue::Memo {
+                value: escaped,
+                raw_hex: Some(HexString::new(raw_hex)?),
+                code_page: Some(1252),
+            },
+        )]);
+        let minimum = measure_row_unescaped(&values, "$.row")?;
+        let exact_bytes = super::super::write_row_properties(&values, "$.row")?;
+        let exact = ByteCount::from_usize(exact_bytes.len())?;
+        assert!(
+            exact > minimum,
+            "escape expansion must distinguish both passes"
+        );
+
+        let minimum_work = minimum.get().checked_mul(2).ok_or("minimum work")?;
+        for (limits, expected_kind, expected_requested) in [
+            (
+                ResourceLimits::default()
+                    .with_max_allocation_bytes(ByteCount::new(minimum.get() - 1)),
+                ResourceLimitKind::AllocationBytes,
+                minimum.get(),
+            ),
+            (
+                ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(minimum.get() - 1)),
+                ResourceLimitKind::EncodedBytes,
+                minimum.get(),
+            ),
+            (
+                ResourceLimits::default().with_max_total_work_units(minimum_work - 1),
+                ResourceLimitKind::TotalWorkUnits,
+                minimum_work,
+            ),
+            (
+                ResourceLimits::default().with_max_total_work_units(0),
+                ResourceLimitKind::TotalWorkUnits,
+                minimum_work,
+            ),
+        ] {
+            let original = values.clone();
+            let mut budget = ResourceBudget::new(limits);
+            assert!(matches!(
+                write_row_properties_budgeted_validated(&values, "$.row", &mut budget),
+                Err(crate::SemanticSnapshotError::Resource(
+                    Error::ResourceLimitExceeded {
+                        kind,
+                        requested,
+                        ..
+                    }
+                )) if kind == expected_kind && requested == expected_requested
+            ));
+            assert_eq!(values, original);
+            assert_eq!(budget.allocation_bytes(), ByteCount::new(0));
+            assert_eq!(budget.encoded_bytes(), ByteCount::new(0));
+            assert_eq!(budget.total_work_units(), 0);
+        }
+
+        let exact_work = exact.get().checked_mul(2).ok_or("exact work")?;
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(exact)
+                .with_max_encoded_bytes(exact)
+                .with_max_total_work_units(exact_work),
+        );
+        let output = write_row_properties_budgeted_validated(&values, "$.row", &mut exact_budget)?;
+        assert_eq!(output, exact_bytes);
+        assert_eq!(exact_budget.allocation_bytes(), exact);
+        assert_eq!(exact_budget.encoded_bytes(), exact);
+        assert_eq!(exact_budget.total_work_units(), exact_work);
+
+        let mut snapshot = SemanticSnapshot::new(
+            ScenarioId::new("DAO-READ-ROWS-SINGLE")?,
+            Producer::new(ProducerKind::Rust, "test")?,
+            Sha256::new("ab".repeat(32))?,
+        );
+        snapshot.database_properties = values;
+        let outcome = SemanticSnapshotOutcome::Success(snapshot);
+        let snapshot_minimum = measure_outcome_unescaped(&outcome)?;
+        let snapshot_bytes = super::super::write_outcome(&outcome)?;
+        let snapshot_exact = ByteCount::from_usize(snapshot_bytes.len())?;
+        assert!(snapshot_exact > snapshot_minimum);
+
+        let mut rejected = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(ByteCount::new(snapshot_minimum.get() - 1)),
+        );
+        let original = outcome.clone();
+        assert!(matches!(
+            write_outcome_budgeted_validated(&outcome, &mut rejected),
+            Err(crate::SemanticSnapshotError::Resource(
+                Error::ResourceLimitExceeded {
+                    kind: ResourceLimitKind::AllocationBytes,
+                    requested,
+                    maximum,
+                }
+            )) if requested == snapshot_minimum.get() && maximum + 1 == requested
+        ));
+        assert_eq!(outcome, original);
+        assert_eq!(rejected.allocation_bytes(), ByteCount::new(0));
+        assert_eq!(rejected.encoded_bytes(), ByteCount::new(0));
+        assert_eq!(rejected.total_work_units(), 0);
+
+        let snapshot_work = snapshot_exact
+            .get()
+            .checked_mul(2)
+            .ok_or("snapshot output work")?;
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(snapshot_exact)
+                .with_max_encoded_bytes(snapshot_exact)
+                .with_max_total_work_units(snapshot_work),
+        );
+        assert_eq!(
+            write_outcome_budgeted_validated(&outcome, &mut exact_budget)?,
+            snapshot_bytes
+        );
+        assert_eq!(exact_budget.allocation_bytes(), snapshot_exact);
+        assert_eq!(exact_budget.encoded_bytes(), snapshot_exact);
+        assert_eq!(exact_budget.total_work_units(), snapshot_work);
         Ok(())
     }
 }

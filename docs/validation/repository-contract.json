@@ -405,8 +405,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/canonical_json.rs",
-        "reason": "Format-neutral canonical JSON encoding for versioned comparison documents.",
-        "sha256": "a2cec2c479f2aa707d8a810e0d5173337f3b9a5ff33555a8862771e137b61cb0"
+        "reason": "Format-neutral canonical JSON encoding for versioned comparison documents, including overflow-checked exact and retained-length counting modes.",
+        "sha256": "b7a60632d0309158a568770351c0648fce0d216902e289f6be3ee9fe203b7dc3"
       },
       {
         "path": "crates/jet3-testkit/src/canonical_order_tests.rs",
@@ -455,18 +455,18 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
-        "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "f32dbeac7988be0634a0b43adf2eff97fe00fc18e0d5b6972506f7b5fe134a35"
+        "reason": "Format-neutral canonical JSON emission and measurement-preflight orchestration for protocol 1.2 models and receipts.",
+        "sha256": "113a3593b10834b3fd9bdd0bb137d58bd61a5a8cc0b6973a2b8a674be836b0ce"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json/output_budget.rs",
-        "reason": "Format-neutral measurement, allocation preflight, and reserved output construction for canonical protocol artifacts.",
-        "sha256": "cd14beeebcdebb0f8ce3687517fefc8c0def8ffa482a49667121e66b0fb2ca66"
+        "reason": "Format-neutral retained-length and exact measurement, atomic allocation/work preflight, and reserved output construction for canonical protocol artifacts.",
+        "sha256": "52a5bb91d614e1891489929ec81080508c8bf1235f554a4f3527dee8d59cfdaa"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json/validation_budget.rs",
-        "reason": "Format-neutral allocation precharges for protocol model validation paths and values.",
-        "sha256": "d2d5cc097633a84406414f774e9c5c43dfbe9a4a62d0f14d915bae4d45808da3"
+        "reason": "Format-neutral retained-length measurement preflight and allocation precharges for protocol model validation paths and values.",
+        "sha256": "14b282bbe03a70d50463b95b6c31a4bf8472455f394d86e06e6c4575fab7f8ed"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_outcome.rs",
@@ -500,8 +500,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_finalization.rs",
-        "reason": "Format-neutral conservative work accounting for semantic snapshot canonical ordering and validation, with an exact-boundary regression.",
-        "sha256": "1c78be516de26d784a2584810bdc3ae5e05fafceab8963ca29b92909510f2e3a"
+        "reason": "Format-neutral retained-length preflight and conservative work accounting for semantic snapshot canonical ordering and validation, with exact-boundary regressions.",
+        "sha256": "a71c748743c0591f949a49843cdbe98e96f2cd01dd77f9f0d365e6618030b970"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",

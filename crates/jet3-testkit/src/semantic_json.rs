@@ -16,8 +16,20 @@ pub(super) fn canonicalization_allocation_bound(
     output_budget::canonicalization_allocation_bound(snapshot)
 }
 
-pub(super) fn snapshot_allocation_bound(snapshot: &SemanticSnapshot) -> Result<ByteCount, Error> {
-    output_budget::measure_snapshot_allocation(snapshot)
+pub(super) fn preflight_canonicalization_measurement(
+    snapshot: &SemanticSnapshot,
+    budget: &ResourceBudget,
+    additional_work: u64,
+) -> Result<(), SemanticSnapshotError> {
+    output_budget::preflight_canonicalization_measurement(snapshot, budget, additional_work)
+}
+
+pub(super) fn preflight_canonicalization_charge(
+    allocation: ByteCount,
+    additional_work: u64,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    output_budget::preflight_allocation_and_work(allocation, additional_work, budget)
 }
 
 pub(super) fn validate_outcome_budgeted(

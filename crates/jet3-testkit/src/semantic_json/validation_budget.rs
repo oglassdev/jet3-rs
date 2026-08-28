@@ -1,7 +1,9 @@
 //! Allocation precharges for semantic artifact model validation.
 
 use super::output_budget::{
-    canonicalization_allocation_bound, outcome_allocation_bound, receipt_allocation_bound,
+    canonicalization_allocation_bound, outcome_allocation_bound, preflight_allocation_and_work,
+    preflight_canonicalization_measurement, preflight_outcome_measurement,
+    preflight_receipt_measurement, receipt_allocation_bound,
 };
 use crate::{
     CoverageReceipt, SemanticSnapshot, SemanticSnapshotError, SemanticSnapshotOutcome, TypedValue,
@@ -24,6 +26,15 @@ pub(super) fn validate_outcome_budgeted(
     outcome: &SemanticSnapshotOutcome,
     budget: &mut ResourceBudget,
 ) -> Result<(), SemanticSnapshotError> {
+    match outcome {
+        SemanticSnapshotOutcome::Success(snapshot) => {
+            preflight_snapshot_validation_shape(snapshot, budget)?;
+            preflight_canonicalization_measurement(snapshot, budget, 0)?;
+        }
+        SemanticSnapshotOutcome::OpeningFailure(_) => {
+            preflight_outcome_measurement(outcome, budget)?;
+        }
+    }
     precharge_outcome_validation(outcome, budget)?;
     outcome.validate()?;
     Ok(())
@@ -33,6 +44,8 @@ pub(super) fn validate_receipt_budgeted(
     receipt: &CoverageReceipt,
     budget: &mut ResourceBudget,
 ) -> Result<(), SemanticSnapshotError> {
+    preflight_validation_nodes(budget, receipt_validation_nodes(receipt)?)?;
+    preflight_receipt_measurement(receipt, budget)?;
     precharge_validation_nodes(budget, receipt_validation_nodes(receipt)?)?;
     precharge_validation_text(budget, receipt.scenario_id.as_str(), 1)?;
     precharge_validation_text(budget, &receipt.source_revision, 1)?;
@@ -265,4 +278,165 @@ fn precharge_validation_nodes(
     budget
         .charge_allocation(ByteCount::new(bytes))
         .map_err(SemanticSnapshotError::Resource)
+}
+
+fn preflight_snapshot_validation_shape(
+    snapshot: &SemanticSnapshot,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    let mut nodes = 1_usize
+        .checked_add(snapshot.tables.len())
+        .and_then(|value| value.checked_add(snapshot.relationships.len()))
+        .and_then(|value| value.checked_add(snapshot.raw_preservation.len()))
+        .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "count semantic validation shape nodes",
+        }))?;
+    preflight_validation_nodes(budget, nodes)?;
+    for table in &snapshot.tables {
+        nodes = nodes
+            .checked_add(table.columns.len())
+            .and_then(|value| value.checked_add(table.indexes.len()))
+            .and_then(|value| value.checked_add(table.rows.len()))
+            .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+                operation: "count semantic validation shape nodes",
+            }))?;
+        preflight_validation_nodes(budget, nodes)?;
+        for index in &table.indexes {
+            nodes =
+                nodes
+                    .checked_add(index.fields.len())
+                    .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+                        operation: "count semantic validation shape nodes",
+                    }))?;
+            preflight_validation_nodes(budget, nodes)?;
+        }
+    }
+    for relationship in &snapshot.relationships {
+        nodes =
+            nodes
+                .checked_add(relationship.fields.len())
+                .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
+                    operation: "count semantic validation shape nodes",
+                }))?;
+        preflight_validation_nodes(budget, nodes)?;
+    }
+    Ok(())
+}
+
+fn preflight_validation_nodes(
+    budget: &ResourceBudget,
+    count: usize,
+) -> Result<(), SemanticSnapshotError> {
+    let count = u64::try_from(count).map_err(|_| {
+        SemanticSnapshotError::Resource(Error::IntegerConversion {
+            value: count as u128,
+            target: "u64",
+        })
+    })?;
+    let bytes = count.checked_mul(VALIDATION_NODE_BYTES).ok_or({
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "size semantic artifact validation shape",
+        })
+    })?;
+    preflight_allocation_and_work(ByteCount::new(bytes), 0, budget)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_outcome_budgeted;
+    use crate::{
+        HexString, Producer, ProducerKind, ScenarioId, SemanticSnapshot, SemanticSnapshotError,
+        SemanticSnapshotOutcome, Sha256, TypedValue,
+    };
+    use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind, ResourceLimits};
+
+    fn large_string_outcome() -> Result<SemanticSnapshotOutcome, Box<dyn std::error::Error>> {
+        let repetitions = 4_096;
+        let mut snapshot = SemanticSnapshot::new(
+            ScenarioId::new("DAO-READ-ROWS-SINGLE")?,
+            Producer::new(ProducerKind::Rust, "test")?,
+            Sha256::new("ab".repeat(32))?,
+        );
+        snapshot.database_properties.insert(
+            "LargeMemo".to_owned(),
+            TypedValue::Memo {
+                value: "\\\n".repeat(repetitions),
+                raw_hex: Some(HexString::new("5c0a".repeat(repetitions))?),
+                code_page: Some(1252),
+            },
+        );
+        Ok(SemanticSnapshotOutcome::Success(snapshot))
+    }
+
+    #[test]
+    fn validation_preflights_large_strings_before_exact_measurement()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let outcome = large_string_outcome()?;
+        let SemanticSnapshotOutcome::Success(snapshot) = &outcome else {
+            return Err(std::io::Error::other("expected success outcome").into());
+        };
+        let exact = super::canonicalization_allocation_bound(snapshot)?;
+        let minimum =
+            super::super::output_budget::canonicalization_unescaped_bound(snapshot)?.get();
+        assert!(
+            exact.get() > minimum,
+            "escape expansion must remain exact later"
+        );
+
+        let mut exhausted = ResourceBudget::new(
+            ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)),
+        );
+        let Err(error) = validate_outcome_budgeted(&outcome, &mut exhausted) else {
+            return Err(std::io::Error::other(
+                "zero allocation ceiling accepted the retained model",
+            )
+            .into());
+        };
+        let SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::AllocationBytes,
+            requested: _,
+            maximum: 0,
+        }) = error
+        else {
+            return Err(std::io::Error::other("unexpected exhausted-budget error").into());
+        };
+        assert_eq!(exhausted.allocation_bytes(), ByteCount::new(0));
+        assert_eq!(exhausted.total_work_units(), 0);
+
+        for limits in [
+            ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(minimum - 1)),
+            ResourceLimits::default().with_max_total_work_units(minimum - 1),
+        ] {
+            let original = outcome.clone();
+            let mut budget = ResourceBudget::new(limits);
+            assert!(matches!(
+                validate_outcome_budgeted(&outcome, &mut budget),
+                Err(SemanticSnapshotError::Resource(
+                    Error::ResourceLimitExceeded {
+                        requested,
+                        maximum,
+                        ..
+                    }
+                )) if requested == minimum && maximum == minimum - 1
+            ));
+            assert_eq!(outcome, original);
+            assert_eq!(budget.allocation_bytes(), ByteCount::new(0));
+            assert_eq!(budget.decoded_bytes(), ByteCount::new(0));
+            assert_eq!(budget.total_work_units(), 0);
+        }
+
+        let mut measured = ResourceBudget::new(ResourceLimits::default());
+        validate_outcome_budgeted(&outcome, &mut measured)?;
+        let required_allocation = measured.allocation_bytes();
+        let required_work = measured.total_work_units();
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(required_allocation)
+                .with_max_total_work_units(required_work),
+        );
+        validate_outcome_budgeted(&outcome, &mut exact_budget)?;
+        assert_eq!(exact_budget.allocation_bytes(), required_allocation);
+        assert_eq!(exact_budget.total_work_units(), required_work);
+        Ok(())
+    }
 }

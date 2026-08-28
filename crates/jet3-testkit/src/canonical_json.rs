@@ -95,7 +95,13 @@ impl JsonWriter {
 
     pub(crate) fn counting() -> Self {
         Self {
-            bytes: JsonBytes::Count(0),
+            bytes: JsonBytes::Count(Some(0)),
+        }
+    }
+
+    pub(crate) fn counting_unescaped() -> Self {
+        Self {
+            bytes: JsonBytes::UnescapedCount(Some(0)),
         }
     }
 
@@ -107,7 +113,7 @@ impl JsonWriter {
 
     pub(crate) fn counted_len(&self) -> Option<usize> {
         match self.bytes {
-            JsonBytes::Count(length) => Some(length),
+            JsonBytes::Count(length) | JsonBytes::UnescapedCount(length) => length,
             JsonBytes::Output(_) => None,
         }
     }
@@ -115,7 +121,7 @@ impl JsonWriter {
     pub(crate) fn into_bytes(self) -> Option<Vec<u8>> {
         match self.bytes {
             JsonBytes::Output(bytes) => Some(bytes),
-            JsonBytes::Count(_) => None,
+            JsonBytes::Count(_) | JsonBytes::UnescapedCount(_) => None,
         }
     }
 
@@ -425,6 +431,9 @@ impl JsonWriter {
 
     pub(crate) fn string(&mut self, value: &str) {
         const HEX: &[u8; 16] = b"0123456789abcdef";
+        if self.bytes.count_unescaped_string(value) {
+            return;
+        }
         self.bytes.push(b'"');
         for character in value.chars() {
             match character {
@@ -486,21 +495,36 @@ impl JsonWriter {
 }
 
 pub(crate) enum JsonBytes {
-    Count(usize),
+    Count(Option<usize>),
+    UnescapedCount(Option<usize>),
     Output(Vec<u8>),
 }
 
 impl JsonBytes {
+    fn count_unescaped_string(&mut self, value: &str) -> bool {
+        let Self::UnescapedCount(length) = self else {
+            return false;
+        };
+        *length = length
+            .and_then(|current| current.checked_add(2))
+            .and_then(|current| current.checked_add(value.len()));
+        true
+    }
+
     pub(crate) fn push(&mut self, byte: u8) {
         match self {
-            Self::Count(length) => *length = length.saturating_add(1),
+            Self::Count(length) | Self::UnescapedCount(length) => {
+                *length = length.and_then(|current| current.checked_add(1));
+            }
             Self::Output(bytes) => bytes.push(byte),
         }
     }
 
     pub(crate) fn extend_from_slice(&mut self, value: &[u8]) {
         match self {
-            Self::Count(length) => *length = length.saturating_add(value.len()),
+            Self::Count(length) | Self::UnescapedCount(length) => {
+                *length = length.and_then(|current| current.checked_add(value.len()));
+            }
             Self::Output(bytes) => bytes.extend_from_slice(value),
         }
     }

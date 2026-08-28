@@ -7,9 +7,11 @@ pub(super) fn finalize_semantic_snapshot(
     snapshot: &mut SemanticSnapshot,
     budget: &mut ResourceBudget,
 ) -> Result<(), SemanticSnapshotError> {
+    let algorithm_work = finalization_work(snapshot)?;
+    crate::semantic_json::preflight_canonicalization_measurement(snapshot, budget, algorithm_work)?;
     let allocation = crate::semantic_json::canonicalization_allocation_bound(snapshot)
         .map_err(SemanticSnapshotError::Resource)?;
-    let algorithm_work = finalization_work(snapshot)?;
+    crate::semantic_json::preflight_canonicalization_charge(allocation, algorithm_work, budget)?;
     budget
         .charge_allocation(allocation)
         .map_err(SemanticSnapshotError::Resource)?;
@@ -131,12 +133,12 @@ fn arithmetic() -> SemanticSnapshotError {
 
 #[cfg(test)]
 mod tests {
-    use super::finalize_semantic_snapshot;
+    use super::{finalization_work, finalize_semantic_snapshot};
     use crate::{
-        Producer, ProducerKind, PropertyMap, ScenarioId, SemanticSnapshot, SemanticSnapshotError,
-        SemanticTable, Sha256, TableKind,
+        HexString, Producer, ProducerKind, PropertyMap, ScenarioId, SemanticSnapshot,
+        SemanticSnapshotError, SemanticTable, Sha256, TableKind, TypedValue,
     };
-    use jet3::{Error, ResourceBudget, ResourceLimitKind, ResourceLimits};
+    use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind, ResourceLimits};
 
     fn unordered_snapshot() -> Result<SemanticSnapshot, Box<dyn std::error::Error>> {
         let mut snapshot = SemanticSnapshot::new(
@@ -192,6 +194,84 @@ mod tests {
         ));
         assert!(charged <= maximum);
         assert_eq!(unchanged.tables[0].name, "Zulu");
+        Ok(())
+    }
+
+    #[test]
+    fn finalization_preflights_large_strings_before_exact_measurement()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let repetitions = 4_096;
+        let mut source = unordered_snapshot()?;
+        source.database_properties.insert(
+            "LargeMemo".to_owned(),
+            TypedValue::Memo {
+                value: "\\\n".repeat(repetitions),
+                raw_hex: Some(HexString::new("5c0a".repeat(repetitions))?),
+                code_page: Some(1252),
+            },
+        );
+        let algorithm_work = finalization_work(&source)?;
+        let exact_allocation = crate::semantic_json::canonicalization_allocation_bound(&source)?;
+
+        let mut exhausted = ResourceBudget::new(
+            ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)),
+        );
+        let mut candidate = source.clone();
+        let Err(error) = finalize_semantic_snapshot(&mut candidate, &mut exhausted) else {
+            return Err(std::io::Error::other(
+                "zero allocation ceiling accepted the retained model",
+            )
+            .into());
+        };
+        let SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::AllocationBytes,
+            requested: minimum_allocation,
+            maximum: 0,
+        }) = error
+        else {
+            return Err(std::io::Error::other("unexpected exhausted-budget error").into());
+        };
+        assert!(exact_allocation.get() > minimum_allocation);
+        assert_eq!(candidate, source);
+        assert_eq!(exhausted.allocation_bytes(), ByteCount::new(0));
+        assert_eq!(exhausted.total_work_units(), 0);
+
+        let minimum_work = minimum_allocation
+            .checked_add(algorithm_work)
+            .ok_or("minimum finalization work")?;
+        for limits in [
+            ResourceLimits::default()
+                .with_max_allocation_bytes(ByteCount::new(minimum_allocation - 1)),
+            ResourceLimits::default().with_max_total_work_units(minimum_work - 1),
+            ResourceLimits::default().with_max_total_work_units(0),
+        ] {
+            let mut candidate = source.clone();
+            let mut budget = ResourceBudget::new(limits);
+            assert!(matches!(
+                finalize_semantic_snapshot(&mut candidate, &mut budget),
+                Err(SemanticSnapshotError::Resource(
+                    Error::ResourceLimitExceeded { .. }
+                ))
+            ));
+            assert_eq!(candidate, source);
+            assert_eq!(budget.allocation_bytes(), ByteCount::new(0));
+            assert_eq!(budget.total_work_units(), 0);
+        }
+
+        let exact_work = exact_allocation
+            .get()
+            .checked_add(algorithm_work)
+            .ok_or("exact finalization work")?;
+        let mut candidate = source.clone();
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(exact_allocation)
+                .with_max_total_work_units(exact_work),
+        );
+        finalize_semantic_snapshot(&mut candidate, &mut exact_budget)?;
+        assert_eq!(candidate.tables[0].name, "Alpha");
+        assert_eq!(exact_budget.allocation_bytes(), exact_allocation);
+        assert_eq!(exact_budget.total_work_units(), exact_work);
         Ok(())
     }
 }
