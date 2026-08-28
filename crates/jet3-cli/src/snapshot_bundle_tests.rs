@@ -1,11 +1,14 @@
-use std::fs;
-use std::io;
-use std::path::PathBuf;
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+use std::{fs, io, path::PathBuf};
 
-use super::{PublishError, PublishHook, PublishPoint, RECEIPT_NAME, SNAPSHOT_NAME, publish_with};
+use super::PublishError;
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+use super::{PublishHook, PublishPoint, RECEIPT_NAME, SNAPSHOT_NAME, publish_with};
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 struct FailAt(PublishPoint);
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 impl PublishHook for FailAt {
     fn before(&mut self, point: PublishPoint, _destination: &std::path::Path) -> io::Result<()> {
         if point == self.0 {
@@ -16,6 +19,7 @@ impl PublishHook for FailAt {
     }
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 fn stages(directory: &std::path::Path) -> Result<Vec<PathBuf>, io::Error> {
     fs::read_dir(directory)?
         .filter_map(|entry| match entry {
@@ -33,6 +37,7 @@ fn stages(directory: &std::path::Path) -> Result<Vec<PathBuf>, io::Error> {
         .collect()
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn complete_bundle_is_published_with_fixed_artifact_names() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -50,14 +55,17 @@ fn complete_bundle_is_published_with_fixed_artifact_names() -> Result<(), Box<dy
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 struct FailAtImpossible;
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 impl PublishHook for FailAtImpossible {
     fn before(&mut self, _point: PublishPoint, _destination: &std::path::Path) -> io::Result<()> {
         Ok(())
     }
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn every_pre_rename_failure_leaves_no_bundle_or_owned_stage()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -84,6 +92,7 @@ fn every_pre_rename_failure_leaves_no_bundle_or_owned_stage()
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn parent_sync_failure_reports_published_but_uncertain() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
@@ -102,8 +111,10 @@ fn parent_sync_failure_reports_published_but_uncertain() -> Result<(), Box<dyn s
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 struct CreateCompetitor;
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 impl PublishHook for CreateCompetitor {
     fn before(&mut self, point: PublishPoint, destination: &std::path::Path) -> io::Result<()> {
         if point == PublishPoint::RenameBundle {
@@ -114,6 +125,7 @@ impl PublishHook for CreateCompetitor {
     }
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn rename_collision_preserves_the_competitor_and_cleans_the_stage()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -129,6 +141,7 @@ fn rename_collision_preserves_the_competitor_and_cleans_the_stage()
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn existing_files_directories_and_hard_links_are_never_overwritten()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -155,6 +168,7 @@ fn existing_files_directories_and_hard_links_are_never_overwritten()
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn lexical_alias_to_an_existing_input_cannot_bypass_identity_rejection()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -187,7 +201,7 @@ fn platform_contract_is_explicit_and_fail_closed_when_unsupported() {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn live_and_dangling_symlink_destinations_are_rejected_without_following()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -210,6 +224,7 @@ fn live_and_dangling_symlink_destinations_are_rejected_without_following()
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[test]
 fn lexical_parent_alias_is_resolved_before_staging_and_publication()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -223,5 +238,86 @@ fn lexical_parent_alias_is_resolved_before_staging_and_publication()
         b"snapshot"
     );
     assert!(stages(directory.path())?.is_empty());
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+struct ReplaceParentAtCreateSnapshot {
+    moved_parent: PathBuf,
+    fail_after_replacement: bool,
+    replacement_stage: Option<PathBuf>,
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+impl PublishHook for ReplaceParentAtCreateSnapshot {
+    fn before(&mut self, point: PublishPoint, destination: &std::path::Path) -> io::Result<()> {
+        if point == PublishPoint::CreateSnapshot {
+            let parent = destination
+                .parent()
+                .ok_or_else(|| io::Error::other("destination parent is missing"))?;
+            fs::rename(parent, &self.moved_parent)?;
+            fs::create_dir(parent)?;
+            let owned_stage = stages(&self.moved_parent)?
+                .into_iter()
+                .next()
+                .ok_or_else(|| io::Error::other("owned stage is missing"))?;
+            let replacement_stage = parent.join(
+                owned_stage
+                    .file_name()
+                    .ok_or_else(|| io::Error::other("owned stage leaf is missing"))?,
+            );
+            fs::create_dir(&replacement_stage)?;
+            fs::write(replacement_stage.join("competitor"), b"keep")?;
+            self.replacement_stage = Some(replacement_stage);
+        }
+        if self.fail_after_replacement && point == PublishPoint::WriteSnapshot {
+            return Err(io::Error::other("injected post-replacement failure"));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[test]
+fn parent_replacement_cannot_redirect_artifacts_publication_or_cleanup()
+-> Result<(), Box<dyn std::error::Error>> {
+    for fail_after_replacement in [false, true] {
+        let directory = tempfile::tempdir()?;
+        let parent = directory.path().join("parent");
+        let moved_parent = directory.path().join("pinned-parent");
+        fs::create_dir(&parent)?;
+        let destination = parent.join("bundle");
+        let mut hook = ReplaceParentAtCreateSnapshot {
+            moved_parent: moved_parent.clone(),
+            fail_after_replacement,
+            replacement_stage: None,
+        };
+
+        let result = publish_with(&destination, b"snapshot", b"receipt", &mut hook);
+        let replacement_stage = hook
+            .replacement_stage
+            .ok_or("replacement stage was not created")?;
+        assert_eq!(fs::read(replacement_stage.join("competitor"))?, b"keep");
+        assert!(!replacement_stage.join(SNAPSHOT_NAME).exists());
+        assert!(!replacement_stage.join(RECEIPT_NAME).exists());
+        assert!(!destination.exists());
+
+        if fail_after_replacement {
+            assert_eq!(result, Err(PublishError::SnapshotFailed));
+            assert!(!moved_parent.join("bundle").exists());
+            assert!(stages(&moved_parent)?.is_empty());
+        } else {
+            assert_eq!(result, Ok(()));
+            assert_eq!(
+                fs::read(moved_parent.join("bundle").join(SNAPSHOT_NAME))?,
+                b"snapshot"
+            );
+            assert_eq!(
+                fs::read(moved_parent.join("bundle").join(RECEIPT_NAME))?,
+                b"receipt"
+            );
+            assert!(stages(&moved_parent)?.is_empty());
+        }
+    }
     Ok(())
 }

@@ -2,8 +2,8 @@
 
 use crate::canonical_json::JsonWriter;
 use crate::{
-    CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError, SemanticSnapshot,
-    SemanticSnapshotError, SemanticTable, TableKind,
+    CoverageReceipt, CoverageReceiptOutcome, SemanticColumn, SemanticIndex, SemanticProtocolError,
+    SemanticSnapshot, SemanticSnapshotError, SemanticSnapshotOutcome, SemanticTable, TableKind,
 };
 use jet3::{ByteCount, Error, ResourceBudget};
 use std::mem::size_of;
@@ -22,25 +22,73 @@ pub(super) fn write_snapshot(
         })
 }
 
-pub(super) fn write_snapshot_budgeted(
-    snapshot: &SemanticSnapshot,
+pub(super) fn write_outcome(
+    outcome: &SemanticSnapshotOutcome,
+) -> Result<Vec<u8>, SemanticProtocolError> {
+    outcome.validate()?;
+    let mut writer = JsonWriter::new();
+    write_outcome_into(&mut writer, outcome)?;
+    writer
+        .into_bytes()
+        .ok_or_else(|| SemanticProtocolError::InvalidModel {
+            path: "$".to_owned(),
+            reason: "canonical JSON writer did not retain output",
+        })
+}
+
+pub(super) fn write_outcome_budgeted(
+    outcome: &SemanticSnapshotOutcome,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, SemanticSnapshotError> {
-    let validation =
-        canonicalization_allocation_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
-    budget
-        .charge_allocation(validation)
-        .map_err(SemanticSnapshotError::Resource)?;
-    snapshot.validate()?;
-    let bound = snapshot_allocation_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
+    if let SemanticSnapshotOutcome::Success(snapshot) = outcome {
+        let validation =
+            canonicalization_allocation_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
+        budget
+            .charge_allocation(validation)
+            .map_err(SemanticSnapshotError::Resource)?;
+    }
+    outcome.validate()?;
+    let bound = outcome_allocation_bound(outcome).map_err(SemanticSnapshotError::Resource)?;
     let mut writer = reserved_writer(bound, budget)?;
-    write_snapshot_into(&mut writer, snapshot)?;
+    write_outcome_into(&mut writer, outcome)?;
     writer.into_bytes().ok_or_else(|| {
         SemanticSnapshotError::Protocol(SemanticProtocolError::InvalidModel {
             path: "$".to_owned(),
             reason: "canonical JSON writer did not retain output",
         })
     })
+}
+
+fn write_outcome_into(
+    writer: &mut JsonWriter,
+    outcome: &SemanticSnapshotOutcome,
+) -> Result<(), SemanticProtocolError> {
+    match outcome {
+        SemanticSnapshotOutcome::Success(snapshot) => write_snapshot_into(writer, snapshot),
+        SemanticSnapshotOutcome::OpeningFailure(failure) => {
+            writer.bytes.push(b'{');
+            let mut first = true;
+            writer.key(&mut first, "comparison_projection");
+            writer.bytes.extend_from_slice(br#"["/producer"]"#);
+            writer.key(&mut first, "database_sha256");
+            writer.string(failure.database_sha256.as_str());
+            writer.key(&mut first, "document_type");
+            writer.string("canonical_semantic_snapshot");
+            writer.key(&mut first, "error_class");
+            writer.string(failure.error_class.as_str());
+            writer.key(&mut first, "outcome");
+            writer.string("opening_failure");
+            writer.key(&mut first, "producer");
+            writer.producer(&failure.producer);
+            writer.key(&mut first, "protocol_version");
+            writer.string("1.2.0");
+            writer.key(&mut first, "scenario_id");
+            writer.string(failure.scenario_id.as_str());
+            writer.bytes.push(b'}');
+            writer.bytes.push(b'\n');
+            Ok(())
+        }
+    }
 }
 
 fn write_snapshot_into(
@@ -59,8 +107,12 @@ fn write_snapshot_into(
     writer.string(snapshot.database_sha256.as_str());
     writer.key(&mut first, "document_type");
     writer.string("canonical_semantic_snapshot");
+    writer.key(&mut first, "error_class");
+    writer.bytes.extend_from_slice(b"null");
     writer.key(&mut first, "ordering");
     ordering(writer);
+    writer.key(&mut first, "outcome");
+    writer.string("success");
     writer.key(&mut first, "producer");
     writer.producer(&snapshot.producer);
     writer.key(&mut first, "producer_extensions");
@@ -81,6 +133,7 @@ fn write_snapshot_into(
 }
 
 pub(super) fn write_receipt(receipt: &CoverageReceipt) -> Result<Vec<u8>, SemanticProtocolError> {
+    receipt.validate()?;
     let mut writer = JsonWriter::new();
     write_receipt_into(&mut writer, receipt);
     writer
@@ -95,6 +148,7 @@ pub(super) fn write_receipt_budgeted(
     receipt: &CoverageReceipt,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, SemanticSnapshotError> {
+    receipt.validate()?;
     let bound = receipt_allocation_bound(receipt).map_err(SemanticSnapshotError::Resource)?;
     let mut writer = reserved_writer(bound, budget)?;
     write_receipt_into(&mut writer, receipt);
@@ -110,7 +164,14 @@ fn write_receipt_into(writer: &mut JsonWriter, receipt: &CoverageReceipt) {
     writer.bytes.push(b'{');
     let mut first = true;
     writer.key(&mut first, "allocated_set_sha256");
-    writer.string(receipt.allocated_set_sha256.as_str());
+    match &receipt.outcome {
+        CoverageReceiptOutcome::Success {
+            allocated_set_sha256,
+        } => writer.string(allocated_set_sha256.as_str()),
+        CoverageReceiptOutcome::OpeningFailure { .. } => {
+            writer.bytes.extend_from_slice(b"null");
+        }
+    }
     writer.key(&mut first, "branches");
     writer.bytes.push(b'[');
     for (index, branch) in receipt.branches.iter().enumerate() {
@@ -122,6 +183,18 @@ fn write_receipt_into(writer: &mut JsonWriter, receipt: &CoverageReceipt) {
     writer.string(receipt.database_sha256.as_str());
     writer.key(&mut first, "document_type");
     writer.string("rust_coverage_receipt");
+    writer.key(&mut first, "error_class");
+    match &receipt.outcome {
+        CoverageReceiptOutcome::Success { .. } => writer.bytes.extend_from_slice(b"null"),
+        CoverageReceiptOutcome::OpeningFailure { error_class } => {
+            writer.string(error_class.as_str());
+        }
+    }
+    writer.key(&mut first, "outcome");
+    match receipt.outcome {
+        CoverageReceiptOutcome::Success { .. } => writer.string("success"),
+        CoverageReceiptOutcome::OpeningFailure { .. } => writer.string("opening_failure"),
+    }
     writer.key(&mut first, "protocol_version");
     writer.string("1.2.0");
     writer.key(&mut first, "scenario_id");
@@ -138,6 +211,14 @@ pub(super) fn snapshot_allocation_bound(snapshot: &SemanticSnapshot) -> Result<B
         operation: "measure canonical semantic snapshot JSON",
     })?;
     counted_bytes(&writer, "measure canonical semantic snapshot JSON")
+}
+
+fn outcome_allocation_bound(outcome: &SemanticSnapshotOutcome) -> Result<ByteCount, Error> {
+    let mut writer = JsonWriter::counting();
+    write_outcome_into(&mut writer, outcome).map_err(|_| Error::Arithmetic {
+        operation: "measure canonical semantic outcome JSON",
+    })?;
+    counted_bytes(&writer, "measure canonical semantic outcome JSON")
 }
 
 pub(super) fn canonicalization_allocation_bound(
@@ -241,7 +322,7 @@ pub(super) fn write_properties(
         })
 }
 
-fn properties_allocation_bound(values: &crate::PropertyMap) -> Option<usize> {
+pub(crate) fn properties_allocation_bound(values: &crate::PropertyMap) -> Option<usize> {
     let mut writer = JsonWriter::counting();
     writer.properties(values).ok()?;
     writer.counted_len()

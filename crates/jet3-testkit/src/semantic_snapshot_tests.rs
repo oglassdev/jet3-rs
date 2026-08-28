@@ -349,7 +349,10 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
     assert!(first.relationships.is_empty());
 
     let artifacts = artifacts(&bytes, limits(&bytes))?;
-    assert_eq!(artifacts.snapshot, first);
+    assert_eq!(
+        artifacts.snapshot,
+        crate::SemanticSnapshotOutcome::Success(first)
+    );
     assert_eq!(
         artifacts.coverage_receipt.branches,
         [

@@ -30,6 +30,8 @@ CHECKED_PROTOCOL_TEST_RESOURCES = frozenset(
         "oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json",
         "oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json",
         "oracle/windows-dao/protocol/v1_2/fixtures/column-normalization-vectors.tsv",
+        "oracle/windows-dao/protocol/v1_2/fixtures/long-value-comparison-vectors.tsv",
+        "oracle/windows-dao/protocol/v1_2/fixtures/rejected-format-normalization-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/fixtures/row-key-vectors.tsv",
         "oracle/windows-dao/protocol/v1_2/scenarios.json",
     }

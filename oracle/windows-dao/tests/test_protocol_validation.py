@@ -298,6 +298,8 @@ class ProtocolV12Tests(unittest.TestCase):
             "scenario_id": "DAO-READ-ROWS-DUPLICATES",
             "producer": {"kind": "rust", "source_revision": "test"},
             "database_sha256": "ab" * 32,
+            "outcome": "success",
+            "error_class": None,
             "ordering": {
                 "objects": "name_codepoint_ascending",
                 "columns": "ordinal_ascending",
@@ -372,6 +374,130 @@ class ProtocolV12Tests(unittest.TestCase):
             )
             seen += 1
         self.assertEqual(seen, 15)
+
+    def test_shared_long_value_vectors_are_payload_projected(self):
+        fixture = v1_2.SCHEMA_DIR / "fixtures" / "long-value-comparison-vectors.tsv"
+        hashes_by_kind = {}
+        seen = 0
+        for line in fixture.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                continue
+            case, kind, storage, semantic, payload, header, expected = line.split("\t")
+            value = {"kind": kind, "raw_hex": payload, "value": semantic}
+            dao_type = "dbMemo" if kind == "memo" else "dbLongBinary"
+            if kind == "memo":
+                value["code_page"] = 1252
+            values = {"Value": value}
+            actual = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
+            self.assertEqual(actual, expected, case)
+            hashes_by_kind.setdefault((kind, semantic), set()).add(actual)
+
+            snapshot = self._snapshot()
+            table = snapshot["tables"][0]
+            table["columns"] = [dict(
+                table["columns"][0], name="Value", dao_type=dao_type,
+                size=0, attributes=2, auto_increment=False,
+            )]
+            table["indexes"] = []
+            table["rows"] = [{
+                "canonical_key": actual,
+                "duplicate_ordinal": 0,
+                "values": values,
+            }]
+            snapshot["producer_extensions"] = {}
+            if storage != "inline":
+                path = "/tables/0/rows/0/values/Value/jet_external_long_value_header"
+                snapshot["producer_extensions"][path] = {
+                    "kind": "binary", "raw_hex": header, "value": header,
+                }
+            self.assertEqual(
+                v1_2.validate_document(snapshot), "canonical_semantic_snapshot", case
+            )
+            seen += 1
+        self.assertEqual(seen, 8)
+        self.assertTrue(all(len(hashes) == 1 for hashes in hashes_by_kind.values()))
+
+    def test_rejected_format_outcomes_follow_shared_normalization_vectors(self):
+        fixture = (
+            v1_2.SCHEMA_DIR
+            / "fixtures"
+            / "rejected-format-normalization-vectors.tsv"
+        )
+        seen = 0
+        for line in fixture.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                continue
+            case, scenario_id, _variant, error_class = line.split("\t")
+            scenario = self._find(self.inventory, scenario_id)
+            self.assertEqual(scenario["operation"]["error_class"], error_class, case)
+            snapshot, receipt = self._opening_failure(scenario_id, error_class)
+            self.assertEqual(
+                v1_2.validate_document(snapshot),
+                "canonical_semantic_snapshot",
+                case,
+            )
+            self.assertEqual(
+                v1_2.validate_document(receipt), "rust_coverage_receipt", case
+            )
+            seen += 1
+        self.assertEqual(seen, 3)
+
+    def test_rejected_format_outcome_mutations_fail_closed(self):
+        snapshot, receipt = self._opening_failure(
+            "DAO-READ-OPEN-REJECT-JET4", "unsupported_version"
+        )
+
+        wrong_outcome = json.loads(json.dumps(snapshot))
+        wrong_outcome["outcome"] = "success"
+        with self.assertRaisesRegex(ValidationError, "allowed shape"):
+            v1_2.validate_document(wrong_outcome)
+
+        success_scenario = json.loads(json.dumps(snapshot))
+        success_scenario["scenario_id"] = "DAO-READ-ROWS-SINGLE"
+        with self.assertRaisesRegex(ValidationError, "expected_error scenario"):
+            v1_2.validate_document(success_scenario)
+
+        wrong_error = json.loads(json.dumps(snapshot))
+        wrong_error["error_class"] = "encrypted_database"
+        with self.assertRaisesRegex(ValidationError, "does not match"):
+            v1_2.validate_document(wrong_error)
+
+        missing_branch = json.loads(json.dumps(receipt))
+        missing_branch["branches"].remove("open.rejected_format")
+        with self.assertRaisesRegex(ValidationError, "allowed shape"):
+            v1_2.validate_document(missing_branch)
+
+        success_receipt = json.loads(json.dumps(receipt))
+        success_receipt["scenario_id"] = "DAO-READ-ROWS-SINGLE"
+        with self.assertRaisesRegex(ValidationError, "expected_error scenario"):
+            v1_2.validate_document(success_receipt)
+
+    def _opening_failure(self, scenario_id, error_class):
+        common = {
+            "protocol_version": "1.2.0",
+            "scenario_id": scenario_id,
+            "database_sha256": "ab" * 32,
+            "outcome": "opening_failure",
+            "error_class": error_class,
+        }
+        snapshot = {
+            **common,
+            "document_type": "canonical_semantic_snapshot",
+            "producer": {"kind": "rust", "source_revision": "abc123"},
+            "comparison_projection": ["/producer"],
+        }
+        receipt = {
+            **common,
+            "document_type": "rust_coverage_receipt",
+            "source_revision": "abc123",
+            "allocated_set_sha256": None,
+            "branches": [
+                "open.header_page",
+                "open.rejected_format",
+                "open.signature_geometry",
+            ],
+        }
+        return snapshot, receipt
 
     def test_snapshot_rows_are_keyed_by_value_digest_and_duplicate_ordinal(self):
         snapshot = self._snapshot()
@@ -486,6 +612,8 @@ class ProtocolV12Tests(unittest.TestCase):
             "source_revision": "abc123",
             "database_sha256": "ab" * 32,
             "allocated_set_sha256": "cd" * 32,
+            "outcome": "success",
+            "error_class": None,
             "branches": sorted(required),
         }
         self.assertEqual(v1_2.validate_document(receipt), "rust_coverage_receipt")
@@ -521,6 +649,8 @@ class ProtocolV12Tests(unittest.TestCase):
             "source_revision": "abc123",
             "database_sha256": "ab" * 32,
             "allocated_set_sha256": "cd" * 32,
+            "outcome": "success",
+            "error_class": None,
             "branches": sorted([*scenario["required_branches"], forbidden]),
         }
         with self.assertRaisesRegex(ValidationError, "forbidden scenario branches"):

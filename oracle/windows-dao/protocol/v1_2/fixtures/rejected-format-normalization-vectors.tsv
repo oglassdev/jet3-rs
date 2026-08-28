@@ -1,0 +1,4 @@
+# case	scenario_id	rust_error_variant	normalized_error_class
+jet4	DAO-READ-OPEN-REJECT-JET4	UnsupportedVersion	unsupported_version
+encrypted	DAO-READ-OPEN-REJECT-ENCRYPTED	EncryptedOrUnsupported	encrypted_database
+password	DAO-READ-OPEN-REJECT-PASSWORD	PasswordedOrUnsupported	password_protected

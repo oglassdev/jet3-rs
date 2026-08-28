@@ -18,6 +18,7 @@ use jet3::{
     ByteCount, CandidateError, DatabaseFormatError, DatabaseOpenError, DatabaseReader, FileSource,
     JET3_PAGE_SIZE, JetFileKind, ReadLimits, ResourceBudget, ResourceLimits, TextCodePage,
 };
+use jet3_testkit::{RejectedFormatErrorClass, SemanticOpenFailure, SemanticSnapshotArtifacts};
 use jet3_testkit::{ScenarioId, SemanticSnapshotOptions, snapshot_database_with_receipt};
 
 mod build_identity;
@@ -111,7 +112,7 @@ fn main() -> ExitCode {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
         },
-        Command::Snapshot(options) => match snapshot(&options) {
+        Command::Snapshot(options) => match snapshot(options) {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
         },
@@ -344,13 +345,27 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
     ))
 }
 
-fn snapshot(options: &SnapshotOptions) -> Result<(), &'static str> {
+fn snapshot(options: SnapshotOptions) -> Result<(), &'static str> {
     let producer = build_identity::snapshot_producer()?;
+    snapshot_with_producer(options, producer)
+}
+
+fn snapshot_with_producer(
+    options: SnapshotOptions,
+    producer: jet3_testkit::Producer,
+) -> Result<(), &'static str> {
+    let SnapshotOptions {
+        path,
+        scenario_id,
+        code_page,
+        output_bundle,
+        max_input_bytes,
+    } = options;
     // Open the caller-controlled pathname exactly once. The semantic reader
     // receives only the private bytes copied and hashed by this staging pass.
     // `SRC-0027` binds the staged database identity to FIPS SHA-256.
-    let input = File::open(&options.path).map_err(|_| "open_failed")?;
-    let staged = snapshot_input::StagedInput::copy_from(input, options.max_input_bytes)?;
+    let input = File::open(path).map_err(|_| "open_failed")?;
+    let staged = snapshot_input::StagedInput::copy_from(input, max_input_bytes)?;
     let input_length = staged.length();
     let database_sha256 = staged.sha256();
     let max_total_read = input_length.checked_mul(32).ok_or("invalid_limit")?;
@@ -362,23 +377,38 @@ fn snapshot(options: &SnapshotOptions) -> Result<(), &'static str> {
     let mut budget = ResourceBudget::new(ResourceLimits::new(read_limits));
     let source = FileSource::from_file(staged.traversal_file()?, budget.read_budget())
         .map_err(|_| "open_failed")?;
-    let mut database = DatabaseReader::from_source(source, &mut budget).map_err(open_error_code)?;
-    let artifacts = snapshot_database_with_receipt(
-        &mut database,
-        &SemanticSnapshotOptions {
-            scenario_id: options.scenario_id.clone(),
-            producer,
-            database_sha256,
-            code_page: options.code_page,
-        },
-        &mut budget,
-    )
-    .map_err(|_| "snapshot_failed")?;
+    let artifacts = match DatabaseReader::from_source(source, &mut budget) {
+        Ok(mut database) => snapshot_database_with_receipt(
+            &mut database,
+            &SemanticSnapshotOptions {
+                scenario_id,
+                producer,
+                database_sha256,
+                code_page,
+            },
+            &mut budget,
+        )
+        .map_err(|_| "snapshot_failed")?,
+        Err(error) => {
+            // `EXP-0065` closes normalization to the three format variants.
+            let error_class = RejectedFormatErrorClass::from_open_error(&error)
+                .ok_or_else(|| open_error_code(error))?;
+            SemanticSnapshotArtifacts::opening_failure(
+                SemanticOpenFailure {
+                    scenario_id,
+                    producer,
+                    database_sha256,
+                    error_class,
+                },
+                &mut budget,
+            )
+            .map_err(|_| "snapshot_failed")?
+        }
+    };
     let (snapshot, receipt) = artifacts
         .to_canonical_json(&mut budget)
         .map_err(|_| "snapshot_failed")?;
-    snapshot_bundle::publish(&options.output_bundle, &snapshot, &receipt)
-        .map_err(publication_error_code)
+    snapshot_bundle::publish(&output_bundle, &snapshot, &receipt).map_err(publication_error_code)
 }
 
 fn publication_error_code(error: snapshot_bundle::PublishError) -> &'static str {
@@ -481,9 +511,13 @@ fn exit_after_write(result: io::Result<()>, success_or_command_error: u8) -> Exi
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, parse_args, write_output};
+    use super::{Command, SnapshotOptions, parse_args, snapshot_with_producer, write_output};
     use std::ffi::OsString;
+    use std::fs;
     use std::io::{self, Write};
+
+    use jet3::TextCodePage;
+    use jet3_testkit::{Producer, ProducerKind, ScenarioId, sha256_hex};
 
     struct RejectWrites;
 
@@ -599,5 +633,98 @@ mod tests {
             ])),
             Err("unknown_option")
         ));
+    }
+
+    #[test]
+    fn expected_open_rejections_publish_canonical_validated_bundles()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let producer = Producer::new(
+            ProducerKind::Rust,
+            "0123456789abcdef0123456789abcdef01234567",
+        )?;
+        for (case, scenario, mutate, error_class) in [
+            (
+                "jet4",
+                "DAO-READ-OPEN-REJECT-JET4",
+                (0x14, 0x01),
+                "unsupported_version",
+            ),
+            (
+                "encrypted",
+                "DAO-READ-OPEN-REJECT-ENCRYPTED",
+                (0x41, 0x00),
+                "encrypted_database",
+            ),
+            (
+                "password",
+                "DAO-READ-OPEN-REJECT-PASSWORD",
+                (0x42, 0x00),
+                "password_protected",
+            ),
+        ] {
+            let directory = tempfile::tempdir()?;
+            let input = directory.path().join(format!("{case}.mdb"));
+            let bundle = directory.path().join("bundle");
+            let mut bytes = supported_header();
+            bytes[mutate.0] = mutate.1;
+            let expected_sha256 = sha256_hex(&bytes)?;
+            fs::write(&input, &bytes)?;
+            snapshot_with_producer(
+                SnapshotOptions {
+                    path: input,
+                    scenario_id: ScenarioId::new(scenario)?,
+                    code_page: TextCodePage::Windows1252,
+                    output_bundle: bundle.clone(),
+                    max_input_bytes: bytes.len() as u64,
+                },
+                producer.clone(),
+            )?;
+            for artifact in ["snapshot.json", "coverage-receipt.json"] {
+                let contents = fs::read_to_string(bundle.join(artifact))?;
+                assert!(contents.contains("\"outcome\":\"opening_failure\""));
+                assert!(contents.contains(&format!("\"error_class\":\"{error_class}\"")));
+                assert!(contents.contains(&expected_sha256));
+            }
+            let receipt = fs::read_to_string(bundle.join("coverage-receipt.json"))?;
+            assert!(receipt.contains("\"allocated_set_sha256\":null"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn non_format_open_failure_remains_an_error_without_artifacts()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let input = directory.path().join("unknown.mdb");
+        let bundle = directory.path().join("bundle");
+        let mut bytes = supported_header();
+        bytes[4..19].copy_from_slice(b"Not a Jet file!");
+        fs::write(&input, &bytes)?;
+        let error = snapshot_with_producer(
+            SnapshotOptions {
+                path: input,
+                scenario_id: ScenarioId::new("DAO-READ-OPEN-REJECT-JET4")?,
+                code_page: TextCodePage::Windows1252,
+                output_bundle: bundle.clone(),
+                max_input_bytes: bytes.len() as u64,
+            },
+            Producer::new(
+                ProducerKind::Rust,
+                "0123456789abcdef0123456789abcdef01234567",
+            )?,
+        );
+        assert_eq!(error, Err("unrecognized_signature"));
+        assert!(!bundle.exists());
+        Ok(())
+    }
+
+    fn supported_header() -> Vec<u8> {
+        let mut bytes = vec![0_u8; 2_048];
+        bytes[4..19].copy_from_slice(b"Standard Jet DB");
+        bytes[0x41] = 0x4e;
+        bytes[0x42..0x50].copy_from_slice(&[
+            0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
+        ]);
+        bytes
     }
 }

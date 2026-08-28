@@ -415,6 +415,14 @@ def _validate_comparable_typed_value(value: dict[str, Any], location: str) -> No
         raise ValidationError(f"{location}: {kind} values carry no field bytes")
     if kind in ("text", "memo") and "code_page" not in value:
         raise ValidationError(f"{location}: {kind} values must identify their code_page")
+    if kind == "ole" and value.get("raw_hex") != value["value"]:
+        raise ValidationError(f"{location}: OLE raw_hex must equal the logical payload bytes")
+    if kind == "memo" and value.get("code_page") == 1252:
+        expected = value["value"].encode("cp1252", errors="replace").hex()
+        if value.get("raw_hex") != expected:
+            raise ValidationError(
+                f"{location}: Memo raw_hex must equal the code-page logical payload bytes"
+            )
 
 
 def _validate_property_map(properties: dict[str, Any], location: str) -> None:
@@ -491,6 +499,10 @@ def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
 
 def validate_semantic_snapshot(document: dict[str, Any]) -> None:
     """Validate 1.2 model integrity and row identity on top of the shared rules."""
+    scenario = _scenario_for(document)
+    _validate_outcome_for_scenario(document, scenario)
+    if document["outcome"] == "opening_failure":
+        return
     validate_snapshot(document)
     _validate_property_map(document["database_properties"], "$.database_properties")
     tables = {table["name"]: table for table in document["tables"]}
@@ -523,11 +535,101 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
     for key in document["producer_extensions"]:
         if JSON_POINTER.fullmatch(key) is None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")
+        if key.endswith("/jet_external_long_value_header"):
+            _validate_external_long_value_header(document, key)
+
+
+def _validate_external_long_value_header(document: dict[str, Any], key: str) -> None:
+    if document["producer"]["kind"] != "rust":
+        raise ValidationError(
+            f"$.producer_extensions[{key!r}]: external Jet headers are Rust-only metadata"
+        )
+    match = re.fullmatch(
+        r"/tables/(\d+)/rows/(\d+)/values/((?:~[01]|[^~/])+)"
+        r"/jet_external_long_value_header",
+        key,
+    )
+    if match is None:
+        raise ValidationError(
+            f"$.producer_extensions[{key!r}]: invalid external long-value association"
+        )
+    table_index, row_index = (int(match.group(1)), int(match.group(2)))
+    column_name = match.group(3).replace("~1", "/").replace("~0", "~")
+    try:
+        value = document["tables"][table_index]["rows"][row_index]["values"][column_name]
+    except (IndexError, KeyError):
+        raise ValidationError(
+            f"$.producer_extensions[{key!r}]: association does not resolve"
+        ) from None
+    if value["kind"] not in ("memo", "ole"):
+        raise ValidationError(
+            f"$.producer_extensions[{key!r}]: association must resolve to Memo/OLE"
+        )
+    header = document["producer_extensions"][key]
+    if (
+        header.get("kind") != "binary"
+        or len(header.get("value", "")) != 24
+        or header.get("raw_hex") != header.get("value")
+    ):
+        raise ValidationError(
+            f"$.producer_extensions[{key!r}]: header must be an exact 12-byte binary value"
+        )
 
 
 def normalize_dao_column_attributes(raw_attributes: int) -> int:
     """Mask DAO field attributes to the protocol's comparable bits."""
     return raw_attributes & COMPARABLE_COLUMN_ATTRIBUTE_MASK
+
+
+def _scenario_for(
+    document: dict[str, Any], *, scenario_inventory_path: Path = SCENARIO_INVENTORY
+) -> dict[str, Any]:
+    inventory = load_json(scenario_inventory_path)
+    if SCHEMA_SET.validate(inventory) != "dao_scenario_inventory":
+        raise ValidationError(f"{scenario_inventory_path}: not a scenario inventory")
+    validate_inventory(
+        inventory,
+        capability_ids=load_capability_ids(),
+        branch_ids=load_branch_ids(),
+    )
+    matches = [
+        scenario
+        for scenario in inventory["scenarios"]
+        if scenario["id"] == document["scenario_id"]
+    ]
+    if not matches:
+        raise ValidationError(
+            f"$.scenario_id: unknown scenario {document['scenario_id']!r}"
+        )
+    if len(matches) != 1:
+        raise ValidationError(
+            f"$.scenario_id: scenario {document['scenario_id']!r} is not unique"
+        )
+    return matches[0]
+
+
+def _validate_outcome_for_scenario(
+    document: dict[str, Any], scenario: dict[str, Any]
+) -> None:
+    operation = scenario["operation"]
+    if document["outcome"] == "opening_failure":
+        if operation["expected_outcome"] != "expected_error":
+            raise ValidationError(
+                "$.outcome: opening_failure requires an expected_error scenario"
+            )
+        if document["error_class"] != operation["error_class"]:
+            raise ValidationError(
+                "$.error_class: opening failure does not match the scenario error class"
+            )
+    elif operation["expected_outcome"] != "success":
+        raise ValidationError("$.outcome: success requires a success scenario")
+    elif (
+        document["document_type"] == "rust_coverage_receipt"
+        and "open.rejected_format" in document["branches"]
+    ):
+        raise ValidationError(
+            "$.branches: successful traversal cannot claim rejected-format coverage"
+        )
 
 
 def validate_coverage_receipt(
@@ -543,29 +645,8 @@ def validate_coverage_receipt(
     if unknown:
         raise ValidationError(f"$.branches: not in the branch registry: {unknown}")
 
-    inventory = load_json(scenario_inventory_path)
-    if SCHEMA_SET.validate(inventory) != "dao_scenario_inventory":
-        raise ValidationError(f"{scenario_inventory_path}: not a scenario inventory")
-    validate_inventory(
-        inventory,
-        capability_ids=load_capability_ids(),
-        branch_ids=branch_ids,
-    )
-    matches = [
-        scenario
-        for scenario in inventory["scenarios"]
-        if scenario["id"] == document["scenario_id"]
-    ]
-    if not matches:
-        raise ValidationError(
-            f"$.scenario_id: unknown scenario {document['scenario_id']!r}"
-        )
-    if len(matches) != 1:
-        raise ValidationError(
-            f"$.scenario_id: scenario {document['scenario_id']!r} is not unique"
-        )
-
-    scenario = matches[0]
+    scenario = _scenario_for(document, scenario_inventory_path=scenario_inventory_path)
+    _validate_outcome_for_scenario(document, scenario)
     required = set(scenario["required_branches"])
     boundary = scenario["boundary"]
     forbidden = set(boundary["forbidden_branches"]) if boundary is not None else set()

@@ -99,9 +99,10 @@
         "provenance_ids": [
           "SRC-0004",
           "SRC-0005",
-          "EXP-0056"
+          "EXP-0056",
+          "EXP-0065"
         ],
-        "sha256": "0b2dc8dd6bf63693bc1454e85e5bb7f49c0f3a1e56dc87226a221a87bb434bdb"
+        "sha256": "265b02eb120d0e60547cee2195b015108925b1f91d0acb9713b44f199f162c28"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -353,12 +354,12 @@
       {
         "path": "crates/jet3-cli/src/snapshot_bundle.rs",
         "reason": "Format-neutral fixed-name atomic artifact-bundle publication and cleanup mechanics.",
-        "sha256": "601e5316888aa5d102136122aae4a40c23351919c53ab9f74d8f84b9d39c4aa9"
+        "sha256": "1f57e1fece6df3e2210ffcefb1d889ecd13709a3ed155346e8e9e01969dc111f"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
-        "reason": "Test-only verification of format-neutral atomic bundle publication, alias rejection, and failure cleanup.",
-        "sha256": "4ed504d9071f1b773d9e688c380808b04f01fc142bed8b94d063ddad3bbd9cc3"
+        "reason": "Test-only verification of format-neutral atomic bundle publication, descriptor-relative parent-replacement resistance, alias rejection, and failure cleanup.",
+        "sha256": "1936d73a1cf43617b0ea6bc20cc2ed53e67c04b468095deed0ab4f49154612cb"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_input.rs",
@@ -408,22 +409,27 @@
       {
         "path": "crates/jet3-testkit/src/lib.rs",
         "reason": "Public protocol-support re-exports and product-scope labels only.",
-        "sha256": "cf63dcba133f56a3a98a9b07a9e31d47d6bb2b226313b33cb504394f146e9023"
+        "sha256": "10e260d545ebbb1e678f182dc2d737e48ed014eb05270177b9fdd00b13e24dad"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
         "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "974c0db7900aa6167b8c8d27a29c50dc795dd853c5642a2f68592680c2b33f96"
+        "sha256": "897565d55d5ad66b1bac4ad5f710eaffd931d5fbcb17d00323671152abc7697d"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_outcome.rs",
+        "reason": "Protocol 1.2 success/rejected-opening outcome types and exact structured format-error normalization under EXP-0065.",
+        "sha256": "10282b14b058c66a7c8ca2cb497223c350e37b79e93543f3facdfa2ed53d0a6b"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
         "reason": "Protocol 1.2 model integrity, ordering, and source-independent row identity rules.",
-        "sha256": "68d473aedbe506847b201d66eeb34d7ea279cfe6b58a16346797d7599686d268"
+        "sha256": "adfb2ec20fe788ab5ac9cd8b56273d1747d23837a015a742da41247cb4713c1b"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
         "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization.",
-        "sha256": "f4945bffa6c650efdd7628cf6effa015410b8561e13522850fb0a17b45c8e136"
+        "sha256": "1cce1b0b51f7555a1b46f2f1aa41a9ca572e0f02ff4db7ee1a8b21bc6eabe7a5"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
@@ -433,12 +439,17 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "1a5d8d940fc6380932397fd7da622b328b7c6ac95af4df432eb25a92e19646da"
+        "sha256": "dbec2b473b518d7ec8d3bcff6cac39aefcb6b269328a8835824750b2f03adc6c"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
+        "reason": "Comparison-excluded external long-value header association and bounded retention under the EXP-0064 protocol projection.",
+        "sha256": "ff18c1558738616cacb8911ed51eafa693f43b03aaaa0de5daf8df2f5ad0cf40"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
         "reason": "Semantic conversion over provenance-bound public reader values and the EXP-0063 cross-producer normalization projection.",
-        "sha256": "0ad0533efae3844f5164f467d376bdee69225b48d389a29c9ea9ca4573183ddc"
+        "sha256": "7450262065fea1489876751779447237650a1e856e7ac8d9c224ef38cb8fa0b8"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_coverage.rs",
@@ -458,7 +469,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
         "reason": "Test-only synthetic verification of the public semantic producer composition.",
-        "sha256": "24e012eb343caa7ef68bce00e228a7a8e7d05e55ae2852c62891176889f8a8e6"
+        "sha256": "e5ca3c8763cfc5acc247c25b4d22e406de8a2b23c4c6cc9eddc49b6f26406af2"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",

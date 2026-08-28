@@ -5,6 +5,7 @@ mod canonical_json;
 mod canonical_snapshot;
 mod classifier_snapshot;
 mod semantic_json;
+mod semantic_outcome;
 mod semantic_protocol;
 mod semantic_snapshot;
 mod sha256;
@@ -18,6 +19,9 @@ pub use canonical_snapshot::{
 pub use classifier_snapshot::{
     ClassifiedFixture, ClassifierSnapshot, ClassifierSnapshotError, CommitId, PageKindHistogram,
     classify_fixture,
+};
+pub use semantic_outcome::{
+    CoverageReceiptOutcome, RejectedFormatErrorClass, SemanticOpenFailure, SemanticSnapshotOutcome,
 };
 pub use semantic_protocol::{
     CoverageBranches, CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError,

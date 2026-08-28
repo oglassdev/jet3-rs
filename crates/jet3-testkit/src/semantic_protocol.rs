@@ -4,8 +4,8 @@ use std::error::Error;
 use std::fmt;
 
 use crate::{
-    Producer, PropertyMap, RawPreservation, Relationship, ScenarioId, Sha256, SnapshotError,
-    TableKind, TypedValue,
+    CoverageReceiptOutcome, Producer, PropertyMap, RawPreservation, Relationship, ScenarioId,
+    Sha256, SnapshotError, TableKind, TypedValue,
 };
 
 #[path = "semantic_protocol_validation.rs"]
@@ -107,8 +107,8 @@ pub struct CoverageReceipt {
     pub source_revision: String,
     /// SHA-256 of the exact database input bytes.
     pub database_sha256: Sha256,
-    /// SHA-256 binding the traversed allocated-page sets.
-    pub allocated_set_sha256: Sha256,
+    /// Whether traversal completed or opening failed before allocation evidence applied.
+    pub outcome: CoverageReceiptOutcome,
     /// Closed registry branch identifiers observed by the producer.
     pub branches: CoverageBranches,
 }
@@ -362,7 +362,38 @@ impl SemanticSnapshot {
 impl CoverageReceipt {
     /// Returns compact canonical UTF-8 JSON with one trailing newline.
     pub fn to_canonical_json(&self) -> Result<Vec<u8>, SemanticProtocolError> {
+        self.validate()?;
         crate::semantic_json::write_receipt(self)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), SemanticProtocolError> {
+        if self.source_revision.is_empty() || self.source_revision.len() > 200 {
+            return Err(invalid(
+                "$.source_revision",
+                "source revision must contain 1 through 200 bytes",
+            ));
+        }
+        let rejected = self.branches.contains("open.rejected_format");
+        match &self.outcome {
+            CoverageReceiptOutcome::Success { .. } if rejected => Err(invalid(
+                "$.branches",
+                "successful traversal must not claim rejected-format coverage",
+            )),
+            CoverageReceiptOutcome::OpeningFailure { .. }
+                if self.branches.iter().map(String::as_str).eq([
+                    "open.header_page",
+                    "open.rejected_format",
+                    "open.signature_geometry",
+                ]) =>
+            {
+                Ok(())
+            }
+            CoverageReceiptOutcome::OpeningFailure { .. } => Err(invalid(
+                "$.branches",
+                "opening failure must contain exactly the rejected-format opening branches",
+            )),
+            CoverageReceiptOutcome::Success { .. } => Ok(()),
+        }
     }
 }
 
@@ -489,6 +520,17 @@ fn validate_typed_value(value: &TypedValue, path: &str) -> Result<(), SemanticPr
     if needs_code_page && code_page.is_none() {
         return Err(SemanticProtocolError::MissingCodePage { path: path.into() });
     }
+    if let TypedValue::Ole {
+        value,
+        raw_hex: Some(raw),
+    } = value
+        && value != raw
+    {
+        return Err(invalid(
+            path,
+            "OLE raw_hex must equal logical payload bytes",
+        ));
+    }
     Ok(())
 }
 
@@ -520,6 +562,9 @@ mod row_key_tests {
 
     const FIXTURES: &str =
         include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/row-key-vectors.tsv");
+    const LONG_VALUE_FIXTURES: &str = include_str!(
+        "../../../oracle/windows-dao/protocol/v1_2/fixtures/long-value-comparison-vectors.tsv"
+    );
 
     fn hex(value: &str) -> Result<HexString, Box<dyn std::error::Error>> {
         Ok(HexString::new(value)?)
@@ -629,6 +674,45 @@ mod row_key_tests {
             seen += 1;
         }
         assert_eq!(seen, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn long_value_row_keys_depend_only_on_shared_logical_payload_vectors()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut seen = 0;
+        for (line_index, line) in LONG_VALUE_FIXTURES
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| !line.starts_with('#'))
+        {
+            let mut fields = line.split('\t');
+            let case = fixture_field(fields.next(), "case", line_index + 1)?;
+            let kind = fixture_field(fields.next(), "kind", line_index + 1)?;
+            let _storage = fixture_field(fields.next(), "storage", line_index + 1)?;
+            let semantic = fixture_field(fields.next(), "semantic value", line_index + 1)?;
+            let payload = fixture_field(fields.next(), "logical payload", line_index + 1)?;
+            let header = fixture_field(fields.next(), "Jet header", line_index + 1)?;
+            let expected = fixture_field(fields.next(), "row SHA-256", line_index + 1)?;
+            assert!(fields.next().is_none(), "extra field in fixture {case}");
+            assert_eq!(header.len(), 24, "{case}");
+            let value = match kind {
+                "memo" => TypedValue::Memo {
+                    value: semantic.into(),
+                    raw_hex: Some(hex(payload)?),
+                    code_page: Some(1252),
+                },
+                "ole" => TypedValue::Ole {
+                    value: hex(semantic)?,
+                    raw_hex: Some(hex(payload)?),
+                },
+                other => return Err(format!("unknown long-value kind {other}").into()),
+            };
+            let bytes = canonical_row_bytes(&PropertyMap::from([("Value".into(), value)]))?;
+            assert_eq!(sha256(&bytes)?.as_str(), expected, "{case}");
+            seen += 1;
+        }
+        assert_eq!(seen, 8);
         Ok(())
     }
 }

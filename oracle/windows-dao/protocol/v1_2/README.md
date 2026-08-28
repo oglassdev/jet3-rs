@@ -78,6 +78,36 @@ The generator recipe is a closed grammar of DAO steps (`create_database`,
 producer can marshal them exactly and the expected typed snapshot value is
 unambiguous. Unknown steps, types, or encoding/type combinations fail closed.
 
+## Outcome contract
+
+`snapshot.json` is a canonical outcome, not an assertion that every input
+opened successfully. `outcome: success` carries the complete semantic database
+members below and requires `error_class: null`. `outcome: opening_failure`
+carries only the common scenario, producer, staged-input SHA-256, comparison
+projection, and one closed `error_class`; it must not carry tables,
+relationships, database properties, ordering, raw preservation, or producer
+extensions. A rejected open is therefore never represented as an ordinary
+empty database.
+
+The admitted normalized classes are `unsupported_version`,
+`encrypted_database`, and `password_protected`, derived respectively from the
+Rust reader's exact structured `UnsupportedVersion`,
+`EncryptedOrUnsupported`, and `PasswordedOrUnsupported` format variants. No
+candidate, signature, geometry, header-read, I/O, resource, or internal error
+maps to these classes. The shared validator binds both the snapshot outcome and
+the coverage-receipt outcome to the inventory: failure requires an
+`expected_error` scenario and its exact `operation.error_class`; success
+requires a success scenario.
+
+For an opening failure, `coverage-receipt.json` sets
+`allocated_set_sha256: null` because semantic allocation traversal never
+occurred, and its branch set is exactly `open.signature_geometry`,
+`open.header_page`, and `open.rejected_format`. Successful receipts require a
+real allocated-set digest and cannot claim `open.rejected_format`. The two
+artifacts retain the same scenario id, staged-input digest, build-bound Rust
+revision, outcome, and error class and are published through the same atomic
+bundle boundary.
+
 ## Snapshot contract
 
 The snapshot keeps the 1.0/1.1 typed-value model and `jet3-testkit`
@@ -98,6 +128,15 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   field bytes) must carry `raw_hex`. Fixed-width row values must carry exactly
   the DAO type's physical width, and text/memo values must identify their
   `code_page`. Two producers can therefore only agree on a complete model.
+- **Long values compare by logical payload.** For `memo` and `ole`, comparable
+  `raw_hex` is exactly the logical payload byte sequence, independent of
+  inline, single-page, or chained Jet storage. It excludes the 12-byte Jet
+  long-value header, link bytes, page/slot locators, row-directory bytes, and
+  all other storage framing. For OLE, `value` and `raw_hex` are the same
+  lowercase hexadecimal byte sequence; for Memo, `raw_hex` is the source
+  code-page byte sequence represented by `value`. Consequently equal logical
+  values have equal typed-value bytes and row hashes even when their physical
+  locators differ.
 - **Unavailable schema facts are not part of the compared model.** Column
   `nullable`/`required` and index `ignore_nulls` are removed from the
   canonical column and index objects because the recorded provenance shows
@@ -117,18 +156,30 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   differ) and `/producer_extensions`. Everything else, including array order,
   object membership, `raw_hex`, and `raw_preservation`, is compared
   byte-for-byte after projection.
+- **Rust external-header retention.** When Rust reads an external Memo/OLE, it
+  retains the exact 12-byte Jet header only in `producer_extensions` as a
+  `binary` typed value whose `value` and `raw_hex` are the same 24 lowercase
+  hexadecimal digits. Its key is
+  `/tables/{table_index}/rows/{row_index}/values/{escaped_column_name}/jet_external_long_value_header`,
+  where both indices address the final canonical arrays and the column token
+  uses JSON Pointer `~0`/`~1` escaping. This creates one unambiguous association
+  with the comparable value while keeping the physical locator outside row
+  hashing and byte comparison. The shared validator rejects malformed or
+  unresolved associations. DAO does not emit this Rust storage metadata and
+  must not expose it as a required comparable fact.
 - The 1.1 per-array size caps are lifted; bounds come from the scenario
   recipe and the reader's resource limits.
 
-DAO never emits allocation internals. The Rust producer additionally emits
+DAO never emits allocation internals. For successful Rust reads, the additional
 `coverage-receipt.json` is bound to the source database SHA-256 and Rust source
-revision and lists only closed registry branch ids. `allocated_set_sha256` is
-SHA-256 over this deterministic byte stream: user tables in canonical name
-order, each encoded as the little-endian `u64` UTF-8 name length, name bytes,
-little-endian `u64` table-definition root, each traversed owned page as a
-little-endian `u64`, and a little-endian `u64::MAX` table terminator. This
-digest compares the page set actually admitted to semantic traversal without
-placing allocation internals in the DAO/Rust comparison projection.
+revision and lists only closed registry branch ids. Its
+`allocated_set_sha256` is SHA-256 over this deterministic byte stream: user
+tables in canonical name order, each encoded as the little-endian `u64` UTF-8
+name length, name bytes, little-endian `u64` table-definition root, each
+traversed owned page as a little-endian `u64`, and a little-endian `u64::MAX`
+table terminator. This digest compares the page set actually admitted to
+semantic traversal without placing allocation internals in the DAO/Rust
+comparison projection.
 
 ## Portable commands
 

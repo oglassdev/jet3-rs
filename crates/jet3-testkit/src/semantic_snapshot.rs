@@ -1,21 +1,14 @@
-//! Rust producer of protocol canonical semantic snapshots.
-//!
-//! This adapter translates the currently supported semantic-reader output of
-//! one opened Jet 3 database into the typed [`CanonicalSnapshot`] model. It is
-//! bound to the public `jet3` API only, charges every retained object to the
-//! caller's operation budget before allocating it, and fails closed on any
-//! catalog object, value, or name form the reader does not yet interpret.
-//! Schema facts the reader cannot establish are reported as unavailable, never
-//! guessed. A snapshot is a Rust self-read; it never establishes DAO
-//! compatibility on its own.
-
+//! Bounded Rust producer of protocol canonical semantic snapshots.
+//! Unknown schema facts remain unavailable. A Rust self-read never establishes
+//! DAO compatibility on its own.
 use std::error::Error;
 use std::fmt;
 
 use crate::{
-    CoverageBranches, CoverageReceipt, HexString, Producer, PropertyMap, ScenarioId,
-    SemanticProtocolError, SemanticRow, SemanticSnapshot, SemanticTable, Sha256, Sha256Hasher,
-    SnapshotError, TableKind, TypedValue, hex_digest,
+    CoverageBranches, CoverageReceipt, CoverageReceiptOutcome, HexString, Producer, PropertyMap,
+    ScenarioId, SemanticOpenFailure, SemanticProtocolError, SemanticRow, SemanticSnapshot,
+    SemanticSnapshotOutcome, SemanticTable, Sha256, Sha256Hasher, SnapshotError, TableKind,
+    TypedValue, hex_digest,
 };
 use jet3::{
     AllocationMapError, AllocationTraversalError, CatalogError, DatabasePageError, DatabaseReader,
@@ -28,6 +21,8 @@ use jet3::{
 mod convert;
 #[path = "semantic_snapshot_coverage.rs"]
 mod coverage;
+#[path = "semantic_snapshot_long.rs"]
+mod long_metadata;
 #[path = "semantic_snapshot_retained.rs"]
 mod retained;
 #[path = "semantic_snapshot_schema.rs"]
@@ -35,6 +30,7 @@ mod schema;
 
 use convert::{convert_column, convert_index, convert_value};
 use coverage::{collect_allocation_evidence, collect_index_evidence, record_value_branch};
+use long_metadata::{PendingLongValueHeader, append_hex, retain_long_value_headers};
 use retained::RetainedLedger;
 use schema::{
     CatalogTable, collect_relationship_sides, collect_user_tables, column_names,
@@ -222,11 +218,11 @@ impl From<SemanticProtocolError> for SemanticSnapshotError {
     }
 }
 
-/// The paired protocol documents emitted for one successful Rust read.
+/// The paired protocol documents emitted for one Rust read outcome.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticSnapshotArtifacts {
-    /// Canonical protocol 1.2 semantic snapshot.
-    pub snapshot: SemanticSnapshot,
+    /// Canonical protocol 1.2 semantic success or opening-failure outcome.
+    pub snapshot: SemanticSnapshotOutcome,
     /// Database-bound coverage evidence emitted beside the snapshot.
     pub coverage_receipt: CoverageReceipt,
 }
@@ -238,9 +234,77 @@ impl SemanticSnapshotArtifacts {
         &self,
         budget: &mut ResourceBudget,
     ) -> Result<(Vec<u8>, Vec<u8>), SemanticSnapshotError> {
-        let snapshot = crate::semantic_json::write_snapshot_budgeted(&self.snapshot, budget)?;
+        self.validate_pair()?;
+        let snapshot = crate::semantic_json::write_outcome_budgeted(&self.snapshot, budget)?;
         let receipt = crate::semantic_json::write_receipt_budgeted(&self.coverage_receipt, budget)?;
         Ok((snapshot, receipt))
+    }
+
+    /// Constructs the paired canonical artifacts for one admitted open rejection.
+    pub fn opening_failure(
+        failure: SemanticOpenFailure,
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, SemanticSnapshotError> {
+        let mut ledger = RetainedLedger::new();
+        let mut branches = CoverageBranches::new();
+        for branch in [
+            "open.header_page",
+            "open.rejected_format",
+            "open.signature_geometry",
+        ] {
+            ledger.branch(budget, &mut branches, branch)?;
+        }
+        let scenario_id = ScenarioId::new(ledger.text(budget, failure.scenario_id.as_str())?)?;
+        let source_revision = ledger.text(budget, failure.producer.source_revision())?;
+        let database_sha256 = Sha256::new(ledger.text(budget, failure.database_sha256.as_str())?)?;
+        let coverage_receipt = CoverageReceipt {
+            scenario_id,
+            source_revision,
+            database_sha256,
+            outcome: CoverageReceiptOutcome::OpeningFailure {
+                error_class: failure.error_class,
+            },
+            branches,
+        };
+        Ok(Self {
+            snapshot: SemanticSnapshotOutcome::OpeningFailure(failure),
+            coverage_receipt,
+        })
+    }
+
+    fn validate_pair(&self) -> Result<(), SemanticSnapshotError> {
+        self.snapshot.validate()?;
+        self.coverage_receipt.validate()?;
+        let (scenario_id, source_revision, database_sha256, error_class) = match &self.snapshot {
+            SemanticSnapshotOutcome::Success(snapshot) => (
+                &snapshot.scenario_id,
+                snapshot.producer.source_revision(),
+                &snapshot.database_sha256,
+                None,
+            ),
+            SemanticSnapshotOutcome::OpeningFailure(failure) => (
+                &failure.scenario_id,
+                failure.producer.source_revision(),
+                &failure.database_sha256,
+                Some(failure.error_class),
+            ),
+        };
+        let receipt_error = match &self.coverage_receipt.outcome {
+            CoverageReceiptOutcome::Success { .. } => None,
+            CoverageReceiptOutcome::OpeningFailure { error_class } => Some(*error_class),
+        };
+        if scenario_id != &self.coverage_receipt.scenario_id
+            || source_revision != self.coverage_receipt.source_revision
+            || database_sha256 != &self.coverage_receipt.database_sha256
+            || error_class != receipt_error
+        {
+            return Err(SemanticProtocolError::InvalidModel {
+                path: "$".to_owned(),
+                reason: "snapshot and coverage receipt bindings must match exactly",
+            }
+            .into());
+        }
+        Ok(())
     }
 }
 
@@ -250,8 +314,11 @@ struct CollectionContext<'a> {
     ledger: &'a mut RetainedLedger,
     branches: &'a mut CoverageBranches,
     producer_extensions: &'a mut PropertyMap,
+    long_value_headers: &'a mut Vec<PendingLongValueHeader>,
     table_index: usize,
 }
+
+type CollectedRow = (PropertyMap, Vec<(usize, String, LongValueReference)>);
 
 /// Produces one deterministic canonical snapshot of every user table.
 ///
@@ -266,7 +333,10 @@ pub fn snapshot_database<S: ReadAt>(
     options: &SemanticSnapshotOptions,
     budget: &mut ResourceBudget,
 ) -> Result<SemanticSnapshot, SemanticSnapshotError> {
-    snapshot_database_with_receipt(database, options, budget).map(|artifacts| artifacts.snapshot)
+    snapshot_database_with_receipt(database, options, budget)?
+        .snapshot
+        .into_success()
+        .map_err(Into::into)
 }
 
 /// Produces the canonical snapshot and its database-bound coverage receipt.
@@ -295,6 +365,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
     }
     let mut allocated_hasher = Sha256Hasher::new();
     let mut sides = Vec::new();
+    let mut long_value_headers = Vec::new();
     ledger.reserve_vec(budget, &mut snapshot.tables, catalog.len())?;
     for entry in &catalog {
         let definition = database
@@ -321,6 +392,7 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
                 ledger: &mut ledger,
                 branches: &mut branches,
                 producer_extensions: &mut snapshot.producer_extensions,
+                long_value_headers: &mut long_value_headers,
                 table_index: snapshot.tables.len(),
             },
         )?;
@@ -337,6 +409,14 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
         .charge_allocation(canonicalization_bound)
         .map_err(SemanticSnapshotError::Resource)?;
     snapshot.canonicalize()?;
+    retain_long_value_headers(
+        &snapshot.tables,
+        &long_value_headers,
+        &mut snapshot.producer_extensions,
+        budget,
+        &mut ledger,
+    )?;
+    snapshot.validate()?;
     ledger.charge(budget, options.scenario_id.as_str().len())?;
     let scenario_id = options.scenario_id.clone();
     ledger.charge(budget, options.producer.source_revision().len())?;
@@ -355,11 +435,13 @@ pub fn snapshot_database_with_receipt<S: ReadAt>(
         scenario_id,
         source_revision,
         database_sha256,
-        allocated_set_sha256,
+        outcome: CoverageReceiptOutcome::Success {
+            allocated_set_sha256,
+        },
         branches,
     };
     Ok(SemanticSnapshotArtifacts {
-        snapshot,
+        snapshot: SemanticSnapshotOutcome::Success(snapshot),
         coverage_receipt: receipt,
     })
 }
@@ -484,20 +566,61 @@ fn collect_rows<S: ReadAt>(
             context.ledger,
             context.branches,
         )?;
-        for (key, reference) in external {
-            let value =
+        let mut headers = Vec::new();
+        context
+            .ledger
+            .reserve_vec(cursor.budget_mut(), &mut headers, external.len())?;
+        for (column_index, key, reference) in external {
+            let (value, raw_header) =
                 stream_external_value(&mut cursor, reference, context.ledger, context.branches)?;
             context
                 .ledger
                 .insert(cursor.budget_mut(), &mut values, key, value)?;
+            headers.push((column_index, raw_header));
         }
+        let row_bytes_bound = crate::semantic_json::properties_allocation_bound(&values)
+            .and_then(|bound| bound.checked_add(1))
+            .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
+                operation: "size retained row identity",
+            }))?;
+        context
+            .ledger
+            .charge(cursor.budget_mut(), row_bytes_bound)?;
+        let mut row_bytes =
+            crate::semantic_json::write_properties(&values, "$.tables[].rows[].values")?;
+        row_bytes.push(b'\n');
         context.ledger.charge(cursor.budget_mut(), 64)?;
+        let canonical_key = crate::semantic_protocol::sha256(&row_bytes)?;
+        let duplicate_ordinal = rows
+            .iter()
+            .filter(|row: &&SemanticRow| row.canonical_key == canonical_key)
+            .count();
+        let duplicate_ordinal = u64::try_from(duplicate_ordinal).map_err(|_| {
+            SemanticSnapshotError::Resource(jet3::Error::IntegerConversion {
+                value: duplicate_ordinal as u128,
+                target: "u64",
+            })
+        })?;
+        for (column_index, raw_header) in headers {
+            context.ledger.charge(cursor.budget_mut(), 64)?;
+            context.ledger.push(
+                cursor.budget_mut(),
+                context.long_value_headers,
+                PendingLongValueHeader {
+                    table_index: context.table_index,
+                    column_index,
+                    row_key: canonical_key.clone(),
+                    duplicate_ordinal,
+                    raw_header,
+                },
+            )?;
+        }
         context.ledger.push(
             cursor.budget_mut(),
             &mut rows,
             SemanticRow {
-                canonical_key: Sha256::new("00".repeat(32))?,
-                duplicate_ordinal: 0,
+                canonical_key,
+                duplicate_ordinal,
                 values,
             },
         )?;
@@ -526,10 +649,10 @@ fn collect_row(
     code_page: TextCodePage,
     ledger: &mut RetainedLedger,
     branches: &mut CoverageBranches,
-) -> Result<(PropertyMap, Vec<(String, LongValueReference)>), SemanticSnapshotError> {
+) -> Result<CollectedRow, SemanticSnapshotError> {
     let mut values = PropertyMap::new();
     let mut external = Vec::new();
-    for (column, name) in definition.columns().iter().zip(names) {
+    for (column_index, (column, name)) in definition.columns().iter().zip(names).enumerate() {
         let ordinal = column.ordinal();
         let decoded = view
             .value(ordinal, code_page)
@@ -540,7 +663,11 @@ fn collect_row(
             })?;
         let key = ledger.text(view.budget_mut(), name)?;
         if let jet3::ValueKind::LongValue(LongValue::External(reference)) = decoded.kind() {
-            ledger.push(view.budget_mut(), &mut external, (key, *reference))?;
+            ledger.push(
+                view.budget_mut(),
+                &mut external,
+                (column_index, key, *reference),
+            )?;
         } else {
             let value = convert_value(&decoded, table, ordinal.get(), view.budget_mut(), ledger)?;
             record_value_branch(&value, code_page, view.budget_mut(), ledger, branches)?;
@@ -555,13 +682,12 @@ fn stream_external_value<S: ReadAt>(
     reference: LongValueReference,
     ledger: &mut RetainedLedger,
     branches: &mut CoverageBranches,
-) -> Result<TypedValue, SemanticSnapshotError> {
+) -> Result<(TypedValue, [u8; 12]), SemanticSnapshotError> {
     let branch = match reference.storage() {
         ExternalLongValueStorage::SinglePage => "long_value.single_page",
         ExternalLongValueStorage::Chained => "long_value.chained",
     };
     ledger.branch(rows.budget_mut(), branches, branch)?;
-    let raw_hex = Some(ledger.hex(rows.budget_mut(), &reference.raw_header())?);
     let retained_capacity = match reference.kind() {
         LongValueKind::Memo => usize::try_from(reference.length())
             .ok()
@@ -581,6 +707,16 @@ fn stream_external_value<S: ReadAt>(
             kind: std::io::ErrorKind::OutOfMemory,
         })
     })?;
+    let mut raw_output = String::new();
+    if reference.kind() == LongValueKind::Memo {
+        let raw_capacity = usize::try_from(reference.length())
+            .ok()
+            .and_then(|length| length.checked_mul(2))
+            .ok_or(SemanticSnapshotError::Resource(jet3::Error::Arithmetic {
+                operation: "size retained external memo payload",
+            }))?;
+        ledger.reserve_string(rows.budget_mut(), &mut raw_output, raw_capacity)?;
+    }
     let mut stream = rows
         .long_value(reference)
         .map_err(SemanticSnapshotError::LongValue)?;
@@ -598,12 +734,17 @@ fn stream_external_value<S: ReadAt>(
                     });
                 };
                 output.push_str(text.as_str());
+                append_hex(&mut raw_output, text.raw_bytes());
             }
-            Ok(TypedValue::Memo {
-                value: output,
-                raw_hex,
-                code_page: Some(u32::from(reference.code_page().number())),
-            })
+            let raw_hex = Some(HexString::new(raw_output)?);
+            Ok((
+                TypedValue::Memo {
+                    value: output,
+                    raw_hex,
+                    code_page: Some(u32::from(reference.code_page().number())),
+                },
+                reference.raw_header(),
+            ))
         }
         LongValueKind::Ole => {
             while let Some(chunk) = stream
@@ -626,10 +767,11 @@ fn stream_external_value<S: ReadAt>(
                     })?;
                 }
             }
-            Ok(TypedValue::Ole {
-                value: HexString::new(output)?,
-                raw_hex,
-            })
+            let value = HexString::new(output)?;
+            let raw_hex = Some(HexString::new(
+                ledger.text(rows.budget_mut(), value.as_str())?,
+            )?);
+            Ok((TypedValue::Ole { value, raw_hex }, reference.raw_header()))
         }
     }
 }

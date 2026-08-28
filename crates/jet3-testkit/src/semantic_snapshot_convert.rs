@@ -133,7 +133,9 @@ pub(super) fn convert_index(
 
 /// Converts one decoded field into its typed canonical value.
 ///
-/// Every present value retains its exact physical bytes as `raw_hex`.
+/// Scalars and short values retain their exact physical bytes as `raw_hex`.
+/// Long values retain their logical payload bytes so storage headers and
+/// locators cannot enter the comparison projection.
 /// External long values are streamed by the caller; non-finite numbers fail closed.
 pub(super) fn convert_value(
     decoded: &DecodedValue<'_>,
@@ -147,9 +149,9 @@ pub(super) fn convert_value(
         column,
         form,
     };
-    let raw_hex = match decoded.raw_bytes() {
-        Some(bytes) => Some(ledger.hex(budget, bytes)?),
-        None => None,
+    let raw_hex = match (decoded.kind(), decoded.raw_bytes()) {
+        (ValueKind::LongValue(_), _) | (_, None) => None,
+        (_, Some(bytes)) => Some(ledger.hex(budget, bytes)?),
     };
     Ok(match decoded.kind() {
         ValueKind::Null => TypedValue::Null { raw_hex: None },
@@ -203,12 +205,12 @@ pub(super) fn convert_value(
         ValueKind::LongValue(LongValue::Inline { value, .. }) => match value {
             InlineLongValue::Text(text) => TypedValue::Memo {
                 value: ledger.text(budget, text.as_str())?,
-                raw_hex,
+                raw_hex: Some(ledger.hex(budget, text.raw_bytes())?),
                 code_page: Some(u32::from(text.code_page().number())),
             },
             InlineLongValue::Binary(bytes) => TypedValue::Ole {
                 value: ledger.hex(budget, bytes)?,
-                raw_hex,
+                raw_hex: Some(ledger.hex(budget, bytes)?),
             },
             _ => return Err(unsupported(UnsupportedValueForm::ExternalLongValue)),
         },

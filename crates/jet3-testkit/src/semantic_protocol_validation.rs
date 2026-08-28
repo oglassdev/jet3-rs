@@ -1,7 +1,7 @@
 //! Complete validation for protocol 1.2 semantic snapshot models.
 
 use super::{SemanticProtocolError, SemanticSnapshot, SemanticTable, invalid};
-use crate::{HexString, PropertyMap, TypedValue};
+use crate::{HexString, ProducerKind, PropertyMap, TypedValue};
 
 pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), SemanticProtocolError> {
     validate_properties(&snapshot.database_properties, "$.database_properties")?;
@@ -81,6 +81,9 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
                 format!("$.producer_extensions[{key:?}]"),
                 "key must be a non-empty JSON pointer",
             ));
+        }
+        if key.ends_with("/jet_external_long_value_header") {
+            validate_external_long_value_header(snapshot, key)?;
         }
     }
     validate_properties(&snapshot.producer_extensions, "$.producer_extensions")
@@ -346,4 +349,79 @@ fn raw_hex(value: &TypedValue) -> Option<&HexString> {
         | TypedValue::Memo { raw_hex, .. }
         | TypedValue::Ole { raw_hex, .. } => raw_hex.as_ref(),
     }
+}
+
+fn validate_external_long_value_header(
+    snapshot: &SemanticSnapshot,
+    key: &str,
+) -> Result<(), SemanticProtocolError> {
+    let invalid_header = || {
+        invalid(
+            format!("$.producer_extensions[{key:?}]"),
+            "external long-value header must resolve to Memo/OLE and contain exact 12-byte binary data",
+        )
+    };
+    let mut tokens = key.split('/');
+    if snapshot.producer.kind != ProducerKind::Rust {
+        return Err(invalid_header());
+    }
+    if tokens.next() != Some("") || tokens.next() != Some("tables") {
+        return Err(invalid_header());
+    }
+    let table_index = tokens
+        .next()
+        .and_then(|token| token.parse::<usize>().ok())
+        .ok_or_else(&invalid_header)?;
+    if tokens.next() != Some("rows") {
+        return Err(invalid_header());
+    }
+    let row_index = tokens
+        .next()
+        .and_then(|token| token.parse::<usize>().ok())
+        .ok_or_else(&invalid_header)?;
+    if tokens.next() != Some("values") {
+        return Err(invalid_header());
+    }
+    let column = tokens.next().ok_or_else(&invalid_header)?;
+    if tokens.next() != Some("jet_external_long_value_header") || tokens.next().is_some() {
+        return Err(invalid_header());
+    }
+    let column = decode_pointer_token(column).ok_or_else(&invalid_header)?;
+    let target = snapshot
+        .tables
+        .get(table_index)
+        .and_then(|table| table.rows.get(row_index))
+        .and_then(|row| row.values.get(&column))
+        .ok_or_else(&invalid_header)?;
+    if !matches!(target, TypedValue::Memo { .. } | TypedValue::Ole { .. }) {
+        return Err(invalid_header());
+    }
+    let header = snapshot
+        .producer_extensions
+        .get(key)
+        .ok_or_else(&invalid_header)?;
+    match header {
+        TypedValue::Binary {
+            value,
+            raw_hex: Some(raw),
+        } if value.as_str().len() == 24 && value == raw => Ok(()),
+        _ => Err(invalid_header()),
+    }
+}
+
+fn decode_pointer_token(token: &str) -> Option<String> {
+    let mut decoded = String::new();
+    let mut characters = token.chars();
+    while let Some(character) = characters.next() {
+        if character != '~' {
+            decoded.push(character);
+            continue;
+        }
+        decoded.push(match characters.next()? {
+            '0' => '~',
+            '1' => '/',
+            _ => return None,
+        });
+    }
+    Some(decoded)
 }

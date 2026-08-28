@@ -2,29 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json",
   "title": "Canonical DAO/Rust semantic snapshot (differential read program)",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "protocol_version",
-    "document_type",
-    "scenario_id",
-    "producer",
-    "database_sha256",
-    "ordering",
-    "comparison_projection",
-    "database_properties",
-    "tables",
-    "relationships",
-    "raw_preservation",
-    "producer_extensions"
-  ],
   "properties": {
-    "protocol_version": { "const": "1.2.0" },
-    "document_type": { "const": "canonical_semantic_snapshot" },
-    "scenario_id": {
-      "type": "string",
-      "pattern": "^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$"
-    },
+    "document_type": { "const": "canonical_semantic_snapshot" }
+  },
+  "anyOf": [
+    { "$ref": "#/$defs/successDocument" },
+    { "$ref": "#/$defs/openingFailureDocument" }
+  ],
+  "$defs": {
     "producer": {
       "type": "object",
       "additionalProperties": false,
@@ -34,60 +19,94 @@
         "source_revision": { "type": "string", "minLength": 1, "maxLength": 200 }
       }
     },
-    "database_sha256": { "$ref": "#/$defs/sha256" },
-    "ordering": {
+    "successDocument": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "objects",
-        "columns",
-        "indexes",
-        "relationships",
-        "rows",
-        "object_keys"
+        "protocol_version", "document_type", "scenario_id", "producer",
+        "database_sha256", "outcome", "error_class", "ordering",
+        "comparison_projection", "database_properties", "tables",
+        "relationships", "raw_preservation", "producer_extensions"
       ],
       "properties": {
-        "objects": { "const": "name_codepoint_ascending" },
-        "columns": { "const": "ordinal_ascending" },
-        "indexes": { "const": "name_codepoint_ascending" },
-        "relationships": { "const": "name_codepoint_ascending" },
-        "rows": { "const": "values_sha256_then_duplicate_ordinal" },
-        "object_keys": { "const": "unicode_codepoint_ascending" }
+        "protocol_version": { "const": "1.2.0" },
+        "document_type": { "const": "canonical_semantic_snapshot" },
+        "scenario_id": { "$ref": "#/$defs/scenarioId" },
+        "producer": { "$ref": "#/$defs/producer" },
+        "database_sha256": { "$ref": "#/$defs/sha256" },
+        "outcome": { "const": "success" },
+        "error_class": { "type": "null" },
+        "ordering": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objects", "columns", "indexes", "relationships", "rows", "object_keys"],
+          "properties": {
+            "objects": { "const": "name_codepoint_ascending" },
+            "columns": { "const": "ordinal_ascending" },
+            "indexes": { "const": "name_codepoint_ascending" },
+            "relationships": { "const": "name_codepoint_ascending" },
+            "rows": { "const": "values_sha256_then_duplicate_ordinal" },
+            "object_keys": { "const": "unicode_codepoint_ascending" }
+          }
+        },
+        "comparison_projection": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [{ "const": "/producer" }, { "const": "/producer_extensions" }],
+          "items": false
+        },
+        "database_properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        },
+        "tables": { "type": "array", "items": { "$ref": "#/$defs/table" } },
+        "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+        "raw_preservation": { "type": "array", "items": { "$ref": "#/$defs/rawField" } },
+        "producer_extensions": {
+          "title": "Comparison-excluded producer facts, including Rust external long-value headers",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typedValue" }
+        }
       }
     },
-    "comparison_projection": {
-      "type": "array",
-      "minItems": 2,
-      "prefixItems": [
-        { "const": "/producer" },
-        { "const": "/producer_extensions" }
+    "openingFailureDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version", "document_type", "scenario_id", "producer",
+        "database_sha256", "outcome", "error_class", "comparison_projection"
       ],
-      "items": false
+      "properties": {
+        "protocol_version": { "const": "1.2.0" },
+        "document_type": { "const": "canonical_semantic_snapshot" },
+        "scenario_id": { "$ref": "#/$defs/scenarioId" },
+        "producer": { "$ref": "#/$defs/producer" },
+        "database_sha256": { "$ref": "#/$defs/sha256" },
+        "outcome": { "const": "opening_failure" },
+        "error_class": {
+          "enum": ["unsupported_version", "encrypted_database", "password_protected"]
+        },
+        "comparison_projection": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [{ "const": "/producer" }],
+          "items": false
+        }
+      }
     },
-    "database_properties": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/typedValue" }
+    "scenarioId": {
+      "type": "string",
+      "pattern": "^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$"
     },
-    "tables": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/table" }
-    },
-    "relationships": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/relationship" }
-    },
-    "raw_preservation": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/rawField" }
-    },
-    "producer_extensions": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/typedValue" }
-    }
-  },
-  "$defs": {
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "hex": { "type": "string", "pattern": "^(?:[0-9a-f]{2})*$" },
+    "comparableRawHex": {
+      "title": "Comparable source bytes; Memo/OLE contain logical payload bytes without Jet storage framing",
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{2})*$"
+    },
     "typedValue": {
       "type": "object",
       "additionalProperties": false,
@@ -115,7 +134,7 @@
         "value": {
           "type": ["null", "boolean", "integer", "number", "string"]
         },
-        "raw_hex": { "$ref": "#/$defs/hex" },
+        "raw_hex": { "$ref": "#/$defs/comparableRawHex" },
         "code_page": { "type": "integer", "minimum": 0 }
       }
     },
