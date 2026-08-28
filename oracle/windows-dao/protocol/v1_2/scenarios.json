@@ -735,13 +735,12 @@
         "open.header_page",
         "open.signature_geometry",
         "rows.direct",
-        "rows.overflow_pointer",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "1b2b9ff86828ca58bdd5a79daa4ceb103768c15e9d733cdc2392cf974f04f53f"
+      "content_sha256": "4f4a2422beb06fafb20010c7672f15fea3ad9e90ca137b978ad0325de5f1e247"
     },
     {
       "id": "DAO-READ-ALLOC-SMALL-INLINE",
@@ -1423,13 +1422,12 @@
         "open.header_page",
         "open.signature_geometry",
         "rows.direct",
-        "rows.overflow_pointer",
         "tdef.column_types",
         "tdef.single_page"
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "a303c6af370e9249014087c2621035be42b8fbaffad3c494cd5f9ed4125f52d3"
+      "content_sha256": "6f1dbc7daaea15cd33d59e642660e64264e6282187bd6223ba949fa6049b5aba"
     },
     {
       "id": "DAO-READ-ROWS-PAGE-SPAN",
@@ -1463,13 +1461,7 @@
                 "required": false
               },
               {
-                "name": "Name",
-                "dao_type": "dbText",
-                "size": 255,
-                "required": false
-              },
-              {
-                "name": "Note",
+                "name": "Payload",
                 "dao_type": "dbText",
                 "size": 255,
                 "required": false
@@ -1488,15 +1480,7 @@
                   "value": 1
                 },
                 {
-                  "field": "Name",
-                  "encoding": "repeat_ascii",
-                  "value": {
-                    "unit": "N",
-                    "length": 255
-                  }
-                },
-                {
-                  "field": "Note",
+                  "field": "Payload",
                   "encoding": "repeat_ascii",
                   "value": {
                     "unit": "O",
@@ -1519,7 +1503,6 @@
         "open.header_page",
         "open.signature_geometry",
         "rows.direct",
-        "rows.overflow_pointer",
         "rows.wide_variable_layout",
         "tdef.column_types",
         "tdef.single_page",
@@ -1527,7 +1510,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "9df460bb17e097b483919c99d97cf712375c6bbd807ec3dfebf51f1d643ba4d5"
+      "content_sha256": "b534e881b4f53110b0dedd509cb146040f4ab3211cb686c7eb97a528a2664cad"
     },
     {
       "id": "DAO-READ-ROWS-SINGLE",

@@ -6,8 +6,9 @@ use jet3::{
 };
 
 use crate::{
-    Producer, ProducerKind, ScenarioId, SemanticSnapshotError, SemanticSnapshotOptions, Sha256,
-    TableKind, TypedValue, snapshot_database, snapshot_database_with_receipt,
+    Producer, ProducerKind, ScenarioId, SemanticSnapshotError, SemanticSnapshotOptions,
+    SemanticSnapshotOutcome, Sha256, TableKind, TypedValue, snapshot_database,
+    snapshot_database_with_receipt,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -481,6 +482,68 @@ fn final_artifact_reservations_are_exactly_budgeted_before_growth()
         })
     ));
     assert!(rejected.allocation_bytes().get() < exact.get());
+    Ok(())
+}
+
+#[test]
+fn tiny_artifact_budget_rejects_large_public_model_before_row_walk()
+-> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(SecondColumn::Text, 1);
+    let mut artifacts = artifacts(&bytes, limits(&bytes))?;
+    let SemanticSnapshotOutcome::Success(snapshot) = &mut artifacts.snapshot else {
+        return Err(std::io::Error::other("synthetic snapshot unexpectedly failed to open").into());
+    };
+    let row = snapshot.tables[0]
+        .rows
+        .first()
+        .cloned()
+        .ok_or_else(|| std::io::Error::other("synthetic snapshot has no row"))?;
+    snapshot.tables[0].rows = vec![row; 20_000];
+
+    let maximum = ByteCount::new(4_096);
+    let mut budget = ResourceBudget::new(limits(&bytes).with_max_allocation_bytes(maximum));
+    let Err(error) = artifacts.to_canonical_json(&mut budget) else {
+        return Err(std::io::Error::other(
+            "large public model unexpectedly fit the tiny validation budget",
+        )
+        .into());
+    };
+    assert!(matches!(
+        error,
+        SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::AllocationBytes,
+            ..
+        })
+    ));
+    assert!(budget.allocation_bytes() <= maximum);
+    assert!(budget.total_work_units() <= maximum.get());
+    Ok(())
+}
+
+#[test]
+fn artifact_validation_uses_the_callers_text_decode_budget()
+-> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(SecondColumn::Text, 1);
+    let artifacts = artifacts(&bytes, limits(&bytes))?;
+    let zero = ByteCount::new(0);
+    let validation_limits = limits(&bytes)
+        .with_max_decoded_value_bytes(zero)
+        .with_max_total_decoded_bytes(zero);
+    let mut budget = ResourceBudget::new(validation_limits);
+    let Err(error) = artifacts.to_canonical_json(&mut budget) else {
+        return Err(std::io::Error::other(
+            "text validation unexpectedly bypassed the caller's decode budget",
+        )
+        .into());
+    };
+    assert!(matches!(
+        error,
+        SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::DecodedValueBytes,
+            ..
+        })
+    ));
+    assert_eq!(budget.decoded_bytes(), zero);
     Ok(())
 }
 

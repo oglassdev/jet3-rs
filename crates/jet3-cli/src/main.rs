@@ -381,8 +381,7 @@ fn snapshot_with_producer(
         ByteCount::new(max_total_read),
     );
     let mut budget = ResourceBudget::new(ResourceLimits::new(read_limits));
-    let source = FileSource::from_file(staged.traversal_file()?, budget.read_budget())
-        .map_err(|_| "open_failed")?;
+    let source = staged.traversal_source(budget.read_budget())?;
     let artifacts = match DatabaseReader::from_source(source, &mut budget) {
         Ok(mut database) => {
             scenario.validate_success().map_err(scenario_error_code)?;

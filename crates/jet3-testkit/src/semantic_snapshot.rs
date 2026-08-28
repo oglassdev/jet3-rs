@@ -30,7 +30,10 @@ mod schema;
 
 use convert::{convert_column, convert_index, convert_value};
 use coverage::{collect_allocation_evidence, collect_index_evidence, record_value_branch};
-use long_metadata::{PendingLongValueHeader, append_hex, retain_long_value_headers};
+use long_metadata::{
+    CollectedSemanticRow, PendingLongValueHeader, append_hex, canonicalize_collected_rows,
+    retain_long_value_headers,
+};
 use retained::RetainedLedger;
 use schema::{
     CatalogTable, collect_relationship_sides, collect_user_tables, column_names,
@@ -234,9 +237,13 @@ impl SemanticSnapshotArtifacts {
         &self,
         budget: &mut ResourceBudget,
     ) -> Result<(Vec<u8>, Vec<u8>), SemanticSnapshotError> {
-        self.validate_pair()?;
-        let snapshot = crate::semantic_json::write_outcome_budgeted(&self.snapshot, budget)?;
-        let receipt = crate::semantic_json::write_receipt_budgeted(&self.coverage_receipt, budget)?;
+        crate::semantic_json::validate_outcome_budgeted(&self.snapshot, budget)?;
+        crate::semantic_json::validate_receipt_budgeted(&self.coverage_receipt, budget)?;
+        self.validate_pair_bindings()?;
+        let snapshot =
+            crate::semantic_json::write_outcome_budgeted_validated(&self.snapshot, budget)?;
+        let receipt =
+            crate::semantic_json::write_receipt_budgeted_validated(&self.coverage_receipt, budget)?;
         Ok((snapshot, receipt))
     }
 
@@ -272,9 +279,7 @@ impl SemanticSnapshotArtifacts {
         })
     }
 
-    fn validate_pair(&self) -> Result<(), SemanticSnapshotError> {
-        self.snapshot.validate()?;
-        self.coverage_receipt.validate()?;
+    fn validate_pair_bindings(&self) -> Result<(), SemanticSnapshotError> {
         let (scenario_id, source_revision, database_sha256, error_class) = match &self.snapshot {
             SemanticSnapshotOutcome::Success(snapshot) => (
                 &snapshot.scenario_id,
@@ -318,7 +323,7 @@ struct CollectionContext<'a> {
     table_index: usize,
 }
 
-type CollectedRow = (PropertyMap, Vec<(usize, String, LongValueReference)>);
+type DecodedRow = (PropertyMap, Vec<(usize, String, LongValueReference)>);
 
 /// Produces one deterministic canonical snapshot of every user table.
 ///
@@ -516,7 +521,14 @@ fn collect_table<S: ReadAt>(
         context.ledger,
         context.branches,
     )?;
-    let rows = collect_rows(database, definition, entry.root, names, context)?;
+    let rows = collect_rows(
+        database,
+        definition,
+        entry.root,
+        &entry.name,
+        names,
+        context,
+    )?;
     context
         .ledger
         .branch(context.budget, context.branches, "tdef.column_types")?;
@@ -541,18 +553,19 @@ fn collect_table<S: ReadAt>(
 
 /// Streams and retains every row for the shared protocol v1.2 row-key contract.
 ///
-/// Rows enter canonicalization without a precomputed key. The shared
-/// canonicalizer derives each key from the canonical JSON encoding of all
-/// lossless typed values and assigns duplicate ordinals; this adapter defines
-/// no separate row-identity convention.
+/// The adapter derives the shared key from canonical typed-value JSON, keeps
+/// external-header metadata attached through canonical ordering, and assigns
+/// duplicate ordinals in one adjacent-row pass. The shared canonicalizer then
+/// revalidates the same ordering and identity convention.
 fn collect_rows<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     definition: &TableDefinition,
     table: PageNumber,
+    table_name: &str,
     names: &[String],
     context: &mut CollectionContext<'_>,
 ) -> Result<Vec<SemanticRow>, SemanticSnapshotError> {
-    let mut rows = Vec::new();
+    let mut collected = Vec::new();
     let mut cursor = database
         .rows(definition, context.budget)
         .map_err(SemanticSnapshotError::Row)?;
@@ -591,37 +604,17 @@ fn collect_rows<S: ReadAt>(
         row_bytes.push(b'\n');
         context.ledger.charge(cursor.budget_mut(), 64)?;
         let canonical_key = crate::semantic_protocol::sha256(&row_bytes)?;
-        let duplicate_ordinal = rows
-            .iter()
-            .filter(|row: &&SemanticRow| row.canonical_key == canonical_key)
-            .count();
-        let duplicate_ordinal = u64::try_from(duplicate_ordinal).map_err(|_| {
-            SemanticSnapshotError::Resource(jet3::Error::IntegerConversion {
-                value: duplicate_ordinal as u128,
-                target: "u64",
-            })
-        })?;
-        for (column_index, raw_header) in headers {
-            context.ledger.charge(cursor.budget_mut(), 64)?;
-            context.ledger.push(
-                cursor.budget_mut(),
-                context.long_value_headers,
-                PendingLongValueHeader {
-                    table_index: context.table_index,
-                    column_index,
-                    row_key: canonical_key.clone(),
-                    duplicate_ordinal,
-                    raw_header,
-                },
-            )?;
-        }
         context.ledger.push(
             cursor.budget_mut(),
-            &mut rows,
-            SemanticRow {
-                canonical_key,
-                duplicate_ordinal,
-                values,
+            &mut collected,
+            CollectedSemanticRow {
+                row: SemanticRow {
+                    canonical_key,
+                    duplicate_ordinal: 0,
+                    values,
+                },
+                canonical_bytes: row_bytes,
+                headers,
             },
         )?;
     }
@@ -638,7 +631,14 @@ fn collect_rows<S: ReadAt>(
                 .branch(cursor.budget_mut(), context.branches, branch)?;
         }
     }
-    Ok(rows)
+    canonicalize_collected_rows(
+        table_name,
+        context.table_index,
+        collected,
+        context.long_value_headers,
+        cursor.budget_mut(),
+        context.ledger,
+    )
 }
 
 fn collect_row(
@@ -649,7 +649,7 @@ fn collect_row(
     code_page: TextCodePage,
     ledger: &mut RetainedLedger,
     branches: &mut CoverageBranches,
-) -> Result<CollectedRow, SemanticSnapshotError> {
+) -> Result<DecodedRow, SemanticSnapshotError> {
     let mut values = PropertyMap::new();
     let mut external = Vec::new();
     for (column_index, (column, name)) in definition.columns().iter().zip(names).enumerate() {

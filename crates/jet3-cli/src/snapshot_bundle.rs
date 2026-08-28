@@ -1,4 +1,17 @@
 //! Atomic publication of the fixed semantic snapshot bundle.
+//!
+//! The publisher stages and syncs both fixed-name artifacts before one
+//! no-replace rename. It rejects existing destinations, lexical aliases,
+//! symlinks, and hard links. Once opened, parent and stage descriptors bind
+//! artifact writes and publication, while artifact cleanup is
+//! descriptor-relative. Focused tests cover ordinary failures, collisions,
+//! and parent or stage substitution in those intervals.
+//!
+//! Hostile concurrent namespace mutation by another process with the same
+//! filesystem authority is outside the CLI threat model. The outer stage's
+//! create/open and identity-check/remove pairs are separate portable
+//! operations, so their identity checks are best-effort detection rather than
+//! an atomic security boundary against that principal.
 
 use std::path::Path;
 

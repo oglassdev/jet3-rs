@@ -269,7 +269,7 @@ def _alloc_scenarios() -> list[dict[str, Any]]:
         _scenario("DAO-READ-ALLOC-DELETE-REINSERT", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "delete_rows", "table": "Items", "count": 32}, _insert("Items", [_id_row()], 32)]), INLINE_ROW_BRANCHES + ["rows.deleted_skip"]),
         _scenario("DAO-READ-ALLOC-DROP-RECREATE", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "drop_table", "name": "Items"}, _id_table(), _insert("Items", [_id_row()], 8)]), INLINE_ROW_BRANCHES),
         _scenario("DAO-READ-ALLOC-IDLE-REOPEN", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8), {"action": "reopen"}, {"action": "reopen"}]), INLINE_ROW_BRANCHES),
-        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]), INLINE_ROW_BRANCHES + ["rows.overflow_pointer"]),
+        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]), INLINE_ROW_BRANCHES),
     ]
     return scenarios
 
@@ -318,15 +318,17 @@ def _value_scenarios() -> list[dict[str, Any]]:
 
 def _rows_scenarios() -> list[dict[str, Any]]:
     caps = ["rows.streaming_read"]
-    table = _table("Items", [_field("Id", "dbLong"), _field("Name", "dbText", 255), _field("Note", "dbText", 255)])
-    long_row = [_value("Id", "integer", 1), _value("Name", "repeat_ascii", {"unit": "N", "length": 255}), _value("Note", "repeat_ascii", {"unit": "O", "length": 255})]
+    # EXP-0060 records this exact 265-byte, one-variable row shape. The same
+    # record ties overflow pointers to Edit/Update growth, not initial inserts.
+    table = _table("Items", [_field("Id", "dbLong"), _field("Payload", "dbText", 255)])
+    long_row = [_value("Id", "integer", 1), _value("Payload", "repeat_ascii", {"unit": "O", "length": 255})]
     return [
         _scenario("DAO-READ-ROWS-EMPTY-TABLE", caps, _recipe([_id_table()]), INLINE_TABLE_BRANCHES),
         _scenario("DAO-READ-ROWS-SINGLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()])]), INLINE_ROW_BRANCHES),
         _scenario("DAO-READ-ROWS-DUPLICATES", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 3)]), INLINE_ROW_BRANCHES),
-        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), INLINE_ROW_BRANCHES + ["values.variable_short", "rows.overflow_pointer", "rows.wide_variable_layout"]),
+        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), INLINE_ROW_BRANCHES + ["values.variable_short", "rows.wide_variable_layout"]),
         _scenario("DAO-READ-ROWS-DELETED-MIDDLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 9), {"action": "delete_rows", "table": "Items", "count": 4}, _insert("Items", [_id_row()], 2)]), INLINE_ROW_BRANCHES + ["rows.deleted_skip"]),
-        _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096)]), INLINE_ROW_BRANCHES + ["rows.overflow_pointer"]),
+        _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096)]), INLINE_ROW_BRANCHES),
     ]
 
 

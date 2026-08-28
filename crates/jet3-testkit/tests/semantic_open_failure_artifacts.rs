@@ -64,27 +64,27 @@ fn rejected_opening_artifacts_pass_the_shared_protocol_validator()
             &mut budget,
         )?;
         let (snapshot, receipt) = artifacts.to_canonical_json(&mut budget)?;
-        for (name, bytes) in [
-            ("snapshot.json", snapshot),
-            ("coverage-receipt.json", receipt),
-        ] {
-            let path = directory.0.join(format!("{}-{name}", fields[0]));
-            fs::write(&path, bytes)?;
-            let output = Command::new("python3")
-                .arg("-B")
-                .arg("oracle/windows-dao/scripts/validate_protocol_v1_2.py")
-                .arg("document")
-                .arg(&path)
-                .current_dir(&repository)
-                .output()?;
-            if !output.status.success() {
-                return Err(format!(
-                    "shared validator rejected {}: {}",
-                    path.display(),
-                    String::from_utf8_lossy(&output.stderr)
-                )
-                .into());
-            }
+        let snapshot_path = directory.0.join(format!("{}-snapshot.json", fields[0]));
+        let receipt_path = directory
+            .0
+            .join(format!("{}-coverage-receipt.json", fields[0]));
+        fs::write(&snapshot_path, snapshot)?;
+        fs::write(&receipt_path, receipt)?;
+        let output = Command::new("python3")
+            .arg("-B")
+            .arg("oracle/windows-dao/scripts/validate_protocol_v1_2.py")
+            .arg("pair")
+            .arg(&snapshot_path)
+            .arg(&receipt_path)
+            .current_dir(&repository)
+            .output()?;
+        if !output.status.success() {
+            return Err(format!(
+                "shared validator rejected {} artifact pair: {}",
+                fields[0],
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
         }
     }
     Ok(())

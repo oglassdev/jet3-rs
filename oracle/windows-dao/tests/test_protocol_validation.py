@@ -316,6 +316,68 @@ class ProtocolV12Tests(unittest.TestCase):
         self.assertNotIn("tdef.single_page", wide)
         self.assertNotIn("rows.direct", empty)
 
+    def test_page_span_recipe_matches_the_recorded_one_variable_wide_layout(self):
+        scenario = self._find(self.inventory, "DAO-READ-ROWS-PAGE-SPAN")
+        steps = scenario["generator_recipe"]["steps"]
+        table = next(step for step in steps if step["action"] == "create_table")
+        insert = next(step for step in steps if step["action"] == "insert_rows")
+        fields = {field["name"]: field for field in table["fields"]}
+        values = {value["field"]: value for value in insert["rows"][0]}
+        variable_fields = [
+            field
+            for field in table["fields"]
+            if field["dao_type"] in ("dbText", "dbBinary")
+        ]
+
+        self.assertEqual([field["name"] for field in variable_fields], ["Payload"])
+        self.assertEqual(fields["Payload"]["size"], 255)
+        self.assertEqual(values["Payload"]["encoding"], "repeat_ascii")
+        self.assertEqual(values["Payload"]["value"], {"unit": "O", "length": 255})
+        self.assertEqual(insert["repeat"], 16)
+
+        fixed_boundary = 1 + 4  # column count plus the recorded dbLong width
+        variable_end = fixed_boundary + values["Payload"]["value"]["length"]
+        variable_count = len(variable_fields)
+        boundary_bytes = variable_count + 1
+        jump_bytes = 1
+        variable_count_bytes = 1
+        presence_bytes = (len(fields) + 7) // 8
+        row_length = (
+            variable_end
+            + boundary_bytes
+            + jump_bytes
+            + variable_count_bytes
+            + presence_bytes
+        )
+        self.assertEqual(
+            (fixed_boundary, variable_end, variable_count, row_length),
+            (5, 260, 1, 265),
+        )
+        self.assertGreater(row_length, 255)
+        self.assertIn("rows.wide_variable_layout", scenario["required_branches"])
+        self.assertNotIn("rows.overflow_pointer", scenario["required_branches"])
+
+    def test_insert_only_recipes_do_not_claim_growth_only_overflow_pointers(self):
+        insert_only_actions = {
+            "create_database",
+            "create_table",
+            "insert_rows",
+            "insert_until_page_count",
+            "reopen",
+            "close_database",
+        }
+        offenders = []
+        for scenario in self.inventory["scenarios"]:
+            actions = {
+                step["action"] for step in scenario["generator_recipe"]["steps"]
+            }
+            if (
+                actions <= insert_only_actions
+                and "rows.overflow_pointer" in scenario["required_branches"]
+            ):
+                offenders.append(scenario["id"])
+        self.assertEqual(offenders, [])
+
     def test_row_branch_registry_tracks_decomposed_module_owners(self):
         registry = json.loads(v1_2.BRANCH_REGISTRY.read_text(encoding="utf-8"))
         owners = {
@@ -396,6 +458,23 @@ class ProtocolV12Tests(unittest.TestCase):
             "relationships": [],
             "raw_preservation": [],
             "producer_extensions": {"/tables/0/columns/0/required": {"kind": "boolean", "value": True}},
+        }
+
+    def _success_receipt(self, snapshot=None):
+        snapshot = snapshot or self._snapshot()
+        required = self._find(
+            self.inventory, snapshot["scenario_id"]
+        )["required_branches"]
+        return {
+            "protocol_version": "1.2.0",
+            "document_type": "rust_coverage_receipt",
+            "scenario_id": snapshot["scenario_id"],
+            "source_revision": snapshot["producer"]["source_revision"],
+            "database_sha256": snapshot["database_sha256"],
+            "allocated_set_sha256": "cd" * 32,
+            "outcome": "success",
+            "error_class": None,
+            "branches": sorted(required),
         }
 
     def test_shared_column_normalization_vectors(self):
@@ -527,6 +606,118 @@ class ProtocolV12Tests(unittest.TestCase):
             )
             seen += 1
         self.assertEqual(seen, 3)
+
+    def test_success_and_opening_failure_artifact_pairs_are_bound(self):
+        success_snapshot = self._snapshot()
+        success_receipt = self._success_receipt(success_snapshot)
+        v1_2.validate_artifact_pair(success_snapshot, success_receipt)
+
+        failure_snapshot, failure_receipt = self._opening_failure(
+            "DAO-READ-OPEN-REJECT-JET4", "unsupported_version"
+        )
+        v1_2.validate_artifact_pair(failure_snapshot, failure_receipt)
+
+    def test_artifact_pair_rejects_documents_mixed_between_valid_bundles(self):
+        first_snapshot = self._snapshot()
+        first_receipt = self._success_receipt(first_snapshot)
+        second_snapshot = json.loads(json.dumps(first_snapshot))
+        second_snapshot["producer"]["source_revision"] = "other-revision"
+        second_snapshot["database_sha256"] = "ef" * 32
+        second_receipt = self._success_receipt(second_snapshot)
+
+        v1_2.validate_artifact_pair(first_snapshot, first_receipt)
+        v1_2.validate_artifact_pair(second_snapshot, second_receipt)
+        with self.assertRaisesRegex(
+            ValidationError, "source_revision, database_sha256"
+        ):
+            v1_2.validate_artifact_pair(first_snapshot, second_receipt)
+
+    def test_artifact_pair_rejects_each_cross_document_binding_mutation(self):
+        snapshot = self._snapshot()
+        receipt = self._success_receipt(snapshot)
+
+        wrong_scenario = json.loads(json.dumps(receipt))
+        wrong_scenario["scenario_id"] = "DAO-READ-ROWS-SINGLE"
+        wrong_scenario["branches"] = sorted(
+            self._find(self.inventory, "DAO-READ-ROWS-SINGLE")["required_branches"]
+        )
+        with self.assertRaisesRegex(ValidationError, "scenario_id"):
+            v1_2.validate_artifact_pair(snapshot, wrong_scenario)
+
+        wrong_revision = json.loads(json.dumps(receipt))
+        wrong_revision["source_revision"] = "other-revision"
+        with self.assertRaisesRegex(ValidationError, "source_revision"):
+            v1_2.validate_artifact_pair(snapshot, wrong_revision)
+
+        wrong_database = json.loads(json.dumps(receipt))
+        wrong_database["database_sha256"] = "ef" * 32
+        with self.assertRaisesRegex(ValidationError, "database_sha256"):
+            v1_2.validate_artifact_pair(snapshot, wrong_database)
+
+        dao_snapshot = json.loads(json.dumps(snapshot))
+        dao_snapshot["producer"]["kind"] = "dao"
+        with self.assertRaisesRegex(ValidationError, "Rust snapshot producer"):
+            v1_2.validate_artifact_pair(dao_snapshot, receipt)
+
+    def test_artifact_pair_rejects_constant_outcome_allocation_and_error_mutations(self):
+        snapshot = self._snapshot()
+        receipt = self._success_receipt(snapshot)
+
+        for field, value in (
+            ("protocol_version", "1.1.0"),
+            ("document_type", "rust_coverage_receipt"),
+        ):
+            mutated = json.loads(json.dumps(snapshot))
+            mutated[field] = value
+            with self.subTest(field=field), self.assertRaises(ValidationError):
+                v1_2.validate_artifact_pair(mutated, receipt)
+
+        success_without_allocation = json.loads(json.dumps(receipt))
+        success_without_allocation["allocated_set_sha256"] = None
+        with self.assertRaises(ValidationError):
+            v1_2.validate_artifact_pair(snapshot, success_without_allocation)
+
+        success_with_error = json.loads(json.dumps(receipt))
+        success_with_error["error_class"] = "unsupported_version"
+        with self.assertRaises(ValidationError):
+            v1_2.validate_artifact_pair(snapshot, success_with_error)
+
+        failure_snapshot, failure_receipt = self._opening_failure(
+            "DAO-READ-OPEN-REJECT-JET4", "unsupported_version"
+        )
+        failure_with_allocation = json.loads(json.dumps(failure_receipt))
+        failure_with_allocation["allocated_set_sha256"] = "cd" * 32
+        with self.assertRaises(ValidationError):
+            v1_2.validate_artifact_pair(failure_snapshot, failure_with_allocation)
+
+        failure_without_error = json.loads(json.dumps(failure_receipt))
+        failure_without_error["error_class"] = None
+        with self.assertRaises(ValidationError):
+            v1_2.validate_artifact_pair(failure_snapshot, failure_without_error)
+
+        wrong_error = json.loads(json.dumps(failure_receipt))
+        wrong_error["error_class"] = "encrypted_database"
+        with self.assertRaisesRegex(ValidationError, "does not match"):
+            v1_2.validate_artifact_pair(failure_snapshot, wrong_error)
+
+        with self.assertRaises(ValidationError):
+            v1_2.validate_artifact_pair(snapshot, failure_receipt)
+
+    def test_artifact_pair_paths_require_canonical_bytes(self):
+        snapshot = self._snapshot()
+        receipt = self._success_receipt(snapshot)
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot_path = Path(temporary) / "snapshot.json"
+            receipt_path = Path(temporary) / "coverage-receipt.json"
+            snapshot_path.write_bytes(canonical_json_bytes(snapshot))
+            receipt_path.write_bytes(canonical_json_bytes(receipt))
+            v1_2.validate_artifact_pair_paths(snapshot_path, receipt_path)
+
+            snapshot_path.write_text(
+                json.dumps(snapshot, indent=2) + "\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ValidationError, "not normalized"):
+                v1_2.validate_artifact_pair_paths(snapshot_path, receipt_path)
 
     def test_rejected_format_outcome_mutations_fail_closed(self):
         snapshot, receipt = self._opening_failure(

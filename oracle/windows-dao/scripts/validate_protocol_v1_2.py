@@ -22,6 +22,7 @@ from protocol_validation import (
     ValidationError,
     canonical_json_bytes,
     load_json,
+    load_json_with_bytes,
     validate_snapshot,
 )
 
@@ -708,6 +709,62 @@ def validate_document_path(path: Path, *, complete: bool = False) -> str:
     return document_type
 
 
+def validate_artifact_pair(
+    snapshot: dict[str, Any], coverage_receipt: dict[str, Any]
+) -> None:
+    """Validate and bind the two artifacts emitted by one Rust read outcome."""
+    snapshot_type = validate_document(snapshot)
+    if snapshot_type != "canonical_semantic_snapshot":
+        raise ValidationError("snapshot: expected a canonical semantic snapshot")
+    receipt_type = validate_document(coverage_receipt)
+    if receipt_type != "rust_coverage_receipt":
+        raise ValidationError("coverage receipt: expected a Rust coverage receipt")
+
+    if snapshot["producer"]["kind"] != "rust":
+        raise ValidationError(
+            "$.producer.kind: a Rust coverage receipt requires a Rust snapshot producer"
+        )
+    bindings = (
+        ("protocol_version", snapshot["protocol_version"], coverage_receipt["protocol_version"]),
+        ("scenario_id", snapshot["scenario_id"], coverage_receipt["scenario_id"]),
+        (
+            "source_revision",
+            snapshot["producer"]["source_revision"],
+            coverage_receipt["source_revision"],
+        ),
+        ("database_sha256", snapshot["database_sha256"], coverage_receipt["database_sha256"]),
+        ("outcome", snapshot["outcome"], coverage_receipt["outcome"]),
+        ("error_class", snapshot["error_class"], coverage_receipt["error_class"]),
+    )
+    mismatches = [name for name, left, right in bindings if left != right]
+    if mismatches:
+        raise ValidationError(
+            "$: snapshot and coverage receipt bindings differ: "
+            + ", ".join(mismatches)
+        )
+
+    allocated_set = coverage_receipt["allocated_set_sha256"]
+    if snapshot["outcome"] == "success" and allocated_set is None:
+        raise ValidationError(
+            "$.allocated_set_sha256: successful traversal requires allocation evidence"
+        )
+    if snapshot["outcome"] == "opening_failure" and allocated_set is not None:
+        raise ValidationError(
+            "$.allocated_set_sha256: opening failure forbids allocation evidence"
+        )
+
+
+def validate_artifact_pair_paths(snapshot_path: Path, receipt_path: Path) -> None:
+    """Validate canonical artifact bytes and their cross-document bindings."""
+    snapshot, snapshot_bytes = load_json_with_bytes(snapshot_path)
+    receipt, receipt_bytes = load_json_with_bytes(receipt_path)
+    if snapshot_bytes != canonical_json_bytes(snapshot):
+        raise ValidationError(f"{snapshot_path}: canonical document bytes are not normalized")
+    if receipt_bytes != canonical_json_bytes(receipt):
+        raise ValidationError(f"{receipt_path}: canonical document bytes are not normalized")
+    validate_artifact_pair(snapshot, receipt)
+
+
 def validate_schemas() -> None:
     SCHEMA_SET.lint()
 
@@ -720,6 +777,11 @@ def main(argv: list[str] | None = None) -> int:
     inventory.add_argument("path", type=Path)
     inventory.add_argument("--complete", action="store_true", help="reject any deferred plan requirement")
     subparsers.add_parser("document", help="validate one snapshot or registry document").add_argument("path", type=Path)
+    pair = subparsers.add_parser(
+        "pair", help="validate one canonical Rust snapshot/coverage-receipt pair"
+    )
+    pair.add_argument("snapshot", type=Path)
+    pair.add_argument("coverage_receipt", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "schemas":
@@ -731,9 +793,15 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValidationError(f"{args.path}: not a scenario inventory")
             deferred = len(document["deferred_requirements"])
             print(f"PASS: {args.path} ({len(document['scenarios'])} scenarios, {deferred} deferred plan requirements)")
-        else:
+        elif args.command == "document":
             document_type = validate_document_path(args.path)
             print(f"PASS: {args.path} ({document_type})")
+        else:
+            validate_artifact_pair_paths(args.snapshot, args.coverage_receipt)
+            print(
+                f"PASS: {args.snapshot} + {args.coverage_receipt} "
+                "(canonical Rust artifact pair)"
+            )
     except ValidationError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

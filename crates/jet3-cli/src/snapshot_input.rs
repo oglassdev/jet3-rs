@@ -1,155 +1,148 @@
 //! Immutable, bounded snapshot input staging.
+//!
+//! Linux uses an anonymous `O_TMPFILE` with fsync and rewind when available.
+//! Windows uses a delete-on-close file. Other cases retain one fallibly
+//! allocated, pathless memory copy; that copy is not filesystem-synced.
 
 use std::env;
-use std::fs::{self, File, OpenOptions};
+use std::fs::File;
 use std::io::{Read, Seek, Write};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(windows)]
+use std::sync::atomic::AtomicU64;
 
+use jet3::{ByteCount, ByteOffset, Error, FileSource, ReadAt, ReadBudget, SliceSource};
 use jet3_testkit::{Sha256, Sha256Hasher, hex_digest};
 
 const COPY_BUFFER_BYTES: usize = 64 * 1024;
+#[cfg(windows)]
 const CREATE_ATTEMPTS: u64 = 128;
+#[cfg(windows)]
 static NEXT_STAGE: AtomicU64 = AtomicU64::new(0);
 
-struct OwnedTemporaryFile {
-    file: Option<File>,
-    named: Option<NamedStage>,
+enum StagedStorage {
+    File(File),
+    Memory(MemoryStage),
 }
 
-struct NamedStage {
-    path: PathBuf,
-    identity: path_identity::FileIdentity,
+struct MemoryStage {
+    bytes: Vec<u8>,
+    #[cfg(test)]
+    capacity_limit: Option<usize>,
 }
 
-impl OwnedTemporaryFile {
-    fn create() -> std::io::Result<Self> {
+impl StagedStorage {
+    fn create(initial_len: u64) -> std::io::Result<Self> {
         let directory = env::temp_dir();
         if let Some(file) = handle_owned_stage::create(&directory)? {
-            return Ok(Self {
-                file: Some(file),
-                named: None,
-            });
+            return Ok(Self::File(file));
         }
-        let mut staged = Self::create_named_in(&directory)?;
-        match staged.unlink_named_while_open() {
-            Ok(()) => Ok(staged),
-            Err(error) if named_stage_must_remain(&error) => Ok(staged),
-            Err(error) => Err(error),
-        }
+        Self::memory(initial_len)
     }
 
-    fn create_named_in(directory: &Path) -> std::io::Result<Self> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        for attempt in 0..CREATE_ATTEMPTS {
-            let sequence = NEXT_STAGE.fetch_add(1, Ordering::Relaxed);
-            let path = directory.join(format!(
-                ".jet3-snapshot-input-{}-{timestamp:032x}-{sequence:016x}-{attempt:02x}",
-                std::process::id()
-            ));
-            let mut options = OpenOptions::new();
-            options.read(true).write(true).create_new(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options.mode(0o600);
-            }
-            match options.open(&path) {
-                Ok(file) => {
-                    let identity = path_identity::from_open_file(&file)?;
-                    return Ok(Self {
-                        file: Some(file),
-                        named: Some(NamedStage { path, identity }),
-                    });
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(error),
-            }
-        }
-        Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            "could not create a unique snapshot input stage",
-        ))
+    fn memory(initial_len: u64) -> std::io::Result<Self> {
+        Self::memory_with_limit(initial_len, None)
     }
 
-    fn file_mut(&mut self) -> std::io::Result<&mut File> {
-        self.file
-            .as_mut()
-            .ok_or_else(|| std::io::Error::other("snapshot input stage is closed"))
-    }
-
-    fn try_clone(&self) -> std::io::Result<File> {
-        self.file
-            .as_ref()
-            .ok_or_else(|| std::io::Error::other("snapshot input stage is closed"))?
-            .try_clone()
-    }
-
-    fn close(mut self) -> std::io::Result<()> {
-        self.cleanup_named_path()
-    }
-
-    fn verify_named_path(&self) -> std::io::Result<()> {
-        let Some(named) = self.named.as_ref() else {
-            return Ok(());
-        };
-        let actual = path_identity::from_path(&named.path)?;
-        if actual == named.identity {
-            Ok(())
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "snapshot input stage path no longer identifies the owned file",
-            ))
-        }
-    }
-
-    fn unlink_named_while_open(&mut self) -> std::io::Result<()> {
-        self.verify_named_path()?;
-        let Some(named) = self.named.as_ref() else {
-            return Ok(());
-        };
-        fs::remove_file(&named.path)?;
-        self.named = None;
-        Ok(())
-    }
-
-    fn cleanup_named_path(&mut self) -> std::io::Result<()> {
-        if self.named.is_none() {
-            return Ok(());
-        }
-        self.verify_named_path()?;
-        drop(self.file.take());
-        self.verify_named_path()?;
-        let named = self.named.as_ref().ok_or_else(|| {
-            std::io::Error::other("snapshot input named stage unexpectedly disappeared")
+    fn memory_with_limit(
+        initial_len: u64,
+        #[cfg_attr(not(test), allow(unused_variables))] capacity_limit: Option<usize>,
+    ) -> std::io::Result<Self> {
+        let capacity = usize::try_from(initial_len).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::OutOfMemory,
+                "snapshot input length does not fit in memory",
+            )
         })?;
-        fs::remove_file(&named.path)?;
-        self.named = None;
-        Ok(())
+        #[cfg(test)]
+        if capacity_limit.is_some_and(|limit| capacity > limit) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::OutOfMemory,
+                "injected snapshot input memory allocation failure",
+            ));
+        }
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(capacity).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::OutOfMemory,
+                "snapshot input memory allocation failed",
+            )
+        })?;
+        Ok(Self::Memory(MemoryStage {
+            bytes,
+            #[cfg(test)]
+            capacity_limit,
+        }))
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        match self {
+            Self::File(file) => file.write_all(bytes),
+            Self::Memory(staged) => {
+                let final_len = staged.bytes.len().checked_add(bytes.len()).ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::OutOfMemory,
+                        "snapshot input memory length overflow",
+                    )
+                })?;
+                #[cfg(test)]
+                if staged.capacity_limit.is_some_and(|limit| final_len > limit) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::OutOfMemory,
+                        "injected snapshot input memory allocation failure",
+                    ));
+                }
+                let additional = final_len.checked_sub(staged.bytes.len()).ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::OutOfMemory,
+                        "snapshot input memory length regressed",
+                    )
+                })?;
+                staged.bytes.try_reserve_exact(additional).map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::OutOfMemory,
+                        "snapshot input memory allocation failed",
+                    )
+                })?;
+                staged.bytes.extend_from_slice(bytes);
+                Ok(())
+            }
+        }
+    }
+
+    fn sync_and_rewind(&mut self) -> Result<(), &'static str> {
+        match self {
+            Self::File(file) => {
+                file.sync_all().map_err(|_| "input_stage_sync_failed")?;
+                file.rewind().map_err(|_| "input_stage_rewind_failed")
+            }
+            Self::Memory(_) => Ok(()),
+        }
     }
 }
 
-#[cfg(windows)]
-fn named_stage_must_remain(error: &std::io::Error) -> bool {
-    error.kind() == std::io::ErrorKind::PermissionDenied
+pub(crate) enum StagedSource<'a> {
+    File(FileSource),
+    Memory(SliceSource<'a>),
 }
 
-#[cfg(not(windows))]
-const fn named_stage_must_remain(_error: &std::io::Error) -> bool {
-    false
-}
-
-impl Drop for OwnedTemporaryFile {
-    fn drop(&mut self) {
-        if self.named.is_some() {
-            let _ = self.cleanup_named_path();
+impl ReadAt for StagedSource<'_> {
+    fn len(&self) -> ByteCount {
+        match self {
+            Self::File(source) => source.len(),
+            Self::Memory(source) => source.len(),
         }
-        drop(self.file.take());
+    }
+
+    fn read_exact_at(
+        &mut self,
+        offset: ByteOffset,
+        destination: &mut [u8],
+        budget: &mut ReadBudget,
+    ) -> Result<(), Error> {
+        match self {
+            Self::File(source) => source.read_exact_at(offset, destination, budget),
+            Self::Memory(source) => source.read_exact_at(offset, destination, budget),
+        }
     }
 }
 
@@ -233,72 +226,48 @@ mod handle_owned_stage {
     }
 }
 
-#[cfg(unix)]
-mod path_identity {
-    use std::fs::{self, File};
-    use std::io;
-    use std::os::unix::fs::MetadataExt;
-    use std::path::Path;
-
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub(super) struct FileIdentity {
-        device: u64,
-        inode: u64,
-    }
-
-    pub(super) fn from_open_file(file: &File) -> io::Result<FileIdentity> {
-        Ok(from_metadata(&file.metadata()?))
-    }
-
-    pub(super) fn from_path(path: &Path) -> io::Result<FileIdentity> {
-        Ok(from_metadata(&fs::symlink_metadata(path)?))
-    }
-
-    fn from_metadata(metadata: &fs::Metadata) -> FileIdentity {
-        FileIdentity {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-        }
-    }
-}
-
-#[cfg(not(unix))]
-mod path_identity {
-    use std::fs::File;
-    use std::io;
-    use std::path::Path;
-
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub(super) struct FileIdentity;
-
-    pub(super) fn from_open_file(_file: &File) -> io::Result<FileIdentity> {
-        Err(unsupported())
-    }
-
-    pub(super) fn from_path(_path: &Path) -> io::Result<FileIdentity> {
-        Err(unsupported())
-    }
-
-    fn unsupported() -> io::Error {
-        io::Error::new(
-            io::ErrorKind::Unsupported,
-            "file identity is unavailable for the snapshot input stage",
-        )
-    }
-}
-
 pub(crate) struct StagedInput {
-    file: OwnedTemporaryFile,
+    storage: StagedStorage,
     length: u64,
     sha256: Sha256,
 }
 
 impl StagedInput {
-    pub(crate) fn copy_from(mut source: File, max_bytes: u64) -> Result<Self, &'static str> {
-        if source.metadata().map_err(|_| "metadata_failed")?.len() > max_bytes {
+    pub(crate) fn copy_from(source: File, max_bytes: u64) -> Result<Self, &'static str> {
+        let initial_len = source.metadata().map_err(|_| "metadata_failed")?.len();
+        if initial_len > max_bytes {
             return Err("input_limit_exceeded");
         }
-        let mut staged = OwnedTemporaryFile::create().map_err(|_| "input_stage_create_failed")?;
+        let storage =
+            StagedStorage::create(initial_len).map_err(|_| "input_stage_create_failed")?;
+        Self::copy_into(source, max_bytes, storage)
+    }
+
+    #[cfg(test)]
+    fn copy_from_memory(source: File, max_bytes: u64) -> Result<Self, &'static str> {
+        Self::copy_from_memory_with_limit(source, max_bytes, None)
+    }
+
+    #[cfg(test)]
+    fn copy_from_memory_with_limit(
+        source: File,
+        max_bytes: u64,
+        capacity_limit: Option<usize>,
+    ) -> Result<Self, &'static str> {
+        let initial_len = source.metadata().map_err(|_| "metadata_failed")?.len();
+        if initial_len > max_bytes {
+            return Err("input_limit_exceeded");
+        }
+        let storage = StagedStorage::memory_with_limit(initial_len, capacity_limit)
+            .map_err(|_| "input_stage_create_failed")?;
+        Self::copy_into(source, max_bytes, storage)
+    }
+
+    fn copy_into(
+        mut source: File,
+        max_bytes: u64,
+        mut storage: StagedStorage,
+    ) -> Result<Self, &'static str> {
         let mut hasher = Sha256Hasher::new();
         let mut buffer = [0_u8; COPY_BUFFER_BYTES];
         let mut length = 0_u64;
@@ -325,9 +294,7 @@ impl StagedInput {
             if count == 0 {
                 break;
             }
-            staged
-                .file_mut()
-                .map_err(|_| "input_stage_write_failed")?
+            storage
                 .write_all(&buffer[..count])
                 .map_err(|_| "input_stage_write_failed")?;
             hasher
@@ -337,22 +304,13 @@ impl StagedInput {
                 .checked_add(u64::try_from(count).map_err(|_| "input_stage_read_failed")?)
                 .ok_or("input_limit_exceeded")?;
         }
-        staged
-            .file_mut()
-            .map_err(|_| "input_stage_sync_failed")?
-            .sync_all()
-            .map_err(|_| "input_stage_sync_failed")?;
-        staged
-            .file_mut()
-            .map_err(|_| "input_stage_rewind_failed")?
-            .rewind()
-            .map_err(|_| "input_stage_rewind_failed")?;
+        storage.sync_and_rewind()?;
         let sha256 = Sha256::new(hex_digest(
             hasher.finalize().map_err(|_| "input_stage_hash_failed")?,
         ))
         .map_err(|_| "input_stage_hash_failed")?;
         Ok(Self {
-            file: staged,
+            storage,
             length,
             sha256,
         })
@@ -366,31 +324,51 @@ impl StagedInput {
         self.sha256.clone()
     }
 
-    pub(crate) fn traversal_file(&self) -> Result<File, &'static str> {
-        self.file.try_clone().map_err(|_| "input_stage_open_failed")
+    pub(crate) fn traversal_source(
+        &self,
+        budget: &ReadBudget,
+    ) -> Result<StagedSource<'_>, &'static str> {
+        match &self.storage {
+            StagedStorage::File(file) => FileSource::from_file(
+                file.try_clone().map_err(|_| "input_stage_open_failed")?,
+                budget,
+            )
+            .map(StagedSource::File)
+            .map_err(|_| "input_stage_open_failed"),
+            StagedStorage::Memory(memory) => SliceSource::new(&memory.bytes, budget)
+                .map(StagedSource::Memory)
+                .map_err(|_| "input_stage_open_failed"),
+        }
     }
 
     pub(crate) fn close(self) -> Result<(), &'static str> {
-        self.file
-            .close()
-            .map_err(|_| "input_stage_cleanup_uncertain")
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn is_memory(&self) -> bool {
+        matches!(self.storage, StagedStorage::Memory(_))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs::{self, File};
-    use std::io::{Read, Seek, SeekFrom, Write};
+    use std::io::{Seek, Write};
 
-    #[cfg(unix)]
-    use super::OwnedTemporaryFile;
+    use jet3::{ByteCount, ByteOffset, ReadAt, ReadBudget, ReadLimits};
+
     use super::StagedInput;
 
     fn read_staged(staged: StagedInput) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let mut file = staged.traversal_file()?;
-        file.seek(SeekFrom::Start(0))?;
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes)?;
+        let length = staged.length();
+        let byte_length = ByteCount::new(length);
+        let mut budget = ReadBudget::new(ReadLimits::new(byte_length, byte_length, byte_length));
+        let mut source = staged.traversal_source(&budget)?;
+        let mut bytes = vec![0_u8; usize::try_from(length)?];
+        source.read_exact_at(ByteOffset::new(0), &mut bytes, &mut budget)?;
+        drop(source);
+        staged.close()?;
         Ok(bytes)
     }
 
@@ -423,7 +401,8 @@ mod tests {
         let original = b"immutable staged content";
         fs::write(&source, original)?;
         fs::hard_link(&source, &alias)?;
-        let staged = StagedInput::copy_from(File::open(&alias)?, 1024)?;
+        let staged = StagedInput::copy_from_memory(File::open(&alias)?, 1024)?;
+        assert!(staged.is_memory());
         assert_eq!(
             staged.sha256().as_str(),
             "0ad036d72d4f0059a2fde9496dcea264bae3694aa06ff8d373aee89ae687fb12"
@@ -456,70 +435,68 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
-    fn named_stage_cleanup_removes_only_the_owned_path() -> Result<(), Box<dyn std::error::Error>> {
-        let directory = tempfile::tempdir()?;
-        let staged = OwnedTemporaryFile::create_named_in(directory.path())?;
-        let path = staged
-            .named
-            .as_ref()
-            .ok_or("missing named stage")?
-            .path
-            .clone();
-        assert!(path.exists());
+    fn memory_fallback_exact_boundary_and_reserve_failure_are_fail_closed()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut exact = tempfile::tempfile()?;
+        exact.write_all(&[4_u8; 17])?;
+        exact.rewind()?;
+        let staged = StagedInput::copy_from_memory(exact, 17)?;
+        assert!(staged.is_memory());
+        assert_eq!(read_staged(staged)?, [4_u8; 17]);
 
-        staged.close()?;
-
-        assert!(!path.exists());
+        let mut allocation_failure = tempfile::tempfile()?;
+        allocation_failure.write_all(&[5_u8; 17])?;
+        allocation_failure.rewind()?;
+        assert_eq!(
+            StagedInput::copy_from_memory_with_limit(allocation_failure, 17, Some(16)).err(),
+            Some("input_stage_create_failed")
+        );
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
-    fn named_stage_replacement_survives_and_cleanup_reports_uncertainty()
+    fn memory_fallback_never_adopts_or_removes_path_replacements()
     -> Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
-        let mut staged = OwnedTemporaryFile::create_named_in(directory.path())?;
-        staged.file_mut()?.write_all(b"owned stage")?;
-        let path = staged
-            .named
-            .as_ref()
-            .ok_or("missing named stage")?
-            .path
-            .clone();
-        let displaced = directory.path().join("displaced-stage");
-        fs::rename(&path, &displaced)?;
-        fs::write(&path, b"competitor")?;
+        let source = directory.path().join("source.mdb");
+        fs::write(&source, b"pathless staged bytes")?;
+        let staged = StagedInput::copy_from_memory(File::open(&source)?, 64)?;
+        let empty_replacement = directory.path().join("empty-replacement");
+        let nonempty_replacement = directory.path().join("nonempty-replacement");
+        fs::create_dir(&empty_replacement)?;
+        fs::create_dir(&nonempty_replacement)?;
+        fs::write(nonempty_replacement.join("competitor"), b"replacement data")?;
 
-        let error = match staged.close() {
-            Ok(()) => return Err("replacement cleanup unexpectedly succeeded".into()),
-            Err(error) => error,
-        };
-
-        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
-        assert_eq!(fs::read(&path)?, b"competitor");
-        assert_eq!(fs::read(&displaced)?, b"owned stage");
+        assert_eq!(read_staged(staged)?, b"pathless staged bytes");
+        assert!(empty_replacement.is_dir());
+        assert_eq!(fs::read_dir(&empty_replacement)?.count(), 0);
+        assert_eq!(
+            fs::read(nonempty_replacement.join("competitor"))?,
+            b"replacement data"
+        );
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
-    fn named_stage_drop_cleans_up_after_an_early_failure() -> Result<(), Box<dyn std::error::Error>>
-    {
-        let directory = tempfile::tempdir()?;
-        let path = {
-            let mut staged = OwnedTemporaryFile::create_named_in(directory.path())?;
-            staged.file_mut()?.write_all(b"partial stage")?;
-            staged
-                .named
-                .as_ref()
-                .ok_or("missing named stage")?
-                .path
-                .clone()
-        };
+    fn platform_staging_strategy_is_explicit() {
+        #[cfg(target_os = "linux")]
+        assert_eq!(
+            platform_strategy(),
+            "anonymous_o_tmpfile_fsync_or_pathless_memory"
+        );
+        #[cfg(windows)]
+        assert_eq!(platform_strategy(), "delete_on_close_file_fsync");
+        #[cfg(not(any(target_os = "linux", windows)))]
+        assert_eq!(platform_strategy(), "pathless_memory_not_fsynced");
+    }
 
-        assert!(!path.exists());
-        Ok(())
+    const fn platform_strategy() -> &'static str {
+        #[cfg(target_os = "linux")]
+        return "anonymous_o_tmpfile_fsync_or_pathless_memory";
+        #[cfg(windows)]
+        return "delete_on_close_file_fsync";
+        #[cfg(not(any(target_os = "linux", windows)))]
+        "pathless_memory_not_fsynced"
     }
 }

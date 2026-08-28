@@ -52,8 +52,8 @@ class ValidationError(Exception):
     """A protocol, schema, or bundle validation failure."""
 
 
-def load_json(path: Path) -> Any:
-    """Load strict UTF-8 JSON without BOMs or non-finite numbers."""
+def load_json_with_bytes(path: Path) -> tuple[Any, bytes]:
+    """Load strict UTF-8 JSON and retain the exact bytes from the same read."""
     try:
         retained = path.read_bytes()
         if retained.startswith(b"\xef\xbb\xbf"):
@@ -63,11 +63,16 @@ def load_json(path: Path) -> Any:
         def reject_nonfinite(value: str) -> None:
             raise ValueError(f"non-finite JSON number {value}")
 
-        return json.loads(text, parse_constant=reject_nonfinite)
+        return json.loads(text, parse_constant=reject_nonfinite), retained
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ValidationError(f"{path}: cannot read JSON: {exc}") from exc
     except ValueError as exc:
         raise ValidationError(f"{path}: invalid JSON value: {exc}") from exc
+
+
+def load_json(path: Path) -> Any:
+    """Load strict UTF-8 JSON without BOMs or non-finite numbers."""
+    return load_json_with_bytes(path)[0]
 
 
 def sha256(path: Path) -> str:

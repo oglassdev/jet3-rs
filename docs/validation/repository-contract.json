@@ -102,7 +102,7 @@
           "EXP-0056",
           "EXP-0065"
         ],
-        "sha256": "cbffd25efd8b1b1339afbc6cba61e0a9a008baa93f4387db8fef1a02f829a7d0"
+        "sha256": "13c7505e3341d81189bb0f2ede2458576c29203fd58dad5c176d9ec4f2a4fc8f"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -359,8 +359,8 @@
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle.rs",
-        "reason": "Format-neutral fixed-name atomic artifact-bundle publication and cleanup mechanics.",
-        "sha256": "1785863816dbd8d7c8c10feb2a416ca590eeb051fbeddb094984f478453f26f2"
+        "reason": "Format-neutral fixed-name atomic no-replace artifact-bundle publication with descriptor-pinned operations after stage opening and best-effort outer cleanup.",
+        "sha256": "ad29fc6e22e4071755ca6cd0ddcf57f2ea8a190d3e86623fc38e79b2f8bcf840"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
@@ -369,8 +369,8 @@
       },
       {
         "path": "crates/jet3-cli/src/snapshot_input.rs",
-        "reason": "Format-neutral bounded immutable input staging and identity hashing over the exact staged bytes.",
-        "sha256": "c61690d42b41cda6e9d6c319fac42d2a907e35f0bb7377e3ad93f039ad5cce29"
+        "reason": "Format-neutral bounded immutable input staging and identity hashing over anonymous files or one fallibly allocated pathless memory copy.",
+        "sha256": "fec5ed6cf33b11d6300f4c75097e013cf673c994bfb2cfa24b0707804a713f6d"
       },
       {
         "path": "crates/jet3-testkit/src/bin/jet3-classifier-snapshot.rs",
@@ -425,12 +425,12 @@
       {
         "path": "crates/jet3-testkit/src/scenario_inventory_generated.rs",
         "reason": "Generated format-neutral mapping from every closed protocol 1.2 scenario identifier to its declared outcome and normalized rejection class.",
-        "sha256": "869b4f93115b55a98f612a61c08c1e0c0e1661d2082fbced92ac7033018a12f8"
+        "sha256": "83ab500c5d0d43f382aa9511ed374a58fb52dc9f0537f08b8832c4baf219cb4c"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
         "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "897565d55d5ad66b1bac4ad5f710eaffd931d5fbcb17d00323671152abc7697d"
+        "sha256": "54be02b9226099dc8418e642b6f72420c7d18e66e8bb2dcb954f37f05533ea46"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_outcome.rs",
@@ -455,12 +455,12 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "dbec2b473b518d7ec8d3bcff6cac39aefcb6b269328a8835824750b2f03adc6c"
+        "sha256": "45f235e723341857051c38609cda6d9aed4237a1017d867b9e04785015d6ec83"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_long.rs",
         "reason": "Comparison-excluded external long-value header association and bounded retention under the EXP-0064 protocol projection.",
-        "sha256": "ff18c1558738616cacb8911ed51eafa693f43b03aaaa0de5daf8df2f5ad0cf40"
+        "sha256": "43dc5893ccf8e721f23df214d1f023e8d408f5c7d879e6f66e6fbb0949c5dfe9"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
@@ -485,7 +485,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
         "reason": "Test-only synthetic verification of the public semantic producer composition.",
-        "sha256": "e5ca3c8763cfc5acc247c25b4d22e406de8a2b23c4c6cc9eddc49b6f26406af2"
+        "sha256": "91ce59823fa58cd4c7d6d218fb9c55546f8b9e3da9698a2fa57c4d19998b2211"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",
