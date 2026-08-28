@@ -292,7 +292,10 @@ def _schema_scenarios() -> list[dict[str, Any]]:
         ("INDEX-COMPOSITE-DESCENDING", _index("ByIdCodeDesc", [("Id", True), ("Code", True)]), ["indexes.composite_ascending_descending"]),
         ("INDEX-COMPOSITE-MIXED", _index("ByIdAscCodeDesc", [("Id", False), ("Code", True)]), ["indexes.composite_ascending_descending"]),
     ]:
-        branches = INLINE_ROW_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index", "index.branch_leaf_traversal"]
+        # EXP-0062 observed branches only in 4,096-row Long and 1,024-row
+        # composite controls. This closed recipe has only three rows, so it
+        # exercises definition and leaf-key behavior without claiming a root.
+        branches = INLINE_ROW_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index"]
         branches.append("index.composite_key_lossless" if len(index["fields"]) > 1 else "index.single_field_key")
         rows = [[_value("Id", "integer", number), _value("Code", "unicode_string", f"C{number:02d}")] for number in (3, 1, 2)]
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", index_caps + extra, _recipe([_table("Keyed", two_columns, [index]), _insert("Keyed", rows)]), branches))

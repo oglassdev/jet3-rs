@@ -316,6 +316,27 @@ class ProtocolV12Tests(unittest.TestCase):
         self.assertNotIn("tdef.single_page", wide)
         self.assertNotIn("rows.direct", empty)
 
+    def test_small_index_property_recipes_do_not_claim_branched_controls(self):
+        index_scenarios = [
+            scenario
+            for scenario in self.inventory["scenarios"]
+            if scenario["id"].startswith("DAO-READ-SCHEMA-INDEX-")
+        ]
+        self.assertEqual(len(index_scenarios), 6)
+        for scenario in index_scenarios:
+            steps = scenario["generator_recipe"]["steps"]
+            inserts = [step for step in steps if step["action"] == "insert_rows"]
+            with self.subTest(scenario=scenario["id"]):
+                self.assertEqual(
+                    sum(
+                        len(insert["rows"]) * insert["repeat"] for insert in inserts
+                    ),
+                    3,
+                )
+                self.assertNotIn(
+                    "index.branch_leaf_traversal", scenario["required_branches"]
+                )
+
     def test_page_span_recipe_matches_the_recorded_one_variable_wide_layout(self):
         scenario = self._find(self.inventory, "DAO-READ-ROWS-PAGE-SPAN")
         steps = scenario["generator_recipe"]["steps"]

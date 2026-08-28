@@ -1702,7 +1702,6 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "index.branch_leaf_traversal",
         "index.composite_key_lossless",
         "open.header_page",
         "open.signature_geometry",
@@ -1715,7 +1714,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "ba20a600d264aa7acba5942110ecefd06c7df50a36e84cfc388a2fa1ec8f2a44"
+      "content_sha256": "8d7fd169eb821f0cf85ee456bff4ff3f64fcb26949ac32b90e4a9141a4f975f3"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-COMPOSITE-DESCENDING",
@@ -1829,7 +1828,6 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "index.branch_leaf_traversal",
         "index.composite_key_lossless",
         "open.header_page",
         "open.signature_geometry",
@@ -1842,7 +1840,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "e0abc83c8c8d382e5a76406adeb7fccd64cb2b9cda52f651a7337b986c941d8a"
+      "content_sha256": "195bd2c3d65e101e75822aba692a34af86ba7773f480028f2ff6634acf91bf90"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-COMPOSITE-MIXED",
@@ -1956,7 +1954,6 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "index.branch_leaf_traversal",
         "index.composite_key_lossless",
         "open.header_page",
         "open.signature_geometry",
@@ -1969,7 +1966,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "d18332940efc531d1bd3e1b24cc0716233a863f11b730cc89072930cd53cd3e9"
+      "content_sha256": "f2d363956db2c752a48808c170fbaa63623745bcbaed246a89b126ef43c6c79a"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-NONUNIQUE",
@@ -2078,7 +2075,6 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "index.branch_leaf_traversal",
         "index.single_field_key",
         "open.header_page",
         "open.signature_geometry",
@@ -2091,7 +2087,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "4bd0224050de2ad316cc4ce6bca004b59008afe2dc82b819bb459edf811957da"
+      "content_sha256": "006ff2305901c2810e8a40702ffe295c548efb535109cc3487994e1ba710a41e"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-PRIMARY",
@@ -2200,7 +2196,6 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "index.branch_leaf_traversal",
         "index.single_field_key",
         "open.header_page",
         "open.signature_geometry",
@@ -2213,7 +2208,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "24f031c508c308c656ed7fa07cc2c77a7cf30199ec6efab3172944c65c80592c"
+      "content_sha256": "b83b3d6d6e2091a766da84ba0abdcffcbb033f2c22dece5494bd7ef8a27423a7"
     },
     {
       "id": "DAO-READ-SCHEMA-INDEX-UNIQUE",
@@ -2322,7 +2317,6 @@
         "allocation.inline_map",
         "catalog.record_stream",
         "catalog.root_discovery",
-        "index.branch_leaf_traversal",
         "index.single_field_key",
         "open.header_page",
         "open.signature_geometry",
@@ -2335,7 +2329,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "51d4bf65bd3edffbb28e3a0e5c9afa09c0654a5cdb920cdf9b4843fa85cd1acf"
+      "content_sha256": "1a8113e2437a18d8e248c5fbfd4a92eeba0c1879e185a7396b43f96a84518402"
     },
     {
       "id": "DAO-READ-SCHEMA-RELATIONSHIP",
