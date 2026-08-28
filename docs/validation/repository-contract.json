@@ -222,7 +222,7 @@
           "EXP-0060",
           "EXP-0061"
         ],
-        "sha256": "fc9ee3c95d8ec38f1dc1c5271a21cb88dcb19694af718f09299468c809875ed9"
+        "sha256": "6f9e66cbee98fd1c51c0f749b444d2db5abfb28e2ba2c5720980449f77f2e0b2"
       },
       {
         "path": "crates/jet3/src/row_directory.rs",
@@ -312,12 +312,12 @@
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
         "reason": "Protocol 1.2 model integrity, ordering, and source-independent row identity rules.",
-        "sha256": "91e3d174fd1867a8eea7fbf92e771303da81d25fba09cffc401b600990b67956"
+        "sha256": "ad6be90197b7ccb7b5cc9e40d6d8dcde4183a2bfa72c13e3385ec579025d0f2b"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "584c72d6adf72ff263d716213e329d245e744fbdd6d8f4951c9118a6624f027f"
+        "sha256": "ccf1e0ab73d583efc13c1529039d12f6622ac01a9d92398fac4219ffc162ca20"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",

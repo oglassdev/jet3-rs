@@ -12,66 +12,102 @@ use crate::{
 /// A protocol 1.2 column, containing only facts in the comparison projection.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticColumn {
+    /// Canonical column name.
     pub name: String,
+    /// Zero-based column ordinal.
     pub ordinal: u64,
+    /// DAO `DataTypeEnum` constant name.
     pub dao_type: String,
+    /// Whether the column generates values automatically.
     pub auto_increment: bool,
+    /// Declared column size when the producer can establish it.
     pub size: Option<u64>,
+    /// Losslessly retained numeric column attributes.
     pub attributes: i64,
+    /// Canonically ordered semantic properties.
     pub properties: PropertyMap,
 }
 
 /// A protocol 1.2 index, containing only independently decoded facts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticIndex {
+    /// Canonical index name.
     pub name: String,
+    /// Whether this is the table's primary index.
     pub primary: bool,
+    /// Whether indexed keys must be unique.
     pub unique: bool,
+    /// Whether every indexed field is required.
     pub required: bool,
+    /// Declared index fields in key order.
     pub fields: Vec<crate::IndexField>,
+    /// Canonically ordered semantic properties.
     pub properties: PropertyMap,
 }
 
 /// A protocol 1.2 row with content-derived identity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticRow {
+    /// SHA-256 of the row's canonical value map.
     pub canonical_key: Sha256,
+    /// Zero-based ordinal among byte-identical rows sharing the key.
     pub duplicate_ordinal: u64,
+    /// Canonically ordered values keyed by column name.
     pub values: PropertyMap,
 }
 
 /// A protocol 1.2 table.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticTable {
+    /// Canonical table name.
     pub name: String,
+    /// Semantic table kind.
     pub kind: TableKind,
+    /// Losslessly retained numeric table attributes.
     pub attributes: i64,
+    /// Columns in ordinal order.
     pub columns: Vec<SemanticColumn>,
+    /// Indexes in canonical name order.
     pub indexes: Vec<SemanticIndex>,
+    /// Canonically ordered semantic properties.
     pub properties: PropertyMap,
+    /// Rows in content-derived canonical order.
     pub rows: Vec<SemanticRow>,
 }
 
 /// Canonical semantic snapshot emitted by the Rust protocol 1.2 producer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticSnapshot {
+    /// Closed protocol scenario identifier.
     pub scenario_id: ScenarioId,
+    /// Producer identity and exact source revision.
     pub producer: Producer,
+    /// SHA-256 of the exact database input bytes.
     pub database_sha256: Sha256,
+    /// Canonically ordered database properties.
     pub database_properties: PropertyMap,
+    /// User tables in canonical name order.
     pub tables: Vec<SemanticTable>,
+    /// Relationships in canonical name order.
     pub relationships: Vec<Relationship>,
+    /// Lossless raw facts not represented beside a semantic value.
     pub raw_preservation: Vec<RawPreservation>,
+    /// Producer-specific facts excluded from the comparison projection.
     pub producer_extensions: PropertyMap,
 }
 
 /// Commit-bound coverage evidence emitted beside a Rust snapshot.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoverageReceipt {
+    /// Closed protocol scenario identifier.
     pub scenario_id: ScenarioId,
+    /// Exact producer source revision.
     pub source_revision: String,
+    /// SHA-256 of the exact database input bytes.
     pub database_sha256: Sha256,
+    /// SHA-256 binding the traversed allocated-page sets.
     pub allocated_set_sha256: Sha256,
+    /// Closed registry branch identifiers observed by the producer.
     pub branches: BTreeSet<String>,
 }
 
@@ -79,12 +115,35 @@ pub struct CoverageReceipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SemanticProtocolError {
+    /// A shared canonical value failed validation.
     Snapshot(SnapshotError),
-    MissingRaw { path: String },
-    UnexpectedRaw { path: String },
-    MissingCodePage { path: String },
-    InvalidModel { path: String, reason: &'static str },
-    RowHashCollision { table: String },
+    /// A lossless value lacks its required raw bytes.
+    MissingRaw {
+        /// JSON-style path to the invalid value.
+        path: String,
+    },
+    /// A null or Boolean value incorrectly carries raw bytes.
+    UnexpectedRaw {
+        /// JSON-style path to the invalid value.
+        path: String,
+    },
+    /// A text value lacks its explicit decoding code page.
+    MissingCodePage {
+        /// JSON-style path to the invalid value.
+        path: String,
+    },
+    /// The model violates a protocol 1.2 structural invariant.
+    InvalidModel {
+        /// JSON-style path to the invalid object.
+        path: String,
+        /// Stable description of the violated invariant.
+        reason: &'static str,
+    },
+    /// Distinct canonical rows produced the same SHA-256 identity.
+    RowHashCollision {
+        /// Table containing the colliding rows.
+        table: String,
+    },
 }
 
 impl fmt::Display for SemanticProtocolError {

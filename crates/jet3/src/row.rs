@@ -279,18 +279,25 @@ pub struct RowCoverage {
 }
 
 impl RowCoverage {
+    /// Reports whether deleted or hidden storage entries were skipped.
     #[must_use]
     pub const fn deleted_skip(self) -> bool {
         self.deleted_skip
     }
+
+    /// Reports whether an active row was read directly from its source page.
     #[must_use]
     pub const fn direct(self) -> bool {
         self.direct
     }
+
+    /// Reports whether an active row followed an overflow pointer.
     #[must_use]
     pub const fn overflow_pointer(self) -> bool {
         self.overflow_pointer
     }
+
+    /// Reports whether a row used the wide variable-offset layout.
     #[must_use]
     pub const fn wide_variable_layout(self) -> bool {
         self.wide_variable_layout

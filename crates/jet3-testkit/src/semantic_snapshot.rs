@@ -221,7 +221,9 @@ impl From<SemanticProtocolError> for SemanticSnapshotError {
 /// The paired protocol documents emitted for one successful Rust read.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticSnapshotArtifacts {
+    /// Canonical protocol 1.2 semantic snapshot.
     pub snapshot: SemanticSnapshot,
+    /// Database-bound coverage evidence emitted beside the snapshot.
     pub coverage_receipt: CoverageReceipt,
 }
 
