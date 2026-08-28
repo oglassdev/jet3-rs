@@ -281,7 +281,23 @@ def _schema_scenarios() -> list[dict[str, Any]]:
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-TYPE-{case.name}", caps + [ALL_TYPES], _recipe([_table("Typed", [_field("Id", "dbLong"), case.field()])]), INLINE_TABLE_BRANCHES))
     for suffix, size in [("TEXT-SIZE-1", 1), ("TEXT-SIZE-255", 255)]:
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", caps, _recipe([_table("Typed", [_field("Value", "dbText", size)])]), INLINE_TABLE_BRANCHES))
-    scenarios.append(_scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps + [ALL_TYPES], _recipe([_table("Wide", [_field(f"F{index:02d}", TYPE_CASES[index % len(TYPE_CASES)].dao_type) for index in range(64)])]), CONTINUATION_TABLE_BRANCHES))
+    # EXP-0059 records this exact probe as a 4,333-byte continuation chain.
+    boundary_fields = [
+        _field(
+            f"Boundary_{index:02d}_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+            "dbText" if index % 2 else "dbLong",
+            31 if index % 2 else None,
+        )
+        for index in range(64)
+    ]
+    scenarios.append(
+        _scenario(
+            "DAO-READ-SCHEMA-WIDE-TABLE",
+            caps,
+            _recipe([_table("BoundaryProbe", boundary_fields)]),
+            CONTINUATION_TABLE_BRANCHES,
+        )
+    )
     index_caps = caps + ["indexes.primary_unique_non_unique"]
     two_columns = [_field("Id", "dbLong"), _field("Code", "dbText", 16)]
     for suffix, index, extra in [

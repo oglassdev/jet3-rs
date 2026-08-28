@@ -451,7 +451,7 @@
       {
         "path": "crates/jet3-testkit/src/scenario_inventory_generated.rs",
         "reason": "Generated format-neutral mapping from the protocol 1.2 branch registry and every closed scenario identifier to its outcome, normalized rejection class, and required/forbidden branches.",
-        "sha256": "916bdbe7eb5ae65ad039a9454f15a55274893183e140ef7ed10216849b70fac2"
+        "sha256": "77b9481f4219297bd51f13373139945a2e17292b1c3f7c1f66d4679a374f1c0e"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",

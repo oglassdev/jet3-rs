@@ -126,6 +126,37 @@ class ProtocolV12Tests(unittest.TestCase):
             all(s["expected_snapshot_sha256"] is None for s in self.inventory["scenarios"])
         )
 
+    def test_continuation_scenario_matches_recorded_boundary_recipe(self):
+        scenario = self._find(self.inventory, "DAO-READ-SCHEMA-WIDE-TABLE")
+        steps = scenario["generator_recipe"]["steps"]
+        self.assertEqual(
+            [step["action"] for step in steps],
+            ["create_database", "create_table", "close_database"],
+        )
+        table = steps[1]
+        self.assertEqual(table["name"], "BoundaryProbe")
+        self.assertEqual(table["indexes"], [])
+        self.assertEqual(
+            {len(field["name"].encode("ascii")) for field in table["fields"]},
+            {48},
+        )
+        self.assertEqual(
+            table["fields"],
+            [
+                {
+                    "name": f"Boundary_{index:02d}_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                    "dao_type": "dbText" if index % 2 else "dbLong",
+                    "size": 31 if index % 2 else None,
+                    "required": False,
+                }
+                for index in range(64)
+            ],
+        )
+        self.assertEqual(
+            scenario["capability_ids"], ["schema.catalog_and_table_definitions"]
+        )
+        self.assertIn("tdef.continuation_chain", scenario["required_branches"])
+
     def test_content_hash_covers_semantic_fields_but_not_serialization(self):
         inventory = self._copy()
         self._validate(inventory)

@@ -3411,8 +3411,7 @@
     {
       "id": "DAO-READ-SCHEMA-WIDE-TABLE",
       "capability_ids": [
-        "schema.catalog_and_table_definitions",
-        "values.all_dao_jet3_table_types"
+        "schema.catalog_and_table_definitions"
       ],
       "boundary": null,
       "operation": {
@@ -3432,390 +3431,390 @@
           },
           {
             "action": "create_table",
-            "name": "Wide",
+            "name": "BoundaryProbe",
             "fields": [
               {
-                "name": "F00",
-                "dao_type": "dbBoolean",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F01",
-                "dao_type": "dbByte",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F02",
-                "dao_type": "dbInteger",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F03",
+                "name": "Boundary_00_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbLong",
                 "size": null,
                 "required": false
               },
               {
-                "name": "F04",
-                "dao_type": "dbCurrency",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F05",
-                "dao_type": "dbSingle",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F06",
-                "dao_type": "dbDouble",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F07",
-                "dao_type": "dbDate",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F08",
-                "dao_type": "dbBinary",
-                "size": 255,
-                "required": false
-              },
-              {
-                "name": "F09",
+                "name": "Boundary_01_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbText",
-                "size": 255,
+                "size": 31,
                 "required": false
               },
               {
-                "name": "F10",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F11",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F12",
-                "dao_type": "dbGUID",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F13",
-                "dao_type": "dbBoolean",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F14",
-                "dao_type": "dbByte",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F15",
-                "dao_type": "dbInteger",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F16",
+                "name": "Boundary_02_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbLong",
                 "size": null,
                 "required": false
               },
               {
-                "name": "F17",
-                "dao_type": "dbCurrency",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F18",
-                "dao_type": "dbSingle",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F19",
-                "dao_type": "dbDouble",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F20",
-                "dao_type": "dbDate",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F21",
-                "dao_type": "dbBinary",
-                "size": 255,
-                "required": false
-              },
-              {
-                "name": "F22",
+                "name": "Boundary_03_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbText",
-                "size": 255,
+                "size": 31,
                 "required": false
               },
               {
-                "name": "F23",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F24",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F25",
-                "dao_type": "dbGUID",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F26",
-                "dao_type": "dbBoolean",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F27",
-                "dao_type": "dbByte",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F28",
-                "dao_type": "dbInteger",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F29",
+                "name": "Boundary_04_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbLong",
                 "size": null,
                 "required": false
               },
               {
-                "name": "F30",
-                "dao_type": "dbCurrency",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F31",
-                "dao_type": "dbSingle",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F32",
-                "dao_type": "dbDouble",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F33",
-                "dao_type": "dbDate",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F34",
-                "dao_type": "dbBinary",
-                "size": 255,
-                "required": false
-              },
-              {
-                "name": "F35",
+                "name": "Boundary_05_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbText",
-                "size": 255,
+                "size": 31,
                 "required": false
               },
               {
-                "name": "F36",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F37",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F38",
-                "dao_type": "dbGUID",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F39",
-                "dao_type": "dbBoolean",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F40",
-                "dao_type": "dbByte",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F41",
-                "dao_type": "dbInteger",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F42",
+                "name": "Boundary_06_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbLong",
                 "size": null,
                 "required": false
               },
               {
-                "name": "F43",
-                "dao_type": "dbCurrency",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F44",
-                "dao_type": "dbSingle",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F45",
-                "dao_type": "dbDouble",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F46",
-                "dao_type": "dbDate",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F47",
-                "dao_type": "dbBinary",
-                "size": 255,
-                "required": false
-              },
-              {
-                "name": "F48",
+                "name": "Boundary_07_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbText",
-                "size": 255,
+                "size": 31,
                 "required": false
               },
               {
-                "name": "F49",
-                "dao_type": "dbLongBinary",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F50",
-                "dao_type": "dbMemo",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F51",
-                "dao_type": "dbGUID",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F52",
-                "dao_type": "dbBoolean",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F53",
-                "dao_type": "dbByte",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F54",
-                "dao_type": "dbInteger",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F55",
+                "name": "Boundary_08_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbLong",
                 "size": null,
                 "required": false
               },
               {
-                "name": "F56",
-                "dao_type": "dbCurrency",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F57",
-                "dao_type": "dbSingle",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F58",
-                "dao_type": "dbDouble",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F59",
-                "dao_type": "dbDate",
-                "size": null,
-                "required": false
-              },
-              {
-                "name": "F60",
-                "dao_type": "dbBinary",
-                "size": 255,
-                "required": false
-              },
-              {
-                "name": "F61",
+                "name": "Boundary_09_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                 "dao_type": "dbText",
-                "size": 255,
+                "size": 31,
                 "required": false
               },
               {
-                "name": "F62",
-                "dao_type": "dbLongBinary",
+                "name": "Boundary_10_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
                 "size": null,
                 "required": false
               },
               {
-                "name": "F63",
-                "dao_type": "dbMemo",
+                "name": "Boundary_11_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_12_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
                 "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_13_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_14_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_15_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_16_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_17_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_18_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_19_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_20_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_21_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_22_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_23_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_24_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_25_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_26_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_27_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_28_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_29_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_30_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_31_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_32_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_33_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_34_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_35_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_36_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_37_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_38_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_39_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_40_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_41_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_42_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_43_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_44_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_45_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_46_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_47_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_48_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_49_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_50_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_51_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_52_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_53_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_54_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_55_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_56_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_57_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_58_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_59_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_60_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_61_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
+                "required": false
+              },
+              {
+                "name": "Boundary_62_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbLong",
+                "size": null,
+                "required": false
+              },
+              {
+                "name": "Boundary_63_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                "dao_type": "dbText",
+                "size": 31,
                 "required": false
               }
             ],
@@ -3837,7 +3836,7 @@
       ],
       "expected_snapshot_sha256": null,
       "preserve_paths": [],
-      "content_sha256": "701089fd594caf9b22edf970af3bc12ee72cb00c69617aaa8d55273ecb808b9d"
+      "content_sha256": "32bce26065707d1680480c4372541f2df33d1ced835d37cd417a73a07c73fcf0"
     },
     {
       "id": "DAO-READ-VALUES-BINARY-MAX",
