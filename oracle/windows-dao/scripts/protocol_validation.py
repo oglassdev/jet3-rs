@@ -132,8 +132,10 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def canonical_json_bytes(document: dict[str, Any]) -> bytes:
+def canonical_json_bytes(document: Any) -> bytes:
     """Encode a protocol document in its canonical snapshot representation."""
+    if not isinstance(document, dict):
+        raise ValidationError("$: protocol document must be an object")
     return (
         json.dumps(
             _normalize_single_values(document, (), document.get("document_type")),

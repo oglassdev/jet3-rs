@@ -5,7 +5,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -17,177 +16,12 @@ from protocol_validation import (  # noqa: E402
     lint_schema,
     validate_schema_value,
 )
-import build_v1_2_inventory  # noqa: E402
 import validate_protocol_v1_2 as v1_2  # noqa: E402
+from protocol_validation_snapshot_fixtures import SnapshotFixtureMixin  # noqa: E402
 
 
-class ProtocolV12SnapshotTests(unittest.TestCase):
+class ProtocolV12SnapshotTests(SnapshotFixtureMixin, unittest.TestCase):
     """Cross-field rules of the 1.2 differential read contract."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.capabilities = v1_2.load_capability_ids()
-        cls.branches = v1_2.load_branch_ids()
-        cls.inventory = build_v1_2_inventory.build_inventory()
-
-    def _validate(self, inventory, complete=False):
-        v1_2.SCHEMA_SET.validate(inventory)
-        return v1_2.validate_inventory(
-            inventory,
-            capability_ids=self.capabilities,
-            branch_ids=self.branches,
-            complete=complete,
-        )
-
-    def _copy(self):
-        return json.loads(json.dumps(self.inventory))
-
-    def _rehash(self, scenario):
-        scenario["content_sha256"] = v1_2.scenario_content_sha256(scenario)
-
-    def _find(self, inventory, scenario_id):
-        return next(s for s in inventory["scenarios"] if s["id"] == scenario_id)
-
-    def _snapshot(self):
-        values = {
-            "Id": {"kind": "long", "raw_hex": "01000000", "value": 1},
-            "Flag": {"kind": "boolean", "value": True},
-        }
-        key = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
-        column = {
-            "name": "Id",
-            "ordinal": 0,
-            "dao_type": "dbLong",
-            "auto_increment": False,
-            "size": 4,
-            "attributes": 1,
-            "properties": {},
-        }
-        flag = dict(column, name="Flag", ordinal=1, dao_type="dbBoolean", size=1)
-        return {
-            "protocol_version": "1.2.0",
-            "document_type": "canonical_semantic_snapshot",
-            "scenario_id": "DAO-READ-ROWS-DUPLICATES",
-            "producer": {"kind": "rust", "source_revision": "test"},
-            "database_sha256": "ab" * 32,
-            "outcome": "success",
-            "error_class": None,
-            "ordering": {
-                "objects": "name_codepoint_ascending",
-                "columns": "ordinal_ascending",
-                "indexes": "name_codepoint_ascending",
-                "relationships": "name_codepoint_ascending",
-                "rows": "values_sha256_then_duplicate_ordinal",
-                "object_keys": "unicode_codepoint_ascending",
-            },
-            "comparison_projection": ["/producer", "/producer_extensions"],
-            "database_properties": {},
-            "tables": [
-                {
-                    "name": "Items",
-                    "kind": "user",
-                    "attributes": 0,
-                    "columns": [column, flag],
-                    "indexes": [
-                        {
-                            "name": "PK",
-                            "primary": True,
-                            "unique": True,
-                            "required": True,
-                            "fields": [{"name": "Id", "descending": False}],
-                            "properties": {},
-                        }
-                    ],
-                    "properties": {},
-                    "rows": [
-                        {"canonical_key": key, "duplicate_ordinal": 0, "values": values},
-                        {"canonical_key": key, "duplicate_ordinal": 1, "values": values},
-                    ],
-                }
-            ],
-            "relationships": [],
-            "raw_preservation": [],
-            "producer_extensions": {"/tables/0/columns/0/required": {"kind": "boolean", "value": True}},
-        }
-
-    def _success_receipt(self, snapshot=None):
-        snapshot = snapshot or self._snapshot()
-        required = self._find(
-            self.inventory, snapshot["scenario_id"]
-        )["required_branches"]
-        return {
-            "protocol_version": "1.2.0",
-            "document_type": "rust_coverage_receipt",
-            "scenario_id": snapshot["scenario_id"],
-            "source_revision": snapshot["producer"]["source_revision"],
-            "database_sha256": snapshot["database_sha256"],
-            "allocated_set_sha256": "cd" * 32,
-            "outcome": "success",
-            "error_class": None,
-            "branches": sorted(required),
-        }
-
-    def _apply_semantic_name_mutation(self, snapshot, mutation):
-        table = snapshot["tables"][0]
-
-        if mutation == "none":
-            return
-        if mutation == "table_name":
-            table["name"] = ""
-            return
-        if mutation == "column_name":
-            table["columns"][0]["name"] = ""
-            table["indexes"][0]["fields"][0]["name"] = ""
-            values = dict(table["rows"][0]["values"])
-            values[""] = values.pop("Id")
-            canonical_key = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
-            for row in table["rows"]:
-                row["values"] = json.loads(json.dumps(values))
-                row["canonical_key"] = canonical_key
-            return
-        if mutation == "index_name":
-            table["indexes"][0]["name"] = ""
-            return
-        if mutation == "index_field":
-            table["indexes"][0]["fields"][0]["name"] = ""
-            return
-        if mutation == "database_property_name":
-            snapshot["database_properties"][""] = {
-                "kind": "boolean",
-                "value": True,
-            }
-            return
-
-        relationship = {
-            "name": "Self",
-            "table": "Items",
-            "foreign_table": "Items",
-            "attributes": 0,
-            "fields": [{"field": "Id", "foreign_field": "Id"}],
-            "properties": {},
-        }
-        if mutation == "relationship_name":
-            relationship["name"] = ""
-        elif mutation == "relationship_table":
-            relationship["table"] = ""
-        elif mutation == "relationship_foreign_table":
-            relationship["foreign_table"] = ""
-        elif mutation == "relationship_field":
-            relationship["fields"][0]["field"] = ""
-        elif mutation == "relationship_foreign_field":
-            relationship["fields"][0]["foreign_field"] = ""
-        elif mutation in ("raw_semantic_path", "raw_purpose"):
-            raw = {
-                "semantic_path": "/tables/0",
-                "raw_hex": "00",
-                "purpose": "test",
-            }
-            raw["semantic_path" if mutation == "raw_semantic_path" else "purpose"] = ""
-            snapshot["raw_preservation"] = [raw]
-            return
-        else:
-            self.fail(f"unknown semantic-name mutation {mutation!r}")
-        snapshot["relationships"] = [relationship]
 
     def test_shared_semantic_name_vectors_match_schema_and_python_validation(self):
         fixture = v1_2.SCHEMA_DIR / "fixtures" / "semantic-name-vectors.tsv"
@@ -463,6 +297,57 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
         self.assertEqual(seen, 8)
         self.assertTrue(all(len(hashes) == 1 for hashes in hashes_by_kind.values()))
 
+    def test_shared_producer_extension_paths_have_canonical_unique_targets(self):
+        fixture = (
+            v1_2.SCHEMA_DIR / "fixtures" / "producer-extension-path-vectors.tsv"
+        )
+        base = self._snapshot()
+        table = base["tables"][0]
+        table["columns"] = [
+            dict(table["columns"][0], name="Memo", dao_type="dbMemo", size=0, attributes=2),
+            dict(
+                table["columns"][1],
+                name="Memo/Part~Name",
+                dao_type="dbLongBinary",
+                size=0,
+                attributes=2,
+            ),
+        ]
+        table["indexes"] = []
+        values = {
+            "Memo": {"kind": "memo", "raw_hex": "6d656d6f", "value": "memo", "code_page": 1252},
+            "Memo/Part~Name": {"kind": "ole", "raw_hex": "01", "value": "01"},
+        }
+        key = hashlib.sha256(canonical_json_bytes(values)).hexdigest()
+        table["rows"] = [
+            {"canonical_key": key, "duplicate_ordinal": ordinal, "values": values}
+            for ordinal in (0, 1)
+        ]
+        second = json.loads(json.dumps(table))
+        second["name"] = "Other"
+        base["tables"].append(second)
+        base["producer_extensions"] = {}
+        seen = 0
+        for line_number, line in enumerate(
+            fixture.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if line.startswith("#"):
+                continue
+            case, paths, expected_valid = line.split("\t")
+            snapshot = json.loads(json.dumps(base))
+            header = {"kind": "binary", "raw_hex": "0102030405060708090a0b0c", "value": "0102030405060708090a0b0c"}
+            snapshot["producer_extensions"] = {
+                path: header for path in paths.split("|")
+            }
+            with self.subTest(case=case, line=line_number):
+                if expected_valid == "true":
+                    self.assertEqual(v1_2.validate_document(snapshot), "canonical_semantic_snapshot")
+                else:
+                    with self.assertRaises(ValidationError):
+                        v1_2.validate_document(snapshot)
+            seen += 1
+        self.assertEqual(seen, 9)
+
     def test_shared_text_code_page_vectors_match_full_python_validation(self):
         fixture = v1_2.SCHEMA_DIR / "fixtures" / "text-code-page-vectors.tsv"
         seen = 0
@@ -534,208 +419,6 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
             seen += 1
         self.assertEqual(seen, 2)
 
-    def test_rejected_format_outcomes_follow_shared_normalization_vectors(self):
-        fixture = (
-            v1_2.SCHEMA_DIR
-            / "fixtures"
-            / "rejected-format-normalization-vectors.tsv"
-        )
-        seen = 0
-        for line in fixture.read_text(encoding="utf-8").splitlines():
-            if line.startswith("#"):
-                continue
-            case, scenario_id, _variant, error_class = line.split("\t")
-            scenario = self._find(self.inventory, scenario_id)
-            self.assertEqual(scenario["operation"]["error_class"], error_class, case)
-            snapshot, receipt = self._opening_failure(scenario_id, error_class)
-            self.assertEqual(
-                v1_2.validate_document(snapshot),
-                "canonical_semantic_snapshot",
-                case,
-            )
-            self.assertEqual(
-                v1_2.validate_document(receipt), "rust_coverage_receipt", case
-            )
-            seen += 1
-        self.assertEqual(seen, 3)
-
-    def test_success_and_opening_failure_artifact_pairs_are_bound(self):
-        success_snapshot = self._snapshot()
-        success_receipt = self._success_receipt(success_snapshot)
-        v1_2.validate_artifact_pair(success_snapshot, success_receipt)
-
-        failure_snapshot, failure_receipt = self._opening_failure(
-            "DAO-READ-OPEN-REJECT-JET4", "unsupported_version"
-        )
-        v1_2.validate_artifact_pair(failure_snapshot, failure_receipt)
-
-    def test_artifact_pair_rejects_documents_mixed_between_valid_bundles(self):
-        first_snapshot = self._snapshot()
-        first_receipt = self._success_receipt(first_snapshot)
-        second_snapshot = json.loads(json.dumps(first_snapshot))
-        second_snapshot["producer"]["source_revision"] = "other-revision"
-        second_snapshot["database_sha256"] = "ef" * 32
-        second_receipt = self._success_receipt(second_snapshot)
-
-        v1_2.validate_artifact_pair(first_snapshot, first_receipt)
-        v1_2.validate_artifact_pair(second_snapshot, second_receipt)
-        with self.assertRaisesRegex(
-            ValidationError, "source_revision, database_sha256"
-        ):
-            v1_2.validate_artifact_pair(first_snapshot, second_receipt)
-
-    def test_artifact_pair_rejects_each_cross_document_binding_mutation(self):
-        snapshot = self._snapshot()
-        receipt = self._success_receipt(snapshot)
-
-        wrong_scenario = json.loads(json.dumps(receipt))
-        wrong_scenario["scenario_id"] = "DAO-READ-ROWS-SINGLE"
-        wrong_scenario["branches"] = sorted(
-            self._find(self.inventory, "DAO-READ-ROWS-SINGLE")["required_branches"]
-        )
-        with self.assertRaisesRegex(ValidationError, "scenario_id"):
-            v1_2.validate_artifact_pair(snapshot, wrong_scenario)
-
-        wrong_revision = json.loads(json.dumps(receipt))
-        wrong_revision["source_revision"] = "other-revision"
-        with self.assertRaisesRegex(ValidationError, "source_revision"):
-            v1_2.validate_artifact_pair(snapshot, wrong_revision)
-
-        wrong_database = json.loads(json.dumps(receipt))
-        wrong_database["database_sha256"] = "ef" * 32
-        with self.assertRaisesRegex(ValidationError, "database_sha256"):
-            v1_2.validate_artifact_pair(snapshot, wrong_database)
-
-        dao_snapshot = json.loads(json.dumps(snapshot))
-        dao_snapshot["producer"]["kind"] = "dao"
-        with self.assertRaisesRegex(ValidationError, "Rust snapshot producer"):
-            v1_2.validate_artifact_pair(dao_snapshot, receipt)
-
-    def test_artifact_pair_rejects_constant_outcome_allocation_and_error_mutations(self):
-        snapshot = self._snapshot()
-        receipt = self._success_receipt(snapshot)
-
-        for field, value in (
-            ("protocol_version", "1.1.0"),
-            ("document_type", "rust_coverage_receipt"),
-        ):
-            mutated = json.loads(json.dumps(snapshot))
-            mutated[field] = value
-            with self.subTest(field=field), self.assertRaises(ValidationError):
-                v1_2.validate_artifact_pair(mutated, receipt)
-
-        success_without_allocation = json.loads(json.dumps(receipt))
-        success_without_allocation["allocated_set_sha256"] = None
-        with self.assertRaises(ValidationError):
-            v1_2.validate_artifact_pair(snapshot, success_without_allocation)
-
-        success_with_error = json.loads(json.dumps(receipt))
-        success_with_error["error_class"] = "unsupported_version"
-        with self.assertRaises(ValidationError):
-            v1_2.validate_artifact_pair(snapshot, success_with_error)
-
-        failure_snapshot, failure_receipt = self._opening_failure(
-            "DAO-READ-OPEN-REJECT-JET4", "unsupported_version"
-        )
-        failure_with_allocation = json.loads(json.dumps(failure_receipt))
-        failure_with_allocation["allocated_set_sha256"] = "cd" * 32
-        with self.assertRaises(ValidationError):
-            v1_2.validate_artifact_pair(failure_snapshot, failure_with_allocation)
-
-        failure_without_error = json.loads(json.dumps(failure_receipt))
-        failure_without_error["error_class"] = None
-        with self.assertRaises(ValidationError):
-            v1_2.validate_artifact_pair(failure_snapshot, failure_without_error)
-
-        wrong_error = json.loads(json.dumps(failure_receipt))
-        wrong_error["error_class"] = "encrypted_database"
-        with self.assertRaisesRegex(ValidationError, "does not match"):
-            v1_2.validate_artifact_pair(failure_snapshot, wrong_error)
-
-        with self.assertRaises(ValidationError):
-            v1_2.validate_artifact_pair(snapshot, failure_receipt)
-
-    def test_artifact_pair_paths_require_canonical_bytes(self):
-        snapshot = self._snapshot()
-        receipt = self._success_receipt(snapshot)
-        with tempfile.TemporaryDirectory() as temporary:
-            snapshot_path = Path(temporary) / "snapshot.json"
-            receipt_path = Path(temporary) / "coverage-receipt.json"
-            snapshot_path.write_bytes(canonical_json_bytes(snapshot))
-            receipt_path.write_bytes(canonical_json_bytes(receipt))
-            v1_2.validate_artifact_pair_paths(snapshot_path, receipt_path)
-            with mock.patch.object(
-                Path,
-                "read_bytes",
-                side_effect=AssertionError("canonical validation reread its input"),
-            ):
-                self.assertEqual(
-                    v1_2.validate_document_path(snapshot_path),
-                    "canonical_semantic_snapshot",
-                )
-
-            snapshot_path.write_text(
-                json.dumps(snapshot, indent=2) + "\n", encoding="utf-8"
-            )
-            with self.assertRaisesRegex(ValidationError, "not normalized"):
-                v1_2.validate_artifact_pair_paths(snapshot_path, receipt_path)
-
-    def test_rejected_format_outcome_mutations_fail_closed(self):
-        snapshot, receipt = self._opening_failure(
-            "DAO-READ-OPEN-REJECT-JET4", "unsupported_version"
-        )
-
-        wrong_outcome = json.loads(json.dumps(snapshot))
-        wrong_outcome["outcome"] = "success"
-        with self.assertRaisesRegex(ValidationError, "allowed shape"):
-            v1_2.validate_document(wrong_outcome)
-
-        success_scenario = json.loads(json.dumps(snapshot))
-        success_scenario["scenario_id"] = "DAO-READ-ROWS-SINGLE"
-        with self.assertRaisesRegex(ValidationError, "expected_error scenario"):
-            v1_2.validate_document(success_scenario)
-
-        wrong_error = json.loads(json.dumps(snapshot))
-        wrong_error["error_class"] = "encrypted_database"
-        with self.assertRaisesRegex(ValidationError, "does not match"):
-            v1_2.validate_document(wrong_error)
-
-        missing_branch = json.loads(json.dumps(receipt))
-        missing_branch["branches"].remove("open.rejected_format")
-        with self.assertRaisesRegex(ValidationError, "allowed shape"):
-            v1_2.validate_document(missing_branch)
-
-        success_receipt = json.loads(json.dumps(receipt))
-        success_receipt["scenario_id"] = "DAO-READ-ROWS-SINGLE"
-        with self.assertRaisesRegex(ValidationError, "expected_error scenario"):
-            v1_2.validate_document(success_receipt)
-
-    def _opening_failure(self, scenario_id, error_class):
-        common = {
-            "protocol_version": "1.2.0",
-            "scenario_id": scenario_id,
-            "database_sha256": "ab" * 32,
-            "outcome": "opening_failure",
-            "error_class": error_class,
-        }
-        snapshot = {
-            **common,
-            "document_type": "canonical_semantic_snapshot",
-            "producer": {"kind": "rust", "source_revision": "abc123"},
-            "comparison_projection": ["/producer"],
-        }
-        receipt = {
-            **common,
-            "document_type": "rust_coverage_receipt",
-            "source_revision": "abc123",
-            "allocated_set_sha256": None,
-            "branches": [
-                "open.header_page",
-                "open.rejected_format",
-                "open.signature_geometry",
-            ],
-        }
-        return snapshot, receipt
 
     def test_snapshot_rows_are_keyed_by_value_digest_and_duplicate_ordinal(self):
         snapshot = self._snapshot()

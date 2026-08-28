@@ -475,13 +475,13 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
-        "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization.",
-        "sha256": "be087e064befb4b22f22dd3b668ced30eedb27d901f32b801d6fa134057f7e9c"
+        "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization, including canonical bounded producer-extension indices and unique resolved external-header targets.",
+        "sha256": "d7c57e3a10a954f7b723eeb261eeb7d28843098798b098850892e2a76e088286"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
-        "reason": "Test-only mutation plus shared source-revision, strict text, relationship field-pair uniqueness, semantic-name, and producer-extension path vector verification that direct protocol model construction cannot bypass validation.",
-        "sha256": "863b4f1e1d59579d4dcba2f1f8e392ea89b526949ccf56fd9c6817e530aeb525"
+        "reason": "Test-only mutation plus shared source-revision, strict text, relationship field-pair uniqueness, semantic-name, and producer-extension normalization and association-path vector verification that direct protocol model construction cannot bypass validation.",
+        "sha256": "b0b508c76b26ae425707054577ac1c4d6610e2501e381a562a1085d1e2ea401b"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
@@ -516,7 +516,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_schema.rs",
         "reason": "High-level schema retention over public reader APIs, including comparison-excluded producer-only raw column facts.",
-        "sha256": "dc4430ac4e175926c5fb227c4db338648f208b4b71d4f0a55e9304db8494745b"
+        "sha256": "087ac8d7fc872623d23026f0c42eb53e70bedcd9099bd774cd00bc369645798c"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",

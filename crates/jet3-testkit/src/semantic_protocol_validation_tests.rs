@@ -18,6 +18,9 @@ const SEMANTIC_NAME_FIXTURES: &str =
 const PRODUCER_EXTENSION_NORMALIZATION_FIXTURES: &str = include_str!(
     "../../../oracle/windows-dao/protocol/v1_2/fixtures/producer-extension-normalization-vector.tsv"
 );
+const PRODUCER_EXTENSION_PATH_FIXTURES: &str = include_str!(
+    "../../../oracle/windows-dao/protocol/v1_2/fixtures/producer-extension-path-vectors.tsv"
+);
 
 fn long(value: i32) -> Result<TypedValue, Box<dyn std::error::Error>> {
     Ok(TypedValue::Long {
@@ -90,6 +93,60 @@ fn valid_snapshot() -> Result<SemanticSnapshot, Box<dyn std::error::Error>> {
             raw_hex: None,
         },
     );
+    snapshot.canonicalize()?;
+    Ok(snapshot)
+}
+
+fn external_header_snapshot() -> Result<SemanticSnapshot, Box<dyn std::error::Error>> {
+    let mut snapshot = valid_snapshot()?;
+    let memo = TypedValue::Memo {
+        value: "memo".into(),
+        raw_hex: Some(HexString::new("6d656d6f")?),
+        code_page: Some(1252),
+    };
+    let ole = TypedValue::Ole {
+        value: HexString::new("01")?,
+        raw_hex: Some(HexString::new("01")?),
+    };
+    let zero_key = Sha256::new("00".repeat(32))?;
+    let table = &mut snapshot.tables[0];
+    table.columns = vec![
+        SemanticColumn {
+            name: "Memo".into(),
+            ordinal: 0,
+            dao_type: "dbMemo".into(),
+            auto_increment: false,
+            size: Some(0),
+            attributes: 2,
+            properties: PropertyMap::new(),
+        },
+        SemanticColumn {
+            name: "Memo/Part~Name".into(),
+            ordinal: 1,
+            dao_type: "dbLongBinary".into(),
+            auto_increment: false,
+            size: Some(0),
+            attributes: 2,
+            properties: PropertyMap::new(),
+        },
+    ];
+    table.indexes.clear();
+    table.rows = [0, 1]
+        .map(|duplicate_ordinal| SemanticRow {
+            canonical_key: zero_key.clone(),
+            duplicate_ordinal,
+            values: PropertyMap::from([
+                ("Memo".into(), memo.clone()),
+                ("Memo/Part~Name".into(), ole.clone()),
+            ]),
+        })
+        .into();
+    let mut second_table = table.clone();
+    second_table.name = "Other".into();
+    snapshot.tables.push(second_table);
+    snapshot.relationships.clear();
+    snapshot.raw_preservation.clear();
+    snapshot.producer_extensions.clear();
     snapshot.canonicalize()?;
     Ok(snapshot)
 }
@@ -227,6 +284,42 @@ fn shared_producer_extension_vector_normalizes_same_named_semantic_fields()
         assert_eq!(line_index + 1, 2);
     }
     assert_eq!(seen, 1);
+    Ok(())
+}
+
+#[test]
+fn shared_producer_extension_paths_have_canonical_unique_targets()
+-> Result<(), Box<dyn std::error::Error>> {
+    let header = HexString::new("0102030405060708090a0b0c")?;
+    let mut seen = 0;
+    for (line_index, line) in PRODUCER_EXTENSION_PATH_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let [case, paths, expected_valid] = fields.as_slice() else {
+            return Err(test_error("invalid producer-extension path fixture shape").into());
+        };
+        let mut snapshot = external_header_snapshot()?;
+        for path in paths.split('|') {
+            snapshot.producer_extensions.insert(
+                path.into(),
+                TypedValue::Binary {
+                    value: header.clone(),
+                    raw_hex: Some(header.clone()),
+                },
+            );
+        }
+        assert_eq!(
+            snapshot.to_canonical_json().is_ok(),
+            expected_valid.parse::<bool>()?,
+            "{case} on line {}",
+            line_index + 1
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 9);
     Ok(())
 }
 

@@ -1,0 +1,10 @@
+# case	paths	valid
+canonical_zero	/tables/0/rows/0/values/Memo/jet_external_long_value_header	true
+canonical_nonzero	/tables/1/rows/1/values/Memo/jet_external_long_value_header	true
+table_leading_zero	/tables/00/rows/0/values/Memo/jet_external_long_value_header	false
+row_leading_zero	/tables/0/rows/01/values/Memo/jet_external_long_value_header	false
+very_large_index	/tables/18446744073709551615/rows/0/values/Memo/jet_external_long_value_header	false
+index_overflow	/tables/18446744073709551616/rows/0/values/Memo/jet_external_long_value_header	false
+escaped_column	/tables/0/rows/0/values/Memo~1Part~0Name/jet_external_long_value_header	true
+distinct_targets	/tables/0/rows/0/values/Memo/jet_external_long_value_header|/tables/0/rows/1/values/Memo/jet_external_long_value_header	true
+duplicate_resolved_target	/tables/0/rows/0/values/Memo/jet_external_long_value_header|/tables/00/rows/0/values/Memo/jet_external_long_value_header	false

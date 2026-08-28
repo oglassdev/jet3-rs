@@ -1,5 +1,7 @@
 //! Complete validation for protocol 1.2 semantic snapshot models.
 
+use std::collections::BTreeSet;
+
 use super::{SemanticProtocolError, SemanticSnapshot, SemanticTable, invalid};
 use crate::{HexString, ProducerKind, PropertyMap, TypedValue};
 
@@ -77,6 +79,7 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
         previous_raw = Some(raw.semantic_path.as_str());
     }
 
+    let mut external_long_value_targets = BTreeSet::new();
     for key in snapshot.producer_extensions.keys() {
         if !valid_json_pointer(key) {
             return Err(invalid(
@@ -85,7 +88,13 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
             ));
         }
         if key.ends_with("/jet_external_long_value_header") {
-            validate_external_long_value_header(snapshot, key)?;
+            let target = validate_external_long_value_header(snapshot, key)?;
+            if !external_long_value_targets.insert(target) {
+                return Err(invalid(
+                    format!("$.producer_extensions[{key:?}]"),
+                    "external long-value headers must resolve to unique semantic targets",
+                ));
+            }
         }
     }
     validate_properties(&snapshot.producer_extensions, "$.producer_extensions")
@@ -355,7 +364,7 @@ fn raw_hex(value: &TypedValue) -> Option<&HexString> {
 fn validate_external_long_value_header(
     snapshot: &SemanticSnapshot,
     key: &str,
-) -> Result<(), SemanticProtocolError> {
+) -> Result<(usize, usize, String), SemanticProtocolError> {
     let invalid_header = || {
         invalid(
             format!("$.producer_extensions[{key:?}]"),
@@ -371,14 +380,14 @@ fn validate_external_long_value_header(
     }
     let table_index = tokens
         .next()
-        .and_then(|token| token.parse::<usize>().ok())
+        .and_then(parse_canonical_index)
         .ok_or_else(&invalid_header)?;
     if tokens.next() != Some("rows") {
         return Err(invalid_header());
     }
     let row_index = tokens
         .next()
-        .and_then(|token| token.parse::<usize>().ok())
+        .and_then(parse_canonical_index)
         .ok_or_else(&invalid_header)?;
     if tokens.next() != Some("values") {
         return Err(invalid_header());
@@ -405,9 +414,24 @@ fn validate_external_long_value_header(
         TypedValue::Binary {
             value,
             raw_hex: Some(raw),
-        } if value.as_str().len() == 24 && value == raw => Ok(()),
+        } if value.as_str().len() == 24 && value == raw => Ok((table_index, row_index, column)),
         _ => Err(invalid_header()),
     }
+}
+
+fn parse_canonical_index(token: &str) -> Option<usize> {
+    let bytes = token.as_bytes();
+    if bytes.is_empty()
+        || bytes.len() > 20
+        || (bytes.len() > 1 && bytes[0] == b'0')
+        || !bytes.iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    token
+        .parse::<u64>()
+        .ok()
+        .and_then(|value| usize::try_from(value).ok())
 }
 
 fn decode_pointer_token(token: &str) -> Option<String> {

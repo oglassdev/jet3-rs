@@ -593,20 +593,43 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
         raise ValidationError(
             "$.raw_preservation: semantic paths must be unique and canonically ordered"
         )
+    external_long_value_targets: set[tuple[int, int, str]] = set()
     for key in document["producer_extensions"]:
         if JSON_POINTER.fullmatch(key) is None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")
         if key.endswith("/jet_external_long_value_header"):
-            _validate_external_long_value_header(document, key)
+            target = _validate_external_long_value_header(document, key)
+            if target in external_long_value_targets:
+                raise ValidationError(
+                    f"$.producer_extensions[{key!r}]: external long-value headers "
+                    "must resolve to unique semantic targets"
+                )
+            external_long_value_targets.add(target)
 
 
-def _validate_external_long_value_header(document: dict[str, Any], key: str) -> None:
+def _parse_canonical_index(token: str, location: str) -> int:
+    if (
+        not 1 <= len(token) <= 20
+        or (len(token) > 1 and token[0] == "0")
+        or not token.isascii()
+        or not token.isdigit()
+    ):
+        raise ValidationError(f"{location}: index must use canonical decimal spelling")
+    value = int(token)
+    if value > (1 << 64) - 1:
+        raise ValidationError(f"{location}: index exceeds the protocol bound")
+    return value
+
+
+def _validate_external_long_value_header(
+    document: dict[str, Any], key: str
+) -> tuple[int, int, str]:
     if document["producer"]["kind"] != "rust":
         raise ValidationError(
             f"$.producer_extensions[{key!r}]: external Jet headers are Rust-only metadata"
         )
     match = re.fullmatch(
-        r"/tables/(\d+)/rows/(\d+)/values/((?:~[01]|[^~/])+)"
+        r"/tables/([^/]+)/rows/([^/]+)/values/((?:~[01]|[^~/])+)"
         r"/jet_external_long_value_header",
         key,
     )
@@ -614,7 +637,12 @@ def _validate_external_long_value_header(document: dict[str, Any], key: str) -> 
         raise ValidationError(
             f"$.producer_extensions[{key!r}]: invalid external long-value association"
         )
-    table_index, row_index = (int(match.group(1)), int(match.group(2)))
+    table_index = _parse_canonical_index(
+        match.group(1), f"$.producer_extensions[{key!r}].table_index"
+    )
+    row_index = _parse_canonical_index(
+        match.group(2), f"$.producer_extensions[{key!r}].row_index"
+    )
     column_name = match.group(3).replace("~1", "/").replace("~0", "~")
     try:
         value = document["tables"][table_index]["rows"][row_index]["values"][column_name]
@@ -635,6 +663,7 @@ def _validate_external_long_value_header(document: dict[str, Any], key: str) -> 
         raise ValidationError(
             f"$.producer_extensions[{key!r}]: header must be an exact 12-byte binary value"
         )
+    return table_index, row_index, column_name
 
 
 def normalize_dao_column_attributes(raw_attributes: int) -> int:

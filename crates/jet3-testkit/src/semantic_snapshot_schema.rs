@@ -81,7 +81,7 @@ fn canonicalize_catalog_tables(
             "size catalog table ordering work",
         )?)
         .map_err(SemanticSnapshotError::Resource)?;
-    tables.sort_by(|left, right| left.name.cmp(&right.name));
+    tables.sort_unstable_by(|left, right| left.name.cmp(&right.name));
     if tables.windows(2).any(|pair| pair[0].name == pair[1].name) {
         return Err(SemanticSnapshotError::Protocol(
             SemanticProtocolError::InvalidModel {
@@ -310,7 +310,7 @@ fn canonicalize_relationship_sides(
             "size relationship side ordering work",
         )?)
         .map_err(SemanticSnapshotError::Resource)?;
-    sides.sort_by(|left, right| left.name.cmp(&right.name));
+    sides.sort_unstable_by(|left, right| left.name.cmp(&right.name));
     Ok(())
 }
 
@@ -339,8 +339,8 @@ mod tests {
         SemanticSnapshotError, SemanticTable, Sha256, TableKind, TypedValue,
     };
     use jet3::{
-        Error, PageNumber, ReadLimits, RelationshipSide, ResourceBudget, ResourceLimitKind,
-        ResourceLimits,
+        ByteCount, Error, PageNumber, ReadLimits, RelationshipSide, ResourceBudget,
+        ResourceLimitKind, ResourceLimits,
     };
 
     use super::super::retained::RetainedLedger;
@@ -382,10 +382,14 @@ mod tests {
         const REQUIRED: u64 = 4;
 
         let mut exact = [table("Zulu", 4), table("Alpha", 5)];
-        let mut exact_budget =
-            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(REQUIRED));
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(ByteCount::new(0))
+                .with_max_total_work_units(REQUIRED),
+        );
         canonicalize_catalog_tables(&mut exact, &mut exact_budget)?;
         assert_eq!(exact.map(|table| table.name), ["Alpha", "Zulu"]);
+        assert_eq!(exact_budget.allocation_bytes(), ByteCount::new(0));
         assert_eq!(exact_budget.total_work_units(), REQUIRED);
 
         let mut rejected = [table("Zulu", 4), table("Alpha", 5)];
@@ -476,10 +480,14 @@ mod tests {
         };
 
         let mut exact = sides();
-        let mut exact_budget =
-            ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(REQUIRED));
+        let mut exact_budget = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_allocation_bytes(ByteCount::new(0))
+                .with_max_total_work_units(REQUIRED),
+        );
         canonicalize_relationship_sides(&mut exact, &mut exact_budget)?;
         assert_eq!(exact.map(|side| side.name), ["Alpha", "Zulu"]);
+        assert_eq!(exact_budget.allocation_bytes(), ByteCount::new(0));
         assert_eq!(exact_budget.total_work_units(), REQUIRED);
 
         let mut rejected = sides();
@@ -497,6 +505,46 @@ mod tests {
         ));
         assert_eq!(rejected.map(|side| side.name), ["Zulu", "Alpha"]);
         assert_eq!(rejected_budget.total_work_units(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn relationship_pairing_is_independent_of_equal_name_side_order()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let primary = || {
+            relationship_side(
+                "Parent",
+                4,
+                RelationshipSide::PrimaryTable,
+                5,
+                "Id",
+                false,
+                false,
+            )
+        };
+        let foreign = || {
+            relationship_side(
+                "Child",
+                5,
+                RelationshipSide::ForeignTable,
+                4,
+                "ParentId",
+                false,
+                false,
+            )
+        };
+        let pair = |sides| {
+            pair_relationships(
+                sides,
+                &mut ResourceBudget::new(ResourceLimits::default()),
+                &mut RetainedLedger::new(),
+            )
+        };
+
+        assert_eq!(
+            pair(vec![primary(), foreign()])?,
+            pair(vec![foreign(), primary()])?
+        );
         Ok(())
     }
 
