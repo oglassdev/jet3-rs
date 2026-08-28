@@ -475,13 +475,13 @@
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
-        "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization, including canonical bounded producer-extension indices and unique resolved external-header targets.",
-        "sha256": "d7c57e3a10a954f7b723eeb261eeb7d28843098798b098850892e2a76e088286"
+        "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization, including canonical bounded producer-extension indices and resolved external-header associations.",
+        "sha256": "a0c8b8478c8504fb3799110bfb0c7ae4202dde141ee2e34c9c023d1a1836a6b3"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
         "reason": "Test-only mutation plus shared source-revision, strict text, relationship field-pair uniqueness, semantic-name, and producer-extension normalization and association-path vector verification that direct protocol model construction cannot bypass validation.",
-        "sha256": "b0b508c76b26ae425707054577ac1c4d6610e2501e381a562a1085d1e2ea401b"
+        "sha256": "1486348061c54e958b42bad846fab8f32ade27ffbcadd448fc0fd03643f0aca3"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",

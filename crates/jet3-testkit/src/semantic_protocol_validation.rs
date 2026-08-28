@@ -1,7 +1,5 @@
 //! Complete validation for protocol 1.2 semantic snapshot models.
 
-use std::collections::BTreeSet;
-
 use super::{SemanticProtocolError, SemanticSnapshot, SemanticTable, invalid};
 use crate::{HexString, ProducerKind, PropertyMap, TypedValue};
 
@@ -79,7 +77,6 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
         previous_raw = Some(raw.semantic_path.as_str());
     }
 
-    let mut external_long_value_targets = BTreeSet::new();
     for key in snapshot.producer_extensions.keys() {
         if !valid_json_pointer(key) {
             return Err(invalid(
@@ -88,13 +85,7 @@ pub(super) fn validate_snapshot(snapshot: &SemanticSnapshot) -> Result<(), Seman
             ));
         }
         if key.ends_with("/jet_external_long_value_header") {
-            let target = validate_external_long_value_header(snapshot, key)?;
-            if !external_long_value_targets.insert(target) {
-                return Err(invalid(
-                    format!("$.producer_extensions[{key:?}]"),
-                    "external long-value headers must resolve to unique semantic targets",
-                ));
-            }
+            validate_external_long_value_header(snapshot, key)?;
         }
     }
     validate_properties(&snapshot.producer_extensions, "$.producer_extensions")
@@ -364,7 +355,7 @@ fn raw_hex(value: &TypedValue) -> Option<&HexString> {
 fn validate_external_long_value_header(
     snapshot: &SemanticSnapshot,
     key: &str,
-) -> Result<(usize, usize, String), SemanticProtocolError> {
+) -> Result<(), SemanticProtocolError> {
     let invalid_header = || {
         invalid(
             format!("$.producer_extensions[{key:?}]"),
@@ -414,7 +405,7 @@ fn validate_external_long_value_header(
         TypedValue::Binary {
             value,
             raw_hex: Some(raw),
-        } if value.as_str().len() == 24 && value == raw => Ok((table_index, row_index, column)),
+        } if value.as_str().len() == 24 && value == raw => Ok(()),
         _ => Err(invalid_header()),
     }
 }

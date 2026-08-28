@@ -593,18 +593,11 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
         raise ValidationError(
             "$.raw_preservation: semantic paths must be unique and canonically ordered"
         )
-    external_long_value_targets: set[tuple[int, int, str]] = set()
     for key in document["producer_extensions"]:
         if JSON_POINTER.fullmatch(key) is None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")
         if key.endswith("/jet_external_long_value_header"):
-            target = _validate_external_long_value_header(document, key)
-            if target in external_long_value_targets:
-                raise ValidationError(
-                    f"$.producer_extensions[{key!r}]: external long-value headers "
-                    "must resolve to unique semantic targets"
-                )
-            external_long_value_targets.add(target)
+            _validate_external_long_value_header(document, key)
 
 
 def _parse_canonical_index(token: str, location: str) -> int:
@@ -623,7 +616,7 @@ def _parse_canonical_index(token: str, location: str) -> int:
 
 def _validate_external_long_value_header(
     document: dict[str, Any], key: str
-) -> tuple[int, int, str]:
+) -> None:
     if document["producer"]["kind"] != "rust":
         raise ValidationError(
             f"$.producer_extensions[{key!r}]: external Jet headers are Rust-only metadata"
@@ -663,7 +656,6 @@ def _validate_external_long_value_header(
         raise ValidationError(
             f"$.producer_extensions[{key!r}]: header must be an exact 12-byte binary value"
         )
-    return table_index, row_index, column_name
 
 
 def normalize_dao_column_attributes(raw_attributes: int) -> int:

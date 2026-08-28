@@ -288,7 +288,7 @@ fn shared_producer_extension_vector_normalizes_same_named_semantic_fields()
 }
 
 #[test]
-fn shared_producer_extension_paths_have_canonical_unique_targets()
+fn shared_producer_extension_paths_have_canonical_associations()
 -> Result<(), Box<dyn std::error::Error>> {
     let header = HexString::new("0102030405060708090a0b0c")?;
     let mut seen = 0;

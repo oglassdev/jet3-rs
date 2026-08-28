@@ -297,7 +297,7 @@ class ProtocolV12SnapshotTests(SnapshotFixtureMixin, unittest.TestCase):
         self.assertEqual(seen, 8)
         self.assertTrue(all(len(hashes) == 1 for hashes in hashes_by_kind.values()))
 
-    def test_shared_producer_extension_paths_have_canonical_unique_targets(self):
+    def test_shared_producer_extension_paths_have_canonical_associations(self):
         fixture = (
             v1_2.SCHEMA_DIR / "fixtures" / "producer-extension-path-vectors.tsv"
         )
