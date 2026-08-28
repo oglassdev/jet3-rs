@@ -25,6 +25,73 @@
     "jet3-cli",
     "jet3-testkit"
   ],
+  "reviewed_build_scripts": [
+    {
+      "package": "jet3-cli",
+      "manifest": "crates/jet3-cli/Cargo.toml",
+      "path": "crates/jet3-cli/build.rs",
+      "sha256": "8087bb092d0d16a5dc213fedf7ca8362a387343f30cbaacbf90c4782031ab8df",
+      "purpose": "Build identity only: embed the exact Git revision and dirty state; supplies no MDB format knowledge."
+    }
+  ],
+  "reviewed_external_runtime_packages": [
+    {
+      "name": "bitflags",
+      "version": "2.13.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da",
+      "allow_custom_build": false,
+      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+    },
+    {
+      "name": "errno",
+      "version": "0.3.14",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb",
+      "allow_custom_build": false,
+      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+    },
+    {
+      "name": "libc",
+      "version": "0.2.189",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2",
+      "allow_custom_build": true,
+      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+    },
+    {
+      "name": "linux-raw-sys",
+      "version": "0.12.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53",
+      "allow_custom_build": false,
+      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+    },
+    {
+      "name": "rustix",
+      "version": "1.1.4",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190",
+      "allow_custom_build": true,
+      "purpose": "Safe no-replace atomic publication on supported Unix targets; supplies no MDB format knowledge."
+    },
+    {
+      "name": "windows-link",
+      "version": "0.2.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
+      "allow_custom_build": false,
+      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
+      "allow_custom_build": false,
+      "purpose": "Locked rustix closure for target-specific safe no-replace atomic publication; supplies no MDB format knowledge."
+    }
+  ],
   "format_knowledge": {
     "assertion_files": [
       {
@@ -34,7 +101,7 @@
           "SRC-0005",
           "EXP-0056"
         ],
-        "sha256": "ee6c93f6e5586f7a9518b7d47e1d81dfbaca9b395123ac5c09c2d7f5bf24ed4f"
+        "sha256": "0b2dc8dd6bf63693bc1454e85e5bb7f49c0f3a1e56dc87226a221a87bb434bdb"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -66,7 +133,7 @@
           "EXP-0058",
           "EXP-0059"
         ],
-        "sha256": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33"
+        "sha256": "1f8e8536ec24d97a6c9e6302888e6e488c782367c2a4c492041f219b26d3557e"
       },
       {
         "path": "crates/jet3/src/catalog_record.rs",
@@ -178,7 +245,7 @@
         "provenance_ids": [
           "EXP-0061"
         ],
-        "sha256": "0fe9ec300202d10e8ced2329012283e5f81e0e861ad4f54a0d5529ac76e581df"
+        "sha256": "8de0a96b20cbfc78dc04094dd656d4cfe3a7cc847afa0e328ad1d280d15535da"
       },
       {
         "path": "crates/jet3/src/map_location.rs",
@@ -222,7 +289,14 @@
           "EXP-0060",
           "EXP-0061"
         ],
-        "sha256": "6f9e66cbee98fd1c51c0f749b444d2db5abfb28e2ba2c5720980449f77f2e0b2"
+        "sha256": "94917196106eb5cdf831346fdc436b20a9f6a31edf29af267a5930582353842b"
+      },
+      {
+        "path": "crates/jet3/src/row_cursor.rs",
+        "provenance_ids": [
+          "EXP-0060"
+        ],
+        "sha256": "a3799f5f22327f6ada6c9f7d330418bb65ec03e64e0451e6d175d2a96eafd0ed"
       },
       {
         "path": "crates/jet3/src/row_directory.rs",
@@ -230,6 +304,13 @@
           "EXP-0060"
         ],
         "sha256": "8132c1cce00cd8457cde54119c2186b63341135ca75bec3af4d2cb1d126817df"
+      },
+      {
+        "path": "crates/jet3/src/row_layout.rs",
+        "provenance_ids": [
+          "EXP-0060"
+        ],
+        "sha256": "bcd2f66d0a04774917a8c65adee13638d69fbea5aefcfec14f77c53dc9ee323f"
       },
       {
         "path": "crates/jet3/src/table_definition.rs",
@@ -264,6 +345,26 @@
       }
     ],
     "reviewed_non_assertion_files": [
+      {
+        "path": "crates/jet3-cli/src/build_identity.rs",
+        "reason": "Build-bound semantic producer identity parsing and clean-state enforcement; it introduces no physical format assertions.",
+        "sha256": "fa465d4bcc46df074e88dd83a860ab896462221ee98d3105faafab18eebc5612"
+      },
+      {
+        "path": "crates/jet3-cli/src/snapshot_bundle.rs",
+        "reason": "Format-neutral fixed-name atomic artifact-bundle publication and cleanup mechanics.",
+        "sha256": "601e5316888aa5d102136122aae4a40c23351919c53ab9f74d8f84b9d39c4aa9"
+      },
+      {
+        "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
+        "reason": "Test-only verification of format-neutral atomic bundle publication, alias rejection, and failure cleanup.",
+        "sha256": "4ed504d9071f1b773d9e688c380808b04f01fc142bed8b94d063ddad3bbd9cc3"
+      },
+      {
+        "path": "crates/jet3-cli/src/snapshot_input.rs",
+        "reason": "Format-neutral bounded immutable input staging and identity hashing over the exact staged bytes.",
+        "sha256": "33ef918490e42af352ae6aefe69cecb58e06d5ae723afc346c960f7301f48d67"
+      },
       {
         "path": "crates/jet3-testkit/src/bin/jet3-classifier-snapshot.rs",
         "reason": "Bounded command-line composition over the registered classifier snapshot API; it introduces no physical format assertions.",
@@ -302,27 +403,37 @@
       {
         "path": "crates/jet3-testkit/src/lib.rs",
         "reason": "Public protocol-support re-exports and product-scope labels only.",
-        "sha256": "375362c23ec2e60025dd399c59cff2d2390c851bf1406949a0e72c42d0f70bc2"
+        "sha256": "24503f423c7fd7863e8fab2b89a64a89862a5cd1476f25703c4bdd8f47d07040"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_json.rs",
         "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
-        "sha256": "c091ffcc7b535cf953ac2046638c51420150226606bf4ea4a706e5ee43652211"
+        "sha256": "6661f6a1ad0a28c4440cd030178872ceccbc1d4ad87e88c61642d3fbdb15011a"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
         "reason": "Protocol 1.2 model integrity, ordering, and source-independent row identity rules.",
-        "sha256": "ad6be90197b7ccb7b5cc9e40d6d8dcde4183a2bfa72c13e3385ec579025d0f2b"
+        "sha256": "a1162402af12b60a9f8dbd0bf612fe5695f86ad50e75e216f46022187851621b"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_protocol_validation.rs",
+        "reason": "Format-neutral complete protocol model validation shared by canonicalization and serialization.",
+        "sha256": "7fc140b656797a2d0436a58f820fbb9bb64b6c456e6ae3f441ba1b2eb05bcf03"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_protocol_validation_tests.rs",
+        "reason": "Test-only mutation verification that direct protocol model construction cannot bypass validation.",
+        "sha256": "ebb504f12a7c86c8ca5f9ebdb2f8860109e828921027067e047cee89578f5183"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
         "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
-        "sha256": "ccf1e0ab73d583efc13c1529039d12f6622ac01a9d92398fac4219ffc162ca20"
+        "sha256": "af91efb4d4ff683aedf50ae2913a80a50300a56dbdab1603f2ee4c78ab90e04a"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
-        "reason": "Semantic conversion over provenance-bound public reader values plus the separately recorded OLE Automation date interpretation.",
-        "sha256": "042256b73ed689b2f09f1de5235a56b537dd7502ac9f14d179134b0d6e33ca2a"
+        "reason": "Semantic conversion over provenance-bound public reader values and the EXP-0063 cross-producer normalization projection.",
+        "sha256": "46db39d9bb0702a0de2a02a7889e0318ef172b2a7576c05e5178a46af84c5194"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_coverage.rs",
@@ -332,17 +443,22 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_retained.rs",
         "reason": "Format-neutral bounded allocation accounting for retained protocol state.",
-        "sha256": "e512bf225140eda5ecf9f59f6538d90cbde8c0f2dab2e47436cc58d6ecd797cb"
+        "sha256": "f54caedc71048623fac30e64c09bdeaf2a4beea4f3feaadedf82f110e6118311"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_schema.rs",
+        "reason": "High-level schema retention over public reader APIs, including comparison-excluded producer-only raw column facts.",
+        "sha256": "02da04a769069453451d8297dc8dbec00e18d7a11737037d1f7eedc1b13a6f13"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
         "reason": "Test-only synthetic verification of the public semantic producer composition.",
-        "sha256": "e2a429fbb73a0bc79a2001e0bfe4b1113e0d923886d92cdc1d8ade3cbb4e675e"
+        "sha256": "c56dba2495a0937883fb21da739dee26e329f5bbe33bd128c744feb58dd5b1d6"
       },
       {
         "path": "crates/jet3-testkit/src/sha256.rs",
         "reason": "Format-independent SHA-256 implementation bound to the registered public standard.",
-        "sha256": "90cf6653196352f30431ceb5151c39566b3a1aca4351931df26a8a7ccd4973b2"
+        "sha256": "a32b15019bf6ca13c97d79de95cb16beab91a4631abc41de9a7801b729902063"
       },
       {
         "path": "crates/jet3/src/allocation_tests.rs",
@@ -432,7 +548,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "c0dcd2a9340d97b997e44946aadad18e6eb99dbb6a0429415683f1d9de0fdd5f"
+        "sha256": "c1b80efc32dde6516dc45eb7a3a1a9d5a80be5a6d79f79e79d8434fb764c5334"
       },
       {
         "path": "crates/jet3/src/long_value_tests.rs",

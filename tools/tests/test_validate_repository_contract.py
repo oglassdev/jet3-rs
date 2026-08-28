@@ -85,6 +85,17 @@ class ContractShapeTests(unittest.TestCase):
     def test_checked_contract_shape_is_valid(self) -> None:
         self.assertEqual(contract.validate_contract_shape(self.document), [])
 
+    def test_checked_build_script_and_locked_external_closure_are_exact(self) -> None:
+        workspace_errors, _ = contract.validate_workspace_and_sources(
+            REPOSITORY, self.document
+        )
+        self.assertEqual(workspace_errors, [])
+        metadata = repository_workspace_dependency.cargo_metadata(REPOSITORY)
+        self.assertEqual(
+            contract.validate_dependency_graph(REPOSITORY, self.document, metadata),
+            [],
+        )
+
     def test_unknown_key_and_changed_external_boundary_fail(self) -> None:
         changed = copy.deepcopy(self.document)
         changed["unexpected"] = True
@@ -116,6 +127,22 @@ class ContractShapeTests(unittest.TestCase):
         self.assertTrue(any("invalid provenance ID" in error for error in errors))
         self.assertTrue(any("invalid SHA-256" in error for error in errors))
 
+    def test_reviewed_runtime_entries_are_closed_and_unique(self) -> None:
+        changed = copy.deepcopy(self.document)
+        changed["reviewed_build_scripts"].append(
+            copy.deepcopy(changed["reviewed_build_scripts"][0])
+        )
+        changed["reviewed_external_runtime_packages"].append(
+            copy.deepcopy(changed["reviewed_external_runtime_packages"][0])
+        )
+        changed["reviewed_external_runtime_packages"][0]["unexpected"] = True
+        errors = contract.validate_contract_shape(changed)
+        self.assertTrue(any("duplicate reviewed build script" in error for error in errors))
+        self.assertTrue(
+            any("duplicate reviewed external package" in error for error in errors)
+        )
+        self.assertTrue(any("unknown=['unexpected']" in error for error in errors))
+
 
 class WorkspaceAndDependencyTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -144,6 +171,8 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
                 ],
             },
             "allowed_runtime_packages": ["jet3", "jet3-cli"],
+            "reviewed_build_scripts": [],
+            "reviewed_external_runtime_packages": [],
         }
         (self.root / "Cargo.toml").write_text(
             '[workspace]\nmembers=["crates/jet3","crates/jet3-cli",'
@@ -192,6 +221,7 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
                 {
                     "id": "registry+proptest",
                     "name": "proptest",
+                    "version": "1.0.0",
                     "manifest_path": "/registry/proptest/Cargo.toml",
                     "source": "registry+https://github.com/rust-lang/crates.io-index",
                     "links": None,
@@ -223,6 +253,66 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
             },
         }
 
+    def approve_cli_build_script(self) -> bytes:
+        script = b"fn main() {}\n"
+        path = self.root / "crates/jet3-cli/build.rs"
+        path.write_bytes(script)
+        self.document["reviewed_build_scripts"] = [
+            {
+                "package": "jet3-cli",
+                "manifest": "crates/jet3-cli/Cargo.toml",
+                "path": "crates/jet3-cli/build.rs",
+                "sha256": digest(script),
+                "purpose": "build identity only",
+            }
+        ]
+        return script
+
+    def rustix_metadata(self) -> dict:
+        metadata = self.metadata()
+        source = "registry+https://github.com/rust-lang/crates.io-index"
+        checksum = "1" * 64
+        metadata["packages"].append(
+            {
+                "id": "registry+rustix",
+                "name": "rustix",
+                "version": "1.1.4",
+                "manifest_path": "/registry/rustix/Cargo.toml",
+                "source": source,
+                "checksum": checksum,
+                "links": None,
+                "targets": [
+                    {"kind": ["lib"]},
+                    {"kind": ["custom-build"], "src_path": "/registry/rustix/build.rs"},
+                ],
+            }
+        )
+        metadata["resolve"]["nodes"].append(
+            {"id": "registry+rustix", "deps": []}
+        )
+        metadata["resolve"]["nodes"][1]["deps"].append(
+            {
+                "pkg": "registry+rustix",
+                "dep_kinds": [{"kind": None, "target": "cfg(unix)"}],
+            }
+        )
+        self.document["reviewed_external_runtime_packages"] = [
+            {
+                "name": "rustix",
+                "version": "1.1.4",
+                "source": source,
+                "checksum": checksum,
+                "allow_custom_build": True,
+                "purpose": "atomic publication only",
+            }
+        ]
+        (self.root / "Cargo.lock").write_text(
+            'version = 4\n\n[[package]]\nname = "rustix"\nversion = "1.1.4"\n'
+            f'source = "{source}"\nchecksum = "{checksum}"\n',
+            encoding="utf-8",
+        )
+        return metadata
+
     def test_safe_workspace_and_dev_only_dependency_pass(self) -> None:
         errors, _ = contract.validate_workspace_and_sources(self.root, self.document)
         self.assertEqual(errors, [])
@@ -248,7 +338,7 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
             "fn main() {}\n", encoding="utf-8"
         )
         errors, _ = contract.validate_workspace_and_sources(self.root, self.document)
-        self.assertTrue(any("build.rs is forbidden" in error for error in errors))
+        self.assertTrue(any("unreviewed" in error for error in errors))
 
         metadata = self.metadata()
         metadata["packages"][0]["targets"].append({"kind": ["custom-build"]})
@@ -256,6 +346,30 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
             self.root, self.document, metadata
         )
         self.assertTrue(any("custom-build target is forbidden" in error for error in errors))
+
+    def test_reviewed_build_script_passes_and_byte_or_extra_script_fails(self) -> None:
+        script = self.approve_cli_build_script()
+        metadata = self.metadata()
+        metadata["packages"][1]["targets"].append(
+            {
+                "kind": ["custom-build"],
+                "src_path": str((self.root / "crates/jet3-cli/build.rs").resolve()),
+            }
+        )
+        self.assertEqual(
+            contract.validate_workspace_and_sources(self.root, self.document)[0], []
+        )
+        self.assertEqual(
+            contract.validate_dependency_graph(self.root, self.document, metadata), []
+        )
+
+        (self.root / "crates/jet3-cli/build.rs").write_bytes(script + b"// changed\n")
+        (self.root / "crates/jet3/build.rs").write_text(
+            "fn main() {}\n", encoding="utf-8"
+        )
+        errors, _ = contract.validate_workspace_and_sources(self.root, self.document)
+        self.assertTrue(any("SHA-256 mismatch" in error for error in errors))
+        self.assertTrue(any("unreviewed" in error for error in errors))
 
     def test_unclassified_workspace_member_fails(self) -> None:
         cargo = self.root / "Cargo.toml"
@@ -273,8 +387,67 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
         metadata = self.metadata()
         metadata["resolve"]["nodes"][0]["deps"][0]["dep_kinds"][0]["kind"] = None
         errors = contract.validate_dependency_graph(self.root, self.document, metadata)
-        self.assertTrue(any("not allow-listed: proptest" in error for error in errors))
-        self.assertTrue(any("reviewed workspace package: proptest" in error for error in errors))
+        self.assertTrue(any("not exactly reviewed: proptest" in error for error in errors))
+
+    def test_exact_external_identity_and_custom_build_permission(self) -> None:
+        metadata = self.rustix_metadata()
+        self.assertEqual(
+            contract.validate_dependency_graph(self.root, self.document, metadata), []
+        )
+
+        changed = copy.deepcopy(metadata)
+        changed["packages"][-1]["version"] = "1.1.5"
+        errors = contract.validate_dependency_graph(self.root, self.document, changed)
+        self.assertTrue(any("identity drift: rustix" in error for error in errors))
+
+        changed = copy.deepcopy(metadata)
+        changed["packages"][-1]["source"] = "registry+https://example.invalid/index"
+        errors = contract.validate_dependency_graph(self.root, self.document, changed)
+        self.assertTrue(any("identity drift: rustix" in error for error in errors))
+
+        changed = copy.deepcopy(metadata)
+        changed["packages"][-1]["checksum"] = "2" * 64
+        errors = contract.validate_dependency_graph(self.root, self.document, changed)
+        self.assertTrue(any("metadata checksum mismatch" in error for error in errors))
+
+        changed = copy.deepcopy(metadata)
+        changed["packages"][-1]["links"] = "native_rustix"
+        duplicate = copy.deepcopy(changed["packages"][-1])
+        duplicate["id"] = "registry+rustix-duplicate"
+        changed["packages"].append(duplicate)
+        changed["resolve"]["nodes"].append(
+            {"id": "registry+rustix-duplicate", "deps": []}
+        )
+        changed["resolve"]["nodes"][1]["deps"].append(
+            {
+                "pkg": "registry+rustix-duplicate",
+                "dep_kinds": [{"kind": None, "target": "cfg(unix)"}],
+            }
+        )
+        errors = contract.validate_dependency_graph(self.root, self.document, changed)
+        self.assertTrue(any("native-linked" in error for error in errors))
+        self.assertTrue(any("duplicate external package identity" in error for error in errors))
+
+        self.document["reviewed_external_runtime_packages"][0][
+            "allow_custom_build"
+        ] = False
+        errors = contract.validate_dependency_graph(self.root, self.document, metadata)
+        self.assertTrue(any("custom-build target is not permitted" in error for error in errors))
+
+    def test_external_lock_checksum_and_stale_custom_permission_fail(self) -> None:
+        metadata = self.rustix_metadata()
+        lock = self.root / "Cargo.lock"
+        lock.write_text(
+            lock.read_text(encoding="utf-8").replace("1" * 64, "2" * 64),
+            encoding="utf-8",
+        )
+        errors = contract.validate_dependency_graph(self.root, self.document, metadata)
+        self.assertTrue(any("Cargo.lock checksum mismatch" in error for error in errors))
+
+        self.rustix_metadata()
+        metadata["packages"][-1]["targets"] = [{"kind": ["lib"]}]
+        errors = contract.validate_dependency_graph(self.root, self.document, metadata)
+        self.assertTrue(any("custom-build permission is stale" in error for error in errors))
 
     def test_native_links_and_prohibited_package_fail(self) -> None:
         metadata = self.metadata()
@@ -283,6 +456,7 @@ class WorkspaceAndDependencyTests(unittest.TestCase):
             {
                 "id": "registry+jni",
                 "name": "jni",
+                "version": "1.0.0",
                 "manifest_path": "/registry/jni/Cargo.toml",
                 "source": "registry+crates.io",
                 "links": None,

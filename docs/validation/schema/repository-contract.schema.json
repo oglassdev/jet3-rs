@@ -8,6 +8,8 @@
     "schema_version",
     "workspace_packages",
     "allowed_runtime_packages",
+    "reviewed_build_scripts",
+    "reviewed_external_runtime_packages",
     "format_knowledge",
     "fixtures"
   ],
@@ -48,6 +50,20 @@
       "items": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_-]+$"
+      }
+    },
+    "reviewed_build_scripts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reviewedBuildScript"
+      }
+    },
+    "reviewed_external_runtime_packages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reviewedExternalRuntimePackage"
       }
     },
     "format_knowledge": {
@@ -244,6 +260,72 @@
           "$ref": "#/$defs/sha256"
         },
         "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reviewedBuildScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package",
+        "manifest",
+        "path",
+        "sha256",
+        "purpose"
+      ],
+      "properties": {
+        "package": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reviewedExternalRuntimePackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "source",
+        "checksum",
+        "allow_custom_build",
+        "purpose"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9.+_-]+$"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checksum": {
+          "$ref": "#/$defs/sha256"
+        },
+        "allow_custom_build": {
+          "type": "boolean"
+        },
+        "purpose": {
           "type": "string",
           "minLength": 1
         }

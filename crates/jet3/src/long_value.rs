@@ -413,6 +413,14 @@ impl<'cursor, 'operation, S: ReadAt> LongValueCursor<'cursor, 'operation, S> {
         })
     }
 
+    /// Borrows the operation-wide budget held by this stream.
+    ///
+    /// Callers retaining decoded chunks use this to charge output directly
+    /// before growing their destination.
+    pub fn budget_mut(&mut self) -> &mut ResourceBudget {
+        self.owned.budget_mut()
+    }
+
     /// Returns the next lossless payload fragment. Errors exhaust the stream.
     pub fn next_chunk(&mut self) -> Result<Option<LongValueChunk<'_>>, LongValueError> {
         if self.failed {

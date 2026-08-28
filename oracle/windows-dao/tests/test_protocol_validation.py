@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -95,6 +96,23 @@ class ProtocolV12Tests(unittest.TestCase):
 
     def _find(self, inventory, scenario_id):
         return next(s for s in inventory["scenarios"] if s["id"] == scenario_id)
+
+    def test_row_keys_match_shared_canonical_vectors(self):
+        fixture = (
+            v1_2.SCHEMA_DIR / "fixtures" / "row-key-vectors.tsv"
+        ).read_text(encoding="utf-8")
+        seen = 0
+        for line in fixture.splitlines():
+            if line.startswith("#"):
+                continue
+            case, input_json, canonical_json, expected = line.split("\t")
+            values = json.loads(input_json)
+            canonical = canonical_json_bytes(values)
+            self.assertNotEqual(input_json, canonical_json, case)
+            self.assertEqual(canonical, (canonical_json + "\n").encode("utf-8"), case)
+            self.assertEqual(hashlib.sha256(canonical).hexdigest(), expected, case)
+            seen += 1
+        self.assertEqual(seen, 3)
 
     def test_schemas_lint_and_committed_inventory_is_reproducible_and_valid(self):
         v1_2.validate_schemas()
@@ -250,7 +268,7 @@ class ProtocolV12Tests(unittest.TestCase):
             "dao_type": "dbLong",
             "auto_increment": False,
             "size": 4,
-            "attributes": 0,
+            "attributes": 1,
             "properties": {},
         }
         flag = dict(column, name="Flag", ordinal=1, dao_type="dbBoolean", size=1)
@@ -298,6 +316,43 @@ class ProtocolV12Tests(unittest.TestCase):
             "producer_extensions": {"/tables/0/columns/0/required": {"kind": "boolean", "value": True}},
         }
 
+    def test_shared_column_normalization_vectors(self):
+        fixture = (
+            v1_2.SCHEMA_DIR / "fixtures" / "column-normalization-vectors.tsv"
+        )
+        seen = 0
+        for line in fixture.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                continue
+            (
+                dao_type,
+                declared_size,
+                _storage,
+                auto_increment,
+                normalized_size,
+                normalized_attributes,
+            ) = line.split("\t")
+            document = self._snapshot()
+            column = document["tables"][0]["columns"][0]
+            column.update(
+                dao_type=dao_type,
+                size=int(normalized_size),
+                attributes=int(normalized_attributes),
+                auto_increment=auto_increment == "true",
+            )
+            if dao_type != "dbLong":
+                document["tables"][0]["rows"] = []
+            v1_2.validate_document(document)
+            self.assertEqual(int(declared_size), int(normalized_size))
+            self.assertEqual(
+                v1_2.normalize_dao_column_attributes(
+                    int(normalized_attributes) | 0x4000
+                ),
+                int(normalized_attributes),
+            )
+            seen += 1
+        self.assertEqual(seen, 15)
+
     def test_snapshot_rows_are_keyed_by_value_digest_and_duplicate_ordinal(self):
         snapshot = self._snapshot()
         self.assertEqual(v1_2.validate_document(snapshot), "canonical_semantic_snapshot")
@@ -313,6 +368,17 @@ class ProtocolV12Tests(unittest.TestCase):
         legacy["tables"][0]["columns"][0]["nullable"] = True
         with self.assertRaises(ValidationError):
             v1_2.validate_document(legacy)
+
+    def test_snapshot_comparison_projection_requires_both_exclusions(self):
+        for projection in ([], ["/producer"]):
+            snapshot = self._snapshot()
+            snapshot["comparison_projection"] = projection
+            with self.assertRaisesRegex(ValidationError, "too few items"):
+                v1_2.validate_document(snapshot)
+        self.assertEqual(
+            v1_2.validate_document(self._snapshot()),
+            "canonical_semantic_snapshot",
+        )
 
     def test_snapshot_model_integrity_and_lossless_raw_are_enforced(self):
         def rows_with(values):
@@ -371,6 +437,10 @@ class ProtocolV12Tests(unittest.TestCase):
         bad_index["tables"][0]["indexes"][0]["fields"][0]["name"] = "Missing"
         with self.assertRaisesRegex(ValidationError, "unknown columns"):
             v1_2.validate_document(bad_index)
+        bad_primary = self._snapshot()
+        bad_primary["tables"][0]["indexes"][0]["unique"] = False
+        with self.assertRaisesRegex(ValidationError, "primary indexes must be unique and required"):
+            v1_2.validate_document(bad_primary)
         bad_relationship = self._snapshot()
         bad_relationship["relationships"] = [
             {
@@ -386,6 +456,9 @@ class ProtocolV12Tests(unittest.TestCase):
             v1_2.validate_document(bad_relationship)
 
     def test_coverage_receipt_is_canonical_and_closed_to_registered_branches(self):
+        required = self._find(
+            self.inventory, "DAO-READ-ROWS-SINGLE"
+        )["required_branches"]
         receipt = {
             "protocol_version": "1.2.0",
             "document_type": "rust_coverage_receipt",
@@ -393,17 +466,62 @@ class ProtocolV12Tests(unittest.TestCase):
             "source_revision": "abc123",
             "database_sha256": "ab" * 32,
             "allocated_set_sha256": "cd" * 32,
-            "branches": ["open.header_page", "rows.direct"],
+            "branches": sorted(required),
         }
         self.assertEqual(v1_2.validate_document(receipt), "rust_coverage_receipt")
         unknown = json.loads(json.dumps(receipt))
         unknown["branches"].append("rows.imaginary")
+        unknown["branches"].sort()
         with self.assertRaisesRegex(ValidationError, "not in the branch registry"):
             v1_2.validate_document(unknown)
         reordered = json.loads(json.dumps(receipt))
         reordered["branches"].reverse()
         with self.assertRaisesRegex(ValidationError, "unique and sorted"):
             v1_2.validate_document(reordered)
+
+        unknown_scenario = json.loads(json.dumps(receipt))
+        unknown_scenario["scenario_id"] = "DAO-READ-NOT-IN-INVENTORY"
+        with self.assertRaisesRegex(ValidationError, "unknown scenario"):
+            v1_2.validate_document(unknown_scenario)
+
+        missing_required = json.loads(json.dumps(receipt))
+        missing_required["branches"].remove(required[0])
+        with self.assertRaisesRegex(ValidationError, "missing required scenario branches"):
+            v1_2.validate_document(missing_required)
+
+    def test_coverage_receipt_rejects_forbidden_and_overlapping_scenario_branches(self):
+        scenario = self._find(
+            self.inventory, "DAO-READ-ALLOC-EXTENDED-SLOT-1-BELOW"
+        )
+        forbidden = scenario["boundary"]["forbidden_branches"][0]
+        receipt = {
+            "protocol_version": "1.2.0",
+            "document_type": "rust_coverage_receipt",
+            "scenario_id": scenario["id"],
+            "source_revision": "abc123",
+            "database_sha256": "ab" * 32,
+            "allocated_set_sha256": "cd" * 32,
+            "branches": sorted([*scenario["required_branches"], forbidden]),
+        }
+        with self.assertRaisesRegex(ValidationError, "forbidden scenario branches"):
+            v1_2.validate_document(receipt)
+
+        overlapping_inventory = self._copy()
+        overlapping_scenario = self._find(overlapping_inventory, scenario["id"])
+        overlapping_scenario["boundary"]["forbidden_branches"] = [
+            overlapping_scenario["required_branches"][0]
+        ]
+        self._rehash(overlapping_scenario)
+        with tempfile.TemporaryDirectory() as temporary:
+            inventory_path = Path(temporary) / "scenarios.json"
+            inventory_path.write_bytes(canonical_json_bytes(overlapping_inventory))
+            receipt["branches"] = sorted(scenario["required_branches"])
+            with self.assertRaisesRegex(
+                ValidationError, "both required and forbidden"
+            ):
+                v1_2.validate_coverage_receipt(
+                    receipt, scenario_inventory_path=inventory_path
+                )
 
 
 if __name__ == "__main__":

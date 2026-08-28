@@ -9,6 +9,9 @@ use crate::{
     TableKind, TypedValue,
 };
 
+#[path = "semantic_protocol_validation.rs"]
+mod validation;
+
 /// A protocol 1.2 column, containing only facts in the comparison projection.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticColumn {
@@ -261,12 +264,17 @@ impl SemanticSnapshot {
                 .map(|value| value.semantic_path.as_str()),
             "$.raw_preservation",
         )?;
-        Ok(())
+        validation::validate_snapshot(self)
     }
 
     /// Returns compact canonical UTF-8 JSON with one trailing newline.
     pub fn to_canonical_json(&self) -> Result<Vec<u8>, SemanticProtocolError> {
+        self.validate()?;
         crate::semantic_json::write_snapshot(self)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), SemanticProtocolError> {
+        validation::validate_snapshot(self)
     }
 }
 
@@ -296,8 +304,7 @@ fn canonicalize_rows(
                 "keys must equal declared columns",
             ));
         }
-        let bytes =
-            crate::semantic_json::write_properties(&row.values, "$.tables[].rows[].values")?;
+        let bytes = canonical_row_bytes(&row.values)?;
         row.canonical_key = sha256(&bytes)?;
         keyed.push((row.canonical_key.clone(), bytes, row));
     }
@@ -319,6 +326,12 @@ fn canonicalize_rows(
         table.rows.push(row);
     }
     Ok(())
+}
+
+fn canonical_row_bytes(values: &PropertyMap) -> Result<Vec<u8>, SemanticProtocolError> {
+    let mut bytes = crate::semantic_json::write_properties(values, "$.tables[].rows[].values")?;
+    bytes.push(b'\n');
+    Ok(bytes)
 }
 
 fn validate_relationships(
@@ -421,5 +434,125 @@ fn invalid(path: impl Into<String>, reason: &'static str) -> SemanticProtocolErr
     SemanticProtocolError::InvalidModel {
         path: path.into(),
         reason,
+    }
+}
+
+#[cfg(test)]
+mod row_key_tests {
+    use super::{canonical_row_bytes, sha256};
+    use crate::{HexString, PropertyMap, TypedValue};
+
+    const FIXTURES: &str =
+        include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/row-key-vectors.tsv");
+
+    fn hex(value: &str) -> Result<HexString, Box<dyn std::error::Error>> {
+        Ok(HexString::new(value)?)
+    }
+
+    fn values_for(case: &str) -> Result<PropertyMap, Box<dyn std::error::Error>> {
+        Ok(match case {
+            "reordered_null_boolean" => PropertyMap::from([
+                ("Zulu".into(), TypedValue::Null { raw_hex: None }),
+                (
+                    "Alpha".into(),
+                    TypedValue::Boolean {
+                        value: true,
+                        raw_hex: None,
+                    },
+                ),
+            ]),
+            "unicode_and_escapes" => PropertyMap::from([
+                (
+                    "説明".into(),
+                    TypedValue::Text {
+                        value: "café 東京".into(),
+                        raw_hex: Some(hex("636166e9203f3f")?),
+                        code_page: Some(1252),
+                    },
+                ),
+                (
+                    "Escapes".into(),
+                    TypedValue::Memo {
+                        value: "quote \" slash \\ newline\n tab\t".into(),
+                        raw_hex: Some(hex(
+                            "71756f7465202220736c617368205c206e65776c696e650a2074616209",
+                        )?),
+                        code_page: Some(1252),
+                    },
+                ),
+            ]),
+            "raw_hex_and_typed_shapes" => PropertyMap::from([
+                ("Nothing".into(), TypedValue::Null { raw_hex: None }),
+                (
+                    "Raw".into(),
+                    TypedValue::Binary {
+                        value: hex("00ff10")?,
+                        raw_hex: Some(hex("00ff10")?),
+                    },
+                ),
+                (
+                    "Count".into(),
+                    TypedValue::Long {
+                        value: -7,
+                        raw_hex: Some(hex("f9ffffff")?),
+                    },
+                ),
+                (
+                    "Enabled".into(),
+                    TypedValue::Boolean {
+                        value: false,
+                        raw_hex: None,
+                    },
+                ),
+            ]),
+            other => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("unknown row-key fixture {other}"),
+                )
+                .into());
+            }
+        })
+    }
+
+    fn fixture_field<'a>(
+        value: Option<&'a str>,
+        name: &str,
+        line: usize,
+    ) -> Result<&'a str, std::io::Error> {
+        value.ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("row-key fixture line {line} is missing {name}"),
+            )
+        })
+    }
+
+    #[test]
+    fn row_keys_match_shared_canonical_vectors() -> Result<(), Box<dyn std::error::Error>> {
+        let mut seen = 0;
+        for (line_index, line) in FIXTURES
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| !line.starts_with('#'))
+        {
+            let mut fields = line.split('\t');
+            let case = fixture_field(fields.next(), "case", line_index + 1)?;
+            let input_json = fixture_field(fields.next(), "input JSON", line_index + 1)?;
+            let canonical_json = fixture_field(fields.next(), "canonical JSON", line_index + 1)?;
+            let expected = fixture_field(fields.next(), "expected SHA-256", line_index + 1)?;
+            assert!(fields.next().is_none(), "extra field in fixture {case}");
+            assert_ne!(
+                input_json, canonical_json,
+                "fixture must exercise reordering"
+            );
+
+            let bytes = canonical_row_bytes(&values_for(case)?)?;
+            assert_eq!(bytes, format!("{canonical_json}\n").as_bytes(), "{case}");
+            assert_eq!(sha256(&bytes)?.as_str(), expected, "{case}");
+            seen += 1;
+        }
+        assert_eq!(seen, 3);
+        Ok(())
     }
 }

@@ -24,6 +24,8 @@ def validate_contract_shape(document: dict[str, Any]) -> list[str]:
             "schema_version",
             "workspace_packages",
             "allowed_runtime_packages",
+            "reviewed_build_scripts",
+            "reviewed_external_runtime_packages",
             "format_knowledge",
             "fixtures",
         },
@@ -94,6 +96,78 @@ def validate_contract_shape(document: dict[str, Any]) -> list[str]:
         errors.append(
             "$.allowed_runtime_packages: must exactly equal production package names"
         )
+
+    build_scripts = document.get("reviewed_build_scripts")
+    if not isinstance(build_scripts, list):
+        errors.append("$.reviewed_build_scripts: expected array")
+    else:
+        seen_scripts: set[tuple[Any, Any, Any]] = set()
+        for index, entry in enumerate(build_scripts):
+            context = f"$.reviewed_build_scripts[{index}]"
+            if not isinstance(entry, dict):
+                errors.append(f"{context}: expected object")
+                continue
+            exact_keys(
+                entry,
+                {"package", "manifest", "path", "sha256", "purpose"},
+                context,
+                errors,
+            )
+            package = entry.get("package")
+            if not nonempty(package):
+                errors.append(f"{context}.package: expected non-empty string")
+            for field in ("manifest", "path"):
+                try:
+                    safe_path(entry.get(field), f"{context}.{field}")
+                except ContractError as error:
+                    errors.append(str(error))
+            if not isinstance(entry.get("sha256"), str) or SHA256.fullmatch(
+                entry.get("sha256", "")
+            ) is None:
+                errors.append(f"{context}.sha256: invalid SHA-256")
+            if not nonempty(entry.get("purpose")):
+                errors.append(f"{context}.purpose: expected non-empty string")
+            identity = (package, entry.get("manifest"), entry.get("path"))
+            if identity in seen_scripts:
+                errors.append(f"{context}: duplicate reviewed build script")
+            seen_scripts.add(identity)
+
+    external_packages = document.get("reviewed_external_runtime_packages")
+    if not isinstance(external_packages, list):
+        errors.append("$.reviewed_external_runtime_packages: expected array")
+    else:
+        seen_external: set[tuple[Any, Any, Any]] = set()
+        for index, entry in enumerate(external_packages):
+            context = f"$.reviewed_external_runtime_packages[{index}]"
+            if not isinstance(entry, dict):
+                errors.append(f"{context}: expected object")
+                continue
+            exact_keys(
+                entry,
+                {
+                    "name",
+                    "version",
+                    "source",
+                    "checksum",
+                    "allow_custom_build",
+                    "purpose",
+                },
+                context,
+                errors,
+            )
+            for field in ("name", "version", "source", "purpose"):
+                if not nonempty(entry.get(field)):
+                    errors.append(f"{context}.{field}: expected non-empty string")
+            if not isinstance(entry.get("checksum"), str) or SHA256.fullmatch(
+                entry.get("checksum", "")
+            ) is None:
+                errors.append(f"{context}.checksum: invalid SHA-256")
+            if not isinstance(entry.get("allow_custom_build"), bool):
+                errors.append(f"{context}.allow_custom_build: expected boolean")
+            identity = (entry.get("name"), entry.get("version"), entry.get("source"))
+            if identity in seen_external:
+                errors.append(f"{context}: duplicate reviewed external package")
+            seen_external.add(identity)
 
     knowledge = document.get("format_knowledge")
     if not isinstance(knowledge, dict):

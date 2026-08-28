@@ -5827,6 +5827,46 @@ Use `not applicable` explicitly rather than omitting a field.
   development material and are neither committed nor redistributed
 - Review: pending independent review
 
+### EXP-0063 — Derived cross-producer column normalization rule
+
+- Recorded: 2026-08-28, OpenAI Codex
+- Kind: additive derived protocol rule from already recorded local exploratory
+  observations; no new acquisition or compatibility result
+- Question: Which column size and attribute facts can the DAO and Rust
+  protocol 1.2 producers compare without exposing producer-only Jet records?
+- Origin: the checked DAO type inventory in `SRC-0023` and only the physical
+  type, declared-size, fixed/variable class, and auto-increment correlations
+  already recorded in `EXP-0059`; no new MDB, provider run, or third-party
+  implementation was inspected
+- Environment: repository-only derivation and fixture validation on Linux;
+  no DAO or COM execution
+- Protocol: enumerate every admitted DAO type, map Boolean/Byte to size 1,
+  Integer to 2, Long/Single to 4, Currency/Double/Date to 8, GUID to 16,
+  preserve declared Binary/Text sizes 1 through 255, and map LongBinary/Memo
+  to 0. Map fixed storage to attribute 1, variable storage to 2, and add the
+  DAO auto-increment bit 16, admitting only 1, 2, and 17. Mask DAO attributes
+  to those comparable bits. Retain the Rust producer's Jet raw class and
+  complete column record only below the comparison-excluded
+  `producer_extensions` JSON pointer map.
+- Artifacts:
+  `oracle/windows-dao/protocol/v1_2/fixtures/column-normalization-vectors.tsv`,
+  consumed by the Rust and Python protocol tests
+- Observation: none; this entry defines a deterministic cross-producer
+  projection from previously recorded facts
+- Interpretation: protocol 1.2 producers may emit the normalized size and
+  attributes above in the compared column model. Any other attribute value,
+  incompatible size, or auto-increment type fails closed. Producer-only raw
+  facts remain excluded. This rule does not establish equal producer output,
+  DAO compatibility, or any support-matrix verification transition.
+- Usage: `file:crates/jet3-testkit/src/semantic_snapshot_convert.rs`;
+  `file:crates/jet3-testkit/src/semantic_snapshot_schema.rs`;
+  `file:crates/jet3-testkit/src/semantic_protocol_validation.rs`;
+  `file:oracle/windows-dao/scripts/validate_protocol_v1_2.py`;
+  `file:oracle/windows-dao/protocol/v1_2/README.md`
+- Rights: repository-authored derived rule and fixture; no provider bytes are
+  committed or redistributed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

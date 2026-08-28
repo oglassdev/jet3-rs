@@ -165,6 +165,14 @@ impl<'operation, S: ReadAt> CatalogCursor<'operation, S> {
         self.root
     }
 
+    /// Borrows the operation-wide budget held by this cursor.
+    ///
+    /// This is intentionally narrow: adapters retaining streamed records use
+    /// it to charge allocations immediately before reserving owned output.
+    pub fn budget_mut(&mut self) -> &mut ResourceBudget {
+        self.owned.budget_mut()
+    }
+
     /// Returns the next active catalog record.
     ///
     /// Any error exhausts the cursor. Repeated calls after exhaustion perform

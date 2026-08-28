@@ -205,7 +205,7 @@ fn limits(bytes: &[u8]) -> ResourceLimits {
 
 fn options() -> Result<SemanticSnapshotOptions, Box<dyn std::error::Error>> {
     Ok(SemanticSnapshotOptions {
-        scenario_id: ScenarioId::new("DAO-READ-SYNTHETIC")?,
+        scenario_id: ScenarioId::new("DAO-READ-ROWS-SINGLE")?,
         producer: Producer::new(ProducerKind::Rust, "test")?,
         database_sha256: Sha256::new("ab".repeat(32))?,
         code_page: TextCodePage::Windows1252,
@@ -250,6 +250,29 @@ fn artifacts(
         })
     })?;
     snapshot_database_with_receipt(&mut database, &options, &mut budget)
+}
+
+fn snapshot_allocation(
+    bytes: &[u8],
+    limits: ResourceLimits,
+) -> Result<ByteCount, SemanticSnapshotError> {
+    let mut budget = ResourceBudget::new(limits);
+    let options = options().map_err(|_| {
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "build snapshot options",
+        })
+    })?;
+    {
+        let source = SliceSource::new(bytes, budget.read_budget())
+            .map_err(SemanticSnapshotError::Resource)?;
+        let mut database = DatabaseReader::from_source(source, &mut budget).map_err(|_| {
+            SemanticSnapshotError::Resource(Error::Arithmetic {
+                operation: "open synthetic snapshot database",
+            })
+        })?;
+        snapshot_database_with_receipt(&mut database, &options, &mut budget)?;
+    }
+    Ok(budget.allocation_bytes())
 }
 
 #[test]
@@ -325,18 +348,6 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
     );
     assert!(first.relationships.is_empty());
 
-    let json = first.to_canonical_json()?;
-    let text = String::from_utf8(json)?;
-    assert!(text.starts_with(
-        r#"{"comparison_projection":["/producer","/producer_extensions"],"database_properties":{}"#
-    ));
-    assert!(
-        text.contains(r#""dao_type":"dbLong","name":"Id","ordinal":0,"properties":{},"size":4"#)
-    );
-    assert!(text.contains(r#""duplicate_ordinal":0,"values":{"Id":{"kind":"long","raw_hex":"#));
-    assert!(text.contains(r#""protocol_version":"1.2.0"#));
-    assert!(text.ends_with("}\n"));
-
     let artifacts = artifacts(&bytes, limits(&bytes))?;
     assert_eq!(artifacts.snapshot, first);
     assert_eq!(
@@ -360,10 +371,6 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
         .map(str::to_owned)
         .collect()
     );
-    let receipt = String::from_utf8(artifacts.coverage_receipt.to_canonical_json()?)?;
-    assert!(receipt.starts_with(r#"{"allocated_set_sha256":"#));
-    assert!(receipt.contains(r#""document_type":"rust_coverage_receipt"#));
-    assert!(receipt.ends_with("}\n"));
     Ok(())
 }
 
@@ -436,4 +443,64 @@ fn malformed_row_pages_reject_with_nested_sources() {
     );
     let error = error.map(|error| error.source().is_some());
     assert_eq!(error, Some(true));
+}
+
+#[test]
+fn final_artifact_reservations_are_exactly_budgeted_before_growth()
+-> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(SecondColumn::Text, 1);
+    let artifacts = artifacts(&bytes, limits(&bytes))?;
+
+    let mut measured = ResourceBudget::new(limits(&bytes));
+    let (snapshot, receipt) = artifacts.to_canonical_json(&mut measured)?;
+    assert!(!snapshot.is_empty() && !receipt.is_empty());
+    let exact = measured.allocation_bytes();
+
+    let exact_limits = limits(&bytes).with_max_allocation_bytes(exact);
+    let mut exact_budget = ResourceBudget::new(exact_limits);
+    artifacts.to_canonical_json(&mut exact_budget)?;
+    assert_eq!(exact_budget.allocation_bytes(), exact);
+
+    let one_less = ByteCount::new(exact.get() - 1);
+    let mut rejected = ResourceBudget::new(limits(&bytes).with_max_allocation_bytes(one_less));
+    let Err(error) = artifacts.to_canonical_json(&mut rejected) else {
+        return Err(
+            std::io::Error::other("one-less artifact allocation unexpectedly succeeded").into(),
+        );
+    };
+    assert!(matches!(
+        error,
+        SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::AllocationBytes,
+            ..
+        })
+    ));
+    assert!(rejected.allocation_bytes().get() < exact.get());
+    Ok(())
+}
+
+#[test]
+fn complete_snapshot_allocation_has_an_exact_boundary() -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(SecondColumn::Text, 1);
+    let exact = snapshot_allocation(&bytes, limits(&bytes))?;
+    assert_eq!(
+        snapshot_allocation(&bytes, limits(&bytes).with_max_allocation_bytes(exact))?,
+        exact
+    );
+    let one_less = ByteCount::new(exact.get() - 1);
+    let Err(error) =
+        snapshot_allocation(&bytes, limits(&bytes).with_max_allocation_bytes(one_less))
+    else {
+        return Err(
+            std::io::Error::other("one-less snapshot allocation unexpectedly succeeded").into(),
+        );
+    };
+    assert!(matches!(
+        error,
+        SemanticSnapshotError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::AllocationBytes,
+            ..
+        })
+    ));
+    Ok(())
 }

@@ -1,17 +1,12 @@
 //! Budget-aware retention of snapshot state.
 //!
-//! Reader cursors hold the operation `ResourceBudget` exclusively while they
-//! stream, so the adapter cannot charge the same budget for every object it
-//! retains at the moment of allocation. [`RetainedLedger`] mirrors the
-//! budget's allocation ceiling instead: it charges before each retained
-//! allocation against the ceiling minus the budget's last observed usage, and
-//! [`RetainedLedger::sync`] transfers those charges into the real budget at
-//! every point where no cursor holds it, so reader-side allocations that
-//! occurred in between are reconciled and rejected fail-closed.
+//! Reader cursors expose their operation-wide `ResourceBudget` narrowly so
+//! every retained reserve is charged against the live authority immediately.
+//! No ceiling or usage counter is mirrored here.
 
 use std::mem::size_of;
 
-use jet3::{ByteCount, Error, PageNumber, ResourceBudget, ResourceLimitKind};
+use jet3::{ByteCount, Error, PageNumber, ResourceBudget};
 
 use super::SemanticSnapshotError;
 use crate::{HexString, PropertyMap, TypedValue};
@@ -19,72 +14,41 @@ use crate::{HexString, PropertyMap, TypedValue};
 /// Approximate per-entry overhead of one ordered-map node beyond its payload.
 const MAP_NODE_OVERHEAD: usize = 32;
 
-pub(super) struct RetainedLedger {
-    ceiling: u64,
-    used: u64,
-    unsynced: u64,
-}
+pub(super) struct RetainedLedger;
 
 impl RetainedLedger {
-    pub(super) fn new(budget: &ResourceBudget) -> Self {
-        Self {
-            ceiling: budget.limits().max_allocation_bytes().get(),
-            used: budget.allocation_bytes().get(),
-            unsynced: 0,
-        }
+    pub(super) const fn new() -> Self {
+        Self
     }
 
     /// Charges `bytes` before the caller allocates them.
-    pub(super) fn charge(&mut self, bytes: usize) -> Result<(), SemanticSnapshotError> {
+    pub(super) fn charge(
+        &mut self,
+        budget: &mut ResourceBudget,
+        bytes: usize,
+    ) -> Result<(), SemanticSnapshotError> {
         let bytes = u64::try_from(bytes).map_err(|_| {
             SemanticSnapshotError::Resource(Error::IntegerConversion {
                 value: bytes as u128,
                 target: "u64",
             })
         })?;
-        let requested = self
-            .used
-            .checked_add(bytes)
-            .ok_or(SemanticSnapshotError::Resource(Error::Arithmetic {
-                operation: "accumulate retained snapshot bytes",
-            }))?;
-        if requested > self.ceiling {
-            return Err(SemanticSnapshotError::Resource(
-                Error::ResourceLimitExceeded {
-                    kind: ResourceLimitKind::AllocationBytes,
-                    requested,
-                    maximum: self.ceiling,
-                },
-            ));
-        }
-        self.used = requested;
-        self.unsynced = self.unsynced.saturating_add(bytes);
-        Ok(())
-    }
-
-    /// Transfers pending charges into `budget` and re-reads its usage.
-    pub(super) fn sync(
-        &mut self,
-        budget: &mut ResourceBudget,
-    ) -> Result<(), SemanticSnapshotError> {
         budget
-            .charge_allocation(ByteCount::new(self.unsynced))
-            .map_err(SemanticSnapshotError::Resource)?;
-        self.unsynced = 0;
-        self.used = budget.allocation_bytes().get();
-        Ok(())
+            .charge_allocation(ByteCount::new(bytes))
+            .map_err(SemanticSnapshotError::Resource)
     }
 
     /// Retains an ASCII definition or catalog name as an owned string.
     pub(super) fn ascii_name(
         &mut self,
+        budget: &mut ResourceBudget,
         raw: &[u8],
         table: Option<PageNumber>,
     ) -> Result<String, SemanticSnapshotError> {
         if !raw.is_ascii() {
             return Err(SemanticSnapshotError::NonAsciiName { table });
         }
-        self.charge(raw.len())?;
+        self.charge(budget, raw.len())?;
         let mut owned = String::new();
         owned
             .try_reserve_exact(raw.len())
@@ -96,8 +60,12 @@ impl RetainedLedger {
     }
 
     /// Retains a copy of already decoded text.
-    pub(super) fn text(&mut self, value: &str) -> Result<String, SemanticSnapshotError> {
-        self.charge(value.len())?;
+    pub(super) fn text(
+        &mut self,
+        budget: &mut ResourceBudget,
+        value: &str,
+    ) -> Result<String, SemanticSnapshotError> {
+        self.charge(budget, value.len())?;
         let mut owned = String::new();
         owned
             .try_reserve_exact(value.len())
@@ -109,10 +77,11 @@ impl RetainedLedger {
     /// Appends decoded text after charging and reserving its exact byte length.
     pub(super) fn append_text(
         &mut self,
+        budget: &mut ResourceBudget,
         output: &mut String,
         value: &str,
     ) -> Result<(), SemanticSnapshotError> {
-        self.charge(value.len())?;
+        self.charge(budget, value.len())?;
         output
             .try_reserve(value.len())
             .map_err(|_| out_of_memory())?;
@@ -120,36 +89,24 @@ impl RetainedLedger {
         Ok(())
     }
 
-    /// Appends lowercase hexadecimal text for sourced bytes.
-    pub(super) fn append_hex(
-        &mut self,
-        output: &mut String,
-        bytes: &[u8],
-    ) -> Result<(), SemanticSnapshotError> {
-        const DIGITS: &[u8; 16] = b"0123456789abcdef";
-        let length = bytes.len().saturating_mul(2);
-        self.charge(length)?;
-        output.try_reserve(length).map_err(|_| out_of_memory())?;
-        for byte in bytes {
-            output.push(char::from(DIGITS[usize::from(byte >> 4)]));
-            output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-        }
-        Ok(())
-    }
-
     /// Retains bytes as lowercase hexadecimal text.
-    pub(super) fn hex(&mut self, bytes: &[u8]) -> Result<HexString, SemanticSnapshotError> {
-        self.charge(bytes.len().saturating_mul(2))?;
+    pub(super) fn hex(
+        &mut self,
+        budget: &mut ResourceBudget,
+        bytes: &[u8],
+    ) -> Result<HexString, SemanticSnapshotError> {
+        self.charge(budget, bytes.len().saturating_mul(2))?;
         Ok(HexString::from_bytes(bytes))
     }
 
     /// Retains one element in a vector after charging and reserving for it.
     pub(super) fn push<T>(
         &mut self,
+        budget: &mut ResourceBudget,
         vector: &mut Vec<T>,
         item: T,
     ) -> Result<(), SemanticSnapshotError> {
-        self.charge(size_of::<T>())?;
+        self.charge(budget, size_of::<T>())?;
         vector.try_reserve(1).map_err(|_| out_of_memory())?;
         vector.push(item);
         Ok(())
@@ -158,11 +115,15 @@ impl RetainedLedger {
     /// Retains one property after charging for its map node.
     pub(super) fn insert(
         &mut self,
+        budget: &mut ResourceBudget,
         map: &mut PropertyMap,
         key: String,
         value: TypedValue,
     ) -> Result<(), SemanticSnapshotError> {
-        self.charge(size_of::<String>() + size_of::<TypedValue>() + MAP_NODE_OVERHEAD)?;
+        self.charge(
+            budget,
+            size_of::<String>() + size_of::<TypedValue>() + MAP_NODE_OVERHEAD,
+        )?;
         map.insert(key, value);
         Ok(())
     }
@@ -173,4 +134,50 @@ fn out_of_memory() -> SemanticSnapshotError {
         operation: "reserve retained snapshot state",
         kind: std::io::ErrorKind::OutOfMemory,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RetainedLedger;
+    use jet3::{ByteCount, ReadLimits, ResourceBudget, ResourceLimits};
+
+    fn budget(maximum: u64) -> ResourceBudget {
+        ResourceBudget::new(
+            ResourceLimits::new(ReadLimits::default())
+                .with_max_allocation_bytes(ByteCount::new(maximum)),
+        )
+    }
+
+    #[test]
+    fn live_reader_charges_are_seen_before_retained_growth()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut budget = budget(10);
+        let mut ledger = RetainedLedger::new();
+        ledger.charge(&mut budget, 4)?;
+        budget.charge_allocation(ByteCount::new(5))?;
+        let mut destination = String::new();
+        let capacity = destination.capacity();
+        assert!(
+            ledger
+                .append_text(&mut budget, &mut destination, "xx")
+                .is_err()
+        );
+        assert_eq!(destination.capacity(), capacity);
+        assert!(destination.is_empty());
+        assert_eq!(budget.allocation_bytes(), ByteCount::new(9));
+        Ok(())
+    }
+
+    #[test]
+    fn exact_live_boundary_succeeds() -> Result<(), Box<dyn std::error::Error>> {
+        let mut budget = budget(11);
+        let mut ledger = RetainedLedger::new();
+        ledger.charge(&mut budget, 4)?;
+        budget.charge_allocation(ByteCount::new(5))?;
+        let mut destination = String::new();
+        ledger.append_text(&mut budget, &mut destination, "xx")?;
+        assert_eq!(destination, "xx");
+        assert_eq!(budget.allocation_bytes(), ByteCount::new(11));
+        Ok(())
+    }
 }

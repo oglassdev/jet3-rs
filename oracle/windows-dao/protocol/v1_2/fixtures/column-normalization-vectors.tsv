@@ -1,0 +1,16 @@
+# dao_type	declared_size	storage	auto_increment	normalized_size	normalized_attributes
+dbBoolean	1	fixed	false	1	1
+dbByte	1	fixed	false	1	1
+dbInteger	2	fixed	false	2	1
+dbLong	4	fixed	false	4	1
+dbLong	4	fixed	true	4	17
+dbCurrency	8	fixed	false	8	1
+dbSingle	4	fixed	false	4	1
+dbDouble	8	fixed	false	8	1
+dbDate	8	fixed	false	8	1
+dbGUID	16	fixed	false	16	1
+dbBinary	255	variable	false	255	2
+dbText	32	variable	false	32	2
+dbText	24	fixed	false	24	1
+dbLongBinary	0	variable	false	0	2
+dbMemo	0	variable	false	0	2

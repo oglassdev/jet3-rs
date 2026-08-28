@@ -133,10 +133,11 @@ impl Sha256Hasher {
             self.block[self.block_len..self.block_len + count].copy_from_slice(&input[..count]);
             self.block_len += count;
             input = &input[count..];
-            if self.block_len == 64 {
-                compress(&mut self.state, &self.block);
-                self.block_len = 0;
+            if self.block_len < 64 {
+                return Ok(());
             }
+            compress(&mut self.state, &self.block);
+            self.block_len = 0;
         }
         while input.len() >= 64 {
             let block: &[u8; 64] = input[..64].try_into().map_err(|_| Sha256LengthError)?;
@@ -234,7 +235,28 @@ fn compress(state: &mut [u32; 8], block: &[u8; 64]) {
 
 #[cfg(test)]
 mod tests {
-    use super::sha256_hex;
+    use super::{Sha256Hasher, hex_digest, sha256_hex};
+
+    fn patterned_bytes(length: usize) -> Vec<u8> {
+        (0..length)
+            .map(|index| ((index * 37 + 11) % 256) as u8)
+            .collect()
+    }
+
+    fn incremental_digest(
+        input: &[u8],
+        chunks: &[usize],
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut hasher = Sha256Hasher::new();
+        let mut offset = 0;
+        for &chunk in chunks {
+            let end = offset + chunk;
+            hasher.update(&input[offset..end])?;
+            offset = end;
+        }
+        assert_eq!(offset, input.len());
+        Ok(hex_digest(hasher.finalize()?))
+    }
 
     #[test]
     fn standard_empty_and_abc_vectors_match() -> Result<(), Box<dyn std::error::Error>> {
@@ -245,6 +267,139 @@ mod tests {
         assert_eq!(
             sha256_hex(b"abc")?,
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn split_updates_match_padding_boundary_vectors() -> Result<(), Box<dyn std::error::Error>> {
+        let vectors = [
+            (
+                55,
+                "2900465fcb533e05a158fd2b3be0e5e3b03740d83060aa3580e0d98a96bf2384",
+            ),
+            (
+                56,
+                "31454ff48ef36af2f08fd511bdc37d9d5855ac23e992e5ff5445cb6b7674a674",
+            ),
+            (
+                57,
+                "bcc0a5d3791b985b7550e04ca660a6c63a589ba1edd2283c8e110e5b515df124",
+            ),
+            (
+                58,
+                "625f50f0c121a43afb524b104e3edf8eacf001ffd8795ac11609f458bb4c9003",
+            ),
+            (
+                59,
+                "5a85bd878ca7ff9e9a89748f613bf443cf10d199662c21e7115fca98262fa411",
+            ),
+            (
+                60,
+                "35d6f8129baac2bc4427ae4f5d831acde4a59233146da0e0524cd6b445ff6982",
+            ),
+            (
+                61,
+                "de1025bf69990152626ae709c870a15a907a1775ecf669fb3d4955a4ee23a3da",
+            ),
+            (
+                62,
+                "88908d0c7953bf0924d1e1e6f494578300aab9c32e4312f1e733832ff57d8bff",
+            ),
+            (
+                63,
+                "5f6401b96532c36de4e65beec0409b69b1d181864c8009b7a04f43e5d56350d1",
+            ),
+            (
+                64,
+                "94eb5de4943613fd048dc93393ab06877405faa39c11f53e9386083339833e7e",
+            ),
+            (
+                65,
+                "fc518669b6eb4b4dd91827ecacef86689c725bd5bab888fd3b26dbb196eec954",
+            ),
+        ];
+        for (length, expected) in vectors {
+            let input = patterned_bytes(length);
+            for split in 0..=length {
+                let mut hasher = Sha256Hasher::new();
+                hasher.update(&input[..split])?;
+                hasher.update(&[])?;
+                hasher.update(&input[split..])?;
+                assert_eq!(hex_digest(hasher.finalize()?), expected);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deterministic_random_chunking_matches_independent_digests()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let vectors = [
+            (
+                0,
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ),
+            (
+                1,
+                "e7cf46a078fed4fafd0b5e3aff144802b853f8ae459a4f0c14add3314b7cc3a6",
+            ),
+            (
+                63,
+                "5f6401b96532c36de4e65beec0409b69b1d181864c8009b7a04f43e5d56350d1",
+            ),
+            (
+                64,
+                "94eb5de4943613fd048dc93393ab06877405faa39c11f53e9386083339833e7e",
+            ),
+            (
+                65,
+                "fc518669b6eb4b4dd91827ecacef86689c725bd5bab888fd3b26dbb196eec954",
+            ),
+            (
+                127,
+                "0fe729ff19257bd6fec853acc2ea355f6b34b58e6c0f684c3e188fcdfcd9baae",
+            ),
+            (
+                128,
+                "0aedd4856f8eba0963627336ad5144a9a7dbe12498e6066f0165fc97d8ddee4c",
+            ),
+            (
+                129,
+                "4f1757ae4bffbae86d775b831765b75af154d52f7deaa46dd378051a2d3ad57f",
+            ),
+            (
+                1024,
+                "ffbad8f947474cfdd5b2bb22d7e0bf5ee8ba2b7af859d0c2bb28622db6a4be47",
+            ),
+        ];
+        for (length, expected) in vectors {
+            let input = patterned_bytes(length);
+            let mut hasher = Sha256Hasher::new();
+            let mut state = 0x6d2b_79f5_u32 ^ length as u32;
+            let mut offset = 0;
+            hasher.update(&[])?;
+            while offset < input.len() {
+                state ^= state << 13;
+                state ^= state >> 17;
+                state ^= state << 5;
+                let chunk = (state as usize % 23 + 1).min(input.len() - offset);
+                hasher.update(&input[offset..offset + chunk])?;
+                hasher.update(&[])?;
+                offset += chunk;
+            }
+            hasher.update(&[])?;
+            assert_eq!(hex_digest(hasher.finalize()?), expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_short_updates_survive_a_block_boundary() -> Result<(), Box<dyn std::error::Error>> {
+        let input = patterned_bytes(70);
+        assert_eq!(
+            incremental_digest(&input, &[3, 5, 7, 11, 13, 17, 2, 4, 3, 2, 3])?,
+            "54600d51dc1bbf04fb01cd5120f7797e4f5b974e224c8963865d1ecad1bf6d3c"
         );
         Ok(())
     }

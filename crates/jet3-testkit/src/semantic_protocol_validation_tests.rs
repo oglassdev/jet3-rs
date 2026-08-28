@@ -1,0 +1,176 @@
+use crate::{
+    HexString, IndexField, Producer, ProducerKind, PropertyMap, RawPreservation, Relationship,
+    RelationshipField, ScenarioId, SemanticColumn, SemanticIndex, SemanticRow, SemanticSnapshot,
+    SemanticTable, Sha256, TableKind, TypedValue,
+};
+
+fn long(value: i32) -> Result<TypedValue, Box<dyn std::error::Error>> {
+    Ok(TypedValue::Long {
+        value,
+        raw_hex: Some(HexString::new(format!("{value:08x}"))?),
+    })
+}
+
+fn test_error(message: &'static str) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, message)
+}
+
+fn valid_snapshot() -> Result<SemanticSnapshot, Box<dyn std::error::Error>> {
+    let mut snapshot = SemanticSnapshot::new(
+        ScenarioId::new("DAO-READ-ROWS-SINGLE")?,
+        Producer::new(ProducerKind::Rust, "test")?,
+        Sha256::new("ab".repeat(32))?,
+    );
+    snapshot.tables.push(SemanticTable {
+        name: "Items".into(),
+        kind: TableKind::User,
+        attributes: 0,
+        columns: vec![SemanticColumn {
+            name: "Id".into(),
+            ordinal: 0,
+            dao_type: "dbLong".into(),
+            auto_increment: false,
+            size: Some(4),
+            attributes: 1,
+            properties: PropertyMap::new(),
+        }],
+        indexes: vec![SemanticIndex {
+            name: "PK".into(),
+            primary: true,
+            unique: true,
+            required: true,
+            fields: vec![IndexField {
+                name: "Id".into(),
+                descending: false,
+            }],
+            properties: PropertyMap::new(),
+        }],
+        properties: PropertyMap::new(),
+        rows: vec![SemanticRow {
+            canonical_key: Sha256::new("00".repeat(32))?,
+            duplicate_ordinal: 0,
+            values: PropertyMap::from([("Id".into(), long(1)?)]),
+        }],
+    });
+    snapshot.relationships.push(Relationship {
+        name: "Self".into(),
+        table: "Items".into(),
+        foreign_table: "Items".into(),
+        attributes: 0,
+        fields: vec![RelationshipField {
+            field: "Id".into(),
+            foreign_field: "Id".into(),
+        }],
+        properties: PropertyMap::new(),
+    });
+    snapshot.raw_preservation.push(RawPreservation {
+        semantic_path: "/tables/0".into(),
+        raw_hex: HexString::new("00")?,
+        purpose: "test".into(),
+    });
+    snapshot.producer_extensions.insert(
+        "/tables/0/columns/0/required".into(),
+        TypedValue::Boolean {
+            value: false,
+            raw_hex: None,
+        },
+    );
+    snapshot.canonicalize()?;
+    Ok(snapshot)
+}
+
+#[test]
+fn direct_construction_cannot_bypass_schema_and_reference_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    assert!(valid_snapshot()?.to_canonical_json().is_ok());
+
+    let mut duplicate = valid_snapshot()?;
+    duplicate.tables.push(duplicate.tables[0].clone());
+    assert!(duplicate.to_canonical_json().is_err());
+
+    let mut ordinal = valid_snapshot()?;
+    ordinal.tables[0].columns[0].ordinal = 1;
+    assert!(ordinal.to_canonical_json().is_err());
+
+    let mut normalization = valid_snapshot()?;
+    normalization.tables[0].columns[0].attributes = 3;
+    assert!(normalization.to_canonical_json().is_err());
+
+    let mut index_reference = valid_snapshot()?;
+    index_reference.tables[0].indexes[0].fields[0].name = "Missing".into();
+    assert!(index_reference.to_canonical_json().is_err());
+
+    let mut invalid_primary = valid_snapshot()?;
+    invalid_primary.tables[0].indexes[0].unique = false;
+    assert!(invalid_primary.to_canonical_json().is_err());
+
+    let mut relationship_reference = valid_snapshot()?;
+    relationship_reference.relationships[0].foreign_table = "Missing".into();
+    assert!(relationship_reference.to_canonical_json().is_err());
+    Ok(())
+}
+
+#[test]
+fn direct_construction_cannot_bypass_row_and_nested_value_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut missing_column = valid_snapshot()?;
+    missing_column.tables[0].rows[0].values.clear();
+    assert!(missing_column.to_canonical_json().is_err());
+
+    let mut wrong_kind = valid_snapshot()?;
+    wrong_kind.tables[0].rows[0].values.insert(
+        "Id".into(),
+        TypedValue::Text {
+            value: "1".into(),
+            raw_hex: Some(HexString::new("31")?),
+            code_page: Some(1252),
+        },
+    );
+    assert!(wrong_kind.to_canonical_json().is_err());
+
+    let mut missing_raw = valid_snapshot()?;
+    missing_raw.database_properties.insert("P".into(), long(1)?);
+    let Some(TypedValue::Long { raw_hex, .. }) = missing_raw.database_properties.get_mut("P")
+    else {
+        return Err(test_error("expected long database property P").into());
+    };
+    *raw_hex = None;
+    assert!(missing_raw.to_canonical_json().is_err());
+
+    let mut wrong_width = valid_snapshot()?;
+    let Some(TypedValue::Long { raw_hex, .. }) = wrong_width.tables[0].rows[0].values.get_mut("Id")
+    else {
+        return Err(test_error("expected long row value Id").into());
+    };
+    *raw_hex = Some(HexString::new("01")?);
+    assert!(wrong_width.to_canonical_json().is_err());
+
+    let mut wrong_key = valid_snapshot()?;
+    wrong_key.tables[0].rows[0].canonical_key = Sha256::new("ff".repeat(32))?;
+    assert!(wrong_key.to_canonical_json().is_err());
+    Ok(())
+}
+
+#[test]
+fn direct_construction_cannot_bypass_extension_and_raw_preservation_validation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut pointer = valid_snapshot()?;
+    let value = pointer
+        .producer_extensions
+        .pop_first()
+        .ok_or_else(|| test_error("expected producer extension"))?
+        .1;
+    pointer
+        .producer_extensions
+        .insert("not/a/pointer".into(), value);
+    assert!(pointer.to_canonical_json().is_err());
+
+    let mut raw_path = valid_snapshot()?;
+    raw_path.raw_preservation[0].semantic_path.clear();
+    assert!(raw_path.to_canonical_json().is_err());
+
+    let mut raw_purpose = valid_snapshot()?;
+    raw_purpose.raw_preservation[0].purpose.clear();
+    assert!(raw_purpose.to_canonical_json().is_err());
+    Ok(())
+}

@@ -9,7 +9,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .repository_common import ContractError, nonempty, resolve_file
+from .repository_common import ContractError, nonempty, resolve_file, sha256
 
 PROHIBITED_PACKAGE_NAMES = {
     "dao",
@@ -34,6 +34,14 @@ PROCESS_EXECUTION = re.compile(
 FFI_OR_UNSAFE = re.compile(
     r"(?:extern\s*\"(?:C|system)\"|\bunsafe\s+(?:fn|impl|trait)|\bunsafe\s*\{)"
 )
+
+
+def _is_custom_build(target: Any) -> bool:
+    return (
+        isinstance(target, dict)
+        and isinstance(target.get("kind"), list)
+        and "custom-build" in target["kind"]
+    )
 
 
 def _toml(path: Path, context: str) -> dict[str, Any]:
@@ -98,6 +106,11 @@ def validate_workspace_and_sources(
     if unsafe_lint != "forbid":
         errors.append("Cargo.toml: workspace.lints.rust.unsafe_code must be 'forbid'")
 
+    reviewed_scripts = {
+        (entry["package"], entry["manifest"], entry["path"]): entry
+        for entry in document["reviewed_build_scripts"]
+    }
+    actual_scripts: set[tuple[str, str, str]] = set()
     for role in ("production", "support"):
         for entry in roles[role]:
             context = entry["manifest"]
@@ -113,10 +126,44 @@ def validate_workspace_and_sources(
                 )
             if manifest.get("lints", {}).get("workspace") is not True:
                 errors.append(f"{context}: package must inherit workspace lints")
-            if (manifest_path.parent / "build.rs").exists():
-                errors.append(f"{context}: production/support build.rs is forbidden")
-            if manifest.get("package", {}).get("build") not in {None, False}:
-                errors.append(f"{context}: custom package build script is forbidden")
+            package_build = manifest.get("package", {}).get("build")
+            candidates = set()
+            default_build = manifest_path.parent / "build.rs"
+            if default_build.exists():
+                candidates.add(default_build)
+            if isinstance(package_build, str):
+                candidates.add(manifest_path.parent / package_build)
+            elif package_build not in {None, False}:
+                errors.append(f"{context}: invalid custom package build script")
+            for candidate in candidates:
+                try:
+                    relative = candidate.relative_to(root).as_posix()
+                except ValueError:
+                    errors.append(f"{context}: custom package build script escapes repository")
+                    continue
+                identity = (entry["name"], entry["manifest"], relative)
+                actual_scripts.add(identity)
+                reviewed = reviewed_scripts.get(identity)
+                if reviewed is None:
+                    errors.append(
+                        f"{context}: unreviewed production/support build script {relative}"
+                    )
+                    continue
+                try:
+                    script_path, _ = resolve_file(
+                        root, relative, f"{context}: reviewed build script"
+                    )
+                except ContractError as error:
+                    errors.append(str(error))
+                    continue
+                if sha256(script_path) != reviewed["sha256"]:
+                    errors.append(f"{relative}: reviewed build script SHA-256 mismatch")
+
+    for package, manifest, path in sorted(set(reviewed_scripts) - actual_scripts):
+        errors.append(
+            "reviewed build script is absent or package/manifest binding is stale: "
+            f"{package} {manifest} {path}"
+        )
 
     production = roles["production"]
     for entry in production:
@@ -173,6 +220,40 @@ def cargo_metadata(root: Path) -> dict[str, Any]:
     return document
 
 
+def _cargo_lock_checksums(
+    root: Path,
+) -> tuple[dict[tuple[str, str, str], str], list[str]]:
+    """Return exact external package identities and checksums from Cargo.lock."""
+    try:
+        document = _toml(root / "Cargo.lock", "Cargo.lock")
+    except ContractError as error:
+        return {}, [str(error)]
+    packages = document.get("package")
+    if not isinstance(packages, list):
+        return {}, ["Cargo.lock: package must be an array"]
+    checksums: dict[tuple[str, str, str], str] = {}
+    errors: list[str] = []
+    for index, package in enumerate(packages):
+        if not isinstance(package, dict) or package.get("source") is None:
+            continue
+        name = package.get("name")
+        version = package.get("version")
+        source = package.get("source")
+        checksum = package.get("checksum")
+        if not all(nonempty(value) for value in (name, version, source, checksum)):
+            errors.append(f"Cargo.lock package[{index}]: incomplete external identity")
+            continue
+        identity = (name, version, source)
+        if identity in checksums:
+            errors.append(
+                "Cargo.lock: duplicate external package identity "
+                f"{name} {version} {source}"
+            )
+            continue
+        checksums[identity] = checksum
+    return checksums, errors
+
+
 def validate_dependency_graph(
     root: Path, document: dict[str, Any], metadata: dict[str, Any]
 ) -> list[str]:
@@ -182,11 +263,14 @@ def validate_dependency_graph(
     resolve = metadata.get("resolve")
     if not isinstance(packages, list) or not isinstance(resolve, dict):
         return ["cargo metadata: missing packages or resolve graph"]
-    package_by_id = {
-        package.get("id"): package
-        for package in packages
-        if isinstance(package, dict) and nonempty(package.get("id"))
-    }
+    package_by_id: dict[str, dict[str, Any]] = {}
+    for package in packages:
+        if not isinstance(package, dict) or not nonempty(package.get("id")):
+            continue
+        package_id = package["id"]
+        if package_id in package_by_id:
+            errors.append(f"cargo metadata: duplicate package id {package_id}")
+        package_by_id[package_id] = package
     nodes = resolve.get("nodes")
     if not isinstance(nodes, list):
         return ["cargo metadata: resolve.nodes must be an array"]
@@ -249,28 +333,131 @@ def validate_dependency_graph(
                 pending.append(dependency_id)
 
     allowed = set(document["allowed_runtime_packages"])
+    reviewed_scripts: dict[tuple[str, Path], dict[str, Any]] = {}
+    for entry in document["reviewed_build_scripts"]:
+        key = (entry["package"], (root / entry["manifest"]).resolve())
+        if key in reviewed_scripts:
+            errors.append(
+                "duplicate reviewed build-script package/manifest binding: "
+                f"{entry['package']} {entry['manifest']}"
+            )
+        reviewed_scripts[key] = entry
+    reviewed_external: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for entry in document["reviewed_external_runtime_packages"]:
+        identity = (entry["name"], entry["version"], entry["source"])
+        if identity in reviewed_external:
+            errors.append(
+                "duplicate reviewed external package: "
+                f"{entry['name']} {entry['version']} {entry['source']}"
+            )
+        reviewed_external[identity] = entry
+    actual_external: set[tuple[str, str, str]] = set()
+    lock_checksums: dict[tuple[str, str, str], str] = {}
+    if reviewed_external or any(
+        isinstance(package_by_id.get(package_id), dict)
+        and package_by_id[package_id].get("source") is not None
+        for package_id in closure
+    ):
+        lock_checksums, lock_errors = _cargo_lock_checksums(root)
+        errors.extend(lock_errors)
+
     for package_id in sorted(closure):
         package = package_by_id.get(package_id)
         if not isinstance(package, dict):
             errors.append(f"cargo metadata: dependency package absent for {package_id}")
             continue
         name = package.get("name")
-        if name not in allowed:
-            errors.append(f"runtime dependency package is not allow-listed: {name}")
         if isinstance(name, str) and name.lower() in PROHIBITED_PACKAGE_NAMES:
             errors.append(f"prohibited runtime dependency package: {name}")
         if package.get("links") not in {None, ""}:
             errors.append(f"native-linked runtime dependency is forbidden: {name}")
-        if package.get("source") is not None:
-            errors.append(
-                f"runtime dependency must be a reviewed workspace package: {name}"
-            )
         targets = package.get("targets")
         if not isinstance(targets, list):
             errors.append(f"cargo metadata: package targets missing for {name}")
-        elif any(
-            isinstance(target, dict) and "custom-build" in target.get("kind", [])
-            for target in targets
-        ):
-            errors.append(f"custom-build target is forbidden in runtime closure: {name}")
+            has_custom_build = False
+        else:
+            has_custom_build = any(_is_custom_build(target) for target in targets)
+
+        source = package.get("source")
+        if source is None:
+            if name not in allowed:
+                errors.append(f"runtime dependency package is not allow-listed: {name}")
+            manifest_value = package.get("manifest_path")
+            if not nonempty(manifest_value):
+                errors.append(f"cargo metadata: package manifest missing for {name}")
+                manifest_path = None
+            else:
+                manifest_path = Path(manifest_value).resolve()
+            reviewed_script = reviewed_scripts.get((name, manifest_path))
+            if has_custom_build:
+                custom_sources = {
+                    Path(target["src_path"]).resolve()
+                    for target in targets
+                    if _is_custom_build(target) and nonempty(target.get("src_path"))
+                }
+                expected_source = (
+                    (root / reviewed_script["path"]).resolve()
+                    if reviewed_script is not None
+                    else None
+                )
+                if reviewed_script is None or custom_sources != {expected_source}:
+                    errors.append(
+                        f"custom-build target is forbidden or mismatched in runtime closure: {name}"
+                    )
+            elif reviewed_script is not None:
+                errors.append(
+                    f"reviewed build script lacks custom-build target in metadata: {name}"
+                )
+            continue
+
+        version = package.get("version")
+        if not all(nonempty(value) for value in (name, version, source)):
+            errors.append(f"cargo metadata: incomplete external package identity {package_id}")
+            continue
+        identity = (name, version, source)
+        if identity in actual_external:
+            errors.append(
+                "cargo metadata: duplicate external package identity "
+                f"{name} {version} {source}"
+            )
+        actual_external.add(identity)
+        reviewed = reviewed_external.get(identity)
+        if reviewed is None:
+            errors.append(
+                "runtime dependency package is not exactly reviewed: "
+                f"{name} {version} {source}"
+            )
+            if any(entry["name"] == name for entry in reviewed_external.values()):
+                errors.append(f"reviewed external package identity drift: {name}")
+            if has_custom_build:
+                errors.append(
+                    f"custom-build target is forbidden in runtime closure: {name}"
+                )
+            continue
+
+        expected_checksum = reviewed["checksum"]
+        if lock_checksums.get(identity) != expected_checksum:
+            errors.append(
+                f"Cargo.lock checksum mismatch for reviewed external package: {name}"
+            )
+        metadata_checksum = package.get("checksum")
+        if metadata_checksum is not None and metadata_checksum != expected_checksum:
+            errors.append(
+                f"cargo metadata checksum mismatch for reviewed external package: {name}"
+            )
+        allowed_custom_build = reviewed["allow_custom_build"]
+        if has_custom_build and not allowed_custom_build:
+            errors.append(
+                f"custom-build target is not permitted for reviewed external package: {name}"
+            )
+        elif allowed_custom_build and not has_custom_build:
+            errors.append(
+                f"custom-build permission is stale for reviewed external package: {name}"
+            )
+
+    for name, version, source in sorted(set(reviewed_external) - actual_external):
+        errors.append(
+            "reviewed external package is absent from runtime closure: "
+            f"{name} {version} {source}"
+        )
     return errors

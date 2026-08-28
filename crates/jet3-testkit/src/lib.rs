@@ -40,6 +40,8 @@ mod canonical_order_tests;
 #[cfg(test)]
 mod canonical_value_tests;
 #[cfg(test)]
+mod semantic_protocol_validation_tests;
+#[cfg(test)]
 mod semantic_snapshot_tests;
 
 #[cfg(test)]

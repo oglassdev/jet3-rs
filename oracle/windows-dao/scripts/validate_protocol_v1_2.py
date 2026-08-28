@@ -32,6 +32,7 @@ SCHEMA_DIR = ROOT / "protocol" / "v1_2"
 PROTOCOL_VERSION = "1.2.0"
 SUPPORT_MATRIX = REPO_ROOT / "docs" / "validation" / "support-matrix.json"
 BRANCH_REGISTRY = SCHEMA_DIR / "branch-registry.json"
+SCENARIO_INVENTORY = SCHEMA_DIR / "scenarios.json"
 SCHEMAS = {
     "dao_scenario_inventory": "scenarios.schema.json",
     "dao_branch_registry": "branch-registry.schema.json",
@@ -104,6 +105,20 @@ RAW_WIDTH_FOR_TYPE = {
     "dbDate": 8,
     "dbGUID": 16,
 }
+NORMALIZED_SIZE_FOR_TYPE = {
+    "dbBoolean": 1,
+    "dbByte": 1,
+    "dbInteger": 2,
+    "dbLong": 4,
+    "dbCurrency": 8,
+    "dbSingle": 4,
+    "dbDouble": 8,
+    "dbDate": 8,
+    "dbLongBinary": 0,
+    "dbMemo": 0,
+    "dbGUID": 16,
+}
+COMPARABLE_COLUMN_ATTRIBUTE_MASK = 1 | 2 | 16
 INTEGER_RANGES = {"dbByte": (0, 255), "dbInteger": (-32768, 32767), "dbLong": (-2147483648, 2147483647)}
 IEEE_WIDTH = {"dbSingle": 8, "dbDouble": 16}
 VALUE_PATTERNS = {
@@ -413,12 +428,37 @@ def _validate_table_integrity(table: dict[str, Any], location: str) -> None:
     for column_index, column in enumerate(table["columns"]):
         if column["dao_type"] not in KINDS_FOR_TYPE:
             raise ValidationError(f"{location}.columns[{column_index}].dao_type: unknown DAO type {column['dao_type']!r}")
+        normalized_size = NORMALIZED_SIZE_FOR_TYPE.get(column["dao_type"])
+        if normalized_size is None:
+            normalized_size = column["size"]
+            if not isinstance(normalized_size, int) or not 1 <= normalized_size <= 255:
+                raise ValidationError(
+                    f"{location}.columns[{column_index}].size: declared dbText/dbBinary size must be 1..255"
+                )
+        if column["size"] != normalized_size:
+            raise ValidationError(
+                f"{location}.columns[{column_index}].size: expected normalized size {normalized_size}"
+            )
+        attributes = column["attributes"]
+        expected_auto = attributes == 17
+        if attributes not in (1, 2, 17) or column["auto_increment"] != expected_auto:
+            raise ValidationError(
+                f"{location}.columns[{column_index}].attributes: expected normalized attributes 1, 2, or 17"
+            )
+        if column["auto_increment"] and column["dao_type"] != "dbLong":
+            raise ValidationError(
+                f"{location}.columns[{column_index}].auto_increment: only dbLong is admitted"
+            )
         _validate_property_map(
             column["properties"], f"{location}.columns[{column_index}].properties"
         )
     if sum(index["primary"] for index in table["indexes"]) > 1:
         raise ValidationError(f"{location}.indexes: at most one primary index")
     for index_index, index in enumerate(table["indexes"]):
+        if index["primary"] and not (index["unique"] and index["required"]):
+            raise ValidationError(
+                f"{location}.indexes[{index_index}]: primary indexes must be unique and required"
+            )
         _validate_property_map(
             index["properties"], f"{location}.indexes[{index_index}].properties"
         )
@@ -485,14 +525,61 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")
 
 
-def validate_coverage_receipt(document: dict[str, Any]) -> None:
-    """Bind a canonical receipt to the closed branch registry."""
+def normalize_dao_column_attributes(raw_attributes: int) -> int:
+    """Mask DAO field attributes to the protocol's comparable bits."""
+    return raw_attributes & COMPARABLE_COLUMN_ATTRIBUTE_MASK
+
+
+def validate_coverage_receipt(
+    document: dict[str, Any], *, scenario_inventory_path: Path = SCENARIO_INVENTORY
+) -> None:
+    """Bind a canonical receipt to its scenario and the closed branch registry."""
     branches = document["branches"]
     if branches != sorted(branches) or len(branches) != len(set(branches)):
         raise ValidationError("$.branches: branch ids must be unique and sorted")
-    unknown = sorted(set(branches) - load_branch_ids())
+    branch_ids = load_branch_ids()
+    observed = set(branches)
+    unknown = sorted(observed - branch_ids)
     if unknown:
         raise ValidationError(f"$.branches: not in the branch registry: {unknown}")
+
+    inventory = load_json(scenario_inventory_path)
+    if SCHEMA_SET.validate(inventory) != "dao_scenario_inventory":
+        raise ValidationError(f"{scenario_inventory_path}: not a scenario inventory")
+    validate_inventory(
+        inventory,
+        capability_ids=load_capability_ids(),
+        branch_ids=branch_ids,
+    )
+    matches = [
+        scenario
+        for scenario in inventory["scenarios"]
+        if scenario["id"] == document["scenario_id"]
+    ]
+    if not matches:
+        raise ValidationError(
+            f"$.scenario_id: unknown scenario {document['scenario_id']!r}"
+        )
+    if len(matches) != 1:
+        raise ValidationError(
+            f"$.scenario_id: scenario {document['scenario_id']!r} is not unique"
+        )
+
+    scenario = matches[0]
+    required = set(scenario["required_branches"])
+    boundary = scenario["boundary"]
+    forbidden = set(boundary["forbidden_branches"]) if boundary is not None else set()
+    overlap = sorted(required & forbidden)
+    if overlap:
+        raise ValidationError(
+            f"$.scenario_id: scenario branches cannot be both required and forbidden: {overlap}"
+        )
+    missing = sorted(required - observed)
+    if missing:
+        raise ValidationError(f"$.branches: missing required scenario branches: {missing}")
+    rejected = sorted(forbidden & observed)
+    if rejected:
+        raise ValidationError(f"$.branches: contains forbidden scenario branches: {rejected}")
 
 
 def validate_document(document: Any, *, complete: bool = False) -> str:

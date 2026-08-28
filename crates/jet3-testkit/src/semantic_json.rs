@@ -3,13 +3,33 @@
 use crate::canonical_json::JsonWriter;
 use crate::{
     CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError, SemanticSnapshot,
-    SemanticTable, TableKind,
+    SemanticSnapshotError, SemanticTable, TableKind, TypedValue,
 };
+use jet3::{ByteCount, Error, ResourceBudget};
 
 pub(super) fn write_snapshot(
     snapshot: &SemanticSnapshot,
 ) -> Result<Vec<u8>, SemanticProtocolError> {
     let mut writer = JsonWriter::new();
+    write_snapshot_into(&mut writer, snapshot)?;
+    Ok(writer.bytes)
+}
+
+pub(super) fn write_snapshot_budgeted(
+    snapshot: &SemanticSnapshot,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<u8>, SemanticSnapshotError> {
+    snapshot.validate()?;
+    let bound = snapshot_allocation_bound(snapshot).map_err(SemanticSnapshotError::Resource)?;
+    let mut writer = reserved_writer(bound, budget)?;
+    write_snapshot_into(&mut writer, snapshot)?;
+    Ok(writer.bytes)
+}
+
+fn write_snapshot_into(
+    writer: &mut JsonWriter,
+    snapshot: &SemanticSnapshot,
+) -> Result<(), SemanticProtocolError> {
     writer.bytes.push(b'{');
     let mut first = true;
     writer.key(&mut first, "comparison_projection");
@@ -18,7 +38,7 @@ pub(super) fn write_snapshot(
         .extend_from_slice(br#"["/producer","/producer_extensions"]"#);
     writer.key(&mut first, "database_properties");
     properties(
-        &mut writer,
+        writer,
         &snapshot.database_properties,
         "$.database_properties",
     )?;
@@ -27,12 +47,12 @@ pub(super) fn write_snapshot(
     writer.key(&mut first, "document_type");
     writer.string("canonical_semantic_snapshot");
     writer.key(&mut first, "ordering");
-    ordering(&mut writer);
+    ordering(writer);
     writer.key(&mut first, "producer");
     writer.producer(&snapshot.producer);
     writer.key(&mut first, "producer_extensions");
     properties(
-        &mut writer,
+        writer,
         &snapshot.producer_extensions,
         "$.producer_extensions",
     )?;
@@ -51,14 +71,29 @@ pub(super) fn write_snapshot(
     writer.key(&mut first, "scenario_id");
     writer.string(snapshot.scenario_id.as_str());
     writer.key(&mut first, "tables");
-    tables(&mut writer, &snapshot.tables)?;
+    tables(writer, &snapshot.tables)?;
     writer.bytes.push(b'}');
     writer.bytes.push(b'\n');
-    Ok(writer.bytes)
+    Ok(())
 }
 
 pub(super) fn write_receipt(receipt: &CoverageReceipt) -> Result<Vec<u8>, SemanticProtocolError> {
     let mut writer = JsonWriter::new();
+    write_receipt_into(&mut writer, receipt);
+    Ok(writer.bytes)
+}
+
+pub(super) fn write_receipt_budgeted(
+    receipt: &CoverageReceipt,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<u8>, SemanticSnapshotError> {
+    let bound = receipt_allocation_bound(receipt).map_err(SemanticSnapshotError::Resource)?;
+    let mut writer = reserved_writer(bound, budget)?;
+    write_receipt_into(&mut writer, receipt);
+    Ok(writer.bytes)
+}
+
+fn write_receipt_into(writer: &mut JsonWriter, receipt: &CoverageReceipt) {
     writer.bytes.push(b'{');
     let mut first = true;
     writer.key(&mut first, "allocated_set_sha256");
@@ -82,7 +117,167 @@ pub(super) fn write_receipt(receipt: &CoverageReceipt) -> Result<Vec<u8>, Semant
     writer.string(&receipt.source_revision);
     writer.bytes.push(b'}');
     writer.bytes.push(b'\n');
-    Ok(writer.bytes)
+}
+
+pub(super) fn snapshot_allocation_bound(snapshot: &SemanticSnapshot) -> Result<ByteCount, Error> {
+    let mut bound = AllocationBound::new(4_096);
+    bound.string(snapshot.scenario_id.as_str())?;
+    bound.string(snapshot.producer.source_revision())?;
+    bound.properties(&snapshot.database_properties)?;
+    bound.properties(&snapshot.producer_extensions)?;
+    for table in &snapshot.tables {
+        bound.object(1_024)?;
+        bound.string(&table.name)?;
+        bound.properties(&table.properties)?;
+        for column in &table.columns {
+            bound.object(512)?;
+            bound.string(&column.name)?;
+            bound.string(&column.dao_type)?;
+            bound.properties(&column.properties)?;
+        }
+        for index in &table.indexes {
+            bound.object(512)?;
+            bound.string(&index.name)?;
+            bound.properties(&index.properties)?;
+            for field in &index.fields {
+                bound.object(128)?;
+                bound.string(&field.name)?;
+            }
+        }
+        for row in &table.rows {
+            bound.object(512)?;
+            bound.properties(&row.values)?;
+        }
+    }
+    for relationship in &snapshot.relationships {
+        bound.object(768)?;
+        bound.string(&relationship.name)?;
+        bound.string(&relationship.table)?;
+        bound.string(&relationship.foreign_table)?;
+        bound.properties(&relationship.properties)?;
+        for field in &relationship.fields {
+            bound.object(256)?;
+            bound.string(&field.field)?;
+            bound.string(&field.foreign_field)?;
+        }
+    }
+    for raw in &snapshot.raw_preservation {
+        bound.object(512)?;
+        bound.string(&raw.semantic_path)?;
+        bound.string(raw.raw_hex.as_str())?;
+        bound.string(&raw.purpose)?;
+    }
+    Ok(ByteCount::new(bound.bytes))
+}
+
+fn receipt_allocation_bound(receipt: &CoverageReceipt) -> Result<ByteCount, Error> {
+    let mut bound = AllocationBound::new(4_096);
+    bound.string(receipt.scenario_id.as_str())?;
+    bound.string(&receipt.source_revision)?;
+    for branch in &receipt.branches {
+        bound.string(branch)?;
+        bound.object(64)?;
+    }
+    Ok(ByteCount::new(bound.bytes))
+}
+
+fn reserved_writer(
+    bound: ByteCount,
+    budget: &mut ResourceBudget,
+) -> Result<JsonWriter, SemanticSnapshotError> {
+    budget
+        .charge_allocation(bound)
+        .map_err(SemanticSnapshotError::Resource)?;
+    let capacity = usize::try_from(bound.get()).map_err(|_| {
+        SemanticSnapshotError::Resource(Error::IntegerConversion {
+            value: u128::from(bound.get()),
+            target: "usize",
+        })
+    })?;
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(capacity).map_err(|_| {
+        SemanticSnapshotError::Resource(Error::Io {
+            operation: "reserve canonical semantic JSON",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })
+    })?;
+    Ok(JsonWriter { bytes })
+}
+
+struct AllocationBound {
+    bytes: u64,
+}
+
+impl AllocationBound {
+    const fn new(bytes: u64) -> Self {
+        Self { bytes }
+    }
+
+    fn object(&mut self, bytes: u64) -> Result<(), Error> {
+        self.bytes = self.bytes.checked_add(bytes).ok_or(Error::Arithmetic {
+            operation: "size canonical semantic JSON allocation",
+        })?;
+        Ok(())
+    }
+
+    fn string(&mut self, value: &str) -> Result<(), Error> {
+        let bytes = u64::try_from(value.len()).map_err(|_| Error::IntegerConversion {
+            value: value.len() as u128,
+            target: "u64",
+        })?;
+        self.object(bytes.checked_mul(6).ok_or(Error::Arithmetic {
+            operation: "size escaped canonical JSON string",
+        })?)?;
+        self.object(32)
+    }
+
+    fn properties(&mut self, properties: &crate::PropertyMap) -> Result<(), Error> {
+        self.object(256)?;
+        for (key, value) in properties {
+            self.string(key)?;
+            self.typed_value(value)?;
+        }
+        Ok(())
+    }
+
+    fn typed_value(&mut self, value: &TypedValue) -> Result<(), Error> {
+        self.object(512)?;
+        match value {
+            TypedValue::Text { value, .. } | TypedValue::Memo { value, .. } => {
+                self.string(value)?;
+            }
+            TypedValue::Binary { value, .. } | TypedValue::Ole { value, .. } => {
+                self.string(value.as_str())?;
+            }
+            TypedValue::Guid { value, .. } => self.string(value.as_str())?,
+            TypedValue::Decimal { value, .. } | TypedValue::Currency { value, .. } => {
+                self.string(value.as_str())?;
+            }
+            TypedValue::DateTime { value, .. } => self.string(value.as_str())?,
+            _ => {}
+        }
+        let raw = match value {
+            TypedValue::Null { raw_hex }
+            | TypedValue::Boolean { raw_hex, .. }
+            | TypedValue::Byte { raw_hex, .. }
+            | TypedValue::Integer { raw_hex, .. }
+            | TypedValue::Long { raw_hex, .. }
+            | TypedValue::Single { raw_hex, .. }
+            | TypedValue::Double { raw_hex, .. }
+            | TypedValue::Decimal { raw_hex, .. }
+            | TypedValue::Currency { raw_hex, .. }
+            | TypedValue::DateTime { raw_hex, .. }
+            | TypedValue::Text { raw_hex, .. }
+            | TypedValue::Binary { raw_hex, .. }
+            | TypedValue::Guid { raw_hex, .. }
+            | TypedValue::Memo { raw_hex, .. }
+            | TypedValue::Ole { raw_hex, .. } => raw_hex.as_ref(),
+        };
+        if let Some(raw) = raw {
+            self.string(raw.as_str())?;
+        }
+        Ok(())
+    }
 }
 
 pub(super) fn write_properties(

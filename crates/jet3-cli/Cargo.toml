@@ -10,6 +10,9 @@ license.workspace = true
 jet3 = { path = "../jet3", version = "=0.0.0" }
 jet3-testkit = { path = "../jet3-testkit", version = "=0.0.0" }
 
+[target.'cfg(any(target_os = "linux", target_vendor = "apple"))'.dependencies]
+rustix = { version = "1.1.4", features = ["fs"] }
+
 [dev-dependencies]
 tempfile = "3.20.0"
 

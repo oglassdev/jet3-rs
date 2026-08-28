@@ -105,6 +105,13 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   knows them (DAO) reports them under `producer_extensions`, keyed by the
   semantic JSON pointer of the object they describe. Nothing in the compared
   model may be guessed.
+- **Column size and attributes are normalized before comparison.** The shared
+  `fixtures/column-normalization-vectors.tsv` rule fixes scalar sizes at 1, 2,
+  4, 8, or 16 bytes, preserves declared Binary/Text sizes 1 through 255, and
+  uses zero for LongBinary/Memo. Comparable attributes are fixed `1` or
+  variable `2`, plus auto-increment `16`, so only `1`, `2`, and `17` are
+  admitted. DAO masks to these bits; Rust retains its Jet raw class and record
+  only under comparison-excluded `producer_extensions`.
 - **Comparison projection.** `comparison_projection` fixes the JSON pointers
   removed before byte comparison: `/producer` (kind and revision necessarily
   differ) and `/producer_extensions`. Everything else, including array order,

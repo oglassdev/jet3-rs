@@ -1,8 +1,9 @@
 //! Conversions from `jet3` typed reader output to canonical snapshot objects.
 
 use jet3::{
-    ColumnDefinition, ColumnPhysicalType, DateTimeValue, DecodedValue, IndexDefinition,
-    IndexDirection, InlineLongValue, LongValue, PageNumber, TableDefinition, ValueKind,
+    ColumnDefinition, ColumnPhysicalType, ColumnStorageClass, DateTimeValue, DecodedValue,
+    IndexDefinition, IndexDirection, InlineLongValue, LongValue, PageNumber, ResourceBudget,
+    TableDefinition, ValueKind,
 };
 
 use super::retained::RetainedLedger;
@@ -39,17 +40,48 @@ const fn dao_type_name(physical_type: ColumnPhysicalType) -> &'static str {
 pub(super) fn convert_column(
     column: &ColumnDefinition,
     name: String,
+    budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<SemanticColumn, SemanticSnapshotError> {
+    let (size, attributes) = normalized_column(column);
     Ok(SemanticColumn {
         name,
         ordinal: u64::from(column.ordinal().get()),
-        dao_type: ledger.text(dao_type_name(column.physical_type()))?,
+        dao_type: ledger.text(budget, dao_type_name(column.physical_type()))?,
         auto_increment: column.auto_increment(),
-        size: Some(u64::from(column.size())),
-        attributes: i64::from(column.raw_class_flags()),
+        size: Some(size),
+        attributes,
         properties: PropertyMap::new(),
     })
+}
+
+fn normalized_column(column: &ColumnDefinition) -> (u64, i64) {
+    (
+        normalized_size(column.physical_type(), u64::from(column.size())),
+        normalized_attributes(column.storage(), column.auto_increment()),
+    )
+}
+
+const fn normalized_size(physical_type: ColumnPhysicalType, declared: u64) -> u64 {
+    match physical_type {
+        ColumnPhysicalType::Boolean | ColumnPhysicalType::Byte => 1,
+        ColumnPhysicalType::Integer => 2,
+        ColumnPhysicalType::Long | ColumnPhysicalType::Single => 4,
+        ColumnPhysicalType::Currency
+        | ColumnPhysicalType::Double
+        | ColumnPhysicalType::DateTime => 8,
+        ColumnPhysicalType::Guid => 16,
+        ColumnPhysicalType::Binary | ColumnPhysicalType::Text => declared,
+        ColumnPhysicalType::LongBinary | ColumnPhysicalType::Memo => 0,
+    }
+}
+
+const fn normalized_attributes(storage: ColumnStorageClass, auto_increment: bool) -> i64 {
+    let storage = match storage {
+        ColumnStorageClass::Fixed { .. } => 1,
+        ColumnStorageClass::Variable { .. } => 2,
+    };
+    storage | if auto_increment { 16 } else { 0 }
 }
 
 /// Converts one ordinary or primary logical index through its physical record.
@@ -62,6 +94,7 @@ pub(super) fn convert_index(
     primary: bool,
     column_names: &[String],
     table: PageNumber,
+    budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<SemanticIndex, SemanticSnapshotError> {
     let missing = SemanticSnapshotError::InvalidIndexReference {
@@ -77,8 +110,9 @@ pub(super) fn convert_index(
         let name = column_names
             .get(usize::from(field.column().get()))
             .ok_or_else(|| missing.clone())?;
-        let name = ledger.text(name)?;
+        let name = ledger.text(budget, name)?;
         ledger.push(
+            budget,
             &mut fields,
             IndexField {
                 name,
@@ -87,7 +121,7 @@ pub(super) fn convert_index(
         )?;
     }
     Ok(SemanticIndex {
-        name: ledger.ascii_name(logical.name().raw_bytes(), Some(table))?,
+        name: ledger.ascii_name(budget, logical.name().raw_bytes(), Some(table))?,
         primary,
         unique: physical.unique(),
         required: physical.required(),
@@ -104,6 +138,7 @@ pub(super) fn convert_value(
     decoded: &DecodedValue<'_>,
     table: PageNumber,
     column: u16,
+    budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<TypedValue, SemanticSnapshotError> {
     let unsupported = |form| SemanticSnapshotError::UnsupportedValue {
@@ -112,7 +147,7 @@ pub(super) fn convert_value(
         form,
     };
     let raw_hex = match decoded.raw_bytes() {
-        Some(bytes) => Some(ledger.hex(bytes)?),
+        Some(bytes) => Some(ledger.hex(budget, bytes)?),
         None => None,
     };
     Ok(match decoded.kind() {
@@ -134,7 +169,7 @@ pub(super) fn convert_value(
             raw_hex,
         },
         ValueKind::Currency(value) => TypedValue::Currency {
-            value: currency_text(value.scaled(), value.scale(), ledger)?,
+            value: currency_text(value.scaled(), value.scale(), budget, ledger)?,
             raw_hex,
         },
         ValueKind::Single(value) => TypedValue::Single {
@@ -148,30 +183,30 @@ pub(super) fn convert_value(
             raw_hex,
         },
         ValueKind::DateTime(value) => TypedValue::DateTime {
-            value: datetime_text(*value, table, column, ledger)?,
+            value: datetime_text(*value, table, column, budget, ledger)?,
             raw_hex,
         },
         ValueKind::Binary(bytes) => TypedValue::Binary {
-            value: ledger.hex(bytes)?,
+            value: ledger.hex(budget, bytes)?,
             raw_hex,
         },
         ValueKind::Text(text) => TypedValue::Text {
-            value: ledger.text(text.as_str())?,
+            value: ledger.text(budget, text.as_str())?,
             raw_hex,
             code_page: Some(u32::from(text.code_page().number())),
         },
         ValueKind::Guid(guid) => TypedValue::Guid {
-            value: guid_text(guid.display_bytes(), ledger)?,
+            value: guid_text(guid.display_bytes(), budget, ledger)?,
             raw_hex,
         },
         ValueKind::LongValue(LongValue::Inline { value, .. }) => match value {
             InlineLongValue::Text(text) => TypedValue::Memo {
-                value: ledger.text(text.as_str())?,
+                value: ledger.text(budget, text.as_str())?,
                 raw_hex,
                 code_page: Some(u32::from(text.code_page().number())),
             },
             InlineLongValue::Binary(bytes) => TypedValue::Ole {
-                value: ledger.hex(bytes)?,
+                value: ledger.hex(budget, bytes)?,
                 raw_hex,
             },
             _ => return Err(unsupported(UnsupportedValueForm::ExternalLongValue)),
@@ -188,6 +223,7 @@ fn datetime_text(
     value: DateTimeValue,
     table: PageNumber,
     column: u16,
+    budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<InvariantDateTime, SemanticSnapshotError> {
     let invalid = || SemanticSnapshotError::UnsupportedValue {
@@ -224,7 +260,7 @@ fn datetime_text(
         }
         29 - trailing_zeroes
     };
-    ledger.charge(retained_len)?;
+    ledger.charge(budget, retained_len)?;
     let mut text = format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}");
     if fraction != 0 {
         let digits = format!("{fraction:09}");
@@ -279,6 +315,7 @@ fn date_from_ordinal(ordinal: i64) -> Option<(i64, u8, u8)> {
 fn currency_text(
     scaled: i64,
     scale: u32,
+    budget: &mut ResourceBudget,
     ledger: &mut RetainedLedger,
 ) -> Result<InvariantDecimal, SemanticSnapshotError> {
     let divisor = 10_i128.pow(scale);
@@ -287,17 +324,21 @@ fn currency_text(
     let fraction = magnitude % divisor;
     let sign = if scaled < 0 { "-" } else { "" };
     let width = scale as usize;
-    ledger.charge(width + 22)?;
+    ledger.charge(budget, width + 22)?;
     Ok(InvariantDecimal::new(format!(
         "{sign}{integer}.{fraction:0width$}"
     ))?)
 }
 
 /// Renders display-ordered GUID bytes in the protocol's hyphenated form.
-fn guid_text(bytes: [u8; 16], ledger: &mut RetainedLedger) -> Result<Guid, SemanticSnapshotError> {
-    let hex = ledger.hex(&bytes)?;
+fn guid_text(
+    bytes: [u8; 16],
+    budget: &mut ResourceBudget,
+    ledger: &mut RetainedLedger,
+) -> Result<Guid, SemanticSnapshotError> {
+    let hex = ledger.hex(budget, &bytes)?;
     let hex = hex.as_str();
-    ledger.charge(36)?;
+    ledger.charge(budget, 36)?;
     Ok(Guid::new(format!(
         "{}-{}-{}-{}-{}",
         &hex[0..8],
@@ -306,4 +347,133 @@ fn guid_text(bytes: [u8; 16], ledger: &mut RetainedLedger) -> Result<Guid, Seman
         &hex[16..20],
         &hex[20..32]
     ))?)
+}
+
+#[cfg(test)]
+mod column_normalization_tests {
+    use super::{ColumnPhysicalType, ColumnStorageClass, normalized_attributes, normalized_size};
+
+    const FIXTURES: &str = include_str!(
+        "../../../oracle/windows-dao/protocol/v1_2/fixtures/column-normalization-vectors.tsv"
+    );
+
+    fn normalize(
+        dao_type: &str,
+        declared: u64,
+        storage: &str,
+        auto_increment: bool,
+    ) -> Result<(u64, i64), std::io::Error> {
+        let physical_type = match dao_type {
+            "dbBoolean" => ColumnPhysicalType::Boolean,
+            "dbByte" => ColumnPhysicalType::Byte,
+            "dbInteger" => ColumnPhysicalType::Integer,
+            "dbLong" => ColumnPhysicalType::Long,
+            "dbCurrency" => ColumnPhysicalType::Currency,
+            "dbSingle" => ColumnPhysicalType::Single,
+            "dbDouble" => ColumnPhysicalType::Double,
+            "dbDate" => ColumnPhysicalType::DateTime,
+            "dbBinary" => ColumnPhysicalType::Binary,
+            "dbText" => ColumnPhysicalType::Text,
+            "dbLongBinary" => ColumnPhysicalType::LongBinary,
+            "dbMemo" => ColumnPhysicalType::Memo,
+            "dbGUID" => ColumnPhysicalType::Guid,
+            other => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("unknown fixture DAO type {other}"),
+                ));
+            }
+        };
+        let storage = match storage {
+            "fixed" => ColumnStorageClass::Fixed { offset: 0 },
+            "variable" => ColumnStorageClass::Variable { index: 0 },
+            other => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("unknown fixture storage {other}"),
+                ));
+            }
+        };
+        Ok((
+            normalized_size(physical_type, declared),
+            normalized_attributes(storage, auto_increment),
+        ))
+    }
+
+    fn parse_u64(value: &str, field: &str, line: usize) -> Result<u64, std::io::Error> {
+        value.parse().map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("column-normalization fixture line {line} has invalid {field}: {error}"),
+            )
+        })
+    }
+
+    fn parse_bool(value: &str, line: usize) -> Result<bool, std::io::Error> {
+        value.parse().map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "column-normalization fixture line {line} has invalid auto_increment: {error}"
+                ),
+            )
+        })
+    }
+
+    #[test]
+    fn shared_vectors_define_column_normalization() -> Result<(), Box<dyn std::error::Error>> {
+        let mut seen = 0;
+        for (line_index, line) in FIXTURES
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| !line.starts_with('#'))
+        {
+            let line_number = line_index + 1;
+            let fields = line.split('\t').collect::<Vec<_>>();
+            let [
+                dao_type,
+                declared,
+                storage,
+                auto_increment,
+                expected_size,
+                expected_attributes,
+            ] = fields.as_slice()
+            else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "column-normalization fixture line {line_number} has {} fields, expected 6",
+                        fields.len()
+                    ),
+                )
+                .into());
+            };
+            let actual = normalize(
+                dao_type,
+                parse_u64(declared, "declared size", line_number)?,
+                storage,
+                parse_bool(auto_increment, line_number)?,
+            )?;
+            assert_eq!(
+                actual.0,
+                parse_u64(expected_size, "expected size", line_number)?,
+                "{dao_type}"
+            );
+            assert_eq!(
+                actual.1,
+                expected_attributes.parse::<i64>().map_err(|error| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "column-normalization fixture line {line_number} has invalid expected attributes: {error}"
+                        ),
+                    )
+                })?,
+                "{dao_type}"
+            );
+            seen += 1;
+        }
+        assert_eq!(seen, 15);
+        Ok(())
+    }
 }
