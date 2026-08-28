@@ -1,15 +1,15 @@
 //! Conversions from `jet3` typed reader output to canonical snapshot objects.
 
 use jet3::{
-    ColumnDefinition, ColumnPhysicalType, DecodedValue, IndexDefinition, IndexDirection,
-    InlineLongValue, LongValue, PageNumber, TableDefinition, ValueKind,
+    ColumnDefinition, ColumnPhysicalType, DateTimeValue, DecodedValue, IndexDefinition,
+    IndexDirection, InlineLongValue, LongValue, PageNumber, TableDefinition, ValueKind,
 };
 
 use super::retained::RetainedLedger;
 use super::{SemanticSnapshotError, UnsupportedValueForm};
 use crate::{
-    Column, FiniteF32, FiniteF64, Guid, Index, IndexField, InvariantDecimal, PropertyMap,
-    TypedValue,
+    FiniteF32, FiniteF64, Guid, IndexField, InvariantDateTime, InvariantDecimal, PropertyMap,
+    SemanticColumn, SemanticIndex, TypedValue,
 };
 
 /// DAO `DataTypeEnum` constant name for one Jet 3 physical column type.
@@ -40,37 +40,15 @@ pub(super) fn convert_column(
     column: &ColumnDefinition,
     name: String,
     ledger: &mut RetainedLedger,
-) -> Result<Column, SemanticSnapshotError> {
-    let mut properties = PropertyMap::new();
-    let key = ledger.text("physical_type")?;
-    ledger.insert(
-        &mut properties,
-        key,
-        TypedValue::Byte {
-            value: column.physical_type().raw(),
-            raw_hex: None,
-        },
-    )?;
-    let raw_record = ledger.hex(column.raw_record())?;
-    let key = ledger.text("raw_record")?;
-    ledger.insert(
-        &mut properties,
-        key,
-        TypedValue::Binary {
-            value: raw_record,
-            raw_hex: None,
-        },
-    )?;
-    Ok(Column {
+) -> Result<SemanticColumn, SemanticSnapshotError> {
+    Ok(SemanticColumn {
         name,
         ordinal: u64::from(column.ordinal().get()),
         dao_type: ledger.text(dao_type_name(column.physical_type()))?,
-        nullable: None,
-        required: None,
         auto_increment: column.auto_increment(),
         size: Some(u64::from(column.size())),
         attributes: i64::from(column.raw_class_flags()),
-        properties,
+        properties: PropertyMap::new(),
     })
 }
 
@@ -85,7 +63,7 @@ pub(super) fn convert_index(
     column_names: &[String],
     table: PageNumber,
     ledger: &mut RetainedLedger,
-) -> Result<Index, SemanticSnapshotError> {
+) -> Result<SemanticIndex, SemanticSnapshotError> {
     let missing = SemanticSnapshotError::InvalidIndexReference {
         table,
         physical_index: logical.physical_index(),
@@ -108,31 +86,20 @@ pub(super) fn convert_index(
             },
         )?;
     }
-    let mut properties = PropertyMap::new();
-    let key = ledger.text("raw_flags")?;
-    ledger.insert(
-        &mut properties,
-        key,
-        TypedValue::Byte {
-            value: physical.raw_flags(),
-            raw_hex: None,
-        },
-    )?;
-    Ok(Index {
+    Ok(SemanticIndex {
         name: ledger.ascii_name(logical.name().raw_bytes(), Some(table))?,
         primary,
         unique: physical.unique(),
         required: physical.required(),
-        ignore_nulls: None,
         fields,
-        properties,
+        properties: PropertyMap::new(),
     })
 }
 
 /// Converts one decoded field into its typed canonical value.
 ///
 /// Every present value retains its exact physical bytes as `raw_hex`.
-/// External long values, dates, and non-finite numbers fail closed.
+/// External long values are streamed by the caller; non-finite numbers fail closed.
 pub(super) fn convert_value(
     decoded: &DecodedValue<'_>,
     table: PageNumber,
@@ -180,7 +147,10 @@ pub(super) fn convert_value(
                 .map_err(|_| unsupported(UnsupportedValueForm::NonFiniteNumber))?,
             raw_hex,
         },
-        ValueKind::DateTime(_) => return Err(unsupported(UnsupportedValueForm::DateTime)),
+        ValueKind::DateTime(value) => TypedValue::DateTime {
+            value: datetime_text(*value, table, column, ledger)?,
+            raw_hex,
+        },
         ValueKind::Binary(bytes) => TypedValue::Binary {
             value: ledger.hex(bytes)?,
             raw_hex,
@@ -211,6 +181,98 @@ pub(super) fn convert_value(
         }
         _ => return Err(unsupported(UnsupportedValueForm::ExternalLongValue)),
     })
+}
+
+/// Converts OLE Automation day semantics from `SRC-0026` into invariant text.
+fn datetime_text(
+    value: DateTimeValue,
+    table: PageNumber,
+    column: u16,
+    ledger: &mut RetainedLedger,
+) -> Result<InvariantDateTime, SemanticSnapshotError> {
+    let invalid = || SemanticSnapshotError::UnsupportedValue {
+        table,
+        column,
+        form: UnsupportedValueForm::DateTime,
+    };
+    let days = value.days();
+    if !days.is_finite() || !(-657_435.0..=2_958_465.999_999_99).contains(&days) {
+        return Err(invalid());
+    }
+    let mut ordinal = days_before_year(1899) + days_before_month(1899, 12) + 29;
+    ordinal += days.trunc() as i64;
+    let mut nanoseconds = (days.fract().abs() * 86_400_000_000_000.0).round() as u64;
+    if nanoseconds == 86_400_000_000_000 {
+        ordinal += 1;
+        nanoseconds = 0;
+    }
+    let (year, month, day) = date_from_ordinal(ordinal).ok_or_else(invalid)?;
+    let hour = nanoseconds / 3_600_000_000_000;
+    nanoseconds %= 3_600_000_000_000;
+    let minute = nanoseconds / 60_000_000_000;
+    nanoseconds %= 60_000_000_000;
+    let second = nanoseconds / 1_000_000_000;
+    let fraction = nanoseconds % 1_000_000_000;
+    let retained_len = if fraction == 0 {
+        19
+    } else {
+        let mut significant = fraction;
+        let mut trailing_zeroes = 0_usize;
+        while significant.is_multiple_of(10) {
+            significant /= 10;
+            trailing_zeroes += 1;
+        }
+        29 - trailing_zeroes
+    };
+    ledger.charge(retained_len)?;
+    let mut text = format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}");
+    if fraction != 0 {
+        let digits = format!("{fraction:09}");
+        text.push('.');
+        text.push_str(digits.trim_end_matches('0'));
+    }
+    debug_assert_eq!(text.len(), retained_len);
+    InvariantDateTime::new(text).map_err(|_| invalid())
+}
+
+const fn leap_year(year: i64) -> bool {
+    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+}
+
+const fn days_before_year(year: i64) -> i64 {
+    let prior = year - 1;
+    prior * 365 + prior / 4 - prior / 100 + prior / 400
+}
+
+fn days_before_month(year: i64, month: u8) -> i64 {
+    const STARTS: [i64; 12] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+    STARTS[usize::from(month - 1)] + i64::from(month > 2 && leap_year(year))
+}
+
+fn date_from_ordinal(ordinal: i64) -> Option<(i64, u8, u8)> {
+    if !(0..days_before_year(10_000)).contains(&ordinal) {
+        return None;
+    }
+    let mut low = 1_i64;
+    let mut high = 10_000_i64;
+    while low + 1 < high {
+        let middle = (low + high) / 2;
+        if days_before_year(middle) <= ordinal {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    let day_of_year = ordinal - days_before_year(low);
+    let mut month = 1_u8;
+    while month < 12 && days_before_month(low, month + 1) <= day_of_year {
+        month += 1;
+    }
+    Some((
+        low,
+        month,
+        u8::try_from(day_of_year - days_before_month(low, month) + 1).ok()?,
+    ))
 }
 
 /// Renders an exact scaled integer as an invariant decimal with a fixed scale.

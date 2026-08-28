@@ -106,6 +106,37 @@ impl RetainedLedger {
         Ok(owned)
     }
 
+    /// Appends decoded text after charging and reserving its exact byte length.
+    pub(super) fn append_text(
+        &mut self,
+        output: &mut String,
+        value: &str,
+    ) -> Result<(), SemanticSnapshotError> {
+        self.charge(value.len())?;
+        output
+            .try_reserve(value.len())
+            .map_err(|_| out_of_memory())?;
+        output.push_str(value);
+        Ok(())
+    }
+
+    /// Appends lowercase hexadecimal text for sourced bytes.
+    pub(super) fn append_hex(
+        &mut self,
+        output: &mut String,
+        bytes: &[u8],
+    ) -> Result<(), SemanticSnapshotError> {
+        const DIGITS: &[u8; 16] = b"0123456789abcdef";
+        let length = bytes.len().saturating_mul(2);
+        self.charge(length)?;
+        output.try_reserve(length).map_err(|_| out_of_memory())?;
+        for byte in bytes {
+            output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+            output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+        }
+        Ok(())
+    }
+
     /// Retains bytes as lowercase hexadecimal text.
     pub(super) fn hex(&mut self, bytes: &[u8]) -> Result<HexString, SemanticSnapshotError> {
         self.charge(bytes.len().saturating_mul(2))?;

@@ -385,6 +385,26 @@ class ProtocolV12Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "unknown table"):
             v1_2.validate_document(bad_relationship)
 
+    def test_coverage_receipt_is_canonical_and_closed_to_registered_branches(self):
+        receipt = {
+            "protocol_version": "1.2.0",
+            "document_type": "rust_coverage_receipt",
+            "scenario_id": "DAO-READ-ROWS-SINGLE",
+            "source_revision": "abc123",
+            "database_sha256": "ab" * 32,
+            "allocated_set_sha256": "cd" * 32,
+            "branches": ["open.header_page", "rows.direct"],
+        }
+        self.assertEqual(v1_2.validate_document(receipt), "rust_coverage_receipt")
+        unknown = json.loads(json.dumps(receipt))
+        unknown["branches"].append("rows.imaginary")
+        with self.assertRaisesRegex(ValidationError, "not in the branch registry"):
+            v1_2.validate_document(unknown)
+        reordered = json.loads(json.dumps(receipt))
+        reordered["branches"].reverse()
+        with self.assertRaisesRegex(ValidationError, "unique and sorted"):
+            v1_2.validate_document(reordered)
+
 
 if __name__ == "__main__":
     unittest.main()

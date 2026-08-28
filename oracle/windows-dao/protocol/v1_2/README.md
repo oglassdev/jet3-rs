@@ -14,6 +14,7 @@ compatibility. Protocols 1.0.0 and 1.1.0 remain frozen under `protocol/v1` and
 | `scenarios.json` | `dao_scenario_inventory` | The declarative DAO-versus-Rust read inventory, built reproducibly by `scripts/build_v1_2_inventory.py`. |
 | `branch-registry.schema.json`, `branch-registry.json` | `dao_branch_registry` | Closed list of Rust reader coverage branch ids that a `coverage-receipt.json` may cite. |
 | `canonical-semantic-snapshot.schema.json` | `canonical_semantic_snapshot` | Shape of the canonical snapshot both producers emit. |
+| `coverage-receipt.schema.json` | `rust_coverage_receipt` | Database- and revision-bound Rust branch coverage plus allocated-page-set identity. |
 
 `scripts/validate_protocol_v1_2.py schemas` lints every schema;
 `inventory <path>` validates the inventory; `document <path>` validates one
@@ -113,8 +114,14 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   recipe and the reader's resource limits.
 
 DAO never emits allocation internals. The Rust producer additionally emits
-`coverage-receipt.json` (P8 step 2) bound to the source database SHA-256 and
-listing only registry branch ids; its schema is added in that step.
+`coverage-receipt.json` is bound to the source database SHA-256 and Rust source
+revision and lists only closed registry branch ids. `allocated_set_sha256` is
+SHA-256 over this deterministic byte stream: user tables in canonical name
+order, each encoded as the little-endian `u64` UTF-8 name length, name bytes,
+little-endian `u64` table-definition root, each traversed owned page as a
+little-endian `u64`, and a little-endian `u64::MAX` table terminator. This
+digest compares the page set actually admitted to semantic traversal without
+placing allocation internals in the DAO/Rust comparison projection.
 
 ## Portable commands
 

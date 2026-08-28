@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jet3-rs.invalid/oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json",
+  "title": "Rust reader coverage receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "document_type",
+    "scenario_id",
+    "source_revision",
+    "database_sha256",
+    "allocated_set_sha256",
+    "branches"
+  ],
+  "properties": {
+    "protocol_version": { "const": "1.2.0" },
+    "document_type": { "const": "rust_coverage_receipt" },
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$"
+    },
+    "source_revision": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "database_sha256": { "$ref": "#/$defs/sha256" },
+    "allocated_set_sha256": { "$ref": "#/$defs/sha256" },
+    "branches": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

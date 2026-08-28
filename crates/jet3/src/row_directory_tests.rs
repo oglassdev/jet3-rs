@@ -32,13 +32,16 @@ fn validates_reverse_rows_and_skips_deleted_or_overflow_storage()
         &page,
         &mut resources,
     )?;
-    let first = directory.next_primary(&page)?.ok_or("missing first row")?;
+    let first = directory
+        .next_primary(&page)?
+        .0
+        .ok_or("missing first row")?;
     assert_eq!(&page[first.range()], b"first");
     assert_eq!(first.locator().page(), PageNumber::new(9));
     assert_eq!(first.locator().slot(), 0);
     assert!(!first.overflow());
     assert!(!first.hidden());
-    assert!(directory.next_primary(&page)?.is_none());
+    assert!(directory.next_primary(&page)?.0.is_none());
     assert_eq!(resources.item_work(), 3);
     Ok(())
 }
@@ -165,7 +168,7 @@ fn revalidates_a_reloaded_overflow_source_before_resuming() -> Result<(), Box<dy
         &original,
         &mut resources,
     )?;
-    let _ = previous.next_primary(&original)?.ok_or("missing row")?;
+    let _ = previous.next_primary(&original)?.0.ok_or("missing row")?;
 
     let changed = page(7, &[(b"first", 0)]);
     let current = RowDirectory::validate(

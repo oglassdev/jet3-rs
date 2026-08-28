@@ -80,12 +80,12 @@ pub(crate) fn write_classifier_snapshot(snapshot: &ClassifierSnapshot) -> Vec<u8
     writer.bytes
 }
 
-struct JsonWriter {
-    bytes: Vec<u8>,
+pub(crate) struct JsonWriter {
+    pub(crate) bytes: Vec<u8>,
 }
 
 impl JsonWriter {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { bytes: Vec::new() }
     }
 
@@ -133,7 +133,7 @@ impl JsonWriter {
         self.bytes.push(b'}');
     }
 
-    fn producer(&mut self, producer: &Producer) {
+    pub(crate) fn producer(&mut self, producer: &Producer) {
         self.bytes.push(b'{');
         let mut first = true;
         self.key(&mut first, "kind");
@@ -146,7 +146,7 @@ impl JsonWriter {
         self.bytes.push(b'}');
     }
 
-    fn properties(&mut self, properties: &PropertyMap) -> Result<(), SnapshotError> {
+    pub(crate) fn properties(&mut self, properties: &PropertyMap) -> Result<(), SnapshotError> {
         self.bytes.push(b'{');
         let mut first = true;
         for (key, value) in properties {
@@ -250,13 +250,13 @@ impl JsonWriter {
             self.key(&mut first, "name");
             self.string(&column.name);
             self.key(&mut first, "nullable");
-            self.optional_boolean(column.nullable);
+            self.boolean(column.nullable);
             self.key(&mut first, "ordinal");
             self.unsigned(column.ordinal);
             self.key(&mut first, "properties");
             self.properties(&column.properties)?;
             self.key(&mut first, "required");
-            self.optional_boolean(column.required);
+            self.boolean(column.required);
             self.key(&mut first, "size");
             if let Some(size) = column.size {
                 self.unsigned(size);
@@ -278,7 +278,7 @@ impl JsonWriter {
             self.key(&mut first, "fields");
             self.index_fields(&value.fields);
             self.key(&mut first, "ignore_nulls");
-            self.optional_boolean(value.ignore_nulls);
+            self.boolean(value.ignore_nulls);
             self.key(&mut first, "name");
             self.string(&value.name);
             self.key(&mut first, "primary");
@@ -326,7 +326,10 @@ impl JsonWriter {
         Ok(())
     }
 
-    fn relationships(&mut self, relationships: &[Relationship]) -> Result<(), SnapshotError> {
+    pub(crate) fn relationships(
+        &mut self,
+        relationships: &[Relationship],
+    ) -> Result<(), SnapshotError> {
         self.bytes.push(b'[');
         for (index, relationship) in relationships.iter().enumerate() {
             self.comma(index);
@@ -365,7 +368,7 @@ impl JsonWriter {
         self.bytes.push(b']');
     }
 
-    fn raw_preservation(&mut self, values: &[RawPreservation]) {
+    pub(crate) fn raw_preservation(&mut self, values: &[RawPreservation]) {
         self.bytes.push(b'[');
         for (index, value) in values.iter().enumerate() {
             self.comma(index);
@@ -382,14 +385,7 @@ impl JsonWriter {
         self.bytes.push(b']');
     }
 
-    fn optional_boolean(&mut self, value: Option<bool>) {
-        match value {
-            Some(value) => self.boolean(value),
-            None => self.bytes.extend_from_slice(b"null"),
-        }
-    }
-
-    fn key(&mut self, first: &mut bool, key: &str) {
+    pub(crate) fn key(&mut self, first: &mut bool, key: &str) {
         if !*first {
             self.bytes.push(b',');
         }
@@ -398,7 +394,7 @@ impl JsonWriter {
         self.bytes.push(b':');
     }
 
-    fn string(&mut self, value: &str) {
+    pub(crate) fn string(&mut self, value: &str) {
         const HEX: &[u8; 16] = b"0123456789abcdef";
         self.bytes.push(b'"');
         for character in value.chars() {
@@ -426,20 +422,20 @@ impl JsonWriter {
         self.bytes.push(b'"');
     }
 
-    fn boolean(&mut self, value: bool) {
+    pub(crate) fn boolean(&mut self, value: bool) {
         self.bytes
             .extend_from_slice(if value { b"true" } else { b"false" });
     }
 
-    fn integer(&mut self, value: i64) {
+    pub(crate) fn integer(&mut self, value: i64) {
         self.bytes.extend_from_slice(value.to_string().as_bytes());
     }
 
-    fn unsigned(&mut self, value: u64) {
+    pub(crate) fn unsigned(&mut self, value: u64) {
         self.bytes.extend_from_slice(value.to_string().as_bytes());
     }
 
-    fn comma(&mut self, index: usize) {
+    pub(crate) fn comma(&mut self, index: usize) {
         if index != 0 {
             self.bytes.push(b',');
         }

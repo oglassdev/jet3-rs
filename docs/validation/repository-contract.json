@@ -11,18 +11,19 @@
         "crate_root": "crates/jet3-cli/src/main.rs",
         "manifest": "crates/jet3-cli/Cargo.toml",
         "name": "jet3-cli"
-      }
-    ],
-    "support": [
+      },
       {
+        "crate_root": "crates/jet3-testkit/src/lib.rs",
         "manifest": "crates/jet3-testkit/Cargo.toml",
         "name": "jet3-testkit"
       }
-    ]
+    ],
+    "support": []
   },
   "allowed_runtime_packages": [
     "jet3",
-    "jet3-cli"
+    "jet3-cli",
+    "jet3-testkit"
   ],
   "format_knowledge": {
     "assertion_files": [
@@ -33,7 +34,7 @@
           "SRC-0005",
           "EXP-0056"
         ],
-        "sha256": "0b9e015e246827ee99876738a28e40b0e2867ead3c537a02134023f47c7a02a7"
+        "sha256": "ee6c93f6e5586f7a9518b7d47e1d81dfbaca9b395123ac5c09c2d7f5bf24ed4f"
       },
       {
         "path": "crates/jet3/src/allocation.rs",
@@ -221,14 +222,14 @@
           "EXP-0060",
           "EXP-0061"
         ],
-        "sha256": "921f9d4154e6684a348a3f3f4bf14e088a456bed498d4f035b660079cbf03348"
+        "sha256": "fc9ee3c95d8ec38f1dc1c5271a21cb88dcb19694af718f09299468c809875ed9"
       },
       {
         "path": "crates/jet3/src/row_directory.rs",
         "provenance_ids": [
           "EXP-0060"
         ],
-        "sha256": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844"
+        "sha256": "8132c1cce00cd8457cde54119c2186b63341135ca75bec3af4d2cb1d126817df"
       },
       {
         "path": "crates/jet3/src/table_definition.rs",
@@ -263,6 +264,86 @@
       }
     ],
     "reviewed_non_assertion_files": [
+      {
+        "path": "crates/jet3-testkit/src/bin/jet3-classifier-snapshot.rs",
+        "reason": "Bounded command-line composition over the registered classifier snapshot API; it introduces no physical format assertions.",
+        "sha256": "05a5495ed1f2c4f1a79b6f417957d5b2812ad09c588aee53d2226c0db5c94fe6"
+      },
+      {
+        "path": "crates/jet3-testkit/src/canonical_json.rs",
+        "reason": "Format-neutral canonical JSON encoding for versioned comparison documents.",
+        "sha256": "c2d1b450a41fa0c98897b526b81b0ffb910091952bb8b3db22d289bb72ec964a"
+      },
+      {
+        "path": "crates/jet3-testkit/src/canonical_order_tests.rs",
+        "reason": "Test-only verification of format-neutral canonical ordering rules.",
+        "sha256": "7485b4d6669b686bc9d7afc1abc552443a37ca458f8d7faff77e9bbb6554bfe9"
+      },
+      {
+        "path": "crates/jet3-testkit/src/canonical_snapshot.rs",
+        "reason": "Typed protocol document model and validated semantic scalar wrappers; it reads no MDB bytes.",
+        "sha256": "4b0c13f59f92576184bc5480c928d4716b8b8ac6bc9d035b43f51156da64adb3"
+      },
+      {
+        "path": "crates/jet3-testkit/src/canonical_snapshot_validation.rs",
+        "reason": "Format-neutral canonical model validation and ordering helpers.",
+        "sha256": "899e7e3aba6c0f966bb1bd3a4dd591fe2404147bb03b78d8454e852b66107cc9"
+      },
+      {
+        "path": "crates/jet3-testkit/src/canonical_value_tests.rs",
+        "reason": "Test-only verification of canonical semantic scalar and JSON rules.",
+        "sha256": "8a2ef1b8a075337e982667bb8dfb6633a0c23a87e54ad28e85b7cbd0b4895fa5"
+      },
+      {
+        "path": "crates/jet3-testkit/src/classifier_snapshot.rs",
+        "reason": "Bounded aggregation over public page classifications; physical assertions remain in the registered jet3 modules.",
+        "sha256": "8015400332fef148683444cfe9e0e2835597ff96df75d645cc897737cc438918"
+      },
+      {
+        "path": "crates/jet3-testkit/src/lib.rs",
+        "reason": "Public protocol-support re-exports and product-scope labels only.",
+        "sha256": "375362c23ec2e60025dd399c59cff2d2390c851bf1406949a0e72c42d0f70bc2"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_json.rs",
+        "reason": "Format-neutral canonical JSON emission for protocol 1.2 models and receipts.",
+        "sha256": "c091ffcc7b535cf953ac2046638c51420150226606bf4ea4a706e5ee43652211"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_protocol.rs",
+        "reason": "Protocol 1.2 model integrity, ordering, and source-independent row identity rules.",
+        "sha256": "91e3d174fd1867a8eea7fbf92e771303da81d25fba09cffc401b600990b67956"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot.rs",
+        "reason": "High-level composition over registered public reader APIs without new physical byte offsets or constants.",
+        "sha256": "584c72d6adf72ff263d716213e329d245e744fbdd6d8f4951c9118a6624f027f"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_convert.rs",
+        "reason": "Semantic conversion over provenance-bound public reader values plus the separately recorded OLE Automation date interpretation.",
+        "sha256": "042256b73ed689b2f09f1de5235a56b537dd7502ac9f14d179134b0d6e33ca2a"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_coverage.rs",
+        "reason": "Receipt observations over public reader branch and traversal results; it introduces no physical byte assertions.",
+        "sha256": "abda8766b1f8099be5f72f25f37de2bf9054304ed4fbe5b6a808f8f37633b9a0"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_retained.rs",
+        "reason": "Format-neutral bounded allocation accounting for retained protocol state.",
+        "sha256": "e512bf225140eda5ecf9f59f6538d90cbde8c0f2dab2e47436cc58d6ecd797cb"
+      },
+      {
+        "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
+        "reason": "Test-only synthetic verification of the public semantic producer composition.",
+        "sha256": "e2a429fbb73a0bc79a2001e0bfe4b1113e0d923886d92cdc1d8ade3cbb4e675e"
+      },
+      {
+        "path": "crates/jet3-testkit/src/sha256.rs",
+        "reason": "Format-independent SHA-256 implementation bound to the registered public standard.",
+        "sha256": "90cf6653196352f30431ceb5151c39566b3a1aca4351931df26a8a7ccd4973b2"
+      },
       {
         "path": "crates/jet3/src/allocation_tests.rs",
         "reason": "Test-only verification of the provenance-bound detached allocation-map assertions in allocation.rs.",
@@ -351,7 +432,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "ad37cf9a92f7ad9e5b66b3128bd63b720fd70d54d3e2eb1ee6b47ba05cc0d042"
+        "sha256": "c0dcd2a9340d97b997e44946aadad18e6eb99dbb6a0429415683f1d9de0fdd5f"
       },
       {
         "path": "crates/jet3/src/long_value_tests.rs",
@@ -401,7 +482,7 @@
       {
         "path": "crates/jet3/src/row_directory_tests.rs",
         "reason": "Test-only verification of EXP-0060 row-directory ownership, flag, offset, overlap, and truncation boundaries.",
-        "sha256": "53c35a7cb60408fe1dfa9e20217bd38bf4148ab5749456c03760985ff8696e72"
+        "sha256": "8281ad29ed15b1e92a35454c2a7ac834630d93502377bded69aa4a487b3e85f3"
       },
       {
         "path": "crates/jet3/src/row_tests.rs",

@@ -36,6 +36,7 @@ SCHEMAS = {
     "dao_scenario_inventory": "scenarios.schema.json",
     "dao_branch_registry": "branch-registry.schema.json",
     "canonical_semantic_snapshot": "canonical-semantic-snapshot.schema.json",
+    "rust_coverage_receipt": "coverage-receipt.schema.json",
 }
 SCHEMA_SET = ProtocolSchemaSet(SCHEMA_DIR, SCHEMAS)
 FAMILY_FOR_MODE = {
@@ -484,6 +485,16 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")
 
 
+def validate_coverage_receipt(document: dict[str, Any]) -> None:
+    """Bind a canonical receipt to the closed branch registry."""
+    branches = document["branches"]
+    if branches != sorted(branches) or len(branches) != len(set(branches)):
+        raise ValidationError("$.branches: branch ids must be unique and sorted")
+    unknown = sorted(set(branches) - load_branch_ids())
+    if unknown:
+        raise ValidationError(f"$.branches: not in the branch registry: {unknown}")
+
+
 def validate_document(document: Any, *, complete: bool = False) -> str:
     document_type = SCHEMA_SET.validate(document)
     if document.get("protocol_version") != PROTOCOL_VERSION:
@@ -492,16 +503,18 @@ def validate_document(document: Any, *, complete: bool = False) -> str:
         validate_inventory(document, capability_ids=load_capability_ids(), branch_ids=load_branch_ids(), complete=complete)
     elif document_type == "dao_branch_registry":
         validate_registry(document)
-    else:
+    elif document_type == "canonical_semantic_snapshot":
         validate_semantic_snapshot(document)
+    else:
+        validate_coverage_receipt(document)
     return document_type
 
 
 def validate_document_path(path: Path, *, complete: bool = False) -> str:
     document = load_json(path)
     document_type = validate_document(document, complete=complete)
-    if document_type == "canonical_semantic_snapshot" and path.read_bytes() != canonical_json_bytes(document):
-        raise ValidationError(f"{path}: canonical snapshot bytes are not normalized")
+    if document_type in ("canonical_semantic_snapshot", "rust_coverage_receipt") and path.read_bytes() != canonical_json_bytes(document):
+        raise ValidationError(f"{path}: canonical document bytes are not normalized")
     return document_type
 
 

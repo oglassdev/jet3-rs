@@ -1047,6 +1047,66 @@ Use `not applicable` explicitly rather than omitting a field.
   redistributed
 - Review: pending independent review
 
+### SRC-0026 — OLE Automation date value semantics
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public primary API documentation
+- Question: How does an OLE Automation floating-point date value map to a
+  calendar date and time for the protocol 1.2 semantic snapshot?
+- Origin: Microsoft Learn, `.NET DateTime.FromOADate(Double)` and
+  `DateTime.ToOADate()`, accessed 2026-08-27:
+  https://learn.microsoft.com/en-us/dotnet/api/system.datetime.fromoadate
+  and
+  https://learn.microsoft.com/en-us/dotnet/api/system.datetime.tooadate
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code page, and time zone are not applicable
+- Protocol: use the documented Automation epoch of midnight 1899-12-30;
+  treat the integral component as the signed day displacement and the
+  absolute fractional component as the time of day; reject values outside the
+  documented Automation range before calendar conversion
+- Artifacts: the cited public documentation pages; no documentation content is
+  redistributed by this repository
+- Observation: the documented range is `-657435.0` through
+  `2958465.99999999`, corresponding to dates from 0100-01-01 through
+  9999-12-31. An integral value is a day displacement from 1899-12-30 and the
+  absolute fractional part represents time elapsed since midnight.
+- Interpretation: a finite Jet DateTime payload may be rendered as an
+  invariant proleptic-Gregorian timestamp by applying these documented OLE
+  Automation semantics while retaining the original eight field bytes. This
+  source establishes no Jet field layout and no compatibility claim.
+- Usage: `file:crates/jet3-testkit/src/semantic_snapshot_convert.rs`
+- Rights: citations to public Microsoft documentation; no documentation
+  content is redistributed
+- Review: pending independent review
+
+### SRC-0027 — SHA-256 algorithm definition and test vectors
+
+- Recorded: 2026-08-27, OpenAI Codex
+- Kind: public primary standard
+- Question: Which deterministic digest algorithm binds protocol 1.2 row
+  values, source MDB bytes, and allocated-page sets?
+- Origin: National Institute of Standards and Technology, FIPS PUB 180-4,
+  “Secure Hash Standard (SHS),” August 2015, accessed 2026-08-27:
+  https://csrc.nist.gov/pubs/fips/180-4/upd1/final
+- Environment: documentation retrieval; operating system, architecture,
+  provider version, locale, code page, and time zone are not applicable
+- Protocol: implement only SHA-256 with the specified initial values, round
+  constants, message schedule, compression functions, padding, and 64-bit
+  big-endian bit length; verify the empty-string and `abc` vectors before use
+- Artifacts: the cited public standard and its linked test-vector material; no
+  standard text or file is redistributed by this repository
+- Observation: SHA-256 consumes 512-bit blocks, produces a 256-bit digest, and
+  encodes the message length in a 64-bit field after a one bit and zero padding.
+- Interpretation: protocol identity fields may use lowercase hexadecimal text
+  of this digest. The implementation is format-independent and establishes no
+  fact about MDB bytes or DAO compatibility.
+- Usage: `file:crates/jet3-testkit/src/sha256.rs`;
+  `file:crates/jet3-testkit/src/semantic_protocol.rs`;
+  `file:crates/jet3-cli/src/main.rs`
+- Rights: citation to a public United States Government standard; no standard
+  content is redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes

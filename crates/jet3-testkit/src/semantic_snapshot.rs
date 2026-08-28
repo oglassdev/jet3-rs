@@ -9,26 +9,32 @@
 //! guessed. A snapshot is a Rust self-read; it never establishes DAO
 //! compatibility on its own.
 
+use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt;
 
-use jet3::{
-    CatalogError, CatalogObjectClass, CatalogObjectKind, DatabaseReader, IndexDefinitionKind,
-    PageNumber, ReadAt, RelationshipSide, ResourceBudget, RowError, TableDefinition,
-    TableDefinitionError, TextCodePage, ValueError,
-};
-
 use crate::{
-    CanonicalSnapshot, Producer, PropertyMap, Relationship, RelationshipField, Row, ScenarioId,
-    Sha256, SnapshotError, Table, TableKind, TypedValue,
+    CoverageReceipt, HexString, Producer, PropertyMap, Relationship, RelationshipField, ScenarioId,
+    SemanticProtocolError, SemanticRow, SemanticSnapshot, SemanticTable, Sha256, Sha256Hasher,
+    SnapshotError, TableKind, TypedValue, hex_digest,
+};
+use jet3::{
+    AllocationMapError, AllocationTraversalError, CatalogError, CatalogObjectClass,
+    CatalogObjectKind, DatabasePageError, DatabaseReader, ExternalLongValueStorage,
+    IndexDefinitionKind, IndexTreeError, LongValue, LongValueChunkValue, LongValueError,
+    LongValueKind, LongValueReference, PageNumber, ReadAt, RelationshipSide, ResourceBudget,
+    RowError, TableDefinition, TableDefinitionError, TextCodePage, UsageMapError, ValueError,
 };
 
 #[path = "semantic_snapshot_convert.rs"]
 mod convert;
+#[path = "semantic_snapshot_coverage.rs"]
+mod coverage;
 #[path = "semantic_snapshot_retained.rs"]
 mod retained;
 
 use convert::{convert_column, convert_index, convert_value};
+use coverage::{collect_allocation_evidence, collect_index_evidence, record_value_branch};
 use retained::RetainedLedger;
 
 /// Caller-supplied identity and decoding policy for one Rust snapshot.
@@ -56,10 +62,24 @@ pub enum SemanticSnapshotError {
     Row(RowError),
     /// Decoding one field failed.
     Value(ValueError),
+    /// Streaming one external Memo/OLE value failed.
+    LongValue(LongValueError),
+    /// Traversing one owned-page set failed.
+    Allocation(AllocationTraversalError),
+    /// Reading the allocation-map record page failed.
+    DatabasePage(DatabasePageError),
+    /// Locating the allocation-map record failed.
+    UsageMap(UsageMapError),
+    /// Decoding the allocation-map record failed.
+    AllocationMap(AllocationMapError),
+    /// Traversing one decoded index tree failed.
+    IndexTree(IndexTreeError),
     /// Charging retained snapshot state to the operation budget failed.
     Resource(jet3::Error),
     /// The collected model violated the protocol's canonical constraints.
     Snapshot(SnapshotError),
+    /// The versioned protocol 1.2 model was invalid.
+    Protocol(SemanticProtocolError),
     /// A user-class catalog object has a kind this adapter does not interpret.
     UnsupportedCatalogObject {
         /// Catalog object identifier.
@@ -117,8 +137,19 @@ impl fmt::Display for SemanticSnapshotError {
             }
             Self::Row(source) => write!(formatter, "snapshot row stream failed: {source}"),
             Self::Value(source) => write!(formatter, "snapshot value decoding failed: {source}"),
+            Self::LongValue(source) => write!(formatter, "snapshot long value failed: {source}"),
+            Self::Allocation(source) => write!(formatter, "snapshot allocation failed: {source}"),
+            Self::DatabasePage(source) => write!(formatter, "snapshot map page failed: {source}"),
+            Self::UsageMap(source) => write!(formatter, "snapshot usage map failed: {source}"),
+            Self::AllocationMap(source) => {
+                write!(formatter, "snapshot map decoding failed: {source}")
+            }
+            Self::IndexTree(source) => {
+                write!(formatter, "snapshot index traversal failed: {source}")
+            }
             Self::Resource(source) => write!(formatter, "snapshot resource policy: {source}"),
             Self::Snapshot(source) => write!(formatter, "snapshot canonical model: {source}"),
+            Self::Protocol(source) => write!(formatter, "snapshot protocol model: {source}"),
             Self::UnsupportedCatalogObject { id, kind } => write!(
                 formatter,
                 "catalog object {id} has unsupported kind {kind:#06x}"
@@ -161,8 +192,15 @@ impl Error for SemanticSnapshotError {
             Self::TableDefinition(source) => Some(source),
             Self::Row(source) => Some(source),
             Self::Value(source) => Some(source),
+            Self::LongValue(source) => Some(source),
+            Self::Allocation(source) => Some(source),
+            Self::DatabasePage(source) => Some(source),
+            Self::UsageMap(source) => Some(source),
+            Self::AllocationMap(source) => Some(source),
+            Self::IndexTree(source) => Some(source),
             Self::Resource(source) => Some(source),
             Self::Snapshot(source) => Some(source),
+            Self::Protocol(source) => Some(source),
             _ => None,
         }
     }
@@ -172,6 +210,19 @@ impl From<SnapshotError> for SemanticSnapshotError {
     fn from(source: SnapshotError) -> Self {
         Self::Snapshot(source)
     }
+}
+
+impl From<SemanticProtocolError> for SemanticSnapshotError {
+    fn from(source: SemanticProtocolError) -> Self {
+        Self::Protocol(source)
+    }
+}
+
+/// The paired protocol documents emitted for one successful Rust read.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SemanticSnapshotArtifacts {
+    pub snapshot: SemanticSnapshot,
+    pub coverage_receipt: CoverageReceipt,
 }
 
 /// One user table discovered in the catalog before its definition is read.
@@ -193,6 +244,13 @@ struct RelationshipSideRecord {
     cascade_deletes: bool,
 }
 
+struct CollectionContext<'a> {
+    code_page: TextCodePage,
+    budget: &'a mut ResourceBudget,
+    ledger: &'a mut RetainedLedger,
+    branches: &'a mut BTreeSet<String>,
+}
+
 /// Produces one deterministic canonical snapshot of every user table.
 ///
 /// The catalog is streamed once; every user table definition is decoded, its
@@ -205,20 +263,44 @@ pub fn snapshot_database<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     options: &SemanticSnapshotOptions,
     budget: &mut ResourceBudget,
-) -> Result<CanonicalSnapshot, SemanticSnapshotError> {
+) -> Result<SemanticSnapshot, SemanticSnapshotError> {
+    snapshot_database_with_receipt(database, options, budget).map(|artifacts| artifacts.snapshot)
+}
+
+/// Produces the canonical snapshot and its database-bound coverage receipt.
+pub fn snapshot_database_with_receipt<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
+    options: &SemanticSnapshotOptions,
+    budget: &mut ResourceBudget,
+) -> Result<SemanticSnapshotArtifacts, SemanticSnapshotError> {
     let mut ledger = RetainedLedger::new(budget);
     let catalog = collect_user_tables(database, budget, &mut ledger)?;
     ledger.sync(budget)?;
-    let mut snapshot = CanonicalSnapshot::new(
+    let mut snapshot = SemanticSnapshot::new(
         options.scenario_id.clone(),
         options.producer.clone(),
         options.database_sha256.clone(),
     );
+    let mut branches = BTreeSet::from([
+        "open.signature_geometry".to_owned(),
+        "open.header_page".to_owned(),
+        "catalog.root_discovery".to_owned(),
+        "catalog.record_stream".to_owned(),
+    ]);
+    let mut allocated_hasher = Sha256Hasher::new();
     let mut sides = Vec::new();
     for entry in &catalog {
         let definition = database
             .table_definition(entry.root, budget)
             .map_err(SemanticSnapshotError::TableDefinition)?;
+        collect_allocation_evidence(
+            database,
+            entry,
+            &definition,
+            budget,
+            &mut branches,
+            &mut allocated_hasher,
+        )?;
         ledger.sync(budget)?;
         let names = column_names(&definition, entry.root, &mut ledger)?;
         let table = collect_table(
@@ -226,19 +308,40 @@ pub fn snapshot_database<S: ReadAt>(
             entry,
             &definition,
             &names,
-            options.code_page,
-            budget,
-            &mut ledger,
+            &mut CollectionContext {
+                code_page: options.code_page,
+                budget,
+                ledger: &mut ledger,
+                branches: &mut branches,
+            },
         )?;
         ledger.sync(budget)?;
         collect_relationship_sides(entry, &definition, &names, &mut sides, &mut ledger)?;
+        if definition.relationships().next().is_some() {
+            branches.insert("tdef.relationship_reference".to_owned());
+        }
         ledger.push(&mut snapshot.tables, table)?;
         ledger.sync(budget)?;
     }
     snapshot.relationships = pair_relationships(sides, &mut ledger)?;
     ledger.sync(budget)?;
     snapshot.canonicalize()?;
-    Ok(snapshot)
+    let receipt = CoverageReceipt {
+        scenario_id: options.scenario_id.clone(),
+        source_revision: options.producer.source_revision().to_owned(),
+        database_sha256: options.database_sha256.clone(),
+        allocated_set_sha256: Sha256::new(hex_digest(allocated_hasher.finalize().map_err(
+            |_| SemanticProtocolError::InvalidModel {
+                path: "$.allocated_set_sha256".to_owned(),
+                reason: "SHA-256 length is not representable",
+            },
+        )?))?,
+        branches,
+    };
+    Ok(SemanticSnapshotArtifacts {
+        snapshot,
+        coverage_receipt: receipt,
+    })
 }
 
 fn collect_user_tables<S: ReadAt>(
@@ -298,15 +401,13 @@ fn collect_table<S: ReadAt>(
     entry: &CatalogTable,
     definition: &TableDefinition,
     names: &[String],
-    code_page: TextCodePage,
-    budget: &mut ResourceBudget,
-    ledger: &mut RetainedLedger,
-) -> Result<Table, SemanticSnapshotError> {
+    context: &mut CollectionContext<'_>,
+) -> Result<SemanticTable, SemanticSnapshotError> {
     let mut columns = Vec::new();
     for (column, name) in definition.columns().iter().zip(names) {
-        let name = ledger.text(name)?;
-        let column = convert_column(column, name, ledger)?;
-        ledger.push(&mut columns, column)?;
+        let name = context.ledger.text(name)?;
+        let column = convert_column(column, name, context.ledger)?;
+        context.ledger.push(&mut columns, column)?;
     }
     let mut indexes = Vec::new();
     for logical in definition.indexes() {
@@ -315,15 +416,26 @@ fn collect_table<S: ReadAt>(
             IndexDefinitionKind::Ordinary => false,
             IndexDefinitionKind::Relationship(_) => continue,
         };
-        let index = convert_index(definition, logical, primary, names, entry.root, ledger)?;
-        ledger.push(&mut indexes, index)?;
+        let index = convert_index(
+            definition,
+            logical,
+            primary,
+            names,
+            entry.root,
+            context.ledger,
+        )?;
+        context.ledger.push(&mut indexes, index)?;
     }
-    ledger.sync(budget)?;
-    let rows = collect_rows(
-        database, definition, entry.root, names, code_page, budget, ledger,
-    )?;
-    Ok(Table {
-        name: ledger.text(&entry.name)?,
+    context.ledger.sync(context.budget)?;
+    collect_index_evidence(database, definition, context.budget, context.branches)?;
+    let rows = collect_rows(database, definition, entry.root, names, context)?;
+    context.branches.insert("tdef.column_types".to_owned());
+    if !indexes.is_empty() {
+        context.branches.insert("tdef.logical_index".to_owned());
+        context.branches.insert("tdef.physical_index".to_owned());
+    }
+    Ok(SemanticTable {
+        name: context.ledger.text(&entry.name)?,
         kind: TableKind::User,
         attributes: i64::from(entry.raw_flags),
         columns,
@@ -344,38 +456,142 @@ fn collect_rows<S: ReadAt>(
     definition: &TableDefinition,
     table: PageNumber,
     names: &[String],
-    code_page: TextCodePage,
-    budget: &mut ResourceBudget,
-    ledger: &mut RetainedLedger,
-) -> Result<Vec<Row>, SemanticSnapshotError> {
+    context: &mut CollectionContext<'_>,
+) -> Result<Vec<SemanticRow>, SemanticSnapshotError> {
     let mut rows = Vec::new();
     let mut cursor = database
-        .rows(definition, budget)
+        .rows(definition, context.budget)
         .map_err(SemanticSnapshotError::Row)?;
-    while let Some(mut view) = cursor.next_row().map_err(SemanticSnapshotError::Row)? {
-        let mut values = PropertyMap::new();
-        for (column, name) in definition.columns().iter().zip(names) {
-            let ordinal = column.ordinal();
-            let decoded = view
-                .value(ordinal, code_page)
-                .map_err(SemanticSnapshotError::Value)?
-                .ok_or(SemanticSnapshotError::InvalidIndexReference {
-                    table,
-                    physical_index: ordinal.get(),
-                })?;
-            let value = convert_value(&decoded, table, ordinal.get(), ledger)?;
-            let key = ledger.text(name)?;
-            ledger.insert(&mut values, key, value)?;
+    while let Some(view) = cursor.next_row().map_err(SemanticSnapshotError::Row)? {
+        let (mut values, external) = collect_row(
+            view,
+            definition,
+            table,
+            names,
+            context.code_page,
+            context.ledger,
+            context.branches,
+        )?;
+        for (key, reference) in external {
+            let value =
+                stream_external_value(&mut cursor, reference, context.ledger, context.branches)?;
+            context.ledger.insert(&mut values, key, value)?;
         }
-        ledger.push(
+        context.ledger.push(
             &mut rows,
-            Row {
-                canonical_key: String::new(),
+            SemanticRow {
+                canonical_key: Sha256::new("00".repeat(32))?,
+                duplicate_ordinal: 0,
                 values,
             },
         )?;
     }
+    let coverage = cursor.coverage();
+    for (covered, branch) in [
+        (coverage.deleted_skip(), "rows.deleted_skip"),
+        (coverage.direct(), "rows.direct"),
+        (coverage.overflow_pointer(), "rows.overflow_pointer"),
+        (coverage.wide_variable_layout(), "rows.wide_variable_layout"),
+    ] {
+        if covered {
+            context.branches.insert(branch.to_owned());
+        }
+    }
     Ok(rows)
+}
+
+fn collect_row(
+    mut view: jet3::RowView<'_, '_>,
+    definition: &TableDefinition,
+    table: PageNumber,
+    names: &[String],
+    code_page: TextCodePage,
+    ledger: &mut RetainedLedger,
+    branches: &mut BTreeSet<String>,
+) -> Result<(PropertyMap, Vec<(String, LongValueReference)>), SemanticSnapshotError> {
+    let mut values = PropertyMap::new();
+    let mut external = Vec::new();
+    for (column, name) in definition.columns().iter().zip(names) {
+        let ordinal = column.ordinal();
+        let decoded = view
+            .value(ordinal, code_page)
+            .map_err(SemanticSnapshotError::Value)?
+            .ok_or(SemanticSnapshotError::InvalidIndexReference {
+                table,
+                physical_index: ordinal.get(),
+            })?;
+        let key = ledger.text(name)?;
+        if let jet3::ValueKind::LongValue(LongValue::External(reference)) = decoded.kind() {
+            ledger.push(&mut external, (key, *reference))?;
+        } else {
+            let value = convert_value(&decoded, table, ordinal.get(), ledger)?;
+            record_value_branch(&value, code_page, branches);
+            ledger.insert(&mut values, key, value)?;
+        }
+    }
+    Ok((values, external))
+}
+
+fn stream_external_value<S: ReadAt>(
+    rows: &mut jet3::RowCursor<'_, '_, S>,
+    reference: LongValueReference,
+    ledger: &mut RetainedLedger,
+    branches: &mut BTreeSet<String>,
+) -> Result<TypedValue, SemanticSnapshotError> {
+    branches.insert(
+        match reference.storage() {
+            ExternalLongValueStorage::SinglePage => "long_value.single_page",
+            ExternalLongValueStorage::Chained => "long_value.chained",
+        }
+        .to_owned(),
+    );
+    let raw_hex = Some(ledger.hex(&reference.raw_header())?);
+    let mut stream = rows
+        .long_value(reference)
+        .map_err(SemanticSnapshotError::LongValue)?;
+    match reference.kind() {
+        LongValueKind::Memo => {
+            let mut output = String::new();
+            while let Some(chunk) = stream
+                .next_chunk()
+                .map_err(SemanticSnapshotError::LongValue)?
+            {
+                let LongValueChunkValue::Text(text) = chunk.value() else {
+                    return Err(SemanticSnapshotError::UnsupportedValue {
+                        table: reference.source().page(),
+                        column: u16::MAX,
+                        form: UnsupportedValueForm::ExternalLongValue,
+                    });
+                };
+                ledger.append_text(&mut output, text.as_str())?;
+            }
+            Ok(TypedValue::Memo {
+                value: output,
+                raw_hex,
+                code_page: Some(u32::from(reference.code_page().number())),
+            })
+        }
+        LongValueKind::Ole => {
+            let mut output = String::new();
+            while let Some(chunk) = stream
+                .next_chunk()
+                .map_err(SemanticSnapshotError::LongValue)?
+            {
+                let LongValueChunkValue::Binary(bytes) = chunk.value() else {
+                    return Err(SemanticSnapshotError::UnsupportedValue {
+                        table: reference.source().page(),
+                        column: u16::MAX,
+                        form: UnsupportedValueForm::ExternalLongValue,
+                    });
+                };
+                ledger.append_hex(&mut output, bytes)?;
+            }
+            Ok(TypedValue::Ole {
+                value: HexString::new(output)?,
+                raw_hex,
+            })
+        }
+    }
 }
 
 fn collect_relationship_sides(
@@ -386,6 +602,8 @@ fn collect_relationship_sides(
     ledger: &mut RetainedLedger,
 ) -> Result<(), SemanticSnapshotError> {
     for relationship in definition.relationships() {
+        // A relationship record is itself the coverage event; pairing below
+        // still fails closed if its counterpart is absent or inconsistent.
         let missing = SemanticSnapshotError::InvalidIndexReference {
             table: entry.root,
             physical_index: relationship.physical_index(),

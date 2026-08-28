@@ -266,6 +266,35 @@ pub struct RowCursor<'operation, 'schema, S> {
     directory: Option<RowDirectory>,
     chain: Vec<RowLocator>,
     failed: bool,
+    coverage: RowCoverage,
+}
+
+/// Storage branches observed by one logical-row stream.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RowCoverage {
+    deleted_skip: bool,
+    direct: bool,
+    overflow_pointer: bool,
+    wide_variable_layout: bool,
+}
+
+impl RowCoverage {
+    #[must_use]
+    pub const fn deleted_skip(self) -> bool {
+        self.deleted_skip
+    }
+    #[must_use]
+    pub const fn direct(self) -> bool {
+        self.direct
+    }
+    #[must_use]
+    pub const fn overflow_pointer(self) -> bool {
+        self.overflow_pointer
+    }
+    #[must_use]
+    pub const fn wide_variable_layout(self) -> bool {
+        self.wide_variable_layout
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -321,7 +350,14 @@ impl<'operation, 'schema, S: ReadAt> RowCursor<'operation, 'schema, S> {
             directory: None,
             chain,
             failed: false,
+            coverage: RowCoverage::default(),
         })
+    }
+
+    /// Returns storage branches observed so far without changing the stream.
+    #[must_use]
+    pub const fn coverage(&self) -> RowCoverage {
+        self.coverage
     }
 
     /// Returns the next active logical row, following any validated overflow chain.
@@ -358,11 +394,13 @@ impl<'operation, 'schema, S: ReadAt> RowCursor<'operation, 'schema, S> {
         loop {
             self.restore_page_if_needed()?;
             if let Some(directory) = &mut self.directory {
-                if let Some(entry) = directory
+                let (entry, skipped_hidden) = directory
                     .next_primary(&self.page)
-                    .map_err(RowError::Directory)?
-                {
+                    .map_err(RowError::Directory)?;
+                self.coverage.deleted_skip |= skipped_hidden;
+                if let Some(entry) = entry {
                     if entry.overflow() {
+                        self.coverage.overflow_pointer = true;
                         let resume =
                             self.current_page
                                 .ok_or(RowError::Resource(Error::Arithmetic {
@@ -371,6 +409,7 @@ impl<'operation, 'schema, S: ReadAt> RowCursor<'operation, 'schema, S> {
                         self.resume_page = Some(resume);
                         return self.follow_overflow(entry).map(Some);
                     }
+                    self.coverage.direct = true;
                     return self.finish_entry(entry.locator(), entry).map(Some);
                 }
                 self.directory = None;
@@ -513,6 +552,7 @@ impl<'operation, 'schema, S: ReadAt> RowCursor<'operation, 'schema, S> {
             self.definition,
             self.owned.budget_mut(),
         )?;
+        self.coverage.wide_variable_layout |= layout.wide;
         Ok(RowMetadata {
             locator: logical,
             storage_locator: entry.locator(),

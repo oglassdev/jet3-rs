@@ -96,7 +96,7 @@ pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_
 pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use relationships::{Relationship, Relationships};
 pub use resource::{ResourceBudget, ResourceLimits};
-pub use row::{RawField, RowCursor, RowError, RowView};
+pub use row::{RawField, RowCoverage, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};
 pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError};

@@ -1,13 +1,13 @@
 use std::error::Error as _;
 
 use jet3::{
-    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PageNumber, ReadLimits, ResourceBudget,
+    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, ReadLimits, ResourceBudget,
     ResourceLimitKind, ResourceLimits, SliceSource, TextCodePage,
 };
 
 use crate::{
     Producer, ProducerKind, ScenarioId, SemanticSnapshotError, SemanticSnapshotOptions, Sha256,
-    TableKind, TypedValue, UnsupportedValueForm, snapshot_database,
+    TableKind, TypedValue, snapshot_database, snapshot_database_with_receipt,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -174,7 +174,15 @@ fn database_bytes(second: SecondColumn, user_kind: u16) -> Vec<u8> {
     let definition = user_definition(second);
     bytes[TABLE_ROOT * PAGE_BYTES..TABLE_ROOT * PAGE_BYTES + definition.len()]
         .copy_from_slice(&definition);
-    bytes[INDEX_ROOT * PAGE_BYTES] = 4;
+    let index = &mut bytes[INDEX_ROOT * PAGE_BYTES..(INDEX_ROOT + 1) * PAGE_BYTES];
+    index[0] = 4;
+    index[1] = 1;
+    index[2..4].copy_from_slice(
+        &u16::try_from(PAGE_BYTES - 248)
+            .unwrap_or_default()
+            .to_le_bytes(),
+    );
+    index[4..8].copy_from_slice(&(TABLE_ROOT as u32).to_le_bytes());
     let rows = match second {
         SecondColumn::Text => [(text_row(2, b"b"), 0), (text_row(1, b"a"), 0)],
         SecondColumn::DateTime => [(datetime_row(2), 0), (datetime_row(1), 0)],
@@ -207,7 +215,7 @@ fn options() -> Result<SemanticSnapshotOptions, Box<dyn std::error::Error>> {
 fn snapshot(
     bytes: &[u8],
     limits: ResourceLimits,
-) -> Result<crate::CanonicalSnapshot, SemanticSnapshotError> {
+) -> Result<crate::SemanticSnapshot, SemanticSnapshotError> {
     let mut budget = ResourceBudget::new(limits);
     let source =
         SliceSource::new(bytes, budget.read_budget()).map_err(SemanticSnapshotError::Resource)?;
@@ -222,6 +230,26 @@ fn snapshot(
         })
     })?;
     snapshot_database(&mut database, &options, &mut budget)
+}
+
+fn artifacts(
+    bytes: &[u8],
+    limits: ResourceLimits,
+) -> Result<crate::SemanticSnapshotArtifacts, SemanticSnapshotError> {
+    let mut budget = ResourceBudget::new(limits);
+    let source =
+        SliceSource::new(bytes, budget.read_budget()).map_err(SemanticSnapshotError::Resource)?;
+    let mut database = DatabaseReader::from_source(source, &mut budget).map_err(|_| {
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "open synthetic snapshot database",
+        })
+    })?;
+    let options = options().map_err(|_| {
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "build snapshot options",
+        })
+    })?;
+    snapshot_database_with_receipt(&mut database, &options, &mut budget)
 }
 
 #[test]
@@ -255,11 +283,15 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
     assert_eq!(index.fields[0].name, "Id");
     assert!(!index.fields[0].descending);
 
-    let ids = table
+    let mut ids = table
         .rows
         .iter()
         .map(|row| row.values.get("Id").cloned())
         .collect::<Vec<_>>();
+    ids.sort_by_key(|value| match value {
+        Some(TypedValue::Long { value, .. }) => *value,
+        _ => i32::MAX,
+    });
     assert_eq!(
         ids,
         vec![
@@ -273,32 +305,65 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
             }),
         ]
     );
-    assert!(table.rows.iter().all(|row| row.canonical_key.is_empty()));
-    assert_eq!(
-        (
-            table.columns[0].nullable,
-            table.columns[0].required,
-            index.ignore_nulls
-        ),
-        (None, None, None)
+    assert!(
+        table
+            .rows
+            .iter()
+            .all(|row| row.canonical_key.as_str().len() == 64)
     );
-    assert_eq!(
-        table.rows[0].values.get("Name"),
-        Some(&TypedValue::Text {
-            value: "a".to_owned(),
-            raw_hex: Some(crate::HexString::new("61")?),
-            code_page: Some(1252),
-        })
+    assert!(table.rows.iter().all(|row| row.duplicate_ordinal == 0));
+    let expected_name = TypedValue::Text {
+        value: "a".to_owned(),
+        raw_hex: Some(crate::HexString::new("61")?),
+        code_page: Some(1252),
+    };
+    assert!(
+        table
+            .rows
+            .iter()
+            .any(|row| row.values.get("Name") == Some(&expected_name))
     );
     assert!(first.relationships.is_empty());
 
     let json = first.to_canonical_json()?;
-    assert_eq!(json, first.to_canonicalized_json()?);
     let text = String::from_utf8(json)?;
-    assert!(text.starts_with(r#"{"database_properties":{},"database_sha256":"#));
-    assert!(text.contains(r#""dao_type":"dbLong","name":"Id","nullable":null,"ordinal":0,"properties":{"physical_type":{"kind":"byte","value":4},"raw_record":{"kind":"binary","value":"#));
-    assert!(text.contains(r#""rows":[{"canonical_key":"","values":{"Id":{"kind":"long","raw_hex":"01000000","value":1},"Name":{"code_page":1252,"kind":"text","raw_hex":"61","value":"a"}}},{"canonical_key":"","values":{"Id":{"kind":"long","raw_hex":"02000000","value":2}"#));
+    assert!(text.starts_with(
+        r#"{"comparison_projection":["/producer","/producer_extensions"],"database_properties":{}"#
+    ));
+    assert!(
+        text.contains(r#""dao_type":"dbLong","name":"Id","ordinal":0,"properties":{},"size":4"#)
+    );
+    assert!(text.contains(r#""duplicate_ordinal":0,"values":{"Id":{"kind":"long","raw_hex":"#));
+    assert!(text.contains(r#""protocol_version":"1.2.0"#));
     assert!(text.ends_with("}\n"));
+
+    let artifacts = artifacts(&bytes, limits(&bytes))?;
+    assert_eq!(artifacts.snapshot, first);
+    assert_eq!(
+        artifacts.coverage_receipt.branches,
+        [
+            "allocation.inline_map",
+            "catalog.record_stream",
+            "catalog.root_discovery",
+            "open.header_page",
+            "open.signature_geometry",
+            "rows.direct",
+            "tdef.column_types",
+            "tdef.logical_index",
+            "tdef.physical_index",
+            "tdef.single_page",
+            "values.fixed_scalar",
+            "values.text_cp1252",
+            "values.variable_short",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+    let receipt = String::from_utf8(artifacts.coverage_receipt.to_canonical_json()?)?;
+    assert!(receipt.starts_with(r#"{"allocated_set_sha256":"#));
+    assert!(receipt.contains(r#""document_type":"rust_coverage_receipt"#));
+    assert!(receipt.ends_with("}\n"));
     Ok(())
 }
 
@@ -337,7 +402,7 @@ fn resource_limits_propagate_as_structured_errors() {
 }
 
 #[test]
-fn unsupported_catalog_kinds_and_value_forms_fail_closed() {
+fn unsupported_catalog_kinds_fail_closed_and_datetime_is_invariant() {
     let bytes = database_bytes(SecondColumn::Text, 7);
     assert_eq!(
         snapshot(&bytes, limits(&bytes)).err(),
@@ -348,14 +413,16 @@ fn unsupported_catalog_kinds_and_value_forms_fail_closed() {
     );
 
     let bytes = database_bytes(SecondColumn::DateTime, 1);
-    assert_eq!(
-        snapshot(&bytes, limits(&bytes)).err(),
-        Some(SemanticSnapshotError::UnsupportedValue {
-            table: PageNumber::new(TABLE_ROOT as u64),
-            column: 1,
-            form: UnsupportedValueForm::DateTime,
-        })
-    );
+    let snapshot = snapshot(&bytes, limits(&bytes));
+    assert!(snapshot.is_ok(), "{snapshot:?}");
+    let has_datetime =
+        snapshot.ok().is_some_and(|value| {
+            value.tables[0].rows.iter().all(|row| matches!(
+            row.values.get("Name"),
+            Some(TypedValue::DateTime { value, .. }) if value.as_str() == "1899-12-31T12:00:00"
+        ))
+        });
+    assert!(has_datetime);
 }
 
 #[test]

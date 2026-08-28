@@ -216,7 +216,8 @@ impl RowDirectory {
     pub(crate) fn next_primary(
         &mut self,
         page: &[u8; PAGE_BYTES],
-    ) -> Result<Option<RowEntry>, RowDirectoryError> {
+    ) -> Result<(Option<RowEntry>, bool), RowDirectoryError> {
+        let mut skipped_hidden = false;
         while let Some(common) = self.inner.next_entry(page) {
             let slot = u8::try_from(common.row()).map_err(|_| {
                 RowDirectoryError::RowSlotNotRepresentable {
@@ -230,10 +231,11 @@ impl RowDirectory {
                 hidden: common.hidden(),
             };
             if !entry.hidden() {
-                return Ok(Some(entry));
+                return Ok((Some(entry), skipped_hidden));
             }
+            skipped_hidden = true;
         }
-        Ok(None)
+        Ok((None, skipped_hidden))
     }
 
     pub(crate) fn resume_after(mut self, previous: &Self) -> Result<Self, RowDirectoryError> {

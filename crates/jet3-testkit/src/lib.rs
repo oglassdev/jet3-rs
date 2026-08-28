@@ -1,10 +1,13 @@
 #![forbid(unsafe_code)]
-#![doc = "Test-only support for reproducible fixtures and independent checks."]
+#![doc = "Reproducible fixtures and versioned semantic comparison support."]
 
 mod canonical_json;
 mod canonical_snapshot;
 mod classifier_snapshot;
+mod semantic_json;
+mod semantic_protocol;
 mod semantic_snapshot;
+mod sha256;
 
 pub use canonical_snapshot::{
     CanonicalSnapshot, Column, FiniteF32, FiniteF64, Guid, HexString, Index, IndexField,
@@ -16,9 +19,15 @@ pub use classifier_snapshot::{
     ClassifiedFixture, ClassifierSnapshot, ClassifierSnapshotError, CommitId, PageKindHistogram,
     classify_fixture,
 };
-pub use semantic_snapshot::{
-    SemanticSnapshotError, SemanticSnapshotOptions, UnsupportedValueForm, snapshot_database,
+pub use semantic_protocol::{
+    CoverageReceipt, SemanticColumn, SemanticIndex, SemanticProtocolError, SemanticRow,
+    SemanticSnapshot, SemanticTable,
 };
+pub use semantic_snapshot::{
+    SemanticSnapshotArtifacts, SemanticSnapshotError, SemanticSnapshotOptions,
+    UnsupportedValueForm, snapshot_database, snapshot_database_with_receipt,
+};
+pub use sha256::{Sha256Hasher, Sha256LengthError, hex_digest, sha256_hex};
 
 /// Returns the format name used in fixture metadata.
 #[must_use]

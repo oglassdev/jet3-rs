@@ -9,13 +9,18 @@
 
 use std::env;
 use std::ffi::OsString;
-use std::io::{self, Write};
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use jet3::{
     ByteCount, CandidateError, DatabaseFormatError, DatabaseOpenError, DatabaseReader, FileSource,
-    JET3_PAGE_SIZE, JetFileKind, ReadLimits, ResourceBudget, ResourceLimits,
+    JET3_PAGE_SIZE, JetFileKind, ReadLimits, ResourceBudget, ResourceLimits, TextCodePage,
+};
+use jet3_testkit::{
+    Producer, ProducerKind, ScenarioId, SemanticSnapshotOptions, Sha256, Sha256Hasher, hex_digest,
+    snapshot_database_with_receipt,
 };
 
 const DEFAULT_MAX_INPUT_BYTES: u64 = 256 * 1024 * 1024;
@@ -37,6 +42,9 @@ Usage:
   jet3-cli probe <file> [--max-input-bytes <bytes>]
   jet3-cli probe <file> [--max-input-bytes <bytes>] --scan-pages \
     --max-scan-bytes <bytes> --max-pages <count>
+  jet3-cli snapshot <file> --scenario-id <id> --source-revision <revision> \
+    --code-page <1251|1252> --snapshot-output <path> \
+    --coverage-output <path> [--max-input-bytes <bytes>]
   jet3-cli --help
   jet3-cli --version
 
@@ -53,6 +61,17 @@ struct ProbeOptions {
     path: PathBuf,
     max_input_bytes: u64,
     scan: Option<ScanLimits>,
+}
+
+#[derive(Debug)]
+struct SnapshotOptions {
+    path: PathBuf,
+    scenario_id: ScenarioId,
+    source_revision: String,
+    code_page: TextCodePage,
+    snapshot_output: PathBuf,
+    coverage_output: PathBuf,
+    max_input_bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,6 +92,7 @@ enum Command {
     Help,
     Version,
     Probe(ProbeOptions),
+    Snapshot(SnapshotOptions),
 }
 
 fn main() -> ExitCode {
@@ -93,6 +113,10 @@ fn main() -> ExitCode {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
         },
+        Command::Snapshot(options) => match snapshot(&options) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
+        },
     }
 }
 
@@ -107,15 +131,17 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     if first == "--version" || first == "-V" {
         return no_more(arguments, Command::Version);
     }
-    if first != "probe" {
-        return Err("unknown_command");
-    }
-
     let path = arguments.next().ok_or("missing_file")?;
     if path.to_string_lossy().starts_with('-') {
         return Err("missing_file");
     }
 
+    if first == "snapshot" {
+        return parse_snapshot(PathBuf::from(path), arguments);
+    }
+    if first != "probe" {
+        return Err("unknown_command");
+    }
     let mut max_input_bytes = DEFAULT_MAX_INPUT_BYTES;
     let mut scan_pages = false;
     let mut max_scan_bytes = None;
@@ -158,6 +184,70 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
         path: PathBuf::from(path),
         max_input_bytes,
         scan,
+    }))
+}
+
+fn parse_snapshot(
+    path: PathBuf,
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<Command, &'static str> {
+    let mut scenario_id = None;
+    let mut source_revision = None;
+    let mut code_page = None;
+    let mut snapshot_output = None;
+    let mut coverage_output = None;
+    let mut max_input_bytes = DEFAULT_MAX_INPUT_BYTES;
+    while let Some(option) = arguments.next() {
+        let target = match option.to_str() {
+            Some("--scenario-id") => &mut scenario_id,
+            Some("--source-revision") => &mut source_revision,
+            Some("--code-page") => &mut code_page,
+            Some("--snapshot-output") => &mut snapshot_output,
+            Some("--coverage-output") => &mut coverage_output,
+            Some("--max-input-bytes") => {
+                max_input_bytes =
+                    parse_u64(arguments.next(), "missing_option_value", "invalid_limit")?;
+                continue;
+            }
+            _ => return Err("unknown_option"),
+        };
+        if target.is_some() {
+            return Err("duplicate_option");
+        }
+        *target = Some(arguments.next().ok_or("missing_option_value")?);
+    }
+    let scenario_id = scenario_id
+        .and_then(|value| value.into_string().ok())
+        .ok_or("invalid_scenario_id")?;
+    let source_revision = source_revision
+        .and_then(|value| value.into_string().ok())
+        .filter(|value| !value.is_empty())
+        .ok_or("invalid_source_revision")?;
+    let code_page = code_page
+        .and_then(|value| value.into_string().ok())
+        .ok_or("invalid_code_page")?;
+    let code_page = match code_page.as_str() {
+        "1251" => TextCodePage::Windows1251,
+        "1252" => TextCodePage::Windows1252,
+        _ => return Err("invalid_code_page"),
+    };
+    let snapshot_output = snapshot_output
+        .map(PathBuf::from)
+        .ok_or("missing_snapshot_output")?;
+    let coverage_output = coverage_output
+        .map(PathBuf::from)
+        .ok_or("missing_coverage_output")?;
+    if snapshot_output == coverage_output || snapshot_output == path || coverage_output == path {
+        return Err("output_path_conflict");
+    }
+    Ok(Command::Snapshot(SnapshotOptions {
+        path,
+        scenario_id: ScenarioId::new(scenario_id).map_err(|_| "invalid_scenario_id")?,
+        source_revision,
+        code_page,
+        snapshot_output,
+        coverage_output,
+        max_input_bytes,
     }))
 }
 
@@ -270,6 +360,81 @@ fn probe(options: &ProbeOptions) -> Result<String, &'static str> {
         geometry.page_count(),
         geometry.source_len().get()
     ))
+}
+
+fn snapshot(options: &SnapshotOptions) -> Result<(), &'static str> {
+    let input = File::open(&options.path).map_err(|_| "open_failed")?;
+    let input_length = input.metadata().map_err(|_| "metadata_failed")?.len();
+    if input_length > options.max_input_bytes {
+        return Err("input_limit_exceeded");
+    }
+    let hash_input = input.try_clone().map_err(|_| "open_failed")?;
+    let database_sha256 = hash_file(hash_input, input_length)?;
+    let max_total_read = options
+        .max_input_bytes
+        .checked_mul(32)
+        .ok_or("invalid_limit")?;
+    let read_limits = ReadLimits::new(
+        ByteCount::new(options.max_input_bytes),
+        JET3_PAGE_SIZE,
+        ByteCount::new(max_total_read),
+    );
+    let mut budget = ResourceBudget::new(ResourceLimits::new(read_limits));
+    let source = FileSource::from_file(input, budget.read_budget()).map_err(|_| "open_failed")?;
+    let mut database = DatabaseReader::from_source(source, &mut budget).map_err(open_error_code)?;
+    let producer = Producer::new(ProducerKind::Rust, options.source_revision.clone())
+        .map_err(|_| "invalid_source_revision")?;
+    let artifacts = snapshot_database_with_receipt(
+        &mut database,
+        &SemanticSnapshotOptions {
+            scenario_id: options.scenario_id.clone(),
+            producer,
+            database_sha256,
+            code_page: options.code_page,
+        },
+        &mut budget,
+    )
+    .map_err(|_| "snapshot_failed")?;
+    let snapshot = artifacts
+        .snapshot
+        .to_canonical_json()
+        .map_err(|_| "snapshot_failed")?;
+    let receipt = artifacts
+        .coverage_receipt
+        .to_canonical_json()
+        .map_err(|_| "snapshot_failed")?;
+    fs::write(&options.snapshot_output, snapshot).map_err(|_| "snapshot_output_failed")?;
+    fs::write(&options.coverage_output, receipt).map_err(|_| "coverage_output_failed")?;
+    Ok(())
+}
+
+fn hash_file(mut file: File, expected_length: u64) -> Result<Sha256, &'static str> {
+    // `SRC-0027` binds the protocol database identity to FIPS SHA-256.
+    let mut hasher = Sha256Hasher::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut total = 0_u64;
+    loop {
+        let count = file.read(&mut buffer).map_err(|_| "hash_read_failed")?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(u64::try_from(count).map_err(|_| "hash_read_failed")?)
+            .ok_or("hash_read_failed")?;
+        if total > expected_length {
+            return Err("input_changed");
+        }
+        hasher
+            .update(&buffer[..count])
+            .map_err(|_| "hash_read_failed")?;
+    }
+    if total != expected_length {
+        return Err("input_changed");
+    }
+    Sha256::new(hex_digest(
+        hasher.finalize().map_err(|_| "hash_read_failed")?,
+    ))
+    .map_err(|_| "hash_failed")
 }
 
 fn scan_pages(
@@ -421,5 +586,41 @@ mod tests {
             "2",
         ]));
         assert!(matches!(command, Ok(Command::Probe(_))));
+    }
+
+    #[test]
+    fn snapshot_command_requires_versioned_identity_and_distinct_outputs() {
+        let command = parse_args(args(&[
+            "snapshot",
+            "input.mdb",
+            "--scenario-id",
+            "DAO-READ-ROWS-SINGLE",
+            "--source-revision",
+            "abc123",
+            "--code-page",
+            "1252",
+            "--snapshot-output",
+            "snapshot.json",
+            "--coverage-output",
+            "coverage-receipt.json",
+        ]));
+        assert!(matches!(command, Ok(Command::Snapshot(_))));
+        assert!(matches!(
+            parse_args(args(&[
+                "snapshot",
+                "input.mdb",
+                "--scenario-id",
+                "DAO-READ-ROWS-SINGLE",
+                "--source-revision",
+                "abc123",
+                "--code-page",
+                "1252",
+                "--snapshot-output",
+                "same.json",
+                "--coverage-output",
+                "same.json",
+            ])),
+            Err("output_path_conflict")
+        ));
     }
 }
