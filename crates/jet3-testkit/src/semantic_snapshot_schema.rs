@@ -9,6 +9,9 @@ use super::SemanticSnapshotError;
 use super::retained::RetainedLedger;
 use crate::{PropertyMap, Relationship, RelationshipField, SemanticProtocolError, TypedValue};
 
+const DAO_RELATION_UPDATE_CASCADE: i64 = 256;
+const DAO_RELATION_DELETE_CASCADE: i64 = 4_096;
+
 pub(super) struct CatalogTable {
     pub(super) name: String,
     pub(super) root: PageNumber,
@@ -275,7 +278,10 @@ pub(super) fn pair_relationships(
                 name: foreign.name,
                 table: primary.table_name,
                 foreign_table: foreign.table_name,
-                attributes: 0,
+                attributes: relationship_attributes(
+                    foreign.cascade_updates,
+                    foreign.cascade_deletes,
+                ),
                 fields,
                 properties,
             },
@@ -284,10 +290,32 @@ pub(super) fn pair_relationships(
     Ok(relationships)
 }
 
+const fn relationship_attributes(cascade_updates: bool, cascade_deletes: bool) -> i64 {
+    let updates = if cascade_updates {
+        DAO_RELATION_UPDATE_CASCADE
+    } else {
+        0
+    };
+    let deletes = if cascade_deletes {
+        DAO_RELATION_DELETE_CASCADE
+    } else {
+        0
+    };
+    updates | deletes
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{CatalogTable, canonicalize_catalog_tables};
-    use jet3::PageNumber;
+    use super::{
+        CatalogTable, RelationshipSideRecord, canonicalize_catalog_tables, pair_relationships,
+    };
+    use crate::{
+        Producer, ProducerKind, PropertyMap, ScenarioId, SemanticColumn, SemanticSnapshot,
+        SemanticTable, Sha256, TableKind, TypedValue,
+    };
+    use jet3::{PageNumber, ReadLimits, RelationshipSide, ResourceBudget, ResourceLimits};
+
+    use super::super::retained::RetainedLedger;
 
     fn table(name: &str, root: u64) -> CatalogTable {
         CatalogTable {
@@ -317,5 +345,113 @@ mod tests {
         });
         assert!(result.is_err());
         assert_eq!(traversed, 0);
+    }
+
+    fn relationship_side(
+        table_name: &str,
+        table_root: u64,
+        side: RelationshipSide,
+        related_table: u64,
+        field: &str,
+        cascade_updates: bool,
+        cascade_deletes: bool,
+    ) -> RelationshipSideRecord {
+        RelationshipSideRecord {
+            name: "ParentChild".into(),
+            table_name: table_name.into(),
+            table_root: PageNumber::new(table_root),
+            side,
+            related_table: PageNumber::new(related_table),
+            fields: vec![field.into()],
+            cascade_updates,
+            cascade_deletes,
+        }
+    }
+
+    fn semantic_table(name: &str, column: &str) -> SemanticTable {
+        SemanticTable {
+            name: name.into(),
+            kind: TableKind::User,
+            attributes: 0,
+            columns: vec![SemanticColumn {
+                name: column.into(),
+                ordinal: 0,
+                dao_type: "dbLong".into(),
+                auto_increment: false,
+                size: Some(4),
+                attributes: 1,
+                properties: PropertyMap::new(),
+            }],
+            indexes: Vec::new(),
+            properties: PropertyMap::new(),
+            rows: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn cascade_options_emit_documented_dao_relationship_attributes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (cascade_updates, cascade_deletes, expected) in [
+            (false, false, 0),
+            (true, false, 256),
+            (false, true, 4_096),
+            (true, true, 4_352),
+        ] {
+            let sides = vec![
+                relationship_side(
+                    "Parent",
+                    4,
+                    RelationshipSide::PrimaryTable,
+                    5,
+                    "Id",
+                    cascade_updates,
+                    cascade_deletes,
+                ),
+                relationship_side(
+                    "Child",
+                    5,
+                    RelationshipSide::ForeignTable,
+                    4,
+                    "ParentId",
+                    cascade_updates,
+                    cascade_deletes,
+                ),
+            ];
+            let mut budget = ResourceBudget::new(ResourceLimits::new(ReadLimits::default()));
+            let relationships = pair_relationships(sides, &mut budget, &mut RetainedLedger::new())?;
+            assert_eq!(relationships[0].attributes, expected);
+            assert_eq!(
+                relationships[0].properties.get("cascade_updates"),
+                Some(&TypedValue::Boolean {
+                    value: cascade_updates,
+                    raw_hex: None,
+                })
+            );
+            assert_eq!(
+                relationships[0].properties.get("cascade_deletes"),
+                Some(&TypedValue::Boolean {
+                    value: cascade_deletes,
+                    raw_hex: None,
+                })
+            );
+
+            let mut snapshot = SemanticSnapshot::new(
+                ScenarioId::new("DAO-READ-SCHEMA-RELATIONSHIP-CASCADE")?,
+                Producer::new(ProducerKind::Rust, "test")?,
+                Sha256::new("ab".repeat(32))?,
+            );
+            snapshot.tables = vec![
+                semantic_table("Child", "ParentId"),
+                semantic_table("Parent", "Id"),
+            ];
+            snapshot.relationships = relationships;
+            snapshot.canonicalize()?;
+            let json = String::from_utf8(snapshot.to_canonical_json()?)?;
+            assert!(
+                json.contains(&format!("\"relationships\":[{{\"attributes\":{expected},")),
+                "{json}"
+            );
+        }
+        Ok(())
     }
 }

@@ -506,7 +506,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_schema.rs",
         "reason": "High-level schema retention over public reader APIs, including comparison-excluded producer-only raw column facts.",
-        "sha256": "3838d1bd98603af6dcd7e35b59fa2674e589d60e7636cd3ffb411a72eaa2a9ae"
+        "sha256": "e665af2ac73a933a695cf55d1f8af808ad037242c0b01d374b0e60f6242a1cab"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_snapshot_tests.rs",
