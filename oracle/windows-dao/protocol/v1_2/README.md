@@ -43,7 +43,7 @@ Every scenario has exactly `id`, `content_sha256`, `capability_ids`,
 - `boundary` names the physical dimension a scenario targets and whether it
   sits below, at, or above it. Boundary cases exist only where a threshold is
   recorded: the extended-slot trio uses the 16,352-page type-05 bitmap span
-  from `SRC-0020`/`EXP-0057` through the DAO-side `insert_until_page_count`
+  recorded by `EXP-0057` through the DAO-side `insert_until_page_count`
   primitive, which inserts rows until the file page count reaches the target.
   Memo/OLE cases use the `EXP-0061` controls (32 inline, 512 single-page,
   2,048 and 4,096 chained) as controls, not as thresholds.

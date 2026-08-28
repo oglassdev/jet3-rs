@@ -22,7 +22,7 @@ from protocol_validation import canonical_json_bytes
 
 ROOT = Path(__file__).resolve().parent.parent
 INVENTORY = ROOT / "protocol" / "v1_2" / "scenarios.json"
-# EXP-0057 / SRC-0020: one type-05 bitmap covers 16,352 pages; absolute page is
+# EXP-0057: one type-05 bitmap covers 16,352 pages; absolute page is
 # slot_ordinal * 16_352 + bit_index.
 EXTENDED_SLOT_PAGES = 16_352
 
