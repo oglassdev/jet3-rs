@@ -5,10 +5,11 @@ use jet3::{
     InlineLongValue, LongValue, PageNumber, TableDefinition, ValueKind,
 };
 
+use super::retained::RetainedLedger;
 use super::{SemanticSnapshotError, UnsupportedValueForm};
 use crate::{
-    Column, FiniteF32, FiniteF64, Guid, HexString, Index, IndexField, InvariantDecimal,
-    PropertyMap, TypedValue,
+    Column, FiniteF32, FiniteF64, Guid, Index, IndexField, InvariantDecimal, PropertyMap,
+    TypedValue,
 };
 
 /// DAO `DataTypeEnum` constant name for one Jet 3 physical column type.
@@ -30,59 +31,60 @@ const fn dao_type_name(physical_type: ColumnPhysicalType) -> &'static str {
     }
 }
 
-/// Accepts only ASCII definition names; other bytes need an established code
-/// page before they can be represented as snapshot identifiers.
-pub(super) fn decode_ascii_name(
-    raw: &[u8],
-    table: Option<PageNumber>,
-) -> Result<String, SemanticSnapshotError> {
-    if !raw.is_ascii() {
-        return Err(SemanticSnapshotError::NonAsciiName { table });
-    }
-    String::from_utf8(raw.to_vec()).map_err(|_| SemanticSnapshotError::NonAsciiName { table })
-}
-
 /// Converts one column definition, retaining its raw record losslessly.
 ///
-/// `required` is not decoded by the reader yet and is reported as `false`;
-/// the lossless raw class flags are exposed as `attributes` so a differential
-/// comparison surfaces any divergence instead of hiding it.
-pub(super) fn convert_column(column: &ColumnDefinition, name: String) -> Column {
+/// `nullable` and `required` are reported as unavailable: the recorded
+/// provenance shows nullable and required columns with identical physical
+/// records, so neither can be established from the definition alone.
+pub(super) fn convert_column(
+    column: &ColumnDefinition,
+    name: String,
+    ledger: &mut RetainedLedger,
+) -> Result<Column, SemanticSnapshotError> {
     let mut properties = PropertyMap::new();
-    properties.insert(
-        "physical_type".to_owned(),
+    let key = ledger.text("physical_type")?;
+    ledger.insert(
+        &mut properties,
+        key,
         TypedValue::Byte {
             value: column.physical_type().raw(),
             raw_hex: None,
         },
-    );
-    properties.insert(
-        "raw_record".to_owned(),
+    )?;
+    let raw_record = ledger.hex(column.raw_record())?;
+    let key = ledger.text("raw_record")?;
+    ledger.insert(
+        &mut properties,
+        key,
         TypedValue::Binary {
-            value: HexString::from_bytes(column.raw_record()),
+            value: raw_record,
             raw_hex: None,
         },
-    );
-    Column {
+    )?;
+    Ok(Column {
         name,
         ordinal: u64::from(column.ordinal().get()),
-        dao_type: dao_type_name(column.physical_type()).to_owned(),
-        nullable: column.physical_type() != ColumnPhysicalType::Boolean,
-        required: false,
+        dao_type: ledger.text(dao_type_name(column.physical_type()))?,
+        nullable: None,
+        required: None,
         auto_increment: column.auto_increment(),
         size: Some(u64::from(column.size())),
         attributes: i64::from(column.raw_class_flags()),
         properties,
-    }
+    })
 }
 
 /// Converts one ordinary or primary logical index through its physical record.
+///
+/// `ignore_nulls` is reported as unavailable because no recorded fact maps a
+/// physical flag to it.
 pub(super) fn convert_index(
     definition: &TableDefinition,
     logical: &IndexDefinition,
     primary: bool,
     column_names: &[String],
     table: PageNumber,
+    ledger: &mut RetainedLedger,
 ) -> Result<Index, SemanticSnapshotError> {
     let missing = SemanticSnapshotError::InvalidIndexReference {
         table,
@@ -92,33 +94,36 @@ pub(super) fn convert_index(
         .physical_indexes()
         .get(usize::from(logical.physical_index()))
         .ok_or_else(|| missing.clone())?;
-    let fields = physical
-        .fields()
-        .iter()
-        .map(|field| {
-            column_names
-                .get(usize::from(field.column().get()))
-                .map(|name| IndexField {
-                    name: name.clone(),
-                    descending: field.direction() == IndexDirection::Descending,
-                })
-                .ok_or_else(|| missing.clone())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut fields = Vec::new();
+    for field in physical.fields() {
+        let name = column_names
+            .get(usize::from(field.column().get()))
+            .ok_or_else(|| missing.clone())?;
+        let name = ledger.text(name)?;
+        ledger.push(
+            &mut fields,
+            IndexField {
+                name,
+                descending: field.direction() == IndexDirection::Descending,
+            },
+        )?;
+    }
     let mut properties = PropertyMap::new();
-    properties.insert(
-        "raw_flags".to_owned(),
+    let key = ledger.text("raw_flags")?;
+    ledger.insert(
+        &mut properties,
+        key,
         TypedValue::Byte {
             value: physical.raw_flags(),
             raw_hex: None,
         },
-    );
+    )?;
     Ok(Index {
-        name: decode_ascii_name(logical.name().raw_bytes(), Some(table))?,
+        name: ledger.ascii_name(logical.name().raw_bytes(), Some(table))?,
         primary,
         unique: physical.unique(),
         required: physical.required(),
-        ignore_nulls: false,
+        ignore_nulls: None,
         fields,
         properties,
     })
@@ -132,13 +137,17 @@ pub(super) fn convert_value(
     decoded: &DecodedValue<'_>,
     table: PageNumber,
     column: u16,
+    ledger: &mut RetainedLedger,
 ) -> Result<TypedValue, SemanticSnapshotError> {
     let unsupported = |form| SemanticSnapshotError::UnsupportedValue {
         table,
         column,
         form,
     };
-    let raw_hex = decoded.raw_bytes().map(HexString::from_bytes);
+    let raw_hex = match decoded.raw_bytes() {
+        Some(bytes) => Some(ledger.hex(bytes)?),
+        None => None,
+    };
     Ok(match decoded.kind() {
         ValueKind::Null => TypedValue::Null { raw_hex: None },
         ValueKind::Boolean(value) => TypedValue::Boolean {
@@ -158,7 +167,7 @@ pub(super) fn convert_value(
             raw_hex,
         },
         ValueKind::Currency(value) => TypedValue::Currency {
-            value: currency_text(value.scaled(), value.scale())?,
+            value: currency_text(value.scaled(), value.scale(), ledger)?,
             raw_hex,
         },
         ValueKind::Single(value) => TypedValue::Single {
@@ -173,26 +182,26 @@ pub(super) fn convert_value(
         },
         ValueKind::DateTime(_) => return Err(unsupported(UnsupportedValueForm::DateTime)),
         ValueKind::Binary(bytes) => TypedValue::Binary {
-            value: HexString::from_bytes(bytes),
+            value: ledger.hex(bytes)?,
             raw_hex,
         },
         ValueKind::Text(text) => TypedValue::Text {
-            value: text.as_str().to_owned(),
+            value: ledger.text(text.as_str())?,
             raw_hex,
             code_page: Some(u32::from(text.code_page().number())),
         },
         ValueKind::Guid(guid) => TypedValue::Guid {
-            value: guid_text(guid.display_bytes())?,
+            value: guid_text(guid.display_bytes(), ledger)?,
             raw_hex,
         },
         ValueKind::LongValue(LongValue::Inline { value, .. }) => match value {
             InlineLongValue::Text(text) => TypedValue::Memo {
-                value: text.as_str().to_owned(),
+                value: ledger.text(text.as_str())?,
                 raw_hex,
                 code_page: Some(u32::from(text.code_page().number())),
             },
             InlineLongValue::Binary(bytes) => TypedValue::Ole {
-                value: HexString::from_bytes(bytes),
+                value: ledger.hex(bytes)?,
                 raw_hex,
             },
             _ => return Err(unsupported(UnsupportedValueForm::ExternalLongValue)),
@@ -205,22 +214,28 @@ pub(super) fn convert_value(
 }
 
 /// Renders an exact scaled integer as an invariant decimal with a fixed scale.
-fn currency_text(scaled: i64, scale: u32) -> Result<InvariantDecimal, SemanticSnapshotError> {
+fn currency_text(
+    scaled: i64,
+    scale: u32,
+    ledger: &mut RetainedLedger,
+) -> Result<InvariantDecimal, SemanticSnapshotError> {
     let divisor = 10_i128.pow(scale);
     let magnitude = i128::from(scaled).abs();
     let integer = magnitude / divisor;
     let fraction = magnitude % divisor;
     let sign = if scaled < 0 { "-" } else { "" };
     let width = scale as usize;
+    ledger.charge(width + 22)?;
     Ok(InvariantDecimal::new(format!(
         "{sign}{integer}.{fraction:0width$}"
     ))?)
 }
 
 /// Renders display-ordered GUID bytes in the protocol's hyphenated form.
-fn guid_text(bytes: [u8; 16]) -> Result<Guid, SemanticSnapshotError> {
-    let hex = HexString::from_bytes(&bytes);
+fn guid_text(bytes: [u8; 16], ledger: &mut RetainedLedger) -> Result<Guid, SemanticSnapshotError> {
+    let hex = ledger.hex(&bytes)?;
     let hex = hex.as_str();
+    ledger.charge(36)?;
     Ok(Guid::new(format!(
         "{}-{}-{}-{}-{}",
         &hex[0..8],

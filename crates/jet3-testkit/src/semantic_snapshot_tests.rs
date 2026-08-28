@@ -273,9 +273,14 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
             }),
         ]
     );
+    assert!(table.rows.iter().all(|row| row.canonical_key.is_empty()));
     assert_eq!(
-        table.rows[0].canonical_key,
-        r#"{"Id":{"kind":"long","raw_hex":"01000000","value":1}}"#
+        (
+            table.columns[0].nullable,
+            table.columns[0].required,
+            index.ignore_nulls
+        ),
+        (None, None, None)
     );
     assert_eq!(
         table.rows[0].values.get("Name"),
@@ -291,7 +296,8 @@ fn user_table_snapshot_is_typed_lossless_and_deterministic()
     assert_eq!(json, first.to_canonicalized_json()?);
     let text = String::from_utf8(json)?;
     assert!(text.starts_with(r#"{"database_properties":{},"database_sha256":"#));
-    assert!(text.contains(r#""rows":[{"canonical_key":"{\"Id\":{\"kind\":\"long\",\"raw_hex\":\"01000000\",\"value\":1}}","values":{"Id":{"kind":"long","raw_hex":"01000000","value":1},"Name":{"code_page":1252,"kind":"text","raw_hex":"61","value":"a"}}},{"canonical_key":"{\"Id\":{\"kind\":\"long\",\"raw_hex\":\"02000000\",\"value\":2}}""#));
+    assert!(text.contains(r#""dao_type":"dbLong","name":"Id","nullable":null,"ordinal":0,"properties":{"physical_type":{"kind":"byte","value":4},"raw_record":{"kind":"binary","value":"#));
+    assert!(text.contains(r#""rows":[{"canonical_key":"","values":{"Id":{"kind":"long","raw_hex":"01000000","value":1},"Name":{"code_page":1252,"kind":"text","raw_hex":"61","value":"a"}}},{"canonical_key":"","values":{"Id":{"kind":"long","raw_hex":"02000000","value":2}"#));
     assert!(text.ends_with("}\n"));
     Ok(())
 }
@@ -303,12 +309,17 @@ fn resource_limits_propagate_as_structured_errors() {
         &bytes,
         limits(&bytes).with_max_allocation_bytes(ByteCount::new(64)),
     )
-    .err()
-    .map(|error| error.to_string());
+    .err();
     assert!(
-        error
-            .as_deref()
-            .is_some_and(|message| message.contains("resource")),
+        matches!(
+            error,
+            Some(SemanticSnapshotError::Resource(
+                Error::ResourceLimitExceeded {
+                    kind: ResourceLimitKind::AllocationBytes,
+                    ..
+                }
+            ))
+        ),
         "{error:?}"
     );
 

@@ -2,10 +2,12 @@
 //!
 //! This adapter translates the currently supported semantic-reader output of
 //! one opened Jet 3 database into the typed [`CanonicalSnapshot`] model. It is
-//! bound to the public `jet3` API only, charges every collected object to the
-//! caller's operation budget, and fails closed on any catalog object, value,
-//! or name form the reader does not yet interpret. A snapshot is a Rust
-//! self-read; it never establishes DAO compatibility on its own.
+//! bound to the public `jet3` API only, charges every retained object to the
+//! caller's operation budget before allocating it, and fails closed on any
+//! catalog object, value, or name form the reader does not yet interpret.
+//! Schema facts the reader cannot establish are reported as unavailable, never
+//! guessed. A snapshot is a Rust self-read; it never establishes DAO
+//! compatibility on its own.
 
 use std::error::Error;
 use std::fmt;
@@ -23,8 +25,11 @@ use crate::{
 
 #[path = "semantic_snapshot_convert.rs"]
 mod convert;
+#[path = "semantic_snapshot_retained.rs"]
+mod retained;
 
-use convert::{convert_column, convert_index, convert_value, decode_ascii_name};
+use convert::{convert_column, convert_index, convert_value};
+use retained::RetainedLedger;
 
 /// Caller-supplied identity and decoding policy for one Rust snapshot.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,7 +56,7 @@ pub enum SemanticSnapshotError {
     Row(RowError),
     /// Decoding one field failed.
     Value(ValueError),
-    /// Charging collected snapshot state to the operation budget failed.
+    /// Charging retained snapshot state to the operation budget failed.
     Resource(jet3::Error),
     /// The collected model violated the protocol's canonical constraints.
     Snapshot(SnapshotError),
@@ -193,13 +198,17 @@ struct RelationshipSideRecord {
 /// The catalog is streamed once; every user table definition is decoded, its
 /// rows are streamed and decoded with the selected code page, and the result
 /// is canonicalized under the protocol's ordering rules. System-class catalog
-/// objects are not snapshotted in this slice.
+/// objects are not snapshotted in this slice. Retained state is charged to
+/// `budget` through a ledger that is reconciled whenever no reader cursor
+/// holds the budget.
 pub fn snapshot_database<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     options: &SemanticSnapshotOptions,
     budget: &mut ResourceBudget,
 ) -> Result<CanonicalSnapshot, SemanticSnapshotError> {
-    let catalog = collect_user_tables(database, budget)?;
+    let mut ledger = RetainedLedger::new(budget);
+    let catalog = collect_user_tables(database, budget, &mut ledger)?;
+    ledger.sync(budget)?;
     let mut snapshot = CanonicalSnapshot::new(
         options.scenario_id.clone(),
         options.producer.clone(),
@@ -210,28 +219,32 @@ pub fn snapshot_database<S: ReadAt>(
         let definition = database
             .table_definition(entry.root, budget)
             .map_err(SemanticSnapshotError::TableDefinition)?;
-        let table = collect_table(database, entry, &definition, options.code_page, budget)?;
-        collect_relationship_sides(entry, &definition, &mut sides, budget)?;
-        snapshot.tables.push(table);
+        ledger.sync(budget)?;
+        let names = column_names(&definition, entry.root, &mut ledger)?;
+        let table = collect_table(
+            database,
+            entry,
+            &definition,
+            &names,
+            options.code_page,
+            budget,
+            &mut ledger,
+        )?;
+        ledger.sync(budget)?;
+        collect_relationship_sides(entry, &definition, &names, &mut sides, &mut ledger)?;
+        ledger.push(&mut snapshot.tables, table)?;
+        ledger.sync(budget)?;
     }
-    snapshot.relationships = pair_relationships(sides)?;
+    snapshot.relationships = pair_relationships(sides, &mut ledger)?;
+    ledger.sync(budget)?;
     snapshot.canonicalize()?;
     Ok(snapshot)
-}
-
-fn charge_collected(
-    budget: &mut ResourceBudget,
-    bytes: usize,
-) -> Result<(), SemanticSnapshotError> {
-    let count = jet3::ByteCount::from_usize(bytes).map_err(SemanticSnapshotError::Resource)?;
-    budget
-        .charge_allocation(count)
-        .map_err(SemanticSnapshotError::Resource)
 }
 
 fn collect_user_tables<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     budget: &mut ResourceBudget,
+    ledger: &mut RetainedLedger,
 ) -> Result<Vec<CatalogTable>, SemanticSnapshotError> {
     let mut tables = Vec::new();
     let mut cursor = database
@@ -246,12 +259,7 @@ fn collect_user_tables<S: ReadAt>(
         }
         let root = match record.kind() {
             CatalogObjectKind::Table => record.table_definition(),
-            _ => {
-                return Err(SemanticSnapshotError::UnsupportedCatalogObject {
-                    id: record.id().get(),
-                    kind: record.kind().raw(),
-                });
-            }
+            _ => None,
         };
         let Some(root) = root else {
             return Err(SemanticSnapshotError::UnsupportedCatalogObject {
@@ -259,83 +267,63 @@ fn collect_user_tables<S: ReadAt>(
                 kind: record.kind().raw(),
             });
         };
-        let name = decode_ascii_name(record.name().raw_bytes(), Some(root))?;
-        tables.push(CatalogTable {
-            name,
-            root,
-            raw_flags: record.raw_flags(),
-        });
+        let name = ledger.ascii_name(record.name().raw_bytes(), Some(root))?;
+        ledger.push(
+            &mut tables,
+            CatalogTable {
+                name,
+                root,
+                raw_flags: record.raw_flags(),
+            },
+        )?;
     }
-    let collected = tables
-        .iter()
-        .map(|table| table.name.len() + std::mem::size_of::<CatalogTable>())
-        .sum();
-    charge_collected(budget, collected)?;
     Ok(tables)
 }
 
 fn column_names(
     definition: &TableDefinition,
     table: PageNumber,
+    ledger: &mut RetainedLedger,
 ) -> Result<Vec<String>, SemanticSnapshotError> {
-    definition
-        .columns()
-        .iter()
-        .map(|column| decode_ascii_name(column.name().raw_bytes(), Some(table)))
-        .collect()
+    let mut names = Vec::new();
+    for column in definition.columns() {
+        let name = ledger.ascii_name(column.name().raw_bytes(), Some(table))?;
+        ledger.push(&mut names, name)?;
+    }
+    Ok(names)
 }
 
 fn collect_table<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     entry: &CatalogTable,
     definition: &TableDefinition,
+    names: &[String],
     code_page: TextCodePage,
     budget: &mut ResourceBudget,
+    ledger: &mut RetainedLedger,
 ) -> Result<Table, SemanticSnapshotError> {
-    let names = column_names(definition, entry.root)?;
-    let columns = definition
-        .columns()
-        .iter()
-        .zip(&names)
-        .map(|(column, name)| convert_column(column, name.clone()))
-        .collect::<Vec<_>>();
+    let mut columns = Vec::new();
+    for (column, name) in definition.columns().iter().zip(names) {
+        let name = ledger.text(name)?;
+        let column = convert_column(column, name, ledger)?;
+        ledger.push(&mut columns, column)?;
+    }
     let mut indexes = Vec::new();
-    let mut primary_columns = Vec::new();
     for logical in definition.indexes() {
         let primary = match logical.kind() {
             IndexDefinitionKind::Primary => true,
             IndexDefinitionKind::Ordinary => false,
             IndexDefinitionKind::Relationship(_) => continue,
         };
-        let index = convert_index(definition, logical, primary, &names, entry.root)?;
-        if primary {
-            primary_columns = index
-                .fields
-                .iter()
-                .map(|field| field.name.clone())
-                .collect();
-        }
-        indexes.push(index);
+        let index = convert_index(definition, logical, primary, names, entry.root, ledger)?;
+        ledger.push(&mut indexes, index)?;
     }
-    charge_collected(
-        budget,
-        columns
-            .iter()
-            .map(|column| column.name.len())
-            .sum::<usize>()
-            + indexes.len() * std::mem::size_of::<crate::Index>(),
-    )?;
+    ledger.sync(budget)?;
     let rows = collect_rows(
-        database,
-        definition,
-        entry.root,
-        &names,
-        &primary_columns,
-        code_page,
-        budget,
+        database, definition, entry.root, names, code_page, budget, ledger,
     )?;
     Ok(Table {
-        name: entry.name.clone(),
+        name: ledger.text(&entry.name)?,
         kind: TableKind::User,
         attributes: i64::from(entry.raw_flags),
         columns,
@@ -345,14 +333,20 @@ fn collect_table<S: ReadAt>(
     })
 }
 
+/// Streams and retains every row with an empty producer key.
+///
+/// The binding P8 row-key contract (protocol v1.2) is not created yet. Until
+/// it is, rows carry no declared key, so the shared canonicalizer orders them
+/// purely by the canonical tuple over all lossless typed values; this adapter
+/// deliberately implements no other row-identity convention.
 fn collect_rows<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     definition: &TableDefinition,
     table: PageNumber,
     names: &[String],
-    primary_columns: &[String],
     code_page: TextCodePage,
     budget: &mut ResourceBudget,
+    ledger: &mut RetainedLedger,
 ) -> Result<Vec<Row>, SemanticSnapshotError> {
     let mut rows = Vec::new();
     let mut cursor = database
@@ -369,88 +363,56 @@ fn collect_rows<S: ReadAt>(
                     table,
                     physical_index: ordinal.get(),
                 })?;
-            let value = convert_value(&decoded, table, ordinal.get())?;
-            values.insert(name.clone(), value);
+            let value = convert_value(&decoded, table, ordinal.get(), ledger)?;
+            let key = ledger.text(name)?;
+            ledger.insert(&mut values, key, value)?;
         }
-        let canonical_key = canonical_row_key(&values, primary_columns)?;
-        rows.push(Row {
-            canonical_key,
-            values,
-        });
+        ledger.push(
+            &mut rows,
+            Row {
+                canonical_key: String::new(),
+                values,
+            },
+        )?;
     }
-    let collected = rows
-        .iter()
-        .map(|row| row.canonical_key.len() + std::mem::size_of::<Row>())
-        .sum();
-    charge_collected(budget, collected)?;
     Ok(rows)
-}
-
-/// Derives the producer-declared row key from the primary-key values.
-///
-/// Tables without a primary index use an empty key so rows order purely by
-/// their canonical values. The key is canonical JSON of the primary-key
-/// columns, which both producers can derive from schema plus values alone.
-fn canonical_row_key(
-    values: &PropertyMap,
-    primary_columns: &[String],
-) -> Result<String, SemanticSnapshotError> {
-    if primary_columns.is_empty() {
-        return Ok(String::new());
-    }
-    let mut key_values = PropertyMap::new();
-    for name in primary_columns {
-        if let Some(value) = values.get(name) {
-            key_values.insert(name.clone(), value.clone());
-        }
-    }
-    let bytes = crate::canonical_json::write_properties(&key_values)?;
-    String::from_utf8(bytes)
-        .map_err(|_| SemanticSnapshotError::Snapshot(SnapshotError::NumberFormatting))
 }
 
 fn collect_relationship_sides(
     entry: &CatalogTable,
     definition: &TableDefinition,
+    names: &[String],
     sides: &mut Vec<RelationshipSideRecord>,
-    budget: &mut ResourceBudget,
+    ledger: &mut RetainedLedger,
 ) -> Result<(), SemanticSnapshotError> {
-    let names = column_names(definition, entry.root)?;
     for relationship in definition.relationships() {
+        let missing = SemanticSnapshotError::InvalidIndexReference {
+            table: entry.root,
+            physical_index: relationship.physical_index(),
+        };
         let physical = definition
             .physical_indexes()
             .get(usize::from(relationship.physical_index()))
-            .ok_or(SemanticSnapshotError::InvalidIndexReference {
-                table: entry.root,
-                physical_index: relationship.physical_index(),
-            })?;
-        let fields = physical
-            .fields()
-            .iter()
-            .map(|field| {
-                names.get(usize::from(field.column().get())).cloned().ok_or(
-                    SemanticSnapshotError::InvalidIndexReference {
-                        table: entry.root,
-                        physical_index: relationship.physical_index(),
-                    },
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let name = decode_ascii_name(relationship.name().raw_bytes(), Some(entry.root))?;
-        charge_collected(
-            budget,
-            name.len() + entry.name.len() + std::mem::size_of::<RelationshipSideRecord>(),
-        )?;
-        sides.push(RelationshipSideRecord {
-            name,
-            table_name: entry.name.clone(),
+            .ok_or_else(|| missing.clone())?;
+        let mut fields = Vec::new();
+        for field in physical.fields() {
+            let name = names
+                .get(usize::from(field.column().get()))
+                .ok_or_else(|| missing.clone())?;
+            let name = ledger.text(name)?;
+            ledger.push(&mut fields, name)?;
+        }
+        let record = RelationshipSideRecord {
+            name: ledger.ascii_name(relationship.name().raw_bytes(), Some(entry.root))?,
+            table_name: ledger.text(&entry.name)?,
             table_root: entry.root,
             side: relationship.side(),
             related_table: relationship.related_table(),
             fields,
             cascade_updates: relationship.cascade_updates(),
             cascade_deletes: relationship.cascade_deletes(),
-        });
+        };
+        ledger.push(sides, record)?;
     }
     Ok(())
 }
@@ -462,6 +424,7 @@ fn collect_relationship_sides(
 /// options; anything else fails closed.
 fn pair_relationships(
     mut sides: Vec<RelationshipSideRecord>,
+    ledger: &mut RetainedLedger,
 ) -> Result<Vec<Relationship>, SemanticSnapshotError> {
     sides.sort_by(|left, right| left.name.cmp(&right.name));
     let mut relationships = Vec::new();
@@ -500,36 +463,41 @@ fn pair_relationships(
             });
         }
         let mut properties = PropertyMap::new();
-        properties.insert(
-            "cascade_deletes".to_owned(),
-            TypedValue::Boolean {
-                value: foreign.cascade_deletes,
-                raw_hex: None,
-            },
-        );
-        properties.insert(
-            "cascade_updates".to_owned(),
-            TypedValue::Boolean {
-                value: foreign.cascade_updates,
-                raw_hex: None,
-            },
-        );
-        relationships.push(Relationship {
-            name: foreign.name,
-            table: primary.table_name,
-            foreign_table: foreign.table_name,
-            attributes: 0,
-            fields: primary
-                .fields
-                .into_iter()
-                .zip(foreign.fields)
-                .map(|(field, foreign_field)| RelationshipField {
+        for (key, value) in [
+            ("cascade_deletes", foreign.cascade_deletes),
+            ("cascade_updates", foreign.cascade_updates),
+        ] {
+            let key = ledger.text(key)?;
+            ledger.insert(
+                &mut properties,
+                key,
+                TypedValue::Boolean {
+                    value,
+                    raw_hex: None,
+                },
+            )?;
+        }
+        let mut fields = Vec::new();
+        for (field, foreign_field) in primary.fields.into_iter().zip(foreign.fields) {
+            ledger.push(
+                &mut fields,
+                RelationshipField {
                     field,
                     foreign_field,
-                })
-                .collect(),
-            properties,
-        });
+                },
+            )?;
+        }
+        ledger.push(
+            &mut relationships,
+            Relationship {
+                name: foreign.name,
+                table: primary.table_name,
+                foreign_table: foreign.table_name,
+                attributes: 0,
+                fields,
+                properties,
+            },
+        )?;
     }
     Ok(relationships)
 }

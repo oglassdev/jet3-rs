@@ -250,13 +250,13 @@ impl JsonWriter {
             self.key(&mut first, "name");
             self.string(&column.name);
             self.key(&mut first, "nullable");
-            self.boolean(column.nullable);
+            self.optional_boolean(column.nullable);
             self.key(&mut first, "ordinal");
             self.unsigned(column.ordinal);
             self.key(&mut first, "properties");
             self.properties(&column.properties)?;
             self.key(&mut first, "required");
-            self.boolean(column.required);
+            self.optional_boolean(column.required);
             self.key(&mut first, "size");
             if let Some(size) = column.size {
                 self.unsigned(size);
@@ -278,7 +278,7 @@ impl JsonWriter {
             self.key(&mut first, "fields");
             self.index_fields(&value.fields);
             self.key(&mut first, "ignore_nulls");
-            self.boolean(value.ignore_nulls);
+            self.optional_boolean(value.ignore_nulls);
             self.key(&mut first, "name");
             self.string(&value.name);
             self.key(&mut first, "primary");
@@ -380,6 +380,13 @@ impl JsonWriter {
             self.bytes.push(b'}');
         }
         self.bytes.push(b']');
+    }
+
+    fn optional_boolean(&mut self, value: Option<bool>) {
+        match value {
+            Some(value) => self.boolean(value),
+            None => self.bytes.extend_from_slice(b"null"),
+        }
     }
 
     fn key(&mut self, first: &mut bool, key: &str) {
