@@ -66,6 +66,14 @@ impl OwnedStage {
         Ok(fs::read_dir(&self.bundle_path)?.count() == self.artifacts.len())
     }
 
+    fn prepare_rename(&mut self) -> std::io::Result<bool> {
+        if !self.validate_opened_paths()? {
+            return Ok(false);
+        }
+        drop(self.bundle_identity.take());
+        Ok(true)
+    }
+
     fn cleanup(mut self, error: PublishError) -> Result<(), PublishError> {
         self.settled = true;
         let outer_matches = self
@@ -179,7 +187,7 @@ pub(super) fn publish_with(
     {
         return stage.cleanup(PublishError::RenameFailed);
     }
-    if !stage.validate_opened_paths().unwrap_or(false) {
+    if !stage.prepare_rename().unwrap_or(false) {
         return stage.cleanup(PublishError::RenameFailed);
     }
     if fs::rename(&stage.bundle_path, &destination).is_err() {

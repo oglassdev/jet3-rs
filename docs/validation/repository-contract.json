@@ -381,7 +381,7 @@
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_windows.rs",
         "reason": "Safe Windows atomic fixed-pair publication with retained native identities and write-denying artifact handles; it introduces no physical format assertions.",
-        "sha256": "457b5d034ca6c0c937606582c01fa3960fb2a0a09361e921babf8c8868705e15"
+        "sha256": "ac34a9acfe1930c4500c5e9ca2bd77fa8aa498ed65174678a2eef18359ef2f2e"
       },
       {
         "path": "crates/jet3-cli/src/snapshot_bundle_tests.rs",
