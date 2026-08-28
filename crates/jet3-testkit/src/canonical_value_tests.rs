@@ -3,6 +3,9 @@ use super::{
     Producer, ProducerKind, ScenarioId, Sha256, SnapshotError, TypedValue,
 };
 
+const CANONICAL_FLOAT_FIXTURES: &str =
+    include_str!("../../../oracle/windows-dao/protocol/v1_2/fixtures/canonical-float-vectors.tsv");
+
 fn empty_snapshot() -> Result<CanonicalSnapshot, SnapshotError> {
     Ok(CanonicalSnapshot::new(
         ScenarioId::new("DAO-READ-TYPED-001")?,
@@ -245,7 +248,8 @@ fn strings_use_compact_utf8_json_escaping() -> Result<(), SnapshotError> {
 }
 
 #[test]
-fn finite_numbers_are_normalized_and_nonfinite_values_are_rejected() -> Result<(), SnapshotError> {
+fn finite_numbers_are_normalized_and_nonfinite_values_are_rejected()
+-> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         FiniteF32::new(f32::NAN),
         Err(SnapshotError::NonFiniteNumber)
@@ -259,34 +263,67 @@ fn finite_numbers_are_normalized_and_nonfinite_values_are_rejected() -> Result<(
         Err(SnapshotError::NonFiniteNumber)
     );
 
-    let mut snapshot = empty_snapshot()?;
-    for (key, value) in [
-        ("negative_zero", -0.0),
-        ("positive_zero", 0.0),
-        ("integral_fixed", 1.0),
-        ("small_fixed", 0.0001),
-        ("small_scientific", 0.00001),
-        ("large_fixed", 1e15),
-        ("large_scientific", 1e16),
-    ] {
-        snapshot.database_properties.insert(
-            key.to_owned(),
-            TypedValue::Double {
-                value: FiniteF64::new(value)?,
+    let mut seen = 0;
+    for (line_index, line) in CANONICAL_FLOAT_FIXTURES
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.starts_with('#'))
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let [
+            case,
+            kind,
+            bits_hex,
+            python_input,
+            canonical_json,
+            python_valid,
+        ] = fields.as_slice()
+        else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid canonical-float fixture shape",
+            )
+            .into());
+        };
+        let value = match *kind {
+            "single" => TypedValue::Single {
+                value: FiniteF32::new(f32::from_bits(u32::from_str_radix(bits_hex, 16)?))?,
                 raw_hex: None,
             },
+            "double" => TypedValue::Double {
+                value: FiniteF64::new(f64::from_bits(u64::from_str_radix(bits_hex, 16)?))?,
+                raw_hex: None,
+            },
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "unknown canonical-float kind",
+                )
+                .into());
+            }
+        };
+        let mut snapshot = empty_snapshot()?;
+        snapshot
+            .database_properties
+            .insert("Float".to_owned(), value);
+        let actual = emitted(&snapshot)?;
+        let expected = format!("\"Float\":{{\"kind\":\"{kind}\",\"value\":{canonical_json}}}");
+        assert!(
+            actual.contains(&expected),
+            "{case} on line {}: missing canonical value {expected}",
+            line_index + 1
         );
+        let input_has_float_json_type =
+            python_input.parse::<f64>().is_ok() && python_input.contains(['.', 'e', 'E']);
+        assert_eq!(
+            input_has_float_json_type,
+            python_valid.parse::<bool>()?,
+            "{case} on line {}: Python input type/outcome disagreement",
+            line_index + 1
+        );
+        seen += 1;
     }
-    let actual = emitted(&snapshot)?;
-    assert!(actual.contains("\"negative_zero\":{\"kind\":\"double\",\"value\":-0.0}"));
-    assert!(actual.contains("\"positive_zero\":{\"kind\":\"double\",\"value\":0.0}"));
-    assert!(actual.contains("\"integral_fixed\":{\"kind\":\"double\",\"value\":1.0}"));
-    assert!(actual.contains("\"small_fixed\":{\"kind\":\"double\",\"value\":0.0001}"));
-    assert!(actual.contains("\"small_scientific\":{\"kind\":\"double\",\"value\":1e-05}"));
-    assert!(actual.contains("\"large_fixed\":{\"kind\":\"double\",\"value\":1000000000000000.0}"));
-    assert!(actual.contains("\"large_scientific\":{\"kind\":\"double\",\"value\":1e+16}"));
-    assert!(!actual.contains("NaN"));
-    assert!(!actual.contains("Infinity"));
+    assert_eq!(seen, 14);
     Ok(())
 }
 

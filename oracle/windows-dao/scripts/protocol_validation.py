@@ -450,11 +450,11 @@ def _validate_typed_value(value: dict[str, Any], location: str) -> None:
                 f"{location}.value: {kind} is outside its canonical integer range"
             )
     if kind in ("single", "double") and (
-        not isinstance(semantic, (int, float))
-        or isinstance(semantic, bool)
-        or not math.isfinite(semantic)
+        not isinstance(semantic, float) or not math.isfinite(semantic)
     ):
-        raise ValidationError(f"{location}.value: {kind} requires a finite JSON number")
+        raise ValidationError(
+            f"{location}.value: {kind} requires a finite JSON floating-point number"
+        )
     if kind in ("decimal", "currency") and (
         not isinstance(semantic, str)
         or re.fullmatch(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", semantic) is None

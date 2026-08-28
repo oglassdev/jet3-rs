@@ -1,5 +1,6 @@
 import hashlib
 import json
+import struct
 import sys
 import tempfile
 import unittest
@@ -217,6 +218,77 @@ class ProtocolV12SnapshotTests(unittest.TestCase):
                 )
             seen += 1
         self.assertEqual(seen, 13)
+
+    def test_shared_canonical_float_vectors_match_python_validation_and_spelling(self):
+        fixture = v1_2.SCHEMA_DIR / "fixtures" / "canonical-float-vectors.tsv"
+        seen = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "snapshot.json"
+            for line_number, line in enumerate(
+                fixture.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if line.startswith("#"):
+                    continue
+                (
+                    case,
+                    kind,
+                    bits_hex,
+                    input_json,
+                    canonical_json,
+                    expected_valid,
+                ) = line.split("\t")
+                expected_valid = expected_valid == "true"
+                unpack_format = {"single": ">f", "double": ">d"}.get(kind)
+                self.assertIsNotNone(unpack_format, f"{case} on line {line_number}")
+                bits_value = struct.unpack(
+                    unpack_format, bytes.fromhex(bits_hex)
+                )[0]
+                self.assertEqual(
+                    canonical_json_bytes({"value": bits_value}),
+                    f'{{"value":{canonical_json}}}\n'.encode(),
+                    f"{case} on line {line_number}: fixture bits",
+                )
+
+                semantic = json.loads(input_json)
+                snapshot = self._snapshot()
+                snapshot["database_properties"]["Float"] = {
+                    "kind": kind,
+                    "raw_hex": bits_hex,
+                    "value": semantic,
+                }
+                path.write_bytes(canonical_json_bytes(snapshot))
+                try:
+                    document_type = v1_2.validate_document_path(path)
+                    actual_valid = document_type == "canonical_semantic_snapshot"
+                except ValidationError:
+                    actual_valid = False
+                self.assertEqual(
+                    actual_valid,
+                    expected_valid,
+                    f"{case} on line {line_number}: validation outcome",
+                )
+                rendered = canonical_json_bytes({"value": semantic})
+                expected = f'{{"value":{canonical_json}}}\n'.encode()
+                if expected_valid:
+                    self.assertEqual(rendered, expected, case)
+                    self.assertIs(type(semantic), float, case)
+                else:
+                    self.assertNotEqual(rendered, expected, case)
+                    self.assertIn(type(semantic), (bool, int), case)
+                seen += 1
+        self.assertEqual(seen, 14)
+
+        for semantic in (float("nan"), float("inf"), float("-inf")):
+            snapshot = self._snapshot()
+            snapshot["database_properties"]["Float"] = {
+                "kind": "double",
+                "raw_hex": "0000000000000000",
+                "value": semantic,
+            }
+            with self.assertRaisesRegex(
+                ValidationError, "finite JSON floating-point number"
+            ):
+                v1_2.validate_semantic_snapshot(snapshot)
 
     def test_source_revision_length_matches_shared_multibyte_vectors(self):
         fixture = (

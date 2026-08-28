@@ -430,8 +430,8 @@
       },
       {
         "path": "crates/jet3-testkit/src/canonical_value_tests.rs",
-        "reason": "Test-only verification of canonical semantic scalar and JSON rules.",
-        "sha256": "ce7bb5dbfa6bcdf4f1f3a569869cf8ac0bdcdf54f2c2caffb5c3123e8dfc32ff"
+        "reason": "Test-only verification of canonical semantic scalar and JSON rules, including shared cross-language floating-point spellings and Python type outcomes.",
+        "sha256": "6b853b3a76db6179b5557277d9403e149a93f0e6aa89a9f5aadc62466d4e8c87"
       },
       {
         "path": "crates/jet3-testkit/src/classifier_snapshot.rs",
