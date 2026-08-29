@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeSet;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -45,8 +46,27 @@ fn main() {
         println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
         return;
     };
-    let suffix = if status.is_empty() { "" } else { "-dirty" };
+    let suffix = if status.is_empty() {
+        register_clean_worktree_refresh();
+        ""
+    } else {
+        "-dirty"
+    };
     println!("cargo:rustc-env=JET3_BUILD_IDENTITY={revision}{suffix}");
+}
+
+fn register_clean_worktree_refresh() {
+    let Some(output_dir) = env::var_os("OUT_DIR") else {
+        return;
+    };
+    // Cargo cannot recursively watch a worktree while excluding its own output tree.
+    // This deliberately absent input refreshes clean identities once per Cargo invocation.
+    println!(
+        "cargo:rerun-if-changed={}",
+        PathBuf::from(output_dir)
+            .join("jet3-clean-worktree-refresh")
+            .display()
+    );
 }
 
 fn discover_workspace(manifest_dir: &Path) -> Option<PathBuf> {
@@ -61,7 +81,9 @@ fn discover_workspace(manifest_dir: &Path) -> Option<PathBuf> {
 
 fn register_git_inputs(worktree: &Path) {
     for git_path_name in ["HEAD", "index", "packed-refs"] {
-        if let Some(path) = git_path(worktree, &["rev-parse", "--git-path", git_path_name]) {
+        if let Some(path) = git_path(worktree, &["rev-parse", "--git-path", git_path_name])
+            && path.exists()
+        {
             println!("cargo:rerun-if-changed={}", path.display());
         }
     }
@@ -72,7 +94,20 @@ fn register_git_inputs(worktree: &Path) {
     {
         println!("cargo:rerun-if-changed={}", path.display());
     }
-    if let Some(files) = git_output(worktree, &["ls-files", "-z"]) {
+    if let Some(files) = git_output(
+        worktree,
+        &[
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
+    ) {
+        let output_dir = env::var_os("OUT_DIR")
+            .map(PathBuf::from)
+            .and_then(|path| std::fs::canonicalize(path).ok());
+        let mut directories = BTreeSet::new();
         for relative in files
             .split(|byte| *byte == 0)
             .filter(|path| !path.is_empty())
@@ -91,6 +126,23 @@ fn register_git_inputs(worktree: &Path) {
                 "cargo:rerun-if-changed={}",
                 worktree.join(relative).display()
             );
+            let mut directory = worktree.join(relative).parent().map(Path::to_owned);
+            while let Some(path) = directory {
+                if path == worktree {
+                    break;
+                }
+                directories.insert(path.clone());
+                directory = path.parent().map(Path::to_owned);
+            }
+        }
+        for directory in directories {
+            if output_dir
+                .as_deref()
+                .is_some_and(|output| output.starts_with(&directory))
+            {
+                continue;
+            }
+            println!("cargo:rerun-if-changed={}", directory.display());
         }
     }
 }
@@ -113,7 +165,10 @@ fn git_text(directory: &Path, arguments: &[&str]) -> Option<String> {
 
 fn git_output(directory: &Path, arguments: &[&str]) -> Option<Vec<u8>> {
     let mut command = Command::new("git");
-    command.args(arguments).current_dir(directory);
+    command
+        .arg("--no-optional-locks")
+        .args(arguments)
+        .current_dir(directory);
     for (name, _) in env::vars_os() {
         if name
             .to_string_lossy()

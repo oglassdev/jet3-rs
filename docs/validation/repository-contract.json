@@ -30,7 +30,7 @@
       "package": "jet3-cli",
       "manifest": "crates/jet3-cli/Cargo.toml",
       "path": "crates/jet3-cli/build.rs",
-      "sha256": "f151f7b22a39451c3d71bf8e2bb400c73c6e1a0dbb4ffe02dbdffc226c94f029",
+      "sha256": "040ec6a12bd40c63820653cd295f03d62b2a43af1c1569ea3119a627527060bb",
       "purpose": "Build identity only: embed the exact Git revision and dirty state; supplies no MDB format knowledge."
     }
   ],
