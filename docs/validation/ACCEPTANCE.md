@@ -129,23 +129,36 @@ python3 tools/validate_release_evidence.py effective-support \
 The command validates the exact clean `HEAD`, overlay and bundle-manifest
 closure, runs each requested enabled intrinsic adapter, and joins its outputs
 to the committed support-matrix baseline as specified by `EVIDENCE.md`. On
-success it emits one canonical JSON result with exactly `schema_version`,
-`git_commit`, `dirty`, `overlay_sha256`, `manifest_sha256`, `adapter_outputs`,
-`capabilities`, and `status`. Each capability result contains exactly `id`,
-`stored_verification`, `effective_verification`, and `evidence_ids`. The G3
-stdout artifact and its SHA-256 are retained by the ordinary acceptance record;
-no overlay payload is copied into the repository.
+every safe `PASS` or `BLOCKED` resolution it emits one canonical JSON result
+validated against the exact-commit schema at
+`docs/validation/schema/effective-support-result.schema.json`. That closed
+result and its nested shapes, full-catalog requirement, joins, ordering, hash
+domains, and serialization are fixed by `EVIDENCE.md`. In particular, every
+adapter output includes its evidence id and intrinsic `verification`, and
+`capabilities` contains the full committed catalog rather than only the
+selected adapter subset. The G3 stdout artifact and the SHA-256 of its exact
+canonical bytes are retained by the ordinary acceptance record; no overlay
+payload is copied into the repository.
 
 Exit 0 and `status: PASS` require the complete G3 inventory above, every
-required DAO scenario and operation, no skipped result, and every applicable
-implemented capability at its required effective verification. A valid read-
-only subset is reported as `BLOCKED`, never as full G3 PASS. Missing selection,
-missing future protocol contracts, disabled policy, or an otherwise complete
-but incomplete-for-G3 subset exits 3 with a specific `BLOCKED:` reason. Unsafe
-paths, malformed JSON, dirty state, commit/hash/contract mismatch, altered
-payload, missing scenario or branch, unequal snapshot, unexpected preservation
-difference, adapter-output mismatch, or any other failed executable check exits
-1 as `FAIL`.
+required DAO scenario and operation, no `SKIPPED` or `UNSUPPORTED` result, and
+every applicable implemented capability at its required effective
+verification. A valid read-only subset is reported as `BLOCKED`, never as full
+G3 PASS. A missing selection is rejected by the G3 wrapper before the result
+exists. Disabled policy, a required future write/update leg that is not yet an
+authorized release input, or an otherwise valid but incomplete-for-G3 subset
+exits 3 with a specific `BLOCKED:` reason; when the inputs permit a safe
+resolution, stdout is the schema-valid `BLOCKED` result described above.
+Unsafe paths or file types, malformed or non-canonical required JSON, dirty
+state, commit/hash/contract mismatch, altered payload, a missing required
+contract or selected scenario/branch, a schema-invalid complete snapshot,
+unequal canonical comparison projections, unexpected preservation difference,
+adapter-output/result-schema mismatch, or any other failed executable check
+exits 1 as `FAIL` and must not emit a `BLOCKED` effective-support result.
+Producer and producer-extension differences are not failures by
+themselves: G3 independently validates each complete snapshot, removes exactly
+the two schema-declared `/producer` and `/producer_extensions` members, and
+compares the canonical projection bytes as fixed by `EVIDENCE.md`.
 
 P8T step 2 deliberately leaves `dao_differential_v1` disabled. Its expected
 `./scripts/acceptance.sh full` result is therefore nonzero `BLOCKED`: without

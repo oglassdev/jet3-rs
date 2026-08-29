@@ -5833,6 +5833,62 @@ Use `not applicable` explicitly rather than omitting a field.
   entry advances no capability, changes no stored or effective verification,
   leaves `dao_differential_v1` disabled, and weakens no release blocker
 
+### EXP-0064 — P8 order reconciliation and exact-commit publication sequence
+
+- Recorded: 2026-08-28, OpenAI Codex
+- Kind: additive historical and validation-contract reconciliation; no DAO
+  acquisition, provider observation, Rust result, release evidence, support
+  state change, compatibility result, or general phase-order exception
+- Question: How must the plan record the already-merged P8 step 1 without
+  weakening the hard dependency order, and how must future P8 evidence be
+  prepared, acquired, accepted, and recorded without exact-commit
+  self-reference?
+- Origin: merge commit
+  `c933f1cb75ed5b7534f9c1449c87c6e6025c6211` for PR #93; the hard
+  `P7I → P8T → P8` order in `docs/plans/IMPLEMENTATION_PLAN.md`; and
+  the P8T detached-overlay decision in `EXP-0063`. No MDB implementation,
+  provider binary, MDB file, retained campaign payload, or new format source
+  was inspected.
+- Environment: repository-history and contract analysis on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: inspect both parents and the complete parent-to-merge path diff of
+  PR #93; confirm the support matrix and evidence policy were unchanged;
+  reconcile only that historical merge; then separate future P8 publication
+  into an evidence-ready commit, authorized detached acquisition and
+  acceptance for that commit, and a later provenance-only historical record
+- Artifacts: PR #93 merge commit
+  `c933f1cb75ed5b7534f9c1449c87c6e6025c6211`; first parent
+  `1b47f277033c1c49aa1fb38803a6c7c0919b87bb`; merged topic head
+  `b6f677e770e8ecee72f317dad34c80b268ce4d82`; the unchanged differential
+  decision copy remains
+  `docs/plans/design-inputs/p8t-exact-commit-differential-decision.md`,
+  SHA-256
+  `2fee5d73fae113c6f0833a38ce2c5af3a81447a7a826f96fa8522ccc768a7198`
+- Observation: PR #93 merged the P8 step-1 v1.2 protocol contracts, inventory
+  builder, validator, tests, and CI hook before P7I and P8T. Its merge diff did
+  not change `docs/validation/support-matrix.json` or
+  `docs/validation/evidence-policy.json`; it advanced no stored or effective
+  verification and produced no DAO-versus-Rust release evidence.
+- Interpretation: human approval of the actual P8T amendment ratifies only
+  this already-landed historical order deviation and is the go/no-go for P8T
+  implementation. It creates no reusable order exception. No further P8
+  implementation or evidence work may begin until P8T is complete. For future
+  evidence, all policy, allowlist, contract, implementation, and acceptance
+  inputs must exist in one clean pushed commit before human-authorized
+  acquisition. Detached acquisition and acceptance bind that earlier commit;
+  a later provenance-only entry may record it historically but is not part of
+  or evidence for it. Provider proof, authorization, independent validation,
+  and scientific-event boundaries remain unchanged.
+- Usage: `file:docs/plans/IMPLEMENTATION_PLAN.md`;
+  `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/DAO_PROVIDER_BLOCKER.md`
+- Rights: project-authored repository history and contract text; no external
+  artifact is redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  changes no capability, stored verification, effective verification, policy,
+  matrix data, evidence result, or provider requirement
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

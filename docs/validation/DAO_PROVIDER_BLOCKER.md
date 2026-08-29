@@ -167,6 +167,27 @@ For an exact release commit:
 Until every applicable step exists and passes, G3 and release claims depending
 on DAO remain `BLOCKED`.
 
+### P8T detached-overlay amendment to item 6
+
+This additive amendment (`EXP-0064`) supersedes only item 6's requirement to
+reference the bundle from the committed support matrix. The exact-commit
+bundle instead appears in one explicitly selected detached overlay, and its
+manifest SHA-256 is supplied to checked acceptance out of band. The hashed
+acceptance record retains the overlay hash, manifest hash, exact commit,
+adapter outputs, and effective capability results. The committed matrix
+retains only `source` and `test` lineage and its repository-verifiable
+baseline; it contains no `dao_bundle` reference or detached verification
+result.
+
+Items 1–5 remain unchanged. In particular, this amendment does not weaken the
+clean exact-commit requirement, pre-acquisition human authorization, provider
+and environment re-proof, complete declarative inventory, Rust/DAO snapshot
+and preservation binding, atomic publication, independent manifest and
+payload validation, or acceptance requirements. The policy, allowlist,
+contracts, implementation, and acceptance wiring must exist in the clean
+pushed commit before acquisition. Any later provenance entry is only a
+historical record of that earlier commit and is not evidence for it.
+
 On 2026-08-20, A1 dispatch run
 [`32437968174`](https://github.com/oglassdev/jet3-rs/actions/runs/32437968174)
 failed closed when `windows-2022` image identity drifted, demonstrating that
