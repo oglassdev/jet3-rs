@@ -114,6 +114,11 @@ pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
             ("success", None)
         }
         SnapshotOutcome::OpeningFailure { error_class, .. } => {
+            match fs::remove_file(command.out.join("snapshot.json")) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(format!("remove stale snapshot.json: {error}")),
+            }
             ("opening_failure", Some(*error_class))
         }
     };

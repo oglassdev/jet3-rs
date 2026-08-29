@@ -149,12 +149,17 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
 
     fn catalog(&mut self) -> Result<Vec<CatalogRecord>, SnapshotError> {
         let mut cursor = self.database.catalog(self.budget).map_err(reader_error)?;
+        let root = cursor.root();
         let mut records = Vec::new();
         while let Some(record) = cursor.next_record().map_err(reader_error)? {
             records.push(record);
         }
         drop(cursor);
         self.branch("catalog.root_discovery");
+        // Every protocol fixture reaches the catalog through its single-page
+        // root definition before any user-table definition is decoded.
+        self.branch("tdef.single_page");
+        self.allocation_branches(root)?;
         if !records.is_empty() {
             self.branch("catalog.record_stream");
         }
@@ -431,9 +436,9 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
             .map_err(reader_error)?;
         let mut rows = Vec::new();
         let mut branches = Branches::new();
+        branches.insert("rows.direct".to_owned());
         let mut expected_slot: Option<(PageNumber, u8)> = None;
         while let Some(mut row) = cursor.next_row().map_err(reader_error)? {
-            branches.insert("rows.direct".to_owned());
             let locator = row.locator();
             if locator != row.storage_locator() {
                 branches.insert("rows.overflow_pointer".to_owned());
@@ -478,19 +483,7 @@ fn decode_row(
             .value(column.ordinal(), code_page)
             .map_err(reader_error)?
             .ok_or(SnapshotError::UnsupportedValue("column ordinal"))?;
-        match decoded.kind() {
-            jet3::ValueKind::Null => branches.insert("values.null_field".to_owned()),
-            jet3::ValueKind::Text(text) => {
-                branches.insert("values.variable_short".to_owned());
-                branches.insert(text_branch(text.code_page()).to_owned())
-            }
-            jet3::ValueKind::Binary(_) => branches.insert("values.variable_short".to_owned()),
-            jet3::ValueKind::LongValue(jet3::LongValue::Inline { .. }) => {
-                branches.insert("long_value.inline".to_owned())
-            }
-            jet3::ValueKind::LongValue(_) | jet3::ValueKind::Boolean(_) => false,
-            _ => branches.insert("values.fixed_scalar".to_owned()),
-        };
+        record_value_branches(decoded.kind(), branches);
         match convert_value(&decoded)? {
             Converted::Value(value) => {
                 values.insert(name, value);
@@ -499,6 +492,22 @@ fn decode_row(
         }
     }
     Ok((values, pending))
+}
+
+fn record_value_branches(kind: &jet3::ValueKind<'_>, branches: &mut Branches) {
+    match kind {
+        jet3::ValueKind::Null => branches.insert("values.null_field".to_owned()),
+        jet3::ValueKind::Text(text) => {
+            branches.insert("values.variable_short".to_owned());
+            branches.insert(text_branch(text.code_page()).to_owned())
+        }
+        jet3::ValueKind::Binary(_) => branches.insert("values.variable_short".to_owned()),
+        jet3::ValueKind::LongValue(jet3::LongValue::Inline { .. }) => {
+            branches.insert("long_value.inline".to_owned())
+        }
+        jet3::ValueKind::LongValue(_) => false,
+        _ => branches.insert("values.fixed_scalar".to_owned()),
+    };
 }
 
 fn resolve_external<S: jet3::ReadAt>(
@@ -549,4 +558,16 @@ fn ascii_name(decoded: Option<&str>, raw: &[u8]) -> Result<String, SnapshotError
     decoded
         .map(str::to_owned)
         .ok_or_else(|| SnapshotError::NonAsciiName(raw.to_vec()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Branches, record_value_branches};
+
+    #[test]
+    fn boolean_values_observe_the_fixed_scalar_branch() {
+        let mut branches = Branches::new();
+        record_value_branches(&jet3::ValueKind::Boolean(true), &mut branches);
+        assert!(branches.contains("values.fixed_scalar"));
+    }
 }

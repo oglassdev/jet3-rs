@@ -116,6 +116,10 @@ fn text_row(id: u32, name: &[u8]) -> Vec<u8> {
 /// Returns the complete synthetic database bytes.
 #[must_use]
 pub fn synthetic_database() -> Vec<u8> {
+    synthetic_database_with_rows(&ITEMS_ROWS)
+}
+
+fn synthetic_database_with_rows(rows: &[(u32, &str)]) -> Vec<u8> {
     let mut bytes = vec![0_u8; 7 * PAGE_BYTES];
     bytes[4..19].copy_from_slice(b"Standard Jet DB");
     bytes[0x41] = 0x4e;
@@ -154,7 +158,7 @@ pub fn synthetic_database() -> Vec<u8> {
     index[1] = 1;
     index[2..4].copy_from_slice(&((PAGE_BYTES - 248) as u16).to_le_bytes());
     index[4..8].copy_from_slice(&(TABLE_ROOT as u32).to_le_bytes());
-    let rows: Vec<Vec<u8>> = ITEMS_ROWS
+    let rows: Vec<Vec<u8>> = rows
         .iter()
         .map(|(id, name)| text_row(*id, name.as_bytes()))
         .collect();
@@ -168,8 +172,11 @@ pub fn synthetic_database() -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::synthetic_database;
-    use crate::{Scalar, SnapshotOptions, SnapshotOutcome, snapshot_bytes};
+    use super::{synthetic_database, synthetic_database_with_rows};
+    use crate::{
+        PROTOCOL_SCENARIOS, Producer, Scalar, SnapshotOptions, SnapshotOutcome, coverage,
+        parse_scenarios, snapshot_bytes,
+    };
     use jet3::TextCodePage;
 
     #[test]
@@ -242,6 +249,35 @@ mod tests {
             return Err("expected an opening failure".into());
         };
         assert_eq!(error_class, "unsupported_version");
+        Ok(())
+    }
+
+    #[test]
+    fn empty_user_table_satisfies_its_coverage_scenario() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let bytes = synthetic_database_with_rows(&[]);
+        let options = SnapshotOptions {
+            scenario_id: "DAO-READ-ROWS-EMPTY-TABLE".to_owned(),
+            source_revision: "test".to_owned(),
+            code_page: TextCodePage::Windows1252,
+        };
+        let outcome = snapshot_bytes(&bytes, &options)?;
+        let receipt = coverage(
+            &options.scenario_id,
+            Producer {
+                kind: "rust",
+                source_revision: options.source_revision,
+            },
+            crate::sha256_hex(&bytes),
+            &outcome,
+            &parse_scenarios(PROTOCOL_SCENARIOS)?,
+        );
+        let scenario = receipt
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.id == "DAO-READ-ROWS-EMPTY-TABLE")
+            .ok_or("missing coverage scenario")?;
+        assert!(scenario.satisfied, "{:?}", scenario.missing_branches);
         Ok(())
     }
 }

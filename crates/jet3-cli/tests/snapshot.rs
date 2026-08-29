@@ -75,10 +75,22 @@ fn snapshot_pair_passes_the_protocol_validator() -> TestResult {
 fn rejected_header_writes_only_the_coverage_receipt() -> TestResult {
     let directory = tempfile::tempdir()?;
     let input = directory.path().join("jet4.mdb");
+    let out = directory.path().join("out");
+    fs::write(&input, synthetic_database())?;
+    let initial = run_cli(&[
+        "snapshot",
+        input.to_str().ok_or("path")?,
+        "--out",
+        out.to_str().ok_or("path")?,
+        "--scenario",
+        "DAO-READ-ROWS-DUPLICATES",
+    ])?;
+    assert!(initial.status.success());
+    assert!(out.join("snapshot.json").exists());
+
     let mut bytes = synthetic_database();
     bytes[0x14] = 0x01;
     fs::write(&input, bytes)?;
-    let out = directory.path().join("out");
     let output = run_cli(&[
         "snapshot",
         input.to_str().ok_or("path")?,
