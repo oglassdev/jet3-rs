@@ -1038,8 +1038,16 @@ matrix-data, policy-data, plan, provenance, or validation file is authorized:
   `docs/validation/schema/dao-differential-v1-manifest.schema.json` and
   `docs/validation/schema/dao-differential-v1-report.schema.json` plus the
   exact effective-support result contract at
-  `docs/validation/schema/effective-support-result.schema.json`, and list all
-  three in `docs/validation/schema/README.md`;
+  `docs/validation/schema/effective-support-result.schema.json`; add the
+  provider contract/proof schemas at
+  `docs/validation/schema/dao-provider-v1-contract.schema.json` and
+  `docs/validation/schema/dao-provider-proof-v1.schema.json`, the committed
+  provider contract at `docs/validation/dao-provider-v1-contract.json`, the
+  source-closure schema at
+  `docs/validation/schema/dao-differential-v1-source-closure.schema.json`, and
+  its committed registry at
+  `docs/validation/dao-differential-v1-source-closure.json`; list all eight new
+  schemas in `docs/validation/schema/README.md`;
 - add
   `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json` byte-for-byte
   as stabilized at PR #92 head
@@ -1053,9 +1061,15 @@ matrix-data, policy-data, plan, provenance, or validation file is authorized:
   rejection;
 - modify `tools/validation/support.py` to enforce the stored-baseline rule and
   expose the bounded effective-verification join;
-- modify `tools/validation/release_evidence.py` only as needed to pass the
-  selected expected DAO-manifest hash through the already checked detached
-  overlay snapshot and final closure;
+- modify `tools/validation/release_evidence.py` to pass the selected expected
+  DAO-manifest hash through the already checked detached overlay snapshot and
+  final closure and to defer only the selected adapter's policy-status decision
+  until that same canonical path has completed intrinsic validation; do not add
+  a preflight, fallback, or second adapter-validation path;
+- modify `tools/validation/release_evidence_model.py` only as needed for the
+  fully validated overlay result to carry the selected adapter's policy
+  suppression without carrying its computed output into effective or stored
+  evidence;
 - modify `tools/validation/release_evidence_adapters.py` to mark only
   `dao_differential_v1` intrinsically `available` with the implementation in
   new `tools/validation/release_evidence_dao.py`; every other intrinsic
@@ -1090,51 +1104,85 @@ effective-support result contracts are binding exactly as specified in
 `EVIDENCE.md` "P8T exact-commit amendment"; step 2 may not choose different
 field names, nullability, ordering, hash domains, join rules, or projection
 semantics. In summary, the closed manifest has exactly
-`schema_version`, `run`, `git_commit`, `dirty`, `provider`, `contracts`,
+`schema_version`, `run`, `git_commit`, `dirty`, `provider_proof`, `contracts`,
 `executed_sources`, `commands`, `report`, `files`, and `scenarios`. The
-eight-entry `contracts` object binds the manifest and report schemas plus the
-v1.2 scenario schema/inventory, branch registry, snapshot schema, coverage
-schema, and preservation schema from the named commit. `files` is the unique,
-strictly path-sorted exact inventory of every non-manifest payload with
-path/hash/size closure. Executed sources are uniquely path-sorted and hashed
-from the release commit; commands are retained as argument arrays with exact
-source paths, revision, timestamps, and exit codes. Provider/environment and
-run timestamps have the closed shapes and types fixed in `EVIDENCE.md`.
+thirteen-entry `contracts` object binds the manifest and report schemas plus
+the v1.2 scenario schema/inventory, branch registry, snapshot schema, coverage
+schema, preservation schema, provider contract/schema, provider-proof schema,
+and source-closure registry/schema from the named commit. `files` is the
+unique, strictly path-sorted exact inventory of every non-manifest payload with
+path/hash/size closure.
+
+The provider proof is a canonical inventory-bound artifact; its structured
+image, x86 COM registration/CLSID, provider path/version/hash, and disposable
+`dbVersion30` PASS facts are independently checked against the committed
+provider contract and never sourced from an operation log. Provider
+authorization, seven-day freshness, pre-mutation boundary, retention, and
+redistribution rules remain mandatory. Executed source membership is derived
+only from selected entrypoints in the committed source-closure registry.
+Commands retain explicit role, `entrypoint_id`, argv, exact source closure,
+revision, timestamps, and exit code. The adapter enforces exact union equality,
+argv index/path, scenario command references, and the non-CLI
+`production_rust_library` subject including `crates/jet3/src/lib.rs`; it does
+not claim dynamic runtime call-graph observation. The run object uses only
+string `campaign_id` plus positive-integer `hosted_run_id` and
+`hosted_run_attempt`, with exact equality to provider proof, report, adapter
+output, and effective-support output.
 
 Each unique, id-sorted scenario contains exactly `id`, `content_sha256`,
 `capability_ids`, `operation`, `scenario_input`, `source_mdb`, `output_mdb`,
 `baseline_snapshot`, `dao_snapshot`, `rust_snapshot`, `coverage_receipt`,
 `preservation_diff`, `operation_log`, `command_ids`, `started_at`,
 `completed_at`, `status`, and `status_reason`. The operation-specific
-nullability table in `EVIDENCE.md` is mandatory. `FAIL`, `SKIPPED`, and
-`UNSUPPORTED` remain schema-valid diagnostic records only; they never produce
-effective verification. Every artifact reference is exactly
+expected-outcome/nullability table in `EVIDENCE.md` is mandatory. In
+particular, a passing successful `rust_read_dao` record has source MDB, DAO
+success snapshot, Rust success snapshot, and success receipt, while a passing
+committed expected-error read has source MDB, Rust `opening_failure` snapshot,
+and matching `opening_failure` receipt but a null DAO snapshot. Every other
+read artifact is null. `FAIL`, `SKIPPED`, and `UNSUPPORTED` remain schema-valid
+diagnostic records only; they never produce effective verification, and none
+can stand in for an expected rejection. Every artifact reference is exactly
 `path`/`sha256`/`size` and must equal its inventory row. The report schema is a
 closed canonical summary of the same run and scenario results; the adapter
 recomputes it.
 
-For snapshots, step 2 must validate each complete DAO and Rust source document
-independently before projection. It then requires the declared exclusions to
-be exactly `/producer` and `/producer_extensions`, removes exactly those two
-top-level members, canonicalizes the two remaining documents, and compares
-the projection bytes. It does not compare whole source-document bytes and does
-not exclude `raw_hex`, converted `value`, `raw_preservation`, ordering, or any
-other model field. The manifest continues to hash and size-bind both complete
-source documents.
+For successful snapshots, step 2 must validate each complete DAO and Rust
+source document independently before projection. It then requires the declared
+exclusions to be exactly `/producer` and `/producer_extensions`, removes
+exactly those two top-level members, canonicalizes the two remaining
+documents, and compares the projection bytes. It does not compare whole
+source-document bytes and does not exclude `raw_hex`, converted `value`,
+`raw_preservation`, ordering, or any other model field. The manifest continues
+to hash and size-bind both complete source documents. For each committed
+expected-error read, step 2 instead validates the required Rust
+`opening_failure` document, binds its database hash to the complete source MDB,
+requires its scenario, revision, outcome, and error class to match the receipt
+and committed expectation exactly, requires `dao_snapshot` to be null, and
+performs no two-producer projection comparison.
 
 The coverage schema is the closed nine-field success/opening-failure union
 from the stabilized PR #92 file named above. Step 2 additionally enforces
 strict branch sorting, registry membership, required and forbidden branches,
 release source revision, and the operation-specific source/output MDB hash.
-The new preservation schema is the closed eleven-field document fixed in
-`EVIDENCE.md`: it binds the update source/output MDBs, complete DAO baseline
-and post-update snapshots, the exact sorted `preserve_paths`, and one ordered
-comparison per pointer with canonical before/after value hashes and an exact
-outcome. `PASS` requires every outcome to be `equal`. Read and write records
-must carry null baseline/preservation fields; every update record must carry
-both. A P8 read-only subset can pass only its requested capability output and
-must leave G3 `BLOCKED`; absent write/update inputs are missing required legs,
-never silently skipped preservation.
+For the three committed negatives it also requires the exact
+`opening_failure` branch set and error class and derives observed `error`, not
+`unsupported` or `skipped`, from the required Rust failure artifact pair.
+
+The new preservation schema is the closed thirteen-field document fixed in
+`EVIDENCE.md`: in addition to update source/output MDBs it binds the exact raw
+full-document hashes of the DAO baseline, DAO post-update, and Rust
+post-update snapshots and the hash of the common canonical producer-excluded
+post-update projection. The adapter validates all three complete documents,
+projects them by removing exactly `/producer` and `/producer_extensions`,
+requires the two post-update projections to be byte-identical, and resolves
+the exact sorted `preserve_paths` against the projected DAO baseline and that
+common post-update projection. One ordered comparison per pointer carries the
+canonical before/after value hashes and exact outcome. `PASS` requires every
+outcome to be `equal`. Read and write records must carry null
+baseline/preservation fields; every update record must carry both. A P8
+read-only subset can pass only its requested capability output and must leave
+G3 `BLOCKED`; absent write/update inputs are missing required legs, never
+silently skipped preservation.
 
 The v1.2 scenario, branch, and snapshot contracts are already present at the
 P8T base through PR #93 and are mandatory production inputs. The two new
@@ -1145,11 +1193,14 @@ check.
 
 The adapter computes one exact output object per evidence id with keys
 `evidence_id`, `adapter`, `capability_id`, `verification`, `commit`,
-`manifest_sha256`, `scenario_ids`, and `status`. `verification` is exactly the
+`campaign_id`, `hosted_run_id`, `hosted_run_attempt`, `manifest_sha256`,
+`scenario_ids`, and `status`. `verification` is exactly the
 adapter's intrinsic level, `scenario_ids` is the unique sorted complete subset
-derived from the committed inventory, and the overlay's `expected_output` must
-equal the computed object. The effective-support result is schema version
-integer `1`, lists unique outputs by evidence id, and lists the complete
+derived from the committed inventory, the three run fields equal the manifest,
+provider proof, and report with their exact types, and the overlay's
+`expected_output` must equal the computed object. The effective-support result
+is schema version integer `1`, repeats those exact run fields, lists unique
+outputs by evidence id, and lists the complete
 committed capability catalog by UTF-8 id with no omissions or duplicates. Its
 stored/effective join, detached `evidence_ids`, exact raw overlay/manifest hash
 domains, `PASS`/`BLOCKED` boundary, and canonical one-LF serialization are the
@@ -1158,24 +1209,64 @@ evidence but is not G3 PASS; G3 PASS requires the complete Section 5.1
 inventory and all applicable operations. Malformed, unsafe, dirty, mismatched,
 or failed executable evidence is `FAIL`, never `BLOCKED`.
 
+Step 2 freezes the canonical order of operations. G3 first validates explicit
+selection and path safety. The existing release-evidence path then validates
+the overlay and payload type/closure, raw hashes and sizes, exact commit and
+repeated cleanliness, bound contracts and policy shape, overlay/manifest/report
+schemas, and all intrinsic adapter semantics, including expected-output
+equality, before policy status can suppress anything. It repeats the existing
+overlay, payload, contract, and repository stability closure before returning a
+resolved result. Any malformed, unsafe, altered, stale, dirty, or intrinsically
+failing input is exit-1 `FAIL` even when the selected
+`dao_differential_v1` policy status is `disabled`. Only a selected item that
+has reached intrinsic `PASS` may then be suppressed by the disabled production
+policy. That suppression emits the named schema-valid exit-3 `BLOCKED` result,
+with empty `adapter_outputs`, stored baselines unchanged, and every affected
+capability's `evidence_ids` empty. The transient intrinsic result is neither an
+effective adapter output nor stored evidence and cannot advance a capability.
+Staging and G3 must call this same canonical validator; neither may duplicate,
+preflight, or bypass its semantic checks.
+
 Step 2 must implement and execute these falsification cases in
 `test_dao_differential_adapter.py`: a complete enabled read overlay whose two
 valid source documents differ in producer and producer extensions but have
-equal projections passes; one required scenario missing; one compared
-snapshot value/raw byte altered with hashes recomputed; one source document
-made schema-invalid only inside an excluded member; release commit mismatch;
-dirty release tree; one required branch missing; one forbidden branch present;
-executed-source or command binding tampered; `SKIPPED` and `UNSUPPORTED`
-records retained for diagnosis but rejected for advancement; an update record
-missing its baseline or preservation report; and a preservation comparison
-changed from `equal` to `different`. Every rejection is nonzero and contains a
-stable reason code from this exact set, as applicable:
-`required_scenario_missing`, `file_sha256_mismatch`,
+equal projections passes; exact passing regressions for
+`DAO-READ-OPEN-REJECT-ENCRYPTED`/`encrypted_database`,
+`DAO-READ-OPEN-REJECT-JET4`/`unsupported_version`, and
+`DAO-READ-OPEN-REJECT-PASSWORD`/`password_protected`; each negative regression
+has the required source MDB plus matching Rust failure snapshot/receipt pair,
+null DAO snapshot, observed `error`, and `PASS`; one negative with an observed
+success or mismatched error class; one negative with a forbidden DAO success
+snapshot retained; one negative missing either required failure artifact; one
+required scenario missing; one compared snapshot value/raw byte altered with
+hashes recomputed; one source document made schema-invalid only inside an
+excluded member; release commit mismatch; dirty release tree; one required
+branch missing; one forbidden branch present; provider proof with its enclosing
+hashes recomputed but a COM registration/CLSID, provider path/version/hash,
+host image identity, or disposable Jet 3 PASS field altered; required source
+omitted from a selected closure; an extra source supplied by the bundle;
+wrong argv entrypoint for a role; a declared source unused by every selected
+closure; a CLI-only Rust producer; a campaign/hosted-run identity or hosted-run
+type mismatch across manifest, proof, report, adapter output, and result;
+`SKIPPED` and `UNSUPPORTED` records retained for diagnosis
+but rejected for advancement; an update record missing its baseline or
+preservation report; a passing update whose full DAO and Rust post-update
+snapshots differ in both producer fields but share one projection and whose
+preservation report binds both distinct full hashes plus that common
+projection hash; either full post-update snapshot changed with enclosing
+artifact/manifest hashes recomputed but the preservation binding left stale;
+and a preservation comparison changed from `equal` to `different`. Every
+rejection is nonzero and contains a stable reason code from this exact set, as
+applicable: `required_scenario_missing`, `file_sha256_mismatch`,
 `snapshot_schema_invalid`, `comparison_projection_mismatch`,
-`expected_current_head`, `dirty_worktree`, `required_branch_missing`,
-`forbidden_branch_present`, `executed_source_mismatch`, `scenario_not_pass`,
-`required_update_artifact_missing`, or `preservation_difference`. The complete
-case returns a
+`expected_outcome_mismatch`, `unexpected_scenario_artifact`,
+`required_scenario_artifact_missing`, `expected_current_head`,
+`dirty_worktree`, `required_branch_missing`, `forbidden_branch_present`,
+`provider_proof_mismatch`, `required_source_missing`, `undeclared_source`,
+`command_entrypoint_mismatch`, `unused_source`,
+`library_subject_not_exercised`, `run_identity_mismatch`, `scenario_not_pass`,
+`required_update_artifact_missing`, `preservation_snapshot_binding_mismatch`,
+or `preservation_difference`. The complete case returns a
 resolved output whose `status` is exactly `PASS`, whose `verification` is
 intrinsically `dao_differential`, and whose sorted scenario ids equal the
 committed required subset. It uses an isolated temporary repository whose
@@ -1183,13 +1274,24 @@ committed policy enables the intrinsically available adapter; production
 policy is never patched or mocked into a pass.
 
 The focused result-contract tests additionally require schema version integer
-`1`; exact rejection of an omitted, duplicated, extra, or out-of-order
+`1`; exact `campaign_id` string and positive-integer `hosted_run_id`/
+`hosted_run_attempt` equality through manifest, provider proof, report, adapter
+output, and result, including rejection of obsolete generic names and digit
+strings; exact rejection of an omitted, duplicated, extra, or out-of-order
 capability; exact rejection of duplicated or out-of-order adapter outputs; the
 `verification`, commit, manifest, and evidence-id cross-bindings; empty
 adapter/evidence-id outputs and stored baselines under the disabled production
 policy; raw-byte (not reserialized JSON) overlay hashing; canonical one-LF
 stdout; a valid subset as `BLOCKED`; and malformed or unsafe input as `FAIL`
-rather than `BLOCKED`.
+rather than `BLOCKED`. Focused policy-precedence regressions use isolated
+temporary Git repositories and prove exactly: valid intrinsic evidence plus a
+disabled adapter produces the named schema-valid `BLOCKED` result; a tampered
+payload plus that disabled adapter is `FAIL`; a dirty repository plus that
+disabled adapter is `FAIL`; an enabled adapter plus complete valid evidence is
+`PASS`; and an enabled adapter plus intrinsically invalid evidence is `FAIL`.
+The disabled cases use the production policy bytes as committed rather than
+patching or mocking them; enabled cases commit their policy change only inside
+the temporary repository.
 
 Run these focused step-2 commands in order:
 
@@ -1201,6 +1303,11 @@ python3 -B -m unittest discover -s tools/tests -p 'test_support_capability_catal
 test -f docs/validation/schema/dao-differential-v1-manifest.schema.json
 test -f docs/validation/schema/dao-differential-v1-report.schema.json
 test -f docs/validation/schema/effective-support-result.schema.json
+test -f docs/validation/schema/dao-provider-v1-contract.schema.json
+test -f docs/validation/dao-provider-v1-contract.json
+test -f docs/validation/schema/dao-provider-proof-v1.schema.json
+test -f docs/validation/schema/dao-differential-v1-source-closure.schema.json
+test -f docs/validation/dao-differential-v1-source-closure.json
 test -f oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json
 test -f oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json
 python3 tools/validate_contract.py
@@ -1210,8 +1317,8 @@ sha256sum docs/validation/evidence-policy.json docs/validation/schema/release-ev
 git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- docs/validation/evidence-policy.json docs/validation/support-matrix.json docs/validation/schema/evidence-policy.schema.json docs/validation/schema/release-evidence-overlay.schema.json
 ```
 
-Expected results: every unit command passes and loads/lints all five new
-schemas; all five path checks pass; both contract commands pass; the repository
+Expected results: every unit command passes and loads/lints all eight new
+schemas; all ten path checks pass; both contract commands pass; the repository
 contract passes; the `sha256sum` output is exactly the two hashes above
 followed by
 `4fe1b33aae94ab1f7cb05ca3b66112edba89d17343788678c239693d3a340008`
@@ -1230,8 +1337,9 @@ test "$acceptance_status" -eq 3
 The expected overall result is exit 3 and `BLOCKED`. G3's retained stderr must
 contain exactly one blocker line beginning
 `BLOCKED: G3 requires JET3_RELEASE_EVIDENCE to select one absolute detached overlay`.
-The focused G3 integration test with a selected complete temporary overlay
-must instead reach the available adapter and contain exactly one blocker line
+The focused G3 integration test with a selected complete, intrinsically valid
+temporary overlay must instead reach and pass the available intrinsic adapter,
+then contain exactly one blocker line
 beginning
 `BLOCKED: adapter 'dao_differential_v1' is disabled by docs/validation/evidence-policy.json`.
 Neither path may report intrinsic unavailability, the old unconditional

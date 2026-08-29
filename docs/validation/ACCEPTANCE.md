@@ -127,14 +127,17 @@ python3 tools/validate_release_evidence.py effective-support \
 ```
 
 The command validates the exact clean `HEAD`, overlay and bundle-manifest
-closure, runs each requested enabled intrinsic adapter, and joins its outputs
-to the committed support-matrix baseline as specified by `EVIDENCE.md`. On
+closure, runs each requested intrinsically available adapter to completion,
+then applies checked policy and joins only enabled outputs to the committed
+support-matrix baseline as specified by `EVIDENCE.md`. On
 every safe `PASS` or `BLOCKED` resolution it emits one canonical JSON result
 validated against the exact-commit schema at
 `docs/validation/schema/effective-support-result.schema.json`. That closed
 result and its nested shapes, full-catalog requirement, joins, ordering, hash
 domains, and serialization are fixed by `EVIDENCE.md`. In particular, every
-adapter output includes its evidence id and intrinsic `verification`, and
+adapter output includes its evidence id, intrinsic `verification`,
+`campaign_id`, positive-integer `hosted_run_id`, and positive-integer
+`hosted_run_attempt`, and
 `capabilities` contains the full committed catalog rather than only the
 selected adapter subset. The G3 stdout artifact and the SHA-256 of its exact
 canonical bytes are retained by the ordinary acceptance record; no overlay
@@ -160,11 +163,78 @@ themselves: G3 independently validates each complete snapshot, removes exactly
 the two schema-declared `/producer` and `/producer_extensions` members, and
 compares the canonical projection bytes as fixed by `EVIDENCE.md`.
 
+Disabled policy does not short-circuit validation. G3 first checks the explicit
+selection and path; the canonical release-evidence path then checks file types,
+exact inventory and payload closure, raw hashes and sizes, exact commit,
+repeated cleanliness, bound contracts, all required schemas, intrinsic adapter
+semantics, and expected-output equality, followed by its closing overlay,
+payload, contract, and repository stability checks. Malformed, unsafe,
+tampered, stale, dirty, or intrinsically failing evidence exits 1 as `FAIL`
+regardless of disabled policy. Only an intrinsically passing selected
+`dao_differential_v1` item can reach policy suppression and the named exit-3,
+schema-valid `BLOCKED` result. That result has no adapter output or detached
+evidence id, retains every stored baseline, and advances no capability. The G3
+wrapper and staging path invoke this same validator and may not preflight,
+duplicate, or bypass its semantic work.
+
+Provider PASS facts come only from the manifest-bound canonical
+`provider_proof` JSON, never from an operation log or workflow prose. G3
+validates that closed document against the exact-commit provider-proof schema,
+binds it to the manifest campaign, hosted workflow run/attempt, commit,
+timestamp interval, and provider-proof command, and requires its hosted image,
+x86 process, COM ProgID/CLSID/registration, provider path/version/hash, and
+disposable `dbVersion30` activation/create/close/file-observation fields to
+match the committed authorized lane exactly. This retained artifact supplements
+but does not replace fresh provider proof, exact-commit human authorization,
+the pre-mutation boundary, or provider-output retention and redistribution
+rules.
+
+The bundle producer does not choose executed source. G3 loads the hash-bound
+committed source-closure registry, binds each command's role and indexed argv
+entrypoint to one registered entrypoint, and requires exact set equality among
+the selected per-role closures, command source paths, and manifest
+`executed_sources`. It rejects a required-source omission, extra source,
+unregistered or wrong argv entrypoint, declared source unused by any selected
+closure, and role mismatch. Every passing scenario names its DAO and Rust
+producer commands. At least one scenario-referenced Rust producer must be the
+registry's `production_rust_library` subject, include the `jet3` library
+package and `crates/jet3/src/lib.rs`, and be outside `crates/jet3-cli/**`;
+CLI-only production cannot satisfy a library capability. These checks prove
+commit-bound entrypoint/dependency closure, not a dynamic runtime call graph.
+
+Run identity is unambiguous at every boundary. Manifest `run.campaign_id` and
+report/result/adapter-output `campaign_id` are the same nonempty string.
+Manifest `run.hosted_run_id` and `run.hosted_run_attempt`, provider-proof,
+report, result, and adapter-output fields with those names are the same JSON
+positive integers. The obsolete generic `id`, `run_id`, and `attempt` names
+are not admitted in these closed contracts, and a digit string cannot satisfy
+a hosted run field.
+
+The three committed negative `rust_read_dao` scenarios are passing scenarios
+only when Rust performs the expected rejection. Each requires the source MDB,
+the PR #92 Rust `opening_failure` snapshot, and its `opening_failure` coverage
+receipt, all bound to the same source-MDB hash, release revision, scenario id,
+and exact committed error class. Its DAO snapshot and every other snapshot are
+null, and no semantic projection comparison is attempted. The report must say
+`expected_outcome: expected_error`, `observed_outcome: error`, the same error
+class, `status: PASS`, and null reason. A successful open, mismatched class,
+missing failure pair, retained DAO snapshot, `SKIPPED`, or `UNSUPPORTED` result
+is a failed evidence check, never an accepted negative or a neutral result.
+
+For update preservation, producer-exclusion semantics apply before comparing
+preserved paths, but do not weaken artifact identity. The preservation report
+binds the exact raw full-document hashes of the DAO baseline, DAO post-update,
+and Rust post-update snapshots plus the hash of the common canonical
+post-update projection. Thus DAO and Rust producer fields may differ while the
+validator still recomputes one unambiguous preservation result from the exact
+three retained documents.
+
 P8T step 2 deliberately leaves `dao_differential_v1` disabled. Its expected
 `./scripts/acceptance.sh full` result is therefore nonzero `BLOCKED`: without
 the two selection variables, G3 names the missing explicit overlay; with a
-syntactically complete selected test overlay, G3 reaches the available
-intrinsic adapter and names the disabled-policy reason. It must no longer stop
+structurally and semantically valid selected test overlay, G3 reaches and
+passes the available intrinsic adapter before naming the disabled-policy
+reason. A tampered or dirty selected overlay remains `FAIL`. G3 must no longer stop
 at an intrinsically unavailable adapter or the support-matrix validator's
 unconditional `dao_bundle` rejection. No P8T step changes a capability's
 stored or effective verification.

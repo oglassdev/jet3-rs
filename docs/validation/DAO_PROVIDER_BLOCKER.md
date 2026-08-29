@@ -188,6 +188,21 @@ contracts, implementation, and acceptance wiring must exist in the clean
 pushed commit before acquisition. Any later provenance entry is only a
 historical record of that earlier commit and is not evidence for it.
 
+For P8T release evidence, item 1 uses the hash-bound committed per-role
+entrypoint/source-closure registry fixed by `EVIDENCE.md`; a producer-supplied
+source list, wrong argv entrypoint, unused source, or CLI-only Rust producer is
+insufficient. Item 2 uses the inventory-bound structured provider-proof
+artifact and committed provider contract fixed there. Acceptance revalidates
+the hosted image, x86 COM registration/CLSID, provider path/version/hash, and
+disposable `dbVersion30` probe from that structured artifact; operation-log or
+workflow prose cannot supply PASS facts. The proof remains subject to the
+seven-day prerequisite, human authorization, pre-mutation boundary, 14-day
+provider-diagnostic and 90-day release-evidence retention periods, and the ban
+on redistributing provider or MDB bytes. Its campaign string is
+`campaign_id`; its hosted workflow number and attempt are positive-integer
+`hosted_run_id` and `hosted_run_attempt` throughout the manifest, report, and
+acceptance output.
+
 On 2026-08-20, A1 dispatch run
 [`32437968174`](https://github.com/oglassdev/jet3-rs/actions/runs/32437968174)
 failed closed when `windows-2022` image identity drifted, demonstrating that

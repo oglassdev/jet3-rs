@@ -52,12 +52,16 @@ wording without an evidence bundle meeting the relevant definition above.
 
 ## Required evidence bundle
 
-Each DAO run writes an immutable directory identified by git commit and run ID.
+Each DAO run writes an immutable directory identified by git commit and
+`campaign_id`; its positive-integer hosted workflow identity is recorded
+separately as `hosted_run_id` and `hosted_run_attempt`.
 The bundle contains:
 
 - scenario input JSON and its SHA-256;
-- source MDB SHA-256, output MDB SHA-256, and canonical snapshot SHA-256;
-- canonical DAO snapshot and canonical Rust snapshot;
+- source MDB SHA-256, output MDB SHA-256, and canonical artifact SHA-256s as
+  required by the committed operation and expected outcome;
+- canonical DAO and Rust success snapshots, or the exact structured Rust
+  opening-failure artifact required for an expected negative read;
 - an operation log and machine-readable pass/fail report;
 - git commit and dirty-worktree flag;
 - Windows edition/build and architecture;
@@ -188,30 +192,85 @@ commit: that manifest schema,
 `oracle/windows-dao/protocol/v1_2/branch-registry.json`,
 `oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json`,
 `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json`, and
-`oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json`. The
-manifest's `contracts` object contains exactly those eight path/SHA-256/size
-bindings under the keys `manifest_schema`, `report_schema`,
+`oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json`, plus
+`docs/validation/schema/dao-provider-v1-contract.schema.json`,
+`docs/validation/dao-provider-v1-contract.json`,
+`docs/validation/schema/dao-provider-proof-v1.schema.json`,
+`docs/validation/schema/dao-differential-v1-source-closure.schema.json`, and
+`docs/validation/dao-differential-v1-source-closure.json`. The manifest's
+`contracts` object contains exactly those thirteen path/SHA-256/size bindings
+under the keys `manifest_schema`, `report_schema`,
 `scenario_schema`, `scenario_inventory`, `branch_registry`, `snapshot_schema`,
-`coverage_receipt_schema`, and `preservation_diff_schema`; a copied contract
-blob cannot substitute for the blob at that path in the release commit.
+`coverage_receipt_schema`, `preservation_diff_schema`,
+`provider_contract_schema`, `provider_contract`, `provider_proof_schema`,
+`source_closure_schema`, and `source_closure`; a copied contract blob cannot
+substitute for the blob at that path in the release commit.
 
 The manifest is one closed canonical JSON object with exactly
-`schema_version`, `run`, `git_commit`, `dirty`, `provider`, `contracts`,
+`schema_version`, `run`, `git_commit`, `dirty`, `provider_proof`, `contracts`,
 `executed_sources`, `commands`, `report`, `files`, and `scenarios`.
 `schema_version` is `1.0.0`; `git_commit` is one full lowercase 40-hex commit;
-and `dirty` is `false`. `run` has exactly a nonempty `id`, UTC-second
-`started_at` and `completed_at` values in `YYYY-MM-DDTHH:MM:SSZ` form, and the
-hosted `run_id` and `attempt`, each a positive integer. The adapter proves that
+and `dirty` is `false`. `run` has exactly nonempty string `campaign_id`,
+positive integer `hosted_run_id` and `hosted_run_attempt`, and UTC-second
+`started_at` and `completed_at` values in `YYYY-MM-DDTHH:MM:SSZ` form. A JSON
+string containing digits is not a hosted run number. The adapter proves that
 completion follows start and that every subordinate timestamp lies within
 that closed interval.
 
-`provider` has exactly `prog_id`, `architecture`, `dll_file_version`,
-`dll_sha256`, `windows`, `powershell`, `locale`, `ansi_code_page`,
-`oem_code_page`, and `time_zone`. `prog_id`, `architecture`, provider version,
-and provider hash must equal the pinned provider contract. `windows` has
-exactly nonempty `edition`, `version`, and `build` strings plus `architecture`;
-`powershell` has exactly nonempty `edition` and `version` strings; the two code
-pages are positive integers; and all other scalar strings are nonempty.
+`provider_proof` is one non-null artifact reference to canonical JSON validated
+against the committed provider-proof schema. That closed document has exactly
+`schema_version`, `campaign_id`, `hosted_run_id`, `hosted_run_attempt`,
+`git_commit`, `command_id`, `captured_at`, `status`, `host`, `runtime`, `regional`,
+`registration`, and `disposable_jet3_probe`, with
+`schema_version: 1.0.0`. Its first four identity values
+equal the manifest run and commit, `captured_at` lies within the run interval,
+`command_id` resolves to the required provider-proof command, and `status` is
+exactly `PASS`.
+
+`host` has exactly nonempty `requested_image`, `image_os`, `image_version`,
+`windows_edition`, `windows_version`, `windows_build`, and
+`windows_architecture`; these values bind the hosted image identity selected by
+the authorized workflow. `runtime` has exactly `process_architecture: x86` and
+nonempty `powershell_edition` and `powershell_version`. `regional` has exactly
+nonempty `locale` and `time_zone` plus positive-integer `ansi_code_page` and
+`oem_code_page`.
+
+`registration` has exactly nonempty `prog_id`, brace-delimited GUID `clsid`,
+`registry_view: x86`, `registration_scope` in `user` or `machine`,
+`registered: true`, nonempty absolute Windows `provider_path`, nonempty
+`provider_version` and `provider_file_version`, and lowercase
+`provider_sha256`. `disposable_jet3_probe` has exactly
+`database_version: dbVersion30`, `activation: succeeded`,
+`create_database: PASS`, `close_database: PASS`, and `file_observed: true`.
+The adapter requires the registration and provider identity to equal the
+pinned committed provider contract, the host identity to equal exactly one
+authorized hosted-image proof in that contract, and every proof success scalar
+to have the exact value above. The closed provider contract has exactly
+`schema_version`, `provider`, `hosted_lane`, `proof_freshness_seconds`, and
+`retention`, with `schema_version: 1.0.0`. `provider` has exactly `prog_id`,
+`clsid`, `registry_view`, `registration_scope`, `provider_path`,
+`provider_version`, `provider_file_version`, `provider_sha256`, and
+`database_version`, fixing the corresponding proof registration and binary
+fields. `hosted_lane` has exactly `requested_image`, `image_os`, and
+`image_proofs`; `image_proofs` is nonempty, unique, and strictly sorted by
+positive-integer `provider_proof_hosted_run_id`. Each closed record has exactly
+`image_version`, `provider_proof_hosted_run_id`, positive-integer
+`provider_proof_hosted_run_attempt`, and `completed_at`.
+`proof_freshness_seconds` is exactly `604800`; `retention` has exactly
+`provider_diagnostics_days: 14`, `release_evidence_days: 90`, and
+`redistribution: metadata_only_no_provider_or_mdb_bytes`. The adapter requires the selected
+capability proof still to be within that seven-day interval at manifest start.
+It also requires the provider-proof command and source closure described below.
+The diagnostic operation log is never consulted for registration, image,
+provider, activation, creation, close, or file-observation PASS facts.
+
+This structured proof is retained as an immutable bundle payload under the
+bundle's provider-output retention and redistribution rules. It does not
+replace the prerequisite fresh hosted provider-capability proof or the human
+authorization naming the exact clean pushed commit. The live proof must finish
+before the first campaign DAO mutation; failure or uncertainty after that
+boundary remains a scientific event. The adapter validates the retained proof
+but never infers authorization from its existence.
 
 `executed_sources` is a nonempty array strictly sorted by UTF-8 `path`, with
 no duplicate path. Each entry has exactly `path`, `sha256`, `size`, and
@@ -220,14 +279,54 @@ nonnegative integer, and `roles` is a nonempty, unique, sorted subset of
 `dao_producer`, `rust_producer`, `bundle_builder`, and
 `independent_validator`. The adapter reads every path from `git_commit`,
 recomputes its size and SHA-256, and rejects an absent, extra, dirty, or
-worktree-sourced binding. `commands` is a nonempty array in execution order.
-Each command has exactly a unique `id`, `source_revision`, `working_directory`,
-`argv`, `source_paths`, `started_at`, `completed_at`, and `exit_code`.
-`source_revision` equals `git_commit`; `argv` is a nonempty array of strings,
-not a shell-reparsed string; `source_paths` is a nonempty unique sorted array
-whose members all resolve to `executed_sources`; and advancement requires
-every exit code to be zero. The adapter checks timestamps and the command/source
-closure rather than trusting a producer's success field.
+worktree-sourced binding.
+
+The committed `source_closure` contract, not the bundle producer, owns the
+complete source set. It is a closed canonical object with exactly
+`schema_version: 1.0.0` and a nonempty `entrypoints` array containing exactly
+one entry for every permitted `entrypoint_id`. Each unique,
+id-sorted entry has exactly `entrypoint_id`, `role`, `entrypoint_path`,
+`argv_entrypoint_token`, `entrypoint_argv_index`, `subject`, and
+`required_source_paths`. `role` is one of the four roles above;
+`entrypoint_path` is a normalized repository-relative path;
+`argv_entrypoint_token` is the exact nonempty string required at the zero-based
+nonnegative `entrypoint_argv_index`; and `required_source_paths` is nonempty,
+unique, strictly path-sorted, and contains `entrypoint_path`. `subject` is exactly
+`dao_oracle`, `production_rust_library`, `bundle_construction`, or
+`independent_bundle_validation`, mapped respectively and exclusively from
+`dao_producer`, `rust_producer`, `bundle_builder`, and
+`independent_validator`. The checked contract may
+be changed only in an evidence-ready commit before authorization and
+acquisition; detached evidence cannot add an entrypoint or source.
+
+`commands` is a nonempty array in execution order. Each command has exactly a
+unique `id`, `role`, `entrypoint_id`, `source_revision`,
+`working_directory`, `argv`, `source_paths`, `started_at`, `completed_at`, and
+`exit_code`. `source_revision` equals `git_commit`; `argv` is a nonempty array
+of strings, not a shell-reparsed string; and `role`, the indexed argv member,
+and `source_paths` must equal the selected committed entrypoint record exactly.
+Every declared `executed_sources` path/role pair must occur in at least one
+selected entrypoint's required closure, and the union of selected committed
+closures must equal `executed_sources` exactly: omission, an extra bundle
+source, an unused declared source, or a role mismatch fails. This is a
+machine-verifiable committed source-identity and dependency-closure claim, not
+a claim to observe every dynamic branch or runtime call.
+
+Every passing scenario must name the applicable `dao_producer` and
+`rust_producer` command ids, and the provider proof must name a selected
+`dao_producer` entrypoint whose committed closure produces that proof before
+any other DAO mutation. At least one scenario-referenced `rust_producer`
+entrypoint must have `subject: production_rust_library`, be a tracked Rust
+integration-test entrypoint immediately below `crates/jet3/tests/`, invoke the
+matching target with the exact argv prefix
+`cargo test --locked -p jet3 --test <target> --`, and include `Cargo.toml`,
+`Cargo.lock`, `crates/jet3/Cargo.toml`, `crates/jet3/src/lib.rs`, that
+entrypoint, and its complete committed dependency closure. An entrypoint below
+`crates/jet3-cli/**`, an argv that executes `jet3-cli`, or a closure containing
+only CLI sources cannot satisfy this requirement. Advancement requires every
+exit code to be zero. The adapter checks timestamps, exact argv entrypoint,
+scenario references, and committed command/source closure rather than trusting
+a producer's success field.
 
 `files` is the complete inventory of every regular non-manifest file below
 `dao-bundle/`, strictly sorted by normalized relative POSIX `path` and without
@@ -239,9 +338,13 @@ collisions are rejected. Every artifact reference anywhere else in the
 manifest has exactly the same `path`, `sha256`, and `size` as its one `files`
 entry. `report` is one non-null artifact reference to canonical JSON validated
 against the committed report schema. The report is a closed object with
-exactly `schema_version`, `run_id`, `git_commit`, `dirty`, `started_at`,
-`completed_at`, and `scenarios`. Its first six values equal the corresponding
-manifest values. Its `scenarios` array is strictly id-sorted and unique; each
+exactly `schema_version`, `campaign_id`, `hosted_run_id`,
+`hosted_run_attempt`, `git_commit`, `dirty`, `started_at`, `completed_at`,
+`provider_proof`, and `scenarios`. `campaign_id`, `hosted_run_id`,
+`hosted_run_attempt`, `git_commit`, `dirty`, `started_at`, and `completed_at`
+equal their manifest counterparts exactly, and its `provider_proof` reference
+equals the manifest reference exactly. Its
+`scenarios` array is strictly id-sorted and unique; each
 closed result has exactly `id`, `operation`, `expected_outcome`,
 `observed_outcome`, `error_class`, `status`, and `reason`.
 `expected_outcome` is `success` or `expected_error` and equals the committed
@@ -253,7 +356,11 @@ status literals; and `reason` has the same null/non-null rule as
 operation, status, and reason. The adapter independently derives the observed
 outcome and error class from the validated producer artifacts and operation
 exit data, then requires canonical report-byte equality rather than trusting
-the report.
+the report. A committed `success` can pass only as observed `success` with a
+null error class. A committed `expected_error` can pass only as observed
+`error` with the exact committed non-null error class; `skipped`,
+`unsupported`, a successful open, or a different error class is
+`expected_outcome_mismatch`, never a passing expected rejection.
 
 `scenarios` is nonempty, strictly sorted by `id`, and unique by `id`. Every
 entry has exactly `id`, `content_sha256`, `capability_ids`, `operation`,
@@ -274,32 +381,55 @@ parsed artifacts supply those facts.
 
 The schema represents diagnostic outcomes with `status` in `PASS`, `FAIL`,
 `SKIPPED`, or `UNSUPPORTED`. `status_reason` is null only for `PASS` and is a
-nonempty string otherwise. For `PASS`, artifact nullability is fixed by
-operation: `rust_read_dao` requires `source_mdb`, both producer snapshots, and
-the coverage receipt, while `output_mdb`, `baseline_snapshot`, and
-`preservation_diff` are null; `dao_open_rust` requires `output_mdb`, both
-snapshots, and the coverage receipt, while `source_mdb`, `baseline_snapshot`,
-and `preservation_diff` are null; `dao_verify_rust_update` requires non-null
-source and output MDBs, baseline and both post-update snapshots, coverage
-receipt, and preservation diff. A non-`PASS` entry may leave an artifact that
-was not produced null so the failed run remains diagnosable, but it can never
-contribute an adapter output or effective verification. The report and
-operation log remain mandatory even then. MDB artifact references bind their
-complete bytes; the adapter rejects a same-file source/output alias for an
-update.
+nonempty string otherwise. For `PASS`, artifact nullability is fixed first by
+the committed `expected_outcome` and then by operation:
 
-Every complete DAO or Rust snapshot document is first independently parsed,
+- a `rust_read_dao` success requires `source_mdb`, a DAO success snapshot, a
+  Rust success snapshot, and the success coverage receipt;
+- a `rust_read_dao` expected error requires `source_mdb`, a Rust
+  `opening_failure` snapshot, and an `opening_failure` coverage receipt, while
+  `dao_snapshot` is null; and
+- `dao_open_rust` requires `output_mdb`, both success snapshots, and the
+  success coverage receipt, while `dao_verify_rust_update` requires non-null
+  source and output MDBs, a DAO baseline success snapshot, both post-update
+  success snapshots, a success coverage receipt, and preservation diff.
+
+For all passing records, fields not named by the applicable rule are null;
+in particular `output_mdb`, `baseline_snapshot`, and `preservation_diff` are
+null for either read outcome, and `source_mdb`, `baseline_snapshot`, and
+`preservation_diff` are null for a write. The Rust opening-failure snapshot is
+the sole structured negative snapshot retained by the manifest. It is a
+schema-validated diagnostic outcome, not a semantic database snapshot; the
+DAO producer's role in that scenario is to create the source MDB, so no DAO
+snapshot is retained or compared. A non-null DAO snapshot or any other
+snapshot forbidden by these rules is `unexpected_scenario_artifact`; a
+missing required artifact is `required_scenario_artifact_missing`.
+
+A non-`PASS` entry may leave an artifact that was actually produced non-null
+so the failed run remains diagnosable, but it can never contribute an adapter
+output or effective verification. Its retained artifacts are still fully
+inventory/hash/size/schema checked and may not fill a field forbidden by the
+committed expected-outcome/operation rule. The report and operation log remain
+mandatory even then. MDB artifact references bind their complete bytes; the
+adapter rejects a same-file source/output alias for an update.
+
+Every retained DAO or Rust snapshot document is first independently parsed,
 validated against the committed snapshot schema, and checked for its producer,
-scenario, source revision, database identity, ordering, typed-value, raw-byte,
-and model-integrity rules. Only after both complete documents pass does the
-adapter require their declared `comparison_projection` to be exactly
+scenario, source revision, database identity, outcome, error class, ordering,
+typed-value, raw-byte, and model-integrity rules applicable to that outcome.
+For a successful leg, only after both complete documents pass does the adapter
+require their declared `comparison_projection` to be exactly
 `["/producer", "/producer_extensions"]`, remove exactly those two top-level
 members from each in-memory document, serialize both projections with the
 protocol's canonical UTF-8 JSON rules, and require projection-byte equality.
-The complete source-document hashes remain bound by the manifest. No other
-field is ignored: in particular `raw_hex`, converted `value`,
-`raw_preservation`, ordering metadata, and every non-extension property remain
-in the byte comparison.
+For an expected-error read, the required Rust opening-failure document instead
+has `outcome: opening_failure`, the exact committed error class, and a
+`database_sha256` equal to the raw `source_mdb` artifact; its DAO snapshot is
+null and no two-producer projection comparison is performed. The complete
+source-document hashes remain bound by the manifest. No other field is ignored:
+in particular `raw_hex`, converted `value`, `raw_preservation`, ordering
+metadata, and every non-extension property remain in every applicable success
+comparison.
 
 The coverage receipt schema is the exact stabilized P8 shape: a closed object
 with `protocol_version`, `document_type`, `scenario_id`, `source_revision`,
@@ -313,12 +443,20 @@ to be strictly UTF-8 sorted, rejects every id outside the committed registry,
 requires all scenario `required_branches` and none of its
 `boundary.forbidden_branches`, and binds the database hash to `source_mdb` for
 a read or to `output_mdb` for a write/update. Its source revision equals the
-release commit. Missing receipt data is never inferred from the snapshot.
+release commit. For each of the three committed negative reads, the adapter
+requires the receipt and Rust opening-failure snapshot to agree exactly on
+scenario id, release source revision, source-MDB SHA-256,
+`outcome: opening_failure`, and the committed error class. It independently
+derives report `observed_outcome: error` from that pair and requires exact
+agreement with the committed `expected_outcome: expected_error`; the pair
+cannot be represented as `SKIPPED` or `UNSUPPORTED`. Missing receipt data is
+never inferred from the snapshot.
 
 The preservation-diff schema is a closed canonical JSON object with exactly
 `protocol_version`, `document_type`, `scenario_id`, `source_revision`,
 `before_database_sha256`, `after_database_sha256`, `before_snapshot_sha256`,
-`after_snapshot_sha256`, `preserve_paths`, `comparisons`, and `status`.
+`dao_after_snapshot_sha256`, `rust_after_snapshot_sha256`,
+`after_projection_sha256`, `preserve_paths`, `comparisons`, and `status`.
 Its `protocol_version` is `1.2.0`, `document_type` is
 `semantic_preservation_diff`, `scenario_id` names the update scenario, and
 `source_revision` equals the release commit.
@@ -329,31 +467,58 @@ has exactly `path`, nullable `before_sha256`, nullable `after_sha256`, and
 `missing_after`; a hash is null exactly for its corresponding missing outcome.
 The two non-null hashes are SHA-256s of the canonical JSON value selected by
 that pointer. `status` is `PASS` exactly when every comparison is `equal` and
-otherwise is `FAIL`. For an update, the adapter recomputes the whole report
-from the complete DAO baseline and post-update documents, binds their full
-artifact hashes and the source/output MDB hashes, and requires canonical
-report-byte equality and `PASS`. Read and write legs supply no preservation
-artifact. A read-only P8 subset may therefore pass its explicitly requested
-capabilities, but full G3 remains `BLOCKED` on every absent required
+otherwise is `FAIL`.
+
+For an update, the adapter uniquely recomputes the report as follows. It
+first validates the complete DAO baseline, complete DAO post-update, and
+complete Rust post-update success documents. `before_snapshot_sha256`,
+`dao_after_snapshot_sha256`, and `rust_after_snapshot_sha256` are respectively
+the SHA-256s of the exact raw bytes of those three manifest-bound artifact
+files, before JSON reserialization. The adapter then applies the snapshot
+contract's exact comparison projection to each in memory: require
+`comparison_projection` to equal
+`["/producer", "/producer_extensions"]`, remove exactly those two top-level
+members, and serialize using the protocol's canonical UTF-8 JSON rules. The
+DAO and Rust post-update projection bytes must be equal, and
+`after_projection_sha256` is the SHA-256 of those one common canonical byte
+sequence. Producer and producer-extension differences may therefore make the
+two full post-update hashes differ without changing preservation semantics.
+
+Each `preserve_paths` pointer is resolved against the projected DAO baseline
+and the common projected post-update document, never against either complete
+producer document. A pointer may not select `/producer`,
+`/producer_extensions`, or any descendant of either excluded member. The
+corresponding before/after hashes and missing/equal/different outcome are then
+recomputed in the declared order. Finally the adapter binds the raw source and
+output MDB hashes, requires canonical report-byte equality and `PASS`, and
+rejects any mismatch between a report's three full snapshot hashes, its common
+projection hash, and the exact artifacts as
+`preservation_snapshot_binding_mismatch`. Read and write legs supply no
+preservation artifact. A read-only P8 subset may therefore pass its explicitly
+requested capabilities, but full G3 remains `BLOCKED` on every absent required
 write/update scenario; the adapter may not treat a missing future leg,
 baseline, preservation report, or preserve path as an empty or skipped check.
 
 After those shape checks, the adapter recomputes, rather than trusts, exact
 manifest and payload closure; provider and clean-commit bindings; scenario
 hashes, complete per-capability sets, operations and result statuses; every
-artifact hash and size; snapshot projections; source/output MDB identities;
-coverage; and update preservation.
+artifact hash and size; applicable success snapshot projections or expected
+opening-failure pairs; source/output MDB identities; coverage; and update
+preservation.
 
 One adapter evidence item covers one capability and names its complete
 scenario subset. Its computed output is a closed object with exactly
 `evidence_id`, `adapter`, `capability_id`, `verification`, `commit`,
-`manifest_sha256`, `scenario_ids`, and `status`. `evidence_id` is the overlay
+`campaign_id`, `hosted_run_id`, `hosted_run_attempt`, `manifest_sha256`,
+`scenario_ids`, and `status`. `evidence_id` is the overlay
 item's string matching
 `^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$`; `capability_id` is a matrix-id
 string with the same grammar; `adapter` is a string matching
 `^[a-z][a-z0-9_]*_v[1-9][0-9]*$`; `verification` is exactly the adapter's
 intrinsic string from `internal_only`, `independent_check`, `dao_opened`, or
 `dao_differential`; `commit` is the full lowercase 40-hex release commit;
+`campaign_id`, `hosted_run_id`, and `hosted_run_attempt` equal the manifest
+run identity with the string/positive-integer types fixed above;
 `manifest_sha256` is the lowercase SHA-256 of the exact raw
 `dao-bundle/bundle-manifest.json` bytes; `scenario_ids` is the nonempty,
 unique, strictly UTF-8-sorted complete subset derived from the committed
@@ -372,11 +537,15 @@ The `effective-support` result contract is frozen at
 `docs/validation/schema/effective-support-result.schema.json`; step 2 must add
 that schema and validate every emitted result against the copy in the exact
 release commit. The result is a closed object with exactly `schema_version`,
-`git_commit`, `dirty`, `overlay_sha256`, `manifest_sha256`,
-`adapter_outputs`, `capabilities`, and `status`. `schema_version` is the JSON
+`campaign_id`, `hosted_run_id`, `hosted_run_attempt`, `git_commit`, `dirty`,
+`overlay_sha256`, `manifest_sha256`, `adapter_outputs`, `capabilities`, and
+`status`. `schema_version` is the JSON
 integer `1` (a boolean is not an integer); `git_commit` is one full lowercase
 40-hex commit and equals the validated overlay, manifest, and current clean
-`HEAD`; `dirty` is exactly `false`; both hashes are lowercase 64-hex strings;
+`HEAD`; `campaign_id` is the exact nonempty manifest/report campaign string,
+and `hosted_run_id` and `hosted_run_attempt` are the exact positive integers
+from the manifest, report, and provider proof. `dirty` is exactly `false`;
+both hashes are lowercase 64-hex strings;
 `adapter_outputs` and `capabilities` are arrays; and `status` is the string
 `PASS` or `BLOCKED`. `manifest_sha256` has the exact raw-file
 meaning above. `overlay_sha256` is SHA-256 over the exact bytes read from the
@@ -385,13 +554,15 @@ whitespace and final-byte state; it is not a hash of a canonical
 reserialization, an inventory, or the overlay directory.
 
 `adapter_outputs` contains every and only computed `PASS` output from the
-selected overlay. Its entries have the exact eight-field shape above, are
+selected overlay that the checked policy enables after intrinsic validation.
+Its entries have the exact eleven-field shape above, are
 strictly UTF-8 sorted by `evidence_id`, and are unique by both `evidence_id`
-and `capability_id`; every entry's `commit` and `manifest_sha256` equal the
-top-level values. Thus one selected overlay cannot supply two adapter outputs
-for one capability. A diagnostic `FAIL`, `SKIPPED`, or `UNSUPPORTED` scenario
+and `capability_id`; every entry's `commit`, run identity, and
+`manifest_sha256` equal the top-level values. Thus one selected overlay cannot
+supply two adapter outputs for one capability. A diagnostic `FAIL`, `SKIPPED`, or `UNSUPPORTED` scenario
 is retained only in the bound manifest/report and never appears as an adapter
-output.
+output. A disabled adapter's transient intrinsic result also never appears in
+`adapter_outputs`, stored evidence, or any capability's `evidence_ids`.
 
 `capabilities` is not an adapter subset. It contains every and only capability
 in the exact committed `docs/validation/support-matrix.json` catalog, once
@@ -419,6 +590,17 @@ array containing that output's `evidence_id`; the array is therefore always
 unique and strictly UTF-8 sorted. The union of all nonempty `evidence_ids`
 equals the `adapter_outputs` evidence-id set exactly.
 
+Policy status is not an evidence-validation preflight. After G3 validates the
+explicit selection and path, the canonical release-evidence validator performs
+in order all type and exact tree/inventory closure checks; raw file hashes and
+sizes; exact-commit, contract, and repeated cleanliness checks; required JSON
+schemas; and the selected adapter's complete intrinsic semantic validation and
+expected-output comparison. It then repeats the overlay, payload, contract,
+and repository stability closure. Only after the selected adapter has produced
+a valid intrinsic `PASS` may the checked `disabled` status suppress that
+result. Staging and G3 use this one canonical validator; neither has a policy
+preflight or duplicate semantic-validation route.
+
 The result status is `PASS` only when the complete G3 inventory and every
 required operation are present, every selected adapter output is `PASS`, and
 every applicable implemented capability meets its required effective level.
@@ -429,13 +611,15 @@ adapter result is an explicitly incomplete subset such as P8's read-only
 lane. For a disabled adapter, `adapter_outputs` is empty, every capability
 retains its stored baseline, every `evidence_ids` array is empty, and the
 result is `BLOCKED`; production policy therefore cannot advance effective
-verification in step 2. A missing selection is rejected by the G3 wrapper
+verification in step 2. Its intrinsic result is transient and cannot become an
+adapter output, stored state, an evidence id, or a capability advancement. A
+missing selection is rejected by the G3 wrapper
 before a result object can be formed. Malformed JSON, unsafe paths or file
 types, duplicate keys, non-finite numbers, resource-limit violations, dirty
 state, closure/hash/commit/contract mismatch, or any failed executable
 manifest, report, snapshot, projection, coverage, preservation, or adapter
 check is `FAIL` with exit 1 and must not be represented as `BLOCKED` or as a
-schema-conforming effective-support result.
+schema-conforming effective-support result, regardless of disabled policy.
 
 Canonical result bytes are UTF-8 without a BOM, with object keys sorted by
 Unicode code point, arrays left in the semantic orders fixed above, no
