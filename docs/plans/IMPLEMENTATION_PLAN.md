@@ -979,6 +979,171 @@ python3 tools/validate_repository_contract.py
   implementation (step 2). Amend this plan (Section 5.5) with the resulting
   exact commands before P8 resumes.
 
+#### P8T step-1 exact-commit decision and step-2 scope
+
+This subsection is the additive step-1 amendment submitted for the human
+go/no-go. Its committed differential decision is
+`docs/plans/design-inputs/p8t-exact-commit-differential-decision.md`, SHA-256
+`2fee5d73fae113c6f0833a38ce2c5af3a81447a7a826f96fa8522ccc768a7198`.
+It selects Option 3 for advancement and Option 1 only as a companion stress
+lane. The source comparison remains
+`docs/plans/design-inputs/sol-diff-proposal.md`, SHA-256
+`a29528643e6ebe093b05334ca3d1030d97243ca03fdc5fb216c5a3502aaf28e6`.
+
+Mechanism: `support-matrix.json` stores only the repository-verifiable
+baseline (`unverified`/`internal_only` for in-scope capabilities and
+`not_applicable` for out-of-scope capabilities) and `source`/`test` lineage.
+Independent and DAO release verification is derived for one acceptance run.
+The resolver computes each capability's `effective_verification` as the
+highest level supplied by its stored baseline and a passing enabled intrinsic
+adapter output. Labels and release gates consume only that effective value;
+the detached result is never written back to the matrix. P8 and P10 therefore
+advance an explicit allowlist through adapter output, not by committing
+`verification = dao_differential` or a `dao_bundle` reference.
+
+Selection: G3 reads exactly one absolute detached overlay root from
+`JET3_RELEASE_EVIDENCE` and exactly one lowercase expected manifest hash from
+`JET3_RELEASE_EVIDENCE_MANIFEST_SHA256`. It performs no search or fallback.
+The overlay inventory must contain exactly one
+`dao-bundle/bundle-manifest.json`; the environment hash, inventory hash, and
+recomputed file hash must agree. The overlay, DAO manifest, current `HEAD`,
+every executed-source binding, and every scenario result must name the same
+full commit and declare a clean tree. Checked cleanliness runs before and
+after the adapter and excludes only untracked
+`artifacts/acceptance/**`. The G3 stdout retained by the acceptance manifest
+records the overlay hash, manifest hash, commit, adapter outputs, and derived
+capability results. No future commit or manifest hash is stored in the release
+commit.
+
+Step 2's write scope is exactly these files; no other production, oracle,
+matrix-data, policy-data, plan, provenance, or validation file is authorized:
+
+- modify `docs/validation/schema/support-matrix.schema.json` so stored
+  in-scope `verification` admits only `unverified`/`internal_only`, stored
+  evidence admits only `source`/`test`, and the full verification vocabulary
+  remains available to derived reports;
+- add
+  `docs/validation/schema/dao-differential-v1-manifest.schema.json` and list it
+  in `docs/validation/schema/README.md`;
+- modify `tools/validation/evidence.py` to remove stored
+  `independent_report`/`dao_bundle` handling and its unconditional DAO-bundle
+  rejection;
+- modify `tools/validation/support.py` to enforce the stored-baseline rule and
+  expose the bounded effective-verification join;
+- modify `tools/validation/release_evidence.py` only as needed to pass the
+  selected expected DAO-manifest hash through the already checked detached
+  overlay snapshot and final closure;
+- modify `tools/validation/release_evidence_adapters.py` to mark only
+  `dao_differential_v1` intrinsically `available` with the implementation in
+  new `tools/validation/release_evidence_dao.py`; every other intrinsic
+  availability and maximum level remains unchanged;
+- add `tools/validate_release_evidence.py` with only the
+  `effective-support --repo-root --overlay --manifest-sha256` interface fixed
+  in `ACCEPTANCE.md`;
+- modify `scripts/run-acceptance-gate.sh` only in G3 to require the two
+  selection variables and invoke that interface after the existing oracle
+  contract checks;
+- add `tools/tests/test_dao_differential_adapter.py`; and modify only
+  `tools/tests/test_release_evidence.py`,
+  `tools/tests/test_run_acceptance.py`, and
+  `tools/tests/test_support_capability_catalog.py` for the changed intrinsic,
+  G3, and stored-baseline contracts.
+
+`docs/validation/evidence-policy.json`,
+`docs/validation/schema/evidence-policy.schema.json`,
+`docs/validation/schema/release-evidence-overlay.schema.json`,
+`docs/validation/support-matrix.json`, all acceptance-result schemas, and all
+Rust/CLI/oracle code are read-only in step 2. In particular the policy remains
+byte-identical with SHA-256
+`0c3d2e33432674c5ededab0cccc7bc9ddacafc845f35305079e1664fa6158867`
+and `dao_differential_v1.status = disabled`. The overlay schema remains
+byte-identical with SHA-256
+`3181b22f2c8caf397238aef3c605ba4e6266208692352177ed5fb76cda9ec21a`.
+
+The new DAO manifest schema has exactly these top-level fields:
+`schema_version`, `git_commit`, `dirty`, `provider`, `contracts`, `files`, and
+`scenarios`, with unknown fields rejected. `provider` contains exactly
+`prog_id`, `architecture`, `dll_file_version`, `dll_sha256`, `windows`,
+`powershell`, `locale`, `ansi_code_page`, `oem_code_page`, and `time_zone`.
+`contracts` contains path/SHA-256 pairs for exactly the committed v1.2
+scenario schema, inventory, branch registry, and canonical snapshot schema.
+`files` is a unique sorted exact inventory of every non-manifest payload as
+`path`/`sha256`/`size`. Each unique sorted scenario entry contains exactly
+`id`, `content_sha256`, `capability_ids`, `operation`, `source_mdb`,
+`dao_snapshot`, `rust_snapshot`, `coverage_receipt`, `preservation_diff`, and
+`status`; artifact references contain exactly `path`, `sha256`, and `size`,
+`preservation_diff` is null only for a non-update operation, and `status` must
+be `PASS`. The adapter additionally enforces semantic rules that JSON Schema
+cannot express: exact inventory closure, contract blobs from the named commit,
+scenario-content hashes and complete per-capability sets, canonical snapshot
+schema validation and byte equality, source-MDB/coverage binding, complete
+closed-registry branch coverage, and zero unexpected preservation differences.
+The future P8 v1.2 files may be absent at step 2; an otherwise selected overlay
+then reaches the available adapter and reports that specific missing-contract
+blocker. Tests create their complete contract and payload trees in isolated
+temporary Git repositories rather than weakening that production check.
+
+The adapter computes one exact output object per evidence id with keys
+`adapter`, `capability_id`, `commit`, `manifest_sha256`, `scenario_ids`, and
+`status`. `scenario_ids` is the unique sorted complete subset derived from the
+committed inventory, and the overlay's `expected_output` must equal the
+computed object. A valid subset may derive capability-level evidence but is
+not G3 PASS; G3 PASS requires the complete Section 5.1 inventory and all
+applicable operations.
+
+Step 2 must implement and execute exactly these six falsification cases in
+`test_dao_differential_adapter.py`: complete enabled overlay passes; one
+required scenario missing; one snapshot byte altered; release commit mismatch;
+dirty release tree; and one required branch missing. The latter five are
+rejected with nonzero results and respectively contain the exact reason
+substrings `required scenario missing`, `file SHA-256 mismatch`,
+`expected current HEAD`, `requires a clean worktree`, and
+`required branch missing`. The complete case returns a resolved output whose
+`status` is exactly `PASS`, whose `verification` is intrinsically
+`dao_differential`, and whose sorted scenario ids equal the committed required
+set. It uses an isolated temporary repository whose committed policy enables
+the intrinsically available adapter; production policy is never patched or
+mocked into a pass.
+
+Run these focused step-2 commands in order:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_release_evidence.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_run_acceptance.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_support_capability_catalog.py' -v
+python3 tools/validate_contract.py
+python3 tools/validate_contract.py --self-test
+python3 tools/validate_repository_contract.py
+sha256sum docs/validation/evidence-policy.json docs/validation/schema/release-evidence-overlay.schema.json
+git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- docs/validation/evidence-policy.json docs/validation/support-matrix.json docs/validation/schema/evidence-policy.schema.json docs/validation/schema/release-evidence-overlay.schema.json
+```
+
+Expected results: every unit command passes; both contract commands pass; the
+repository contract passes; the `sha256sum` output is exactly the two hashes
+above in command order; and the read-only-file diff is empty. Then run the
+phase's existing common checks once and run full acceptance without a selected
+overlay:
+
+```sh
+set +e
+env -u JET3_RELEASE_EVIDENCE -u JET3_RELEASE_EVIDENCE_MANIFEST_SHA256 ./scripts/acceptance.sh full
+acceptance_status=$?
+set -e
+test "$acceptance_status" -eq 3
+```
+
+The expected overall result is exit 3 and `BLOCKED`. G3's retained stderr must
+contain exactly one blocker line beginning
+`BLOCKED: G3 requires JET3_RELEASE_EVIDENCE to select one absolute detached overlay`.
+The focused G3 integration test with a selected complete temporary overlay
+must instead reach the available adapter and contain exactly one blocker line
+beginning
+`BLOCKED: adapter 'dao_differential_v1' is disabled by docs/validation/evidence-policy.json`.
+Neither path may report intrinsic unavailability, the old unconditional
+stored DAO-bundle rejection, an effective verification advancement, or G3
+PASS.
+
 ### P8 — Differential read program (Option 3, read legs)
 
 - Goal: `DAO-READ-*` scenarios, the shared snapshot contract, the
@@ -1613,6 +1778,16 @@ adapter result as `full` or G3 PASS.
 Earlier bundles (M1, A3, A4 …) are design inputs only. A verification-state
 change in any other kind of PR is a Section 6.4 escalation and must be
 reverted.
+
+P8T step-1 amendment (`EXP-0063`) supersedes only the publication mechanism
+in the preceding paragraph: P8/P10 do not commit a `dao_bundle` reference or a
+`dao_differential` stored state. They publish one detached exact-commit overlay
+and an explicit manifest hash, and their named allowlists become effective at
+acceptance time only after `dao_differential_v1` passes. All scenario,
+test-manifest, adapter, provenance, policy-enablement, subset/full distinction,
+and no-other-PR constraints remain unchanged. The exact selection, join,
+step-2 files, tests, commands, and expected results are fixed in the P8T
+step-1 subsection above and in `EVIDENCE.md`/`ACCEPTANCE.md`.
 
 ## 6. Process rules
 

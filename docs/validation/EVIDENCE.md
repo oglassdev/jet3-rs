@@ -103,6 +103,101 @@ The production policy currently enables no evidence adapters. Consequently,
 the overlay validator and staging foundation cannot advance any support-matrix
 verification state or substantiate a compatibility claim yet.
 
+### P8T exact-commit amendment
+
+This subsection supersedes the earlier implication that a release-only
+`independent_report` or `dao_bundle`, or the verification level it supplies,
+is stored in the committed support matrix. All other vocabulary, evidence
+content, cleanliness, and fail-closed requirements above remain in force.
+
+The committed `verification` field in `support-matrix.json` is the
+repository-verifiable baseline, not the release result. It records only the
+highest level justified without a detached release run. A release validator
+derives `effective_verification` for each capability by joining that baseline
+with the outputs of enabled intrinsic adapters from one selected detached
+overlay. User-facing labels, gate decisions, and release claims use the
+effective value. They must never treat an earlier acceptance result or a
+detached file as though it had changed the committed matrix. A missing,
+disabled, invalid, stale, or incomplete overlay contributes no level and
+therefore cannot make a capability supported.
+
+For an in-scope capability the committed baseline is therefore only
+`unverified` or `internal_only`; an out-of-scope capability remains
+`not_applicable`. Stored matrix evidence is only `source` or `test` lineage.
+`independent_report` and `dao_bundle` are detached adapter inputs and are not
+valid support-matrix evidence kinds after this amendment. The full verification
+vocabulary remains because `independent_check`, `dao_opened`, and
+`dao_differential` are valid derived effective results.
+
+Full acceptance selects exactly one overlay root from the
+`JET3_RELEASE_EVIDENCE` environment variable. The value must be one absolute
+directory path outside the repository. There is no default directory, search,
+newest-file rule, network lookup, committed pointer, or fallback. For a DAO
+differential run, `JET3_RELEASE_EVIDENCE_MANIFEST_SHA256` must also be exactly
+one lowercase SHA-256. The selected overlay must contain
+`release-evidence.json` and exactly one file at
+`dao-bundle/bundle-manifest.json`; the latter's recomputed hash must equal both
+the environment value and its entry in the overlay's complete file inventory.
+The acceptance record retains the selected absolute-path argument only in the
+private command log, and retains the non-secret overlay SHA-256, DAO manifest
+SHA-256, exact commit, adapter outputs, and effective capability results in
+the hashed G3 stdout artifact.
+
+The overlay and DAO manifest both name the release commit. The intrinsic
+adapter requires those values, the current `HEAD`, every executed Rust/oracle
+source binding, and every scenario result to be the same full commit and to
+declare `dirty: false`. Before and after adapter execution, the validator
+independently requires the tracked index and worktree to equal that `HEAD`;
+only untracked `artifacts/acceptance/**` output is ignored. A dirty declaration,
+dirty checkout, changed `HEAD`, changed contract, changed overlay, changed
+payload tree, or commit mismatch fails closed. This is non-self-referential:
+the clean commit contains the contracts and implementation, while the later
+detached overlay supplies that already-frozen commit and manifest hash at
+acceptance time. No future commit or bundle hash is embedded in the commit it
+validates.
+
+`dao_differential_v1` owns the meaning and maximum level
+`dao_differential`; policy cannot relabel it. Its manifest shape is fixed by
+`docs/validation/schema/dao-differential-v1-manifest.schema.json`. The adapter
+must parse the committed protocol contracts at
+`oracle/windows-dao/protocol/v1_2/scenarios.schema.json`,
+`oracle/windows-dao/protocol/v1_2/scenarios.json`,
+`oracle/windows-dao/protocol/v1_2/branch-registry.json`, and
+`oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json`
+from the named release commit. It then recomputes, rather than trusts, all of
+the following:
+
+- exact bundle-manifest and payload-tree closure, file sizes, and SHA-256s;
+- exact provider identity, environment, command, source-revision, and clean
+  release-commit bindings required above;
+- the scenario `content_sha256`, required scenario set, capability mapping,
+  operation, and absence of a skipped or unsupported result;
+- schema validity and byte equality of the independently produced canonical
+  DAO and Rust snapshots for every applicable read/write/update leg;
+- source-MDB binding and complete required-branch coverage in each Rust
+  coverage receipt, including rejection of an unregistered branch or bypass;
+  and
+- for update legs, a checked preservation-diff report with no unexpected
+  differences for every declared `preserve_paths` entry.
+
+One adapter evidence item covers one capability and names its complete
+scenario subset. Its computed output has exactly `adapter`, `capability_id`,
+`commit`, `manifest_sha256`, `scenario_ids`, and `status`; `status` is `PASS`
+only after every applicable check above succeeds. The overlay's
+`expected_output` must equal that computed object byte-for-byte after canonical
+JSON serialization. Duplicate capability outputs, a capability absent from
+the committed matrix, a scenario omitted from its required set, or an output
+above the adapter's intrinsic level is rejected.
+
+The committed differential decision for this amendment is
+`docs/plans/design-inputs/p8t-exact-commit-differential-decision.md`, SHA-256
+`2fee5d73fae113c6f0833a38ce2c5af3a81447a7a826f96fa8522ccc768a7198`.
+It selects end-to-end semantic traversal for capability advancement and keeps
+checkpoint consequences as supplemental allocation stress evidence. The
+production Rust library is the subject of the resulting capability evidence;
+CLI commands are optional producers or diagnostics and never substitute for
+the library path exercised by a manifested scenario.
+
 ## Clean-room evidence ledger
 
 `docs/PROVENANCE.md` is the required ledger for every technical source,

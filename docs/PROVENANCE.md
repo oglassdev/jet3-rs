@@ -5767,6 +5767,72 @@ Use `not applicable` explicitly rather than omitting a field.
   development material and are neither committed nor redistributed
 - Review: pending independent review
 
+### EXP-0063 — P8T exact-commit differential publication decision
+
+- Recorded: 2026-08-28, OpenAI Codex
+- Kind: additive validation-contract and differential-design decision; no DAO
+  acquisition, provider observation, Rust result, release evidence, support
+  state change, or compatibility result
+- Question: How can a detached DAO-versus-Rust differential generated after a
+  release commit is frozen bind that exact clean commit and determine release
+  verification without requiring the commit to contain its own future bundle
+  hash?
+- Origin: the project-authored comparison in
+  `docs/plans/design-inputs/sol-diff-proposal.md`, SHA-256
+  `a29528643e6ebe093b05334ca3d1030d97243ca03fdc5fb216c5a3502aaf28e6`;
+  the existing detached-overlay contract in
+  `docs/validation/EVIDENCE.md`; the G3 contract in
+  `docs/validation/ACCEPTANCE.md`; and the fail-closed provider boundary in
+  `docs/validation/DAO_PROVIDER_BLOCKER.md`. No MDB implementation, provider
+  binary, MDB file, retained campaign payload, or new format source was
+  inspected.
+- Environment: document and checked-interface analysis at exact clean base
+  commit `c933f1cb75ed5b7534f9c1449c87c6e6025c6211`; operating system,
+  architecture, DAO provider, locale, code pages, and time zone are not
+  applicable to the decision
+- Protocol: select the proposal's Option 3 end-to-end semantic traversal as
+  the advancement path and Option 1 only as supplemental allocation stress;
+  inspect the current support-matrix, overlay, intrinsic-adapter, cleanliness,
+  acceptance-runner, and G3 interfaces; define one explicit detached overlay
+  and out-of-band DAO-manifest hash selection; bind overlay, manifest,
+  payloads, executed sources, and scenario results to the same clean `HEAD`;
+  run the intrinsic adapter; and derive effective verification without writing
+  the detached result into the committed matrix
+- Artifacts:
+  `docs/plans/design-inputs/p8t-exact-commit-differential-decision.md`,
+  SHA-256
+  `2fee5d73fae113c6f0833a38ce2c5af3a81447a7a826f96fa8522ccc768a7198`;
+  current `docs/validation/schema/release-evidence-overlay.schema.json`,
+  SHA-256
+  `3181b22f2c8caf397238aef3c605ba4e6266208692352177ed5fb76cda9ec21a`;
+  current `docs/validation/evidence-policy.json`, SHA-256
+  `0c3d2e33432674c5ededab0cccc7bc9ddacafc845f35305079e1664fa6158867`
+- Observation: the current support-matrix validator requires a stored
+  `dao_bundle` to match `HEAD` while the same committed reference would change
+  `HEAD`, then rejects every such bundle unconditionally. The detached overlay
+  validator already enforces exact-HEAD cleanliness, contract hashing,
+  complete file inventory, stable snapshots, and final closure, while
+  `dao_differential_v1` is intrinsically unavailable and policy-disabled.
+- Interpretation: committed matrix verification is a repository-verifiable
+  baseline. `independent_check`, `dao_opened`, and `dao_differential` are
+  effective release results derived by joining that baseline with enabled,
+  passing intrinsic adapter outputs from one explicitly selected detached
+  overlay. The DAO bundle manifest hash is supplied alongside the overlay at
+  acceptance time and retained in the hashed G3 result, so neither a future
+  commit nor a future bundle hash is embedded in the commit it validates.
+  Missing, dirty, stale, disabled, mismatched, incomplete, skipped, or altered
+  input fails closed. The production Rust library, not optional CLI tooling,
+  is the capability subject.
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`;
+  `file:docs/plans/design-inputs/p8t-exact-commit-differential-decision.md`
+- Rights: project-authored decision and contract text; no external artifact is
+  redistributed
+- Review: pending the P8T step-1 human go/no-go and independent review; this
+  entry advances no capability, changes no stored or effective verification,
+  leaves `dao_differential_v1` disabled, and weakens no release blocker
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

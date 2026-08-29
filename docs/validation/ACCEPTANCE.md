@@ -97,6 +97,65 @@ test execution; ignored, filtered, or unexpectedly skipped tests do not count.
 Oracle unavailability may make an ordinary CI job neutral, but the Windows DAO
 differential job and full release acceptance are `BLOCKED`, not passed.
 
+### P8T detached-overlay consumption
+
+G3 consumes no committed `dao_bundle` pointer. `./scripts/acceptance.sh full`
+inherits exactly one explicitly supplied overlay root and one expected DAO
+manifest hash:
+
+```sh
+JET3_RELEASE_EVIDENCE=/absolute/path/to/overlay \
+JET3_RELEASE_EVIDENCE_MANIFEST_SHA256=<64-lowercase-hex> \
+./scripts/acceptance.sh full
+```
+
+`JET3_RELEASE_EVIDENCE` must be an absolute detached directory containing
+`release-evidence.json`; `JET3_RELEASE_EVIDENCE_MANIFEST_SHA256` must equal the
+recomputed SHA-256 of exactly
+`dao-bundle/bundle-manifest.json`. G3 performs no discovery, download, newest
+selection, or fallback. An unset, relative, missing, multiply selected, or
+hash-mismatched input is `BLOCKED` or `FAIL` as described below, never neutral
+or passed.
+
+The G3 gate invokes this literal interface:
+
+```sh
+python3 tools/validate_release_evidence.py effective-support \
+  --repo-root . \
+  --overlay "$JET3_RELEASE_EVIDENCE" \
+  --manifest-sha256 "$JET3_RELEASE_EVIDENCE_MANIFEST_SHA256"
+```
+
+The command validates the exact clean `HEAD`, overlay and bundle-manifest
+closure, runs each requested enabled intrinsic adapter, and joins its outputs
+to the committed support-matrix baseline as specified by `EVIDENCE.md`. On
+success it emits one canonical JSON result with exactly `schema_version`,
+`git_commit`, `dirty`, `overlay_sha256`, `manifest_sha256`, `adapter_outputs`,
+`capabilities`, and `status`. Each capability result contains exactly `id`,
+`stored_verification`, `effective_verification`, and `evidence_ids`. The G3
+stdout artifact and its SHA-256 are retained by the ordinary acceptance record;
+no overlay payload is copied into the repository.
+
+Exit 0 and `status: PASS` require the complete G3 inventory above, every
+required DAO scenario and operation, no skipped result, and every applicable
+implemented capability at its required effective verification. A valid read-
+only subset is reported as `BLOCKED`, never as full G3 PASS. Missing selection,
+missing future protocol contracts, disabled policy, or an otherwise complete
+but incomplete-for-G3 subset exits 3 with a specific `BLOCKED:` reason. Unsafe
+paths, malformed JSON, dirty state, commit/hash/contract mismatch, altered
+payload, missing scenario or branch, unequal snapshot, unexpected preservation
+difference, adapter-output mismatch, or any other failed executable check exits
+1 as `FAIL`.
+
+P8T step 2 deliberately leaves `dao_differential_v1` disabled. Its expected
+`./scripts/acceptance.sh full` result is therefore nonzero `BLOCKED`: without
+the two selection variables, G3 names the missing explicit overlay; with a
+syntactically complete selected test overlay, G3 reaches the available
+intrinsic adapter and names the disabled-policy reason. It must no longer stop
+at an intrinsically unavailable adapter or the support-matrix validator's
+unconditional `dao_bundle` rejection. No P8T step changes a capability's
+stored or effective verification.
+
 ## G4 — independent writer verification and atomic updates
 
 - The Rust reader is never the only verifier of Rust output.
