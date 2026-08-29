@@ -1114,6 +1114,37 @@ Section 5.3; they do not change a pinned v1.2 schema:
   clean `HEAD`. Focused tests reject stale DAO and Rust revisions separately
   and swapped or otherwise wrong producer kinds.
 
+The round-7 binding adds the following exact step-2 implementation contract.
+Each scenario artifact/file reference records its producing command id and
+production timestamp; the operation log records the exact contributing command
+set. Command ids uniquely select a committed source-closure
+role/entrypoint/scenario subject at the exact clean release commit, and the
+harness-observed command exit is zero. Command, artifact, embedded producer,
+scenario/source-MDB identity, revision, and nested trusted-run timestamps must
+join exactly. No hand-built or unbound artifact can satisfy this contract.
+
+Positive scenarios contain exactly one
+`dao_source_snapshot_producer` command and one
+`rust_semantic_snapshot_producer` command. The latter is the
+`jet3-testkit` producer over public `jet3::DatabaseReader`; a registered CLI
+may only drive it and cannot substitute for it. Expected opening failures
+contain exactly one `dao_source_producer` and one
+`rust_opening_rejection_coverage_producer`, with positive roles/artifacts and
+all unrelated roles absent. The implementation derives the exact artifact and
+command set from expected outcome and requires a bijection: no missing,
+duplicate, extra, wrong, swapped, stale, nonzero, out-of-interval, or unbound
+producer, and no command that produces or validates no applicable artifact.
+
+The exact stable intrinsic reasons are
+`missing_required_producer_command`, `duplicate_producer_command`,
+`wrong_producer_command_binding`, `swapped_artifact_producer_command`,
+`unrelated_scenario_producer_command`, `producer_command_nonzero_exit`,
+`stale_producer_command_revision`,
+`producer_command_outside_trusted_run_interval`,
+`unbound_generated_artifact`, and
+`producer_command_artifact_mismatch`. They fail before semantic projection,
+policy, and output.
+
 Focused step-2 checks are:
 
 ```sh
@@ -1147,6 +1178,33 @@ python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter
 python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_stale_rust_snapshot_source_revision_is_rejected -v
 python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_swapped_or_wrong_snapshot_producer_kind_is_rejected -v
 ```
+
+The exact focused round-7 artifact-command tests are:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_exact_outcome_producer_commands_and_artifact_links_pass -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_missing_required_producer_command_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_duplicate_producer_command_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_wrong_producer_command_binding_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_swapped_artifact_producer_command_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_unrelated_scenario_producer_command_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_nonzero_harness_producer_command_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_stale_producer_command_revision_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_producer_command_outside_trusted_run_interval_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_unbound_generated_artifact_is_rejected -v
+```
+
+Each rejection test asserts exit 1, its identically named stable reason code
+from the round-7 list, and zero adapter output. The positive test exercises both
+outcome command sets, including their exact two-command cardinality and every
+applicable artifact link. The wrong-binding test covers role, entrypoint, and
+scenario subject; the unbound test constructs a byte-valid hand-built artifact
+with no producing-command link.
+
+The nonzero test asserts `producer_command_nonzero_exit`; the out-of-interval
+test asserts `producer_command_outside_trusted_run_interval`. All other test
+stems equal their required reason codes after removal of `test_` and
+`_is_rejected`.
 
 The first test must assert exit 1, the exact reason code
 `incomplete_scenario_inventory_deferred_requirements`, and zero adapter

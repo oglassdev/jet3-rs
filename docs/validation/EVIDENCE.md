@@ -198,6 +198,69 @@ producer and public `jet3::DatabaseReader` closure before acquisition; the
 read-leg schema and validator can be tested at P8T's base without inventing a
 nonexistent producer target.
 
+The following round-7 command/artifact binding is additive and supersedes any
+looser interpretation of `command_ids`. A command id resolves once and only
+once to one committed source-closure entry containing its exact role,
+`entrypoint_id`, scenario subject, complete transitive source set, and release
+commit. The command record must select that same entry, subject, and revision;
+its harness-observed exit code is integer zero. An internal artifact `PASS` or
+successful child process cannot override a nonzero harness result.
+
+For a positive read, `command_ids` contains exactly one
+`dao_source_snapshot_producer` and exactly one
+`rust_semantic_snapshot_producer`. The DAO command produces the source MDB and
+DAO snapshot. The Rust command produces the Rust snapshot and success coverage
+receipt. The latter is the registered `jet3-testkit` producer over the public
+`jet3::DatabaseReader` API and its complete transitive closure. A `jet3-cli`
+entrypoint may be registered only as its optional driver; it neither replaces
+the testkit/public-reader subject nor supplies another producer command.
+
+For an expected opening failure, `command_ids` instead contains exactly one
+`dao_source_producer` and exactly one
+`rust_opening_rejection_coverage_producer`. The DAO command produces only the
+source MDB; the Rust command performs the production public-reader rejection
+and produces both the canonical opening-failure and opening-failure coverage
+artifacts. DAO or Rust success-snapshot roles and artifacts, a CLI-only
+producer, and every role not applicable to that outcome are forbidden.
+
+Every non-null run-generated scenario artifact reference carries the exact
+`producer_command_id` and production timestamp. The complete `files` entry
+for that retained artifact carries the same linkage. The diagnostic operation
+log, to which both commands contribute, carries the exact sorted two-command
+producer-id set rather than an unbound or invented third producer. Committed
+scenario input is explicitly non-produced and carries no producer id. No
+hand-built artifact, inferred filename association, operation-log claim, or
+producer metadata without this reference-to-command join can pass.
+
+The same rule applies to every other retained/generated artifact reference in
+the manifest and report when that artifact is created during the trusted run.
+Only a committed contract/input or the independently acquired pre-run provider
+proof may carry an explicit non-produced marker instead; applicability is
+derived by the validator, not chosen by the producer. A null, absent, or
+sentinel command id on an applicable generated artifact is unbound evidence.
+
+The joined command, artifact reference, file entry, and embedded JSON producer
+metadata must agree on artifact role, producer kind, source revision, scenario
+id, and source-MDB SHA-256. Each production timestamp lies within its command's
+inclusive interval; each command interval lies within both the scenario and
+trusted run intervals. The validator derives the exact applicable-artifact
+and command sets from the committed expected outcome, then requires bijective
+coverage: no missing, duplicate, unrelated, wrong-role, wrong-entrypoint,
+wrong-subject, stale, swapped, or otherwise unlinked producer command; every
+listed scenario command produces or validates an applicable linked artifact,
+and every applicable retained/generated artifact is linked.
+
+Round-7 failures use these stable intrinsic reason codes:
+`missing_required_producer_command`, `duplicate_producer_command`,
+`wrong_producer_command_binding`, `swapped_artifact_producer_command`,
+`unrelated_scenario_producer_command`, `producer_command_nonzero_exit`,
+`stale_producer_command_revision`,
+`producer_command_outside_trusted_run_interval`, and
+`unbound_generated_artifact`. Identity or timestamp disagreement discovered
+through an otherwise bound reference is `producer_command_artifact_mismatch`.
+These are intrinsic `FAIL` before projection, comparison, policy, or adapter
+output.
+
 Every timestamp uses uppercase UTC whole seconds and is calendar-valid. Run,
 command, and scenario completion may equal start but never precede it; every
 subordinate interval is within the inclusive run interval. Run identity and

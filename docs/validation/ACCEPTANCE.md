@@ -187,6 +187,27 @@ PR-#92 Rust snapshot producer, public `DatabaseReader` closure, and optional
 CLI driver before acquisition; P8T step 2 does not run nonexistent Rust/CLI
 producer targets.
 
+G3 additionally enforces the round-7 artifact-to-command join. Each command id
+selects one unique committed role/entrypoint/scenario subject and exact source
+closure at clean `HEAD`; every applicable generated artifact and its complete
+file-inventory row name the producing command. Producer kind/revision,
+scenario/source-MDB identity, production time, and artifact role agree across
+the command, reference, inventory, and embedded artifact. Harness exit is zero,
+artifact production occurs within the command interval, and command intervals
+occur within the scenario and trusted run intervals.
+
+A positive read has exactly the DAO source/snapshot producer and the Rust
+semantic-snapshot producer. The Rust role is the registered `jet3-testkit`
+producer using public `DatabaseReader`; an optional CLI entrypoint is only a
+driver and CLI-only evidence fails. An expected opening failure has exactly the
+DAO source producer and the production Rust opening-rejection/coverage
+producer, with success-snapshot roles and artifacts absent. The diagnostic
+operation log binds the same exact two command ids. G3 rejects missing,
+duplicate, wrong, swapped, unrelated, nonzero, stale, out-of-interval, or
+unbound commands/artifacts before comparison or policy. The stable reason-code
+vocabulary is the round-7 list in `EVIDENCE.md`; a hand-built or filename-only
+artifact is always `unbound_generated_artifact`.
+
 The validator emits the closed canonical
 `effective-support-result.schema.json` result on every safe PASS/BLOCKED
 resolution. It records overlay/manifest hashes, exact commit and run identity,
