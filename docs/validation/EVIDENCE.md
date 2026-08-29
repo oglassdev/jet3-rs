@@ -1034,6 +1034,176 @@ policy, and makes every provider, DAO, Rust, or acquisition edge unreachable.
 The empty-authority sentinel remains earlier and returns its existing
 `BLOCKED` result without creating a receipt.
 
+The following round-13 authenticated-receipt amendment supersedes only the
+round-12 assumption that raw receipt/inventory hashes authenticate the actor
+that sampled the receipt times. G1 aggregate evidence and provider proof are
+commit-bound semantic/hash evidence, not signatures over this receipt; the
+existing SSHSIG authenticates the human's earlier authorization bytes and
+cannot sign bytes that do not yet exist. The project therefore reuses the
+GitHub artifact-attestation boundary recorded in `SRC-0028`, rather
+than introducing another project signing key or human-signature protocol.
+
+Step 2 adds exactly one non-schema trust contract at
+`docs/validation/github-artifact-attestation-trusted-root-v1.jsonl`. It is a
+nonempty, at-most-1,048,576-byte raw `trusted_root.jsonl` snapshot produced by
+GitHub CLI 2.98.0 `gh attestation trusted-root`, reviewed and committed before
+any P8 run. Step 2 records its exact raw SHA-256/size and official acquisition
+source in provenance. The release commit and later manifest bind those exact
+bytes as contract `github_artifact_attestation_trusted_root`; no runner,
+overlay, bundle, network response, or caller path can replace them. Refresh or
+revocation requires an additive versioned trust-root path and contract
+amendment, never an in-place evidence-run substitution.
+
+P8's later exact workflow, not P8T Step 2, must place one attestation step
+between successful authorization preflight and every provider/DAO/Rust edge.
+That step uses exactly
+`actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6` (v4.2.2), with the
+receipt's fixed absolute path as its sole `subject-path`, default
+`https://slsa.dev/provenance/v1` build provenance, `show-summary: false`, and
+no custom predicate. Its job permissions are exactly `contents: read`,
+`id-token: write`, and `attestations: write`; `artifact-metadata`, packages,
+deployments, and every other write permission are absent. The action's local
+`bundle-path` output remains unpublished under the exact `RUNNER_TEMP` until
+the verifier below boundedly copies and authenticates it. No repository,
+human-authority, or other long-lived private key is available to the runner;
+the platform action uses its GitHub OIDC/Sigstore identity. Attestation
+creation is non-acquisition and grants no success edge.
+
+Step 2 adds no second receipt schema. The existing closed
+`acquisition_preflight_receipt` manifest member is restructured, without a new
+top-level member, to contain exactly `document`, `attestation`, and
+`verification_command_id`. `document` is the round-12 generated-artifact
+reference to `dao-bundle/acquisition-preflight-receipt.json`.
+`attestation` is an at-most-1,048,576-byte raw-artifact reference to the fixed
+path `dao-bundle/acquisition-preflight-receipt.sigstore.json`; before its
+independent verification it exists only at the action's unpublished output. It
+is a GitHub-platform-produced pre-acquisition proof and therefore carries the
+same explicit non-produced marker as provider proof, not an invented
+repository producer command. Both references have unique equal complete
+`files` rows. `verification_command_id` is exactly
+`acquisition_preflight_receipt_attestation_verifier` and resolves once to the
+global non-scenario command with that same role and registered entrypoint.
+
+The thin CLI adds exactly this no-shell argv:
+
+```text
+["python3", "-B", "tools/validate_release_evidence.py",
+ "authorization-preflight-attestation", "--repo-root",
+ ABSOLUTE_CLEAN_WORKTREE, "--private-staging-parent",
+ ABSOLUTE_PRIVATE_PARENT, "--attestation-bundle",
+ ABSOLUTE_ACTION_BUNDLE]
+```
+
+The command derives the child, published receipt, unpublished bundle, and
+committed trust-root paths from the already authenticated run. The sole new
+path argument is the action's non-secret bundle output: it must be absolute,
+lexically normalized, a bounded regular no-follow/non-reparse file strictly
+beneath the exact normalized `RUNNER_TEMP`, and not an alias of any receipt,
+root, child, or published path. It accepts no receipt, root, overlay, or
+manifest path argument. Its source closure
+entry id, command id, role, and entrypoint are all exactly
+`acquisition_preflight_receipt_attestation_verifier`; source revision is the
+exact clean commit, and its sorted transitive sources are the thin CLI,
+`tools/validation/acquisition_authorization.py`, and every repository module
+actually imported by that module. `gh` is the sole new external executable.
+The verifier requires GitHub CLI version 2.98.0; version drift and unavailable
+offline-attestation capability are fail-closed `BLOCKED`, never an online
+fallback.
+
+After bounded regular-file/no-follow checks, the verifier exclusively creates
+`<private-child>/.acquisition-preflight-attestation-verify.tmp` as mode 0700
+with exactly mode-0400 `receipt.json`, `bundle.sigstore.json`, and
+`trusted-root.jsonl` copies, using checked writes, file fsync, and exact bounded
+rereads. It then invokes `gh` with no shell, no token, no OIDC request
+variables, prompting/update checks disabled, stdout bounded to 1,048,576
+bytes, and stderr to the null device. The local-bundle/custom-root command must
+succeed with network access denied; API or TUF fallback is an error. The argv
+is exactly `gh attestation verify`, the
+temporary receipt path, `--repo oglassdev/jet3-rs`, `--bundle` and the
+temporary bundle path, `--custom-trusted-root` and the temporary trust-root
+path, `--predicate-type https://slsa.dev/provenance/v1`,
+`--signer-workflow oglassdev/jet3-rs/.github/workflows/windows-dao-p8-read.yml`,
+`--signer-digest <git_commit>`, `--source-digest <git_commit>`,
+`--source-ref <workflow_ref>`,
+`--cert-oidc-issuer https://token.actions.githubusercontent.com`,
+`--deny-self-hosted-runners`, `--format json`, and `--limit 1`, in that order.
+Supplying `--bundle` and `--custom-trusted-root` is mandatory; API lookup,
+downloaded roots, ambient GitHub authentication, a custom predicate, or
+predicate claims as authority is forbidden.
+
+Exit zero is necessary but insufficient. The bounded JSON output must contain
+exactly one verified attestation. Its statement has exactly one subject named
+`acquisition-preflight-receipt.json`, whose sole digest is SHA-256 of the exact
+receipt bytes, and predicate type is exactly SLSA provenance v1. Only the
+verified certificate and verified timestamp data are authoritative. The
+certificate must bind OIDC issuer `https://token.actions.githubusercontent.com`,
+public repository `oglassdev/jet3-rs`, exact signer workflow path/ref and
+workflow SHA, exact source repository/ref/commit, `github-hosted` runner, and
+`runInvocationURI` exactly
+`https://github.com/oglassdev/jet3-rs/actions/runs/<run-id>/attempts/<attempt>`.
+Those run/attempt/commit values equal the signed authorization, receipt,
+trusted environment, and later manifest. The receipt subject digest
+transitively authenticates its nonce and exact start/completion fields; they
+must still join the separately authenticated authorization. At least one
+verified public transparency-log timestamp is required. Its earliest instant,
+normalized to UTC seconds, satisfies
+`preflight_completed_at <= attestation_time <= verifier.started_at`; the
+verifier completes strictly before every provider/DAO/Rust/acquisition command.
+No workflow-controlled predicate field can satisfy any of these joins.
+
+Only after every cryptographic and claim check passes may the verifier
+atomically rename the private `bundle.sigstore.json` copy to
+`dao-bundle/acquisition-preflight-receipt.sigstore.json`, make it read-only,
+flush where supported, and boundedly re-read exact receipt/bundle bytes. The
+final pre-acquisition bundle entry set is exactly authorization JSON, SSHSIG,
+receipt JSON, and Sigstore bundle. It removes the exact action output and
+verification-temporary directory after proving their identity/containment;
+failure to prove that cleanup is exit-2 `ERROR`. Exit 0 from this verifier, not
+exit 0 from authorization preflight or the attest action, is the sole edge to
+provider, DAO, Rust, or acquisition execution. Any failure removes only the exact
+attestation temporary/published child, preserves the diagnostic authorization
+triple read-only, and leaves acquisition unreachable; uncertain cleanup is
+exit-2 `ERROR`. The empty production authority sentinel remains earlier and
+therefore creates neither receipt nor attestation. The empty read allowlist and
+disabled policy remain unchanged and later prevent advancement.
+
+Later manifest construction and `effective-support` independently rerun the
+same offline verification over the retained receipt, Sigstore bundle, and
+clean-commit trust root before accepting any receipt-derived start, command,
+manifest, report, overlay, or selection hash. The attestation reference and
+inventory row bind its raw path/hash/size and authenticated transparency-log
+production time; the verification command record binds the exact argv/source,
+zero harness exit, and interval above. A publisher who rewrites the receipt
+time and refreshes every dependent receipt, command, manifest, report, overlay,
+and selection hash still cannot produce a matching platform signature for the
+new receipt digest.
+
+Missing receipt attestation, trust-root contract/reference, or inventory is
+exit-1 `missing_acquisition_preflight_receipt_attestation`; malformed,
+oversized, multiply selected, or structurally invalid bundle/root/verifier
+output is exit-1 `invalid_acquisition_preflight_receipt_attestation`; any
+signature, digest, issuer, repository, workflow, ref, run, attempt, commit,
+runner, timestamp, receipt, producer, command, or manifest join failure is
+exit-1 `acquisition_preflight_receipt_attestation_mismatch`; and absent or
+wrong-version offline `gh` capability is exit-3
+`acquisition_preflight_receipt_attestation_verifier_unavailable`. Each occurs
+before policy and adapter output and exposes no acquisition edge.
+
+The round-13 test-decomposition amendment leaves the 27-case acquisition
+preflight module, one-case effective-support module, and sole direct
+`dao_differential_fixtures.py` helper in place. It supersedes only the former
+51-case `test_dao_differential_manifest.py` routing with five focused modules:
+`test_dao_manifest_inventory.py`,
+`test_dao_authorization_attestation.py`,
+`test_dao_semantic_snapshot.py`, `test_dao_read_allowlist.py`, and
+`test_dao_report_projection_receipt.py`. They own respectively manifest
+shape/inventory; retained authorization, authenticated attestation and replay;
+semantic snapshots, coverage and producer commands; the closed read allowlist;
+and report projection plus authenticated receipt joins. The exact 79-name and
+unnamed-domain partition and discovery commands in `IMPLEMENTATION_PLAN.md`
+supersede every earlier catch-all route. No production contract, source path,
+workflow, acquisition edge, policy, CLI, or write capability changes.
+
 The following round-10 authority-provisioning amendment supersedes only the
 round-9 requirement that P8T step 2's production allowed-signers contract be
 nonempty and the round-10 preflight order that read authorization secrets

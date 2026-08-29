@@ -6405,6 +6405,127 @@ Use `not applicable` explicitly rather than omitting a field.
   dispatch, acquisition, policy/matrix change, or capability movement and
   keeps `dao_differential_v1` disabled
 
+### SRC-0028 — GitHub artifact-attestation identity and offline verification
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: public platform and official-tool contract documentation; no provider,
+  MDB, format, workflow execution, or compatibility observation
+- Source: GitHub Docs, “Artifact attestations,”
+  <https://docs.github.com/en/actions/concepts/security/artifact-attestations>;
+  GitHub Docs, “Using artifact attestations to establish provenance for
+  builds,”
+  <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>;
+  GitHub Docs, “Verifying attestations offline,”
+  <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline>;
+  GitHub Docs, “OpenID Connect reference,”
+  <https://docs.github.com/en/actions/reference/security/oidc>;
+  GitHub CLI manual, `gh attestation verify`,
+  <https://cli.github.com/manual/gh_attestation_verify>;
+  GitHub CLI manual, `gh attestation trusted-root`,
+  <https://cli.github.com/manual/gh_attestation_trusted-root>;
+  official `actions/attest` v4.2.2 release,
+  <https://github.com/actions/attest/releases/tag/v4.2.2>; and official GitHub
+  CLI v2.98.0 release,
+  <https://github.com/cli/cli/releases/tag/v2.98.0>, with official release
+  metadata at
+  <https://api.github.com/repos/cli/cli/releases/tags/v2.98.0>
+- Accessed: 2026-08-29
+- Observation: GitHub documents artifact attestations as Sigstore-signed
+  subject-digest provenance. For a public repository the public-good Sigstore
+  instance uses a public transparency log. The action requires OIDC and
+  attestation permissions, accepts a subject path/digest, and emits a local
+  serialized bundle path. GitHub's OIDC claim set includes repository,
+  workflow/ref/SHA, environment, hosted run id and attempt, and runner
+  environment. GitHub CLI documents offline verification with a local bundle
+  plus custom trusted-root file and identity/source constraints. Its JSON
+  verification result distinguishes certificate and verified-timestamp data,
+  which cannot be supplied by the originating workflow, from predicate fields,
+  which may be workflow-controlled and therefore are not authority here.
+  `actions/attest` v4.2.2 resolves to full commit
+  `1e69f48acb82d1966a394da916b4c1698aa569d6`; GitHub CLI v2.98.0 resolves to
+  `a255baf71d13fe5947a4eb7ad521ffd412d64cee`. The official v2.98.0 release API
+  identifies `gh_2.98.0_windows_amd64.zip` as 15,035,669 bytes with SHA-256
+  `c28c7b3b584967a05b74d9eaf7481bff24ddc34930bf2d6e442c148236561eb1`.
+- Usage: existing `SRC-0026` establishes that an artifact attestation
+  authenticates workflow production rather than human approval. This source
+  supplies the exact subject-digest, OIDC identity, public-log, pinned action,
+  committed-root, and offline-verifier boundary used only to authenticate the
+  post-authorization P8T preflight receipt in
+  `file:docs/validation/EVIDENCE.md`, `file:docs/validation/ACCEPTANCE.md`, and
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`.
+- Rights: public documentation, release metadata, and Git tag identities cited
+  by URL; no external source code, release archive, certificate, credential,
+  trust-root bytes, attestation bundle, provider bytes, or MDB is redistributed
+- Review: this source authorizes no workflow change, GitHub state change, OIDC
+  request, attestation creation, dispatch, acquisition, or capability movement
+
+### EXP-0073 — P8T independently authenticated preflight receipt
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no implementation, workflow,
+  GitHub mutation, OIDC request, attestation creation, dispatch, DAO
+  acquisition, provider observation, Rust result, release evidence,
+  support-state change, or compatibility result
+- Question: What existing independent trust boundary prevents a publisher from
+  rewriting the canonical preflight receipt's time and coherently refreshing
+  every dependent manifest, report, overlay, and selection hash?
+- Origin: `EXP-0072`'s transaction-bound but unsigned receipt, the G1/provider/
+  authorization contracts, existing artifact-attestation boundary `SRC-0026`,
+  official details in `SRC-0028`, and independent-review finding that raw hash
+  closure authenticates integrity only relative to an untrusted publisher. No
+  MDB implementation, provider binary, MDB file, retained campaign payload,
+  signing key, workflow run, attestation, or external format source was
+  inspected.
+- Environment: document, repository-contract, and official-primary-source
+  analysis at exact clean base commit
+  `6becd3dbfd788e9faba3d4c87a34543b1400e3a4` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; DAO provider, locale, code pages,
+  and time zone are not applicable
+- Protocol: reuse GitHub/Sigstore artifact attestation over the exact receipt
+  bytes. Step 2 commits a versioned offline trusted-root snapshot, extends the
+  existing receipt manifest member with the retained Sigstore bundle and one
+  registered offline verifier, and adds no new receipt or schema. P8 later pins
+  `actions/attest` at the exact v4.2.2 commit between authorization preflight
+  and acquisition. GitHub CLI 2.98.0 verifies only local subject/bundle/root
+  bytes and exact certificate repository/workflow/ref/run/attempt/commit,
+  receipt digest, hosted-runner, and transparency-log time. Predicate text is
+  ignored as authority. Only verifier exit zero reaches acquisition.
+- Artifacts: `docs/validation/EVIDENCE.md` trust-root, action, offline command,
+  identity/timing, publication, manifest, and stable-reason contract;
+  `docs/validation/ACCEPTANCE.md` G3 authentication and no-edge requirement;
+  and `docs/plans/IMPLEMENTATION_PLAN.md` literal inventory, exact source/CLI/
+  downstream-workflow scope, counts, routed tests, and focused commands. The
+  named trust root and Sigstore bundle are future Step 2/P8 artifacts and are
+  not created here.
+- Observation: G1 and provider proofs do not sign this receipt, while the
+  existing human SSH signature necessarily covers only the authorization
+  created before preflight. Attesting the existing receipt as the sole subject
+  authenticates its digest and therefore its nonce and exact times without a
+  duplicate controller-time assertion or a second project-held key.
+- Interpretation: a coherent publisher rewrite cannot change the platform-
+  signed subject digest, certificate run identity, or verified timestamp. The
+  committed trust root and offline command make later validation reproducible;
+  absence, wrong identity/digest/root, or unavailable verifier fails before
+  acquisition. Empty production authority remains earlier, empty read
+  authority and disabled policy still prevent advancement, and no human/private
+  project signing key is placed on the runner.
+- Tests frozen: exact offline success and acquisition-edge ordering; wrong
+  run, attempt, commit, subject digest, and trust root; unavailable or
+  version-drifted offline verifier with no online fallback; and a coherent
+  receipt-time forgery that refreshes every dependent selection field but not
+  the independent Sigstore bundle, using the exact routed names and commands in
+  `IMPLEMENTATION_PLAN.md`
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored validation-contract analysis plus public-primary-
+  source citations; no private key, credential, OIDC token, trusted-root bytes,
+  attestation bundle, provider bytes, MDB, or external code is redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, workflow, GitHub state change, authority
+  provisioning, signature, dispatch, acquisition, policy/matrix change, or
+  capability movement and keeps `dao_differential_v1` disabled
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

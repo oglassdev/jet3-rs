@@ -417,6 +417,40 @@ Step 2 tests include retained-output-only real subprocess handoff,
 same-second rejection with no receipt, next-second canonical receipt success,
 missing/altered/forged receipt rejection, and mutation after publication.
 
+The round-13 authentication amendment rejects raw hash closure as proof of who
+created that receipt. Existing G1 and provider records do not sign it, and the
+human SSHSIG covers only the earlier authorization. The fixed P8 workflow must
+therefore use the already-recorded GitHub/Sigstore artifact-attestation
+boundary in `SRC-0028` to attest the exact receipt bytes, then successfully run the new
+`authorization-preflight-attestation` offline verifier before any provider,
+DAO, Rust, or acquisition command. Authorization-preflight exit 0 and
+attestation creation are non-acquisition; only verifier exit 0 supplies the
+acquisition edge.
+
+The manifest's existing `acquisition_preflight_receipt` member contains the
+receipt document, fixed retained
+`dao-bundle/acquisition-preflight-receipt.sigstore.json`, and the registered
+verification-command id. G3 loads the exact clean-commit
+`docs/validation/github-artifact-attestation-trusted-root-v1.jsonl`, invokes
+the frozen GitHub CLI 2.98.0 offline command over local receipt/bundle/root
+bytes, and requires the verified certificate, subject digest, and public-log
+timestamp to bind the exact public repository, workflow/ref, hosted runner,
+run, attempt, commit, receipt nonce and times. The authenticated attestation
+time is no earlier than receipt completion and no later than verifier start;
+the verifier finishes before acquisition. Workflow-controlled predicate text,
+ambient credentials, an online lookup, or a caller-supplied root is never
+authority.
+
+The fixed workflow action is
+`actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6` with only the receipt
+subject, default SLSA provenance, and exact read/OIDC/attestation permissions;
+no project or human private key reaches the runner. Missing, invalid,
+mismatched, or unverifiable attestation state uses the stable reasons in
+`EVIDENCE.md`, produces no adapter output, and cannot reach acquisition even
+when every receipt-dependent manifest, report, overlay, and selection hash was
+coherently refreshed. Empty production authority remains the earlier blocker;
+empty read authority and disabled policy still prevent advancement.
+
 Step 2 verifies the DAO path through three focused modules, not one aggregate
 adapter test file:
 
@@ -433,6 +467,25 @@ and DAO-specific acceptance wiring. Their only shared fixture module is
 expected-result oracle or generic test framework. The additive routing table in
 `IMPLEMENTATION_PLAN.md` assigns every earlier frozen name and domain exactly
 once; the former `test_dao_differential_adapter.py` command is superseded.
+
+The later round-13 decomposition retains the preflight and effective-support
+modules but replaces `test_dao_differential_manifest.py` with five focused
+commands:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_manifest_inventory.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_authorization_attestation.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_semantic_snapshot.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_read_allowlist.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_report_projection_receipt.py' -v
+```
+
+Together with the unchanged preflight and effective-support commands, these
+form the closed 79-name partition: 27, 1, 18, 17, 7, 8, and 1 tests in boundary
+order. The same sole direct fixture helper remains; no catch-all, second helper,
+generic framework, or duplicate DAO-specific test is authorized. Exact names,
+unnamed domains, focused `-k` commands, and path ownership are frozen in the
+latest `IMPLEMENTATION_PLAN.md` routing supersession.
 
 The later manifest must raw-hash and size the exact retained path objects, and
 `effective-support --repo-root --overlay --manifest-sha256` must re-read those

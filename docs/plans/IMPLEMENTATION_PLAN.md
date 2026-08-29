@@ -2100,6 +2100,294 @@ discovery commands remain authoritative. No test creates a hosted run, invokes
 a provider or DAO, acquires evidence, changes policy/matrix state, or provisions
 production authority.
 
+The following round-13 authenticated-receipt amendment supersedes only the
+round-12 reliance on a self-consistent receipt/manifest hash graph. Inspection
+of the existing mechanisms found no signature there: G1 verifies deterministic
+CI hashes, provider proof verifies provider facts and freshness, and the
+OpenSSH human authorization signature necessarily predates the receipt. Reuse
+the repository's `SRC-0028` GitHub/Sigstore artifact-attestation
+boundary; do not add a second project key, custom signature format, or another
+receipt document.
+
+Extend the literal Step 2 `adds exactly` inventory by exactly one path:
+
+- `docs/validation/github-artifact-attestation-trusted-root-v1.jsonl`.
+
+This is a raw, nonempty, bounded GitHub CLI 2.98.0 `trusted_root.jsonl`
+snapshot, not a JSON schema and not an acquisition-authority key. Step 2
+obtains it from the official `gh attestation trusted-root` path, records exact
+bytes/hash/size and source in provenance, and commits it before P8. Therefore
+the final new-schema count remains eleven. The closed manifest remains at
+thirteen top-level members: the existing `acquisition_preflight_receipt`
+member changes to the exact `document`/`attestation`/
+`verification_command_id` object in `EVIDENCE.md`. Its `contracts` count rises
+from nineteen to twenty by adding
+`github_artifact_attestation_trusted_root`. No further Step 2 production path
+is added or modified beyond the already inventoried thin CLI,
+`tools/validation/acquisition_authorization.py`, release-evidence validators,
+source-closure registry, schema/README inventories, and focused tests.
+
+The thin CLI gains the exact `authorization-preflight-attestation` argv in
+`EVIDENCE.md`. The source-closure registry gains the global non-scenario
+`acquisition_preflight_receipt_attestation_verifier` entry over that thin CLI,
+`tools/validation/acquisition_authorization.py`, and its exact transitive
+repository imports at the clean commit; external executables add only GitHub
+CLI 2.98.0. The command derives all receipt, bundle, root, and private child
+paths and accepts the same absolute clean repository and private staging
+parent arguments as preflight plus only the action's validated absolute
+`RUNNER_TEMP` bundle output. Its invocation of `gh attestation verify` is
+the exact offline argv/environment/bounds contract in `EVIDENCE.md`, with a
+local bundle, clean-commit custom trust root, exact repo/workflow/ref/source
+digests, OIDC issuer, hosted-runner denial, JSON output, and no ambient token,
+network lookup, or predicate-based authority.
+
+P8's later workflow source remains outside Step 2. Before acquisition it must
+use exactly
+`actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6` (v4.2.2), default
+SLSA provenance, the fixed receipt as sole subject, no custom predicate,
+`show-summary: false`, and only `contents: read`, `id-token: write`, and
+`attestations: write`. Its local Sigstore bundle is copied to the fixed
+private verification directory, then the new verifier authenticates it and atomically
+retains it as
+`dao-bundle/acquisition-preflight-receipt.sigstore.json`. Neither action nor
+authorization-preflight exit 0 is an acquisition edge. The exact controller
+graph is now `environment release -> authorization-preflight -> pinned
+artifact attestation -> authorization-preflight-attestation exit 0 -> provider
+proof/DAO/Rust acquisition`; no `always`, cleanup, failure, unavailable-tool,
+or policy branch bypasses it.
+
+The verifier requires one authenticated subject digest over the exact receipt,
+the exact OIDC certificate repository/workflow/ref/commit/hosted-run identity,
+run invocation URI containing the signed run id and attempt, and a verified
+public-log time between receipt completion and verifier start. Because nonce
+and start/completion are inside the subject bytes, the signature binds them
+without adding an unauthenticated duplicate time field. Final publication is
+the four-file bundle set in `EVIDENCE.md`; receipt, Sigstore bundle, manifest
+reference/inventory, verifier command/source, and later effective-support joins
+are all exact. A forged receipt plus coherently refreshed command, manifest,
+report, overlay, and selected hashes still retains the old authenticated
+subject digest and fails before adapter output.
+
+The exact reasons are
+`missing_acquisition_preflight_receipt_attestation`,
+`invalid_acquisition_preflight_receipt_attestation`,
+`acquisition_preflight_receipt_attestation_mismatch`, and
+`acquisition_preflight_receipt_attestation_verifier_unavailable`, with the
+exit/status/precedence in `EVIDENCE.md`. Empty authority remains the first
+production blocker and produces neither receipt nor attestation. Step 2 does
+not add a workflow, request OIDC, create an attestation, provision authority,
+invoke provider/DAO, acquire evidence, or change allowlist, policy, matrix, or
+capability state.
+
+Extend `test_acquisition_authorization_preflight.py` by exactly these seven
+names:
+
+- `test_preflight_receipt_attestation_offline_verification_passes`;
+- `test_preflight_receipt_attestation_wrong_run_is_rejected`;
+- `test_preflight_receipt_attestation_wrong_attempt_is_rejected`;
+- `test_preflight_receipt_attestation_wrong_commit_is_rejected`;
+- `test_preflight_receipt_attestation_wrong_receipt_digest_is_rejected`;
+- `test_preflight_receipt_attestation_wrong_trust_root_is_rejected`; and
+- `test_preflight_receipt_attestation_offline_verifier_unavailable_is_blocked`.
+
+The passing test invokes the production subprocess seam with exact local
+receipt/bundle/committed-root paths, no GitHub token or OIDC variables, poisoned
+network endpoints, the exact `gh` argv, one bounded verified result, and a
+four-file post-verification bundle; it asserts the verifier is the only
+acquisition-hook predecessor. The five identity/digest/root mutations alter
+one authenticated input each while preserving all unrelated valid fields and
+require the attestation-mismatch reason, zero output, and no acquisition edge.
+The unavailable test removes or version-drifts only the offline `gh`
+capability and requires the dedicated exit-3 reason without attempting online
+discovery. Deterministic subprocess fixtures model the documented `gh` exit
+and verified-JSON boundary; they may not treat predicate text as a verification
+oracle.
+
+Extend `test_dao_differential_manifest.py` by exactly
+`test_coherent_preflight_receipt_forgery_with_refreshed_selection_is_rejected`.
+It starts from a valid authenticated fixture, rewrites the receipt time, and
+refreshes every receipt-dependent receipt reference, file row, verification
+command, run/scenario/report field, raw manifest hash, overlay inventory, and
+expected selection hash. It leaves only the independently authenticated
+Sigstore bundle unchanged and must fail with
+`acquisition_preflight_receipt_attestation_mismatch` before policy/output. This
+is distinct from generic stale-hash tests and proves the missing trust boundary.
+
+The eight focused commands are:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_offline_verification_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_wrong_run_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_wrong_attempt_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_wrong_commit_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_wrong_receipt_digest_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_wrong_trust_root_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_preflight_receipt_attestation_offline_verifier_unavailable_is_blocked -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -k test_coherent_preflight_receipt_forgery_with_refreshed_selection_is_rejected -v
+```
+
+The routed inventory now has 79 individual names: 27 preflight, 51
+manifest/intrinsic, and one effective-support test. Whole-module discovery and
+the sole shared direct-fixture helper remain unchanged; no second helper,
+network fixture, generic oracle, or monolithic test path is authorized.
+
+The following round-13 test-decomposition amendment supersedes only the
+round-11/12/13 routing that assigned 51 mixed-domain tests to
+`tools/tests/test_dao_differential_manifest.py`. The existing
+`tools/tests/test_acquisition_authorization_preflight.py`,
+`tools/tests/test_dao_effective_support.py`, and sole direct helper
+`tools/tests/dao_differential_fixtures.py` remain exactly as scoped. In the
+literal Step 2 `adds exactly` inventory, replace the catch-all manifest test
+path with exactly these five paths:
+
+- `tools/tests/test_dao_manifest_inventory.py`;
+- `tools/tests/test_dao_authorization_attestation.py`;
+- `tools/tests/test_dao_semantic_snapshot.py`;
+- `tools/tests/test_dao_read_allowlist.py`; and
+- `tools/tests/test_dao_report_projection_receipt.py`.
+
+`test_dao_differential_manifest.py` is historical and is not a Step 2 path.
+No second helper, base class, generic mutation framework, generated test
+dispatcher, or expected-result oracle is authorized. Each focused module uses
+the existing direct fixture functions and owns its mutations and assertions.
+Each of the seven discovered test modules must remain below 1,000 physical
+lines and target no more than 800; crossing the hard limit requires a new
+additive domain split, not another catch-all or helper framework.
+This is test organization only: production paths, authenticated receipt rules,
+acquisition ordering, workflow/CLI/read-only scope, disabled policy, matrix,
+and read-only/no-write semantics are unchanged.
+
+The exact whole-module discovery commands, in boundary order, are:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_manifest_inventory.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_authorization_attestation.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_semantic_snapshot.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_read_allowlist.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_report_projection_receipt.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_effective_support.py' -v
+```
+
+For an individual frozen name below, insert `-k TEST_NAME` before `-v` in its
+module's command. This latest routing supersedes every earlier focused command
+that names `test_dao_differential_adapter.py` or
+`test_dao_differential_manifest.py`.
+
+- `test_acquisition_authorization_preflight.py` retains exactly these 27
+  bounded secret, filesystem, signature, publication, entry-time, receipt
+  creation, and offline-attestation tests:
+  `test_authorization_preflight_missing_secret_is_rejected`,
+  `test_authorization_preflight_malformed_secret_is_rejected`,
+  `test_authorization_preflight_oversized_secret_is_rejected`,
+  `test_authorization_preflight_partial_publication_is_cleaned`,
+  `test_authorization_preflight_cleanup_failure_is_error`,
+  `test_authorization_preflight_altered_retained_byte_is_rejected`,
+  `test_authorization_preflight_unsafe_path_is_rejected`,
+  `test_authorization_preflight_existing_target_is_rejected`,
+  `test_authorization_preflight_nonzero_verifier_is_rejected`,
+  `test_authorization_preflight_unavailable_verifier_is_blocked`,
+  `test_authorization_preflight_bytes_are_later_manifest_bytes`,
+  `test_authorization_preflight_same_second_as_authorized_at_is_rejected`,
+  `test_authorization_preflight_next_second_after_authorized_at_passes`,
+  `test_step_2_authority_contract_is_exact_empty_sentinel`,
+  `test_authorization_preflight_unprovisioned_authority_is_blocked`,
+  `test_authorization_preflight_malformed_authority_is_rejected`,
+  `test_authorization_preflight_unlisted_signer_is_rejected`,
+  `test_authorization_preflight_revoked_signer_is_rejected`,
+  `test_authorization_preflight_receipt_is_atomically_retained`,
+  `test_authorization_preflight_receipt_byte_mutation_after_publication_is_rejected`,
+  `test_preflight_receipt_attestation_offline_verification_passes`,
+  `test_preflight_receipt_attestation_wrong_run_is_rejected`,
+  `test_preflight_receipt_attestation_wrong_attempt_is_rejected`,
+  `test_preflight_receipt_attestation_wrong_commit_is_rejected`,
+  `test_preflight_receipt_attestation_wrong_receipt_digest_is_rejected`,
+  `test_preflight_receipt_attestation_wrong_trust_root_is_rejected`, and
+  `test_preflight_receipt_attestation_offline_verifier_unavailable_is_blocked`.
+- `test_dao_manifest_inventory.py` owns
+  `test_deferred_requirement_fails_before_adapter_output` and all otherwise
+  unnamed closed manifest-shape, member/contract count, schema binding,
+  complete file-inventory, safe normalized path, raw hash/size, provider-proof,
+  clean-commit, and exact source-closure inventory cases. It owns no scenario
+  semantic comparison, authorization decision, report projection, policy, or
+  acceptance wiring.
+- `test_dao_authorization_attestation.py` owns exactly these 18 retained
+  authorization-document, SSH signature, authority, run/replay, verifier-
+  command, and manifest authentication cases:
+  `test_manifest_bound_acquisition_authorization_passes`,
+  `test_missing_acquisition_authorization_is_rejected`,
+  `test_invalid_acquisition_authorization_is_rejected`,
+  `test_acquisition_authorization_binding_mismatch_is_rejected`,
+  `test_acquisition_authorization_ordering_violation_is_rejected`,
+  `test_acquisition_authorization_scope_mismatch_is_rejected`,
+  `test_acquisition_authorization_rights_mismatch_is_rejected`,
+  `test_future_manifest_identity_in_authorization_is_rejected`,
+  `test_signed_run_bound_acquisition_authorization_passes`,
+  `test_missing_acquisition_authorization_signature_is_rejected`,
+  `test_invalid_acquisition_authority_contract_is_rejected`,
+  `test_forged_acquisition_authorization_actor_is_rejected`,
+  `test_unlisted_or_revoked_acquisition_authority_is_rejected`,
+  `test_acquisition_authorization_cross_run_replay_is_rejected`,
+  `test_acquisition_authorization_cross_attempt_replay_is_rejected`,
+  `test_acquisition_authorization_nonce_replay_is_rejected`,
+  `test_acquisition_authorization_verification_command_mismatch_is_rejected`,
+  and `test_acquisition_authorization_verifier_unavailable_is_blocked`.
+- `test_dao_semantic_snapshot.py` owns exactly these 17 complete-inventory,
+  coverage, snapshot-producer identity, and producer-command/artifact join
+  cases:
+  `test_registered_non_forbidden_extra_coverage_branch_is_allowed`,
+  `test_unregistered_coverage_branch_is_rejected`,
+  `test_forbidden_coverage_branch_is_rejected`,
+  `test_stale_dao_snapshot_source_revision_is_rejected`,
+  `test_stale_rust_snapshot_source_revision_is_rejected`,
+  `test_swapped_or_wrong_snapshot_producer_kind_is_rejected`,
+  `test_exact_outcome_producer_commands_and_artifact_links_pass`,
+  `test_missing_required_producer_command_is_rejected`,
+  `test_duplicate_producer_command_is_rejected`,
+  `test_wrong_producer_command_binding_is_rejected`,
+  `test_swapped_artifact_producer_command_is_rejected`,
+  `test_unrelated_scenario_producer_command_is_rejected`,
+  `test_nonzero_harness_producer_command_is_rejected`,
+  `test_stale_producer_command_revision_is_rejected`,
+  `test_producer_command_outside_trusted_run_interval_is_rejected`,
+  `test_unbound_generated_artifact_is_rejected`, and
+  `test_producer_command_artifact_mismatch_is_rejected`.
+- `test_dao_read_allowlist.py` owns exactly these seven closed allowlist and
+  capability/scenario/branch/output membership cases:
+  `test_empty_committed_read_allowlist_is_blocked`,
+  `test_exact_library_read_allowlist_passes`,
+  `test_read_allowlist_wildcard_is_rejected`,
+  `test_read_allowlist_contract_mismatch_is_rejected`,
+  `test_read_allowlist_capability_scenario_membership_mismatch_is_rejected`,
+  `test_read_allowlist_branch_membership_mismatch_is_rejected`, and
+  `test_read_allowlist_adapter_output_mismatch_is_rejected`.
+- `test_dao_report_projection_receipt.py` owns exactly these eight report-free
+  manifest-projection and authenticated preflight-receipt handoff/join cases:
+  `test_report_manifest_projection_finalization_passes`,
+  `test_report_manifest_projection_excludes_only_report_binding`,
+  `test_report_manifest_projection_mismatch_is_rejected`,
+  `test_preflight_receipt_real_subprocess_to_manifest_handoff_passes`,
+  `test_missing_acquisition_preflight_receipt_is_rejected`,
+  `test_altered_acquisition_preflight_receipt_is_rejected`,
+  `test_forged_acquisition_preflight_receipt_is_rejected`, and
+  `test_coherent_preflight_receipt_forgery_with_refreshed_selection_is_rejected`.
+  It also owns otherwise unnamed report schema/canonical-byte/raw-reference
+  checks and receipt document/attestation/verification-command/file-row joins;
+  it does not own authorization policy or effective-support resolution.
+- `test_dao_effective_support.py` retains exactly
+  `test_effective_support_unprovisioned_authority_is_blocked` plus the already
+  routed unnamed safe-selection, fixed overlay/manifest hash, effective-result,
+  intrinsic-before-policy, subset/full-G3, environment-forwarding, exact
+  stdout/exit, and single canonical-resolver acceptance domains. The general
+  cross-adapter tests remain in their previously inventoried modules and no
+  DAO-specific duplicate is permitted.
+
+This is a closed 79-name partition: 27 preflight, one manifest/inventory, 18
+authorization/attestation/replay, 17 semantic snapshot/coverage/producer
+commands, seven read-allowlist, eight report/projection/receipt, and one
+effective-support. Every named test appears in exactly one module, and every
+unnamed DAO-specific domain has one owner. No catch-all test module remains.
+
 #### P8T downstream P8/P10 and Section 5 contract supersessions
 
 Only named clauses are superseded; all authorization, provider, holdout,
