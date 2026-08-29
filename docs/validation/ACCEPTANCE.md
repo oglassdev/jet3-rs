@@ -99,9 +99,8 @@ differential job and full release acceptance are `BLOCKED`, not passed.
 
 ### P8T detached-overlay consumption
 
-G3 consumes no committed `dao_bundle` pointer. `./scripts/acceptance.sh full`
-inherits exactly one explicitly supplied overlay root and one expected DAO
-manifest hash:
+G3 consumes no committed `dao_bundle`. Full acceptance inherits exactly one
+absolute detached overlay and one expected manifest hash:
 
 ```sh
 JET3_RELEASE_EVIDENCE=/absolute/path/to/overlay \
@@ -109,15 +108,7 @@ JET3_RELEASE_EVIDENCE_MANIFEST_SHA256=<64-lowercase-hex> \
 ./scripts/acceptance.sh full
 ```
 
-`JET3_RELEASE_EVIDENCE` must be an absolute detached directory containing
-`release-evidence.json`; `JET3_RELEASE_EVIDENCE_MANIFEST_SHA256` must equal the
-recomputed SHA-256 of exactly
-`dao-bundle/bundle-manifest.json`. G3 performs no discovery, download, newest
-selection, or fallback. An unset, relative, missing, multiply selected, or
-hash-mismatched input is `BLOCKED` or `FAIL` as described below, never neutral
-or passed.
-
-The G3 gate invokes this literal interface:
+G3 performs no discovery or fallback and invokes only:
 
 ```sh
 python3 tools/validate_release_evidence.py effective-support \
@@ -126,185 +117,84 @@ python3 tools/validate_release_evidence.py effective-support \
   --manifest-sha256 "$JET3_RELEASE_EVIDENCE_MANIFEST_SHA256"
 ```
 
-The command validates the exact clean `HEAD`, overlay and bundle-manifest
-closure, runs each requested intrinsically available adapter to completion,
-then applies checked policy and joins only enabled outputs to the committed
-support-matrix baseline as specified by `EVIDENCE.md`. On
-every safe `PASS` or `BLOCKED` resolution it emits one canonical JSON result
-validated against the exact-commit schema at
-`docs/validation/schema/effective-support-result.schema.json`. That closed
-result and its nested shapes, full-catalog requirement, joins, ordering, hash
-domains, and serialization are fixed by `EVIDENCE.md`. In particular, every
-adapter output includes its evidence id, intrinsic `verification`,
-`campaign_id`, positive-integer `hosted_run_id`, and positive-integer
-`hosted_run_attempt`, and
-`capabilities` contains the full committed catalog rather than only the
-selected adapter subset. The G3 stdout artifact and the SHA-256 of its exact
-canonical bytes are retained by the ordinary acceptance record; no overlay
-payload is copied into the repository.
+The canonical validator binds the exact clean `HEAD`, overlay raw hash,
+bundle-manifest raw hash, complete file inventory, contracts, provider proof,
+executed-source closures, commands, report, and scenario artifacts. A missing
+selection is `BLOCKED`; relative/unsafe paths, special files, malformed input,
+dirty state, stale commit, hash/size/closure mismatch, or intrinsic semantic
+failure are `FAIL`.
 
-Exit 0 and `status: PASS` require the complete G3 inventory above, every
-required DAO scenario and operation, no `SKIPPED` or `UNSUPPORTED` result, and
-every exact-commit matrix capability whose `required_verification` is
-`dao_opened` or `dao_differential` at that required effective level. This is
-the exact G3-required set frozen in `EVIDENCE.md`; implementation state does not
-add or remove members. Capabilities requiring `independent_check` and those
-requiring `not_applicable` remain present and fully validated in the result but
-do not determine G3 status. Their independent gates and the overall acceptance
-result remain separate. In particular, an older P9 independent report is not
-refreshed or reused merely because `HEAD` changed: its non-G3 capability stays
-at the stored baseline with no detached evidence id while otherwise complete
-P10 G3 evidence can pass. Supplying stale evidence still fails the ordinary
-exact-commit validation. A valid read-only subset is reported as `BLOCKED`,
-never as full G3 PASS. A missing selection is rejected by the G3 wrapper before
-the result exists. Disabled policy, a required future write/update leg that is
-not yet an authorized release input, or an otherwise valid but incomplete-for-
-G3 subset exits 3 with a specific `BLOCKED:` reason; when the inputs permit a
-safe resolution, stdout is the schema-valid `BLOCKED` result described above.
-Unsafe paths or file types, malformed or non-canonical required JSON, dirty
-state, commit/hash/contract mismatch, altered payload, a missing required
-contract or selected scenario/branch, a schema-invalid complete snapshot or
-opening-failure/expected-projection/operation-failure artifact, unequal
-canonical comparison projections, a DAO/Rust projection pair that disagrees
-with independently derived semantic intent, an invalid expected operation
-failure, empty or mismatched preserve paths, unexpected preservation
-difference, adapter-output/result-schema mismatch, or any other
-failed executable check
-exits 1 as `FAIL` and must not emit a `BLOCKED` effective-support result.
-Producer and producer-extension differences are not failures by
-themselves: G3 independently validates each complete snapshot, removes exactly
-the two schema-declared `/producer` and `/producer_extensions` members, and
-compares the canonical projection bytes as fixed by `EVIDENCE.md`.
-For successful writes and updates this is a three-way equality: DAO and Rust
-projections must each equal the expected projection independently derived from
-the manifest-bound declarative scenario input. Agreement between the two
-observed producers is not sufficient.
+P8T step 2's `dao_differential_v1` manifest/report is read-leg schema version
+1. Its only operation is `rust_read_dao`. `dao_open_rust`,
+`dao_verify_rust_update`, and every write/update operation or artifact are
+rejected as `unsupported_operation_for_schema_version`, not accepted,
+skipped, or treated as a passing expected failure.
 
-Disabled policy does not short-circuit validation. G3 first checks the explicit
-selection and path; the canonical release-evidence path then checks file types,
-exact inventory and payload closure, raw hashes and sizes, exact commit,
-repeated cleanliness, bound contracts, all required schemas, intrinsic adapter
-semantics, and expected-output equality, followed by its closing overlay,
-payload, contract, and repository stability checks. Malformed, unsafe,
-tampered, stale, dirty, or intrinsically failing evidence exits 1 as `FAIL`
-regardless of disabled policy. Only an intrinsically passing selected
-`dao_differential_v1` item can reach policy suppression and the named exit-3,
-schema-valid `BLOCKED` result. That result has no adapter output or detached
-evidence id, retains every stored baseline, and advances no capability. The G3
-wrapper and staging path invoke this same validator and may not preflight,
-duplicate, or bypass its semantic work.
+Positive reads require independently schema-valid complete DAO and Rust v1.2
+snapshots plus the Rust coverage receipt. G3 removes exactly the
+schema-declared `/producer` and `/producer_extensions` members, compares
+canonical projection bytes, and continues comparing raw/converted values, raw
+preservation, ordering, and every other semantic field. The complete source
+documents remain separately raw-hash/size bound.
 
-Provider PASS facts come only from the manifest-bound canonical
-`provider_proof` JSON, never from an operation log or workflow prose. G3
-validates that closed document against the exact-commit provider-proof schema,
-binds it to the manifest campaign, hosted workflow run/attempt, commit,
-timestamp interval, and provider-proof command, and requires its hosted image,
-x86 process, COM ProgID/CLSID/registration, provider path/version/hash, and
-disposable `dbVersion30` activation/create/close/file-observation fields to
-match the committed authorized lane exactly. This retained artifact supplements
-but does not replace fresh provider proof, exact-commit human authorization,
-the pre-mutation boundary, or provider-output retention and redistribution
-rules.
+The three committed negative reads pass only when Rust rejects with the exact
+committed class: `encrypted_database`, `unsupported_version`, or
+`password_protected`. Each requires the source MDB, a canonical separate
+`rust_opening_failure` artifact, and matching `opening_failure` coverage
+receipt bound to the same scenario, commit, source hash, outcome, and class.
+DAO/Rust success snapshots are null. Success, wrong class, missing or
+mismatched failure/receipt, forbidden snapshot, `SKIPPED`, or
+`UNSUPPORTED` is G3 `FAIL`.
 
-The bundle producer does not choose executed source. G3 loads the hash-bound
-committed source-closure registry, binds each command's role and indexed argv
-entrypoint to one registered entrypoint, and requires exact set equality among
-the selected per-role closures, command source paths, and manifest
-`executed_sources`. It rejects a required-source omission, extra source,
-unregistered or wrong argv entrypoint, declared source unused by any selected
-closure, and role mismatch. Every passing scenario names its DAO and Rust
-producer commands. At least one scenario-referenced Rust producer must be the
-registry's `rust_semantic_snapshot_v1_2` entrypoint with role
-`rust_producer`, subject `production_rust_library`, and path
-`crates/jet3-testkit/src/lib.rs`. Its closure includes the public `jet3`
-library boundary, the testkit semantic-snapshot producer and all of their
-committed Rust dependencies. That producer accepts and invokes the public
-`jet3::DatabaseReader` API. `jet3-cli snapshot` may drive it only when the
-closure also binds the CLI driver sources; CLI paths never replace the testkit
-producer or establish the library subject. G3 therefore rejects a CLI-only
-closure and a closure missing either side of the public testkit-to-`jet3`
-boundary. These checks and their compile/invocation tests prove a commit-bound
-public API and source/dependency closure, not a dynamic runtime call graph.
+Provider facts come only from the manifest-bound structured proof and committed
+contract, never logs. G3 checks hosted image, x86 COM registration/CLSID,
+provider path/version/hash, and disposable `dbVersion30` probe; provider-proof
+age relative to manifest start passes through 604800 seconds and fails at
+604801 or when future-dated. Fresh proof, exact-commit human authorization,
+pre-mutation boundary, retention, and redistribution restrictions remain
+binding.
 
-Run identity is unambiguous at every boundary. Manifest `run.campaign_id` and
-report/result/adapter-output `campaign_id` are the same nonempty string.
-Manifest `run.hosted_run_id` and `run.hosted_run_attempt`, provider-proof,
-report, result, and adapter-output fields with those names are the same JSON
-positive integers. The obsolete generic `id`, `run_id`, and `attempt` names
-are not admitted in these closed contracts, and a digit string cannot satisfy
-a hosted run field.
+Executed sources come from the committed hash-bound source-closure registry.
+G3 requires exact union equality with command source lists and
+`executed_sources`, correct roles and indexed argv entrypoints, and rejects
+missing, extra, unused, or CLI-only source claims. P8 owns adding the actual
+PR-#92 Rust snapshot producer, public `DatabaseReader` closure, and optional
+CLI driver before acquisition; P8T step 2 does not run nonexistent Rust/CLI
+producer targets.
 
-Time identity is equally closed. Every timestamp location enumerated by
-`EVIDENCE.md`, including provider-contract `image_proofs[].completed_at`, uses
-its one calendar-valid uppercase-UTC, whole-second grammar and is compared as
-integer UTC seconds. Run, command, and scenario completion may equal start at
-that resolution; completion before start and subordinate endpoints outside the
-inclusive run interval fail. Provider-proof freshness uses only the validated,
-report-bound manifest `run.started_at`: the selected image proof passes when
-its integer age is inclusively `0..604800`, fails stale at `604801`, and fails
-as future-dated below zero. Acceptance must not substitute its local clock or
-any other recorded timestamp for that comparison reference.
+The validator emits the closed canonical
+`effective-support-result.schema.json` result on every safe PASS/BLOCKED
+resolution. It records overlay/manifest hashes, exact commit and run identity,
+all enabled adapter outputs, and every committed matrix capability exactly once
+in strict id order with stored/effective verification and detached evidence
+ids. G3 derives its required capability set from exact matrix entries requiring
+`dao_opened` or `dao_differential`; entries with other requirements remain
+mandatory in the full catalog but do not change that G3 predicate.
 
-The three committed negative `rust_read_dao` scenarios are passing scenarios
-only when Rust performs the expected rejection. Each requires the source MDB,
-the manifest's separate `rust_opening_failure` artifact validated against
-`oracle/windows-dao/protocol/v1_2/opening-failure.schema.json`, and its PR #92
-`opening_failure` coverage receipt. Both artifacts are bound to the same
-source-MDB hash, release revision, scenario id, opening-failure outcome, and
-exact committed error class. `dao_snapshot` and `rust_snapshot` are null, as
-are the other inapplicable snapshot fields, and no DAO semantic snapshot is
-retained or compared. The report must say
-`expected_outcome: expected_error`, `observed_outcome: error`, the same error
-class, `status: PASS`, and null reason. A successful open, mismatched class,
-identity mismatch within the failure pair, missing failure pair, retained DAO
-or Rust snapshot, otherwise forbidden artifact, `SKIPPED`, or `UNSUPPORTED`
-result is a failed evidence check, never an accepted negative or a neutral
-result. The opening-failure JSON must have the canonical bytes fixed by
-`EVIDENCE.md`, and its manifest reference binds those exact bytes, SHA-256, and
-size independently of the success snapshot schema.
+Intrinsic validation precedes policy. The canonical path completes path/type,
+inventory, raw hash/size, exact-commit, repeated-cleanliness, contract,
+provider, schema, read-semantic, expected-output, and closing-stability checks
+before consulting policy. Thus malformed or tampered selected evidence exits 1
+`FAIL` despite disabled policy. Only complete intrinsic PASS may reach the
+unchanged disabled-policy exit 3 `BLOCKED`, with no adapter output, evidence
+id, or advancement.
 
-Expected failures of write/update create, drop, CRUD, index, and relationship
-operations use the separate generic
-`oracle/windows-dao/protocol/v1_2/operation-failure.schema.json`; read opening
-failures remain on their focused schema. A passing expected failure must match
-the committed operation input, release revision, operation kind, and exact
-error class. A failed write leaves no MDB or success artifact. A failed update
-leaves no output, proves raw before/after source hashes equal, retains baseline
-and DAO/Rust snapshots of the unchanged source, and completes nonempty
-preservation comparisons. Success, another error, `SKIPPED`, `UNSUPPORTED`, a
-nonzero evidence wrapper exit, output mutation, a missing required artifact, or
-any forbidden artifact is G3 `FAIL`.
+After P8 enables policy, a complete explicit read allowlist may yield a passing
+read-subset adapter result. Full G3 still exits 3 `BLOCKED` because read-leg
+schema version 1 has no write/update contracts or operations. The specific
+blocker is `future_write_update_contract_required`; absence cannot be empty
+coverage, `SKIPPED`, G3 PASS, or a compatibility claim. Before P10 can add
+those legs, the human-approved **P10 exact write/update contract gate** in
+`IMPLEMENTATION_PLAN.md` must freeze a version extension, declarative intent,
+structured failures, non-vacuous preservation, public writer/update source
+closures, and executable schemas/tests/commands.
 
-Every successful write/update also carries the canonical artifact validated by
-`oracle/windows-dao/protocol/v1_2/expected-semantic-projection.schema.json`.
-Its input hash, canonical projection bytes/hash, schema identity, derivation
-command, exact source closure, and standalone import isolation are bound and
-independently recomputed without any Rust reader/writer result, DAO observation,
-MDB, or operation log as derivation input.
-
-For update preservation, producer-exclusion semantics apply before comparing
-preserved paths, but do not weaken artifact identity. The preservation report
-binds the exact raw full-document hashes of the DAO baseline, DAO post-update,
-and Rust post-update snapshots plus the hash of the common canonical
-post-update projection. Thus DAO and Rust producer fields may differ while the
-validator still recomputes one unambiguous preservation result from the exact
-three retained documents.
-Every update scenario, including an expected operation failure, has at least
-one inventory `preserve_paths` member and at least one comparison. The new
-preservation-diff schema sets `minItems: 1` on both of its arrays, and G3
-requires the inventory array to be nonempty plus exact set and order equality
-among inventory paths, report paths, and comparison paths; empty, missing,
-duplicate, extra, or reordered paths fail.
-
-P8T step 2 deliberately leaves `dao_differential_v1` disabled. Its expected
-`./scripts/acceptance.sh full` result is therefore nonzero `BLOCKED`: without
-the two selection variables, G3 names the missing explicit overlay; with a
-structurally and semantically valid selected test overlay, G3 reaches and
-passes the available intrinsic adapter before naming the disabled-policy
-reason. A tampered or dirty selected overlay remains `FAIL`. G3 must no longer stop
-at an intrinsically unavailable adapter or the support-matrix validator's
-unconditional `dao_bundle` rejection. No P8T step changes a capability's
-stored or effective verification.
+P8T itself keeps `dao_differential_v1` disabled. Without a selected overlay,
+full acceptance names the missing explicit selection and exits 3. With a
+complete intrinsically passing test overlay, it must finish the intrinsic read
+adapter before naming disabled policy and exiting 3. Neither path may report
+intrinsic unavailability, the old unconditional stored-`dao_bundle` rejection,
+effective advancement, or G3 PASS.
 
 ## G4 — independent writer verification and atomic updates
 

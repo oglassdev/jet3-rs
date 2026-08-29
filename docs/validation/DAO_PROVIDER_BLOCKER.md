@@ -179,19 +179,27 @@ retains only `source` and `test` lineage and its repository-verifiable
 baseline; it contains no `dao_bundle` reference or detached verification
 result.
 
-Items 1–5 remain unchanged. In particular, this amendment does not weaken the
-clean exact-commit requirement, pre-acquisition human authorization, provider
-and environment re-proof, complete declarative inventory, Rust/DAO snapshot
-and preservation binding, atomic publication, independent manifest and
-payload validation, or acceptance requirements. The policy, allowlist,
-contracts, implementation, and acceptance wiring must exist in the clean
-pushed commit before acquisition. Any later provenance entry is only a
-historical record of that earlier commit and is not evidence for it.
+Items 1–5 remain unchanged as release requirements. P8T step 2 implements
+their adapter/publication machinery only for the version-1 `rust_read_dao`
+inventory: complete DAO/Rust snapshots for positive reads and the three exact
+opening-failure/coverage pairs for negative reads. It freezes no write/update
+inventory, output semantics, expected post-state, generic failure, or
+preservation contract. Those missing future contracts keep full G3 `BLOCKED`.
+Before P10 implementation or acquisition, the separately human-approved P10
+exact write/update contract gate in `IMPLEMENTATION_PLAN.md` must freeze and
+version them. The clean exact-commit requirement, pre-acquisition human
+authorization, provider/environment re-proof, atomic publication, independent
+validation, and acceptance requirements are not weakened. All applicable
+policy, allowlist, contracts, implementation, and wiring must exist in the
+clean pushed commit before acquisition. A later provenance entry is only a
+historical record and is not evidence for that earlier commit.
 
-For P8T release evidence, item 1 uses the hash-bound committed per-role
+For read-leg release evidence, item 1 uses the hash-bound committed per-role
 entrypoint/source-closure registry fixed by `EVIDENCE.md`; a producer-supplied
 source list, wrong argv entrypoint, unused source, or CLI-only Rust producer is
-insufficient. Item 2 uses the inventory-bound structured provider-proof
+insufficient. P8 adds the actual Rust snapshot-producer closure before
+acquisition; P8T step 2 does not invent or execute that downstream target.
+Item 2 uses the inventory-bound structured provider-proof
 artifact and committed provider contract fixed there. Acceptance revalidates
 the hosted image, x86 COM registration/CLSID, provider path/version/hash, and
 disposable `dbVersion30` probe from that structured artifact; operation-log or
