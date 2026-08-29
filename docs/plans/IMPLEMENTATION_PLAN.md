@@ -1046,23 +1046,55 @@ matrix-data, policy-data, plan, provenance, or validation file is authorized:
   source-closure schema at
   `docs/validation/schema/dao-differential-v1-source-closure.schema.json`, and
   its committed registry at
-  `docs/validation/dao-differential-v1-source-closure.json`; list all nine new
-  schemas in `docs/validation/schema/README.md`;
+  `docs/validation/dao-differential-v1-source-closure.json`; list all eleven
+  new schemas in `docs/validation/schema/README.md`;
 - add
   `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json` byte-for-byte
   as stabilized at PR #92 head
   `e11c1b49ca0321f328091b561150792d59894ddd` (2,764 bytes, SHA-256
   `4fe1b33aae94ab1f7cb05ca3b66112edba89d17343788678c239693d3a340008`),
   and add `oracle/windows-dao/protocol/v1_2/opening-failure.schema.json` with the
-  exact closed seven-field shape and canonical-byte rules below, and add
-  `oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json` with the
-  exact shape below; these schemas are P8T inputs, not P8 evidence;
+  exact closed seven-field shape and canonical-byte rules below, add
+  `oracle/windows-dao/protocol/v1_2/expected-semantic-projection.schema.json`,
+  add `oracle/windows-dao/protocol/v1_2/operation-failure.schema.json`, and add
+  `oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json`, each with
+  the exact shape below; these schemas are P8T inputs, not P8 evidence;
 - modify `oracle/windows-dao/scripts/validate_protocol_v1_2.py` only to make
-  its `schemas` subcommand load and lint the new opening-failure schema, and
+  its `SCHEMAS` registry and `schemas` subcommand load and lint all five new
+  protocol schemas under these exact document-type/file mappings:
+  `rust_coverage_receipt`/`coverage-receipt.schema.json`,
+  `rust_opening_failure`/`opening-failure.schema.json`,
+  `independent_expected_semantic_projection`/
+  `expected-semantic-projection.schema.json`,
+  `rust_operation_failure`/`operation-failure.schema.json`, and
+  `semantic_preservation_diff`/`preservation-diff.schema.json`; the resulting
+  registry is exactly the three pre-existing mappings plus those five and the
+  command reports exactly `PASS: 8 protocol 1.2 schemas`;
+  modify `oracle/windows-dao/protocol/v1_2/README.md` only to add those five
+  schema files and document types to its Documents inventory and to state that
+  P8T step 2 owns their contracts, including the coverage schema, while P8
+  step 2 owns the testkit producer and optional CLI driver that emit the
+  coverage artifact; remove the stale statement that the coverage schema is
+  added solely in P8 step 2, without changing the pre-existing scenario,
+  snapshot, comparison, or canonicalization semantics;
   modify `oracle/windows-dao/tests/test_protocol_validation.py` only for focused
-  valid, missing-field, extra-field, and wrong-literal schema-instance tests;
+  valid, missing-field, extra-field, wrong-literal, and applicable empty-array
+  instances of each of the five new schemas; additionally freeze exact tests
+  that the validator registry equals the sorted set of all eight
+  `v1_2/*.schema.json` files, `schemas` reports the exact eight-schema result,
+  each new schema is linted, the README Documents table inventories each of the
+  eight schema filenames exactly once with its document type, and the README
+  assigns the five new contracts to P8T rather than deferring coverage-schema
+  ownership solely to P8;
   the adapter tests below own canonical artifact bytes, manifest nullability,
   identity cross-bindings, and comparison semantics;
+- add the standalone, standard-library-only
+  `tools/derive_expected_semantic_projection.py` and
+  `tools/tests/test_derive_expected_semantic_projection.py`; the command may
+  read only one canonical scenario input and write one canonical expected
+  projection, while the test fixes canonical bytes/hashes, declarative
+  create/drop/CRUD/index/relationship transitions, import isolation, and
+  rejection of any observed MDB/snapshot input;
 - modify `tools/validation/evidence.py` to remove stored
   `independent_report`/`dao_bundle` handling and its unconditional DAO-bundle
   rejection;
@@ -1101,10 +1133,12 @@ matrix-data, policy-data, plan, provenance, or validation file is authorized:
 `docs/validation/support-matrix.json`, every existing acceptance-result schema
 other than the newly authorized effective-support result schema, and all
 Rust/CLI/oracle executable code other than the validator-only change named
-above are read-only in step 2. Every existing v1.2 protocol file, including
-`canonical-semantic-snapshot.schema.json`, is read-only; the new
-`opening-failure.schema.json` is the sole new protocol contract and the focused
-validator/test changes above are its only protocol-validation exceptions. In
+above are read-only in step 2. Every pre-existing v1.2 protocol semantic
+contract, including `branch-registry.schema.json`,
+`canonical-semantic-snapshot.schema.json`, `scenarios.schema.json`, and
+`scenarios.json`, is read-only. The five named new protocol schemas, the
+additive README inventory/ownership update, and the focused validator/test
+changes above are the only protocol exceptions. In
 particular the policy remains
 byte-identical with SHA-256
 `0c3d2e33432674c5ededab0cccc7bc9ddacafc845f35305079e1664fa6158867`
@@ -1112,18 +1146,21 @@ and `dao_differential_v1.status = disabled`. The overlay schema remains
 byte-identical with SHA-256
 `3181b22f2c8caf397238aef3c605ba4e6266208692352177ed5fb76cda9ec21a`.
 
-The manifest, report, opening-failure, coverage-receipt, preservation-diff, and
-effective-support result contracts are binding exactly as specified in
+The manifest, report, opening-failure, expected-projection, operation-failure,
+coverage-receipt, preservation-diff, and effective-support result contracts are
+binding exactly as specified in
 `EVIDENCE.md` "P8T exact-commit amendment"; step 2 may not choose different
 field names, nullability, ordering, hash domains, join rules, or projection
 semantics. In summary, the closed manifest has exactly
 `schema_version`, `run`, `git_commit`, `dirty`, `provider_proof`, `contracts`,
 `executed_sources`, `commands`, `report`, `files`, and `scenarios`. The
-fourteen-entry `contracts` object binds the manifest and report schemas plus
+sixteen-entry `contracts` object binds the manifest and report schemas plus
 the v1.2 scenario schema/inventory, branch registry, snapshot schema, coverage
-schema, opening-failure schema, preservation schema, provider contract/schema,
+schema, opening-failure schema, expected-projection schema, operation-failure
+schema, preservation schema, provider contract/schema,
 provider-proof schema, and source-closure registry/schema from the named
-commit. Its exact new key is `opening_failure_schema`. `files` is the
+commit. Its exact new keys are `opening_failure_schema`,
+`expected_projection_schema`, and `operation_failure_schema`. `files` is the
 unique, strictly path-sorted exact inventory of every non-manifest payload with
 path/hash/size closure.
 
@@ -1136,9 +1173,18 @@ redistribution rules remain mandatory. Executed source membership is derived
 only from selected entrypoints in the committed source-closure registry.
 Commands retain explicit role, `entrypoint_id`, argv, exact source closure,
 revision, timestamps, and exit code. The adapter enforces exact union equality,
-argv index/path, scenario command references, and the non-CLI
-`production_rust_library` subject including `crates/jet3/src/lib.rs`; it does
-not claim dynamic runtime call-graph observation. The run object uses only
+argv index/path, and scenario command references. Its
+`rust_semantic_snapshot_v1_2` entrypoint has role `rust_producer`, subject
+`production_rust_library`, and path `crates/jet3-testkit/src/lib.rs`; the
+required closure includes the public `jet3` library entrypoint, the testkit
+semantic-snapshot producer, its six directly declared
+`semantic_snapshot_{convert,coverage,finalization,long,retained,schema}.rs`
+modules, and their complete transitive committed Rust module/dependency
+closure. The producer accepts and invokes
+the public `jet3::DatabaseReader` API. A `jet3-cli snapshot` command is an
+optional driver whose bound CLI sources supplement rather than replace that
+library closure. The adapter rejects CLI-only evidence, but it does not claim
+dynamic runtime call-graph observation. The run object uses only
 string `campaign_id` plus positive-integer `hosted_run_id` and
 `hosted_run_attempt`, with exact equality to provider proof, report, adapter
 output, and effective-support output.
@@ -1157,7 +1203,8 @@ wall clock or alternate evidence timestamp may replace that exact reference.
 Each unique, id-sorted scenario contains exactly `id`, `content_sha256`,
 `capability_ids`, `operation`, `scenario_input`, `source_mdb`, `output_mdb`,
 `baseline_snapshot`, `dao_snapshot`, `rust_snapshot`, `rust_opening_failure`,
-`coverage_receipt`, `preservation_diff`, `operation_log`, `command_ids`,
+`expected_projection`, `operation_failure`, `coverage_receipt`,
+`preservation_diff`, `operation_log`, `command_ids`,
 `started_at`, `completed_at`, `status`, and `status_reason`. The
 operation-specific expected-outcome/nullability table in `EVIDENCE.md` is mandatory. In
 particular, a passing successful `rust_read_dao` record has source MDB, DAO
@@ -1189,11 +1236,40 @@ raw SHA-256, and size. Each scenario's `rust_opening_failure` artifact reference
 and matching `files` row bind the exact canonical artifact bytes, raw SHA-256,
 and size.
 
+The expected-projection and operation-failure schemas have the exact closed
+eight- and eleven-field shapes fixed in `EVIDENCE.md`. For every successful
+write/update, `tools/derive_expected_semantic_projection.py` consumes only the
+canonical `scenario_input` and emits the canonical expected projection whose
+raw artifact bytes/hash, operation-input hash, projection bytes/hash, schema,
+scenario, and release revision are bound by the manifest. Its committed
+`expected_state_deriver` entrypoint/command/source closure is disjoint from DAO
+and Rust producers, is standard-library-only under `python3 -I -S`, and is
+AST-checked against the exact import allowlist in `EVIDENCE.md`. The adapter
+does not import that tool: it independently applies the declarative semantic
+transition to the input and requires DAO, Rust, retained expected, and
+recomputed expected projection bytes to agree. It reads no writer/reader
+result or DAO observation while deriving intent. These rules describe only the
+declared semantic post-state; they assign no Jet physical format fact.
+
+For expected-error writes/updates, the generic operation-failure artifact
+binds the exact input and committed create/drop/CRUD/index/relationship
+operation kind and error identity. A write failure has null before/after
+database hashes and forbids every MDB/output/snapshot/expected/preservation
+artifact. An update failure has equal non-null before/after hashes equal to the
+unchanged `source_mdb`, forbids `output_mdb` and expected projection, and still
+requires baseline, DAO/Rust post-failure snapshots, coverage, and a nonempty
+preservation report. Reported success, wrong error, skipped/unsupported,
+nonzero wrapper exit, unexpected output or mutation, missing required artifact,
+or any forbidden artifact rejects. Expected read-opening failures remain on
+the focused opening-failure schema rather than the generic operation schema.
+
 For successful snapshots, step 2 must validate each complete DAO and Rust
 source document independently before projection. It then requires the declared
 exclusions to be exactly `/producer` and `/producer_extensions`, removes
 exactly those two top-level members, canonicalizes the two remaining
-documents, and compares the projection bytes. It does not compare whole
+documents, and compares the projection bytes. A read requires those two bytes
+to agree; a write/update additionally requires both to equal the retained and
+independently recomputed expected projection. It does not compare whole
 source-document bytes and does not exclude `raw_hex`, converted `value`,
 `raw_preservation`, ordering, or any other model field. The manifest continues
 to hash and size-bind both complete source documents. For each committed
@@ -1224,14 +1300,18 @@ requires the two post-update projections to be byte-identical, and resolves
 the exact sorted `preserve_paths` against the projected DAO baseline and that
 common post-update projection. One ordered comparison per pointer carries the
 canonical before/after value hashes and exact outcome. `PASS` requires every
-outcome to be `equal`. Read and write records must carry null
-baseline/preservation fields; every update record must carry both. A P8
+outcome to be `equal`. Its `preserve_paths` and `comparisons` each require
+`minItems: 1`; the adapter separately requires the scenario inventory array to
+be nonempty, exact ordered-array and set equality with the report, and rejects
+empty, missing, duplicate, extra, or reordered paths. Read and write records
+must carry null baseline/preservation fields; every successful or expected-
+error update record must carry both. A P8
 read-only subset can pass only its requested capability output and must leave
 G3 `BLOCKED`; absent write/update inputs are missing required legs, never
 silently skipped preservation.
 
 The v1.2 scenario, branch, and success-snapshot contracts are already present
-at the P8T base through PR #93 and are mandatory production inputs. The three
+at the P8T base through PR #93 and are mandatory production inputs. The five
 new v1.2 schemas added by this step are equally mandatory. A missing contract
 must fail closed in focused tests. Tests create complete contract and payload
 trees in isolated temporary Git repositories rather than weakening that
@@ -1306,16 +1386,32 @@ hashes recomputed but a COM registration/CLSID, provider path/version/hash,
 host image identity, or disposable Jet 3 PASS field altered; required source
 omitted from a selected closure; an extra source supplied by the bundle;
 wrong argv entrypoint for a role; a declared source unused by every selected
-closure; a CLI-only Rust producer; a campaign/hosted-run identity or hosted-run
+closure; a valid testkit producer driven by `jet3-cli snapshot`; a missing
+testkit producer entrypoint or semantic-snapshot module; a missing public
+`jet3` library entrypoint; a CLI-only Rust producer; a campaign/hosted-run identity or hosted-run
 type mismatch across manifest, proof, report, adapter output, and result;
 `SKIPPED` and `UNSUPPORTED` records retained for diagnosis
-but rejected for advancement; an update record missing its baseline or
-preservation report; a passing update whose full DAO and Rust post-update
+but rejected for advancement; a successful write/update whose independently
+derived expected projection equals both observed projections; a wrong-but-
+agreeing DAO/Rust projection that differs from independently derived expected;
+an altered retained expected projection, altered declarative input, wrong
+operation-input hash, wrong projection hash, noncanonical expected artifact,
+forbidden deriver input, forbidden/local/dynamic import, source-closure overlap,
+or missing/wrong deriver command; passing expected operation failures covering
+create, drop, CRUD, index, and relationship kinds; each such failure changed to
+success, the wrong error, `SKIPPED`, or `UNSUPPORTED`; a failure receipt with
+wrong scenario/revision/input/operation/kind/error identity; a failed write
+with any MDB or success artifact; a failed update with unequal before/after
+hashes, an output MDB, or a mutated retained source; an update record missing
+its baseline or preservation report; a passing update whose full DAO and Rust post-update
 snapshots differ in both producer fields but share one projection and whose
 preservation report binds both distinct full hashes plus that common
 projection hash; either full post-update snapshot changed with enclosing
 artifact/manifest hashes recomputed but the preservation binding left stale;
-and a preservation comparison changed from `equal` to `different`. Timestamp
+a passing update with one preserve path and one equal comparison; empty
+scenario `preserve_paths`; empty report `preserve_paths` or `comparisons`; a
+missing, duplicate, extra, or reordered preserve/comparison path; and a
+preservation comparison changed from `equal` to `different`. Timestamp
 regressions are table-driven across every timestamp location enumerated in
 `EVIDENCE.md`: exact equal run, command, and scenario start/completion pairs
 pass; a one-second reversal of each interval fails; selected provider-proof age
@@ -1326,6 +1422,10 @@ rejection is nonzero and contains a stable reason code from this exact set, as
 applicable: `required_scenario_missing`, `file_sha256_mismatch`,
 `snapshot_schema_invalid`, `opening_failure_schema_invalid`,
 `opening_failure_not_canonical`, `opening_failure_mismatch`,
+`expected_projection_schema_invalid`, `expected_projection_not_canonical`,
+`expected_projection_mismatch`, `expected_derivation_isolation_mismatch`,
+`operation_failure_schema_invalid`, `operation_failure_not_canonical`,
+`operation_failure_mismatch`, `unexpected_output_mutation`,
 `comparison_projection_mismatch`,
 `expected_outcome_mismatch`, `unexpected_scenario_artifact`,
 `required_scenario_artifact_missing`, `expected_current_head`,
@@ -1336,7 +1436,8 @@ applicable: `required_scenario_missing`, `file_sha256_mismatch`,
 `command_entrypoint_mismatch`, `unused_source`,
 `library_subject_not_exercised`, `run_identity_mismatch`, `scenario_not_pass`,
 `required_update_artifact_missing`, `preservation_snapshot_binding_mismatch`,
-or `preservation_difference`. The complete case returns a
+`preserve_paths_empty`, `preserve_paths_mismatch`, or
+`preservation_difference`. The complete case returns a
 resolved output whose `status` is exactly `PASS`, whose `verification` is
 intrinsically `dao_differential`, and whose sorted scenario ids equal the
 committed required subset. It uses an isolated temporary repository whose
@@ -1373,11 +1474,14 @@ Run these focused step-2 commands in order:
 
 ```sh
 python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_derive_expected_semantic_projection.py' -v
 python3 -B -m unittest discover -s tools/tests -p 'test_release_evidence.py' -v
 python3 -B -m unittest discover -s tools/tests -p 'test_run_acceptance.py' -v
 python3 -B -m unittest discover -s tools/tests -p 'test_support_capability_catalog.py' -v
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
 python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
+cargo test --locked -p jet3-testkit --test semantic_snapshot_artifacts
+cargo test --locked -p jet3-cli --test snapshot
 test -f docs/validation/schema/dao-differential-v1-manifest.schema.json
 test -f docs/validation/schema/dao-differential-v1-report.schema.json
 test -f docs/validation/schema/effective-support-result.schema.json
@@ -1388,18 +1492,22 @@ test -f docs/validation/schema/dao-differential-v1-source-closure.schema.json
 test -f docs/validation/dao-differential-v1-source-closure.json
 test -f oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json
 test -f oracle/windows-dao/protocol/v1_2/opening-failure.schema.json
+test -f oracle/windows-dao/protocol/v1_2/expected-semantic-projection.schema.json
+test -f oracle/windows-dao/protocol/v1_2/operation-failure.schema.json
 test -f oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json
 python3 tools/validate_contract.py
 python3 tools/validate_contract.py --self-test
 python3 tools/validate_repository_contract.py
 sha256sum docs/validation/evidence-policy.json docs/validation/schema/release-evidence-overlay.schema.json oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json
 git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- docs/validation/evidence-policy.json docs/validation/support-matrix.json docs/validation/schema/evidence-policy.schema.json docs/validation/schema/release-evidence-overlay.schema.json
-git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- oracle/windows-dao/protocol/v1_2/README.md oracle/windows-dao/protocol/v1_2/branch-registry.json oracle/windows-dao/protocol/v1_2/branch-registry.schema.json oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json oracle/windows-dao/protocol/v1_2/scenarios.json oracle/windows-dao/protocol/v1_2/scenarios.schema.json
+git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- oracle/windows-dao/protocol/v1_2/branch-registry.json oracle/windows-dao/protocol/v1_2/branch-registry.schema.json oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json oracle/windows-dao/protocol/v1_2/scenarios.json oracle/windows-dao/protocol/v1_2/scenarios.schema.json
 ```
 
-Expected results: every unit command passes and loads/lints all nine new
-schemas, including the separate opening-failure schema; all eleven path checks
-pass; both contract commands pass; the repository contract passes; the
+Expected results: every unit and focused Rust command passes; the schema command
+loads/lints exactly all eight v1.2 schemas (the three pre-existing schemas plus
+all five added here), and the focused protocol tests prove exact schema-file
+discovery and README inventory/ownership; all eleven path checks pass; both
+contract commands pass; the repository contract passes; the
 `sha256sum` output is exactly the two hashes above
 followed by
 `4fe1b33aae94ab1f7cb05ca3b66112edba89d17343788678c239693d3a340008`
@@ -1426,6 +1534,109 @@ beginning
 Neither path may report intrinsic unavailability, the old unconditional
 stored DAO-bundle rejection, an effective verification advancement, or G3
 PASS.
+
+#### P8T downstream P8/P10 and Section 5 contract supersessions
+
+This additive subsection supersedes only the exact earlier clauses named
+below. The earlier text remains immutable plan history, and every clause not
+named here remains binding.
+
+1. **P8 step-2 acceptance commands and producer binding.** This item
+   supersedes the P8 step-2 command
+   `cargo test --package jet3-cli snapshot --locked` and augments that step's
+   testkit and protocol checks. The effective focused command block is:
+
+   ```sh
+   cargo test --package jet3-testkit --locked
+   cargo test --locked -p jet3-testkit --test semantic_snapshot_artifacts
+   cargo test --package jet3-cli --locked snapshot
+   cargo test --locked -p jet3-cli --test snapshot
+   python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
+   python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
+   ```
+
+   After rebasing P8 step 2 onto the P8T implementation, its source-closure
+   registry and adapter fixtures use `rust_semantic_snapshot_v1_2` with role
+   `rust_producer`, subject `production_rust_library`, and entrypoint path
+   `crates/jet3-testkit/src/lib.rs`; they include the semantic-snapshot modules
+   named in the P8T source-closure rule and the public `jet3` library closure.
+   `jet3-cli snapshot` remains the optional driver and may appear in argv and
+   the supplemental closure; the rebase must not create a producer under
+   `crates/jet3/tests` or relabel CLI-only logic as the library subject.
+2. **P8 reviewer snapshot comparison.** This item supersedes only the P8
+   reviewer direction to "diff the canonical bytes" and alter one byte of a
+   retained Rust snapshot. The reviewer instead regenerates one DAO snapshot
+   and one Rust snapshot for a randomly selected scenario, validates each
+   complete document independently, diffs the canonical projection bytes, and
+   alters one compared byte of the retained Rust snapshot to show that the
+   adapter rejects the overlay. The remaining P8 reviewer checks are
+   unchanged.
+3. **P10 step-1 deliverable and focused command.** This item supersedes only
+   the P10 step-1 deliverable description for the `DAO-UPDATE-*` entries,
+   validator modes, preservation tool, and tests. The effective deliverable is
+   `DAO-WRITE-*` and `DAO-UPDATE-*` declarative entries with a non-null
+   `expected_snapshot_sha256` for every success and nonempty `preserve_paths`
+   for every update; generic expected-failure cases for every
+   create/drop/CRUD/index/relationship form; `dao_open_rust` and
+   `dao_verify_rust_update` modes enabled in
+   `oracle/windows-dao/scripts/validate_protocol_v1_2.py` with focused
+   inventory/schema cases in
+   `oracle/windows-dao/tests/test_protocol_validation.py`; and
+   `tools/verify_preservation_diff.py` with exact-set/minItems tests in
+   `tools/tests/test_verify_preservation_diff.py`. The P8T step-2
+   `tools/derive_expected_semantic_projection.py`, its
+   `tools/tests/test_derive_expected_semantic_projection.py`, and the adapter
+   tests are binding inputs, not replaceable P10 implementations. P10 step 1
+   additionally runs:
+
+   ```sh
+   python3 -B -m unittest discover -s tools/tests -p 'test_derive_expected_semantic_projection.py' -v
+   ```
+
+4. **P10 reviewer snapshot comparison.** This item supersedes only the P10
+   step-3 reviewer direction to compare canonical bytes. The reviewer instead
+   independently validates each source document and compares canonical
+   projection bytes for the independently selected read, write, and update
+   scenarios. The complete-allowlist and G3 checks remain unchanged.
+5. **Section 5.1 future write/update and failure scenarios.** This item
+   supersedes only the minimum-set bullet "Failure scenarios for each
+   create/drop/CRUD/index/relationship form." The effective bullet requires
+   expected-failure scenarios for each such form using the generic
+   operation-failure contract and conditional artifact rules. For future
+   write/update entries, the complete canonical scenario object is the
+   declarative semantic operation input. A successful write/update has a
+   non-null `expected_snapshot_sha256` naming the independently derived
+   projected semantic post-state; every update, including an expected failure,
+   has at least one unique preserve path. The operation kind in a generic
+   failure receipt is the single create/drop/CRUD/index/relationship step
+   selected by the closed recipe, not an observed producer label. These are
+   semantic-intent constraints only and do not assert a Jet byte layout.
+6. **Section 5.2 creation status and comparison contract.** The historical
+   "TO BE CREATED by P8 step 1" line remains unchanged; this item records that
+   the named schema was created by P8 step 1 in PR #93 and supersedes only its
+   effective creation status. It also supersedes the Section 5.2 sentences
+   beginning "same schema, while semantic extraction remains independent" and
+   ending "(Option 3 requirement)." Each complete producer document is
+   schema- and model-validated independently. Comparison removes exactly the
+   declared `/producer` and `/producer_extensions` members, canonicalizes each
+   remaining projection, and requires projection-byte equality. Whole
+   producer-document bytes are not expected to match, while raw and converted
+   values, raw preservation, ordering, and every other model field remain
+   compared. DAO never emits allocation internals; Rust additionally emits
+   `coverage-receipt.json` under the exact P8T step-2 schema, bound to the MDB
+   it read, containing only closed-registry branch ids and the allocated-set
+   digest (Option 3 requirement).
+7. **Section 5.3 adapter comparison and result handling.** This item
+   supersedes only the fail-closed clauses requiring both snapshots and equal
+   canonical bytes and forbidding a lowercase `skipped` scenario. Every
+   required scenario for an allowlisted capability instead has both
+   independently valid snapshots and equal canonical comparison-projection
+   bytes. No scenario may be `SKIPPED` or `UNSUPPORTED`; diagnostic non-PASS
+   results remain representable but contribute no evidence. The remaining
+   adapter requirements are unchanged.
+8. **Section 5.4 read leg.** This item supersedes only the read-leg phrase
+   "Rust snapshot + receipt → compare." The effective read leg validates
+   both complete documents and compares their canonical projections.
 
 ### P8 — Differential read program (Option 3, read legs)
 
@@ -1505,9 +1716,8 @@ python3 tools/validate_repository_contract.py
   (P10). The PR body retains the adapter/G3 logs and every remaining
   blocker; it may not relabel a partial G3 run as a gate PASS.
 - Reviewer must adversarially verify: regenerate one DAO snapshot and one
-  Rust snapshot for a scenario chosen at random, validate each complete
-  document independently, and diff the canonical projection bytes; alter one
-  compared byte of a retained Rust snapshot and show the adapter
+  Rust snapshot for a scenario chosen at random and diff the canonical
+  bytes; alter one byte of a retained Rust snapshot and show the adapter
   rejects the overlay; confirm every `capability_ids` value exists in the
   matrix and every `required_branches` value exists in the registry; confirm
   the matrix diff equals the allowlist exactly.
@@ -1730,8 +1940,7 @@ python3 tools/validate_repository_contract.py
   flips one byte inside a `preserve_paths` region to show the diff reports it;
   step 2 reproduces dry-run artifacts and shows DAO modes remain confined to
   the new validator; step 3 independently selects one read, write, and update
-  scenario, independently validates each source document, compares canonical
-  projection bytes, verifies the complete allowlist, and
+  scenario, compares canonical bytes, verifies the complete allowlist, and
   confirms G3 is PASS only for the complete required inventory.
 - Sol failure modes: counting a preservation leg without running the diff;
   accepting `skipped`; treating step 1 or 2's expected G3 blocker as a pass;
@@ -2036,7 +2245,7 @@ explicit list of capability ids in its PR.
 
 ### 5.2 Snapshot contract
 
-Created by P8 step 1 in PR #93:
+TO BE CREATED by P8 step 1:
 `oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json`.
 The schema fixes every object and value field without ellipses, rejects
 unknown fields, defines raw-byte preservation (lossless raw hex alongside
@@ -2048,29 +2257,21 @@ explicitly defined stable tiebreaker present in both DAO and Rust
 snapshots; no physical "row id" is assumed unless a preregistered source
 establishes it and both producers emit it. Both producers serialize with
 `jet3-testkit::canonical_json` ordering rules and are tested against the
-same schema, while semantic extraction remains independent. Each complete
-producer document is schema- and model-validated independently. Comparison
-then removes exactly the declared `/producer` and `/producer_extensions`
-members, canonicalizes each remaining projection, and requires projection-byte
-equality. Whole producer-document bytes are not expected to match, while raw
-and converted values, raw preservation, ordering, and every other model field
-remain compared. DAO never emits allocation internals; Rust additionally emits
-`coverage-receipt.json` under the exact P8T step-2 schema, bound to the MDB it
-read, containing only closed-registry branch ids and the allocated-set digest
-(Option 3 requirement).
+same schema, while semantic extraction remains independent. DAO never
+emits allocation internals; Rust additionally emits
+`coverage-receipt.json`, bound to the source MDB SHA-256, containing only
+branch ids from the closed registry and the allocated-set digest (Option 3
+requirement).
 
 ### 5.3 `dao_differential_v1` adapter (`tools/validation/release_evidence_adapters.py`)
 
 Fail closed unless: exact clean commit per the P8T mechanism; provider
 identity matches the pinned hash; every required scenario id for each
-allowlisted capability present with both independently valid snapshots and
-equal canonical comparison-projection bytes; coverage receipt lists every
-branch the scenario inventory marks
+allowlisted capability present with both snapshots and equal canonical
+bytes; coverage receipt lists every branch the scenario inventory marks
 `required_branches`; update legs have a `preservation_diff` result from
 `tools/verify_preservation_diff.py` with zero unexpected differences; no
-scenario `SKIPPED` or `UNSUPPORTED`. Diagnostic non-PASS results remain
-representable but contribute no evidence. Maximum verification level is
-intrinsic to the adapter
+scenario `skipped`. Maximum verification level is intrinsic to the adapter
 (`dao_differential`); availability is an intrinsic code property changed
 only in P8T step 2; `evidence-policy.json` flips `status` to `enabled` only
 in P8 step 4, the same PR that first relies on the adapter's tests (accept a
@@ -2080,8 +2281,7 @@ byte).
 ### 5.4 Legs
 
 1. Read leg (P8): DAO generates `dbVersion30` file → close/reopen → DAO
-   snapshot; Rust snapshot + receipt → validate both complete documents and
-   compare canonical projections.
+   snapshot; Rust snapshot + receipt → compare.
 2. Write leg (P10): Rust creates file from declarative input → DAO opens,
    snapshots → compare with expected.
 3. Update leg (P10): DAO generates → Rust mutates via `atomic_update` → DAO

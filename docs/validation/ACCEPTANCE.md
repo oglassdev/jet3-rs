@@ -164,14 +164,21 @@ safe resolution, stdout is the schema-valid `BLOCKED` result described above.
 Unsafe paths or file types, malformed or non-canonical required JSON, dirty
 state, commit/hash/contract mismatch, altered payload, a missing required
 contract or selected scenario/branch, a schema-invalid complete snapshot or
-opening-failure artifact, unequal canonical comparison projections, unexpected
-preservation difference, adapter-output/result-schema mismatch, or any other
+opening-failure/expected-projection/operation-failure artifact, unequal
+canonical comparison projections, a DAO/Rust projection pair that disagrees
+with independently derived semantic intent, an invalid expected operation
+failure, empty or mismatched preserve paths, unexpected preservation
+difference, adapter-output/result-schema mismatch, or any other
 failed executable check
 exits 1 as `FAIL` and must not emit a `BLOCKED` effective-support result.
 Producer and producer-extension differences are not failures by
 themselves: G3 independently validates each complete snapshot, removes exactly
 the two schema-declared `/producer` and `/producer_extensions` members, and
 compares the canonical projection bytes as fixed by `EVIDENCE.md`.
+For successful writes and updates this is a three-way equality: DAO and Rust
+projections must each equal the expected projection independently derived from
+the manifest-bound declarative scenario input. Agreement between the two
+observed producers is not sufficient.
 
 Disabled policy does not short-circuit validation. G3 first checks the explicit
 selection and path; the canonical release-evidence path then checks file types,
@@ -207,10 +214,17 @@ the selected per-role closures, command source paths, and manifest
 unregistered or wrong argv entrypoint, declared source unused by any selected
 closure, and role mismatch. Every passing scenario names its DAO and Rust
 producer commands. At least one scenario-referenced Rust producer must be the
-registry's `production_rust_library` subject, include the `jet3` library
-package and `crates/jet3/src/lib.rs`, and be outside `crates/jet3-cli/**`;
-CLI-only production cannot satisfy a library capability. These checks prove
-commit-bound entrypoint/dependency closure, not a dynamic runtime call graph.
+registry's `rust_semantic_snapshot_v1_2` entrypoint with role
+`rust_producer`, subject `production_rust_library`, and path
+`crates/jet3-testkit/src/lib.rs`. Its closure includes the public `jet3`
+library boundary, the testkit semantic-snapshot producer and all of their
+committed Rust dependencies. That producer accepts and invokes the public
+`jet3::DatabaseReader` API. `jet3-cli snapshot` may drive it only when the
+closure also binds the CLI driver sources; CLI paths never replace the testkit
+producer or establish the library subject. G3 therefore rejects a CLI-only
+closure and a closure missing either side of the public testkit-to-`jet3`
+boundary. These checks and their compile/invocation tests prove a commit-bound
+public API and source/dependency closure, not a dynamic runtime call graph.
 
 Run identity is unambiguous at every boundary. Manifest `run.campaign_id` and
 report/result/adapter-output `campaign_id` are the same nonempty string.
@@ -249,6 +263,25 @@ result. The opening-failure JSON must have the canonical bytes fixed by
 `EVIDENCE.md`, and its manifest reference binds those exact bytes, SHA-256, and
 size independently of the success snapshot schema.
 
+Expected failures of write/update create, drop, CRUD, index, and relationship
+operations use the separate generic
+`oracle/windows-dao/protocol/v1_2/operation-failure.schema.json`; read opening
+failures remain on their focused schema. A passing expected failure must match
+the committed operation input, release revision, operation kind, and exact
+error class. A failed write leaves no MDB or success artifact. A failed update
+leaves no output, proves raw before/after source hashes equal, retains baseline
+and DAO/Rust snapshots of the unchanged source, and completes nonempty
+preservation comparisons. Success, another error, `SKIPPED`, `UNSUPPORTED`, a
+nonzero evidence wrapper exit, output mutation, a missing required artifact, or
+any forbidden artifact is G3 `FAIL`.
+
+Every successful write/update also carries the canonical artifact validated by
+`oracle/windows-dao/protocol/v1_2/expected-semantic-projection.schema.json`.
+Its input hash, canonical projection bytes/hash, schema identity, derivation
+command, exact source closure, and standalone import isolation are bound and
+independently recomputed without any Rust reader/writer result, DAO observation,
+MDB, or operation log as derivation input.
+
 For update preservation, producer-exclusion semantics apply before comparing
 preserved paths, but do not weaken artifact identity. The preservation report
 binds the exact raw full-document hashes of the DAO baseline, DAO post-update,
@@ -256,6 +289,12 @@ and Rust post-update snapshots plus the hash of the common canonical
 post-update projection. Thus DAO and Rust producer fields may differ while the
 validator still recomputes one unambiguous preservation result from the exact
 three retained documents.
+Every update scenario, including an expected operation failure, has at least
+one inventory `preserve_paths` member and at least one comparison. The new
+preservation-diff schema sets `minItems: 1` on both of its arrays, and G3
+requires the inventory array to be nonempty plus exact set and order equality
+among inventory paths, report paths, and comparison paths; empty, missing,
+duplicate, extra, or reordered paths fail.
 
 P8T step 2 deliberately leaves `dao_differential_v1` disabled. Its expected
 `./scripts/acceptance.sh full` result is therefore nonzero `BLOCKED`: without

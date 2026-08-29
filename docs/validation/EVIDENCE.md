@@ -192,6 +192,8 @@ commit: that manifest schema,
 `oracle/windows-dao/protocol/v1_2/branch-registry.json`,
 `oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json`,
 `oracle/windows-dao/protocol/v1_2/opening-failure.schema.json`,
+`oracle/windows-dao/protocol/v1_2/expected-semantic-projection.schema.json`,
+`oracle/windows-dao/protocol/v1_2/operation-failure.schema.json`,
 `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json`, and
 `oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json`, plus
 `docs/validation/schema/dao-provider-v1-contract.schema.json`,
@@ -199,14 +201,15 @@ commit: that manifest schema,
 `docs/validation/schema/dao-provider-proof-v1.schema.json`,
 `docs/validation/schema/dao-differential-v1-source-closure.schema.json`, and
 `docs/validation/dao-differential-v1-source-closure.json`. The manifest's
-`contracts` object contains exactly those fourteen path/SHA-256/size bindings
+`contracts` object contains exactly those sixteen path/SHA-256/size bindings
 under the keys `manifest_schema`, `report_schema`,
 `scenario_schema`, `scenario_inventory`, `branch_registry`, `snapshot_schema`,
-`opening_failure_schema`, `coverage_receipt_schema`,
+`opening_failure_schema`, `expected_projection_schema`,
+`operation_failure_schema`, `coverage_receipt_schema`,
 `preservation_diff_schema`, `provider_contract_schema`, `provider_contract`,
 `provider_proof_schema`, `source_closure_schema`, and `source_closure`; a copied
 contract blob cannot substitute for the blob at that path in the release
-commit. The object therefore has exactly fourteen entries.
+commit. The object therefore has exactly sixteen entries.
 
 The manifest is one closed canonical JSON object with exactly
 `schema_version`, `run`, `git_commit`, `dirty`, `provider_proof`, `contracts`,
@@ -301,8 +304,8 @@ but never infers authorization from its existence.
 no duplicate path. Each entry has exactly `path`, `sha256`, `size`, and
 `roles`; `path` is a normalized repository-relative POSIX path, `size` is a
 nonnegative integer, and `roles` is a nonempty, unique, sorted subset of
-`dao_producer`, `rust_producer`, `bundle_builder`, and
-`independent_validator`. The adapter reads every path from `git_commit`,
+`dao_producer`, `rust_producer`, `expected_state_deriver`, `bundle_builder`,
+and `independent_validator`. The adapter reads every path from `git_commit`,
 recomputes its size and SHA-256, and rejects an absent, extra, dirty, or
 worktree-sourced binding.
 
@@ -317,10 +320,11 @@ id-sorted entry has exactly `entrypoint_id`, `role`, `entrypoint_path`,
 `argv_entrypoint_token` is the exact nonempty string required at the zero-based
 nonnegative `entrypoint_argv_index`; and `required_source_paths` is nonempty,
 unique, strictly path-sorted, and contains `entrypoint_path`. `subject` is exactly
-`dao_oracle`, `production_rust_library`, `bundle_construction`, or
-`independent_bundle_validation`, mapped respectively and exclusively from
-`dao_producer`, `rust_producer`, `bundle_builder`, and
-`independent_validator`. The checked contract may
+`dao_oracle`, `production_rust_library`, `independent_expected_semantics`,
+`bundle_construction`, or `independent_bundle_validation`, mapped respectively
+and exclusively from `dao_producer`, `rust_producer`,
+`expected_state_deriver`, `bundle_builder`, and `independent_validator`. The
+checked contract may
 be changed only in an evidence-ready commit before authorization and
 acquisition; detached evidence cannot add an entrypoint or source.
 
@@ -337,21 +341,64 @@ source, an unused declared source, or a role mismatch fails. This is a
 machine-verifiable committed source-identity and dependency-closure claim, not
 a claim to observe every dynamic branch or runtime call.
 
-Every passing scenario must name the applicable `dao_producer` and
+Every passing success scenario must name the applicable `dao_producer` and
 `rust_producer` command ids, and the provider proof must name a selected
 `dao_producer` entrypoint whose committed closure produces that proof before
 any other DAO mutation. At least one scenario-referenced `rust_producer`
-entrypoint must have `subject: production_rust_library`, be a tracked Rust
-integration-test entrypoint immediately below `crates/jet3/tests/`, invoke the
-matching target with the exact argv prefix
-`cargo test --locked -p jet3 --test <target> --`, and include `Cargo.toml`,
-`Cargo.lock`, `crates/jet3/Cargo.toml`, `crates/jet3/src/lib.rs`, that
-entrypoint, and its complete committed dependency closure. An entrypoint below
-`crates/jet3-cli/**`, an argv that executes `jet3-cli`, or a closure containing
-only CLI sources cannot satisfy this requirement. Advancement requires every
-exit code to be zero. The adapter checks timestamps, exact argv entrypoint,
-scenario references, and committed command/source closure rather than trusting
-a producer's success field.
+entrypoint must have `entrypoint_id: rust_semantic_snapshot_v1_2`,
+`role: rust_producer`, `subject: production_rust_library`, and
+`entrypoint_path: crates/jet3-testkit/src/lib.rs`. Its required source closure
+must include `Cargo.toml`, `Cargo.lock`, `crates/jet3/Cargo.toml`,
+`crates/jet3/src/lib.rs`, `crates/jet3-testkit/Cargo.toml`,
+`crates/jet3-testkit/src/lib.rs`,
+`crates/jet3-testkit/src/semantic_snapshot.rs`, its directly declared
+`semantic_snapshot_convert.rs`, `semantic_snapshot_coverage.rs`,
+`semantic_snapshot_finalization.rs`, `semantic_snapshot_long.rs`,
+`semantic_snapshot_retained.rs`, and `semantic_snapshot_schema.rs` modules, and
+the complete transitive committed Rust module/dependency closure selected by
+that producer command. The public
+`jet3-testkit` entrypoint must re-export the producer, and the producer must
+accept and invoke `jet3::DatabaseReader` through the public `jet3` dependency;
+it may not reach a private `jet3` module or delegate semantic extraction to
+CLI-only logic.
+
+`jet3-cli snapshot` is an allowed driver, not the evidence subject. If a
+selected command executes it, its exact CLI driver/build sources and
+dependencies are also required in that command's closure, but the CLI paths do
+not replace any required `jet3-testkit` or `jet3` path and do not establish
+`production_rust_library`. A closure containing only `crates/jet3-cli/**`, or
+one missing the public testkit-to-library boundary above, fails
+`library_subject_not_exercised`. Advancement requires every exit code to be
+zero. The adapter checks timestamps, exact registered argv token, scenario
+references, and committed source/dependency closure. The focused boundary
+tests compile and invoke the testkit producer against public `DatabaseReader`
+and exercise the optional CLI driver; these checks prove the declared public
+API and source-identity boundary, not every dynamic runtime call.
+
+A passing expected-error read likewise names its DAO source-construction and
+Rust rejection commands. A passing expected-error write names the Rust
+operation command and must not name a scenario DAO command. A passing expected-
+error update names the Rust rejection command and the DAO commands that
+snapshot the unchanged source before and after it. No other producer command
+combination is applicable to a passing expected failure.
+
+Successful `dao_open_rust` and `dao_verify_rust_update` scenarios must also
+name exactly one `expected_state_deriver` command. Its committed entrypoint is
+`tools/derive_expected_semantic_projection.py`, its argv begins exactly
+`python3 -I -S tools/derive_expected_semantic_projection.py`, and its source
+closure contains that file and no DAO producer, Rust producer, Rust crate,
+snapshot producer, writer, adapter, or retained evidence output. The adapter
+AST-checks that entrypoint before accepting the command: only the standard-
+library modules `argparse`, `hashlib`, `json`, `pathlib`, `sys`, and
+`unicodedata` may be imported; relative imports, dynamic import calls, and
+repository-local imports are forbidden. The command receives only the exact
+manifest-bound `scenario_input` artifact and an output path. It may not receive
+or open an MDB, baseline/DAO/Rust snapshot, operation log, coverage receipt, or
+preservation report. The independent validator does not import or call the
+deriver; it separately applies the frozen declarative transition rules in
+`tools/validation/release_evidence_dao.py` to the parsed scenario input. Thus
+the retained expected projection, its independent recomputation, and the DAO
+and Rust observations have distinct source and input closures.
 
 `files` is the complete inventory of every regular non-manifest file below
 `dao-bundle/`, strictly sorted by normalized relative POSIX `path` and without
@@ -390,16 +437,19 @@ null error class. A committed `expected_error` can pass only as observed
 `scenarios` is nonempty, strictly sorted by `id`, and unique by `id`. Every
 entry has exactly `id`, `content_sha256`, `capability_ids`, `operation`,
 `scenario_input`, `source_mdb`, `output_mdb`, `baseline_snapshot`,
-`dao_snapshot`, `rust_snapshot`, `rust_opening_failure`, `coverage_receipt`,
-`preservation_diff`, `operation_log`, `command_ids`, `started_at`,
-`completed_at`, `status`, and `status_reason`. Capability ids and command ids
-are nonempty unique sorted arrays and must resolve to the committed matrix and
-top-level commands.
+`dao_snapshot`, `rust_snapshot`, `rust_opening_failure`, `expected_projection`,
+`operation_failure`, `coverage_receipt`, `preservation_diff`, `operation_log`,
+`command_ids`, `started_at`, `completed_at`, `status`, and `status_reason`.
+Capability ids and command ids are nonempty unique sorted arrays and must
+resolve to the committed matrix and top-level commands.
 `operation` is exactly one of `rust_read_dao`, `dao_open_rust`, or
 `dao_verify_rust_update` and must equal the committed scenario operation.
-`scenario_input` and `operation_log` are always non-null artifact references;
-the input is the canonical complete committed scenario object, and its
-recomputed projection hash equals `content_sha256`. Scenario timestamps use
+`scenario_input` and `operation_log` are always non-null artifact references.
+The input is the canonical complete committed scenario object, including its
+closed declarative `generator_recipe.steps`; for write/update it is also the
+sole operation input from which expected success state or expected failure
+identity may be derived. Its recomputed projection hash equals
+`content_sha256`. Scenario timestamps use
 the run timestamp form and bounds. The operation log is a nonempty UTF-8 file
 ending in one LF. It is retained and hash/size checked for diagnosis, but no
 pass fact is trusted from its prose; the command records and independently
@@ -415,23 +465,39 @@ the committed `expected_outcome` and then by operation:
 - a `rust_read_dao` expected error requires `source_mdb`, a Rust
   `rust_opening_failure` artifact, and an `opening_failure` coverage receipt,
   while `dao_snapshot` and `rust_snapshot` are null; and
-- `dao_open_rust` requires `output_mdb`, both success snapshots, and the
-  success coverage receipt, while `dao_verify_rust_update` requires non-null
-  source and output MDBs, a DAO baseline success snapshot, both post-update
-  success snapshots, a success coverage receipt, and preservation diff.
+- a successful `dao_open_rust` requires `output_mdb`, both success snapshots,
+  the independently derived expected projection, and the success coverage
+  receipt;
+- a successful `dao_verify_rust_update` requires non-null source and output
+  MDBs, a DAO baseline success snapshot, both post-update success snapshots,
+  the independently derived expected projection, a success coverage receipt,
+  and a nonempty preservation diff;
+- an expected-error `dao_open_rust` requires only its generic
+  `operation_failure` artifact in addition to the always-present input and log;
+  it has no source or output MDB, semantic snapshot, expected projection,
+  coverage receipt, or preservation diff; and
+- an expected-error `dao_verify_rust_update` requires `source_mdb`, a DAO
+  baseline snapshot, DAO and Rust post-failure snapshots of that unchanged
+  source, `operation_failure`, a success coverage receipt for the Rust
+  post-failure read, and a nonempty preservation diff. It has no output MDB or
+  expected projection.
 
-For all passing records, fields not named by the applicable rule are null;
-in particular `output_mdb`, `baseline_snapshot`, and `preservation_diff` are
-null for either read outcome, and `source_mdb`, `baseline_snapshot`, and
-`preservation_diff` are null for a write. `rust_opening_failure` is null for
-every success outcome and every operation other than an expected-error
-`rust_read_dao`. All three snapshot fields are null for that expected-error
-case. The DAO producer creates the source MDB but emits no canonical semantic
-snapshot for the negative Rust open, so there is no DAO result to compare.
-The Rust opening-failure artifact is a schema-validated diagnostic identity,
-not a semantic database snapshot. A non-null artifact forbidden by these rules
-is `unexpected_scenario_artifact`; a missing required artifact is
-`required_scenario_artifact_missing`.
+For all passing records, fields not named by the applicable rule are null.
+`rust_opening_failure` is non-null only for an expected-error `rust_read_dao`;
+`operation_failure` is non-null only for an expected-error write/update; and
+`expected_projection` is non-null only for a successful write/update. All three
+snapshot fields are null for an expected-error read. The DAO producer creates
+that read's source MDB but emits no canonical semantic snapshot, so there is no
+DAO result to compare. The Rust opening-failure artifact is a schema-validated
+diagnostic identity, not a semantic database snapshot. An expected-error write
+must not invoke DAO or leave any MDB. An expected-error update may invoke DAO
+only to snapshot the unchanged source before and after the failed Rust
+operation. A non-null artifact forbidden by these rules is
+`unexpected_scenario_artifact`; a missing required artifact is
+`required_scenario_artifact_missing`. Any unreferenced MDB, success/failure
+snapshot, expected projection, failure receipt, coverage receipt, or
+preservation report in `files` is also an unexpected scenario artifact rather
+than harmless diagnostic output.
 
 A non-`PASS` entry may leave an artifact that was actually produced non-null
 so the failed run remains diagnosable, but it can never contribute an adapter
@@ -439,7 +505,9 @@ output or effective verification. Its retained artifacts are still fully
 inventory/hash/size/schema checked and may not fill a field forbidden by the
 committed expected-outcome/operation rule. The report and operation log remain
 mandatory even then. MDB artifact references bind their complete bytes; the
-adapter rejects a same-file source/output alias for an update.
+adapter rejects a same-file source/output alias for a successful update. For
+an expected-error update no `output_mdb` may exist, and the generic failure
+receipt must prove that the retained source bytes did not change.
 
 The opening-failure schema at
 `oracle/windows-dao/protocol/v1_2/opening-failure.schema.json` is a closed
@@ -459,17 +527,73 @@ and the manifest artifact reference and `files` row bind the exact raw bytes,
 SHA-256, and size. The manifest's `opening_failure_schema` contract separately
 binds the exact schema path, raw SHA-256, and size from the release commit.
 
+The expected-semantic-projection schema at
+`oracle/windows-dao/protocol/v1_2/expected-semantic-projection.schema.json` is
+a closed canonical JSON object with exactly `protocol_version`,
+`document_type`, `scenario_id`, `source_revision`, `operation_input_sha256`,
+`comparison_projection`, `projection_sha256`, and `projection`.
+`protocol_version` is `1.2.0`; `document_type` is
+`independent_expected_semantic_projection`; `scenario_id` names a successful
+write/update scenario; `source_revision` is the release commit;
+`operation_input_sha256` is the SHA-256 of the exact raw canonical
+`scenario_input` bytes; and `comparison_projection` is exactly
+`["/producer", "/producer_extensions"]`. `projection` has exactly the
+semantic snapshot structure defined by the committed success-snapshot schema
+after those two top-level members are removed; its schema repeats that closed
+projected shape and admits no producer, producer extension, operation receipt,
+or Jet physical-layout field. `projection_sha256` is the SHA-256 of the
+canonical UTF-8 JSON serialization of the `projection` value alone, with no
+trailing LF, and equals the scenario inventory's non-null
+`expected_snapshot_sha256`. The whole artifact uses the protocol canonical
+encoding with exactly one trailing LF, and its manifest reference and `files`
+row bind those raw bytes, hash, and size. The manifest's
+`expected_projection_schema` contract independently binds the schema file.
+
+The operation-failure schema at
+`oracle/windows-dao/protocol/v1_2/operation-failure.schema.json` is a closed
+canonical eleven-field JSON object with exactly `protocol_version`,
+`document_type`, `scenario_id`, `source_revision`, `operation`,
+`operation_input_sha256`, `operation_kind`, `outcome`, `error_class`,
+`before_database_sha256`, and `after_database_sha256`. The first two values are
+`1.2.0` and `rust_operation_failure`; `operation` is `dao_open_rust` or
+`dao_verify_rust_update`; `operation_input_sha256` binds the exact raw
+`scenario_input`; `operation_kind` is exactly one of `database_create`,
+`table_create`, `table_drop`, `row_insert`, `row_update`, `row_delete`,
+`index_create`, `index_drop`, `relationship_create`, or
+`relationship_drop`; `outcome` is `operation_failure`; and `error_class` is the
+nonempty stable identifier committed by the scenario. For `dao_open_rust`,
+both database hashes are null. For `dao_verify_rust_update`, both are lowercase
+SHA-256 values and must equal each other and the retained `source_mdb` hash.
+The artifact uses the same canonical-byte rules and raw artifact/schema
+bindings as the opening-failure contract.
+
+The adapter derives an operation error only from a schema-valid canonical
+operation-failure artifact, a zero-exit wrapper command that successfully
+captured the expected Rust rejection, exact scenario/input/revision/operation/
+operation-kind/error-class identity, and the conditional database rules above.
+It rejects success, a different error, a nonzero evidence wrapper exit,
+`SKIPPED`, `UNSUPPORTED`, a write output of any kind, or an update source/output
+mutation. Correct expected failures for every registered create, drop, CRUD,
+index, and relationship form may therefore produce scenario `PASS`; a producer
+cannot turn an arbitrary failure into a passing expected rejection.
+
 Every non-null `baseline_snapshot`, `dao_snapshot`, and `rust_snapshot` document
 is first independently parsed and validated against the existing committed
 success-only canonical-semantic-snapshot schema, then checked for its producer,
 scenario, database identity, ordering, typed-value, raw-byte, and
 model-integrity rules. The adapter must never validate `rust_opening_failure`
-against that success schema. For a successful leg, only after both complete
-snapshot documents pass does the adapter
+or `operation_failure` against that success schema. For a successful leg, only
+after all applicable complete snapshot documents pass does the adapter
 require their declared `comparison_projection` to be exactly
 `["/producer", "/producer_extensions"]`, remove exactly those two top-level
-members from each in-memory document, serialize both projections with the
-protocol's canonical UTF-8 JSON rules, and require projection-byte equality.
+members from each in-memory document, and serialize the projections with the
+protocol's canonical UTF-8 JSON rules. A successful read requires DAO
+projection bytes to equal Rust projection bytes. A successful write/update
+additionally validates the retained expected projection, independently
+re-derives its `projection` solely from the declarative `scenario_input`, and
+requires `DAO projection bytes == Rust projection bytes == independently
+derived expected projection bytes`. Equality between DAO and Rust is therefore
+insufficient when both disagree with declared semantic intent.
 For an expected-error read, the adapter instead validates
 `rust_opening_failure` against the opening-failure schema and requires its
 scenario id, release revision, source-MDB SHA-256, outcome, and error class to
@@ -480,6 +604,13 @@ field is ignored:
 in particular `raw_hex`, converted `value`, `raw_preservation`, ordering
 metadata, and every non-extension property remain in every applicable success
 comparison.
+
+For an expected-error write/update, the adapter instead validates the generic
+operation-failure artifact and applies the nullability and identity rules
+above. An expected-error update then validates the baseline and the two
+post-failure snapshots, requires their three producer-excluded projections to
+be byte-identical, and performs the mandatory nonempty preservation check. It
+does not manufacture an expected success projection for a rejected operation.
 
 The coverage receipt schema is the exact stabilized P8 shape: a closed object
 with `protocol_version`, `document_type`, `scenario_id`, `source_revision`,
@@ -492,8 +623,9 @@ branch ids fixed by that schema. The adapter additionally requires branches
 to be strictly UTF-8 sorted, rejects every id outside the committed registry,
 requires all scenario `required_branches` and none of its
 `boundary.forbidden_branches`, and binds the database hash to `source_mdb` for
-a read or to `output_mdb` for a write/update. Its source revision equals the
-release commit. For each of the three committed negative reads, the adapter
+a read or expected-error update, and to `output_mdb` for a successful
+write/update. Its source revision equals the release commit. For each of the
+three committed negative reads, the adapter
 requires the receipt and Rust opening-failure artifact to agree exactly on
 scenario id, release source revision, source-MDB SHA-256,
 `outcome: opening_failure`, and the committed error class. It independently
@@ -510,8 +642,9 @@ The preservation-diff schema is a closed canonical JSON object with exactly
 Its `protocol_version` is `1.2.0`, `document_type` is
 `semantic_preservation_diff`, `scenario_id` names the update scenario, and
 `source_revision` equals the release commit.
-`preserve_paths` is the scenario's unique, strictly UTF-8-sorted JSON-pointer
-array. `comparisons` has the same cardinality and order, and each closed entry
+`preserve_paths` is the scenario's nonempty, unique, strictly UTF-8-sorted
+JSON-pointer array; this schema sets `minItems: 1`. `comparisons` also sets
+`minItems: 1`, has the same cardinality and order, and each closed entry
 has exactly `path`, nullable `before_sha256`, nullable `after_sha256`, and
 `outcome`, where `outcome` is `equal`, `different`, `missing_before`, or
 `missing_after`; a hash is null exactly for its corresponding missing outcome.
@@ -519,9 +652,10 @@ The two non-null hashes are SHA-256s of the canonical JSON value selected by
 that pointer. `status` is `PASS` exactly when every comparison is `equal` and
 otherwise is `FAIL`.
 
-For an update, the adapter uniquely recomputes the report as follows. It
-first validates the complete DAO baseline, complete DAO post-update, and
-complete Rust post-update success documents. `before_snapshot_sha256`,
+For an update, whether successful or an expected operation failure, the
+adapter uniquely recomputes the report as follows. It first validates the
+complete DAO baseline, complete DAO post-operation, and complete Rust
+post-operation success documents. `before_snapshot_sha256`,
 `dao_after_snapshot_sha256`, and `rust_after_snapshot_sha256` are respectively
 the SHA-256s of the exact raw bytes of those three manifest-bound artifact
 files, before JSON reserialization. The adapter then applies the snapshot
@@ -529,32 +663,42 @@ contract's exact comparison projection to each in memory: require
 `comparison_projection` to equal
 `["/producer", "/producer_extensions"]`, remove exactly those two top-level
 members, and serialize using the protocol's canonical UTF-8 JSON rules. The
-DAO and Rust post-update projection bytes must be equal, and
+DAO and Rust post-operation projection bytes must be equal, and
 `after_projection_sha256` is the SHA-256 of those one common canonical byte
-sequence. Producer and producer-extension differences may therefore make the
-two full post-update hashes differ without changing preservation semantics.
+sequence. For a successful update this is also the independently derived
+expected projection; for an expected-error update it must equal the projected
+baseline. Producer and producer-extension differences may therefore make the
+two full post-operation hashes differ without changing preservation semantics.
 
-Each `preserve_paths` pointer is resolved against the projected DAO baseline
-and the common projected post-update document, never against either complete
-producer document. A pointer may not select `/producer`,
+Before resolving any pointer, the adapter requires exact array and set equality
+between the committed scenario's `preserve_paths`, the report's
+`preserve_paths`, and the ordered `comparisons[].path` values. Empty, missing,
+duplicate, extra, or reordered paths reject the scenario. Each pointer is then
+resolved against the projected DAO baseline and the common projected
+post-operation document, never against either complete producer document. A
+pointer may not select `/producer`,
 `/producer_extensions`, or any descendant of either excluded member. The
 corresponding before/after hashes and missing/equal/different outcome are then
 recomputed in the declared order. Finally the adapter binds the raw source and
-output MDB hashes, requires canonical report-byte equality and `PASS`, and
+successful-update output MDB hashes; for an expected-error update it instead
+requires `before_database_sha256 == after_database_sha256 == source_mdb.sha256`
+and no output MDB. It requires canonical report-byte equality and `PASS`, and
 rejects any mismatch between a report's three full snapshot hashes, its common
 projection hash, and the exact artifacts as
 `preservation_snapshot_binding_mismatch`. Read and write legs supply no
-preservation artifact. A read-only P8 subset may therefore pass its explicitly
-requested capabilities, but full G3 remains `BLOCKED` on every absent required
+preservation artifact. Every update scenario supplies at least one comparison;
+there is no empty preservation success. A read-only P8 subset may therefore
+pass its explicitly requested capabilities, but full G3 remains `BLOCKED` on
+every absent required
 write/update scenario; the adapter may not treat a missing future leg,
 baseline, preservation report, or preserve path as an empty or skipped check.
 
 After those shape checks, the adapter recomputes, rather than trusts, exact
 manifest and payload closure; provider and clean-commit bindings; scenario
 hashes, complete per-capability sets, operations and result statuses; every
-artifact hash and size; applicable success snapshot projections or expected
-opening-failure artifact/receipt pairs; source/output MDB identities; coverage;
-and update
+artifact hash and size; applicable three-way expected success projections or
+expected opening/operation-failure artifacts; derivation command/source/input
+isolation; source/output MDB identities; coverage; and nonempty update
 preservation.
 
 One adapter evidence item covers one capability and names its complete
