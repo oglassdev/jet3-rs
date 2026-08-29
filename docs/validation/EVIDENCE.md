@@ -145,6 +145,12 @@ Step 2 adds only:
   `opening-failure.schema.json`; and
 - the validators and focused tests needed to enforce these read contracts.
 
+The complete literal add/modify path inventory for those categories, including
+the round-8 acquisition-authorization schema, is frozen in
+`IMPLEMENTATION_PLAN.md` under “P8T step-1 exact-commit decision and read-only
+step-2 scope.” No path outside that closed list may change without a new
+additive amendment merged and human-approved before implementation begins.
+
 No expected-post-state, generic operation-failure, preservation-diff,
 write-operation, output/update-MDB, writer/update source-closure, writer
 producer, or writer command belongs to this schema version. A file, contract
@@ -260,6 +266,81 @@ Round-7 failures use these stable intrinsic reason codes:
 through an otherwise bound reference is `producer_command_artifact_mismatch`.
 These are intrinsic `FAIL` before projection, comparison, policy, or adapter
 output.
+
+The following round-8 authorization binding supersedes only the version-1
+manifest member and contract counts above. Step 2 adds the committed closed
+schema
+`docs/validation/schema/acquisition-authorization-v1.schema.json`. The
+manifest therefore has exactly the prior eleven members plus
+`acquisition_authorization`, and `contracts` has exactly the prior thirteen
+members plus `acquisition_authorization_schema`. The manifest member is an
+exact artifact reference to the fixed normalized path
+`dao-bundle/acquisition-authorization.json`; the schema contract and artifact
+reference each bind path, raw lowercase SHA-256, and size. The authorization
+file is also a unique row in the complete `files` inventory, with the same
+hash and size. It is a pre-run attestation with the same explicit non-produced
+status as provider proof, never a generated scenario artifact.
+
+The authorization is closed canonical UTF-8 JSON with sorted keys, compact
+separators, direct non-ASCII, no BOM or non-finite values, and exactly one
+trailing LF. It has exactly `schema_version`, `document_type`, `decision`,
+`git_commit`, `approved_decision`, `actor`, `evidence_ready`,
+`authorized_at`, `ordering_attestation`, `scope`, `retention`, and
+`redistribution`. Version and document type are integer 1 and
+`acquisition_authorization`; `decision` is exactly
+`authorize_acquisition`. `approved_decision` has exactly stable `id`,
+normalized commit-relative `path`, raw lowercase `sha256`, and `size`; the
+adapter loads that file from the selected release commit and recomputes both
+values. `actor` has exactly a nonempty stable `identity` and
+`authority: "human_release_authority"`.
+
+`evidence_ready` has exactly `confirmed_at`, `clean: true`, and
+`pushed: true`. It attests that the authorization actor observed the named
+already-existing commit as the reviewed clean pushed evidence-ready commit;
+it is not evidence for repository cleanliness, which the adapter still checks
+twice. `ordering_attestation` is exactly
+`authorized_before_any_dao_mutation`. The adapter requires
+`evidence_ready.confirmed_at <= authorized_at < run.started_at` and requires
+every acquisition command interval to remain inside the run interval. Thus
+authorization precedes even command launch, a stronger checked boundary than
+preceding the first DAO mutation. All three authorization times are
+calendar-valid uppercase UTC whole seconds.
+
+`scope` has exactly `campaign_id`, `adapter`, `manifest_schema_version`,
+`operation`, `scenario_ids`, `provider_contract`, `hosted_image`,
+`maximum_dispatches`, and `maximum_attempts`. The adapter and operation are
+exactly `dao_differential_v1` and `rust_read_dao`; schema version,
+maximum dispatches, and maximum attempts are each integer 1. Campaign,
+strictly sorted unique scenario set, provider-contract path/hash/size, and
+hosted image must equal the manifest, committed scenario/contract selection,
+and provider proof. A bundle cannot broaden the authorized scope, and a
+second dispatch or attempt requires a new authorization record and the
+scientific-event decision required elsewhere.
+
+`retention` has exactly
+`licensed_provider_bytes: "not_retained"`,
+`acquisition_bundle: "private_read_only"`, and
+`authorization_record: "retained_in_bundle"`. `redistribution` has exactly
+`licensed_provider_bytes: "prohibited"`,
+`mdb_and_payload_bytes: "prohibited"`, and
+`public_record: "metadata_and_hashes_only"`. These are mandatory
+attestations, not producer-selected policy labels.
+
+The record intentionally contains no overlay hash, manifest hash, hosted run
+id/attempt, run timestamps, or result: those identities do not exist when the
+human acts. The later closed manifest binds the pre-run record by raw hash and
+size and supplies those later identities without making the evidence-ready
+commit self-referential. Missing authorization is
+`missing_acquisition_authorization`; malformed/noncanonical bytes, a wrong
+decision or actor/authority, a forbidden future-identity member, or schema
+failure is `invalid_acquisition_authorization`; commit, campaign, approved
+decision, or artifact/contract hash-size disagreement is
+`acquisition_authorization_binding_mismatch`; time or pre-run ordering failure
+is `acquisition_authorization_ordering_violation`; broadened acquisition scope
+is `acquisition_authorization_scope_mismatch`; and wrong retention or
+redistribution attestations are `acquisition_authorization_rights_mismatch`.
+Each is intrinsic exit-1 `FAIL` before provider, commands, scenario artifacts,
+comparison, policy, or adapter output.
 
 Every timestamp uses uppercase UTC whole seconds and is calendar-valid. Run,
 command, and scenario completion may equal start but never precede it; every

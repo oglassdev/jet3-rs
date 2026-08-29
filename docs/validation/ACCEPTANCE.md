@@ -179,6 +179,28 @@ age relative to manifest start passes through 604800 seconds and fails at
 pre-mutation boundary, retention, and redistribution restrictions remain
 binding.
 
+Authorization likewise comes only from the manifest-bound canonical
+`dao-bundle/acquisition-authorization.json` and the exact committed
+`docs/validation/schema/acquisition-authorization-v1.schema.json`, never from
+a PR comment, workflow input, log, or later provenance entry. The manifest
+must reference and inventory the record by exact raw SHA-256 and size and must
+bind the schema as `contracts.acquisition_authorization_schema`. G3 verifies
+the exact release commit and approved decision path/hash/size, stable human
+actor and authority, evidence-ready clean/pushed attestation, campaign,
+read-only operation, complete scenario scope, provider contract/image, single
+dispatch/attempt scope, and the fixed private-retention/no-redistribution
+attestations. It requires evidence-ready confirmation no later than human
+authorization and authorization strictly before trusted-run start and every
+acquisition command.
+
+The authorization record is made after the evidence-ready commit but before
+acquisition, so its closed schema forbids future overlay/manifest hashes,
+hosted run/attempt identity, run timestamps, and result fields. The later
+manifest binds it without self-reference. Missing, invalid, mismatched,
+misordered, over-broad, or rights-inconsistent authorization is intrinsic
+exit-1 `FAIL` before provider or evidence validation, using the exact round-8
+reason codes in `EVIDENCE.md`; disabled policy cannot suppress it.
+
 Executed sources come from the committed hash-bound source-closure registry.
 G3 requires exact union equality with command source lists and
 `executed_sources`, correct roles and indexed argv entrypoints, and rejects

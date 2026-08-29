@@ -1031,6 +1031,67 @@ Step 2's exact write scope is:
   `effective-support --repo-root --overlay --manifest-sha256` interface, G3
   wiring, and focused tests below.
 
+The following round-8 literal inventory supersedes only the categorical scope
+description above. It is the complete closed add/modify set for step 2. `Add`
+means absent from the step-1 evidence-ready commit; `modify` means already
+present there.
+
+Step 2 adds exactly:
+
+- `docs/validation/schema/acquisition-authorization-v1.schema.json`;
+- `docs/validation/schema/dao-differential-v1-manifest.schema.json`;
+- `docs/validation/schema/dao-differential-v1-report.schema.json`;
+- `docs/validation/schema/effective-support-result.schema.json`;
+- `docs/validation/schema/dao-provider-v1-contract.schema.json`;
+- `docs/validation/schema/dao-provider-proof-v1.schema.json`;
+- `docs/validation/schema/dao-differential-v1-source-closure.schema.json`;
+- `docs/validation/dao-provider-v1-contract.json`;
+- `docs/validation/dao-differential-v1-source-closure.json`;
+- `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json`;
+- `oracle/windows-dao/protocol/v1_2/opening-failure.schema.json`;
+- `tools/validate_release_evidence.py`; and
+- `tools/tests/test_dao_differential_adapter.py`.
+
+Step 2 modifies exactly:
+
+- `docs/validation/schema/support-matrix.schema.json`;
+- `docs/validation/schema/README.md`;
+- `docs/validation/README.md`;
+- `oracle/windows-dao/protocol/v1_2/README.md`;
+- `oracle/windows-dao/scripts/validate_protocol_v1_2.py`;
+- `tools/validation/evidence.py`;
+- `tools/validation/release_evidence.py`;
+- `tools/validation/release_evidence_adapters.py`;
+- `tools/validation/self_test.py`;
+- `tools/validation/support.py`;
+- `scripts/run-acceptance-gate.sh`;
+- `oracle/windows-dao/tests/test_protocol_validation.py`;
+- `tools/tests/test_release_evidence.py`;
+- `tools/tests/test_run_acceptance.py`; and
+- `tools/tests/test_support_capability_catalog.py`.
+
+This chooses the existing validation library as the implementation boundary:
+`evidence.py` removes the obsolete committed-DAO-bundle path,
+`release_evidence.py` resolves the exact selection and effective result,
+`release_evidence_adapters.py` owns the intrinsic read adapter, and `support.py`
+owns stored-baseline and full-catalog capability handling; `self_test.py` keeps
+the existing support-contract self-test aligned with that split. The new
+`tools/validate_release_evidence.py` is only their thin validation entrypoint.
+G3 changes only `scripts/run-acceptance-gate.sh`; `tools/run_acceptance.py` and
+`scripts/acceptance.sh` already preserve the selected environment and remain
+read-only. No optional application CLI is added or modified: in particular,
+no path under `crates/jet3-cli/` is in scope. P8, not P8T, owns any later
+testkit producer or optional CLI driver.
+
+Every path outside this literal inventory remains read-only in step 2,
+including `docs/validation/support-matrix.json`,
+`docs/validation/evidence-policy.json`,
+`docs/validation/schema/evidence-policy.schema.json`, and
+`docs/validation/schema/release-evidence-overlay.schema.json`. Implementation
+convenience, test discovery, or documentation generation cannot expand the
+set. Any additional add or modification requires a new additive amendment,
+merged and human-approved before step 2 begins.
+
 These are eight new schemas: manifest, report, effective-support,
 provider-contract, provider-proof, source-closure, coverage-receipt, and
 opening-failure. Step 2 adds no expected post-state, generic operation failure,
@@ -1205,6 +1266,98 @@ The nonzero test asserts `producer_command_nonzero_exit`; the out-of-interval
 test asserts `producer_command_outside_trusted_run_interval`. All other test
 stems equal their required reason codes after removal of `test_` and
 `_is_rejected`.
+
+The round-8 focused artifact-command test addition is:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_producer_command_artifact_mismatch_is_rejected -v
+```
+
+This test must exit 1, form zero adapter output, and report exactly
+`producer_command_artifact_mismatch`. It starts from a valid positive scenario,
+keeps the artifact's correct non-null `producer_command_id` and the linked
+command's role, entrypoint, scenario subject, revision, exit, and interval
+unchanged, then moves only that artifact reference's production timestamp to
+one second after the linked command's end while leaving it within both the
+scenario and trusted-run intervals. The resulting still-bound timestamp-join
+corruption must therefore use this reason rather than wrong binding, swapped
+command, unbound artifact, or command-outside-run reasons.
+
+The round-8 acquisition-authorization binding is additive and supersedes only
+the step-2 schema count, manifest member count, contract count, and any prior
+implication that authorization could remain outside the selected manifest.
+Step 2 adds a ninth new schema at
+`docs/validation/schema/acquisition-authorization-v1.schema.json`, adds
+`acquisition_authorization` to the closed manifest, and adds
+`acquisition_authorization_schema` to its closed contracts. The referenced
+artifact is fixed at `dao-bundle/acquisition-authorization.json`; its exact raw
+SHA-256 and size agree across the manifest reference and complete file
+inventory. The committed schema reference likewise binds exact path, raw hash,
+and size. Both are validated before provider proof, commands, scenario
+artifacts, projection, policy, or output.
+
+Implementation is confined to the already-scoped
+`tools/validate_release_evidence.py`,
+`tools/validation/release_evidence.py`,
+`tools/validation/release_evidence_adapters.py`, the new schema above,
+`docs/validation/schema/README.md`, and
+`tools/tests/test_dao_differential_adapter.py`; this binding changes no
+acquisition worker, workflow, producer, protocol-v1.2 schema, Rust source,
+policy, matrix, or overlay schema.
+
+The authorization schema and semantic checks are exactly the round-8 contract
+in `EVIDENCE.md`: canonical closed bytes; `authorize_acquisition`; exact
+release commit and approved decision/amendment path/hash/size; stable human
+actor with `human_release_authority`; evidence-ready clean/pushed confirmation;
+strict pre-run/pre-mutation ordering; exact read-only campaign, scenario,
+provider, image, one-dispatch, and one-attempt scope; and the fixed retention
+and redistribution attestations. It is an independently acquired pre-run
+attestation with an explicit non-produced marker. It contains no future
+manifest/overlay hash, hosted run/attempt identity, run timestamp, or result.
+The later manifest supplies and binds those identities, preserving the
+preparation-commit sequence without self-reference.
+
+The exact stable intrinsic reason codes are
+`missing_acquisition_authorization`, `invalid_acquisition_authorization`,
+`acquisition_authorization_binding_mismatch`,
+`acquisition_authorization_ordering_violation`,
+`acquisition_authorization_scope_mismatch`, and
+`acquisition_authorization_rights_mismatch`. Every rejection exits 1 and
+forms zero adapter output even while policy is disabled. Step 2 adds these
+exact focused tests to `tools/tests/test_dao_differential_adapter.py`:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_manifest_bound_acquisition_authorization_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_missing_acquisition_authorization_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_invalid_acquisition_authorization_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_binding_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_ordering_violation_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_scope_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_rights_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_future_manifest_identity_in_authorization_is_rejected -v
+sha256sum docs/validation/schema/acquisition-authorization-v1.schema.json
+```
+
+The positive test covers both positive and expected-opening-failure scenario
+sets under one exact authorized read campaign. Each identically named rejection
+test asserts its reason code above; the future-identity test asserts
+`invalid_acquisition_authorization`. The binding test separately mutates the
+release commit, approved-decision raw hash/size, manifest artifact reference,
+and schema contract reference. The ordering test covers authorization before
+evidence-ready confirmation, equality with run start, and authorization after
+run start. The scope test covers scenario, provider/image, operation,
+dispatch, and attempt broadening. The rights test mutates retention and
+redistribution separately. The existing full adapter suite and repository
+contract command in the focused step-2 checks must load the new schema and
+exercise these tests; no acquisition command is run by any of them.
+
+The following round-8 test-reference clarification supersedes only the
+ambiguous phrase `The first test` in the immediately following paragraph. That
+phrase refers specifically to
+`test_deferred_requirement_fails_before_adapter_output` in the earlier
+round-6 focused adapter-test block. It does not refer to
+`test_exact_outcome_producer_commands_and_artifact_links_pass` in the
+round-7 artifact-command block; that test remains the positive pass case.
 
 The first test must assert exit 1, the exact reason code
 `incomplete_scenario_inventory_deferred_requirements`, and zero adapter

@@ -5889,6 +5889,100 @@ Use `not applicable` explicitly rather than omitting a field.
   changes no capability, stored verification, effective verification, policy,
   matrix data, evidence result, or provider requirement
 
+### EXP-0065 — P8T manifest-bound acquisition-authorization contract
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no authorization, dispatch,
+  DAO acquisition, provider observation, Rust result, release evidence,
+  support-state change, or compatibility result
+- Question: How can the mandatory human authorization that occurs after the
+  evidence-ready commit and before acquisition be machine-checked when
+  acceptance selects only a detached overlay and manifest hash?
+- Origin: the P8T exact-commit decision in `EXP-0063`, the publication-order
+  reconciliation in `EXP-0064`, and independent review finding that the
+  closed version-1 manifest did not represent the otherwise mandatory
+  authorization. No MDB implementation, provider binary, MDB file, retained
+  campaign payload, or new format source was inspected.
+- Environment: document and contract analysis at exact clean base commit
+  `6a9b7157d104ff3f9b7dd95608d620c60fcbcb81` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: add one closed canonical pre-run authorization schema and fixed
+  artifact path; bind the artifact and schema into the later manifest by raw
+  SHA-256 and size; bind exact release commit, approved decision/amendment,
+  actor/authority, evidence-ready and pre-mutation ordering, exact acquisition
+  scope, retention, and redistribution; and define fail-closed adapter reasons
+  and focused implementation tests without adding an acquisition path
+- Artifacts: `docs/validation/EVIDENCE.md` round-8 authorization contract;
+  `docs/validation/ACCEPTANCE.md` G3 consumption rule; and
+  `docs/plans/IMPLEMENTATION_PLAN.md` P8T step-2 schema, test, command, and
+  publication-sequence amendment
+- Observation: before this correction, authorization was mandatory prose but
+  neither a closed manifest member nor a manifest-bound inventory artifact.
+  Acceptance's overlay plus manifest-hash inputs therefore could not prove
+  that an exact-commit human authorization existed before acquisition.
+- Interpretation: the human creates the authorization only after observing the
+  already-frozen clean pushed commit. The record names that commit and the
+  approved decision but intentionally cannot name future overlay, manifest,
+  hosted-run, or result identities. The later manifest closes the record by
+  hash and size. Missing, malformed, mismatched, misordered, over-broad, or
+  rights-inconsistent authorization fails intrinsically before disabled-policy
+  suppression.
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored contract analysis; no external artifact is
+  redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no acquisition or dispatch, keeps `dao_differential_v1` disabled,
+  changes no matrix/effective verification, and advances no capability
+
+### EXP-0066 — P8T step-2 closed literal file inventory
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive implementation-scope correction; no dispatch, DAO acquisition,
+  provider observation, Rust result, release evidence, support-state change, or
+  compatibility result
+- Question: Which exact repository paths may P8T step 2 add or modify so the
+  step-1 promise to freeze every selected file is machine-reviewable rather
+  than a set of open-ended categories?
+- Origin: the P8T step-2 categorical scope in
+  `docs/plans/IMPLEMENTATION_PLAN.md`, the read-only contract in
+  `docs/validation/EVIDENCE.md`, and independent review finding that support,
+  provider, closure, schema-inventory, resolver, G3, CLI-boundary, and test
+  categories did not name a literal closed path set. No MDB implementation,
+  provider binary, MDB file, retained campaign payload, or new format source
+  was inspected.
+- Environment: repository-tree and contract analysis at exact clean base commit
+  `6a9b7157d104ff3f9b7dd95608d620c60fcbcb81` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: resolve every promised step-2 artifact against the current
+  validation-library, protocol-v1.2, acceptance-gate, documentation-inventory,
+  and focused-test seams; mark each literal path as add or modify; retain the
+  existing thin validation entrypoint and library-first resolver; explicitly
+  exclude the optional Rust CLI, producer, acquisition, workflow, matrix-data,
+  policy, and overlay-schema paths; and require a new approved additive
+  amendment for any expansion
+- Artifacts: `docs/plans/IMPLEMENTATION_PLAN.md` closed P8T step-2 add/modify
+  inventory and `docs/validation/EVIDENCE.md` binding reference
+- Observation: the existing step-2 text froze behaviors and category names but
+  did not bound the concrete implementation write set. The resolved inventory
+  uses only existing validation seams plus the exact promised schemas,
+  contract/registry documents, validator entrypoint, and focused adapter test.
+- Interpretation: step 2 cannot add a helper, move logic into an unlisted CLI,
+  modify acceptance orchestration beyond the named G3 gate script, or expand
+  documentation/tests without prior additive approval. Matrix data, disabled
+  policy, overlay schema, Rust/testkit/CLI producers, oracle acquisition code,
+  and workflows remain read-only.
+- Usage: `file:docs/plans/IMPLEMENTATION_PLAN.md`;
+  `file:docs/validation/EVIDENCE.md`
+- Rights: project-authored repository-scope analysis; no external artifact is
+  redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, acquisition, or dispatch, changes no matrix or
+  policy byte, and advances no capability
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
