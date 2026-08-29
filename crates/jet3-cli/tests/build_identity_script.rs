@@ -120,6 +120,81 @@ fn cargo_attestation_tracks_nested_untracked_changes_without_clean_rebuilds()
     Ok(())
 }
 
+#[test]
+fn oversized_git_status_is_rejected_before_attested_build_execution() -> Result<(), Box<dyn Error>>
+{
+    let temporary = tempfile::tempdir()?;
+    let subject_worktree = temporary.path().join("subject");
+    let subject_manifest_dir = subject_worktree.join("crates/jet3-cli");
+    fs::create_dir_all(&subject_manifest_dir)?;
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("build.rs"),
+        subject_manifest_dir.join("build.rs"),
+    )?;
+    commit_repository(&subject_worktree, "subject")?;
+    create_oversized_status(&subject_worktree)?;
+    let status = git(
+        &subject_worktree,
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    )?
+    .stdout;
+    assert!(status.len() > 8 * 1024);
+
+    let real_git = resolve_executable("git")?;
+    let fake_git_dir = temporary.path().join("fake-git-bin");
+    let completion_marker = temporary.path().join("oversized-status-completed");
+    fs::create_dir(&fake_git_dir)?;
+    compile_oversized_status_git(&fake_git_dir)?;
+
+    let executable = temporary
+        .path()
+        .join(format!("build-identity-script{}", env::consts::EXE_SUFFIX));
+    compile_build_script(&subject_manifest_dir, &executable)?;
+    let mut build_script = Command::new(&executable);
+    build_script
+        .current_dir(&subject_manifest_dir)
+        .env("CARGO_MANIFEST_DIR", &subject_manifest_dir)
+        .env("REAL_GIT_FOR_BUILD_IDENTITY_TEST", &real_git)
+        .env("STATUS_COMPLETION_MARKER", &completion_marker);
+    prepend_path(&mut build_script, &fake_git_dir)?;
+    let execution = build_script.output()?;
+    require_success("execute build script", &execution)?;
+    assert_eq!(
+        build_identity(&execution.stdout)?,
+        "diagnostic-git-state-unavailable"
+    );
+    assert!(!completion_marker.exists());
+
+    let marker = temporary.path().join("attested-command-ran");
+    let python = env::var_os("PYTHON").unwrap_or_else(|| "python3".into());
+    let wrapper = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tools/cargo_with_build_identity.py")
+        .canonicalize()?;
+    let mut wrapper_command = Command::new(&python);
+    wrapper_command
+        .arg(wrapper)
+        .arg("--")
+        .arg(&python)
+        .args([
+            "-c",
+            "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text('ran')",
+        ])
+        .arg(&marker)
+        .current_dir(&subject_manifest_dir)
+        .env("REAL_GIT_FOR_BUILD_IDENTITY_TEST", &real_git)
+        .env("STATUS_COMPLETION_MARKER", &completion_marker);
+    prepend_path(&mut wrapper_command, &fake_git_dir)?;
+    let wrapper_output = wrapper_command.output()?;
+    assert!(!wrapper_output.status.success());
+    assert!(
+        String::from_utf8_lossy(&wrapper_output.stderr)
+            .contains("worktree status exceeds build-attestation limit")
+    );
+    assert!(!marker.exists());
+    assert!(!completion_marker.exists());
+    Ok(())
+}
+
 fn assert_attested_fresh(
     manifest_dir: &Path,
     target_dir: &Path,
@@ -201,6 +276,102 @@ fn commit_repository(worktree: &Path, message: &str) -> Result<(), Box<dyn Error
     Ok(())
 }
 
+fn create_oversized_status(worktree: &Path) -> Result<(), Box<dyn Error>> {
+    for index in 0..300 {
+        fs::write(
+            worktree.join(format!("untracked-status-boundary-{index:04}.txt")),
+            b"untracked\n",
+        )?;
+    }
+    Ok(())
+}
+
+fn compile_oversized_status_git(directory: &Path) -> Result<(), Box<dyn Error>> {
+    let source = directory.join("fake_git.rs");
+    fs::write(
+        &source,
+        r#"use std::env;
+use std::fs;
+use std::io::{self, Write};
+use std::process::{self, Command};
+use std::thread;
+use std::time::Duration;
+
+fn main() {
+    let arguments = env::args_os().skip(1).collect::<Vec<_>>();
+    if arguments.iter().any(|argument| argument == "status") {
+        io::stdout().write_all(&vec![b'x'; 8 * 1024 + 1]).unwrap();
+        io::stdout().flush().unwrap();
+        thread::sleep(Duration::from_secs(2));
+        fs::write(env::var_os("STATUS_COMPLETION_MARKER").unwrap(), b"completed").unwrap();
+        return;
+    }
+    let status = Command::new(env::var_os("REAL_GIT_FOR_BUILD_IDENTITY_TEST").unwrap())
+        .args(arguments)
+        .status()
+        .unwrap();
+    process::exit(status.code().unwrap_or(1));
+}
+"#,
+    )?;
+    let executable = directory.join(format!("git{}", env::consts::EXE_SUFFIX));
+    compile_rust_source(&source, &executable, "compile fake Git")
+}
+
+fn resolve_executable(name: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
+    let path = env::var_os("PATH").ok_or_else(|| io::Error::other("PATH is unavailable"))?;
+    for directory in env::split_paths(&path) {
+        let candidate = directory.join(format!("{name}{}", env::consts::EXE_SUFFIX));
+        if candidate.is_file() {
+            return Ok(candidate.canonicalize()?);
+        }
+    }
+    Err(io::Error::new(io::ErrorKind::NotFound, format!("cannot resolve {name}")).into())
+}
+
+fn prepend_path(command: &mut Command, directory: &Path) -> Result<(), Box<dyn Error>> {
+    let existing = env::var_os("PATH").ok_or_else(|| io::Error::other("PATH is unavailable"))?;
+    let path =
+        env::join_paths(std::iter::once(directory.to_owned()).chain(env::split_paths(&existing)))?;
+    command.env("PATH", path);
+    Ok(())
+}
+
+fn compile_build_script(manifest_dir: &Path, executable: &Path) -> Result<(), Box<dyn Error>> {
+    let build_script = manifest_dir.join("build.rs");
+    compile_rust_source(&build_script, executable, "compile build script")
+}
+
+fn compile_rust_source(
+    source: &Path,
+    executable: &Path,
+    operation: &str,
+) -> Result<(), Box<dyn Error>> {
+    let rustc = env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let compilation = Command::new(rustc)
+        .args([
+            OsStr::new("--edition=2024"),
+            source.as_os_str(),
+            OsStr::new("-o"),
+            executable.as_os_str(),
+        ])
+        .output()?;
+    require_success(operation, &compilation)
+}
+
+fn build_identity(stdout: &[u8]) -> Result<String, Box<dyn Error>> {
+    let stdout = String::from_utf8(stdout.to_owned())?;
+    let identity_prefix = "cargo:rustc-env=JET3_BUILD_IDENTITY=";
+    let identities = stdout
+        .lines()
+        .filter_map(|line| line.strip_prefix(identity_prefix))
+        .collect::<Vec<_>>();
+    if let [identity] = identities.as_slice() {
+        return Ok((*identity).to_owned());
+    }
+    Err(io::Error::other(format!("unexpected build-script output: {stdout}")).into())
+}
+
 fn run_build_script(
     executable: &Path,
     manifest_dir: &Path,
@@ -215,16 +386,7 @@ fn run_build_script(
         .env("GIT_WORK_TREE", foreign_worktree)
         .output()?;
     require_success("execute build script", &execution)?;
-    let stdout = String::from_utf8(execution.stdout)?;
-    let identity_prefix = "cargo:rustc-env=JET3_BUILD_IDENTITY=";
-    let identities = stdout
-        .lines()
-        .filter_map(|line| line.strip_prefix(identity_prefix))
-        .collect::<Vec<_>>();
-    if let [identity] = identities.as_slice() {
-        return Ok((*identity).to_owned());
-    }
-    Err(io::Error::other(format!("unexpected build-script output: {stdout}")).into())
+    build_identity(&execution.stdout)
 }
 
 fn cargo_identity(manifest_dir: &Path, target_dir: &Path) -> Result<String, Box<dyn Error>> {

@@ -30,8 +30,8 @@
       "package": "jet3-cli",
       "manifest": "crates/jet3-cli/Cargo.toml",
       "path": "crates/jet3-cli/build.rs",
-      "sha256": "e78e525278db3a3a835db0add7a81e10c226c871441fdf1cc873ce181691bd10",
-      "purpose": "Build identity only: independently verify the wrapper's worktree-state trigger before embedding the exact Git revision and dirty state; supplies no MDB format knowledge."
+      "sha256": "2e7a4429f96f51eb51980221a97913811adae94f81d9d799d65a591bef1f2b4a",
+      "purpose": "Build identity only: independently verify the wrapper's bounded worktree-state trigger before embedding the exact Git revision and dirty state; supplies no MDB format knowledge."
     }
   ],
   "reviewed_external_runtime_packages": [

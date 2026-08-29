@@ -2,8 +2,9 @@
 
 use std::collections::BTreeSet;
 use std::env;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 const NON_GIT_IDENTITY: &str = "diagnostic-non-git-build";
 const UNKNOWN_GIT_IDENTITY: &str = "diagnostic-git-state-unavailable";
@@ -42,10 +43,7 @@ fn main() {
         println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
         return;
     }
-    let Some(status) = git_output(
-        &worktree,
-        &["status", "--porcelain=v1", "--untracked-files=all"],
-    ) else {
+    let Some(status) = git_status(&worktree) else {
         println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
         return;
     };
@@ -170,7 +168,45 @@ fn git_text(directory: &Path, arguments: &[&str]) -> Option<String> {
         .map(|value| value.trim().to_owned())
 }
 
+fn git_status(directory: &Path) -> Option<Vec<u8>> {
+    let mut command = git_command(
+        directory,
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    );
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let mut output = Vec::with_capacity(MAX_STATUS_BYTES.checked_add(1)?);
+    let read_result = child.stdout.as_mut().and_then(|stdout| {
+        let limit = u64::try_from(MAX_STATUS_BYTES.checked_add(1)?).ok()?;
+        stdout.take(limit).read_to_end(&mut output).ok()
+    });
+    if read_result.is_none() || output.len() > MAX_STATUS_BYTES {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    }
+    let status = match child.wait() {
+        Ok(status) => status,
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+    };
+    status.success().then_some(output)
+}
+
 fn git_output(directory: &Path, arguments: &[&str]) -> Option<Vec<u8>> {
+    git_command(directory, arguments)
+        .output()
+        .ok()
+        .and_then(|output| output.status.success().then_some(output.stdout))
+}
+
+fn git_command(directory: &Path, arguments: &[&str]) -> Command {
     let mut command = Command::new("git");
     command
         .arg("--no-optional-locks")
@@ -185,8 +221,7 @@ fn git_output(directory: &Path, arguments: &[&str]) -> Option<Vec<u8>> {
             command.env_remove(name);
         }
     }
-    let output = command.output().ok()?;
-    output.status.success().then_some(output.stdout)
+    command
 }
 
 fn is_exact_revision(value: &str) -> bool {
