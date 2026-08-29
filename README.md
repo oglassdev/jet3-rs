@@ -19,8 +19,7 @@ is claimed.
 - `crates/jet3-testkit`: fixture and semantic-comparison support
 - `oracle/windows-dao`: Windows-only independent DAO test oracle
 - `docs/validation`: measurable requirements and evidence rules
-- `docs/plans/IMPLEMENTATION_PLAN.md`: directive phase plan from the current
-  state to v1 completion
+- `docs/plans/V1_SCOPE.md`: what v1 is and is not
 
 ## Start here
 

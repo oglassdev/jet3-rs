@@ -56,8 +56,7 @@ and shared artifacts stay outside the repository. See
 checked `just windows-dev-*` entry points.
 
 The Windows DAO oracle additionally requires x86 Windows PowerShell 5 and the
-exact licensed `DAO.DBEngine.36` provider described in
-[`DAO_PROVIDER_BLOCKER.md`](validation/DAO_PROVIDER_BLOCKER.md). Mise cannot
+exact licensed `DAO.DBEngine.36` provider. Mise cannot
 provision or validate that external provider, and it is never a production
 dependency.
 
