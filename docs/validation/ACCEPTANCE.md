@@ -372,6 +372,37 @@ exit 3 is unavailable-verifier `BLOCKED`. All are nonzero and stop
 acquisition. P8 must implement and separately review that command graph; P8T
 adds only the preflight validator and synthetic tests, no workflow or command.
 
+The round-11 timing-boundary amendment makes that success edge strictly
+post-authorization at whole-second precision. The registered preflight
+command's retained entry second must satisfy
+`authorized_at < preflight_started_at`; eventual selected evidence must bind
+that identical second as both `run.started_at` and the
+`authorization-preflight` verifier-command start. Equality with
+`authorized_at` is exit-1
+`FAIL: acquisition_authorization_ordering_violation`, with no staging child,
+verifier invocation, publication, or provider/DAO/Rust/acquisition edge. The
+focused boundary fixes `authorized_at` at `2026-08-29T12:00:00Z`: a preflight
+entry at that same second is rejected, and entry at
+`2026-08-29T12:00:01Z` is the first timing-valid instant. The command may not
+sleep, retry, or resample its clock to cross the boundary.
+
+Step 2 verifies the DAO path through three focused modules, not one aggregate
+adapter test file:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_effective_support.py' -v
+```
+
+The first owns preflight filesystem/signature behavior, the second manifest
+and intrinsic adapter semantics, and the third effective-support resolution
+and DAO-specific acceptance wiring. Their only shared fixture module is
+`tools/tests/dao_differential_fixtures.py`, whose direct builders contain no
+expected-result oracle or generic test framework. The additive routing table in
+`IMPLEMENTATION_PLAN.md` assigns every earlier frozen name and domain exactly
+once; the former `test_dao_differential_adapter.py` command is superseded.
+
 The later manifest must raw-hash and size the exact retained path objects, and
 `effective-support --repo-root --overlay --manifest-sha256` must re-read those
 same bytes before any intrinsic output. A byte change, alternate path object,

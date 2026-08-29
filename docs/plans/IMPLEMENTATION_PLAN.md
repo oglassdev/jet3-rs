@@ -1744,6 +1744,40 @@ repositories, synthetic keys and documents, and injected filesystem/verifier
 seams; they perform no workflow, network, provider, DAO, Rust, policy, matrix,
 or overlay-schema action.
 
+The following round-11 timing-boundary amendment changes only the preflight
+time predicate and its eventual manifest join. At registered-command entry,
+capture exactly one uppercase UTC whole second as `preflight_started_at`.
+After the existing empty-authority sentinel or provisioned-authority grammar
+decision, and before staging, `ssh-keygen`, publication, or any acquisition
+callback, require signed `authorized_at < preflight_started_at`. Never sleep,
+retry, poll, or resample the clock inside that invocation. A same-second or
+earlier value exits 1 with exact status line
+`FAIL: acquisition_authorization_ordering_violation`, leaves no staging child,
+and exposes no success/acquisition edge. The later manifest must use the
+retained value for both `run.started_at` and the registered
+`authorization-preflight` command's `started_at`; effective support requires
+those two values to be equal as well as strictly later than `authorized_at`.
+All signing, source closure, staging, authority-provisioning, policy,
+addition-only, and other timing rules remain unchanged.
+
+Step 2 adds and runs these exact boundary commands after installing a valid
+finite synthetic authority in the isolated test repository:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_same_second_as_authorized_at_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_next_second_after_authorized_at_passes -v
+```
+
+Both fixtures set `authorized_at` to `2026-08-29T12:00:00Z`. The first injects
+entry time `2026-08-29T12:00:00Z` and asserts exit 1, the exact ordering status
+line, no staging child, no verifier call, and no acquisition callback. The
+second injects entry time `2026-08-29T12:00:01Z`, completes an otherwise-valid
+synthetic preflight, asserts exit 0 and the unchanged fixed PASS line, retains
+that exact start second, and proves a synthetic later manifest is accepted
+only when both `run.started_at` and verifier-command `started_at` equal it.
+Changing either later value, or substituting the authorization second, must
+produce `acquisition_authorization_ordering_violation` and zero adapter output.
+
 The following round-10 authority-provisioning amendment supersedes only the
 production authority contents, authority-read precedence, and affected focused
 fixtures above. It adds or modifies no path beyond the closed step-2 literal
@@ -1812,6 +1846,128 @@ transition is authority provisioning only and does not itself authorize/sign
 a run, dispatch or acquire evidence, enable policy, alter the matrix, or
 advance compatibility. The round-9 rotation/revocation rules remain binding
 after provisioning.
+
+The following round-11 test-routing amendment supersedes every earlier Step 2
+assignment or command that names
+`tools/tests/test_dao_differential_adapter.py`. It changes no production path,
+test name, assertion, reason code, fixture semantics, or acquisition boundary.
+The literal Step 2 `adds exactly` inventory's one monolithic test-file entry is
+replaced by exactly these four paths:
+
+- `tools/tests/dao_differential_fixtures.py`;
+- `tools/tests/test_acquisition_authorization_preflight.py`;
+- `tools/tests/test_dao_differential_manifest.py`; and
+- `tools/tests/test_dao_effective_support.py`.
+
+`dao_differential_fixtures.py` is the sole shared helper. It contains only
+direct functions for an isolated temporary Git repository, canonical JSON
+bytes/hash/artifact references, and a minimal valid read manifest, overlay,
+synthetic authority, and signed authorization pair. It defines no generic test
+framework, base test class, mutation dispatcher, expected reason, policy
+decision, adapter oracle, filesystem abstraction, or production behavior.
+Each test module owns its domain-specific mutation, injected seam, invocation,
+and assertions. No other helper or test path is authorized by this amendment.
+
+Routing is closed as follows. The exact whole-module discovery commands are:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_effective_support.py' -v
+```
+
+For any individually frozen test below, its exact focused command is the
+corresponding whole-module command with `-k TEST_NAME` inserted before `-v`.
+Earlier `-p 'test_dao_differential_adapter.py'` commands are historical only
+and must not discover, duplicate, or own a Step 2 test.
+
+- `test_acquisition_authorization_preflight.py` owns exactly the preflight
+  filesystem, bounded secret, signature, authority, publication, cleanup, and
+  entry-time cases:
+  `test_authorization_preflight_missing_secret_is_rejected`,
+  `test_authorization_preflight_malformed_secret_is_rejected`,
+  `test_authorization_preflight_oversized_secret_is_rejected`,
+  `test_authorization_preflight_partial_publication_is_cleaned`,
+  `test_authorization_preflight_cleanup_failure_is_error`,
+  `test_authorization_preflight_altered_retained_byte_is_rejected`,
+  `test_authorization_preflight_unsafe_path_is_rejected`,
+  `test_authorization_preflight_existing_target_is_rejected`,
+  `test_authorization_preflight_nonzero_verifier_is_rejected`,
+  `test_authorization_preflight_unavailable_verifier_is_blocked`,
+  `test_authorization_preflight_bytes_are_later_manifest_bytes`,
+  `test_authorization_preflight_same_second_as_authorized_at_is_rejected`,
+  `test_authorization_preflight_next_second_after_authorized_at_passes`,
+  `test_step_2_authority_contract_is_exact_empty_sentinel`,
+  `test_authorization_preflight_unprovisioned_authority_is_blocked`,
+  `test_authorization_preflight_malformed_authority_is_rejected`,
+  `test_authorization_preflight_unlisted_signer_is_rejected`, and
+  `test_authorization_preflight_revoked_signer_is_rejected`.
+- `test_dao_differential_manifest.py` owns exactly the manifest and intrinsic
+  adapter cases:
+  `test_deferred_requirement_fails_before_adapter_output`,
+  `test_registered_non_forbidden_extra_coverage_branch_is_allowed`,
+  `test_unregistered_coverage_branch_is_rejected`,
+  `test_forbidden_coverage_branch_is_rejected`,
+  `test_stale_dao_snapshot_source_revision_is_rejected`,
+  `test_stale_rust_snapshot_source_revision_is_rejected`,
+  `test_swapped_or_wrong_snapshot_producer_kind_is_rejected`,
+  `test_exact_outcome_producer_commands_and_artifact_links_pass`,
+  `test_missing_required_producer_command_is_rejected`,
+  `test_duplicate_producer_command_is_rejected`,
+  `test_wrong_producer_command_binding_is_rejected`,
+  `test_swapped_artifact_producer_command_is_rejected`,
+  `test_unrelated_scenario_producer_command_is_rejected`,
+  `test_nonzero_harness_producer_command_is_rejected`,
+  `test_stale_producer_command_revision_is_rejected`,
+  `test_producer_command_outside_trusted_run_interval_is_rejected`,
+  `test_unbound_generated_artifact_is_rejected`,
+  `test_producer_command_artifact_mismatch_is_rejected`,
+  `test_manifest_bound_acquisition_authorization_passes`,
+  `test_missing_acquisition_authorization_is_rejected`,
+  `test_invalid_acquisition_authorization_is_rejected`,
+  `test_acquisition_authorization_binding_mismatch_is_rejected`,
+  `test_acquisition_authorization_ordering_violation_is_rejected`,
+  `test_acquisition_authorization_scope_mismatch_is_rejected`,
+  `test_acquisition_authorization_rights_mismatch_is_rejected`,
+  `test_future_manifest_identity_in_authorization_is_rejected`,
+  `test_signed_run_bound_acquisition_authorization_passes`,
+  `test_missing_acquisition_authorization_signature_is_rejected`,
+  `test_invalid_acquisition_authority_contract_is_rejected`,
+  `test_forged_acquisition_authorization_actor_is_rejected`,
+  `test_unlisted_or_revoked_acquisition_authority_is_rejected`,
+  `test_acquisition_authorization_cross_run_replay_is_rejected`,
+  `test_acquisition_authorization_cross_attempt_replay_is_rejected`,
+  `test_acquisition_authorization_nonce_replay_is_rejected`,
+  `test_acquisition_authorization_verification_command_mismatch_is_rejected`,
+  `test_acquisition_authorization_verifier_unavailable_is_blocked`,
+  `test_empty_committed_read_allowlist_is_blocked`,
+  `test_exact_library_read_allowlist_passes`,
+  `test_read_allowlist_wildcard_is_rejected`,
+  `test_read_allowlist_contract_mismatch_is_rejected`,
+  `test_read_allowlist_capability_scenario_membership_mismatch_is_rejected`,
+  `test_read_allowlist_branch_membership_mismatch_is_rejected`,
+  `test_read_allowlist_adapter_output_mismatch_is_rejected`,
+  `test_report_manifest_projection_finalization_passes`,
+  `test_report_manifest_projection_excludes_only_report_binding`, and
+  `test_report_manifest_projection_mismatch_is_rejected`.
+- `test_dao_effective_support.py` owns
+  `test_effective_support_unprovisioned_authority_is_blocked` and every
+  previously frozen DAO-specific domain without an individual name: safe
+  selection and fixed overlay/manifest hashes; exact commit and repeated
+  cleanliness; full-catalog effective joins and canonical result bytes;
+  intrinsic-before-policy precedence; disabled-policy `BLOCKED` versus
+  malformed-input `FAIL`; read-subset versus full-G3 status; environment
+  forwarding through the acceptance runner; exact G3 stdout and exit mapping;
+  and proof that G3 invokes the one canonical effective-support resolver.
+  Existing general-purpose cases in `test_release_evidence.py`,
+  `test_run_acceptance.py`, and `test_support_capability_catalog.py` remain in
+  their pre-existing modules; DAO-specific duplicates are forbidden.
+
+Thus all 65 previously frozen individual names are routed once: 18 preflight,
+46 manifest/intrinsic, and one effective-support test. The previously frozen
+unnamed domains are also routed once as stated above. The three discovery
+commands replace the former monolith command in the Step 2 focused check list;
+protocol, repository-contract, hash, and read-only commands remain unchanged.
 
 #### P8T downstream P8/P10 and Section 5 contract supersessions
 

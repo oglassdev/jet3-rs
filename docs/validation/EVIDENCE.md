@@ -878,6 +878,50 @@ zero exit, and the pre-acquisition interval. Bootstrap and materialization are
 non-acquisition bookkeeping and must finish successfully before that record or
 any provider/acquisition record can exist.
 
+The following round-11 timing-boundary amendment supersedes only the round-10
+permission for preflight process time to equal signed `authorized_at`. The
+registered `authorization-preflight` command captures one calendar-valid
+uppercase UTC whole second at command entry and retains it as
+`preflight_started_at`; it does not resample or round a later instant to make
+the check pass. The empty-authority sentinel and, for a nonempty authority,
+the provisioned-authority grammar gate retain their existing precedence. After
+those gates but before staging creation, verifier invocation, publication, or
+any acquisition edge, preflight requires
+`authorized_at < preflight_started_at`. Its eventual manifest command
+record must bind that exact retained value as both `run.started_at` and the
+registered authorization-verifier command's `started_at`; therefore the later
+resolver requires
+`authorized_at < run.started_at == authorization-preflight.started_at`.
+Verifier completion remains no earlier than that start and strictly before
+the first provider, DAO, Rust, or other acquisition command.
+
+An entry second equal to or earlier than `authorized_at` exits 1 and prints
+exactly `FAIL: acquisition_authorization_ordering_violation`. In particular,
+the same-second case creates no staging child, invokes no `ssh-keygen`,
+publishes no authorization bytes, returns no success edge, and makes every
+provider/DAO/Rust/acquisition hook unreachable. The exact boundary fixtures
+freeze `authorized_at = 2026-08-29T12:00:00Z`: entry at
+`2026-08-29T12:00:00Z` is the rejected same-second case, while entry at
+`2026-08-29T12:00:01Z` crosses only the timing check and may continue through
+the otherwise-valid synthetic preflight. No sleep, retry, polling loop, clock
+advance, or automatic redispatch is permitted; the controller must start a
+new command after the signed second if it encounters the rejection.
+
+The round-11 Step 2 test-routing amendment changes test ownership only. The
+preflight filesystem/signature boundary is tested in
+`tools/tests/test_acquisition_authorization_preflight.py`; manifest shape,
+artifact/command joins, authenticated authorization, read allowlisting,
+coverage/comparison, and other intrinsic adapter semantics are tested in
+`tools/tests/test_dao_differential_manifest.py`; and effective-support
+resolution plus DAO-specific G3/acceptance wiring are tested in
+`tools/tests/test_dao_effective_support.py`. Their sole shared helper is
+`tools/tests/dao_differential_fixtures.py`, limited to direct construction of
+isolated repositories and minimal canonical valid inputs. It contains no
+generic framework or validation oracle. The exact 65-name and unnamed-domain
+routing in `IMPLEMENTATION_PLAN.md` supersedes every earlier reference to
+`test_dao_differential_adapter.py`. This organization changes no production
+source, evidence contract, acquisition behavior, or compatibility claim.
+
 The following round-10 authority-provisioning amendment supersedes only the
 round-9 requirement that P8T step 2's production allowed-signers contract be
 nonempty and the round-10 preflight order that read authorization secrets
