@@ -6162,6 +6162,187 @@ Use `not applicable` explicitly rather than omitting a field.
   signature, dispatch, acquisition, or capability movement; the real step-2
   allowlist remains empty and `dao_differential_v1` remains disabled
 
+### EXP-0069 — P8T acyclic manifest-to-report binding
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no implementation, workflow,
+  dispatch, DAO acquisition, provider observation, Rust result, release
+  evidence, support-state change, or compatibility result
+- Question: How can the complete bundle manifest raw-hash the report while the
+  report binds the manifest content without requiring either file to contain
+  the other's not-yet-final raw SHA-256?
+- Origin: the P8T exact-commit contract in `EXP-0063`; the closed version-1
+  manifest/report contract in `docs/validation/EVIDENCE.md`; and independent
+  review finding that the manifest inventories every non-manifest payload,
+  including the report, while the report was required to contain the exact raw
+  manifest SHA-256. No MDB implementation, provider binary, MDB file, retained
+  campaign payload, or external format source was inspected.
+- Environment: document and repository-contract analysis at exact clean base
+  commit `3c7d755882ee11fbfd07b428bf2a4c1f178d2789` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: retain the full manifest's exact raw report reference and complete
+  non-manifest file inventory; replace only the report's raw manifest hash with
+  `manifest_projection_sha256`, SHA-256 of a precisely canonicalized manifest
+  projection that deletes the report reference and exactly its matching
+  inventory row; freeze the acyclic creation and fail-closed validation orders,
+  stable mismatch reason, and positive/exclusion/mutation tests; retain
+  downstream raw-manifest hashes in adapter/effective results
+- Artifacts: `docs/validation/EVIDENCE.md` round-10 projection and validation
+  contract; `docs/validation/ACCEPTANCE.md` G3 consumption rule; and
+  `docs/plans/IMPLEMENTATION_PLAN.md` schema, construction, test, and command
+  amendment
+- Observation: the former pair of requirements had no finite construction
+  order: changing the manifest raw bytes changed the report, and changing the
+  report changed its manifest inventory hash. Removing the report reference
+  and its unique file row from the report's hash domain yields the fixed order
+  non-report basis, report, full manifest, overlay while the full manifest
+  still raw-hashes every payload.
+- Interpretation: the projection digest binds exact commit/run identity and
+  every non-report manifest field and payload reference. The full manifest
+  separately binds the exact report bytes, and the selected overlay separately
+  binds the full raw manifest. Only the report schema changes shape; exact
+  overlay selection, complete inventory, provider/authorization/allowlist,
+  executed-source and command closure, disabled policy, read-only scope, and
+  all downstream exact-commit bindings remain unchanged.
+- Tests frozen: acyclic positive finalization and validation; proof that only
+  the report reference and its one inventory row are excluded; and mutation of
+  an included non-report manifest value with refreshed outer manifest
+  selection but unchanged report, which must fail with
+  `report_manifest_projection_mismatch` and zero adapter output
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored validation-contract analysis; no provider bytes,
+  MDB, acquisition artifact, private authority material, or external code is
+  redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, dispatch, acquisition, or policy/matrix
+  change, keeps `dao_differential_v1` disabled, and advances no capability
+
+### EXP-0070 — P8T pre-acquisition authorization bootstrap
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no implementation, workflow,
+  secret creation, signature, dispatch, DAO acquisition, provider observation,
+  Rust result, release evidence, support-state change, or compatibility result
+- Question: How can the environment-delivered signed authorization be
+  authenticated and retained before acquisition when the detached overlay and
+  manifest required by `effective-support` do not yet exist?
+- Origin: the P8T authenticated run-bound authorization contract in
+  `EXP-0067`; the closed literal step-2 inventory in `EXP-0066`; and
+  independent-review finding that the only frozen entrypoint required two
+  post-acquisition inputs while the signed JSON/SSHSIG arrive as environment
+  secrets rather than files at their later manifest paths. No MDB
+  implementation, provider binary, MDB file, retained campaign payload,
+  private key, workflow run, or external format source was inspected.
+- Environment: document and repository-contract analysis at exact clean base
+  commit `3c7d755882ee11fbfd07b428bf2a4c1f178d2789` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: add an authorization-only subcommand to the existing thin
+  validation CLI; transport the signed pair only as bounded strict Base64
+  environment secrets; bind clean commit and hosted-run identity; verify exact
+  decoded bytes with the commit-bound OpenSSH authority files; transactionally
+  materialize and atomically publish those bytes under an exclusive private
+  bundle-staging child; retain their exact path-object identity for later raw
+  manifest hashing and full-adapter re-verification; freeze portable path,
+  mode, fsync, rename, rollback, non-logging, source-closure, status/reason,
+  execution-order, and focused-test rules
+- Artifacts: `docs/validation/EVIDENCE.md` preflight transport,
+  materialization, retention, and reason contract;
+  `docs/validation/ACCEPTANCE.md` pre-acquisition command graph and later G3
+  byte-identity rule; and `docs/plans/IMPLEMENTATION_PLAN.md` literal module,
+  exact command, source closure, implementation boundary, and focused tests
+- Observation: an overlay/manifest resolver cannot authenticate the first
+  pre-acquisition input because both inputs are downstream of the acquisition
+  it must authorize. A separate no-overlay preflight gives the signed pair a
+  finite in-memory-to-private-staging transition and makes its zero exit the
+  sole predecessor of provider, DAO, or Rust acquisition.
+- Interpretation: successful bootstrap is non-acquisition and advances no
+  capability. The later manifest does not recreate authorization bytes; it
+  hashes and inventories the exact retained files, and `effective-support`
+  independently consumes those same raw bytes after overlay publication.
+  Missing/malformed/oversized secrets, unsafe/aliased/existing paths, partial
+  publication, changed retained bytes, nonzero/unavailable verification, or
+  unprovable cleanup all fail closed before acquisition.
+- Tests frozen: missing, malformed, and oversized secret transport; injected
+  partial publication and cleanup failure; temporary/retained byte alteration;
+  relative/alias/symlink/reparse/insecure-parent and existing-target paths;
+  nonzero and unavailable verifier; status-only non-logging; acquisition-hook
+  unreachability; and later manifest/full-adapter byte identity, using the exact
+  commands and reasons in `IMPLEMENTATION_PLAN.md`
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored validation-contract analysis; no private key,
+  secret, provider bytes, MDB, acquisition artifact, workflow output, or
+  external code is redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, workflow, secret, signature, dispatch,
+  acquisition, policy/matrix change, or capability movement and keeps
+  `dao_differential_v1` disabled
+
+### EXP-0071 — P8T unprovisioned acquisition-authority sentinel
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no authority selection, key
+  generation, private material, implementation, workflow, authorization,
+  signature, dispatch, DAO acquisition, provider observation, Rust result,
+  release evidence, support-state change, or compatibility result
+- Question: How can P8T step 2 validate the authority mechanism without making
+  an unrecorded choice of a production principal, public key, validity interval,
+  revocation state, or private-key custody arrangement?
+- Origin: the P8T authenticated authorization contract in `EXP-0067`, the
+  pre-acquisition bootstrap in `EXP-0070`, and independent-review finding that
+  the production allowed-signers file was required to be nonempty although no
+  approved authority identity or provisioning transition was frozen. No MDB
+  implementation, provider binary, MDB file, retained campaign payload,
+  signing key, workflow run, or external format source was inspected.
+- Environment: document and repository-contract analysis at exact clean base
+  commit `3c7d755882ee11fbfd07b428bf2a4c1f178d2789` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: commit both step-2 production authority files as exact zero-byte,
+  SHA-256/size-pinned sentinels; recognize only that pair as a stable
+  pre-secret/pre-staging exit-3 `acquisition_authority_unprovisioned` blocker;
+  keep malformed combinations and unlisted/revoked signatures as distinct
+  exit-1 failures; restrict known keys to isolated synthetic tests; and assign
+  real authority selection and custody disclosure to a later separately
+  reviewed, human-approved P8 evidence-ready transition
+- Artifacts: `docs/validation/EVIDENCE.md` authority sentinel, precedence,
+  reason, and future-provisioning contract; `docs/validation/ACCEPTANCE.md` G3
+  non-advancing gate; and `docs/plans/IMPLEMENTATION_PLAN.md` literal bytes,
+  focused tests, and additive P8 transition
+- Observation: the empty byte string has size 0 and raw SHA-256
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  Applying that exact pair before authorization input handling gives P8T a
+  deterministic production state with no approved signer and no acquisition
+  success edge, while provisioned temporary repositories can still exercise
+  valid, malformed, unlisted, and revoked behavior.
+- Interpretation: empty authority is an explicit unprovisioned state, not a
+  malformed file and not authorization. A future P8 preparation/evidence-ready
+  commit must human-review exactly one initial principal/Ed25519 public-key
+  line, finite validity, an empty revoked-keys file and literal
+  `revocation_state: active_not_revoked`, decoded-key SHA-256, authority-file
+  hashes/sizes, and private-key custody attestation without committing private
+  material before a hosted run can be created. Provisioning by itself advances
+  no policy, matrix capability, evidence status, or compatibility claim.
+- Tests frozen: exact sentinel bytes/hash/size; preflight and effective-support
+  sentinel `BLOCKED` precedence; malformed empty/nonempty and nonempty grammar
+  `FAIL`; and provisioned synthetic unlisted/revoked signer `FAIL`, using the
+  exact commands and reasons in `IMPLEMENTATION_PLAN.md`
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored validation-contract analysis; no real or test
+  private key, production public key, secret, provider bytes, MDB, acquisition
+  artifact, workflow output, or external code is redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  selects or generates no authority, authorizes no implementation, workflow,
+  signature, dispatch, acquisition, policy/matrix change, or capability
+  movement and keeps `dao_differential_v1` disabled
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

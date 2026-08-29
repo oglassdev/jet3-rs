@@ -675,6 +675,269 @@ compact separators, direct non-ASCII, no non-finite values, and one trailing
 LF. `overlay_sha256` hashes the exact raw selected `release-evidence.json`
 bytes; `manifest_sha256` hashes the exact raw manifest bytes.
 
+The following round-10 acyclic-report amendment supersedes only the report
+field `manifest_sha256` and any implication that a manifest-inventoried report
+can contain the raw hash of the manifest that inventories it. The read-leg
+version remains 1. The closed report instead has exactly `schema_version`,
+`campaign_id`, `hosted_run_id`, `hosted_run_attempt`, `git_commit`, `dirty`,
+`manifest_projection_sha256`, `scenarios`, and `status`. The replacement hash
+is lowercase 64-hex and the closed schema rejects the former
+`manifest_sha256` member. It binds the stable manifest identity and all
+non-report manifest content without creating a raw hash cycle. `campaign_id`,
+`hosted_run_id`, `hosted_run_attempt`, `git_commit`, and `dirty` still equal
+the manifest exactly.
+
+The manifest projection is computed from the parsed final manifest as follows.
+First require `report` to be one closed artifact reference and save its
+normalized `path`. Deep-copy the manifest, delete the top-level `report`
+member, and remove exactly one `files` entry whose `path` equals the saved
+report path. Zero or multiple matching entries fail normal report-reference or
+inventory validation. Preserve every other value and every array order. Encode
+that projection as UTF-8 JSON with no BOM, recursively sorted object keys,
+compact `,` and `:` separators, direct non-ASCII characters, no non-finite
+numbers, and exactly one trailing LF. `manifest_projection_sha256` is SHA-256
+of those exact bytes. The projection is an in-memory hash domain, not a
+retained artifact and not a second manifest schema.
+
+Creation is therefore acyclic: finalize the trusted run and every non-report
+payload and manifest record; construct and hash the report-free manifest
+projection; create and canonicalize the report with that projection digest;
+hash the report and add its exact `report` reference plus its one matching
+complete-`files` row; then canonicalize and hash the full manifest and publish
+that raw hash through the selected overlay. The full manifest continues to
+inventory and raw-hash every non-manifest payload, including the report.
+
+Validation first binds the selected raw manifest hash, validates the manifest
+schema and complete raw file inventory including the report, and validates the
+report schema. It then recomputes the projection from the full manifest and
+compares the digest before report semantic recomputation, command/scenario
+joins, policy, or output. A digest mismatch is intrinsic exit-1 `FAIL` with
+stable reason `report_manifest_projection_mismatch` and zero adapter output.
+Adapter evidence outputs and the effective-support result retain their raw
+`manifest_sha256`: they are formed only after the manifest is final and are
+outside the manifest's `dao-bundle/` payload inventory, so they do not
+participate in the cycle. Only
+`docs/validation/schema/dao-differential-v1-report.schema.json` changes shape;
+the manifest and effective-support schemas, exact overlay selection,
+complete-inventory/raw-hash rules, exact-commit bindings, disabled policy, and
+read-only operation remain unchanged.
+
+The following round-10 pre-acquisition-bootstrap amendment supersedes only the
+implication that `effective-support --repo-root --overlay
+--manifest-sha256` can perform the first authorization check. At that boundary
+neither overlay nor manifest exists: they can be finalized only after the
+authorized acquisition. Step 2 therefore adds `authorization-preflight` as a
+second subcommand of the same thin `tools/validate_release_evidence.py`
+entrypoint. It accepts no overlay or manifest argument, emits no adapter or
+effective-support result, and performs no provider, DAO, Rust, network, or
+acquisition operation. The existing `effective-support` subcommand remains the
+only later detached-evidence resolver.
+
+The preflight's process environment contains the signed pair only as strict
+standard Base64 in the fixed variables
+`JET3_ACQUISITION_AUTHORIZATION_JSON_B64` and
+`JET3_ACQUISITION_AUTHORIZATION_SSHSIG_B64`. They are environment secrets, not
+paths. No value or decoded byte may enter argv, standard input of the
+preflight process, stdout, stderr, an exception, or a subprocess environment.
+The preflight deletes both variables from its process environment immediately
+after bounded reads and gives `ssh-keygen` a newly constructed allowlisted
+environment that contains neither variable. Its argv is exactly:
+
+```text
+["python3", "-B", "tools/validate_release_evidence.py",
+ "authorization-preflight", "--repo-root", ABSOLUTE_CLEAN_WORKTREE,
+ "--private-staging-parent", ABSOLUTE_PRIVATE_PARENT]
+```
+
+The workflow invokes that argv without interpolation of either secret. The
+preflight reads the trusted controller values `GITHUB_REPOSITORY`,
+`GITHUB_WORKFLOW_REF`, `GITHUB_SHA`, `GITHUB_RUN_ID`,
+`GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `JET3_AUTHORIZATION_NONCE`, and
+`JET3_CAMPAIGN_ID` directly from its environment and compares them with the
+closed signed document, approved decision and allowlist, the fixed workflow
+path/job/environment, and clean `HEAD`; it accepts no command-line override for
+any binding. In particular, `GITHUB_WORKFLOW_REF` must equal
+`<repository>/<signed-workflow-path>@<signed-workflow-ref>`, `GITHUB_JOB` must
+equal `acquire_read_evidence`, and the signed environment must equal
+`jet3-dao-acquisition`. Missing, empty, non-ASCII, whitespace-containing,
+noncanonical-padded, or otherwise invalid standard Base64 fails before any
+filesystem creation. Decoded JSON is limited to 24,576 bytes and decoded
+SSHSIG to 16,384 bytes; the encoded values are rejected before decoding above
+32,768 and 21,848 ASCII bytes respectively. Re-encoding each decoded value
+must reproduce the environment string exactly. The JSON bytes must then pass
+the round-9 closed schema and exact canonical-byte check, and the process UTC
+time must be no earlier than signed `authorized_at`. The preflight reads the
+two authority contracts as bounded blobs from exact clean `HEAD`, validates
+their closed grammar, and writes byte-identical private temporary copies
+inside the exclusive child; it never trusts a mutable overlay or alternate
+authority path. The no-shell verifier invocation is
+`subprocess.run(..., shell=False)` with exactly the round-9 arguments except
+that `-f` and `-r` name those two exact temporary commit-blob copies and `-s`
+names the unpublished no-follow SSHSIG path. The verifier receives only those
+decoded JSON bytes on its standard input. Its stdout and stderr are both
+connected directly to the null device; they are never captured, buffered,
+parsed, or forwarded. Status output is one fixed
+`<PASS|FAIL|ERROR|BLOCKED>: reason` line and never includes a secret, decoded
+bytes, a hash, a path, a principal, or verifier output.
+
+`ABSOLUTE_PRIVATE_PARENT` is an existing controller-created, per-job private
+directory. Both arguments must be absolute and lexically normalized. Every
+existing component from the filesystem anchor through the parent is inspected
+without following the final component and must be a real directory, never a
+symbolic link or Windows reparse point; normalized real path and
+case-normalized identity must equal the supplied path. On POSIX the parent
+must be owned by the process and grant no group/other permission. On Windows
+the parent must be the exact normalized `RUNNER_TEMP` directory and relies on
+its controller-provisioned per-job ACL; the Python implementation does not
+claim that POSIX mode bits audit a Windows ACL. From the already-validated
+signed run id and attempt, the preflight derives the single child name
+`jet3-dao-bundle-<run-id>-<attempt>`. That target must not exist under any
+spelling, and creation uses an exclusive operation; an existing file,
+directory, link, junction/reparse point, normalized alias, or case alias is a
+hard failure, never a reusable staging area. The case/alias scan is bounded to
+4,096 parent entries; exceeding the bound is unsafe staging rather than
+unbounded work.
+
+After all in-memory, repository, authority-contract, run-binding, and verifier-
+availability checks pass, the preflight exclusively creates the child with
+mode 0700 and an unpublished `.authorization.tmp` directory with mode 0700.
+It opens
+`acquisition-authorization.json` and
+`acquisition-authorization.json.sig` with create-exclusive/no-follow semantics
+and mode 0600, writes with checked short-write loops, flushes and file-fsyncs,
+re-reads them through bounded regular-file/no-follow handles, and requires
+byte-for-byte identity with the two decoded values. It similarly writes and
+fsyncs the exact commit-blob authority copies as `.authority.allowed_signers`
+and `.authority.revoked_keys` with mode 0400. It invokes the exact
+commit-bound `ssh-keygen -Y verify` command frozen above, with the temporary
+document bytes on standard input, only after those checks. Nonzero verification
+publishes nothing. On zero, it deletes the two public authority copies,
+fsyncs the temporary directory where supported, and requires its entry set to
+equal exactly the document and signature. It then atomically renames the
+complete temporary directory to `<child>/dao-bundle`, retaining directory mode
+0700. It sets both files to mode 0400 on POSIX and the read-only attribute
+under the inherited private parent ACL on Windows, without changing their
+bytes, flushes the containing directory when directory fsync is supported, and
+performs a final bounded no-follow re-read and byte-identity check. File fsync
+and same-filesystem atomic rename are mandatory on every platform; unsupported
+directory fsync on Windows is recorded internally but is not misreported as
+file durability.
+
+Only after the final re-read does preflight exit 0 with
+`PASS: acquisition_authorization_preflight_passed`. Those exact authenticated
+bytes remain at the two fixed `dao-bundle/` paths. Later acquisition may add
+new files only with no-replace operations and may never open either retained
+file for writing. Manifest construction hashes and sizes those same path
+objects; later `effective-support` independently re-reads and verifies the
+same raw bytes and SSHSIG. Copying, recanonicalizing, decoding again, or
+substituting a semantically equal JSON document is forbidden.
+
+Every failure before publication removes only the exclusively created child;
+every failure after rename first removes the published `dao-bundle` and then
+that child. Cleanup walks the closed allowlist `.authorization.tmp`,
+`dao-bundle`, `.authority.allowed_signers`, `.authority.revoked_keys`,
+`acquisition-authorization.json`, and `acquisition-authorization.json.sig`;
+it uses no caller-supplied descendant and refuses any unexpected entry, link,
+or reparse point. It may clear the read-only state only on those four exact
+files immediately before deletion. If absence cannot be proved, exit 2
+`ERROR: acquisition_authorization_cleanup_failed`; the job must still stop and
+its controller finalizer removes the exact child before any retry. Other
+materialization/fsync/rename failures are exit 2
+`ERROR: acquisition_authorization_materialization_failed`. Missing, malformed,
+and oversized secret transport are exit-1 `FAIL` with, respectively,
+`missing_acquisition_authorization_secret`,
+`malformed_acquisition_authorization_secret`, and
+`oversized_acquisition_authorization_secret`. Unsafe/aliased staging and an
+existing target are exit-1 `FAIL` with
+`unsafe_acquisition_authorization_staging_path` and
+`acquisition_authorization_staging_target_exists`. A changed temporary or
+retained byte is exit-1 `FAIL` with
+`acquisition_authorization_retained_bytes_mismatch`; nonzero `ssh-keygen`
+remains exit-1 `acquisition_authorization_signature_invalid`; and unavailable
+exact verify capability remains exit-3 `BLOCKED` with
+`acquisition_authorization_verifier_unavailable`. Existing schema, authority,
+run-binding, and ordering reason codes retain their round-9 meanings. Every
+nonzero exit publishes no usable authorization and makes every provider, DAO,
+Rust, or acquisition command unreachable.
+
+The new implementation module is
+`tools/validation/acquisition_authorization.py`; separating bounded secret
+handling and transactional staging keeps the existing resolver and intrinsic
+adapter focused and below the production-file size limit. The source-closure
+registry adds one global, non-scenario
+`acquisition_authorization_verifier` entry for the exact
+`authorization-preflight` argv. It must enumerate the thin entrypoint, this
+module, and every actually imported repository module transitively, with no
+glob, working-tree discovery, optional application CLI, workflow helper, or
+unregistered executable. Its external executable set is exactly `git` for the
+bounded clean-HEAD/commit-blob checks and the already-frozen `ssh-keygen -Y
+verify`; Python and its standard-library modules are identified as runtime
+dependencies, not repository sources. The later manifest command
+record binds this exact entrypoint/source closure, the two retained raw hashes,
+zero exit, and the pre-acquisition interval. Bootstrap and materialization are
+non-acquisition bookkeeping and must finish successfully before that record or
+any provider/acquisition record can exist.
+
+The following round-10 authority-provisioning amendment supersedes only the
+round-9 requirement that P8T step 2's production allowed-signers contract be
+nonempty and the round-10 preflight order that read authorization secrets
+before proving a real authority was provisioned. It adds no path to the literal
+step-2 inventory. Step 2 commits both
+`docs/validation/acquisition-authority-v1.allowed_signers` and
+`docs/validation/acquisition-authority-v1.revoked_keys` as the exact empty byte
+string: each is 0 bytes with raw SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+For this one exact pair, empty is a valid unprovisioned sentinel, not a
+malformed OpenSSH contract and not an authority that can match a principal.
+The nonempty allowed-signers grammar and the revoked-key grammar above remain
+the only provisioned forms.
+
+Both `authorization-preflight` and later `effective-support` load the two
+fixed paths as bounded regular-file blobs from exact clean `HEAD` before
+reading, decoding, or validating either authorization secret or artifact and
+before staging-path inspection, verifier discovery/invocation, materialization,
+provider proof, commands, read-allowlist evaluation, policy, or output. When
+both blobs equal the exact step-2 sentinel pair, they return exit 3 with fixed
+reason
+`acquisition_authority_unprovisioned`; preflight prints exactly
+`BLOCKED: acquisition_authority_unprovisioned`. It creates no staging child,
+forms no adapter/effective result, and makes every authorization, provider,
+DAO, Rust, dispatch, and acquisition action unreachable. An empty
+allowed-signers blob paired with any nonempty revocation blob, a nonempty blob
+that violates the frozen grammar, a missing/special/oversized authority file,
+or any authority path/hash/size disagreement remains intrinsic exit-1 `FAIL`
+with `invalid_acquisition_authority_contract`. With a valid provisioned
+authority, an unlisted or revoked signing key remains exit-1 `FAIL` with
+`acquisition_authorization_signature_invalid`; neither case may collapse into
+the unprovisioned `BLOCKED` reason.
+
+P8T synthetic tests may replace both sentinels only inside isolated temporary
+repositories with known test-only Ed25519 public/private keys and finite test
+intervals. Those keys authenticate fixtures only and are not candidates for,
+or evidence of, production authority. Every test of secret, staging,
+verification, retention, or full-adapter behavior beyond the sentinel gate
+must explicitly provision such a synthetic authority first.
+
+Only a later, separately reviewed and human-approved P8 preparation/
+evidence-ready commit may transition the production pair. Before any protected
+run is created, that commit must replace the allowed-signers sentinel with
+exactly one line containing the approved principal, canonical `ssh-ed25519`
+public key, namespace, and finite `valid-after`/`valid-before` interval, while
+the revoked-keys file remains the exact empty byte string. Its additive
+provenance record must name the approving human, the exact principal and public
+key, both authority-file raw hashes and sizes, and literal
+`revocation_state: active_not_revoked`, plus
+`authority_public_key_sha256`. That key hash is lowercase SHA-256 of the
+decoded OpenSSH public-key blob selected by the allowed-signers line. The
+record must also contain a private-key custody attestation naming the custodian
+and custody mechanism and confirmation time, and confirm that private material
+is outside the repository, GitHub secrets, runner, overlay, and retained
+bundle and is unavailable to the runner. No private material is committed. The
+reviewed transition is only authority provisioning: it is not a run
+authorization, signature, dispatch, acquisition result, policy enablement,
+matrix movement, or compatibility claim. Rotation and revocation remain
+additive evidence-ready transitions under the round-9 rules.
+
 `capabilities` contains every committed matrix capability exactly once,
 strictly UTF-8 sorted by id, not merely the adapter subset. Each closed entry
 has exactly `id`, `stored_verification`, `effective_verification`, and

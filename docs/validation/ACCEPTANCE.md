@@ -333,6 +333,79 @@ adapter before naming disabled policy and exiting 3. Neither path may report
 intrinsic unavailability, the old unconditional stored-`dao_bundle` rejection,
 effective advancement, or G3 PASS.
 
+The round-10 report-binding amendment removes the impossible raw-manifest-hash
+cycle. The manifest still inventories and raw-hashes every non-manifest
+payload, including the report, and the selected environment/overlay/full
+manifest raw hashes still agree exactly. The report binds
+`manifest_projection_sha256`, not raw `manifest_sha256`: G3 deep-copies the
+parsed full manifest, deletes its top-level `report` reference, removes exactly
+the one complete-inventory row at that reference's path, canonicalizes the
+remaining object by the exact algorithm in `EVIDENCE.md`, and compares its
+SHA-256 with the report. It performs this check after raw manifest, schema,
+complete inventory, and report-schema checks but before report semantics,
+scenario/command joins, policy, or output. Mismatch is exit-1 `FAIL` with
+`report_manifest_projection_mismatch` and zero adapter output. Adapter outputs
+and the effective result continue recording the raw manifest SHA-256 after the
+manifest is final. This changes no selection, commit, provider, authorization,
+allowlist, source, command, disabled-policy, read-only, or future write/update
+requirement.
+
+The round-10 authorization-bootstrap amendment makes the first
+repository-controlled command implementable before an overlay or manifest
+exists. That command is the exact `authorization-preflight` argv frozen in
+`EVIDENCE.md`, not `effective-support`. It reads the signed JSON and SSHSIG as
+strict bounded Base64 from the two fixed environment-secret variables,
+authenticates the exact clean commit and hosted-run binding with the
+commit-bound authority files, and atomically retains the decoded bytes in one
+exclusive private bundle-staging child. It accepts no overlay or manifest
+input and produces no evidence result; successful bootstrap/materialization is
+explicitly non-acquisition.
+
+The controller command graph has a hard success edge
+`environment release -> authorization-preflight -> provider proof/DAO/Rust
+acquisition`. Provider inspection and every DAO or Rust command are absent
+from all failure branches and cannot be selected merely by an `always`,
+cleanup, or disabled-policy path. Exit 0 is the sole edge past the preflight.
+Exit 1 is invalid input/authentication/path with the stable reason from
+`EVIDENCE.md`; exit 2 is local materialization or unprovable cleanup `ERROR`;
+exit 3 is unavailable-verifier `BLOCKED`. All are nonzero and stop
+acquisition. P8 must implement and separately review that command graph; P8T
+adds only the preflight validator and synthetic tests, no workflow or command.
+
+The later manifest must raw-hash and size the exact retained path objects, and
+`effective-support --repo-root --overlay --manifest-sha256` must re-read those
+same bytes before any intrinsic output. A byte change, alternate path object,
+copy, recanonicalization, pre-existing staging target, symlink/reparse/alias,
+partial publication, nonzero verifier, or failed cleanup cannot become G3
+input. Thus G3 still consumes the final selected overlay and manifest, but it
+is no longer incorrectly named as the pre-acquisition authorization
+entrypoint.
+
+The round-10 authority-provisioning amendment adds a gate before that command
+graph. P8T step 2 commits both production authority paths as exact zero-byte
+sentinels, each with SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+and size 0. After exact-clean-commit and fixed-path/type/bound checks, both
+`authorization-preflight` and later G3 recognize only that exact pair as exit
+3 `BLOCKED` with `acquisition_authority_unprovisioned`. This check precedes
+authorization-secret/artifact reads, staging inspection, verifier discovery,
+provider proof, read-allowlist evaluation, policy, or output; it creates no
+staging child and has no success edge to the acquisition graph.
+
+Any other empty/malformed authority combination is exit-1
+`invalid_acquisition_authority_contract`. Under a valid nonempty synthetic or
+later provisioned authority, unlisted and revoked signer fixtures are exit-1
+`acquisition_authorization_signature_invalid`, so they cannot be mistaken for
+the stable unprovisioned `BLOCKED` state. P8T tests may use known Ed25519 keys
+only in isolated temporary repositories. Production provisioning belongs to a
+later separately reviewed, human-approved P8 preparation/evidence-ready
+commit, whose initial provisioning has exactly one allowed-signers line and an
+empty revoked-keys file. It must record the exact principal, public key, finite
+validity, literal `revocation_state: active_not_revoked`, decoded-public-key
+SHA-256, authority-file hashes/sizes, and private-key custody attestation
+without committing private material. That transition alone authorizes no run,
+dispatch, acquisition, policy change, matrix movement, or compatibility claim.
+
 ## G4 — independent writer verification and atomic updates
 
 - The Rust reader is never the only verifier of Rust output.

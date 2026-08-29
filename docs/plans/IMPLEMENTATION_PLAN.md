@@ -1579,6 +1579,240 @@ python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory \
   oracle/windows-dao/protocol/v1_2/scenarios.json --complete
 ```
 
+The following round-10 acyclic-report amendment supersedes only the report's
+raw-manifest-hash field and its finalization/validation order. The version-1
+report schema replaces required `manifest_sha256` with required lowercase
+64-hex `manifest_projection_sha256`; its member count and all other members
+are unchanged, and its closed shape rejects the former member. No other schema
+changes shape. The manifest continues to bind the changed report schema from
+the exact release commit and continues to bind the report itself twice:
+through its top-level raw-hash/size reference and its unique complete-`files`
+row.
+
+The projection algorithm and canonical bytes are exactly those in
+`EVIDENCE.md`: from the parsed final manifest, save `report.path`, deep-copy,
+delete top-level `report`, remove exactly the one `files` row at that path,
+preserve all other values and array order, then encode sorted-key compact
+direct-non-ASCII UTF-8 JSON with no BOM or non-finite number and one trailing
+LF. SHA-256 of those bytes is the report's
+`manifest_projection_sha256`. Construction freezes all non-report artifacts
+and manifest fields, hashes this report-free projection, emits and hashes the
+report, inserts its reference and inventory row, and only then emits/hashes the
+full manifest. The overlay and command-line selection continue using the raw
+full-manifest SHA-256.
+
+Validation binds the selected raw manifest hash, full manifest schema,
+complete raw inventory including report, and report schema before recomputing
+the projection. Projection inequality then fails before report semantics,
+scenario/command joins, policy, or output with exact reason
+`report_manifest_projection_mismatch`, exit 1, and zero adapter output. The
+raw `manifest_sha256` fields in adapter outputs and effective-support results
+remain unchanged because those documents are downstream of the final manifest
+and outside its payload inventory.
+
+Implementation remains inside the already-listed report schema, validation
+library, entrypoint, schema inventory, and focused adapter test paths; this
+amendment adds no file to the literal step-2 write set. Add these exact focused
+tests to `tools/tests/test_dao_differential_adapter.py`:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_report_manifest_projection_finalization_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_report_manifest_projection_excludes_only_report_binding -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_report_manifest_projection_mismatch_is_rejected -v
+python3 tools/validate_repository_contract.py
+```
+
+The positive test constructs the report-free basis, emits the report, inserts
+its raw reference/inventory row, emits the full manifest, and proves that
+validation recomputes the same projection digest while independently checking
+the report's raw hash and size. The exclusion test changes only a synthetic
+report's bytes and consistently refreshes only its report reference, matching
+`files` row, and selected raw full-manifest hash; the projection digest must be
+unchanged while complete inventory still binds the new report bytes. The
+mutation test changes one projection-included non-report manifest value,
+refreshes the selected raw full-manifest hash so selection succeeds, leaves the
+report unchanged, and must assert exit 1, exact
+`report_manifest_projection_mismatch`, and zero adapter output. These tests
+perform no DAO acquisition, workflow, network, provider, matrix, policy, or
+overlay-schema mutation.
+
+The following round-10 pre-acquisition-bootstrap amendment supersedes only the
+earlier single-subcommand interface and any sequence that made
+`effective-support --repo-root --overlay --manifest-sha256` the first
+repository-controlled verifier. The overlay and manifest are post-acquisition
+objects and cannot be inputs to that boundary. This amendment extends the
+earlier literal Step 2 `adds exactly` inventory with exactly one additional
+path: `tools/validation/acquisition_authorization.py`. Step 2 adds the separate
+exact argv below to the already-inventoried thin validation CLI:
+
+```text
+["python3", "-B", "tools/validate_release_evidence.py",
+ "authorization-preflight", "--repo-root", ABSOLUTE_CLEAN_WORKTREE,
+ "--private-staging-parent", ABSOLUTE_PRIVATE_PARENT]
+```
+
+`authorization-preflight` accepts no overlay/manifest argument and creates no
+adapter/effective result. Its only inputs beyond the two absolute non-secret
+paths are the fixed controller environment and the strict standard-Base64
+environment secrets `JET3_ACQUISITION_AUTHORIZATION_JSON_B64` and
+`JET3_ACQUISITION_AUTHORIZATION_SSHSIG_B64`. The exact transport, decoded and
+encoded bounds, secret erasure/non-logging rules, trusted run-variable joins,
+path-component checks, Windows reparse/POSIX ownership rules, exclusive child
+derivation, file modes, checked writes, file fsync, bounded no-follow re-reads,
+signature invocation, atomic directory publication, platform directory-fsync
+rule, rollback, final byte check, and exit/reason mapping are the binding
+algorithm in `EVIDENCE.md`. Implement them literally; do not introduce a path
+secret, temporary secret file outside the exclusive child, shell interpolation,
+fallback verifier, alternate staging root, or semantic JSON rewrite.
+
+The successful order is strictly: bounded in-memory decode and document/run/
+clean-commit validation; commit-bound authority grammar and verifier
+availability; exclusive private materialization; exact signature verification;
+atomic `dao-bundle` publication; final byte-identity check; fixed PASS line.
+All of this is non-acquisition. Only exit 0 may enable a later provider, DAO,
+or Rust command. Every exit 1/2/3 branch stops before those commands, and a
+cleanup failure is not recoverable inside the same job. P8T step 2 implements
+no controller graph, workflow, protected environment, provider command, DAO
+command, Rust command, dispatch, secret, or acquisition. P8 must later freeze
+and review the graph whose sole acquisition predecessor is preflight exit 0.
+
+The preflight implementation is isolated in the newly inventoried
+`tools/validation/acquisition_authorization.py`. A separate module is required
+because secret lifetime, no-follow path traversal, Windows reparse handling,
+transactional staging, and cleanup do not belong in the detached overlay
+resolver, and adding them there would consume most of that production file's
+remaining 800-line budget. The thin entrypoint only parses the closed
+subcommand/arguments and maps the typed outcome to the fixed status line and
+exit code. The committed source-closure registry adds exactly one global,
+non-scenario `acquisition_authorization_verifier` entry selecting that
+subcommand. It explicitly lists the entrypoint, new module, and every imported
+repository transitively executed source; source discovery and globs are
+forbidden. The external executable set is exactly `git` for bounded
+clean-HEAD/commit-blob checks and `ssh-keygen -Y verify`; Python and its
+standard library are recorded separately as runtime. The later
+manifest command record must bind the same entrypoint id, exact closure, both
+retained raw hashes, zero exit, and interval. The full adapter must re-read the
+same path objects and bytes; a copied or recanonicalized authorization is not
+the preflight output.
+
+Step 2 adds these exact focused tests to the already-inventoried
+`tools/tests/test_dao_differential_adapter.py`:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_missing_secret_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_malformed_secret_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_oversized_secret_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_partial_publication_is_cleaned -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_cleanup_failure_is_error -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_altered_retained_byte_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_unsafe_path_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_existing_target_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_nonzero_verifier_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_unavailable_verifier_is_blocked -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_bytes_are_later_manifest_bytes -v
+python3 tools/validate_repository_contract.py
+```
+
+The three secret tests separately cover either variable missing/empty,
+non-ASCII/whitespace/noncanonical padding/invalid alphabet, and both encoded-
+before-decode and decoded-size bounds; they assert no staging child and no
+secret material in captured process or mocked-verifier output. The partial-
+publication test injects failure after each file creation, write, fsync,
+verification, rename, and final re-read and proves the exact child is absent.
+The cleanup-error case forces removal failure, asserts exit 2 and
+`acquisition_authorization_cleanup_failed`, and proves no acquisition callback
+was reachable. The altered-byte test mutates each temporary and each retained
+file in turn and requires exit 1
+`acquisition_authorization_retained_bytes_mismatch`, no usable publication,
+and no acquisition callback.
+
+The unsafe-path test covers relative and non-normal paths, parent aliases,
+case aliases where applicable, symbolic-link components, Windows reparse-point
+components, and an insecure POSIX parent; the existing-target test covers a
+file, directory, symlink, and reparse point at the derived child. The nonzero
+and unavailable tests mock only exact executable invocation/resolution and
+require exit 1 `acquisition_authorization_signature_invalid` and exit 3
+`acquisition_authorization_verifier_unavailable`, respectively, with captured
+verifier output discarded. The byte-identity test starts with deliberately
+non-ASCII canonical JSON, proves the retained raw hashes/sizes equal the
+decoded secret bytes, constructs the later manifest references from those
+same path objects without rewriting, and proves full adapter re-verification
+consumes byte-identical document and SSHSIG. Each test asserts the fixed
+status-only output contract and that provider/DAO/Rust hooks were never
+invoked before successful preflight. Tests use only isolated temporary
+repositories, synthetic keys and documents, and injected filesystem/verifier
+seams; they perform no workflow, network, provider, DAO, Rust, policy, matrix,
+or overlay-schema action.
+
+The following round-10 authority-provisioning amendment supersedes only the
+production authority contents, authority-read precedence, and affected focused
+fixtures above. It adds or modifies no path beyond the closed step-2 literal
+inventory. Step 2 creates
+`docs/validation/acquisition-authority-v1.allowed_signers` and
+`docs/validation/acquisition-authority-v1.revoked_keys` with exactly zero
+bytes. Each has size 0 and raw SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+The exact pair is the sole valid unprovisioned sentinel; it selects no
+principal, key, validity interval, or revocation decision.
+
+Implementation must load both fixed clean-`HEAD` blobs and apply the sentinel
+gate before reading either Base64 environment secret, inspecting the private
+staging parent, resolving `ssh-keygen`, parsing authorization, materializing a
+file, validating selected authorization evidence, evaluating the read
+allowlist or policy, or forming output. The sentinel pair returns exit 3 and
+exact reason
+`acquisition_authority_unprovisioned`; the preflight status line is exactly
+`BLOCKED: acquisition_authority_unprovisioned`, creates no staging child, and
+cannot reach an acquisition hook. The same gate in `effective-support` creates
+no adapter/effective result. Empty allowed signers with nonempty revocations,
+malformed nonempty contents, missing/special/oversized files, or authority
+reference hash/size drift returns exit 1
+`invalid_acquisition_authority_contract`. Once a valid nonempty authority is
+present, unlisted and revoked signatures each return exit 1
+`acquisition_authorization_signature_invalid`.
+
+Step 2 adds these exact focused tests to the already-inventoried test file:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_step_2_authority_contract_is_exact_empty_sentinel -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_unprovisioned_authority_is_blocked -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_effective_support_unprovisioned_authority_is_blocked -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_malformed_authority_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_unlisted_signer_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_authorization_preflight_revoked_signer_is_rejected -v
+python3 tools/validate_repository_contract.py
+sha256sum docs/validation/acquisition-authority-v1.allowed_signers docs/validation/acquisition-authority-v1.revoked_keys
+```
+
+The exact-sentinel test asserts both raw blobs, hashes, and sizes. Both
+unprovisioned tests assert exit 3, the exact reason, no output/staging child,
+and that secret reads, verifier discovery, policy, and acquisition hooks are
+unreachable. The malformed test separately covers empty/nonempty pair drift
+and invalid nonempty grammar. The unlisted and revoked tests first install a
+finite-validity known test-only Ed25519 authority in an isolated temporary
+repository and then assert exit 1, the signature-invalid reason, zero output,
+and no acquisition hook. All earlier tests that exercise a post-sentinel path
+must likewise install an explicit synthetic authority; a test key, principal,
+or interval never appears in either production contract.
+
+Only a later separately reviewed, human-approved P8 preparation/
+evidence-ready commit may replace the sentinels. That exact commit must, before
+creating a hosted run, contain exactly one allowed-signers line with the
+approved principal and canonical `ssh-ed25519` public key, namespace, and
+finite `valid-after`/`valid-before` interval; its revoked-keys file remains the
+exact empty byte string. Its additive provenance entry records the approving
+human; exact principal/public key; both authority-file raw hashes and sizes;
+literal `revocation_state: active_not_revoked`; lowercase
+`authority_public_key_sha256`, computed over the decoded OpenSSH public-key
+blob; and a time-stamped private-key custody attestation naming the custodian
+and custody mechanism and confirming that private material is outside the
+repository, GitHub secrets, runner, overlay, and retained bundle and
+unavailable to the runner. Private material must not be committed. That
+transition is authority provisioning only and does not itself authorize/sign
+a run, dispatch or acquire evidence, enable policy, alter the matrix, or
+advance compatibility. The round-9 rotation/revocation rules remain binding
+after provisioning.
+
 #### P8T downstream P8/P10 and Section 5 contract supersessions
 
 Only named clauses are superseded; all authorization, provider, holdout,
