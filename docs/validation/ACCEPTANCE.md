@@ -130,12 +130,37 @@ P8T step 2's `dao_differential_v1` manifest/report is read-leg schema version
 rejected as `unsupported_operation_for_schema_version`, not accepted,
 skipped, or treated as a passing expected failure.
 
+Before any adapter evidence output, G3 validates the release commit's v1.2
+scenario inventory with `complete=True`, exactly matching:
+
+```sh
+python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory \
+  oracle/windows-dao/protocol/v1_2/scenarios.json --complete
+```
+
+Any `deferred_requirements` entry is `FAIL` with
+`incomplete_scenario_inventory_deferred_requirements`, even while policy is
+disabled. Isolated complete fixtures may exercise P8T step 2; the real P8 lane
+stays `BLOCKED` until the committed inventory passes complete mode.
+
 Positive reads require independently schema-valid complete DAO and Rust v1.2
 snapshots plus the Rust coverage receipt. G3 removes exactly the
 schema-declared `/producer` and `/producer_extensions` members, compares
 canonical projection bytes, and continues comparing raw/converted values, raw
 preservation, ordering, and every other semantic field. The complete source
 documents remain separately raw-hash/size bound.
+
+Projection exclusion does not exclude producer validation. The DAO snapshot's
+producer kind is exactly `dao`, the Rust snapshot's is exactly `rust`, and both
+producer source revisions equal manifest `git_commit` and current clean
+`HEAD`. A stale DAO revision, stale Rust revision, or swapped/wrong producer
+kind is G3 `FAIL` before comparison.
+
+Coverage observes only registered v1.2 branch ids, includes every required
+branch, and includes no forbidden branch. Extra observed branches are allowed
+when registered and non-forbidden; exact equality with required branches is
+not required. Unregistered and forbidden extras are G3 `FAIL`, while the
+pinned coverage schema and its ordering/uniqueness rules remain unchanged.
 
 The three committed negative reads pass only when Rust rejects with the exact
 committed class: `encrypted_database`, `unsupported_version`, or

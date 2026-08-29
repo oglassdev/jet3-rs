@@ -1091,6 +1091,29 @@ valid P8 read allowlist may later pass as a subset, but full G3 stays
 `future_write_update_contract_required`, never empty coverage, `SKIPPED`,
 G3 PASS, or a compatibility claim.
 
+The following round-6 bindings supersede only narrower wording above and in
+Section 5.3; they do not change a pinned v1.2 schema:
+
+- Before any adapter evidence output, the intrinsic adapter validates the
+  release commit's `oracle/windows-dao/protocol/v1_2/scenarios.json` with
+  `validate_document_path(..., complete=True)`, exactly the semantics of
+  `validate_protocol_v1_2.py inventory .../scenarios.json --complete`. Any
+  `deferred_requirements` entry is intrinsic `FAIL` with exact reason code
+  `incomplete_scenario_inventory_deferred_requirements`, including under
+  disabled policy. P8T step 2 uses isolated complete repository fixtures;
+  current real P8 remains `BLOCKED` until the committed inventory passes
+  complete mode.
+- Coverage is a constrained set, not exact equality: every observed branch is
+  registered, every required branch is observed, and every forbidden branch
+  is absent. Additional registered, non-forbidden branches pass. Focused tests
+  accept such an additional branch and reject unregistered and forbidden
+  observed branches; frozen schema ordering and uniqueness still apply.
+- Before removing producer fields for comparison, require DAO snapshot
+  `producer.kind == "dao"`, Rust snapshot `producer.kind == "rust"`, and both
+  `producer.source_revision` values equal manifest `git_commit` and current
+  clean `HEAD`. Focused tests reject stale DAO and Rust revisions separately
+  and swapped or otherwise wrong producer kinds.
+
 Focused step-2 checks are:
 
 ```sh
@@ -1112,6 +1135,29 @@ positive snapshots, all three negative opens, closed shapes, unsupported
 write/update, bindings/cleanliness, intrinsic-before-policy, full-catalog joins,
 and subset/full-G3 `BLOCKED`. Full acceptance without a selection remains
 exit 3 `BLOCKED`, never G3 PASS.
+
+The exact focused round-6 adapter tests are:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_deferred_requirement_fails_before_adapter_output -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_registered_non_forbidden_extra_coverage_branch_is_allowed -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_unregistered_coverage_branch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_forbidden_coverage_branch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_stale_dao_snapshot_source_revision_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_stale_rust_snapshot_source_revision_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_swapped_or_wrong_snapshot_producer_kind_is_rejected -v
+```
+
+The first test must assert exit 1, the exact reason code
+`incomplete_scenario_inventory_deferred_requirements`, and zero adapter
+outputs. Its direct current-inventory companion command is expected to exit 1
+with the validator's deferred-requirement diagnostic until P8 completes the
+inventory:
+
+```sh
+python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory \
+  oracle/windows-dao/protocol/v1_2/scenarios.json --complete
+```
 
 #### P8T downstream P8/P10 and Section 5 contract supersessions
 

@@ -216,6 +216,23 @@ equal the committed scenario inventory. `scenario_input`, `source_mdb`,
 references. The input is the canonical complete committed scenario and its
 recomputed content hash must agree. The operation log is diagnostic only.
 
+Before validating any scenario artifact, consulting policy, or emitting any
+adapter evidence output, the intrinsic adapter must validate the release
+commit's protocol-v1.2 `scenarios.json` with the same complete semantics as
+`validate_document_path(..., complete=True)`, equivalently:
+
+```sh
+python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory \
+  oracle/windows-dao/protocol/v1_2/scenarios.json --complete
+```
+
+Any `deferred_requirements` entry is intrinsic `FAIL` with reason code
+`incomplete_scenario_inventory_deferred_requirements`; policy cannot suppress
+it and no adapter output is formed. P8T step 2 may implement and test this
+path only with an isolated repository fixture whose inventory passes complete
+mode. The real P8 lane remains `BLOCKED` until the committed inventory has no
+deferred requirement and passes the exact command above.
+
 A positive read requires non-null DAO and Rust complete success snapshots,
 null `rust_opening_failure`, a `success` coverage receipt, report
 `observed_outcome: success`, and scenario/report `status: PASS`. Each
@@ -228,6 +245,13 @@ members, canonicalizes the remaining full documents, and requires byte
 equality. `raw_hex`, converted `value`, `raw_preservation`, ordering, and
 all other non-extension model fields remain compared. Both original complete
 documents remain independently raw-hash/size bound.
+
+The producer members excluded from comparison remain binding identity fields.
+For every positive pair, the DAO snapshot must have `producer.kind: "dao"`,
+the Rust snapshot must have `producer.kind: "rust"`, and each snapshot's
+`producer.source_revision` must equal both manifest `git_commit` and the
+current clean `HEAD`. These checks occur before projection; stale DAO or Rust
+revisions and swapped or otherwise wrong producer kinds are intrinsic `FAIL`.
 
 The three committed negative reads are `encrypted_database`,
 `unsupported_version`, and `password_protected`. Each requires null DAO and
@@ -255,6 +279,14 @@ opening failure has null allocated-set digest, the committed class, and exactly
 the schema-fixed ordered opening branches. Every receipt binds the source MDB,
 release commit, scenario required branches, and forbidden branches; unknown,
 missing, duplicate, extra, or reordered branches fail.
+
+For coverage membership, this paragraph supersedes only the preceding
+extra-branch rejection: observed branches form a subset of the frozen v1.2
+branch registry, contain every scenario `required_branches` entry, and are
+disjoint from the scenario boundary's `forbidden_branches`. Additional
+registered, non-forbidden observed branches are valid. An unregistered or
+forbidden observed branch remains intrinsic `FAIL`; the pinned coverage schema
+and its uniqueness and ordering constraints remain byte-for-byte unchanged.
 
 The report is a closed canonical object with exactly `schema_version`,
 `campaign_id`, `hosted_run_id`, `hosted_run_attempt`, `git_commit`,
