@@ -1969,6 +1969,137 @@ unnamed domains are also routed once as stated above. The three discovery
 commands replace the former monolith command in the Step 2 focused check list;
 protocol, repository-contract, hash, and read-only commands remain unchanged.
 
+The following round-12 preflight-receipt amendment supersedes only the
+round-11 assumption that a preflight entry second retained inside the process
+can later populate the selected manifest. It changes no existing command path,
+PASS line, authorization/signature bytes, authority sentinel precedence,
+acquisition graph, disabled policy, or downstream P8 ownership. Add exactly
+one path to the literal Step 2 `adds exactly` inventory:
+
+- `docs/validation/schema/acquisition-preflight-receipt-v1.schema.json`.
+
+The final Step 2 new-schema count is therefore eleven. No further production
+module or CLI path is added: the already authorized preflight module writes
+the receipt, its existing thin `authorization-preflight` CLI exposes that
+transaction, and the already authorized manifest/effective-support validators
+consume it. The closed manifest has thirteen top-level members after adding
+exactly `acquisition_preflight_receipt`; its closed `contracts` object has
+nineteen members after adding exactly
+`acquisition_preflight_receipt_schema`.
+
+The receipt schema and producer implement exactly the closed field, type,
+canonical-byte, maximum-size, and timing contract in `EVIDENCE.md`. Its fixed
+path is `dao-bundle/acquisition-preflight-receipt.json`. It records integer
+schema version 1 and PASS status; exact hosted run id/attempt/nonce,
+repository/workflow/commit/job/environment/campaign; the single entry sample
+as `preflight_started_at`; the single post-verification/pre-serialization
+`preflight_completed_at`; exact raw authorization/signature and committed
+allowed-signers/revoked-keys hashes and sizes; and the verifier command id,
+role, entrypoint, no-shell argv, source revision, sorted source paths, and
+selected source-closure-entry digest. The id, role, and entrypoint are all the
+literal `acquisition_authorization_verifier`, and the id becomes the manifest
+`verification_command_id` and receipt producer id. All fields are required and
+non-null and all JSON objects are closed. The receipt
+contains no manifest, report, overlay, receipt-self path/hash/size, or other
+identity that would create a hash cycle.
+
+On success the existing preflight transaction creates the canonical receipt
+after the verifier returns zero and before publication. Create-exclusive,
+no-follow, mode-0600 temporary creation, checked writes, file flush/fsync,
+bounded exact re-read, authority-copy deletion, exact-entry-set check, atomic
+directory rename, read-only conversion, supported directory flush, and final
+bounded re-read apply as ordered in `EVIDENCE.md`. The temporary entry set is
+five files before authority-copy deletion and three immediately before rename;
+the published bundle is exactly the authorization document, SSHSIG, and
+receipt. The rollback allowlist gains only the receipt basename. Any receipt
+write, sync, read, rename, permission, post-publication mutation, or cleanup
+failure is nonzero and leaves no usable receipt or acquisition edge. The exact
+empty authority pair is still detected before secrets, staging, receipt, or
+verifier access and produces no receipt.
+
+Later manifest construction performs a bounded no-follow read of those
+retained receipt bytes only after preflight exit 0. It validates the new
+committed schema and canonical form, adds the receipt's raw path/hash/size/
+producer/timestamp reference and the unique equal complete-inventory row, and
+binds the new schema contract's committed path/hash/size. It sets
+`run.started_at` and the registered authorization-verifier command's
+`started_at` only to the receipt's exact `preflight_started_at`; stdout,
+process-local values, logs, and a fresh clock sample are forbidden inputs. The
+receipt's completion is its artifact production time and is no later than the
+command completion. Run identity, authorization/signature hashes and sizes,
+authority hashes and sizes, command/source closure, producer id, and all
+intervals join exactly. Effective-support independently re-reads the selected
+receipt and recomputes those joins before policy or output.
+
+The exact intrinsic reasons are
+`missing_acquisition_preflight_receipt` for any absent schema, receipt,
+reference, contract, or complete-inventory row;
+`invalid_acquisition_preflight_receipt` for malformed, oversized,
+noncanonical, or schema-invalid receipt bytes; and
+`acquisition_preflight_receipt_mismatch` for every raw hash/size, signed or
+trusted identity, authorization, authority, timing, command/source, producer,
+or manifest join mismatch, including a byte change to an otherwise retained
+receipt. Each is exit 1, forms zero adapter output, runs before policy, and
+cannot reach provider, DAO, Rust, or acquisition execution.
+
+The routed test inventory is extended, not redistributed. Add exactly these
+two names to `test_acquisition_authorization_preflight.py`:
+
+- `test_authorization_preflight_receipt_is_atomically_retained`; and
+- `test_authorization_preflight_receipt_byte_mutation_after_publication_is_rejected`.
+
+The existing same-second test additionally asserts that no receipt/staging
+child/verifier/acquisition edge exists; the existing next-second test
+additionally asserts that the canonical retained receipt contains exactly
+`2026-08-29T12:00:01Z` and the unchanged PASS line contains no time. Both use
+the existing deterministic injected-clock seam and never sleep or retry. The
+atomic-retention test checks the three-file published entry set, modes, raw
+receipt reread, and cleanup. The post-publication-mutation test injects a
+receipt byte change between atomic rename and final reread and requires
+`acquisition_preflight_receipt_mismatch`, complete exact-child rollback, and no
+acquisition edge.
+
+Add exactly these four names to `test_dao_differential_manifest.py`:
+
+- `test_preflight_receipt_real_subprocess_to_manifest_handoff_passes`;
+- `test_missing_acquisition_preflight_receipt_is_rejected`;
+- `test_altered_acquisition_preflight_receipt_is_rejected`; and
+- `test_forged_acquisition_preflight_receipt_is_rejected`.
+
+The real handoff case installs a valid finite synthetic authority in an
+isolated temporary clean repository, invokes the exact thin preflight CLI as a
+real subprocess with signed `authorized_at` safely before process entry, then
+discards all setup-process state. Its manifest builder may use only the three
+retained published files after subprocess exit, must read the receipt's exact
+start second, and must produce a manifest that passes intrinsic validation; it
+may not parse PASS stdout for a time. The missing case removes the receipt and
+expects the missing reason. The altered case changes retained receipt bytes
+without changing their manifest binding and expects the mismatch reason. The
+forged case creates canonical, schema-valid receipt bytes with an altered
+trusted/start/command field and refreshes the outer receipt reference,
+inventory row, and raw manifest selection so generic byte selection passes;
+the signed/trusted/command join must still reject it with the mismatch reason.
+No test accepts an in-memory preflight timestamp as manifest input.
+
+The eight exact focused commands are:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_authorization_preflight_same_second_as_authorized_at_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_authorization_preflight_next_second_after_authorized_at_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_authorization_preflight_receipt_is_atomically_retained -v
+python3 -B -m unittest discover -s tools/tests -p 'test_acquisition_authorization_preflight.py' -k test_authorization_preflight_receipt_byte_mutation_after_publication_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -k test_preflight_receipt_real_subprocess_to_manifest_handoff_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -k test_missing_acquisition_preflight_receipt_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -k test_altered_acquisition_preflight_receipt_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_manifest.py' -k test_forged_acquisition_preflight_receipt_is_rejected -v
+```
+
+Thus the routed inventory now has 71 individual names: 20 preflight, 50
+manifest/intrinsic, and one effective-support test. The same three whole-module
+discovery commands remain authoritative. No test creates a hosted run, invokes
+a provider or DAO, acquires evidence, changes policy/matrix state, or provisions
+production authority.
+
 #### P8T downstream P8/P10 and Section 5 contract supersessions
 
 Only named clauses are superseded; all authorization, provider, holdout,

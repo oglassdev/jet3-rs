@@ -6343,6 +6343,68 @@ Use `not applicable` explicitly rather than omitting a field.
   signature, dispatch, acquisition, policy/matrix change, or capability
   movement and keeps `dao_differential_v1` disabled
 
+### EXP-0072 — P8T transaction-bound authorization-preflight receipt
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no implementation, workflow,
+  authorization, signature, dispatch, DAO acquisition, provider observation,
+  Rust result, release evidence, support-state change, or compatibility result
+- Question: How can the later manifest reuse the exact whole-second preflight
+  entry sample when the successful preflight previously retained only the
+  authorization JSON and SSHSIG and its fixed PASS line intentionally carried
+  no timestamp?
+- Origin: the authenticated bootstrap and retained-byte contract in `EXP-0070`,
+  the authority sentinel in `EXP-0071`, the round-11 strict
+  `authorized_at < preflight_started_at` boundary, and independent-review
+  finding that process-local time was not a reconstructible controller input.
+  No MDB implementation, provider binary, MDB file, retained campaign payload,
+  signing key, workflow run, or external format source was inspected.
+- Environment: document and repository-contract analysis at exact clean base
+  commit `6714e315b166238ad65de7c23803b09c1ef4fb8d` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: Step 2 adds the closed
+  `docs/validation/schema/acquisition-preflight-receipt-v1.schema.json` and the
+  fixed canonical retained artifact
+  `dao-bundle/acquisition-preflight-receipt.json`. The same preflight
+  transaction records exact run/attempt/nonce/repository/workflow/commit,
+  campaign and timing; authorization, signature, and authority hashes/sizes;
+  and verifier command/source identity after successful authentication and
+  before atomic three-file publication. Checked write/fsync/reread,
+  post-publication verification, exact-child cleanup, and no-acquisition-edge
+  rules cover the receipt. It embeds no manifest or receipt-self identity.
+- Artifacts: `docs/validation/EVIDENCE.md` schema/receipt/manifest and stable-
+  reason contract; `docs/validation/ACCEPTANCE.md` G3 handoff and fail-closed
+  contract; and `docs/plans/IMPLEMENTATION_PLAN.md` literal inventory, counts,
+  producer transaction, joins, routed tests, and exact focused commands. The
+  named schema and receipt are future Step 2 outputs and are not created here.
+- Observation: an internal entry-time sample plus a time-free PASS line cannot
+  supply the exact later manifest value after the process exits. A canonical
+  hash-bound receipt created inside the successful transaction preserves that
+  value while retaining status-only stdout and avoiding manifest/self-hash
+  cycles.
+- Interpretation: after exit 0 the controller derives both manifest start
+  fields only from retained receipt bytes. Missing, invalid, altered, forged,
+  producer-mismatched, or joined-state-mismatched receipts fail before policy
+  and output; same-second authorization still creates no receipt, while the
+  next whole second is the first valid retained start. Empty production
+  authority remains the earlier stable blocker.
+- Tests frozen: deterministic same-second rejection and next-second receipt
+  success; atomic three-file retention; injected post-publication receipt-byte
+  mutation and rollback; retained-output-only real subprocess-to-manifest
+  handoff; and missing, altered, and forged receipt rejection, using the exact
+  routed names and commands in `IMPLEMENTATION_PLAN.md`
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored validation-contract analysis; no real or test
+  private key, production public key, secret, provider bytes, MDB, acquisition
+  artifact, workflow output, or external code is redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, workflow, authority provisioning, signature,
+  dispatch, acquisition, policy/matrix change, or capability movement and
+  keeps `dao_differential_v1` disabled
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

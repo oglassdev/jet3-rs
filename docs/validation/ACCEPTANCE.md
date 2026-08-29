@@ -386,6 +386,37 @@ entry at that same second is rejected, and entry at
 `2026-08-29T12:00:01Z` is the first timing-valid instant. The command may not
 sleep, retry, or resample its clock to cross the boundary.
 
+The round-12 receipt amendment makes that exact sampled second available to
+the later controller without trusting stdout or process memory. The same
+successful preflight transaction creates canonical
+`dao-bundle/acquisition-preflight-receipt.json` under the closed
+`docs/validation/schema/acquisition-preflight-receipt-v1.schema.json` before
+atomic publication with the authorization document and SSHSIG. The receipt
+binds PASS status; run id, attempt, nonce, repository, workflow, commit, job,
+environment, and campaign; exact start and completion seconds; raw
+authorization, signature, allowed-signers, and revoked-keys hashes and sizes;
+and the registered verifier command and committed source identity. It contains
+no manifest or receipt-self identity, so its final canonical bytes can be
+raw-hashed without a cycle. Checked write, fsync, bounded re-read, read-only
+publication, final re-read, and rollback apply to the three-file published
+bundle. A failure publishes no usable receipt and exposes no acquisition edge;
+the exact empty-authority sentinel remains an earlier `BLOCKED` result.
+
+After preflight exit 0 the controller boundedly reads only the retained receipt
+and copies its exact `preflight_started_at` into both `run.started_at` and the
+authorization-verifier command `started_at`. It may not parse the unchanged
+PASS line, reuse an in-memory value, consult a log, or resample time. G3
+independently validates the receipt schema and canonical bytes, raw inventory
+reference, producer command, signed/trusted identity, authority and
+authorization hash/size joins, completion time, and exact reuse of the start
+second before policy or output. Missing receipt state is exit-1
+`missing_acquisition_preflight_receipt`; invalid receipt bytes are exit-1
+`invalid_acquisition_preflight_receipt`; and altered, forged, or inconsistent
+receipt state is exit-1 `acquisition_preflight_receipt_mismatch`. The focused
+Step 2 tests include retained-output-only real subprocess handoff,
+same-second rejection with no receipt, next-second canonical receipt success,
+missing/altered/forged receipt rejection, and mutation after publication.
+
 Step 2 verifies the DAO path through three focused modules, not one aggregate
 adapter test file:
 

@@ -922,6 +922,118 @@ routing in `IMPLEMENTATION_PLAN.md` supersedes every earlier reference to
 `test_dao_differential_adapter.py`. This organization changes no production
 source, evidence contract, acquisition behavior, or compatibility claim.
 
+The following round-12 preflight-receipt amendment supersedes only the
+round-11 assumption that an internally sampled `preflight_started_at` can be
+reconstructed after the preflight process exits. Step 2 adds the closed schema
+`docs/validation/schema/acquisition-preflight-receipt-v1.schema.json` to its
+literal inventory. A successful `authorization-preflight` transaction creates
+one canonical receipt at the fixed normalized path
+`dao-bundle/acquisition-preflight-receipt.json` in the same unpublished
+temporary directory as the authorization document and SSHSIG. The fixed PASS
+line remains exactly `PASS: acquisition_authorization_preflight_passed` and
+contains no time or receipt content; the controller obtains the start second
+only by bounded no-follow reading of the retained receipt after exit 0.
+
+The receipt is a closed object with exactly `schema_version`,
+`document_type`, `status`, `hosted_run`, `git_commit`, `campaign_id`,
+`preflight_started_at`, `preflight_completed_at`, `authorization`, `authority`,
+and `command`. `schema_version` is integer 1, `document_type` is
+`acquisition_preflight_receipt`, and `status` is `PASS`. `hosted_run` has
+exactly positive-integer `id` and `attempt`, 64-lowercase-hex
+`authorization_nonce`, exact `repository`, `workflow_path`, `workflow_ref`,
+`workflow_sha`, `acquisition_job`, `environment`, and calendar-valid uppercase
+UTC-whole-second `created_at`. Those values equal the signed authorization and
+trusted controller environment; `workflow_sha` and the top-level 40-lowercase-
+hex `git_commit` are equal. `campaign_id` equals both signed scope and trusted
+controller value. Every named member is required and non-null; strings are
+nonempty except where a literal or pattern above is stricter, and no unnamed
+member is permitted at any nesting level.
+
+`preflight_started_at` is the one entry second sampled under the round-11
+contract. `preflight_completed_at` is sampled exactly once after the
+commit-bound `ssh-keygen` verifier returns zero and all preceding validation
+succeeds, but before receipt serialization; it is not resampled after writing
+or publication. Both are calendar-valid uppercase UTC whole seconds and
+`authorized_at < preflight_started_at <= preflight_completed_at`.
+`authorization` has exactly integer `document_size` in 1..=24,576 and integer
+`signature_size` in 1..=16,384 plus lowercase-64-hex `document_sha256` and
+`signature_sha256`, recomputed from the already-written temporary path objects.
+`authority` has exactly integer `allowed_signers_size` in 1..=65,536 and
+integer `revoked_keys_size` in 0..=65,536 plus lowercase-64-hex
+`allowed_signers_sha256` and
+`revoked_keys_sha256`, recomputed from the exact clean-commit blobs used by the
+verifier.
+
+`command` has exactly `id`, `role`, `entrypoint_id`, `argv`,
+`source_revision`, `source_paths`, and `source_closure_entry_sha256`. `id`
+is exactly `acquisition_authorization_verifier` and equals the eventual
+manifest `verification_command_id`; `role` and `entrypoint_id` are also both
+exactly `acquisition_authorization_verifier`. `argv` is an eight-string array
+equal byte-for-byte by element to the exact no-shell preflight argv frozen
+above, including the two validated absolute paths and no secret.
+`source_revision` is 40 lowercase hex and equals `git_commit`; `source_paths`
+is a nonempty array of normalized commit-relative POSIX strings that is unique,
+strictly UTF-8-sorted, and equals the exact transitive repository source list;
+and `source_closure_entry_sha256` is lowercase 64 hex equal to SHA-256 of the
+canonical committed source-closure entry selected by `entrypoint_id`. The receipt contains no
+overlay hash, manifest hash or projection hash, report hash, receipt path,
+receipt size/hash, or other self identity. Its own raw hash is therefore
+computed only after its bytes are final and creates no cycle.
+
+Receipt bytes are at most 65,536 bytes and use canonical UTF-8 JSON: recursively
+sorted keys, compact separators, direct non-ASCII, integer-only numbers, no
+BOM, NUL, or non-finite value, and exactly one trailing LF. After signature
+verification and the completion sample, preflight serializes the receipt once,
+opens its temporary path with create-exclusive/no-follow semantics and mode
+0600, writes it with the same checked short-write loop, flushes and file-fsyncs,
+and boundedly re-reads exact byte identity. At that point the temporary entry
+set is exactly the authorization document, SSHSIG, receipt, and two authority
+copies. Only then may it delete the two authority copies; immediately before
+the atomic directory rename, and in the published `dao-bundle`, the entry set
+is exactly the authorization document, SSHSIG, and receipt. All three
+published files become
+read-only under the existing platform contract, the directory is flushed where
+supported, and the final bounded no-follow re-read covers all three before exit
+0. The cleanup allowlist is extended by only
+`acquisition-preflight-receipt.json`; every pre/post-publication failure removes
+the receipt with the same exact-child rollback and leaves no acquisition edge.
+
+The closed manifest gains exactly top-level `acquisition_preflight_receipt`, a
+generated-artifact reference to that fixed path, and `contracts` gains exactly
+`acquisition_preflight_receipt_schema`, binding the committed schema path by
+raw SHA-256 and size. The receipt reference and its unique complete-`files`
+row agree on path, raw hash, size, `producer_command_id`, and `produced_at`;
+the producer id equals `receipt.command.id` and resolves to the one registered
+authorization-verifier command, while `produced_at` equals
+`preflight_completed_at`. The authorization document/signature references and
+authority contracts must equal the four receipt hash/size pairs. The manifest
+run id, attempt, nonce, repository, workflow, commit, job, environment, and
+campaign equal the receipt. No manifest builder may copy an in-memory start
+value, parse stdout, consult a log, or resample time.
+
+Later manifest construction must first validate the retained receipt's schema,
+canonical bytes, fixed path, and raw inventory binding, then set both
+`run.started_at` and the authorization-verifier command's `started_at` from the
+receipt's exact `preflight_started_at`. It sets neither value from another
+source. The command's role, entrypoint, argv, source revision, source paths and
+selected closure digest equal the receipt; its zero exit is harness-observed;
+its `completed_at` is no earlier than receipt `preflight_completed_at`; and
+every provider/DAO/Rust/acquisition command starts strictly after that command
+completion. Later `effective-support` independently re-reads the same receipt
+bytes and recomputes every join before policy or output.
+
+Missing receipt/schema/reference/inventory is intrinsic exit-1
+`missing_acquisition_preflight_receipt`; malformed, noncanonical, oversized,
+or schema-invalid receipt bytes are exit-1
+`invalid_acquisition_preflight_receipt`; and any hash/size, signed/trusted run,
+authorization, authority, timing, command/source, producer, or later-manifest
+join mismatch is exit-1 `acquisition_preflight_receipt_mismatch`. A temporary
+or published receipt byte change uses that same mismatch reason. Every case
+publishes no usable receipt or forms zero adapter output, occurs before disabled
+policy, and makes every provider, DAO, Rust, or acquisition edge unreachable.
+The empty-authority sentinel remains earlier and returns its existing
+`BLOCKED` result without creating a receipt.
+
 The following round-10 authority-provisioning amendment supersedes only the
 round-9 requirement that P8T step 2's production allowed-signers contract be
 nonempty and the round-10 preflight order that read authorization secrets
