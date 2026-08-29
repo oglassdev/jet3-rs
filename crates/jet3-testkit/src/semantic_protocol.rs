@@ -15,6 +15,11 @@ mod validation;
 
 use rows::{canonical_row_bytes, canonicalize_rows};
 
+pub(crate) enum TextPayloadValidationError {
+    Protocol(SemanticProtocolError),
+    Resource(jet3::Error),
+}
+
 /// A protocol 1.2 column, containing only facts in the comparison projection.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SemanticColumn {
@@ -444,39 +449,72 @@ fn validate_text_payload(
     code_page: u32,
     path: &str,
 ) -> Result<(), SemanticProtocolError> {
+    match measure_text_payload(value, raw_hex, code_page, path) {
+        Ok(_) => Ok(()),
+        Err(TextPayloadValidationError::Protocol(error)) => Err(error),
+        Err(TextPayloadValidationError::Resource(_)) => {
+            Err(invalid(path, "text decoded length is not representable"))
+        }
+    }
+}
+
+pub(crate) fn measure_text_payload(
+    value: &str,
+    raw_hex: &HexString,
+    code_page: u32,
+    path: &str,
+) -> Result<jet3::ByteCount, TextPayloadValidationError> {
     let code_page = match code_page {
         1251 => jet3::TextCodePage::Windows1251,
         1252 => jet3::TextCodePage::Windows1252,
         _ => {
-            return Err(invalid(
+            return Err(TextPayloadValidationError::Protocol(invalid(
                 path,
                 "text code_page must be Windows-1251 or Windows-1252",
-            ));
+            )));
         }
     };
-    let mut raw = Vec::new();
-    raw.try_reserve_exact(raw_hex.as_str().len() / 2)
-        .map_err(|_| {
-            invalid(
+    let raw = raw_hex.as_str().as_bytes();
+    if !raw.len().is_multiple_of(2) || !raw.iter().copied().all(|byte| hex_nibble(byte).is_some()) {
+        return Err(TextPayloadValidationError::Protocol(invalid(
+            path,
+            "text raw_hex must be valid lowercase hexadecimal",
+        )));
+    }
+    jet3::validate_text_encoding(raw.chunks_exact(2).map(hex_byte), code_page, value).map_err(
+        |error| match error {
+            jet3::TextError::UndefinedByte { .. } => TextPayloadValidationError::Protocol(invalid(
                 path,
-                "text raw_hex cannot be decoded within resource limits",
-            )
-        })?;
-    for pair in raw_hex.as_str().as_bytes().chunks_exact(2) {
-        let digits = std::str::from_utf8(pair)
-            .map_err(|_| invalid(path, "text raw_hex must be valid lowercase hexadecimal"))?;
-        raw.push(
-            u8::from_str_radix(digits, 16)
-                .map_err(|_| invalid(path, "text raw_hex must be valid lowercase hexadecimal"))?,
-        );
+                "text raw_hex contains an undefined code-page byte",
+            )),
+            jet3::TextError::DecodedMismatch { .. } => TextPayloadValidationError::Protocol(
+                invalid(path, "text raw_hex must decode exactly to value"),
+            ),
+            jet3::TextError::Resource(error) => TextPayloadValidationError::Resource(error),
+            _ => TextPayloadValidationError::Protocol(invalid(
+                path,
+                "text raw_hex cannot be decoded",
+            )),
+        },
+    )
+}
+
+fn hex_byte(pair: &[u8]) -> u8 {
+    match (
+        pair.first().copied().and_then(hex_nibble),
+        pair.get(1).copied().and_then(hex_nibble),
+    ) {
+        (Some(high), Some(low)) => (high << 4) | low,
+        _ => 0,
     }
-    let mut budget = jet3::ResourceBudget::new(jet3::ResourceLimits::default());
-    let decoded = jet3::decode_text(&raw, code_page, &mut budget)
-        .map_err(|_| invalid(path, "text raw_hex contains an undefined code-page byte"))?;
-    if decoded.as_str() != value {
-        return Err(invalid(path, "text raw_hex must decode exactly to value"));
+}
+
+const fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        _ => None,
     }
-    Ok(())
 }
 
 fn invalid(path: impl Into<String>, reason: &'static str) -> SemanticProtocolError {

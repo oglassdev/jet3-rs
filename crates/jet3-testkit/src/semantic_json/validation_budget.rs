@@ -8,7 +8,7 @@ use super::output_budget::{
 use crate::{
     CoverageReceipt, SemanticSnapshot, SemanticSnapshotError, SemanticSnapshotOutcome, TypedValue,
 };
-use jet3::{ByteCount, Error, ResourceBudget};
+use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind};
 
 // A successful validation node constructs at most four owned diagnostic paths.
 // The longest static path fragment is shorter than 64 bytes and the deepest
@@ -190,27 +190,54 @@ fn precharge_property_value(
     value: &TypedValue,
     budget: &mut ResourceBudget,
 ) -> Result<(), SemanticSnapshotError> {
-    let (logical_bytes, raw_hex) = match value {
-        TypedValue::Null { raw_hex } | TypedValue::Boolean { raw_hex, .. } => (0, raw_hex),
+    let (logical_bytes, raw_hex, decoded) = match value {
+        TypedValue::Null { raw_hex } | TypedValue::Boolean { raw_hex, .. } => {
+            (0, raw_hex, ByteCount::new(0))
+        }
         TypedValue::Byte { raw_hex, .. }
         | TypedValue::Integer { raw_hex, .. }
         | TypedValue::Long { raw_hex, .. }
         | TypedValue::Single { raw_hex, .. }
-        | TypedValue::Double { raw_hex, .. } => (0, raw_hex),
+        | TypedValue::Double { raw_hex, .. } => (0, raw_hex, ByteCount::new(0)),
         TypedValue::Decimal { value, raw_hex } | TypedValue::Currency { value, raw_hex } => {
-            (value.as_str().len(), raw_hex)
+            (value.as_str().len(), raw_hex, ByteCount::new(0))
         }
-        TypedValue::DateTime { value, raw_hex } => (value.as_str().len(), raw_hex),
-        TypedValue::Text { value, raw_hex, .. } | TypedValue::Memo { value, raw_hex, .. } => {
-            if let Some(raw) = raw_hex {
-                precharge_text_decode(raw.as_str().len(), budget)?;
-            }
-            (value.len(), raw_hex)
+        TypedValue::DateTime { value, raw_hex } => {
+            (value.as_str().len(), raw_hex, ByteCount::new(0))
+        }
+        TypedValue::Text {
+            value,
+            raw_hex,
+            code_page,
+        }
+        | TypedValue::Memo {
+            value,
+            raw_hex,
+            code_page,
+        } => {
+            let decoded = match (raw_hex, code_page) {
+                (Some(raw), Some(code_page)) => crate::semantic_protocol::measure_text_payload(
+                    value,
+                    raw,
+                    *code_page,
+                    "$.property",
+                )
+                .map_err(|error| match error {
+                    crate::semantic_protocol::TextPayloadValidationError::Protocol(error) => {
+                        SemanticSnapshotError::Protocol(error)
+                    }
+                    crate::semantic_protocol::TextPayloadValidationError::Resource(error) => {
+                        SemanticSnapshotError::Resource(error)
+                    }
+                })?,
+                _ => ByteCount::new(0),
+            };
+            (value.len(), raw_hex, decoded)
         }
         TypedValue::Binary { value, raw_hex } | TypedValue::Ole { value, raw_hex } => {
-            (value.as_str().len(), raw_hex)
+            (value.as_str().len(), raw_hex, ByteCount::new(0))
         }
-        TypedValue::Guid { value, raw_hex } => (value.as_str().len(), raw_hex),
+        TypedValue::Guid { value, raw_hex } => (value.as_str().len(), raw_hex, ByteCount::new(0)),
     };
     let raw_bytes = raw_hex.as_ref().map_or(0, |raw| raw.as_str().len());
     let dynamic_bytes = logical_bytes.checked_add(raw_bytes).ok_or({
@@ -218,38 +245,97 @@ fn precharge_property_value(
             operation: "size semantic validation property value",
         })
     })?;
-    budget
-        .charge_allocation(
-            ByteCount::from_usize(dynamic_bytes).map_err(SemanticSnapshotError::Resource)?,
-        )
-        .map_err(SemanticSnapshotError::Resource)
-}
-
-fn precharge_text_decode(
-    raw_hex_bytes: usize,
-    budget: &mut ResourceBudget,
-) -> Result<(), SemanticSnapshotError> {
-    let raw_bytes = raw_hex_bytes / 2;
-    let maximum_decoded = raw_bytes.checked_mul(3).ok_or({
-        SemanticSnapshotError::Resource(Error::Arithmetic {
-            operation: "size semantic text validation decode",
-        })
-    })?;
-    let temporary_bytes = raw_bytes.checked_add(maximum_decoded).ok_or({
-        SemanticSnapshotError::Resource(Error::Arithmetic {
-            operation: "size semantic text validation buffers",
-        })
-    })?;
-    let decoded =
-        ByteCount::from_usize(maximum_decoded).map_err(SemanticSnapshotError::Resource)?;
+    let allocation =
+        ByteCount::from_usize(dynamic_bytes).map_err(SemanticSnapshotError::Resource)?;
+    let text_prevalidated = matches!(
+        value,
+        TypedValue::Text {
+            raw_hex: Some(_),
+            code_page: Some(_),
+            ..
+        } | TypedValue::Memo {
+            raw_hex: Some(_),
+            code_page: Some(_),
+            ..
+        }
+    );
+    let validation_work = if text_prevalidated {
+        decoded.get().checked_add(allocation.get()).ok_or({
+            SemanticSnapshotError::Resource(Error::Arithmetic {
+                operation: "size semantic text property validation work",
+            })
+        })?
+    } else {
+        0
+    };
+    preflight_property_value_charge(decoded, allocation, validation_work, budget)?;
     budget
         .charge_decoded_value(decoded)
         .map_err(SemanticSnapshotError::Resource)?;
     budget
-        .charge_allocation(
-            ByteCount::from_usize(temporary_bytes).map_err(SemanticSnapshotError::Resource)?,
-        )
+        .charge_allocation(allocation)
+        .map_err(SemanticSnapshotError::Resource)?;
+    budget
+        .charge_work_units(validation_work)
         .map_err(SemanticSnapshotError::Resource)
+}
+
+fn preflight_property_value_charge(
+    decoded: ByteCount,
+    allocation: ByteCount,
+    validation_work: u64,
+    budget: &ResourceBudget,
+) -> Result<(), SemanticSnapshotError> {
+    budget
+        .check_decoded_value(decoded)
+        .map_err(SemanticSnapshotError::Resource)?;
+    let charged_work = decoded.get().checked_add(allocation.get()).ok_or({
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "preflight semantic property validation work",
+        })
+    })?;
+    let work = charged_work.checked_add(validation_work).ok_or({
+        SemanticSnapshotError::Resource(Error::Arithmetic {
+            operation: "preflight complete semantic property validation work",
+        })
+    })?;
+    let limits = budget.limits();
+    for (current, amount, maximum, kind) in [
+        (
+            budget.decoded_bytes().get(),
+            decoded.get(),
+            limits.max_total_decoded_bytes().get(),
+            ResourceLimitKind::TotalDecodedBytes,
+        ),
+        (
+            budget.allocation_bytes().get(),
+            allocation.get(),
+            limits.max_allocation_bytes().get(),
+            ResourceLimitKind::AllocationBytes,
+        ),
+        (
+            budget.total_work_units(),
+            work,
+            limits.max_total_work_units(),
+            ResourceLimitKind::TotalWorkUnits,
+        ),
+    ] {
+        let requested = current.checked_add(amount).ok_or({
+            SemanticSnapshotError::Resource(Error::Arithmetic {
+                operation: "preflight semantic property validation",
+            })
+        })?;
+        if requested > maximum {
+            return Err(SemanticSnapshotError::Resource(
+                Error::ResourceLimitExceeded {
+                    kind,
+                    requested,
+                    maximum,
+                },
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn receipt_validation_nodes(receipt: &CoverageReceipt) -> Result<usize, SemanticSnapshotError> {
@@ -343,12 +429,144 @@ fn preflight_validation_nodes(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_outcome_budgeted;
+    use super::{precharge_property_value, validate_outcome_budgeted};
     use crate::{
         HexString, Producer, ProducerKind, ScenarioId, SemanticSnapshot, SemanticSnapshotError,
         SemanticSnapshotOutcome, Sha256, TypedValue,
     };
     use jet3::{ByteCount, Error, ResourceBudget, ResourceLimitKind, ResourceLimits};
+
+    fn text_value(
+        value: &str,
+        raw_hex: &str,
+        code_page: u32,
+    ) -> Result<TypedValue, Box<dyn std::error::Error>> {
+        Ok(TypedValue::Text {
+            value: value.to_owned(),
+            raw_hex: Some(HexString::new(raw_hex)?),
+            code_page: Some(code_page),
+        })
+    }
+
+    #[test]
+    fn text_validation_has_exact_atomic_caller_boundaries() -> Result<(), Box<dyn std::error::Error>>
+    {
+        for (property, decoded, allocation) in [
+            (text_value("A", "41", 1252)?, 1_u64, 3_u64),
+            (text_value("А", "c0", 1251)?, 2_u64, 4_u64),
+            (
+                TypedValue::Memo {
+                    value: "€".to_owned(),
+                    raw_hex: Some(HexString::new("80")?),
+                    code_page: Some(1252),
+                },
+                3_u64,
+                5_u64,
+            ),
+        ] {
+            let work = decoded
+                .checked_add(allocation)
+                .and_then(|one_validation| one_validation.checked_mul(2))
+                .ok_or("bounded work")?;
+            let exact_limits = ResourceLimits::default()
+                .with_max_decoded_value_bytes(ByteCount::new(decoded))
+                .with_max_total_decoded_bytes(ByteCount::new(decoded))
+                .with_max_allocation_bytes(ByteCount::new(allocation))
+                .with_max_total_work_units(work);
+            let mut exact = ResourceBudget::new(exact_limits);
+            precharge_property_value(&property, &mut exact)?;
+            assert_eq!(exact.decoded_bytes(), ByteCount::new(decoded));
+            assert_eq!(exact.allocation_bytes(), ByteCount::new(allocation));
+            assert_eq!(exact.total_work_units(), work);
+
+            for (limits, expected_kind) in [
+                (
+                    exact_limits.with_max_decoded_value_bytes(ByteCount::new(decoded - 1)),
+                    ResourceLimitKind::DecodedValueBytes,
+                ),
+                (
+                    exact_limits.with_max_total_decoded_bytes(ByteCount::new(decoded - 1)),
+                    ResourceLimitKind::TotalDecodedBytes,
+                ),
+                (
+                    exact_limits.with_max_allocation_bytes(ByteCount::new(allocation - 1)),
+                    ResourceLimitKind::AllocationBytes,
+                ),
+                (
+                    exact_limits.with_max_total_work_units(work - 1),
+                    ResourceLimitKind::TotalWorkUnits,
+                ),
+            ] {
+                let original = property.clone();
+                let mut rejected = ResourceBudget::new(limits);
+                assert!(matches!(
+                    precharge_property_value(&property, &mut rejected),
+                    Err(SemanticSnapshotError::Resource(
+                        Error::ResourceLimitExceeded { kind, .. }
+                    )) if kind == expected_kind
+                ));
+                assert_eq!(property, original);
+                assert_eq!(rejected.decoded_bytes(), ByteCount::new(0));
+                assert_eq!(rejected.allocation_bytes(), ByteCount::new(0));
+                assert_eq!(rejected.total_work_units(), 0);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn text_validation_honors_raised_limits_and_preserves_error_classes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const PREVIOUS_DEFAULT: usize = 16 * 1024 * 1024;
+        let length = PREVIOUS_DEFAULT + 1;
+        let property = text_value(&"a".repeat(length), &"61".repeat(length), 1252)?;
+        let decoded = ByteCount::from_usize(length)?;
+        let allocation = ByteCount::from_usize(length.checked_mul(3).ok_or("bounded allocation")?)?;
+        let work = decoded
+            .get()
+            .checked_add(allocation.get())
+            .and_then(|one_validation| one_validation.checked_mul(2))
+            .ok_or("bounded work")?;
+        let mut raised = ResourceBudget::new(
+            ResourceLimits::default()
+                .with_max_decoded_value_bytes(decoded)
+                .with_max_total_decoded_bytes(decoded)
+                .with_max_allocation_bytes(allocation)
+                .with_max_total_work_units(work),
+        );
+        precharge_property_value(&property, &mut raised)?;
+        assert_eq!(raised.decoded_bytes(), decoded);
+        assert_eq!(raised.allocation_bytes(), allocation);
+        assert_eq!(raised.total_work_units(), work);
+
+        for (property, reason) in [
+            (
+                text_value("x", "81", 1252)?,
+                "text raw_hex contains an undefined code-page byte",
+            ),
+            (
+                text_value("x", "61", 1252)?,
+                "text raw_hex must decode exactly to value",
+            ),
+        ] {
+            let original = property.clone();
+            let mut budget = ResourceBudget::new(ResourceLimits::default());
+            assert!(matches!(
+                precharge_property_value(&property, &mut budget),
+                Err(SemanticSnapshotError::Protocol(
+                    crate::SemanticProtocolError::InvalidModel {
+                        reason: actual,
+                        ..
+                    }
+                )) if actual == reason
+            ));
+            assert_eq!(property, original);
+            assert_eq!(budget.decoded_bytes(), ByteCount::new(0));
+            assert_eq!(budget.allocation_bytes(), ByteCount::new(0));
+            assert_eq!(budget.total_work_units(), 0);
+        }
+        Ok(())
+    }
 
     fn large_string_outcome() -> Result<SemanticSnapshotOutcome, Box<dyn std::error::Error>> {
         let repetitions = 4_096;

@@ -344,7 +344,7 @@
           "EXP-0061",
           "EXP-0066"
         ],
-        "sha256": "710a7c027068e2b8757ba7023fae9b7287bd26b86f052fcf4f477b7699d8ec43"
+        "sha256": "66b95de1f6c34d31d3485c4e7015ae134a65adf48e8bbe6336ba013c405267f7"
       },
       {
         "path": "crates/jet3/src/usage_map.rs",
@@ -466,7 +466,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_json/validation_budget.rs",
         "reason": "Format-neutral retained-length measurement preflight and allocation precharges for protocol model validation paths and values.",
-        "sha256": "14b282bbe03a70d50463b95b6c31a4bf8472455f394d86e06e6c4575fab7f8ed"
+        "sha256": "bac568db10f3ac45bd0612751c8226c090568635b76a001b68ab856fae95ae0c"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_outcome.rs",
@@ -476,7 +476,7 @@
       {
         "path": "crates/jet3-testkit/src/semantic_protocol.rs",
         "reason": "Protocol 1.2 model integrity, strict text-payload validation, ordering, source-independent row identity rules, and the budgeted producer path for precomputed row identities.",
-        "sha256": "7e090631ce92eaed54c29b6465022668ac812741156ec84365cb50697bfa4aa0"
+        "sha256": "673ff115ef452abb24c87935dececd29d69db5ca0ecabe145359e80be27045b6"
       },
       {
         "path": "crates/jet3-testkit/src/semantic_protocol_rows.rs",
@@ -626,7 +626,7 @@
       {
         "path": "crates/jet3/src/lib.rs",
         "reason": "Public product-scope label and re-exports only; physical assertions live in registered modules.",
-        "sha256": "59886de01847767b4b1790cbfbfa25de54d2d9487d51fd90555e7a689d175465"
+        "sha256": "07c653c887ab37fef473efe451a61d90b5f2a7a637f03e8ad730713549a4a514"
       },
       {
         "path": "crates/jet3/src/long_value_tests.rs",
@@ -696,7 +696,7 @@
       {
         "path": "crates/jet3/src/text_tests.rs",
         "reason": "Test-only verification of SRC-0025 mappings, raw retention, undefined bytes, and decoded-output resource limits.",
-        "sha256": "d0042b9151540e1f97ef4c6a9da3f654d4b7c9b6d5eca3860e8fa69654de3664"
+        "sha256": "c2bffde88a7445d4da92d42eeb857ee1baa22563fe1d79f92bfd1a404e15a865"
       },
       {
         "path": "crates/jet3/src/usage_map_tests.rs",

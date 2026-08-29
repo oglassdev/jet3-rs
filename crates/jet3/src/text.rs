@@ -68,6 +68,11 @@ pub enum TextError {
         /// Unassigned source byte.
         byte: u8,
     },
+    /// The source bytes decode losslessly, but not to the expected value.
+    DecodedMismatch {
+        /// Code page selected by the caller.
+        code_page: TextCodePage,
+    },
     /// Resource policy rejected decoded output or owned storage.
     Resource(Error),
 }
@@ -97,6 +102,7 @@ pub fn decode_text<'raw>(
     budget: &mut ResourceBudget,
 ) -> Result<DecodedText<'raw>, TextError> {
     let decoded_bytes = decoded_text_length(raw, code_page)?;
+    preflight_text_output(decoded_bytes, budget)?;
     budget
         .charge_decoded_value(decoded_bytes)
         .map_err(TextError::Resource)?;
@@ -131,25 +137,113 @@ pub fn decode_text<'raw>(
     })
 }
 
+/// Validates exact source bytes against an expected Unicode value and returns
+/// the decoded UTF-8 length without allocating decoded storage.
+///
+/// This is useful at resource-policy boundaries that must measure an encoded
+/// value before committing any budget counters or output allocation.
+pub fn validate_text_encoding(
+    raw: impl IntoIterator<Item = u8>,
+    code_page: TextCodePage,
+    expected: &str,
+) -> Result<ByteCount, TextError> {
+    let mut expected = expected.chars();
+    let mut matches = true;
+    let decoded_bytes = inspect_text(raw, code_page, |character| {
+        matches &= expected.next() == Some(character);
+    })?;
+    matches &= expected.next().is_none();
+    if !matches {
+        return Err(TextError::DecodedMismatch { code_page });
+    }
+    Ok(decoded_bytes)
+}
+
 pub(crate) fn decoded_text_length(
     raw: &[u8],
     code_page: TextCodePage,
 ) -> Result<ByteCount, TextError> {
-    let mut decoded_bytes = 0_usize;
-    for (index, byte) in raw.iter().copied().enumerate() {
+    inspect_text(raw.iter().copied(), code_page, |_| {})
+}
+
+fn inspect_text(
+    raw: impl IntoIterator<Item = u8>,
+    code_page: TextCodePage,
+    mut observe: impl FnMut(char),
+) -> Result<ByteCount, TextError> {
+    let mut decoded_bytes = 0_u64;
+    for (index, byte) in raw.into_iter().enumerate() {
         let character = mapped_character(code_page, byte).ok_or(TextError::UndefinedByte {
             code_page,
             index,
             byte,
         })?;
+        let width = u64::try_from(character.len_utf8()).map_err(|_| {
+            TextError::Resource(Error::IntegerConversion {
+                value: character.len_utf8() as u128,
+                target: "u64",
+            })
+        })?;
         decoded_bytes =
             decoded_bytes
-                .checked_add(character.len_utf8())
+                .checked_add(width)
                 .ok_or(TextError::Resource(Error::Arithmetic {
                     operation: "size decoded text",
                 }))?;
+        observe(character);
     }
-    ByteCount::from_usize(decoded_bytes).map_err(TextError::Resource)
+    Ok(ByteCount::new(decoded_bytes))
+}
+
+fn preflight_text_output(
+    decoded_bytes: ByteCount,
+    budget: &ResourceBudget,
+) -> Result<(), TextError> {
+    budget
+        .check_decoded_value(decoded_bytes)
+        .map_err(TextError::Resource)?;
+    let limits = budget.limits();
+    let work = decoded_bytes
+        .get()
+        .checked_mul(2)
+        .ok_or(TextError::Resource(Error::Arithmetic {
+            operation: "preflight decoded text work",
+        }))?;
+    for (current, amount, maximum, kind) in [
+        (
+            budget.decoded_bytes().get(),
+            decoded_bytes.get(),
+            limits.max_total_decoded_bytes().get(),
+            crate::ResourceLimitKind::TotalDecodedBytes,
+        ),
+        (
+            budget.allocation_bytes().get(),
+            decoded_bytes.get(),
+            limits.max_allocation_bytes().get(),
+            crate::ResourceLimitKind::AllocationBytes,
+        ),
+        (
+            budget.total_work_units(),
+            work,
+            limits.max_total_work_units(),
+            crate::ResourceLimitKind::TotalWorkUnits,
+        ),
+    ] {
+        let requested =
+            current
+                .checked_add(amount)
+                .ok_or(TextError::Resource(Error::Arithmetic {
+                    operation: "preflight decoded text output",
+                }))?;
+        if requested > maximum {
+            return Err(TextError::Resource(Error::ResourceLimitExceeded {
+                kind,
+                requested,
+                maximum,
+            }));
+        }
+    }
+    Ok(())
 }
 
 fn mapped_character(code_page: TextCodePage, byte: u8) -> Option<char> {

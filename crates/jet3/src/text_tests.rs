@@ -57,13 +57,43 @@ fn decodes_cp1251_byte_boundaries_and_rejects_undefined_input()
 
 #[test]
 fn decoded_and_allocation_limits_are_charged_before_output() {
-    let limits = ResourceLimits::default()
-        .with_max_decoded_value_bytes(ByteCount::new(2))
-        .with_max_total_decoded_bytes(ByteCount::new(2));
-    let mut budget = ResourceBudget::new(limits);
-    assert!(matches!(
-        decode_text(&[0x80], TextCodePage::Windows1252, &mut budget),
-        Err(TextError::Resource(_))
-    ));
-    assert_eq!(budget.decoded_bytes(), ByteCount::new(0));
+    let decoded = ByteCount::new(3);
+    for limits in [
+        ResourceLimits::default()
+            .with_max_decoded_value_bytes(ByteCount::new(2))
+            .with_max_total_decoded_bytes(decoded),
+        ResourceLimits::default()
+            .with_max_decoded_value_bytes(decoded)
+            .with_max_total_decoded_bytes(ByteCount::new(2)),
+        ResourceLimits::default()
+            .with_max_decoded_value_bytes(decoded)
+            .with_max_total_decoded_bytes(decoded)
+            .with_max_allocation_bytes(ByteCount::new(2)),
+        ResourceLimits::default()
+            .with_max_decoded_value_bytes(decoded)
+            .with_max_total_decoded_bytes(decoded)
+            .with_max_allocation_bytes(decoded)
+            .with_max_total_work_units(5),
+    ] {
+        let mut budget = ResourceBudget::new(limits);
+        assert!(matches!(
+            decode_text(&[0x80], TextCodePage::Windows1252, &mut budget),
+            Err(TextError::Resource(_))
+        ));
+        assert_eq!(budget.decoded_bytes(), ByteCount::new(0));
+        assert_eq!(budget.allocation_bytes(), ByteCount::new(0));
+        assert_eq!(budget.total_work_units(), 0);
+    }
+
+    let mut exact = ResourceBudget::new(
+        ResourceLimits::default()
+            .with_max_decoded_value_bytes(decoded)
+            .with_max_total_decoded_bytes(decoded)
+            .with_max_allocation_bytes(decoded)
+            .with_max_total_work_units(6),
+    );
+    assert!(decode_text(&[0x80], TextCodePage::Windows1252, &mut exact).is_ok());
+    assert_eq!(exact.decoded_bytes(), decoded);
+    assert_eq!(exact.allocation_bytes(), decoded);
+    assert_eq!(exact.total_work_units(), 6);
 }
