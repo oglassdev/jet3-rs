@@ -235,8 +235,62 @@ fn datetime_text(
         form: UnsupportedValueForm::DateTime,
     };
     let days = value.days();
+    let parts = datetime_parts(days).ok_or_else(invalid)?;
+    let retained_len = parts.retained_len();
+    ledger.charge(budget, retained_len)?;
+    let text = parts.render();
+    debug_assert_eq!(text.len(), retained_len);
+    InvariantDateTime::new(text).map_err(|_| invalid())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DateTimeParts {
+    year: i64,
+    month: u8,
+    day: u8,
+    hour: u64,
+    minute: u64,
+    second: u64,
+    nanosecond: u64,
+}
+
+impl DateTimeParts {
+    fn retained_len(self) -> usize {
+        if self.nanosecond == 0 {
+            return 19;
+        }
+        let mut significant = self.nanosecond;
+        let mut trailing_zeroes = 0_usize;
+        while significant.is_multiple_of(10) {
+            significant /= 10;
+            trailing_zeroes += 1;
+        }
+        29 - trailing_zeroes
+    }
+
+    fn render(self) -> String {
+        let Self {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            nanosecond,
+        } = self;
+        let mut text = format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}");
+        if nanosecond != 0 {
+            let digits = format!("{nanosecond:09}");
+            text.push('.');
+            text.push_str(digits.trim_end_matches('0'));
+        }
+        text
+    }
+}
+
+fn datetime_parts(days: f64) -> Option<DateTimeParts> {
     if !days.is_finite() || !(-657_435.0..=2_958_465.999_999_99).contains(&days) {
-        return Err(invalid());
+        return None;
     }
     let mut ordinal = days_before_year(1899) + days_before_month(1899, 12) + 29;
     ordinal += days.trunc() as i64;
@@ -245,33 +299,24 @@ fn datetime_text(
         ordinal += 1;
         nanoseconds = 0;
     }
-    let (year, month, day) = date_from_ordinal(ordinal).ok_or_else(invalid)?;
+    let (year, month, day) = date_from_ordinal(ordinal)?;
+    if year < 100 {
+        return None;
+    }
     let hour = nanoseconds / 3_600_000_000_000;
     nanoseconds %= 3_600_000_000_000;
     let minute = nanoseconds / 60_000_000_000;
     nanoseconds %= 60_000_000_000;
     let second = nanoseconds / 1_000_000_000;
-    let fraction = nanoseconds % 1_000_000_000;
-    let retained_len = if fraction == 0 {
-        19
-    } else {
-        let mut significant = fraction;
-        let mut trailing_zeroes = 0_usize;
-        while significant.is_multiple_of(10) {
-            significant /= 10;
-            trailing_zeroes += 1;
-        }
-        29 - trailing_zeroes
-    };
-    ledger.charge(budget, retained_len)?;
-    let mut text = format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}");
-    if fraction != 0 {
-        let digits = format!("{fraction:09}");
-        text.push('.');
-        text.push_str(digits.trim_end_matches('0'));
-    }
-    debug_assert_eq!(text.len(), retained_len);
-    InvariantDateTime::new(text).map_err(|_| invalid())
+    Some(DateTimeParts {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        nanosecond: nanoseconds % 1_000_000_000,
+    })
 }
 
 const fn leap_year(year: i64) -> bool {
@@ -312,6 +357,78 @@ fn date_from_ordinal(ordinal: i64) -> Option<(i64, u8, u8)> {
         month,
         u8::try_from(day_of_year - days_before_month(low, month) + 1).ok()?,
     ))
+}
+
+#[cfg(test)]
+mod datetime_normalization_tests {
+    use super::datetime_parts;
+    use crate::InvariantDateTime;
+
+    const FIXTURES: &str = include_str!(
+        "../../../oracle/windows-dao/protocol/v1_2/fixtures/canonical-datetime-vectors.tsv"
+    );
+
+    #[test]
+    fn raw_double_conversion_and_canonical_validation_share_datetime_vectors()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut seen = 0_usize;
+        for (line_index, line) in FIXTURES.lines().enumerate() {
+            if line.starts_with('#') {
+                continue;
+            }
+            let line_number = line_index + 1;
+            let fields = line.split('\t').collect::<Vec<_>>();
+            if fields.len() != 6 {
+                return Err(format!(
+                    "canonical DateTime fixture line {line_number} has {} fields",
+                    fields.len()
+                )
+                .into());
+            }
+            let [
+                case,
+                raw_bits,
+                producer_result,
+                candidate,
+                _schema_valid,
+                semantic_valid,
+            ] = fields.as_slice()
+            else {
+                unreachable!("field count checked above");
+            };
+            let semantic_valid = semantic_valid.parse::<bool>().map_err(|error| {
+                format!(
+                    "canonical DateTime fixture {case} on line {line_number} has invalid semantic_valid: {error}"
+                )
+            })?;
+            assert_eq!(
+                InvariantDateTime::new((*candidate).to_owned()).is_ok(),
+                semantic_valid,
+                "{case} on fixture line {line_number}"
+            );
+
+            if *raw_bits != "-" {
+                let bits = u64::from_str_radix(raw_bits, 16).map_err(|error| {
+                    format!(
+                        "canonical DateTime fixture {case} on line {line_number} has invalid raw bits: {error}"
+                    )
+                })?;
+                let actual = datetime_parts(f64::from_bits(bits)).map(|parts| parts.render());
+                if *producer_result == "reject" {
+                    assert_eq!(actual, None, "{case} on fixture line {line_number}");
+                } else {
+                    assert_eq!(
+                        actual.as_deref(),
+                        Some(*producer_result),
+                        "{case} on fixture line {line_number}"
+                    );
+                }
+            }
+            seen += 1;
+        }
+        assert_eq!(seen, 22);
+        Ok(())
+    }
 }
 
 /// Renders an exact scaled integer as an invariant decimal with a fixed scale.

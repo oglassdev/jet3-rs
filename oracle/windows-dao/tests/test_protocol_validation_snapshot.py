@@ -137,6 +137,79 @@ class ProtocolV12SnapshotTests(SnapshotFixtureMixin, unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "finite binary32 range"):
             v1_2.validate_semantic_snapshot(snapshot)
 
+    def test_shared_canonical_datetime_vectors_match_schema_and_python_validation(self):
+        fixture = v1_2.SCHEMA_DIR / "fixtures" / "canonical-datetime-vectors.tsv"
+        seen = 0
+        for line_number, line in enumerate(
+            fixture.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if line.startswith("#"):
+                continue
+            (
+                case,
+                raw_bits,
+                producer_result,
+                candidate,
+                schema_valid,
+                semantic_valid,
+            ) = line.split("\t")
+            schema_valid = schema_valid == "true"
+            semantic_valid = semantic_valid == "true"
+            raw_hex = "0000000000000000" if raw_bits == "-" else raw_bits
+            if raw_bits != "-":
+                self.assertEqual(len(raw_bits), 16, case)
+                struct.unpack(">d", bytes.fromhex(raw_bits))
+            if producer_result not in ("-", "reject"):
+                v1_2._validate_canonical_datetime(
+                    producer_result, f"fixture {case}.producer_result"
+                )
+
+            snapshot = self._snapshot()
+            table = snapshot["tables"][0]
+            table["columns"] = [
+                dict(
+                    table["columns"][0],
+                    name="When",
+                    dao_type="dbDate",
+                    size=8,
+                )
+            ]
+            table["indexes"] = []
+            values = {
+                "When": {
+                    "kind": "datetime",
+                    "raw_hex": raw_hex,
+                    "value": candidate,
+                }
+            }
+            table["rows"] = [
+                {
+                    "canonical_key": hashlib.sha256(
+                        canonical_json_bytes(values)
+                    ).hexdigest(),
+                    "duplicate_ordinal": 0,
+                    "values": values,
+                }
+            ]
+            snapshot["producer_extensions"] = {}
+
+            for validator, expected in (
+                (v1_2.SCHEMA_SET.validate, schema_valid),
+                (v1_2.validate_semantic_snapshot, semantic_valid),
+            ):
+                try:
+                    validator(snapshot)
+                    actual = True
+                except ValidationError:
+                    actual = False
+                self.assertEqual(
+                    actual,
+                    expected,
+                    f"{case} on line {line_number}: {validator.__name__}",
+                )
+            seen += 1
+        self.assertEqual(seen, 22)
+
     def test_shared_producer_extension_normalization_vector_is_path_aware(self):
         fixture = (
             v1_2.SCHEMA_DIR

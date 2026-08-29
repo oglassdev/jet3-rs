@@ -10,6 +10,7 @@ cross-field rules in `protocol/v1_2/README.md`.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import re
 import sys
@@ -122,13 +123,28 @@ NORMALIZED_SIZE_FOR_TYPE = {
 COMPARABLE_COLUMN_ATTRIBUTE_MASK = 1 | 2 | 16
 INTEGER_RANGES = {"dbByte": (0, 255), "dbInteger": (-32768, 32767), "dbLong": (-2147483648, 2147483647)}
 IEEE_WIDTH = {"dbSingle": 8, "dbDouble": 16}
+CANONICAL_DATETIME_PATTERN = (
+    r"(?:0[1-9][0-9]{2}|[1-9][0-9]{3})-"
+    r"(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T"
+    r"(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+    r"(?:\.[0-9]{0,8}[1-9])?"
+)
 VALUE_PATTERNS = {
     "invariant_decimal": r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?",
-    "invariant_datetime": r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?",
+    "invariant_datetime": CANONICAL_DATETIME_PATTERN,
     "lowercase_hex": r"(?:[0-9a-f]{2})+",
     "guid": r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
 }
 JSON_POINTER = re.compile(r"(?:/(?:[^/~]|~0|~1)*)+")
+
+
+def _validate_canonical_datetime(value: Any, location: str) -> None:
+    if not isinstance(value, str) or re.fullmatch(CANONICAL_DATETIME_PATTERN, value) is None:
+        raise ValidationError(f"{location}: datetime must use the canonical invariant spelling")
+    try:
+        dt.date(int(value[0:4]), int(value[5:7]), int(value[8:10]))
+    except ValueError as exc:
+        raise ValidationError(f"{location}: datetime has an invalid calendar date") from exc
 
 # The plan's named minimum read set (IMPLEMENTATION_PLAN.md Section 5.1).
 # Every requirement maps to the exact scenario ids that satisfy it. A missing
@@ -247,6 +263,8 @@ def _validate_value(value: dict[str, Any], column: dict[str, Any], location: str
     pattern = VALUE_PATTERNS.get(encoding)
     if pattern is not None and (not isinstance(payload, str) or re.fullmatch(pattern, payload) is None):
         raise ValidationError(f"{location}.value: {encoding} text has the wrong shape")
+    if encoding == "invariant_datetime":
+        _validate_canonical_datetime(payload, f"{location}.value")
     if encoding == "unicode_string" and not isinstance(payload, str):
         raise ValidationError(f"{location}.value: unicode_string requires a string")
     if encoding in ("repeat_byte", "repeat_ascii"):
@@ -414,6 +432,8 @@ def _validate_comparable_typed_value(value: dict[str, Any], location: str) -> No
         raise ValidationError(f"{location}: converted values must retain raw_hex")
     if kind in RAW_EXEMPT_KINDS and "raw_hex" in value:
         raise ValidationError(f"{location}: {kind} values carry no field bytes")
+    if kind == "datetime":
+        _validate_canonical_datetime(value["value"], f"{location}.value")
     if kind in ("text", "memo"):
         if "code_page" not in value:
             raise ValidationError(f"{location}: {kind} values must identify their code_page")

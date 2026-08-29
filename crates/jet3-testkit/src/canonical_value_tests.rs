@@ -118,7 +118,7 @@ fn every_typed_value_kind_has_a_distinct_canonical_shape() -> Result<(), Snapsho
     values.insert(
         "10_datetime".to_owned(),
         TypedValue::DateTime {
-            value: InvariantDateTime::new("1997-01-02T03:04:05.600")?,
+            value: InvariantDateTime::new("1997-01-02T03:04:05.6")?,
             raw_hex: None,
         },
     );
@@ -173,7 +173,7 @@ fn every_typed_value_kind_has_a_distinct_canonical_shape() -> Result<(), Snapsho
         "\"09_currency\":{\"kind\":\"currency\",\"value\":\"-0.0100\"}",
         concat!(
             "\"10_datetime\":{\"kind\":\"datetime\",",
-            "\"value\":\"1997-01-02T03:04:05.600\"}"
+            "\"value\":\"1997-01-02T03:04:05.6\"}"
         ),
         concat!(
             "\"11_text\":{\"code_page\":1252,\"kind\":\"text\",",
@@ -363,7 +363,13 @@ fn invariant_string_grammars_match_the_protocol_validator() -> Result<(), Snapsh
         );
     }
 
-    for accepted in ["1997-01-02T03:04:05", "1997-01-02T03:04:05.000001"] {
+    for accepted in [
+        "0100-01-01T00:00:00",
+        "1997-01-02T03:04:05",
+        "1997-01-02T03:04:05.000001",
+        "2000-02-29T23:59:59.123456789",
+        "9999-12-31T23:59:59.9",
+    ] {
         assert_eq!(InvariantDateTime::new(accepted)?.as_str(), accepted);
     }
     for invalid in [
@@ -371,8 +377,15 @@ fn invariant_string_grammars_match_the_protocol_validator() -> Result<(), Snapsh
         "1997-01-02",
         "1997-01-02 03:04:05",
         "1997-01-02T03:04:05.",
+        "1997-01-02T03:04:05.0",
+        "1997-01-02T03:04:05.600",
+        "1997-01-02T03:04:05.1234567890",
         "1997-01-02T03:04:05Z",
         "1997-01-02T03:04:05+00:00",
+        "0099-12-31T23:59:59",
+        "1900-02-29T00:00:00",
+        "2000-02-30T00:00:00",
+        "2000-01-01T24:00:00",
     ] {
         assert_eq!(
             InvariantDateTime::new(invalid),

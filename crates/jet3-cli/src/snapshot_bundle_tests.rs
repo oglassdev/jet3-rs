@@ -43,12 +43,16 @@ fn complete_bundle_is_published_with_fixed_artifact_names() -> Result<(), Box<dy
 {
     let directory = tempfile::tempdir()?;
     let destination = directory.path().join("bundle");
-    publish_with(
+    let result = publish_with(
         &destination,
         b"snapshot\n",
         b"receipt\n",
         &mut FailAtImpossible,
-    )?;
+    );
+    #[cfg(windows)]
+    assert_eq!(result, Err(PublishError::PublishedDurabilityUncertain));
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    result?;
     assert_eq!(fs::read(destination.join(SNAPSHOT_NAME))?, b"snapshot\n");
     assert_eq!(fs::read(destination.join(RECEIPT_NAME))?, b"receipt\n");
     assert!(stages(directory.path())?.is_empty());
@@ -280,7 +284,10 @@ fn windows_retains_non_writable_artifact_handles_through_staging()
     let directory = tempfile::tempdir()?;
     let destination = directory.path().join("bundle");
     let mut hook = AssertArtifactHandlesDenyWrite { observed: false };
-    publish_with(&destination, b"snapshot", b"receipt", &mut hook)?;
+    assert_eq!(
+        publish_with(&destination, b"snapshot", b"receipt", &mut hook),
+        Err(PublishError::PublishedDurabilityUncertain)
+    );
     assert!(hook.observed);
     assert_eq!(fs::read(destination.join(SNAPSHOT_NAME))?, b"snapshot");
     assert_eq!(fs::read(destination.join(RECEIPT_NAME))?, b"receipt");
@@ -373,7 +380,11 @@ fn lexical_parent_alias_is_resolved_before_staging_and_publication()
     let alias_component = directory.path().join("alias-component");
     fs::create_dir(&alias_component)?;
     let destination = alias_component.join("..").join("bundle");
-    publish_with(&destination, b"snapshot", b"receipt", &mut FailAtImpossible)?;
+    let result = publish_with(&destination, b"snapshot", b"receipt", &mut FailAtImpossible);
+    #[cfg(windows)]
+    assert_eq!(result, Err(PublishError::PublishedDurabilityUncertain));
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    result?;
     assert_eq!(
         fs::read(directory.path().join("bundle").join(SNAPSHOT_NAME))?,
         b"snapshot"

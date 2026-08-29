@@ -7,6 +7,8 @@ use std::process::Command;
 
 const NON_GIT_IDENTITY: &str = "diagnostic-non-git-build";
 const UNKNOWN_GIT_IDENTITY: &str = "diagnostic-git-state-unavailable";
+const ATTESTATION_ENV: &str = "JET3_BUILD_ATTESTATION_V1";
+const MAX_STATUS_BYTES: usize = 8 * 1024;
 const GIT_REPOSITORY_ENVIRONMENT: [&str; 9] = [
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_CEILING_DIRECTORIES",
@@ -20,6 +22,7 @@ const GIT_REPOSITORY_ENVIRONMENT: [&str; 9] = [
 ];
 
 fn main() {
+    println!("cargo:rerun-if-env-changed={ATTESTATION_ENV}");
     for variable in GIT_REPOSITORY_ENVIRONMENT {
         println!("cargo:rerun-if-env-changed={variable}");
     }
@@ -46,27 +49,31 @@ fn main() {
         println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
         return;
     };
-    let suffix = if status.is_empty() {
-        register_clean_worktree_refresh();
-        ""
-    } else {
-        "-dirty"
+    let Some(expected_attestation) = attestation(&revision, &status) else {
+        println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
+        return;
     };
+    if env::var(ATTESTATION_ENV).ok().as_deref() != Some(expected_attestation.as_str()) {
+        println!("cargo:rustc-env=JET3_BUILD_IDENTITY={UNKNOWN_GIT_IDENTITY}");
+        return;
+    }
+    let suffix = if status.is_empty() { "" } else { "-dirty" };
     println!("cargo:rustc-env=JET3_BUILD_IDENTITY={revision}{suffix}");
 }
 
-fn register_clean_worktree_refresh() {
-    let Some(output_dir) = env::var_os("OUT_DIR") else {
-        return;
-    };
-    // Cargo cannot recursively watch a worktree while excluding its own output tree.
-    // This deliberately absent input refreshes clean identities once per Cargo invocation.
-    println!(
-        "cargo:rerun-if-changed={}",
-        PathBuf::from(output_dir)
-            .join("jet3-clean-worktree-refresh")
-            .display()
-    );
+fn attestation(revision: &str, status: &[u8]) -> Option<String> {
+    if status.len() > MAX_STATUS_BYTES {
+        return None;
+    }
+    let mut value = String::with_capacity(44usize.checked_add(status.len().checked_mul(2)?)?);
+    value.push_str("v1:");
+    value.push_str(revision);
+    value.push(':');
+    for byte in status {
+        use std::fmt::Write;
+        write!(value, "{byte:02x}").ok()?;
+    }
+    Some(value)
 }
 
 fn discover_workspace(manifest_dir: &Path) -> Option<PathBuf> {

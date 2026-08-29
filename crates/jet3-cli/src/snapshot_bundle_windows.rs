@@ -6,7 +6,9 @@
 //! handles because Windows can reject a directory rename with open descendants.
 //! The subsequent path-based rename and cleanup assume an ordinary uncontended
 //! namespace; hostile mutation by another same-authority process is outside the
-//! CLI threat model.
+//! CLI threat model. Rust's safe standard-library Windows API provides no
+//! documented directory-entry durability barrier, so a completed rename is
+//! reported as published with uncertain durability rather than as success.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, Write};
@@ -230,7 +232,7 @@ pub(super) fn publish_with(
         return Err(PublishError::PublishedDurabilityUncertain);
     }
     match cleanup_complete {
-        Ok(true) => Ok(()),
+        Ok(true) => Err(PublishError::PublishedDurabilityUncertain),
         Ok(false) | Err(_) => Err(PublishError::PublishedCleanupUncertain),
     }
 }

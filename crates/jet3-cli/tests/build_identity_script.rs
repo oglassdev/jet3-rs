@@ -58,8 +58,8 @@ fn redirected_git_environment_cannot_supply_build_identity() -> Result<(), Box<d
 }
 
 #[test]
-fn cargo_rebuilds_identity_for_nested_untracked_addition_and_removal() -> Result<(), Box<dyn Error>>
-{
+fn cargo_attestation_tracks_nested_untracked_changes_without_clean_rebuilds()
+-> Result<(), Box<dyn Error>> {
     let temporary = tempfile::tempdir()?;
     let subject_worktree = temporary.path().join("subject");
     let subject_manifest_dir = subject_worktree.join("crates/jet3-cli");
@@ -89,36 +89,95 @@ fn cargo_rebuilds_identity_for_nested_untracked_addition_and_removal() -> Result
 
     assert_eq!(
         cargo_identity(&subject_manifest_dir, &target_dir)?,
+        "diagnostic-git-state-unavailable"
+    );
+    assert_eq!(
+        cargo_identity_with_env(&subject_manifest_dir, &target_dir, "v1:mismatch:")?,
+        "diagnostic-git-state-unavailable"
+    );
+    assert_eq!(
+        attested_cargo_identity(&subject_manifest_dir, &target_dir)?,
         subject_revision
     );
+    assert_attested_fresh(&subject_manifest_dir, &target_dir, &subject_revision)?;
 
     let nested_dir = subject_worktree.join("generated/nested");
     fs::create_dir_all(&nested_dir)?;
     fs::write(nested_dir.join("untracked.txt"), b"untracked\n")?;
     let dirty_identity = format!("{subject_revision}-dirty");
     assert_eq!(
-        cargo_identity(&subject_manifest_dir, &target_dir)?,
+        attested_cargo_identity(&subject_manifest_dir, &target_dir)?,
         dirty_identity
     );
-
-    let stable = cargo(
-        &subject_manifest_dir,
-        &["run", "--locked", "--verbose"],
-        &target_dir,
-    )?;
-    assert_eq!(String::from_utf8(stable.stdout)?.trim(), dirty_identity);
-    let stable_log = String::from_utf8(stable.stderr)?;
-    assert!(
-        stable_log.contains("Fresh build-identity-cargo-test"),
-        "unchanged dirty build was not fresh: {stable_log}"
-    );
+    assert_attested_fresh(&subject_manifest_dir, &target_dir, &dirty_identity)?;
 
     fs::remove_dir_all(subject_worktree.join("generated"))?;
     assert_eq!(
-        cargo_identity(&subject_manifest_dir, &target_dir)?,
+        attested_cargo_identity(&subject_manifest_dir, &target_dir)?,
         subject_revision
     );
+    assert_attested_fresh(&subject_manifest_dir, &target_dir, &subject_revision)?;
     Ok(())
+}
+
+fn assert_attested_fresh(
+    manifest_dir: &Path,
+    target_dir: &Path,
+    expected_identity: &str,
+) -> Result<(), Box<dyn Error>> {
+    let stable = attested_cargo(manifest_dir, &["run", "--locked", "--verbose"], target_dir)?;
+    assert_eq!(String::from_utf8(stable.stdout)?.trim(), expected_identity);
+    let stable_log = String::from_utf8(stable.stderr)?;
+    assert!(
+        stable_log.contains("Fresh build-identity-cargo-test"),
+        "unchanged build was not fresh: {stable_log}"
+    );
+    Ok(())
+}
+
+fn attested_cargo_identity(
+    manifest_dir: &Path,
+    target_dir: &Path,
+) -> Result<String, Box<dyn Error>> {
+    let output = attested_cargo(manifest_dir, &["run", "--quiet", "--locked"], target_dir)?;
+    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn cargo_identity_with_env(
+    manifest_dir: &Path,
+    target_dir: &Path,
+    attestation: &str,
+) -> Result<String, Box<dyn Error>> {
+    let output = cargo_command(manifest_dir, &["run", "--quiet", "--locked"], target_dir)
+        .env("JET3_BUILD_ATTESTATION_V1", attestation)
+        .output()?;
+    require_success("run Cargo", &output)?;
+    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn attested_cargo(
+    manifest_dir: &Path,
+    arguments: &[&str],
+    target_dir: &Path,
+) -> Result<Output, Box<dyn Error>> {
+    let python = env::var_os("PYTHON").unwrap_or_else(|| "python3".into());
+    let wrapper = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tools/cargo_with_build_identity.py")
+        .canonicalize()?;
+    let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let mut command = Command::new(python);
+    command
+        .arg(wrapper)
+        .arg("--")
+        .arg(cargo)
+        .args(arguments)
+        .current_dir(manifest_dir)
+        .env("CARGO_TERM_COLOR", "never")
+        .env("CARGO_TARGET_DIR", target_dir);
+    sanitize_git_environment(&mut command);
+    let output = command.output()?;
+    require_success("run attested Cargo", &output)?;
+    Ok(output)
 }
 
 fn commit_repository(worktree: &Path, message: &str) -> Result<(), Box<dyn Error>> {
@@ -147,9 +206,11 @@ fn run_build_script(
     manifest_dir: &Path,
     foreign_worktree: &Path,
 ) -> Result<String, Box<dyn Error>> {
+    let attestation = worktree_attestation(manifest_dir)?;
     let execution = Command::new(executable)
         .current_dir(foreign_worktree)
         .env("CARGO_MANIFEST_DIR", manifest_dir)
+        .env("JET3_BUILD_ATTESTATION_V1", attestation)
         .env("GIT_DIR", foreign_worktree.join(".git"))
         .env("GIT_WORK_TREE", foreign_worktree)
         .output()?;
@@ -176,16 +237,42 @@ fn cargo(
     arguments: &[&str],
     target_dir: impl AsRef<Path>,
 ) -> Result<Output, Box<dyn Error>> {
+    let mut command = cargo_command(manifest_dir, arguments, target_dir.as_ref());
+    let output = command.output()?;
+    require_success("run Cargo", &output)?;
+    Ok(output)
+}
+
+fn cargo_command(manifest_dir: &Path, arguments: &[&str], target_dir: &Path) -> Command {
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = Command::new(cargo);
     command
         .args(arguments)
         .current_dir(manifest_dir)
-        .env("CARGO_TARGET_DIR", target_dir.as_ref());
+        .env("CARGO_TERM_COLOR", "never")
+        .env("CARGO_TARGET_DIR", target_dir);
     sanitize_git_environment(&mut command);
-    let output = command.output()?;
-    require_success("run Cargo", &output)?;
-    Ok(output)
+    command
+}
+
+fn worktree_attestation(manifest_dir: &Path) -> Result<String, Box<dyn Error>> {
+    let revision = git_text(manifest_dir, &["rev-parse", "--verify", "HEAD"])?;
+    let status = git(
+        manifest_dir,
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    )?
+    .stdout;
+    Ok(format!("v1:{revision}:{}", hex(&status)))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut result = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        result.push(char::from(HEX[usize::from(byte >> 4)]));
+        result.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    result
 }
 
 fn git_text(directory: &Path, arguments: &[&str]) -> Result<String, Box<dyn Error>> {

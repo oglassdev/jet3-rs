@@ -26,7 +26,7 @@ pub(super) fn is_invariant_decimal(value: &str) -> bool {
 
 pub(super) fn is_invariant_datetime(value: &str) -> bool {
     let bytes = value.as_bytes();
-    if bytes.len() < 19 {
+    if !(19..=29).contains(&bytes.len()) {
         return false;
     }
     for separator in [(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b':')] {
@@ -41,10 +41,43 @@ pub(super) fn is_invariant_datetime(value: &str) -> bool {
     {
         return false;
     }
+    let parse = |range: std::ops::Range<usize>| {
+        bytes[range]
+            .iter()
+            .fold(0_u16, |value, byte| value * 10 + u16::from(byte - b'0'))
+    };
+    let year = parse(0..4);
+    let month = parse(5..7);
+    let day = parse(8..10);
+    let hour = parse(11..13);
+    let minute = parse(14..16);
+    let second = parse(17..19);
+    if year < 100
+        || !(1..=12).contains(&month)
+        || !(1..=days_in_month(year, month)).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return false;
+    }
+
     bytes.len() == 19
-        || (bytes.get(19) == Some(&b'.')
-            && bytes.len() > 20
-            && bytes[20..].iter().all(u8::is_ascii_digit))
+        || (bytes.len() > 20
+            && bytes[19] == b'.'
+            && bytes[20..].iter().all(u8::is_ascii_digit)
+            && bytes.last().is_some_and(|byte| *byte != b'0'))
+}
+
+const fn days_in_month(year: u16, month: u16) -> u16 {
+    match month {
+        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
+            29
+        }
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 pub(super) fn ensure_named_order<'a>(
