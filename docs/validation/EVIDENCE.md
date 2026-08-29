@@ -342,6 +342,222 @@ redistribution attestations are `acquisition_authorization_rights_mismatch`.
 Each is intrinsic exit-1 `FAIL` before provider, commands, scenario artifacts,
 comparison, policy, or adapter output.
 
+The following round-9 authenticated-authorization binding supersedes only the
+round-8 authorization record shape, its manifest reference shape, its contract
+count, and the assertion that hosted-run identity cannot exist when the human
+acts. It retains the exact-commit, approved-decision, scope, ordering,
+retention, redistribution, and fail-before-policy requirements above. A
+GitHub environment review is an execution gate, but its UI/API response is not
+used as a portable signed human-approval receipt. Human origin is instead
+authenticated by an OpenSSH detached signature whose public authority is part
+of the already-existing evidence-ready commit.
+
+Step 2 additionally adds the exact commit-bound contracts
+`docs/validation/acquisition-authority-v1.allowed_signers` and
+`docs/validation/acquisition-authority-v1.revoked_keys`. The former is a
+nonempty, at most 65,536-byte, at most 32-line, strictly principal-sorted ASCII
+OpenSSH allowed-signers file with exactly one principal per line. Principals
+match `[A-Za-z0-9][A-Za-z0-9._@+-]{0,127}`. Comments, blank lines, wildcard or
+duplicate principals, certificate-authority entries, and key types other than
+`ssh-ed25519` are forbidden. Every line's options appear in exactly this order:
+`namespaces="jet3-rs-acquisition-v1@oglassdev",valid-after="<UTC>",valid-before="<UTC>"`,
+with finite uppercase-UTC whole-second bounds and `valid-after < valid-before`.
+The revocation contract is an at-most-65,536-byte, at-most-64-line ASCII
+OpenSSH one-Ed25519-public-key-per-line file, possibly empty, with no comments,
+duplicates, options, or private material. Both files have LF endings and no
+BOM, NUL, or trailing blank line. Both are loaded only from the exact release
+commit and bound by path, raw SHA-256, and size as contracts
+`acquisition_authority` and `acquisition_authority_revocations`. The closed
+manifest therefore has the same twelve top-level members fixed by round 8,
+while its `contracts` object has exactly sixteen members: the prior fourteen
+plus these two authority contracts.
+
+`acquisition_authorization` is now a closed object containing exactly
+`document`, `signature`, and `verification_command_id`. `document` is the
+round-9 exact artifact reference to
+`dao-bundle/acquisition-authorization.json`; `signature` is an exact artifact
+reference to
+`dao-bundle/acquisition-authorization.json.sig`; and both are unique rows in
+the complete `files` inventory with equal path/hash/size linkage. The ASCII
+armored SSHSIG is at most 16,384 bytes, has no BOM or NUL, and ends in exactly
+one LF. `verification_command_id` resolves to exactly one non-scenario command
+with role `acquisition_authorization_verifier`, the registered step-2
+validator entrypoint and source closure, zero harness exit, and the same
+document/signature hashes. No producer or bundle assertion can substitute for
+the adapter's independent signature verification.
+
+The canonical JSON document now has exactly `schema_version`,
+`document_type`, `decision`, `authorization_nonce`, `repository`, `workflow`,
+`hosted_run`, `git_commit`, `approved_decision`, `actor`, `evidence_ready`,
+`authorized_at`, `ordering_attestation`, `scope`, `retention`, and
+`redistribution`. Existing round-8 members keep their meanings except that
+`actor` has exactly `principal` and
+`authority: "human_release_authority"`. `authorization_nonce` is 64 lowercase
+hex characters supplied as the dispatch input. `repository` is exactly
+`oglassdev/jet3-rs`. `workflow` has exactly normalized commit-relative `path`,
+full `ref`, 40-lowercase-hex `sha`, stable YAML `job`, and protected
+`environment`; its path, job, and environment are exactly
+`.github/workflows/windows-dao-p8-read.yml`, `acquire_read_evidence`, and
+`jet3-dao-acquisition`, and `sha` equals `git_commit`. `hosted_run` has exactly
+positive-integer `id` and `attempt` plus calendar-valid UTC-whole-second
+`created_at`. These values name the already-created blocked run, not a future
+manifest, overlay, result, or acquisition artifact.
+
+The manifest `run` object is correspondingly extended with exactly
+`authorization_nonce`, `repository`, `workflow_path`, `workflow_ref`,
+`workflow_sha`, `acquisition_job`, `environment`, and `created_at`, in addition
+to its round-8 fields. Every value must equal the signed document and the
+trusted hosted-run identity retained by the acquisition controller;
+`workflow_sha` equals the manifest commit and current clean `HEAD`. The
+authorization principal is not accepted merely because the JSON names it:
+the adapter passes the exact canonical document bytes on standard input to
+
+```sh
+ssh-keygen -Y verify \
+  -f docs/validation/acquisition-authority-v1.allowed_signers \
+  -r docs/validation/acquisition-authority-v1.revoked_keys \
+  -I <exact-signed-principal> \
+  -n jet3-rs-acquisition-v1@oglassdev \
+  -O verify-time=<authorized_at-as-YYYYMMDDHHMMSSZ> \
+  -s dao-bundle/acquisition-authorization.json.sig
+```
+
+Only exit zero is authenticated approval. The validator supplies every
+argument without a shell, verifies the authority files' closed grammar first,
+and accepts the principal only through the exact allowed-signers match at the
+signed time and the exact non-revoked Ed25519 key. A changed actor, authority,
+run, attempt, nonce, repository, workflow, commit, time, or scope changes the
+signed bytes; copying the old signature therefore fails. A signature made by
+an unlisted or revoked key also fails.
+
+The dispatch sequence is exact. P8's later acquisition preparation commit,
+not P8T step 2, must freeze its workflow and environment configuration. A
+human generates a fresh nonce, dispatches that exact commit once, and the
+acquisition job waits on the protected environment before a runner can execute
+any repository or DAO command. After observing repository, workflow, run id,
+attempt, commit, job, environment, and nonce, the human signs the canonical
+record off-run with `ssh-keygen -Y sign -f <authority-private-key> -n
+jet3-rs-acquisition-v1@oglassdev acquisition-authorization.json` and supplies
+the record and signature as environment secrets. The private key may be
+hardware/agent backed but cannot be exportable to the runner.
+Approval releases that already-created job; environment secrets are then
+available, and its first repository-controlled command must be the registered
+authorization verifier. The command starts no earlier than `authorized_at`,
+finishes before every provider/acquisition command starts, and is retained in
+the manifest. The adapter re-verifies the signature and requires
+`evidence_ready.confirmed_at <= created_at <= authorized_at < run.started_at`,
+the verification command wholly inside the run, and its completion strictly
+before every DAO or Rust acquisition command. This authenticated signed-time
+and exact committed command order prove the authorization existed before any
+acquisition command; `authorized_before_any_dao_mutation` remains the exact
+ordering attestation.
+
+The exact run id, attempt, nonce, repository, workflow, commit, job,
+environment, campaign, and scenario scope make one authorization usable for
+one dispatch attempt only. A rerun has a different attempt and a new dispatch
+has a different run id and nonce, so either requires a new signed record.
+Copying a valid record/signature to another run, attempt, nonce, repository,
+workflow, job, environment, commit, or campaign is a binding failure before
+provider or scenario validation. The private signing key never enters the
+repository, GitHub secrets, runner, overlay, or retained bundle.
+
+Key validity and revocation are explicit. Rotation adds the successor key and
+finite validity interval in a new reviewed evidence-ready commit. Revocation
+adds the public key to that commit's revocation file and removes it from
+allowed signers. A revocation learned after a run is created invalidates every
+not-yet-acquired run under the old commit: cancel it and prepare a new commit;
+completed evidence remains historically bound to the authority contract that
+was effective at its signed time, unless an additive provenance/policy
+decision quarantines it after compromise. The offline validator never fetches
+or silently substitutes newer key material.
+
+Round-9 adds stable intrinsic reason codes
+`missing_acquisition_authorization_signature`,
+`invalid_acquisition_authority_contract`,
+`acquisition_authorization_signature_invalid`,
+`acquisition_authorization_run_binding_mismatch`, and
+`acquisition_authorization_verification_command_mismatch`; the round-8 codes
+remain for their unchanged classes. These failures exit 1 and form zero
+adapter output. If the exact `ssh-keygen -Y verify` capability is absent,
+`acquisition_authorization_verifier_unavailable` is exit-3 `BLOCKED`, never
+PASS. Forged actor or attacker-key signatures use
+`acquisition_authorization_signature_invalid`; replay across a run, attempt,
+or nonce uses `acquisition_authorization_run_binding_mismatch`.
+
+The following round-9 committed-read-allowlist binding supersedes only prior
+new-schema and manifest-contract counts and adds exactly
+`docs/validation/dao-differential-v1-read-allowlist.json` and
+`docs/validation/schema/dao-differential-v1-read-allowlist.schema.json` to the
+step-2 literal inventory. It changes no matrix, policy, overlay schema,
+workflow, acquisition, Rust, testkit, CLI, write/update, or P10 path.
+
+The allowlist is a closed canonical document with exactly integer
+`schema_version: 1`, string
+`document_type: "dao_differential_v1_read_allowlist"`, and `capabilities`.
+Each capability entry has exactly `capability_id` and `scenarios`; each
+scenario entry has exactly `scenario_id` and nonempty `branch_ids`.
+Capability entries, scenario entries, and branch ids are unique and strictly
+UTF-8 sorted by their literal ids. The document is at most 65,536 bytes,
+canonical UTF-8 JSON with sorted keys, compact separators, direct non-ASCII,
+integer-only numbers, no BOM or NUL, and exactly one trailing LF. Identifiers
+are exact catalog keys, never patterns. Any id containing `*`, `?`, `[`, `]`,
+`{`, `}`, `(`, `)`, `|`, `^`, `$`, backslash, or whitespace, or equal to
+case-insensitive `all`, is rejected; no glob or regex engine is invoked.
+
+The manifest binds the schema and document as exact contracts
+`read_allowlist_schema` and `read_allowlist`, respectively, using their fixed
+commit-relative paths, raw SHA-256, and size. They are loaded from the exact
+clean release commit, not from the overlay. Together with the round-9
+authority contracts, the closed `contracts` object therefore has exactly
+eighteen members: the prior sixteen plus these two.
+
+The step-2 committed document has `capabilities: []`. Empty is valid but
+authorizes nothing. After all otherwise applicable intrinsic selected-evidence
+checks succeed, it returns exit 3 `BLOCKED`, reason `read_allowlist_empty`, and
+zero adapter outputs before policy. Intrinsic malformed or mismatched selected
+evidence still exits 1 first. Synthetic complete fixtures may use a nonempty
+document solely to exercise validation. P8 step 4, not P8T, may populate the
+real file only in a new reviewed, human-approved, clean pushed evidence-ready
+commit; it may name only facts already committed in that same tree and cannot
+name future run, overlay, manifest, output, or evidence identities. The later
+manifest's raw binding is consequently not self-referential, and the
+allowlist edit alone advances no capability.
+
+The exact step-2 empty document is 92 bytes with raw SHA-256
+`5bf2d681e7368c0d96493f0e33d9e7a7a822fe9ab6318ae38f594d7642d003ae`.
+
+For each entry in a nonempty allowlist, `capability_id` is one literal P8
+read-advancement candidate, exists in the committed full support catalog, and
+is `implemented` at the release commit. Its scenario-id set equals exactly all
+complete committed protocol-v1.2 `rust_read_dao` scenarios that name the
+capability in `capability_ids`; omission and addition both fail. Each selected
+scenario is produced through the registered public `jet3::DatabaseReader`
+library/testkit subject closure, never a CLI-only subject. Its allowlisted
+branch set is registry-known, includes every required branch, excludes every
+forbidden branch, and equals the retained coverage receipt's observed branch
+set exactly. A scenario repeated under multiple capabilities has one identical
+branch set in every entry.
+
+The manifest and report scenario-id set equals the union of all allowlisted
+scenario ids. Adapter outputs form a subset only of the full support catalog;
+within the read allowlist they require exact equality: exactly one output for
+each allowlisted capability, no other output, and exact equality between each
+output's `scenario_ids` and that entry's scenario ids. The overlay expected
+output remains byte-exact with the independently recomputed adapter output.
+An intersection, proper subset, superset, duplicate, missing entry, or extra
+entry is not allowlist satisfaction.
+
+Stable failures are `invalid_read_allowlist` for schema, canonical bytes,
+ordering, uniqueness, literal-id, or wildcard failure;
+`read_allowlist_contract_mismatch` for fixed-path/hash/size/reference failure;
+`read_allowlist_membership_mismatch` for capability eligibility or
+implementation, scenario closure, library subject, branch registry/required/
+forbidden scope, repeated-scenario disagreement, or observed-branch
+inequality; and `read_allowlist_adapter_output_mismatch` for output-set or
+per-capability scenario-set inequality. Each exits 1 `FAIL` with zero adapter
+output before policy. The exact focused accept/reject commands and fixture
+semantics are frozen in `IMPLEMENTATION_PLAN.md`.
+
 Every timestamp uses uppercase UTC whole seconds and is calendar-valid. Run,
 command, and scenario completion may equal start but never precede it; every
 subordinate interval is within the inclusive run interval. Run identity and

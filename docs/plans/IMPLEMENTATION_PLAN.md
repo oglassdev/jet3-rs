@@ -1020,6 +1020,8 @@ Step 2's exact write scope is:
   schemas;
 - new provider-contract, provider-proof, and source-closure schemas plus their
   committed contract/registry;
+- commit-bound OpenSSH allowed-signers and revoked-keys authority contracts;
+- a committed closed library-read allowlist and its schema;
 - `coverage-receipt.schema.json` byte-for-byte from PR #92 head
   `e11c1b49ca0321f328091b561150792d59894ddd` (2,764 bytes, SHA-256
   `4fe1b33aae94ab1f7cb05ca3b66112edba89d17343788678c239693d3a340008`)
@@ -1038,7 +1040,11 @@ present there.
 
 Step 2 adds exactly:
 
+- `docs/validation/acquisition-authority-v1.allowed_signers`;
+- `docs/validation/acquisition-authority-v1.revoked_keys`;
+- `docs/validation/dao-differential-v1-read-allowlist.json`;
 - `docs/validation/schema/acquisition-authorization-v1.schema.json`;
+- `docs/validation/schema/dao-differential-v1-read-allowlist.schema.json`;
 - `docs/validation/schema/dao-differential-v1-manifest.schema.json`;
 - `docs/validation/schema/dao-differential-v1-report.schema.json`;
 - `docs/validation/schema/effective-support-result.schema.json`;
@@ -1351,6 +1357,209 @@ redistribution separately. The existing full adapter suite and repository
 contract command in the focused step-2 checks must load the new schema and
 exercise these tests; no acquisition command is run by any of them.
 
+The following round-9 authenticated-authorization amendment supersedes only
+the round-8 authorization shape, manifest-reference shape, contract count,
+run-timing sequence, reason/test set, and the earlier claim that authorization
+cannot bind an already-created hosted run. It does not authorize a dispatch or
+expand step 2 into workflow or acquisition implementation.
+
+Step 2 adds the two authority-contract paths already included in the literal
+inventory above. `docs/validation/acquisition-authority-v1.allowed_signers` is
+the closed, principal-sorted, finite-validity, Ed25519-only OpenSSH
+allowed-signers file; `docs/validation/acquisition-authority-v1.revoked_keys`
+is the closed one-public-key-per-line revocation file and may initially be
+empty. Private keys are never repository, runner, secret, or bundle inputs.
+The manifest binds both exact release-commit files by path/raw SHA-256/size as
+`acquisition_authority` and `acquisition_authority_revocations`, increasing
+the closed contract count from fourteen to sixteen without adding a schema.
+
+The existing `acquisition_authorization` manifest member becomes a closed
+object of exactly `document`, `signature`, and
+`verification_command_id`. The first two are exact references to
+`dao-bundle/acquisition-authorization.json` and
+`dao-bundle/acquisition-authorization.json.sig`, each with a unique matching
+complete-inventory row. The third selects one global, non-scenario
+`acquisition_authorization_verifier` command with the exact registered
+step-2 CLI/source closure, both artifact hashes, zero harness exit, and an
+interval before every provider/DAO/Rust acquisition command. The adapter
+always re-runs verification; recorded exit or log text is not authentication.
+
+The round-9 closed JSON schema is exactly the contract in `EVIDENCE.md`. It
+adds signed `authorization_nonce`, `repository`, `workflow`, and `hosted_run`
+members to the round-8 fields; replaces actor identity with the exact signed
+allowed-signers principal; and continues forbidding overlay/manifest hashes,
+result, and acquisition artifacts. Repository is `oglassdev/jet3-rs`; the
+workflow binds path, ref, SHA, YAML job, and environment; hosted run binds
+positive-integer run id/attempt and creation time; nonce is exactly 64
+lowercase hex. The manifest run object carries the corresponding values and
+must match them, current clean `HEAD`, and every retained trusted-run record.
+The future P8 path, YAML job id, and environment values are already fixed as
+`.github/workflows/windows-dao-p8-read.yml`, `acquire_read_evidence`, and
+`jet3-dao-acquisition`; all three remain read-only/nonexistent in P8T step 2.
+
+Authentication is the standard no-shell invocation frozen in `EVIDENCE.md`:
+OpenSSH `ssh-keygen -Y verify`, namespace
+`jet3-rs-acquisition-v1@oglassdev`, exact signed principal, signed
+`authorized_at` converted to UTC `verify-time`, commit-bound allowed signers
+and revoked keys, detached SSHSIG, and the exact canonical JSON bytes on
+standard input. Authority-contract grammar is validated before invocation.
+Only exit zero authenticates the human principal at that time. Missing
+capability is fail-closed `BLOCKED`; any wrong key, principal, namespace,
+signature, signed byte, validity interval, or revocation is `FAIL`.
+
+The implementation flow used by synthetic tests is run-created and
+pre-acquisition: fresh nonce; exact run id/attempt created; authorization
+signed; registered verification command succeeds; acquisition commands begin.
+It requires
+`evidence_ready.confirmed_at <= created_at <= authorized_at < run.started_at`,
+the verifier inside the run, and verifier completion strictly before all
+acquisition commands. P8T does not create such a run. P8's separately scoped
+preparation commit must later freeze a protected-environment workflow whose
+job waits before any runner/DAO command, receives the signed pair only as
+post-approval environment secrets, and invokes the step-2 verifier first.
+Neither authority contract is a dispatch authorization; this PR and step 2
+keep acquisition forbidden.
+
+The exact round-9 reason additions are
+`missing_acquisition_authorization_signature`,
+`invalid_acquisition_authority_contract`,
+`acquisition_authorization_signature_invalid`,
+`acquisition_authorization_run_binding_mismatch`,
+`acquisition_authorization_verification_command_mismatch`, and
+`acquisition_authorization_verifier_unavailable`. The last is exit 3
+`BLOCKED`; all other authorization rejection codes, including retained
+round-8 codes, exit 1. Every case forms zero adapter output before provider,
+scenario, comparison, or disabled-policy handling.
+
+Step 2 adds these exact focused tests to the already-inventoried
+`tools/tests/test_dao_differential_adapter.py`:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_signed_run_bound_acquisition_authorization_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_missing_acquisition_authorization_signature_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_invalid_acquisition_authority_contract_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_forged_acquisition_authorization_actor_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_unlisted_or_revoked_acquisition_authority_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_cross_run_replay_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_cross_attempt_replay_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_nonce_replay_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_verification_command_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_acquisition_authorization_verifier_unavailable_is_blocked -v
+sha256sum docs/validation/acquisition-authority-v1.allowed_signers docs/validation/acquisition-authority-v1.revoked_keys docs/validation/schema/acquisition-authorization-v1.schema.json
+```
+
+The positive test generates an ephemeral fixture signer, derives the isolated
+fixture's commit-bound allowed-signers entry, signs the exact canonical bytes,
+and proves both direct verifier and full-adapter success without acquisition.
+The forged-actor test covers both actor-byte mutation under the old signature
+and a fully re-signed record from an unlisted attacker key, and requires
+`acquisition_authorization_signature_invalid`. Cross-run, cross-attempt, and
+nonce tests copy the unchanged valid pair into the mismatching identity and
+require `acquisition_authorization_run_binding_mismatch`. The verification-
+command test covers missing command, wrong role/source/hash, nonzero exit, and
+command completion at or after the first acquisition command. The unavailable
+test mocks only executable resolution and requires exit 3 `BLOCKED`; no test
+uses a real human key, workflow, GitHub approval, provider, or DAO command.
+
+The following round-9 committed-read-allowlist amendment supersedes only the
+prior new-schema/manifest-contract counts and otherwise adds only the two
+allowlist paths already included in the literal inventory and the validation
+rules below. It does not enable policy, change matrix data, authorize
+acquisition, add a producer or CLI, or extend the read-leg schema to any write,
+update, or P10 operation.
+
+`docs/validation/dao-differential-v1-read-allowlist.json` is canonical UTF-8
+JSON, at most 65,536 bytes, with exactly `schema_version: 1`,
+`document_type: "dao_differential_v1_read_allowlist"`, and `capabilities`.
+Each strictly capability-id-sorted entry has exactly `capability_id` and
+`scenarios`; each strictly scenario-id-sorted scenario has exactly
+`scenario_id` and a nonempty, strictly sorted `branch_ids` array. All arrays
+are duplicate-free. Keys are sorted, separators compact, strings are direct
+Unicode, numbers are integers, and the document has no BOM, NUL, wildcard or
+pattern token and ends in exactly one LF. Every identifier is a literal exact
+catalog id. Any identifier containing `*`, `?`, `[`, `]`, `{`, `}`, `(`, `)`,
+`|`, `^`, `$`, backslash, or whitespace, or equal to case-insensitive `all`,
+is invalid rather than expansion syntax; no glob or regex engine is invoked.
+
+Step 2 commits `capabilities: []`. That empty document is schema-valid but
+authorizes no adapter output and produces exit 3 `BLOCKED` with reason
+`read_allowlist_empty` after ordinary intrinsic validation succeeds. Isolated
+step-2 fixtures may replace the repository fixture with an exact nonempty
+allowlist to test the validator. Only P8 step 4 may change the real document to
+a nonempty allowlist, in a separately reviewed and human-approved clean pushed
+evidence-ready commit. That commit names only already-committed catalog,
+scenario, and branch ids, not a future run, overlay, manifest, result, or
+evidence id; the later detached manifest therefore binds it without
+self-reference. Populating the allowlist alone is no compatibility result and
+does not change stored or effective verification.
+
+The exact initial bytes are
+`{"capabilities":[],"document_type":"dao_differential_v1_read_allowlist","schema_version":1}\n`:
+92 bytes with SHA-256
+`5bf2d681e7368c0d96493f0e33d9e7a7a822fe9ab6318ae38f594d7642d003ae`.
+
+The manifest `contracts` object binds the exact release-commit schema as
+`read_allowlist_schema` and the exact release-commit document as
+`read_allowlist`, each by its fixed normalized path, raw SHA-256, and size.
+This increases the round-9 closed contract count from sixteen to eighteen and
+the final step-2 new-schema count from nine to ten. Neither an overlay copy nor
+a manifest-supplied path may substitute for either committed file.
+
+For a nonempty allowlist, each capability must be one exact P8 read-advancement
+candidate, exist in the full committed support catalog, and be `implemented`
+at the exact release commit. Its scenario ids equal, with no omission or
+addition, all complete committed protocol-v1.2 `rust_read_dao` scenarios whose
+`capability_ids` contain that capability. Every listed scenario exists, names
+that capability literally, and uses the public-library/testkit producer
+closure; an optional CLI is never the capability subject. Each listed branch
+exists in the committed branch registry, contains every required branch, and
+contains no forbidden branch. The retained coverage branch set must equal the
+listed `branch_ids` exactly. If one scenario appears under multiple
+capabilities, its branch list must be byte-for-byte identical in each entry.
+
+The manifest and report scenario-id set equals the union of allowlisted
+scenario ids. Adapter outputs are a subset of the full support catalog but
+equal the allowlist exactly: one output per allowlisted capability, none for
+any other capability, and each output's `scenario_ids` equals that
+capability's allowlisted scenario ids. The separately validated overlay
+expected output remains exact equality with the recomputed output. Missing,
+extra, duplicate, or merely overlapping capabilities, scenarios, branches,
+or outputs never count as subset success.
+
+The stable intrinsic reasons are `invalid_read_allowlist` for closed-schema,
+canonical-byte, ordering, duplicate, literal-id, or no-wildcard failure;
+`read_allowlist_contract_mismatch` for wrong/missing path, raw hash, size, or
+contract linkage; `read_allowlist_membership_mismatch` for catalog,
+implementation, capability/scenario/branch, producer-subject, or observed-
+branch disagreement; and `read_allowlist_adapter_output_mismatch` for any
+output-set or per-capability scenario-set disagreement. They exit 1 `FAIL`
+with zero adapter output before policy. `read_allowlist_empty` is exit 3
+`BLOCKED` with zero adapter output after all otherwise applicable intrinsic
+checks and before policy; malformed selected evidence cannot hide behind it.
+
+Step 2 adds these exact focused tests to the already-inventoried
+`tools/tests/test_dao_differential_adapter.py`:
+
+```sh
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_empty_committed_read_allowlist_is_blocked -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_exact_library_read_allowlist_passes -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_read_allowlist_wildcard_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_read_allowlist_contract_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_read_allowlist_capability_scenario_membership_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_read_allowlist_branch_membership_mismatch_is_rejected -v
+python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter.py' -k test_read_allowlist_adapter_output_mismatch_is_rejected -v
+sha256sum docs/validation/dao-differential-v1-read-allowlist.json docs/validation/schema/dao-differential-v1-read-allowlist.schema.json
+```
+
+The positive fixture uses two capabilities sharing one scenario and proves
+exact per-capability scenario equality, identical shared-scenario branch
+scope, library/testkit subject closure, and exact adapter-output equality. The
+wildcard test mutates capability, scenario, and branch ids in subtests. The
+membership tests independently cover missing/extra capability scenarios,
+unknown or non-implemented capabilities, missing/extra/forbidden branches,
+and observed/listed branch inequality. Every exit-1 test asserts its exact
+reason and zero adapter outputs; the empty test asserts exit 3 and zero output.
+
 The following round-8 test-reference clarification supersedes only the
 ambiguous phrase `The first test` in the immediately following paragraph. That
 phrase refers specifically to
@@ -1548,6 +1757,22 @@ authorization, adapter, subset-versus-G3, or scientific-event requirements.
 This sequence is the only P8 step-4 publication authority. In particular, no
 future run id, commit id, overlay hash, or bundle-manifest hash may be embedded
 in the evidence-ready commit that the run validates.
+
+The round-9 authenticated-authorization sequence supersedes only Steps 1 and
+2 above where they authorize before dispatch. The preparation commit still
+contains no run id, nonce, authorization, overlay, manifest hash, or result,
+but it must contain the separately approved P8 acquisition workflow and the
+protected-environment, first-command verification contract. A human creates a
+fresh nonce and dispatches the exact commit once; this creates a run whose
+acquisition job remains blocked before any job step or DAO mutation. The
+human then observes and signs the exact repository/workflow/run/attempt/
+commit/job/environment/nonce record off-run, supplies the record/signature as
+environment secrets, and approves the pending job. Only the registered
+verifier's success may start provider or acquisition commands. A rerun,
+redispatch, or changed nonce requires a new signature and remains subject to
+the Section 6.4 scientific-event decision. This is detached run binding, not
+future self-reference: only the post-commit authorization and later manifest
+name the already-created run.
 
 ### P9 — Writer (Rust) and independent structural verifier
 

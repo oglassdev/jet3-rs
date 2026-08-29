@@ -5983,6 +5983,185 @@ Use `not applicable` explicitly rather than omitting a field.
   authorizes no implementation, acquisition, or dispatch, changes no matrix or
   policy byte, and advances no capability
 
+### SRC-0026 — GitHub protected-environment approval boundary
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: public platform-contract documentation; no provider, MDB, format, or
+  compatibility observation
+- Source: GitHub Docs, “Reviewing deployments,”
+  <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments>;
+  GitHub Docs, “Deploying with GitHub Actions,”
+  <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments>;
+  GitHub Docs, “Verifying attestations offline,”
+  <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline>
+- Accessed: 2026-08-29
+- Observation: GitHub documents that a job referencing an environment with
+  required reviewers waits for approval before it starts, and that environment
+  secrets become accessible after approval. GitHub separately documents
+  offline-verifiable Sigstore attestations for workflow-produced artifacts.
+  The reviewed deployment documentation does not define its approval UI/API
+  response as a downloadable signed human-approval receipt, and a build
+  attestation authenticates the workflow producer rather than the human
+  environment reviewer. The latter two sentences are a conservative contract
+  inference from the cited documented interfaces, not a claim that no
+  undocumented platform facility exists.
+- Usage: execution-order boundary for the P8T round-9 authenticated
+  authorization amendment. The protected environment blocks the already-
+  created acquisition job, while a separate human signature authenticates the
+  approval record; neither workflow logs nor GitHub actor strings are treated
+  as authorization evidence.
+- Rights: public documentation cited by URL; no source text, credentials,
+  platform response, or provider bytes are redistributed
+- Review: this source authorizes no workflow change, GitHub state change,
+  dispatch, environment approval, acquisition, or capability movement
+
+### SRC-0027 — OpenSSH detached-signature verification contract
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: public cryptographic-tool contract; no provider, MDB, format, or
+  compatibility observation
+- Source: OpenBSD manual pages, `ssh-keygen(1)`,
+  <https://man.openbsd.org/ssh-keygen.1>
+- Accessed: 2026-08-29
+- Observation: `ssh-keygen -Y sign` signs exact input under a required
+  namespace. `ssh-keygen -Y verify` accepts the message on standard input and
+  requires an allowed-signers file, signer identity, namespace, signature, and
+  optional revocation file; zero exit indicates successful authorized-signer
+  verification. Allowed-signers entries support namespace and finite
+  `valid-after`/`valid-before` constraints, and `-O verify-time` selects the
+  time used for those validity checks.
+- Usage: standard independently implementable verifier, namespace separation,
+  commit-bound authority allowlist, finite key-validity window, and explicit
+  revocation input for the P8T round-9 authorization contract
+- Rights: public manual cited by URL; no external code or private key is copied
+  or redistributed
+- Review: this source supplies no MDB format knowledge and authorizes no
+  signing, dispatch, acquisition, or capability movement
+
+### EXP-0067 — P8T authenticated run-bound acquisition authorization
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract correction; no authorization, signature,
+  GitHub mutation, dispatch, DAO acquisition, provider observation, Rust
+  result, release evidence, support-state change, or compatibility result
+- Question: How can G3 authenticate that a human release authority approved
+  one exact already-created hosted run before any acquisition command, and
+  reject forged actors or replay across runs and attempts, without embedding a
+  future identity in the evidence-ready commit?
+- Origin: the P8T round-8 contract in `EXP-0065`; independent-review finding
+  that actor/authority strings plus manifest hash binding neither authenticate
+  human origin nor enforce one dispatch while hosted-run identity is forbidden;
+  the platform boundary in `SRC-0026`; and the detached-signature primitive in
+  `SRC-0027`. No MDB implementation, provider binary, MDB file, retained
+  campaign payload, private key, or GitHub run was inspected.
+- Environment: document and public-contract analysis at exact clean base commit
+  `c88b9f6a7b85ac78c8d4f26f6301056af014408b` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: keep the evidence-ready commit free of authorization/run/result
+  self-reference; add commit-bound finite-validity Ed25519 allowed-signers and
+  revocation contracts; create a hosted run with a fresh nonce while its
+  acquisition job is protected-environment blocked; sign exact canonical JSON
+  naming repository, workflow, commit, job, environment, run id/attempt,
+  nonce, campaign, and scope; verify exact bytes with OpenSSH before every
+  acquisition command and again during detached acceptance; and bind the
+  record, SSHSIG, verification command, authority contracts, and strict times
+  into the later manifest.
+- Artifacts: `docs/validation/EVIDENCE.md` round-9 authority, signature, run,
+  replay, ordering, revocation, and reason-code contract;
+  `docs/validation/ACCEPTANCE.md` G3 consumption rule;
+  `docs/plans/IMPLEMENTATION_PLAN.md` literal authority-file inventory,
+  step-2 schemas/contracts/tests/commands, and P8 publication-sequence
+  supersession
+- Observation: a signature made off-run by a key absent from the repository
+  authenticates the signed principal and every run/scope byte against a public
+  key in the exact release commit. Run id, attempt, and unique nonce make an
+  unchanged record unusable for rerun or redispatch. Protected-environment
+  waiting permits those identities to exist before signing while still
+  preventing repository and DAO commands from starting.
+- Interpretation: signature verification, not JSON actor text, grants human
+  authority. The exact registered verifier command and strict authenticated
+  time/run ordering place approval before acquisition; the adapter repeats
+  verification rather than trusting the producer's exit record. Key rotation
+  or revocation requires a new evidence-ready commit for any not-yet-acquired
+  run, while later compromise handling remains an explicit additive
+  provenance/policy decision rather than silent online key substitution.
+- Tests frozen: signed positive fixture; missing signature; invalid authority
+  grammar; forged actor under the old signature; attacker-key and revoked-key
+  signatures; cross-run, cross-attempt, and nonce replay; wrong/missing/nonzero/
+  late verification command; and unavailable verifier `BLOCKED`, using the
+  exact commands and reasons in `IMPLEMENTATION_PLAN.md`
+- Usage: `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`;
+  `file:docs/plans/IMPLEMENTATION_PLAN.md`
+- Rights: project-authored contract analysis plus public documentation cited in
+  `SRC-0026` and `SRC-0027`; no private key, platform receipt, provider bytes,
+  MDB, or acquisition artifact is redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, signature, dispatch, environment approval,
+  acquisition, or GitHub mutation, keeps `dao_differential_v1` disabled,
+  changes no matrix/effective verification, and advances no capability
+
+### EXP-0068 — P8T committed library-read allowlist contract
+
+- Recorded: 2026-08-29, OpenAI Codex
+- Kind: additive validation-contract and implementation-scope correction; no
+  policy enablement, matrix mutation, workflow, dispatch, DAO acquisition,
+  provider observation, Rust result, release evidence, support-state change,
+  or compatibility result
+- Question: How can step 2 validate an exact committed human-controlled P8 read
+  allowlist without silently authorizing current capabilities or embedding
+  future evidence identities, while freezing capability, scenario, branch,
+  and adapter-output membership precisely enough to implement?
+- Origin: the P8 read-advancement requirement and P8T literal file inventory in
+  `docs/plans/IMPLEMENTATION_PLAN.md`; the read-leg manifest/adapter contract in
+  `docs/validation/EVIDENCE.md`; G3 in `docs/validation/ACCEPTANCE.md`; and
+  independent-review finding that no committed allowlist document, schema,
+  manifest binding, exact output-membership rule, reason, or focused test was
+  frozen. No MDB implementation, provider binary, MDB, retained campaign
+  payload, or external format source was inspected.
+- Environment: document and repository-contract analysis at exact clean base
+  commit `c88b9f6a7b85ac78c8d4f26f6301056af014408b` on branch
+  `docs/p8t-exact-commit-evidence-amendment`; operating system, architecture,
+  DAO provider, locale, code pages, and time zone are not applicable
+- Protocol: add one canonical closed allowlist path and schema path to the
+  literal step-2 inventory; bind both fixed release-commit files in the
+  manifest by path/raw SHA-256/size; commit an initially empty document; define
+  literal no-wildcard capability-to-complete-scenario-to-exact-observed-branch
+  membership and library/testkit subject closure; require adapter-output set
+  equality with the allowlist while retaining full-catalog reporting; and
+  freeze fail-closed reasons and focused empty/pass/tamper tests.
+- Artifacts: `docs/plans/IMPLEMENTATION_PLAN.md` literal paths, transition,
+  membership, reasons, and test commands; `docs/validation/EVIDENCE.md` closed
+  manifest/adapter contract; and `docs/validation/ACCEPTANCE.md` G3 rule
+- Observation: an empty committed allowlist can be fully schema/hash/size
+  validated in step 2 yet authorizes no output. A later human-approved P8
+  evidence-ready commit can populate only ids that already exist in that same
+  tree; because the detached run and manifest bind the resulting commit after
+  it exists, neither file contains its own hash or a future result identity.
+- Interpretation: P8T supplies only the validation mechanism. P8 step 4 owns
+  the additive human-approved empty-to-explicit transition. Exact output-set
+  and per-capability scenario equality prevent an allowlisted subset from
+  becoming an implicit wildcard, while the unchanged full-catalog result and
+  missing write/update contract blocker prevent a read result from becoming
+  full G3 or P10 evidence.
+- Tests frozen: empty committed allowlist `BLOCKED`; exact library-first
+  positive fixture; wildcard rejection across all id levels; contract
+  path/hash/size mismatch; capability/scenario eligibility and closure
+  mismatch; required/forbidden/observed branch mismatch; and adapter-output
+  set/scenario mismatch, using the exact commands and reasons in
+  `IMPLEMENTATION_PLAN.md`
+- Usage: `file:docs/plans/IMPLEMENTATION_PLAN.md`;
+  `file:docs/validation/EVIDENCE.md`;
+  `file:docs/validation/ACCEPTANCE.md`
+- Rights: project-authored validation-contract analysis; no provider bytes,
+  private authority material, MDB, acquisition artifact, or external code is
+  redistributed
+- Review: pending P8T step-1 human go/no-go and independent review; this entry
+  authorizes no implementation, policy enablement, matrix mutation, workflow,
+  signature, dispatch, acquisition, or capability movement; the real step-2
+  allowlist remains empty and `dao_differential_v1` remains disabled
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

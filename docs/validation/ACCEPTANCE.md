@@ -201,6 +201,75 @@ misordered, over-broad, or rights-inconsistent authorization is intrinsic
 exit-1 `FAIL` before provider or evidence validation, using the exact round-8
 reason codes in `EVIDENCE.md`; disabled policy cannot suppress it.
 
+The round-9 authenticated-authorization amendment supersedes only that
+record-shape and timing description. The exact evidence-ready commit contains
+the allowed-signers and revoked-keys authority contracts, but no private key
+or authorization. A dispatch with a fresh 64-lowercase-hex nonce first creates
+one hosted run whose acquisition job is blocked on its protected environment.
+The human then signs a canonical record naming exact repository, workflow
+path/ref/SHA, YAML job, environment, run id, run attempt, commit, nonce,
+campaign, and read scope. The record still contains no future overlay,
+manifest hash, result, or acquisition artifact.
+
+G3 requires and inventories both
+`dao-bundle/acquisition-authorization.json` and its detached
+`dao-bundle/acquisition-authorization.json.sig`, and binds the exact release
+commit's `docs/validation/acquisition-authority-v1.allowed_signers` and
+`docs/validation/acquisition-authority-v1.revoked_keys` as manifest contracts.
+It independently invokes `ssh-keygen -Y verify` with the fixed
+`jet3-rs-acquisition-v1@oglassdev` namespace, the signed principal, the signed
+time as `verify-time`, and the commit-bound allow/revocation files. JSON actor
+or authority text, GitHub actor text, a workflow log, and recomputed overlay
+hashes are never authentication. A forged actor, unlisted/revoked signer,
+changed signed byte, or nonzero verification is intrinsic `FAIL`.
+
+The environment-gated acquisition job receives the signed pair only after the
+run exists and the environment is approved. Its first repository-controlled
+command is the registered authorization verifier; no provider, DAO, or Rust
+acquisition command may start until that command exits zero. G3 independently
+checks the signature, exact command/source binding, and the strict order
+`evidence_ready.confirmed_at <= run.created_at <= authorized_at <
+run.started_at <= verification start <= verification completion < first
+acquisition-command start`. A copied approval cannot authorize a rerun or a
+second dispatch because run id, attempt, and unique nonce are signed and must
+equal the manifest. Missing verifier capability is `BLOCKED`; forged,
+misbound, replayed, revoked, or misordered selected evidence is `FAIL`, using
+the exact round-9 reason codes in `EVIDENCE.md`, before disabled policy.
+
+P8T step 2 only implements this validator and synthetic fixtures. It neither
+adds nor modifies a workflow, environment, secret, acquisition command, or
+GitHub state. P8 must freeze and separately approve the actual protected
+workflow/environment wiring before the first dispatch.
+
+G3 also loads the exact clean release commit's canonical
+`docs/validation/dao-differential-v1-read-allowlist.json` through
+`docs/validation/schema/dao-differential-v1-read-allowlist.schema.json` and
+requires manifest contracts `read_allowlist` and `read_allowlist_schema` to
+bind their fixed paths, raw SHA-256 values, and sizes. Overlay copies,
+wildcards, patterns, `all`, and prose aliases cannot authorize a read.
+
+The P8T step-2 allowlist is empty. It validates as a contract but authorizes no
+output: after otherwise applicable intrinsic validation, G3 exits 3 `BLOCKED`
+with `read_allowlist_empty` and zero adapter outputs. P8 step 4 may replace it
+only through a separately reviewed and human-approved clean pushed commit that
+names exact already-committed library capability, complete scenario, and
+registered branch memberships. This creates no future-hash self-reference and
+does not itself change matrix or effective verification.
+
+For a nonempty allowlist, G3 requires each capability to be an exact eligible
+implemented P8 read capability; its scenarios to equal every complete
+committed `rust_read_dao` scenario naming it; and each scenario's branch ids to
+equal the observed coverage set while containing all required and no forbidden
+branch. Shared scenarios have identical branch sets. The manifest/report
+scenario set equals the union of these entries. Adapter outputs remain a
+subset of the full support catalog but equal the allowlist exactly: one per
+capability, none extra, with exact per-capability scenario ids and a
+library/testkit rather than CLI-only subject. Violations use the stable
+`invalid_read_allowlist`, `read_allowlist_contract_mismatch`,
+`read_allowlist_membership_mismatch`, or
+`read_allowlist_adapter_output_mismatch` exit-1 reasons in `EVIDENCE.md`, form
+zero adapter output, and cannot be suppressed by disabled policy.
+
 Executed sources come from the committed hash-bound source-closure registry.
 G3 requires exact union equality with command source lists and
 `executed_sources`, correct roles and indexed argv entrypoints, and rejects
