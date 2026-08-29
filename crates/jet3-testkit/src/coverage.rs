@@ -99,6 +99,7 @@ pub fn coverage(
         SnapshotOutcome::OpeningFailure {
             branches,
             error_class,
+            ..
         } => (branches, Some(*error_class)),
     };
     let scenarios = scenarios
@@ -164,6 +165,7 @@ mod tests {
         assert!(scenarios.len() > 90);
         let outcome = SnapshotOutcome::OpeningFailure {
             error_class: "unsupported_version",
+            database_sha256: "0".repeat(64),
             branches: [
                 "open.signature_geometry",
                 "open.rejected_format",

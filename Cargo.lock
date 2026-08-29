@@ -152,6 +152,7 @@ version = "0.0.0"
 dependencies = [
  "jet3",
  "jet3-testkit",
+ "serde_json",
  "tempfile",
 ]
 

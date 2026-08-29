@@ -9,9 +9,9 @@ use std::collections::BTreeSet;
 
 use jet3::{
     AllocationMap, ByteCount, CatalogObjectClass, CatalogObjectKind, CatalogRecord,
-    DatabaseFormatError, DatabaseOpenError, DatabaseReader, DefinitionName,
-    ExternalLongValueStorage, IndexDefinitionKind, IndexDirection, IndexKeyEncoding, IndexNodeKind,
-    JET3_PAGE_SIZE, LongValueChunkValue, LongValueKind, LongValueReference, PageNumber, ReadLimits,
+    DatabaseFormatError, DatabaseOpenError, DatabaseReader, ExternalLongValueStorage,
+    IndexDefinitionKind, IndexDirection, IndexKeyEncoding, IndexNodeKind, JET3_PAGE_SIZE,
+    LongValueChunkValue, LongValueKind, LongValueReference, PageNumber, ReadLimits,
     RelationshipSide, ResourceBudget, ResourceLimits, RowCursor, RowView, SliceSource,
     TableDefinition, TextCodePage, decode_allocation_map, locate_table_maps, locate_usage_map,
 };
@@ -55,6 +55,8 @@ pub enum SnapshotOutcome {
     OpeningFailure {
         /// `unsupported_version`, `encrypted_database`, or `password_protected`.
         error_class: &'static str,
+        /// SHA-256 of the exact database bytes.
+        database_sha256: String,
         /// Reader branches exercised.
         branches: Branches,
     },
@@ -71,6 +73,7 @@ pub fn snapshot_bytes(
         ByteCount::new(u64::MAX),
     ));
     let mut budget = ResourceBudget::new(limits);
+    let database_sha256 = sha256_hex(bytes);
     let source = SliceSource::new(bytes, budget.read_budget()).map_err(reader_error)?;
     let mut branches = Branches::new();
     let mut database = match DatabaseReader::from_source(source, &mut budget) {
@@ -87,6 +90,7 @@ pub fn snapshot_bytes(
             };
             return Ok(SnapshotOutcome::OpeningFailure {
                 error_class,
+                database_sha256,
                 branches,
             });
         }
@@ -97,7 +101,7 @@ pub fn snapshot_bytes(
     let mut snapshot = SemanticSnapshot::new(
         &options.scenario_id,
         &options.source_revision,
-        sha256_hex(bytes),
+        database_sha256,
     )?;
     let mut reader = Reader {
         database: &mut database,
@@ -112,7 +116,7 @@ pub fn snapshot_bytes(
         }
     }
     snapshot.relationships = reader.pair_relationships()?;
-    snapshot.canonicalize()?;
+    snapshot.canonicalize();
     Ok(SnapshotOutcome::Snapshot {
         snapshot: Box::new(snapshot),
         branches: reader.branches,
@@ -163,11 +167,7 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
         else {
             return Ok(None);
         };
-        let name = record
-            .name()
-            .decoded_ascii()
-            .ok_or_else(|| SnapshotError::NonAsciiName(record.name().raw_bytes().to_vec()))?
-            .to_owned();
+        let name = ascii_name(record.name().decoded_ascii(), record.name().raw_bytes())?;
         let definition = self
             .database
             .table_definition(root, self.budget)
@@ -184,7 +184,7 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
         let column_names = definition
             .columns()
             .iter()
-            .map(|column| ascii_name(column.name()))
+            .map(|column| ascii_name(column.name().decoded_ascii(), column.name().raw_bytes()))
             .collect::<Result<Vec<_>, _>>()?;
         let columns = definition
             .columns()
@@ -277,7 +277,7 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
                 .collect::<Result<Vec<_>, SnapshotError>>()?;
             indexes.push(Index {
                 fields,
-                name: ascii_name(logical.name())?,
+                name: ascii_name(logical.name().decoded_ascii(), logical.name().raw_bytes())?,
                 primary,
                 properties: PropertyMap::new(),
                 required: physical.required(),
@@ -313,7 +313,10 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             self.sides.push(RelationshipSideRecord {
-                name: ascii_name(relationship.name())?,
+                name: ascii_name(
+                    relationship.name().decoded_ascii(),
+                    relationship.name().raw_bytes(),
+                )?,
                 table_name: table_name.to_owned(),
                 table_root: root,
                 side: relationship.side(),
@@ -416,10 +419,11 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
     }
 
     fn rows(&mut self, definition: &TableDefinition) -> Result<Vec<crate::Row>, SnapshotError> {
-        let has_variable = definition
+        let variable_columns = definition
             .columns()
             .iter()
-            .any(|column| matches!(column.storage(), jet3::ColumnStorageClass::Variable { .. }));
+            .filter(|column| matches!(column.storage(), jet3::ColumnStorageClass::Variable { .. }))
+            .count();
         let code_page = self.code_page;
         let mut cursor = self
             .database
@@ -434,7 +438,7 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
             if locator != row.storage_locator() {
                 branches.insert("rows.overflow_pointer".to_owned());
             }
-            if has_variable && row.raw_bytes().len() > usize::from(u8::MAX) {
+            if variable_columns == 1 && row.raw_bytes().len() > usize::from(u8::MAX) {
                 branches.insert("rows.wide_variable_layout".to_owned());
             }
             match expected_slot {
@@ -469,7 +473,7 @@ fn decode_row(
     let mut values = PropertyMap::new();
     let mut pending = Pending::new();
     for column in definition.columns() {
-        let name = ascii_name(column.name())?;
+        let name = ascii_name(column.name().decoded_ascii(), column.name().raw_bytes())?;
         let decoded = row
             .value(column.ordinal(), code_page)
             .map_err(reader_error)?
@@ -541,8 +545,8 @@ const fn text_branch(code_page: TextCodePage) -> &'static str {
     }
 }
 
-fn ascii_name(name: &DefinitionName) -> Result<String, SnapshotError> {
-    name.decoded_ascii()
+fn ascii_name(decoded: Option<&str>, raw: &[u8]) -> Result<String, SnapshotError> {
+    decoded
         .map(str::to_owned)
-        .ok_or_else(|| SnapshotError::NonAsciiName(name.raw_bytes().to_vec()))
+        .ok_or_else(|| SnapshotError::NonAsciiName(raw.to_vec()))
 }

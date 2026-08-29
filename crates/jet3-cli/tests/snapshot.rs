@@ -50,7 +50,8 @@ fn snapshot_pair_passes_the_protocol_validator() -> TestResult {
     assert!(summary.contains("\"scenario_satisfied\":true"), "{summary}");
 
     let validator = repository_root().join("oracle/windows-dao/scripts/validate_protocol_v1_2.py");
-    let python = std::env::var("PYTHON").unwrap_or_else(|_| "python3".to_owned());
+    let default_python = if cfg!(windows) { "python" } else { "python3" };
+    let python = std::env::var("PYTHON").unwrap_or_else(|_| default_python.to_owned());
     let validation = Command::new(python)
         .arg("-B")
         .arg(&validator)

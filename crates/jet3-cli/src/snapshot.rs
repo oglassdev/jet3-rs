@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use jet3::TextCodePage;
 use jet3_testkit::{
     PROTOCOL_SCENARIOS, Producer, SnapshotOptions, SnapshotOutcome, canonical_json, coverage,
-    parse_scenarios, sha256_hex, snapshot_bytes, validate_scenario_id,
+    parse_scenarios, snapshot_bytes, validate_scenario_id,
 };
 
 pub(crate) const HELP: &str = "\
@@ -42,10 +42,12 @@ pub(crate) fn parse_args(
     let mut code_page = TextCodePage::Windows1252;
     while let Some(option) = arguments.next() {
         let value = arguments.next().ok_or("missing_option_value")?;
-        let text = value.to_str().ok_or("invalid_option_value")?;
         if option == "--out" {
             out = Some(PathBuf::from(value));
-        } else if option == "--scenario" {
+            continue;
+        }
+        let text = value.to_str().ok_or("invalid_option_value")?;
+        if option == "--scenario" {
             validate_scenario_id(text).map_err(|_| "invalid_scenario_id")?;
             scenario_id = Some(text.to_owned());
         } else if option == "--source-revision" {
@@ -84,10 +86,16 @@ pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
         kind: "rust",
         source_revision: command.source_revision.clone(),
     };
+    let database_sha256 = match &outcome {
+        SnapshotOutcome::Snapshot { snapshot, .. } => snapshot.database_sha256.clone(),
+        SnapshotOutcome::OpeningFailure {
+            database_sha256, ..
+        } => database_sha256.clone(),
+    };
     let receipt = coverage(
         &command.scenario_id,
         producer,
-        sha256_hex(&bytes),
+        database_sha256,
         &outcome,
         &scenarios,
     );
@@ -117,25 +125,15 @@ pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
         .scenarios
         .iter()
         .any(|scenario| scenario.id == command.scenario_id && scenario.satisfied);
-    let summary = serde_json_line(&[
-        ("ok", "true".to_owned()),
-        ("outcome", quote(outcome_name)),
-        ("error_class", error_class.map_or("null".to_owned(), quote)),
-        ("scenario_id", quote(&command.scenario_id)),
-        ("scenario_satisfied", satisfied.to_string()),
-        ("branches", receipt.branches.len().to_string()),
-    ]);
-    Ok(summary)
-}
-
-fn quote(text: &str) -> String {
-    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
-}
-
-fn serde_json_line(fields: &[(&str, String)]) -> String {
-    let body: Vec<String> = fields
-        .iter()
-        .map(|(key, value)| format!("\"{key}\":{value}"))
-        .collect();
-    format!("{{{}}}\n", body.join(","))
+    let summary = serde_json::json!({
+        "ok": true,
+        "outcome": outcome_name,
+        "error_class": error_class,
+        "scenario_id": command.scenario_id,
+        "scenario_satisfied": satisfied,
+        "branches": receipt.branches.len(),
+    });
+    let mut line = serde_json::to_string(&summary).map_err(|error| error.to_string())?;
+    line.push('\n');
+    Ok(line)
 }

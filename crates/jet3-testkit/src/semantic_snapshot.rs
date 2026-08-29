@@ -386,8 +386,8 @@ impl SemanticSnapshot {
         })
     }
 
-    /// Sorts every protocol-ordered sequence and assigns row keys.
-    pub fn canonicalize(&mut self) -> Result<(), SnapshotError> {
+    /// Sorts every protocol-ordered sequence and numbers duplicate rows.
+    pub fn canonicalize(&mut self) {
         self.tables
             .sort_by(|left, right| left.name.cmp(&right.name));
         for table in &mut self.tables {
@@ -395,11 +395,10 @@ impl SemanticSnapshot {
             table
                 .indexes
                 .sort_by(|left, right| left.name.cmp(&right.name));
-            canonicalize_rows(&mut table.rows)?;
+            canonicalize_rows(&mut table.rows);
         }
         self.relationships
             .sort_by(|left, right| left.name.cmp(&right.name));
-        Ok(())
     }
 
     /// Emits compact canonical UTF-8 JSON followed by exactly one LF.
@@ -425,10 +424,8 @@ pub fn row_from_values(values: PropertyMap) -> Result<Row, SnapshotError> {
     })
 }
 
-fn canonicalize_rows(rows: &mut [Row]) -> Result<(), SnapshotError> {
-    for row in rows.iter_mut() {
-        row.canonical_key = sha256_hex(&canonical_json(&row.values)?);
-    }
+/// Sorts rows built by [`row_from_values`] and numbers byte-identical duplicates.
+fn canonicalize_rows(rows: &mut [Row]) {
     rows.sort_by(|left, right| left.canonical_key.cmp(&right.canonical_key));
     let mut previous: Option<(String, u64)> = None;
     for row in rows.iter_mut() {
@@ -438,7 +435,6 @@ fn canonicalize_rows(rows: &mut [Row]) -> Result<(), SnapshotError> {
         };
         previous = Some((row.canonical_key.clone(), row.duplicate_ordinal));
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -477,7 +473,7 @@ mod tests {
             .tables
             .push(table("b", vec![row(2)?, row(1)?, row(2)?]));
         snapshot.tables.push(table("a", Vec::new()));
-        snapshot.canonicalize()?;
+        snapshot.canonicalize();
         assert_eq!(snapshot.tables[0].name, "a");
         let rows = &snapshot.tables[1].rows;
         assert!(rows[0].canonical_key < rows[1].canonical_key);
@@ -496,6 +492,56 @@ mod tests {
             )
         );
         assert!(json.ends_with("}\n"));
+        Ok(())
+    }
+
+    #[test]
+    fn every_object_emits_keys_in_codepoint_order() -> Result<(), Box<dyn std::error::Error>> {
+        let mut snapshot =
+            SemanticSnapshot::new("DAO-READ-SCHEMA-RELATIONSHIP", "test", "0".repeat(64))?;
+        let mut table = table("t", vec![row(1)?]);
+        table.columns.push(super::Column {
+            attributes: 1,
+            auto_increment: false,
+            dao_type: "dbLong".to_owned(),
+            name: "Id".to_owned(),
+            ordinal: 0,
+            properties: PropertyMap::new(),
+            size: Some(4),
+        });
+        table.indexes.push(super::Index {
+            fields: vec![super::IndexField {
+                descending: true,
+                name: "Id".to_owned(),
+            }],
+            name: "PK".to_owned(),
+            primary: true,
+            properties: PropertyMap::new(),
+            required: true,
+            unique: true,
+        });
+        snapshot.tables.push(table);
+        snapshot.relationships.push(super::Relationship {
+            attributes: 0,
+            fields: vec![super::RelationshipField {
+                field: "Id".to_owned(),
+                foreign_field: "Id".to_owned(),
+            }],
+            foreign_table: "t".to_owned(),
+            name: "r".to_owned(),
+            properties: PropertyMap::new(),
+            table: "t".to_owned(),
+        });
+        snapshot.raw_preservation.push(super::RawField {
+            purpose: "p".to_owned(),
+            raw_hex: "00".to_owned(),
+            semantic_path: "/tables/0".to_owned(),
+        });
+        let emitted = snapshot.to_canonical_json()?;
+        // `serde_json::Value` stores objects in a BTreeMap, so re-serializing
+        // the parsed document yields sorted keys; equality proves ours were.
+        let parsed: serde_json::Value = serde_json::from_slice(&emitted)?;
+        assert_eq!(emitted, super::canonical_json(&parsed)?);
         Ok(())
     }
 
