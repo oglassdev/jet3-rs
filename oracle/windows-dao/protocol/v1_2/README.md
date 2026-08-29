@@ -113,8 +113,16 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   recipe and the reader's resource limits.
 
 DAO never emits allocation internals. The Rust producer additionally emits
-`coverage-receipt.json` (P8 step 2) bound to the source database SHA-256 and
-listing only registry branch ids; its schema is added in that step.
+`coverage.json` bound to the source database SHA-256: the registry branch ids
+the reader exercised and, for every inventory scenario, whether the observed
+outcome and branch set satisfy it. Both files come from one command:
+
+```sh
+cargo run -p jet3-cli -- snapshot <file.mdb> --out <dir> --scenario <DAO-READ-...>
+```
+
+When the reader rejects the header (`unsupported_version`,
+`encrypted_database`, `password_protected`) only `coverage.json` is written.
 
 ## Portable commands
 

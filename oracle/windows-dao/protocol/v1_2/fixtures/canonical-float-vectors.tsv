@@ -1,0 +1,20 @@
+# case	kind	IEEE bits (big-endian hex)	Python input JSON	expected canonical JSON	expected Python validity
+# Single spellings are the exact binary64 widening of the IEEE binary32 value.
+single_integral_float	single	3f800000	1.0	1.0	true
+single_integral_integer	single	3f800000	1	1.0	false
+single_boolean	single	3f800000	true	1.0	false
+single_non_exact_positive	single	3dcccccd	0.1	0.10000000149011612	true
+single_non_exact_negative	single	bdcccccd	-0.1	-0.10000000149011612	true
+single_min_positive_subnormal	single	00000001	1e-45	1.401298464324817e-45	true
+single_max_finite	single	7f7fffff	3.4028235e38	3.4028234663852886e+38	true
+single_negative_zero	single	80000000	-0.0	-0.0	true
+single_positive_zero	single	00000000	0.0	0.0	true
+double_integral_float	double	3ff0000000000000	1.0	1.0	true
+double_integral_integer	double	3ff0000000000000	1	1.0	false
+double_boolean	double	3ff0000000000000	true	1.0	false
+double_negative_zero	double	8000000000000000	-0.0	-0.0	true
+double_positive_zero	double	0000000000000000	0.0	0.0	true
+double_small_fixed_boundary	double	3f1a36e2eb1c432d	0.0001	0.0001	true
+double_small_scientific_boundary	double	3ee4f8b588e368f1	1e-5	1e-05	true
+double_large_fixed_boundary	double	430c6bf526340000	1e15	1000000000000000.0	true
+double_large_scientific_boundary	double	4341c37937e08000	1e16	1e+16	true
