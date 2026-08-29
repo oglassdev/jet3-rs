@@ -6,21 +6,28 @@ as GitHub issues.
 
 ## v1 deliverables
 
-1. **Read-only Jet 3 reader** (`crates/jet3`): open an unencrypted Access 97
-   file, enumerate tables and columns, stream rows, decode every Jet 3 value
-   type, and traverse indexes. Malformed input yields structured errors with
-   bounded work.
-2. **One DAO differential run**: the Rust reader and DAO each produce a
-   canonical semantic snapshot for the shared scenario inventory
-   (`oracle/windows-dao/protocol/`); the snapshots are compared, and the
-   result is recorded in `docs/PROVENANCE.md`.
-3. **Support matrix** (`docs/validation/support-matrix.json`): per-capability
-   status set from that run. Nothing is called "supported" without it.
+v1 is a full read/write implementation of unencrypted Access 97 / Jet 3,
+delivered in this order:
+
+1. **Reader** (`crates/jet3`): open a file, enumerate tables and columns,
+   stream rows, decode every Jet 3 value type, traverse indexes. Malformed
+   input yields structured errors with bounded work.
+2. **Writer**: create a new database, define tables/columns/indexes, and
+   insert rows that DAO opens and reads back identically.
+3. **Update**: insert, update, and delete rows in an existing database while
+   preserving all unrelated data (including objects we do not interpret).
+4. **DAO differential runs**: one per leg (read, write, update). Rust and
+   DAO each produce a canonical semantic snapshot for the shared scenario
+   inventory (`oracle/windows-dao/protocol/`); the snapshots are compared
+   and the result recorded in `docs/PROVENANCE.md`.
+5. **Support matrix** (`docs/validation/support-matrix.json`): per-capability
+   status set from those runs. Nothing is called "supported" without one.
 
 ## Release gates
 
 - `just ready` is green on the release commit.
-- One validated DAO differential bundle exists for the release commit.
+- A validated DAO differential bundle exists for each leg on the release
+  commit.
 - Every format constant in `crates/jet3` cites a provenance entry.
 
 `scripts/acceptance.sh full` and the G0–G8 gate set in
@@ -29,19 +36,18 @@ as GitHub issues.
 
 ## Explicitly out of v1
 
-- Writer, in-place update, and their differential legs.
 - Exact-commit build attestation, evidence overlays, and release-evidence
-  adapters beyond the single DAO bundle.
+  adapters beyond the DAO bundles.
 - Repository-contract / traceability policing tools.
-- Forms, reports, VBA, macros, queries, passwords, encryption, replication
-  semantics, multi-user locking, Jet 4, ACCDB, crash recovery.
+- Forms, reports, VBA, macros, query execution, passwords, encryption,
+  replication semantics, multi-user locking, Jet 4, ACCDB, crash recovery.
 
 ## Immediate follow-ups
 
 - Reduce the semantic snapshot adapter (PR #92) to: traverse with the real
   reader, emit canonical JSON via `serde_json`, hash with `sha2`. Drop the
   hand-rolled SHA-256, `build.rs` identity checks, staging/durability layers,
-  and output budgeting.
+  and output budgeting. The same adapter serves all three legs.
 - Collapse `acceptance.sh full` to the three release gates and delete the
   repository-contract and traceability validators and their CI jobs.
 - Retire unused experiment lanes under `oracle/windows-dao/experiments/`.
