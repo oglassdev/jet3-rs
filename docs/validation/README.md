@@ -87,3 +87,29 @@ released; lineage evidence never substitutes for those current-commit runs.
 Capabilities begin as `not_started` and `unverified`. Statuses must be advanced
 only by a change that also adds the referenced evidence; partial foundation
 work remains experimental until its declared verification requirement is met.
+
+### Exact-commit derived verification amendment
+
+For detached release evidence, this subsection supersedes only the earlier
+implication that independent or DAO verification is a mutable state or evidence
+record in `support-matrix.json`. The matrix stores the repository-verifiable
+baseline only: `unverified` or `internal_only` for in-scope capabilities,
+`not_applicable` for out-of-scope capabilities, and ordinary `source`/`test`
+lineage. The implementation-state, test, source, and provenance requirements
+above remain unchanged.
+
+One acceptance run may select an explicit detached overlay. Enabled adapters
+validate that overlay against the exact clean commit and derive each
+capability's effective verification by joining their passing outputs with the
+stored baseline. The derived values and detached evidence identities exist only
+in the hashed effective-support/acceptance result and are never written back to
+the matrix. Compatibility, support, and release claims therefore cite that
+hashed exact-commit acceptance result and the selected overlay identity, not a
+detached file treated as committed matrix state.
+
+Missing, stale, disabled, invalid, skipped, or non-reproducible detached
+evidence advances nothing. Missing evidence or an otherwise valid disabled
+adapter may leave its owning gate `BLOCKED`; malformed or supplied stale
+evidence remains `FAIL` under the fail-closed rules. Neither outcome weakens the
+ordinary requirement that stored implementation state and stored source/test
+lineage be valid and complete.

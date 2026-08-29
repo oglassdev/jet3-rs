@@ -145,18 +145,28 @@ payload is copied into the repository.
 
 Exit 0 and `status: PASS` require the complete G3 inventory above, every
 required DAO scenario and operation, no `SKIPPED` or `UNSUPPORTED` result, and
-every applicable implemented capability at its required effective
-verification. A valid read-only subset is reported as `BLOCKED`, never as full
-G3 PASS. A missing selection is rejected by the G3 wrapper before the result
-exists. Disabled policy, a required future write/update leg that is not yet an
-authorized release input, or an otherwise valid but incomplete-for-G3 subset
-exits 3 with a specific `BLOCKED:` reason; when the inputs permit a safe
-resolution, stdout is the schema-valid `BLOCKED` result described above.
+every exact-commit matrix capability whose `required_verification` is
+`dao_opened` or `dao_differential` at that required effective level. This is
+the exact G3-required set frozen in `EVIDENCE.md`; implementation state does not
+add or remove members. Capabilities requiring `independent_check` and those
+requiring `not_applicable` remain present and fully validated in the result but
+do not determine G3 status. Their independent gates and the overall acceptance
+result remain separate. In particular, an older P9 independent report is not
+refreshed or reused merely because `HEAD` changed: its non-G3 capability stays
+at the stored baseline with no detached evidence id while otherwise complete
+P10 G3 evidence can pass. Supplying stale evidence still fails the ordinary
+exact-commit validation. A valid read-only subset is reported as `BLOCKED`,
+never as full G3 PASS. A missing selection is rejected by the G3 wrapper before
+the result exists. Disabled policy, a required future write/update leg that is
+not yet an authorized release input, or an otherwise valid but incomplete-for-
+G3 subset exits 3 with a specific `BLOCKED:` reason; when the inputs permit a
+safe resolution, stdout is the schema-valid `BLOCKED` result described above.
 Unsafe paths or file types, malformed or non-canonical required JSON, dirty
 state, commit/hash/contract mismatch, altered payload, a missing required
-contract or selected scenario/branch, a schema-invalid complete snapshot,
-unequal canonical comparison projections, unexpected preservation difference,
-adapter-output/result-schema mismatch, or any other failed executable check
+contract or selected scenario/branch, a schema-invalid complete snapshot or
+opening-failure artifact, unequal canonical comparison projections, unexpected
+preservation difference, adapter-output/result-schema mismatch, or any other
+failed executable check
 exits 1 as `FAIL` and must not emit a `BLOCKED` effective-support result.
 Producer and producer-extension differences are not failures by
 themselves: G3 independently validates each complete snapshot, removes exactly
@@ -210,16 +220,34 @@ positive integers. The obsolete generic `id`, `run_id`, and `attempt` names
 are not admitted in these closed contracts, and a digit string cannot satisfy
 a hosted run field.
 
+Time identity is equally closed. Every timestamp location enumerated by
+`EVIDENCE.md`, including provider-contract `image_proofs[].completed_at`, uses
+its one calendar-valid uppercase-UTC, whole-second grammar and is compared as
+integer UTC seconds. Run, command, and scenario completion may equal start at
+that resolution; completion before start and subordinate endpoints outside the
+inclusive run interval fail. Provider-proof freshness uses only the validated,
+report-bound manifest `run.started_at`: the selected image proof passes when
+its integer age is inclusively `0..604800`, fails stale at `604801`, and fails
+as future-dated below zero. Acceptance must not substitute its local clock or
+any other recorded timestamp for that comparison reference.
+
 The three committed negative `rust_read_dao` scenarios are passing scenarios
 only when Rust performs the expected rejection. Each requires the source MDB,
-the PR #92 Rust `opening_failure` snapshot, and its `opening_failure` coverage
-receipt, all bound to the same source-MDB hash, release revision, scenario id,
-and exact committed error class. Its DAO snapshot and every other snapshot are
-null, and no semantic projection comparison is attempted. The report must say
+the manifest's separate `rust_opening_failure` artifact validated against
+`oracle/windows-dao/protocol/v1_2/opening-failure.schema.json`, and its PR #92
+`opening_failure` coverage receipt. Both artifacts are bound to the same
+source-MDB hash, release revision, scenario id, opening-failure outcome, and
+exact committed error class. `dao_snapshot` and `rust_snapshot` are null, as
+are the other inapplicable snapshot fields, and no DAO semantic snapshot is
+retained or compared. The report must say
 `expected_outcome: expected_error`, `observed_outcome: error`, the same error
 class, `status: PASS`, and null reason. A successful open, mismatched class,
-missing failure pair, retained DAO snapshot, `SKIPPED`, or `UNSUPPORTED` result
-is a failed evidence check, never an accepted negative or a neutral result.
+identity mismatch within the failure pair, missing failure pair, retained DAO
+or Rust snapshot, otherwise forbidden artifact, `SKIPPED`, or `UNSUPPORTED`
+result is a failed evidence check, never an accepted negative or a neutral
+result. The opening-failure JSON must have the canonical bytes fixed by
+`EVIDENCE.md`, and its manifest reference binds those exact bytes, SHA-256, and
+size independently of the success snapshot schema.
 
 For update preservation, producer-exclusion semantics apply before comparing
 preserved paths, but do not weaken artifact identity. The preservation report

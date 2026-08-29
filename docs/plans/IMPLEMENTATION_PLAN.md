@@ -1046,21 +1046,30 @@ matrix-data, policy-data, plan, provenance, or validation file is authorized:
   source-closure schema at
   `docs/validation/schema/dao-differential-v1-source-closure.schema.json`, and
   its committed registry at
-  `docs/validation/dao-differential-v1-source-closure.json`; list all eight new
+  `docs/validation/dao-differential-v1-source-closure.json`; list all nine new
   schemas in `docs/validation/schema/README.md`;
 - add
   `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json` byte-for-byte
   as stabilized at PR #92 head
   `e11c1b49ca0321f328091b561150792d59894ddd` (2,764 bytes, SHA-256
   `4fe1b33aae94ab1f7cb05ca3b66112edba89d17343788678c239693d3a340008`),
-  and add
+  and add `oracle/windows-dao/protocol/v1_2/opening-failure.schema.json` with the
+  exact closed seven-field shape and canonical-byte rules below, and add
   `oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json` with the
   exact shape below; these schemas are P8T inputs, not P8 evidence;
+- modify `oracle/windows-dao/scripts/validate_protocol_v1_2.py` only to make
+  its `schemas` subcommand load and lint the new opening-failure schema, and
+  modify `oracle/windows-dao/tests/test_protocol_validation.py` only for focused
+  valid, missing-field, extra-field, and wrong-literal schema-instance tests;
+  the adapter tests below own canonical artifact bytes, manifest nullability,
+  identity cross-bindings, and comparison semantics;
 - modify `tools/validation/evidence.py` to remove stored
   `independent_report`/`dao_bundle` handling and its unconditional DAO-bundle
   rejection;
-- modify `tools/validation/support.py` to enforce the stored-baseline rule and
-  expose the bounded effective-verification join;
+- modify `tools/validation/support.py` to enforce the stored-baseline rule,
+  expose the bounded effective-verification join, and derive the exact G3-
+  required capability-id set as every validated committed matrix entry whose
+  `required_verification` is `dao_opened` or `dao_differential`;
 - modify `tools/validation/release_evidence.py` to pass the selected expected
   DAO-manifest hash through the already checked detached overlay snapshot and
   final closure and to defer only the selected adapter's policy-status decision
@@ -1091,25 +1100,30 @@ matrix-data, policy-data, plan, provenance, or validation file is authorized:
 `docs/validation/schema/release-evidence-overlay.schema.json`,
 `docs/validation/support-matrix.json`, every existing acceptance-result schema
 other than the newly authorized effective-support result schema, and all
-Rust/CLI/oracle executable code and all other protocol files are read-only in
-step 2. In particular the policy remains
+Rust/CLI/oracle executable code other than the validator-only change named
+above are read-only in step 2. Every existing v1.2 protocol file, including
+`canonical-semantic-snapshot.schema.json`, is read-only; the new
+`opening-failure.schema.json` is the sole new protocol contract and the focused
+validator/test changes above are its only protocol-validation exceptions. In
+particular the policy remains
 byte-identical with SHA-256
 `0c3d2e33432674c5ededab0cccc7bc9ddacafc845f35305079e1664fa6158867`
 and `dao_differential_v1.status = disabled`. The overlay schema remains
 byte-identical with SHA-256
 `3181b22f2c8caf397238aef3c605ba4e6266208692352177ed5fb76cda9ec21a`.
 
-The manifest, report, coverage-receipt, preservation-diff, and
+The manifest, report, opening-failure, coverage-receipt, preservation-diff, and
 effective-support result contracts are binding exactly as specified in
 `EVIDENCE.md` "P8T exact-commit amendment"; step 2 may not choose different
 field names, nullability, ordering, hash domains, join rules, or projection
 semantics. In summary, the closed manifest has exactly
 `schema_version`, `run`, `git_commit`, `dirty`, `provider_proof`, `contracts`,
 `executed_sources`, `commands`, `report`, `files`, and `scenarios`. The
-thirteen-entry `contracts` object binds the manifest and report schemas plus
+fourteen-entry `contracts` object binds the manifest and report schemas plus
 the v1.2 scenario schema/inventory, branch registry, snapshot schema, coverage
-schema, preservation schema, provider contract/schema, provider-proof schema,
-and source-closure registry/schema from the named commit. `files` is the
+schema, opening-failure schema, preservation schema, provider contract/schema,
+provider-proof schema, and source-closure registry/schema from the named
+commit. Its exact new key is `opening_failure_schema`. `files` is the
 unique, strictly path-sorted exact inventory of every non-manifest payload with
 path/hash/size closure.
 
@@ -1129,22 +1143,51 @@ string `campaign_id` plus positive-integer `hosted_run_id` and
 `hosted_run_attempt`, with exact equality to provider proof, report, adapter
 output, and effective-support output.
 
+Every manifest, report, provider-proof, provider-contract image-proof,
+command, and scenario timestamp uses the single exact UTC-second grammar in
+`EVIDENCE.md` and is parsed to integer UTC seconds. Run, command, and scenario
+completion is nondecreasing rather than strictly increasing, so equal seconds
+are valid but a one-second reversal is not. Every subordinate endpoint is
+inside the inclusive run interval. Provider-proof freshness is computed only
+as validated manifest `run.started_at` minus the selected provider-contract
+`image_proofs[].completed_at`; it accepts integer age `604800`, rejects age
+`604801`, and rejects a negative (future-proof) age. No validator/acceptance
+wall clock or alternate evidence timestamp may replace that exact reference.
+
 Each unique, id-sorted scenario contains exactly `id`, `content_sha256`,
 `capability_ids`, `operation`, `scenario_input`, `source_mdb`, `output_mdb`,
-`baseline_snapshot`, `dao_snapshot`, `rust_snapshot`, `coverage_receipt`,
-`preservation_diff`, `operation_log`, `command_ids`, `started_at`,
-`completed_at`, `status`, and `status_reason`. The operation-specific
-expected-outcome/nullability table in `EVIDENCE.md` is mandatory. In
+`baseline_snapshot`, `dao_snapshot`, `rust_snapshot`, `rust_opening_failure`,
+`coverage_receipt`, `preservation_diff`, `operation_log`, `command_ids`,
+`started_at`, `completed_at`, `status`, and `status_reason`. The
+operation-specific expected-outcome/nullability table in `EVIDENCE.md` is mandatory. In
 particular, a passing successful `rust_read_dao` record has source MDB, DAO
 success snapshot, Rust success snapshot, and success receipt, while a passing
-committed expected-error read has source MDB, Rust `opening_failure` snapshot,
-and matching `opening_failure` receipt but a null DAO snapshot. Every other
-read artifact is null. `FAIL`, `SKIPPED`, and `UNSUPPORTED` remain schema-valid
-diagnostic records only; they never produce effective verification, and none
-can stand in for an expected rejection. Every artifact reference is exactly
+committed expected-error read has source MDB, a separate Rust opening-failure
+artifact, and matching `opening_failure` receipt but null `dao_snapshot` and
+`rust_snapshot`. Every other read artifact is null, and
+`rust_opening_failure` is null for every success outcome. `FAIL`, `SKIPPED`,
+and `UNSUPPORTED` remain schema-valid diagnostic records only; they never
+produce effective verification, and none can stand in for an expected
+rejection. Every artifact reference is exactly
 `path`/`sha256`/`size` and must equal its inventory row. The report schema is a
 closed canonical summary of the same run and scenario results; the adapter
 recomputes it.
+
+The new `oracle/windows-dao/protocol/v1_2/opening-failure.schema.json` is a
+closed canonical JSON object with exactly `protocol_version`, `document_type`,
+`scenario_id`, `source_revision`, `database_sha256`, `outcome`, and
+`error_class`. Their exact constraints are, respectively, constant `1.2.0`,
+constant `rust_opening_failure`, scenario-id pattern
+`^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$`, one full lowercase
+40-hex release commit, one lowercase SHA-256, constant
+`opening_failure`, and the enum `encrypted_database`, `unsupported_version`,
+or `password_protected`. Its canonical raw bytes have no BOM, Unicode-code-point
+sorted keys, compact separators, directly emitted non-ASCII, no non-finite
+numbers, and exactly one trailing LF. The manifest's
+`opening_failure_schema` contract binds the schema's exact release-commit path,
+raw SHA-256, and size. Each scenario's `rust_opening_failure` artifact reference
+and matching `files` row bind the exact canonical artifact bytes, raw SHA-256,
+and size.
 
 For successful snapshots, step 2 must validate each complete DAO and Rust
 source document independently before projection. It then requires the declared
@@ -1154,11 +1197,14 @@ documents, and compares the projection bytes. It does not compare whole
 source-document bytes and does not exclude `raw_hex`, converted `value`,
 `raw_preservation`, ordering, or any other model field. The manifest continues
 to hash and size-bind both complete source documents. For each committed
-expected-error read, step 2 instead validates the required Rust
-`opening_failure` document, binds its database hash to the complete source MDB,
-requires its scenario, revision, outcome, and error class to match the receipt
-and committed expectation exactly, requires `dao_snapshot` to be null, and
-performs no two-producer projection comparison.
+expected-error read, step 2 instead validates `rust_opening_failure` only
+against the new opening-failure schema, never against the success-only
+canonical snapshot schema. It binds the artifact's database hash to the
+complete source MDB; requires its scenario, release revision, outcome, and
+error class to match the receipt and committed expectation exactly; requires
+`dao_snapshot` and `rust_snapshot` to be null; and performs no two-producer
+projection comparison. DAO's role is source-MDB construction only; it emits no
+semantic snapshot for this negative Rust open.
 
 The coverage schema is the closed nine-field success/opening-failure union
 from the stabilized PR #92 file named above. Step 2 additionally enforces
@@ -1184,12 +1230,12 @@ read-only subset can pass only its requested capability output and must leave
 G3 `BLOCKED`; absent write/update inputs are missing required legs, never
 silently skipped preservation.
 
-The v1.2 scenario, branch, and snapshot contracts are already present at the
-P8T base through PR #93 and are mandatory production inputs. The two new
-v1.2 schemas added by this step are equally mandatory. A missing contract must
-fail closed in focused tests. Tests create complete contract and payload trees
-in isolated temporary Git repositories rather than weakening that production
-check.
+The v1.2 scenario, branch, and success-snapshot contracts are already present
+at the P8T base through PR #93 and are mandatory production inputs. The three
+new v1.2 schemas added by this step are equally mandatory. A missing contract
+must fail closed in focused tests. Tests create complete contract and payload
+trees in isolated temporary Git repositories rather than weakening that
+production check.
 
 The adapter computes one exact output object per evidence id with keys
 `evidence_id`, `adapter`, `capability_id`, `verification`, `commit`,
@@ -1204,10 +1250,17 @@ outputs by evidence id, and lists the complete
 committed capability catalog by UTF-8 id with no omissions or duplicates. Its
 stored/effective join, detached `evidence_ids`, exact raw overlay/manifest hash
 domains, `PASS`/`BLOCKED` boundary, and canonical one-LF serialization are the
-binding rules in `EVIDENCE.md`. A valid subset may derive capability-level
+binding rules in `EVIDENCE.md`. The result schema carries no second catalog and
+no serialized G3-membership flag: status membership is deterministically
+derived from the validated exact-commit matrix's two DAO-required levels. The
+binding v1 membership is the exact seventeen-id list in `EVIDENCE.md`; all
+remaining capability rows are still emitted and validated but are excluded
+from the G3 status predicate. A valid subset may derive capability-level
 evidence but is not G3 PASS; G3 PASS requires the complete Section 5.1
-inventory and all applicable operations. Malformed, unsafe, dirty, mismatched,
-or failed executable evidence is `FAIL`, never `BLOCKED`.
+inventory and all applicable operations, plus every G3-required capability at
+its required effective level regardless of implementation state. Malformed,
+unsafe, dirty, mismatched, or failed executable evidence is `FAIL`, never
+`BLOCKED`.
 
 Step 2 freezes the canonical order of operations. G3 first validates explicit
 selection and path safety. The existing release-evidence path then validates
@@ -1234,11 +1287,18 @@ equal projections passes; exact passing regressions for
 `DAO-READ-OPEN-REJECT-ENCRYPTED`/`encrypted_database`,
 `DAO-READ-OPEN-REJECT-JET4`/`unsupported_version`, and
 `DAO-READ-OPEN-REJECT-PASSWORD`/`password_protected`; each negative regression
-has the required source MDB plus matching Rust failure snapshot/receipt pair,
-null DAO snapshot, observed `error`, and `PASS`; one negative with an observed
-success or mismatched error class; one negative with a forbidden DAO success
-snapshot retained; one negative missing either required failure artifact; one
-required scenario missing; one compared snapshot value/raw byte altered with
+has the required source MDB plus matching Rust opening-failure artifact/receipt
+pair, null DAO and Rust snapshots, observed `error`, and `PASS`; one negative
+with an observed success or mismatched error class; one schema-invalid
+opening-failure artifact; one schema-valid opening-failure artifact made
+noncanonical by whitespace or key order with its enclosing hashes recomputed;
+one negative whose opening-failure artifact differs from its receipt or
+committed scenario in scenario id, release revision, source-MDB hash, outcome,
+or error class; one negative with a forbidden DAO success snapshot retained;
+one negative with a forbidden Rust success snapshot retained; one successful
+read with a forbidden `rust_opening_failure` artifact; one negative missing
+either required failure artifact; one required scenario missing; one compared
+snapshot value/raw byte altered with
 hashes recomputed; one source document made schema-invalid only inside an
 excluded member; release commit mismatch; dirty release tree; one required
 branch missing; one forbidden branch present; provider proof with its enclosing
@@ -1255,14 +1315,24 @@ snapshots differ in both producer fields but share one projection and whose
 preservation report binds both distinct full hashes plus that common
 projection hash; either full post-update snapshot changed with enclosing
 artifact/manifest hashes recomputed but the preservation binding left stale;
-and a preservation comparison changed from `equal` to `different`. Every
+and a preservation comparison changed from `equal` to `different`. Timestamp
+regressions are table-driven across every timestamp location enumerated in
+`EVIDENCE.md`: exact equal run, command, and scenario start/completion pairs
+pass; a one-second reversal of each interval fails; selected provider-proof age
+`604800` passes while age `604801` and a one-second future proof fail; and a
+malformed calendar value, numeric-offset or lowercase/non-UTC form, and
+fractional-second form each fail at every applicable location. Every
 rejection is nonzero and contains a stable reason code from this exact set, as
 applicable: `required_scenario_missing`, `file_sha256_mismatch`,
-`snapshot_schema_invalid`, `comparison_projection_mismatch`,
+`snapshot_schema_invalid`, `opening_failure_schema_invalid`,
+`opening_failure_not_canonical`, `opening_failure_mismatch`,
+`comparison_projection_mismatch`,
 `expected_outcome_mismatch`, `unexpected_scenario_artifact`,
 `required_scenario_artifact_missing`, `expected_current_head`,
 `dirty_worktree`, `required_branch_missing`, `forbidden_branch_present`,
-`provider_proof_mismatch`, `required_source_missing`, `undeclared_source`,
+`provider_proof_mismatch`, `timestamp_invalid`, `timestamp_order_invalid`,
+`provider_proof_stale`, `provider_proof_in_future`, `required_source_missing`,
+`undeclared_source`,
 `command_entrypoint_mismatch`, `unused_source`,
 `library_subject_not_exercised`, `run_identity_mismatch`, `scenario_not_pass`,
 `required_update_artifact_missing`, `preservation_snapshot_binding_mismatch`,
@@ -1282,8 +1352,14 @@ capability; exact rejection of duplicated or out-of-order adapter outputs; the
 `verification`, commit, manifest, and evidence-id cross-bindings; empty
 adapter/evidence-id outputs and stored baselines under the disabled production
 policy; raw-byte (not reserialized JSON) overlay hashing; canonical one-LF
-stdout; a valid subset as `BLOCKED`; and malformed or unsafe input as `FAIL`
-rather than `BLOCKED`. Focused policy-precedence regressions use isolated
+stdout; exact inclusion of all seventeen DAO-required catalog ids in the G3
+status predicate and exclusion of all four `independent_check` plus all seven
+`not_applicable` ids; a complete P10-shaped G3 result remaining `PASS` while
+every non-G3 independent capability is below its own required level, has empty
+`evidence_ids`, and an earlier-commit independent result is ineligible; a
+supplied stale non-G3 output still rejected for commit mismatch; a valid subset
+as `BLOCKED`; and malformed or unsafe input as `FAIL` rather than `BLOCKED`.
+Focused policy-precedence regressions use isolated
 temporary Git repositories and prove exactly: valid intrinsic evidence plus a
 disabled adapter produces the named schema-valid `BLOCKED` result; a tampered
 payload plus that disabled adapter is `FAIL`; a dirty repository plus that
@@ -1300,6 +1376,8 @@ python3 -B -m unittest discover -s tools/tests -p 'test_dao_differential_adapter
 python3 -B -m unittest discover -s tools/tests -p 'test_release_evidence.py' -v
 python3 -B -m unittest discover -s tools/tests -p 'test_run_acceptance.py' -v
 python3 -B -m unittest discover -s tools/tests -p 'test_support_capability_catalog.py' -v
+python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
+python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
 test -f docs/validation/schema/dao-differential-v1-manifest.schema.json
 test -f docs/validation/schema/dao-differential-v1-report.schema.json
 test -f docs/validation/schema/effective-support-result.schema.json
@@ -1309,20 +1387,23 @@ test -f docs/validation/schema/dao-provider-proof-v1.schema.json
 test -f docs/validation/schema/dao-differential-v1-source-closure.schema.json
 test -f docs/validation/dao-differential-v1-source-closure.json
 test -f oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json
+test -f oracle/windows-dao/protocol/v1_2/opening-failure.schema.json
 test -f oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json
 python3 tools/validate_contract.py
 python3 tools/validate_contract.py --self-test
 python3 tools/validate_repository_contract.py
 sha256sum docs/validation/evidence-policy.json docs/validation/schema/release-evidence-overlay.schema.json oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json
 git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- docs/validation/evidence-policy.json docs/validation/support-matrix.json docs/validation/schema/evidence-policy.schema.json docs/validation/schema/release-evidence-overlay.schema.json
+git diff --exit-code "$(git merge-base origin/main HEAD)" HEAD -- oracle/windows-dao/protocol/v1_2/README.md oracle/windows-dao/protocol/v1_2/branch-registry.json oracle/windows-dao/protocol/v1_2/branch-registry.schema.json oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json oracle/windows-dao/protocol/v1_2/scenarios.json oracle/windows-dao/protocol/v1_2/scenarios.schema.json
 ```
 
-Expected results: every unit command passes and loads/lints all eight new
-schemas; all ten path checks pass; both contract commands pass; the repository
-contract passes; the `sha256sum` output is exactly the two hashes above
+Expected results: every unit command passes and loads/lints all nine new
+schemas, including the separate opening-failure schema; all eleven path checks
+pass; both contract commands pass; the repository contract passes; the
+`sha256sum` output is exactly the two hashes above
 followed by
 `4fe1b33aae94ab1f7cb05ca3b66112edba89d17343788678c239693d3a340008`
-for the coverage schema; and the read-only-file diff is empty. Then run the
+for the coverage schema; and both read-only-file diffs are empty. Then run the
 phase's existing common checks once and run full acceptance without a selected
 overlay:
 

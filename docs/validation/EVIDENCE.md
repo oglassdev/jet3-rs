@@ -191,6 +191,7 @@ commit: that manifest schema,
 `oracle/windows-dao/protocol/v1_2/scenarios.json`,
 `oracle/windows-dao/protocol/v1_2/branch-registry.json`,
 `oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json`,
+`oracle/windows-dao/protocol/v1_2/opening-failure.schema.json`,
 `oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json`, and
 `oracle/windows-dao/protocol/v1_2/preservation-diff.schema.json`, plus
 `docs/validation/schema/dao-provider-v1-contract.schema.json`,
@@ -198,13 +199,14 @@ commit: that manifest schema,
 `docs/validation/schema/dao-provider-proof-v1.schema.json`,
 `docs/validation/schema/dao-differential-v1-source-closure.schema.json`, and
 `docs/validation/dao-differential-v1-source-closure.json`. The manifest's
-`contracts` object contains exactly those thirteen path/SHA-256/size bindings
+`contracts` object contains exactly those fourteen path/SHA-256/size bindings
 under the keys `manifest_schema`, `report_schema`,
 `scenario_schema`, `scenario_inventory`, `branch_registry`, `snapshot_schema`,
-`coverage_receipt_schema`, `preservation_diff_schema`,
-`provider_contract_schema`, `provider_contract`, `provider_proof_schema`,
-`source_closure_schema`, and `source_closure`; a copied contract blob cannot
-substitute for the blob at that path in the release commit.
+`opening_failure_schema`, `coverage_receipt_schema`,
+`preservation_diff_schema`, `provider_contract_schema`, `provider_contract`,
+`provider_proof_schema`, `source_closure_schema`, and `source_closure`; a copied
+contract blob cannot substitute for the blob at that path in the release
+commit. The object therefore has exactly fourteen entries.
 
 The manifest is one closed canonical JSON object with exactly
 `schema_version`, `run`, `git_commit`, `dirty`, `provider_proof`, `contracts`,
@@ -212,10 +214,25 @@ The manifest is one closed canonical JSON object with exactly
 `schema_version` is `1.0.0`; `git_commit` is one full lowercase 40-hex commit;
 and `dirty` is `false`. `run` has exactly nonempty string `campaign_id`,
 positive integer `hosted_run_id` and `hosted_run_attempt`, and UTC-second
-`started_at` and `completed_at` values in `YYYY-MM-DDTHH:MM:SSZ` form. A JSON
-string containing digits is not a hosted run number. The adapter proves that
-completion follows start and that every subordinate timestamp lies within
-that closed interval.
+`started_at` and `completed_at` values. Every timestamp in this contract uses
+one grammar:
+`^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$`, followed by validation as a real proleptic-Gregorian
+date with year 0001 through 9999. Thus the only representation is exactly
+`YYYY-MM-DDTHH:MM:SSZ`: uppercase `T` and `Z`, UTC, second precision, no leap
+second, offset, lowercase suffix, fractional second, whitespace, or omitted
+zero. This applies to manifest run, command, and scenario `started_at` and
+`completed_at`; the report's exact run copies; provider-proof `captured_at`;
+and every provider-contract `hosted_lane.image_proofs[].completed_at`. Each is
+parsed once to its signed integer count of UTC seconds from
+`1970-01-01T00:00:00Z`; comparisons never use strings or floating point. A JSON
+string containing digits is not a hosted run number.
+
+Run, command, and scenario intervals are nondecreasing: `completed_at` may
+equal `started_at`, because a legitimate subsecond operation can serialize to
+the same whole second, but even a one-second reversal is rejected. Every
+command and scenario endpoint and provider-proof `captured_at` lies within the
+inclusive manifest run interval. The report endpoints equal the manifest run
+endpoints exactly.
 
 `provider_proof` is one non-null artifact reference to canonical JSON validated
 against the committed provider-proof schema. That closed document has exactly
@@ -258,8 +275,16 @@ positive-integer `provider_proof_hosted_run_id`. Each closed record has exactly
 `provider_proof_hosted_run_attempt`, and `completed_at`.
 `proof_freshness_seconds` is exactly `604800`; `retention` has exactly
 `provider_diagnostics_days: 14`, `release_evidence_days: 90`, and
-`redistribution: metadata_only_no_provider_or_mdb_bytes`. The adapter requires the selected
-capability proof still to be within that seven-day interval at manifest start.
+`redistribution: metadata_only_no_provider_or_mdb_bytes`. The sole freshness
+reference is the validated manifest `run.started_at`, the run-bound value copied
+exactly into the report; validator wall clocks, acceptance invocation time,
+filesystem times, commit time, provider-proof `captured_at`, and run completion
+are never freshness references. Let `proof_age_seconds` be the integer UTC
+seconds for that trusted run start minus the integer UTC seconds for the
+selected `image_proofs[].completed_at`. The proof is fresh exactly when
+`0 <= proof_age_seconds <= proof_freshness_seconds`. Therefore age `604800` is
+accepted, age `604801` is stale, and any negative age is rejected as a
+future-dated provider proof.
 It also requires the provider-proof command and source closure described below.
 The diagnostic operation log is never consulted for registration, image,
 provider, activation, creation, close, or file-observation PASS facts.
@@ -365,10 +390,11 @@ null error class. A committed `expected_error` can pass only as observed
 `scenarios` is nonempty, strictly sorted by `id`, and unique by `id`. Every
 entry has exactly `id`, `content_sha256`, `capability_ids`, `operation`,
 `scenario_input`, `source_mdb`, `output_mdb`, `baseline_snapshot`,
-`dao_snapshot`, `rust_snapshot`, `coverage_receipt`, `preservation_diff`,
-`operation_log`, `command_ids`, `started_at`, `completed_at`, `status`, and
-`status_reason`. Capability ids and command ids are nonempty unique sorted
-arrays and must resolve to the committed matrix and top-level commands.
+`dao_snapshot`, `rust_snapshot`, `rust_opening_failure`, `coverage_receipt`,
+`preservation_diff`, `operation_log`, `command_ids`, `started_at`,
+`completed_at`, `status`, and `status_reason`. Capability ids and command ids
+are nonempty unique sorted arrays and must resolve to the committed matrix and
+top-level commands.
 `operation` is exactly one of `rust_read_dao`, `dao_open_rust`, or
 `dao_verify_rust_update` and must equal the committed scenario operation.
 `scenario_input` and `operation_log` are always non-null artifact references;
@@ -387,8 +413,8 @@ the committed `expected_outcome` and then by operation:
 - a `rust_read_dao` success requires `source_mdb`, a DAO success snapshot, a
   Rust success snapshot, and the success coverage receipt;
 - a `rust_read_dao` expected error requires `source_mdb`, a Rust
-  `opening_failure` snapshot, and an `opening_failure` coverage receipt, while
-  `dao_snapshot` is null; and
+  `rust_opening_failure` artifact, and an `opening_failure` coverage receipt,
+  while `dao_snapshot` and `rust_snapshot` are null; and
 - `dao_open_rust` requires `output_mdb`, both success snapshots, and the
   success coverage receipt, while `dao_verify_rust_update` requires non-null
   source and output MDBs, a DAO baseline success snapshot, both post-update
@@ -397,13 +423,15 @@ the committed `expected_outcome` and then by operation:
 For all passing records, fields not named by the applicable rule are null;
 in particular `output_mdb`, `baseline_snapshot`, and `preservation_diff` are
 null for either read outcome, and `source_mdb`, `baseline_snapshot`, and
-`preservation_diff` are null for a write. The Rust opening-failure snapshot is
-the sole structured negative snapshot retained by the manifest. It is a
-schema-validated diagnostic outcome, not a semantic database snapshot; the
-DAO producer's role in that scenario is to create the source MDB, so no DAO
-snapshot is retained or compared. A non-null DAO snapshot or any other
-snapshot forbidden by these rules is `unexpected_scenario_artifact`; a
-missing required artifact is `required_scenario_artifact_missing`.
+`preservation_diff` are null for a write. `rust_opening_failure` is null for
+every success outcome and every operation other than an expected-error
+`rust_read_dao`. All three snapshot fields are null for that expected-error
+case. The DAO producer creates the source MDB but emits no canonical semantic
+snapshot for the negative Rust open, so there is no DAO result to compare.
+The Rust opening-failure artifact is a schema-validated diagnostic identity,
+not a semantic database snapshot. A non-null artifact forbidden by these rules
+is `unexpected_scenario_artifact`; a missing required artifact is
+`required_scenario_artifact_missing`.
 
 A non-`PASS` entry may leave an artifact that was actually produced non-null
 so the failed run remains diagnosable, but it can never contribute an adapter
@@ -413,20 +441,42 @@ committed expected-outcome/operation rule. The report and operation log remain
 mandatory even then. MDB artifact references bind their complete bytes; the
 adapter rejects a same-file source/output alias for an update.
 
-Every retained DAO or Rust snapshot document is first independently parsed,
-validated against the committed snapshot schema, and checked for its producer,
-scenario, source revision, database identity, outcome, error class, ordering,
-typed-value, raw-byte, and model-integrity rules applicable to that outcome.
-For a successful leg, only after both complete documents pass does the adapter
+The opening-failure schema at
+`oracle/windows-dao/protocol/v1_2/opening-failure.schema.json` is a closed
+seven-field canonical JSON object with exactly `protocol_version`,
+`document_type`, `scenario_id`, `source_revision`, `database_sha256`, `outcome`,
+and `error_class`. `protocol_version` is `1.2.0`; `document_type` is
+`rust_opening_failure`; `scenario_id` matches
+`^DAO-(READ|WRITE|UPDATE)-[A-Z0-9][A-Z0-9_-]{2,63}$`;
+`source_revision` is one full lowercase 40-hex release commit;
+`database_sha256` is one lowercase SHA-256; `outcome` is
+`opening_failure`; and `error_class` is exactly `encrypted_database`,
+`unsupported_version`, or `password_protected`. Its bytes use the protocol's
+canonical UTF-8 JSON encoding: no BOM, keys sorted by Unicode code point,
+compact separators, non-ASCII emitted directly, non-finite numbers forbidden,
+and exactly one trailing LF. The adapter requires byte-for-byte canonicality,
+and the manifest artifact reference and `files` row bind the exact raw bytes,
+SHA-256, and size. The manifest's `opening_failure_schema` contract separately
+binds the exact schema path, raw SHA-256, and size from the release commit.
+
+Every non-null `baseline_snapshot`, `dao_snapshot`, and `rust_snapshot` document
+is first independently parsed and validated against the existing committed
+success-only canonical-semantic-snapshot schema, then checked for its producer,
+scenario, database identity, ordering, typed-value, raw-byte, and
+model-integrity rules. The adapter must never validate `rust_opening_failure`
+against that success schema. For a successful leg, only after both complete
+snapshot documents pass does the adapter
 require their declared `comparison_projection` to be exactly
 `["/producer", "/producer_extensions"]`, remove exactly those two top-level
 members from each in-memory document, serialize both projections with the
 protocol's canonical UTF-8 JSON rules, and require projection-byte equality.
-For an expected-error read, the required Rust opening-failure document instead
-has `outcome: opening_failure`, the exact committed error class, and a
-`database_sha256` equal to the raw `source_mdb` artifact; its DAO snapshot is
-null and no two-producer projection comparison is performed. The complete
-source-document hashes remain bound by the manifest. No other field is ignored:
+For an expected-error read, the adapter instead validates
+`rust_opening_failure` against the opening-failure schema and requires its
+scenario id, release revision, source-MDB SHA-256, outcome, and error class to
+equal the committed scenario and coverage receipt exactly. `dao_snapshot` and
+`rust_snapshot` are null, and no two-producer projection comparison is
+performed. The complete artifact bytes remain bound by the manifest. No other
+field is ignored:
 in particular `raw_hex`, converted `value`, `raw_preservation`, ordering
 metadata, and every non-extension property remain in every applicable success
 comparison.
@@ -444,13 +494,13 @@ requires all scenario `required_branches` and none of its
 `boundary.forbidden_branches`, and binds the database hash to `source_mdb` for
 a read or to `output_mdb` for a write/update. Its source revision equals the
 release commit. For each of the three committed negative reads, the adapter
-requires the receipt and Rust opening-failure snapshot to agree exactly on
+requires the receipt and Rust opening-failure artifact to agree exactly on
 scenario id, release source revision, source-MDB SHA-256,
 `outcome: opening_failure`, and the committed error class. It independently
 derives report `observed_outcome: error` from that pair and requires exact
 agreement with the committed `expected_outcome: expected_error`; the pair
 cannot be represented as `SKIPPED` or `UNSUPPORTED`. Missing receipt data is
-never inferred from the snapshot.
+never inferred from the opening-failure artifact.
 
 The preservation-diff schema is a closed canonical JSON object with exactly
 `protocol_version`, `document_type`, `scenario_id`, `source_revision`,
@@ -503,7 +553,8 @@ After those shape checks, the adapter recomputes, rather than trusts, exact
 manifest and payload closure; provider and clean-commit bindings; scenario
 hashes, complete per-capability sets, operations and result statuses; every
 artifact hash and size; applicable success snapshot projections or expected
-opening-failure pairs; source/output MDB identities; coverage; and update
+opening-failure artifact/receipt pairs; source/output MDB identities; coverage;
+and update
 preservation.
 
 One adapter evidence item covers one capability and names its complete
@@ -590,6 +641,44 @@ array containing that output's `evidence_id`; the array is therefore always
 unique and strictly UTF-8 sorted. The union of all nonempty `evidence_ids`
 equals the `adapter_outputs` evidence-id set exactly.
 
+Full-catalog reporting and G3 status scope are deliberately different. The
+resolver derives the G3-required capability-id set from the validated exact-
+commit matrix as every entry whose `required_verification` is exactly
+`dao_opened` or `dao_differential`. Neither implementation state nor the
+presence of an adapter output changes membership. The binding v1 catalog
+therefore fixes that set to exactly:
+
+- `database.open`;
+- `database.create_empty`;
+- `format.header_and_version`;
+- `format.pages_allocation_usage`;
+- `schema.catalog_and_table_definitions`;
+- `schema.create_drop_tables`;
+- `values.all_dao_jet3_table_types`;
+- `values.null_fixed_variable`;
+- `values.code_pages_lossless_raw`;
+- `values.date_currency_binary_guid_replication`;
+- `values.memo_ole_multi_page`;
+- `rows.streaming_read`;
+- `rows.insert_update_delete`;
+- `indexes.primary_unique_non_unique`;
+- `indexes.composite_ascending_descending`;
+- `indexes.crud_maintenance`; and
+- `relationships.create_drop_preserve_metadata`.
+
+Every other catalog entry is outside the G3 status predicate: the four entries
+whose required level is `independent_check` and the seven entries whose
+required level is `not_applicable`. Those entries remain mandatory in
+`capabilities`, retain the same closed shape and join rules, and are rejected
+for omission, duplication, ordering drift, an invalid stored/effective value,
+or a false adapter/evidence-id binding. Their effective level being below their
+own requirement does not make G3 `BLOCKED`; the gate that owns that independent
+requirement and the overall full-acceptance result remain free to block. An
+older exact-commit independent result is not reused after `HEAD` changes: the
+non-G3 capability remains at its stored baseline with empty `evidence_ids`,
+without affecting G3. If stale evidence is actually selected or supplied, its
+commit mismatch remains `FAIL` under the ordinary exact-commit checks.
+
 Policy status is not an evidence-validation preflight. After G3 validates the
 explicit selection and path, the canonical release-evidence validator performs
 in order all type and exact tree/inventory closure checks; raw file hashes and
@@ -603,7 +692,9 @@ preflight or duplicate semantic-validation route.
 
 The result status is `PASS` only when the complete G3 inventory and every
 required operation are present, every selected adapter output is `PASS`, and
-every applicable implemented capability meets its required effective level.
+every member of the derived G3-required capability-id set meets its matrix
+`required_verification`. Capabilities outside that set do not determine G3
+status.
 `BLOCKED` means that all selected bytes and every check that can safely run
 are valid, but a non-evidence prerequisite is unavailable (including the
 commit-bound policy disabling the otherwise available adapter) or the valid

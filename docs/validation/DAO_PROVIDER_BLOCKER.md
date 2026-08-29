@@ -196,9 +196,13 @@ artifact and committed provider contract fixed there. Acceptance revalidates
 the hosted image, x86 COM registration/CLSID, provider path/version/hash, and
 disposable `dbVersion30` probe from that structured artifact; operation-log or
 workflow prose cannot supply PASS facts. The proof remains subject to the
-seven-day prerequisite, human authorization, pre-mutation boundary, 14-day
-provider-diagnostic and 90-day release-evidence retention periods, and the ban
-on redistributing provider or MDB bytes. Its campaign string is
+seven-day prerequisite: integer age from the validated manifest
+`run.started_at` to the selected provider-contract image proof's exact
+UTC-second `completed_at` is accepted inclusively through `604800`, rejected at
+`604801`, and rejected when negative/future-dated. No local acceptance clock is
+used. Human authorization, the pre-mutation boundary, 14-day provider-diagnostic
+and 90-day release-evidence retention periods, and the ban on redistributing
+provider or MDB bytes remain mandatory. Its campaign string is
 `campaign_id`; its hosted workflow number and attempt are positive-integer
 `hosted_run_id` and `hosted_run_attempt` throughout the manifest, report, and
 acceptance output.
