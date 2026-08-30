@@ -20,6 +20,7 @@ use crate::semantic_values::{Converted, convert_column, convert_value, memo_valu
 use crate::{
     Index, IndexField, PropertyMap, Relationship, RelationshipField, SemanticSnapshot,
     SnapshotError, Table, TableKind, reader_error, row_from_values, sha256_hex,
+    validate_scenario_id, validate_source_revision,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -67,6 +68,8 @@ pub fn snapshot_bytes(
     bytes: &[u8],
     options: &SnapshotOptions,
 ) -> Result<SnapshotOutcome, SnapshotError> {
+    validate_scenario_id(&options.scenario_id)?;
+    validate_source_revision(&options.source_revision)?;
     let limits = ResourceLimits::new(ReadLimits::new(
         ByteCount::new(bytes.len() as u64),
         JET3_PAGE_SIZE,

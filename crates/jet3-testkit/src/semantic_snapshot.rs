@@ -83,6 +83,14 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     hex(&Sha256Hasher::digest(bytes))
 }
 
+/// Validates a producer revision: non-empty and at most 200 characters.
+pub fn validate_source_revision(source_revision: &str) -> Result<(), SnapshotError> {
+    if source_revision.is_empty() || source_revision.chars().count() > 200 {
+        return Err(SnapshotError::InvalidSourceRevision);
+    }
+    Ok(())
+}
+
 /// Validates a `DAO-(READ|WRITE|UPDATE)-` scenario identifier.
 pub fn validate_scenario_id(id: &str) -> Result<(), SnapshotError> {
     let suffix = ["DAO-READ-", "DAO-WRITE-", "DAO-UPDATE-"]
@@ -364,9 +372,7 @@ impl SemanticSnapshot {
         database_sha256: String,
     ) -> Result<Self, SnapshotError> {
         validate_scenario_id(scenario_id)?;
-        if source_revision.is_empty() || source_revision.chars().count() > 200 {
-            return Err(SnapshotError::InvalidSourceRevision);
-        }
+        validate_source_revision(source_revision)?;
         Ok(Self {
             comparison_projection: ["/producer", "/producer_extensions"],
             database_properties: PropertyMap::new(),

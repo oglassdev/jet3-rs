@@ -21,6 +21,7 @@ pub use semantic_snapshot::{
     Column, Index, IndexField, PROTOCOL_VERSION, Producer, PropertyMap, RawField, Relationship,
     RelationshipField, Row, Scalar, SemanticSnapshot, SnapshotError, Table, TableKind, TypedValue,
     canonical_json, hex, reader_error, row_from_values, sha256_hex, validate_scenario_id,
+    validate_source_revision,
 };
 
 /// Returns the format name used in fixture metadata.

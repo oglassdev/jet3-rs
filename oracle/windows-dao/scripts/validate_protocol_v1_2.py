@@ -32,10 +32,12 @@ SCHEMA_DIR = ROOT / "protocol" / "v1_2"
 PROTOCOL_VERSION = "1.2.0"
 SUPPORT_MATRIX = REPO_ROOT / "docs" / "validation" / "support-matrix.json"
 BRANCH_REGISTRY = SCHEMA_DIR / "branch-registry.json"
+SCENARIOS = SCHEMA_DIR / "scenarios.json"
 SCHEMAS = {
     "dao_scenario_inventory": "scenarios.schema.json",
     "dao_branch_registry": "branch-registry.schema.json",
     "canonical_semantic_snapshot": "canonical-semantic-snapshot.schema.json",
+    "coverage_receipt": "coverage-receipt.schema.json",
 }
 SCHEMA_SET = ProtocolSchemaSet(SCHEMA_DIR, SCHEMAS)
 FAMILY_FOR_MODE = {
@@ -484,6 +486,27 @@ def validate_semantic_snapshot(document: dict[str, Any]) -> None:
             raise ValidationError(f"$.producer_extensions[{key!r}]: keys must be JSON pointers")
 
 
+def validate_coverage_receipt(document: dict[str, Any]) -> None:
+    """A receipt may only cite registry branches and must verdict every inventory scenario."""
+    unknown = sorted(set(document["branches"]) - load_branch_ids())
+    if unknown:
+        raise ValidationError(f"$.branches: not in the branch registry: {unknown}")
+    if document["branches"] != sorted(set(document["branches"])):
+        raise ValidationError("$.branches: ids must be unique and sorted")
+    if (document["outcome"] == "opening_failure") != (document["error_class"] is not None):
+        raise ValidationError("$.error_class: required exactly when outcome is opening_failure")
+    inventory_ids = [scenario["id"] for scenario in load_json(SCENARIOS)["scenarios"]]
+    if document["scenario_id"] not in inventory_ids:
+        raise ValidationError(f"$.scenario_id: {document['scenario_id']} is not in the inventory")
+    receipt_ids = [scenario["id"] for scenario in document["scenarios"]]
+    if receipt_ids != inventory_ids:
+        raise ValidationError("$.scenarios: must verdict every inventory scenario in inventory order")
+    for index, scenario in enumerate(document["scenarios"]):
+        expected = scenario["outcome_matches"] and not scenario["missing_branches"] and not scenario["forbidden_observed"]
+        if scenario["satisfied"] != expected:
+            raise ValidationError(f"$.scenarios[{index}].satisfied: inconsistent with its checks")
+
+
 def validate_document(document: Any, *, complete: bool = False) -> str:
     document_type = SCHEMA_SET.validate(document)
     if document.get("protocol_version") != PROTOCOL_VERSION:
@@ -492,6 +515,8 @@ def validate_document(document: Any, *, complete: bool = False) -> str:
         validate_inventory(document, capability_ids=load_capability_ids(), branch_ids=load_branch_ids(), complete=complete)
     elif document_type == "dao_branch_registry":
         validate_registry(document)
+    elif document_type == "coverage_receipt":
+        validate_coverage_receipt(document)
     else:
         validate_semantic_snapshot(document)
     return document_type
@@ -516,7 +541,7 @@ def main(argv: list[str] | None = None) -> int:
     inventory = subparsers.add_parser("inventory", help="validate the scenario inventory")
     inventory.add_argument("path", type=Path)
     inventory.add_argument("--complete", action="store_true", help="reject any deferred plan requirement")
-    subparsers.add_parser("document", help="validate one snapshot or registry document").add_argument("path", type=Path)
+    subparsers.add_parser("document", help="validate one snapshot, coverage receipt, or registry document").add_argument("path", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "schemas":

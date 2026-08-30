@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use jet3::TextCodePage;
 use jet3_testkit::{
     PROTOCOL_SCENARIOS, Producer, SnapshotOptions, SnapshotOutcome, canonical_json, coverage,
-    parse_scenarios, snapshot_bytes, validate_scenario_id,
+    parse_scenarios, snapshot_bytes,
 };
 
 pub(crate) const HELP: &str = "\
@@ -48,7 +48,6 @@ pub(crate) fn parse_args(
         }
         let text = value.to_str().ok_or("invalid_option_value")?;
         if option == "--scenario" {
-            validate_scenario_id(text).map_err(|_| "invalid_scenario_id")?;
             scenario_id = Some(text.to_owned());
         } else if option == "--source-revision" {
             source_revision = Some(text.to_owned());
@@ -74,6 +73,16 @@ pub(crate) fn parse_args(
 
 /// Writes the artifact pair and returns a one-line JSON summary.
 pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
+    let scenarios = parse_scenarios(PROTOCOL_SCENARIOS).map_err(|error| error.to_string())?;
+    if !scenarios
+        .iter()
+        .any(|scenario| scenario.id == command.scenario_id)
+    {
+        return Err(format!(
+            "scenario {} is not in the protocol 1.2 inventory",
+            command.scenario_id
+        ));
+    }
     let bytes = fs::read(&command.path).map_err(|error| format!("read input: {error}"))?;
     let options = SnapshotOptions {
         scenario_id: command.scenario_id.clone(),
@@ -81,7 +90,6 @@ pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
         code_page: command.code_page,
     };
     let outcome = snapshot_bytes(&bytes, &options).map_err(|error| error.to_string())?;
-    let scenarios = parse_scenarios(PROTOCOL_SCENARIOS).map_err(|error| error.to_string())?;
     let producer = Producer {
         kind: "rust",
         source_revision: command.source_revision.clone(),

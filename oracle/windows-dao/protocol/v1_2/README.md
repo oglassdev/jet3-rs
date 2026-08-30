@@ -12,12 +12,13 @@ compatibility. Protocols 1.0.0 and 1.1.0 remain frozen under `protocol/v1` and
 | --- | --- | --- |
 | `scenarios.schema.json` | `dao_scenario_inventory` | Closed field set and generator grammar for every scenario. |
 | `scenarios.json` | `dao_scenario_inventory` | The declarative DAO-versus-Rust read inventory, built reproducibly by `scripts/build_v1_2_inventory.py`. |
-| `branch-registry.schema.json`, `branch-registry.json` | `dao_branch_registry` | Closed list of Rust reader coverage branch ids that a `coverage-receipt.json` may cite. |
+| `branch-registry.schema.json`, `branch-registry.json` | `dao_branch_registry` | Closed list of Rust reader coverage branch ids that a `coverage.json` receipt may cite. |
+| `coverage-receipt.schema.json` | `coverage_receipt` | Shape of the `coverage.json` the Rust producer writes beside its snapshot. |
 | `canonical-semantic-snapshot.schema.json` | `canonical_semantic_snapshot` | Shape of the canonical snapshot both producers emit. |
 
 `scripts/validate_protocol_v1_2.py schemas` lints every schema;
 `inventory <path>` validates the inventory; `document <path>` validates one
-snapshot or registry document.
+snapshot, coverage receipt, or registry document.
 
 ## Scenario inventory
 
