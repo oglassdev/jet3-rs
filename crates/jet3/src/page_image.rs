@@ -104,10 +104,6 @@ impl PageImage {
     pub const fn into_bytes(self) -> [u8; PAGE_BYTES] {
         self.bytes
     }
-
-    pub(crate) const fn bytes_mut(&mut self) -> &mut [u8; PAGE_BYTES] {
-        &mut self.bytes
-    }
 }
 
 /// A structured failure while appending rows to a data page image.

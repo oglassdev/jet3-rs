@@ -131,9 +131,15 @@ impl InlineUsageMapEncoder {
             .map_err(|_| UsageMapWriteError::PageNotRepresentable { page: start_page })?;
         budget.charge_allocation(bitmap_len)?;
         let len = bitmap_len.to_usize()?;
+        let mut bitmap = Vec::new();
+        bitmap.try_reserve_exact(len).map_err(|_| Error::Io {
+            operation: "reserve inline usage-map bitmap",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })?;
+        bitmap.resize(len, 0);
         Ok(Self {
             start_page: start,
-            bitmap: vec![0; len],
+            bitmap,
         })
     }
 
@@ -235,14 +241,22 @@ impl ExtendedUsageMapEncoder {
         self.first
     }
 
-    /// Sets the bit for `page`.
-    pub fn set_page(&mut self, page: PageNumber) -> Result<(), UsageMapWriteError> {
-        self.update(page, true)
+    /// Sets the bit for `page`, charging the one-byte image update to `budget`.
+    pub fn set_page(
+        &mut self,
+        page: PageNumber,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UsageMapWriteError> {
+        self.update(page, true, budget)
     }
 
-    /// Clears the bit for `page`.
-    pub fn clear_page(&mut self, page: PageNumber) -> Result<(), UsageMapWriteError> {
-        self.update(page, false)
+    /// Clears the bit for `page`, charging the one-byte image update to `budget`.
+    pub fn clear_page(
+        &mut self,
+        page: PageNumber,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UsageMapWriteError> {
+        self.update(page, false, budget)
     }
 
     /// Returns whether the bit for `page` is set.
@@ -277,16 +291,20 @@ impl ExtendedUsageMapEncoder {
         Ok((index, mask))
     }
 
-    fn update(&mut self, page: PageNumber, set: bool) -> Result<(), UsageMapWriteError> {
+    fn update(
+        &mut self,
+        page: PageNumber,
+        set: bool,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UsageMapWriteError> {
         let (index, mask) = self.locate(page)?;
-        let target = self
-            .image
-            .bytes_mut()
-            .get_mut(index)
-            .ok_or(Error::Arithmetic {
-                operation: "locate extended usage-map bitmap byte",
-            })?;
-        write_bit(target, mask, set);
+        let current = *self.image.as_bytes().get(index).ok_or(Error::Arithmetic {
+            operation: "locate extended usage-map bitmap byte",
+        })?;
+        let mut updated = current;
+        write_bit(&mut updated, mask, set);
+        self.image
+            .write_at(PageOffset::from_usize(index)?, &[updated], budget)?;
         Ok(())
     }
 }

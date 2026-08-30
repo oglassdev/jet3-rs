@@ -137,15 +137,26 @@ fn owner_beyond_u32_is_rejected() {
 
 #[test]
 fn budget_exhaustion_leaves_row_count_unchanged() -> TestResult {
-    let mut budget = budget_with_encoded_limit(4 + 3);
-    let mut builder = DataPageBuilder::new(PageNumber::new(20), &mut budget)?;
+    // The row bytes and directory entry fit the budget; only the final row
+    // count write is rejected.
+    let mut limited_budget = budget_with_encoded_limit(4 + 3 + 2);
+    let mut builder = DataPageBuilder::new(PageNumber::new(20), &mut limited_budget)?;
     assert!(matches!(
-        builder.append_row(&[1, 2, 3], &mut budget),
+        builder.append_row(&[1, 2, 3], &mut limited_budget),
         Err(PageImageError::Encoding(
             Error::ResourceLimitExceeded { .. }
         ))
     ));
     assert_eq!(builder.row_count(), 0);
     assert_eq!(&builder.image().as_bytes()[8..10], &[0, 0]);
+
+    let mut retry_budget = budget();
+    assert_eq!(builder.append_row(&[1, 2, 3], &mut retry_budget)?, 0);
+    let mut directory = DataPageDirectory::validate(builder.image().as_bytes(), &mut retry_budget)
+        .map_err(|error| format!("{error:?}"))?;
+    let entry = directory
+        .next_entry(builder.image().as_bytes())
+        .ok_or("missing retried row")?;
+    assert_eq!(&builder.image().as_bytes()[entry.range()], &[1, 2, 3]);
     Ok(())
 }

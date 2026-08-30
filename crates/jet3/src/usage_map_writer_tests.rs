@@ -95,6 +95,21 @@ fn inline_encoding_rejects_short_output_and_exhausted_budgets() -> TestResult {
         ))
     ));
 
+    let reserve_limited = ResourceLimits::new(ReadLimits::default())
+        .with_max_allocation_bytes(ByteCount::new(u64::MAX))
+        .with_max_total_work_units(u64::MAX);
+    assert!(matches!(
+        InlineUsageMapEncoder::new(
+            PageNumber::new(0),
+            ByteCount::from_usize(usize::MAX)?,
+            &mut ResourceBudget::new(reserve_limited)
+        ),
+        Err(UsageMapWriteError::Encoding(Error::Io {
+            kind: std::io::ErrorKind::OutOfMemory,
+            ..
+        }))
+    ));
+
     let encoder = InlineUsageMapEncoder::new(PageNumber::new(0), ByteCount::new(2), &mut budget())?;
     assert!(matches!(
         encoder.encode_into(&mut [0; 6], &mut budget()),
@@ -120,16 +135,16 @@ fn extended_page_round_trips_through_traversal_decoder() -> TestResult {
     assert_eq!(encoder.first_page(), PageNumber::new(EXTENDED_BITMAP_BITS));
     let first = EXTENDED_BITMAP_BITS;
     let last = 2 * EXTENDED_BITMAP_BITS - 1;
-    encoder.set_page(PageNumber::new(first))?;
-    encoder.set_page(PageNumber::new(first + 9))?;
-    encoder.set_page(PageNumber::new(last))?;
-    encoder.clear_page(PageNumber::new(first + 9))?;
+    encoder.set_page(PageNumber::new(first), &mut budget)?;
+    encoder.set_page(PageNumber::new(first + 9), &mut budget)?;
+    encoder.set_page(PageNumber::new(last), &mut budget)?;
+    encoder.clear_page(PageNumber::new(first + 9), &mut budget)?;
     assert_eq!(
-        encoder.set_page(PageNumber::new(first - 1)),
+        encoder.set_page(PageNumber::new(first - 1), &mut budget),
         Err(out_of_map(first - 1, first, EXTENDED_BITMAP_BITS))
     );
     assert_eq!(
-        encoder.set_page(PageNumber::new(last + 1)),
+        encoder.set_page(PageNumber::new(last + 1), &mut budget),
         Err(out_of_map(last + 1, first, EXTENDED_BITMAP_BITS))
     );
 
@@ -151,6 +166,24 @@ fn extended_slot_overflow_is_structured() {
         ExtendedUsageMapEncoder::new(u64::MAX, &mut budget()),
         Err(UsageMapWriteError::Encoding(Error::Arithmetic { .. }))
     ));
+}
+
+#[test]
+fn extended_updates_are_budgeted_and_atomic() -> TestResult {
+    let encoded_limited =
+        ResourceLimits::new(ReadLimits::default()).with_max_encoded_bytes(ByteCount::new(4));
+    let mut budget = ResourceBudget::new(encoded_limited);
+    let mut encoder = ExtendedUsageMapEncoder::new(0, &mut budget)?;
+    let before = *encoder.image().as_bytes();
+
+    assert!(matches!(
+        encoder.set_page(PageNumber::new(0), &mut budget),
+        Err(UsageMapWriteError::Encoding(
+            Error::ResourceLimitExceeded { .. }
+        ))
+    ));
+    assert_eq!(encoder.image().as_bytes(), &before);
+    Ok(())
 }
 
 #[test]
