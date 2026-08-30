@@ -29,6 +29,7 @@ pub mod long_value;
 pub mod map_location;
 pub mod offset;
 pub mod page;
+mod page_append_plan;
 pub mod page_image;
 pub mod page_kind;
 mod physical_index_definition;
