@@ -5944,6 +5944,66 @@ Use `not applicable` explicitly rather than omitting a field.
   or provider binary is committed or redistributed
 - Review: pending independent review
 
+### EXP-0064 — Accepted hosted protocol-1.2 read differential
+
+- Recorded: 2026-08-30, OpenAI Codex
+- Kind: accepted exact-commit hosted DAO-versus-Rust read differential
+- Question: Does the bounded Rust reader produce the same canonical semantic
+  results as DAO for every scenario in the preregistered protocol-1.2 read
+  inventory?
+- Origin: GitHub Actions run `33338088215`, attempt 1, job `99328555970`,
+  dispatched from exact clean pushed commit
+  `e6a7b2c24afa2ef386031a2e70cdedb120180a3e` under the approved
+  `read-v1_2.plan.json` SHA-256
+  `b4a05fc381efdaf56011205063c07232a77d23f99837e021242ee199cda48570`.
+  The project-authored producer created the scenario databases and DAO
+  snapshots; the project-authored evaluator generated the result report.
+- Environment: `windows-2022` image `20260824.284.2`, Windows Server 2022
+  build 20348, x86 Windows PowerShell 5.1, culture `en-US`, ANSI code page
+  1252, and UTC. The untouched image supplied x86 `DAO.DBEngine.36` version
+  3.6 from `dao360.dll` version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  its `dbVersion30` creation probe passed, so no runtime was installed.
+- Protocol: the approved plan permitted one attempt over exactly 98 scenarios.
+  Plan verification, provider probing, the locked release build, acquisition,
+  canonical validation, Rust coverage checks, and evaluation all completed.
+  A fresh download of the retained artifact was evaluated again from the same
+  source revision with `dao_read_diff.py`; the recomputed report was
+  byte-for-byte identical to the hosted report.
+- Artifacts: access-controlled GitHub artifact
+  `windows-dao-read-e6a7b2c24afa2ef386031a2e70cdedb120180a3e-1` (id
+  `9739871270`) contains the generated MDBs, DAO snapshots, manifest,
+  comparisons, provider diagnostics, and report. `report.json` SHA-256 is
+  `d5593d9a66962b478e68bf8e764cb606911db6d8b04e41390e81b0f46cc6eea4`;
+  `dao-manifest.raw.json` SHA-256 is
+  `c66b1a1d3d29da7a0735fc96dd2c15dddae17fdf880838f26727911048acd20a`.
+- Observation: the canonical report records `all_matched=true`, 98 distinct
+  scenario results, and inventory SHA-256
+  `b1f4a2e7d4b657e35467a43196008916df86d5426a367b0aeb8d8423cda9b97f`.
+  All 95 successful-open DAO/Rust comparison projections matched, and all
+  three declared opening-error scenarios produced their expected matched
+  outcomes.
+- Interpretation: this accepted result establishes `dao_differential`
+  verification at the exact source revision only for the capability IDs
+  explicitly attached to its scenarios: `database.open`,
+  `format.header_and_version`, `format.pages_allocation_usage`,
+  `schema.catalog_and_table_definitions`, `rows.streaming_read`,
+  `values.all_dao_jet3_table_types`, `values.null_fixed_variable`,
+  `values.code_pages_lossless_raw`,
+  `values.date_currency_binary_guid_replication`,
+  `values.memo_ole_multi_page`, `indexes.primary_unique_non_unique`, and
+  `indexes.composite_ascending_descending`. Partial implementation states
+  remain partial. The result does not verify capabilities absent from the
+  inventory and makes no writer, malformed-input, Jet 4, encryption, or
+  password-support claim.
+- Usage: `file:docs/validation/support-matrix.json`;
+  `file:oracle/windows-dao/acquisition/read-v1_2.plan.json`
+- Rights: the generated MDBs, snapshots, report, and provider diagnostics
+  remain access-controlled and uncommitted; no MDB bytes or provider binaries
+  are redistributed
+- Review: report integrity independently reproduced; entry and matrix review
+  pending
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
