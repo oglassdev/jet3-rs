@@ -43,9 +43,7 @@ commands also require:
 - network access when initially installing tools or fetching locked Cargo
   dependencies.
 
-The optional remote Windows DAO runner additionally needs an OpenSSH client.
-
-The local exploratory Windows DAO loop uses the same system OpenSSH client and
+The local exploratory Windows DAO loop uses a system OpenSSH client and
 a machine-local dockur/windows VM. Its disks, credentials, licensed provider,
 and shared artifacts stay outside the repository. See
 [`LOCAL_WINDOWS_VM.md`](LOCAL_WINDOWS_VM.md) for the environment variables and

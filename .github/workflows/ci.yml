@@ -86,8 +86,6 @@ jobs:
         run: python3 tools/validate_contract.py
       - name: Test validation tooling
         run: python3 -m unittest discover -s tools/tests -v
-      - name: Validate DAO oracle schemas without claiming provider coverage
-        run: python3 oracle/windows-dao/scripts/validate_protocol.py schemas
       - name: Validate DAO protocol 1.2 read inventory without claiming coverage
         run: |
           python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
@@ -95,47 +93,17 @@ jobs:
           python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
 
   oracle-contracts:
-    name: Portable oracle contracts (${{ matrix.shard }})
+    name: DAO protocol and development contracts
     needs: changes
     if: github.event_name == 'push' || needs.changes.outputs.oracle == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Exercise one deterministic portable oracle shard
-        run: >-
-          python3 oracle/windows-dao/scripts/run_contract_tests.py
-          portable-shard --shard-index ${{ matrix.shard }} --shard-count 4
-
-  windows-oracle-contracts:
-    name: Windows oracle and bounded-process contracts
-    needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.oracle == 'true'
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      - name: Validate DAO oracle schemas
-        run: python oracle/windows-dao/scripts/validate_protocol.py schemas
-      - name: Exercise focused Windows and process contracts on pull requests
-        if: github.event_name == 'pull_request'
-        run: >-
-          python oracle/windows-dao/scripts/run_contract_tests.py windows-pr
-      - name: Exercise the complete Windows oracle contract after merge
-        if: github.event_name == 'push'
-        run: python -m unittest discover -s oracle/windows-dao/tests -v
+      - name: Exercise retained oracle contracts
+        run: python3 -B -m unittest discover -s oracle/windows-dao/tests -v
   benchmarks:
     name: Benchmark harness
     needs: changes

@@ -1,1 +1,0 @@
-The A1 and A2 campaign tooling in this directory is retained only to reproduce the provenance record for the closed DAO campaigns; it is not part of the live A3 campaign lane or shared runtime tooling.

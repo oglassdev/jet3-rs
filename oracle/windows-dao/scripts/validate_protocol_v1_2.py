@@ -115,7 +115,7 @@ VALUE_PATTERNS = {
 }
 JSON_POINTER = re.compile(r"(?:/(?:[^/~]|~0|~1)*)+")
 
-# The plan's named minimum read set (IMPLEMENTATION_PLAN.md Section 5.1).
+# The protocol's required read set.
 # Every requirement maps to the exact scenario ids that satisfy it. A missing
 # requirement must be listed in the inventory's deferred_requirements with the
 # provenance it needs; --complete rejects any deferral.
@@ -310,7 +310,7 @@ def _validate_recipe(recipe: dict[str, Any], location: str) -> None:
 
 
 def validate_required_coverage(document: dict[str, Any], *, complete: bool) -> list[str]:
-    """Check the plan's named minimum set; return the deferred requirement ids."""
+    """Check the required scenario set; return the deferred requirement ids."""
     present = {scenario["id"]: scenario for scenario in document["scenarios"]}
     generated = {
         scenario["id"]: scenario
@@ -566,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("schemas", help="lint all protocol 1.2 schema files")
     inventory = subparsers.add_parser("inventory", help="validate the scenario inventory")
     inventory.add_argument("path", type=Path)
-    inventory.add_argument("--complete", action="store_true", help="reject any deferred plan requirement")
+    inventory.add_argument("--complete", action="store_true", help="reject any deferred requirement")
     subparsers.add_parser("document", help="validate one snapshot, coverage receipt, or registry document").add_argument("path", type=Path)
     pair = subparsers.add_parser("pair", help="validate one coverage receipt and its success snapshot")
     pair.add_argument("coverage", type=Path)
@@ -581,7 +581,7 @@ def main(argv: list[str] | None = None) -> int:
             if validate_document(document, complete=args.complete) != "dao_scenario_inventory":
                 raise ValidationError(f"{args.path}: not a scenario inventory")
             deferred = len(document["deferred_requirements"])
-            print(f"PASS: {args.path} ({len(document['scenarios'])} scenarios, {deferred} deferred plan requirements)")
+            print(f"PASS: {args.path} ({len(document['scenarios'])} scenarios, {deferred} deferred requirements)")
         elif args.command == "document":
             document_type = validate_document_path(args.path)
             print(f"PASS: {args.path} ({document_type})")

@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-dao-hosted.yml"
+REMOTE_PROCESS = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "remote" / "Remote.Process.ps1"
+)
 
 
 class WindowsDaoHostedWorkflowTests(unittest.TestCase):
@@ -66,6 +69,13 @@ class WindowsDaoHostedWorkflowTests(unittest.TestCase):
         self.assertIn("runner.json", self.workflow)
         self.assertIn("runtime-install.json", self.workflow)
         self.assertIn("environment.json", self.workflow)
+
+    def test_retained_process_helper_is_bootstrap_only(self) -> None:
+        process = REMOTE_PROCESS.read_text(encoding="utf-8")
+        self.assertIn("function Invoke-Jet3BootstrapProcess", process)
+        self.assertIn("function Stop-Jet3BootstrapProcessTree", process)
+        self.assertNotIn("Invoke-Jet3CheckedChildProcess", process)
+        self.assertNotIn("BoundedProcess", process)
 
 
 if __name__ == "__main__":
