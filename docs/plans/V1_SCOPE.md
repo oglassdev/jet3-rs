@@ -44,6 +44,9 @@ delivered in this order:
 
 ## Current next step
 
-Review and approve the SHA-256-pinned #98 acquisition plan, then run the DAO
-read differential once. The producer, evaluator, hosted workflow, and
-non-evidentiary synthetic dry run are ready.
+Continue #100 from the accepted A9 allocation result. The next writer layer
+needs a narrow local-VM bootstrap-layout observation before implementation:
+the semantic roles and references connecting the empty 20-page image, the
+first table-definition pages, its map rows, and the catalog update. This
+discovery remains development-only; #102 is the separate hosted write
+differential after database creation is complete.
