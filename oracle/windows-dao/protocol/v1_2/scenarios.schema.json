@@ -234,6 +234,7 @@
         { "$ref": "#/$defs/createRelationshipStep" },
         { "$ref": "#/$defs/insertRowsStep" },
         { "$ref": "#/$defs/insertUntilPageCountStep" },
+        { "$ref": "#/$defs/growRowsStep" },
         { "$ref": "#/$defs/deleteRowsStep" },
         { "$ref": "#/$defs/dropTableStep" },
         { "$ref": "#/$defs/reopenStep" },
@@ -321,6 +322,18 @@
         "repeat": { "type": "integer", "minimum": 1, "maximum": 65536 }
       }
     },
+    "growRowsStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "table", "count", "field", "value"],
+      "properties": {
+        "action": { "const": "grow_rows" },
+        "table": { "$ref": "#/$defs/identifier" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "field": { "$ref": "#/$defs/identifier" },
+        "value": { "$ref": "#/$defs/value" }
+      }
+    },
     "insertUntilPageCountStep": {
       "type": "object",
       "additionalProperties": false,
@@ -335,7 +348,7 @@
           "items": { "$ref": "#/$defs/value" }
         },
         "page_count": { "type": "integer", "minimum": 2, "maximum": 1048576 },
-        "require_exact_page_count": { "const": true }
+        "require_exact_page_count": { "type": "boolean" }
       }
     },
     "deleteRowsStep": {

@@ -272,7 +272,8 @@ pub(crate) fn decode_columns(
                     });
                 }
                 let fixed_offset = u16_at(&raw_record, 14);
-                if fixed_offset != next_fixed_offset {
+                if physical_type != ColumnPhysicalType::Boolean && fixed_offset != next_fixed_offset
+                {
                     return Err(TableDefinitionError::InvalidFixedOffset {
                         ordinal: record_ordinal,
                         raw: fixed_offset,

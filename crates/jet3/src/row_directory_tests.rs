@@ -22,6 +22,27 @@ fn page(owner: u32, rows: &[(&[u8], u16)]) -> [u8; PAGE_BYTES] {
 }
 
 #[test]
+fn skips_a_zero_length_deleted_slot_at_the_page_end() -> Result<(), Box<dyn std::error::Error>> {
+    // EXP-0060: deleting the first-packed row leaves a zero-length 0xc000
+    // slot whose masked start equals the page end.
+    let page = page(7, &[(b"", 0xc000), (b"first", 0)]);
+    let mut resources = budget();
+    let mut directory = RowDirectory::validate(
+        PageNumber::new(9),
+        PageNumber::new(7),
+        &page,
+        &mut resources,
+    )?;
+    let first = directory
+        .next_primary(&page)?
+        .ok_or("missing surviving row")?;
+    assert_eq!(&page[first.range()], b"first");
+    assert_eq!(first.locator().slot(), 1);
+    assert!(directory.next_primary(&page)?.is_none());
+    Ok(())
+}
+
+#[test]
 fn validates_reverse_rows_and_skips_deleted_or_overflow_storage()
 -> Result<(), Box<dyn std::error::Error>> {
     let page = page(7, &[(b"first", 0), (b"", 0xc000), (b"target", 0x8000)]);
@@ -136,6 +157,18 @@ fn rejects_owner_flags_offsets_overlap_and_truncation() {
             PageNumber::new(3),
             PageNumber::new(7),
             &out_of_page,
+            &mut budget(),
+        ),
+        Err(RowDirectoryError::OffsetOutOfPage { .. })
+    ));
+
+    let mut hidden_out_of_page = valid;
+    hidden_out_of_page[10..12].copy_from_slice(&0xc801_u16.to_le_bytes());
+    assert!(matches!(
+        RowDirectory::validate(
+            PageNumber::new(3),
+            PageNumber::new(7),
+            &hidden_out_of_page,
             &mut budget(),
         ),
         Err(RowDirectoryError::OffsetOutOfPage { .. })

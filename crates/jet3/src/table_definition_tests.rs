@@ -60,6 +60,25 @@ fn custom_column_definition(record: [u8; 18], variable_count: u16) -> Vec<u8> {
     finish(bytes)
 }
 
+fn fixed_long_boolean_byte_definition(boolean_offset: u16, byte_offset: u16) -> Vec<u8> {
+    let mut bytes = definition_header(0, 0);
+    bytes[21..23].copy_from_slice(&3_u16.to_le_bytes());
+    bytes[25..27].copy_from_slice(&3_u16.to_le_bytes());
+    bytes.extend_from_slice(&column_record(4, 3, 0, 4));
+    let mut boolean = column_record(1, 3, boolean_offset, 1);
+    boolean[1..3].copy_from_slice(&1_u16.to_le_bytes());
+    boolean[5..7].copy_from_slice(&1_u16.to_le_bytes());
+    bytes.extend_from_slice(&boolean);
+    let mut byte = column_record(2, 3, byte_offset, 1);
+    byte[1..3].copy_from_slice(&2_u16.to_le_bytes());
+    byte[5..7].copy_from_slice(&2_u16.to_le_bytes());
+    bytes.extend_from_slice(&byte);
+    bytes.extend_from_slice(&[
+        2, b'I', b'd', 4, b'F', b'l', b'a', b'g', 4, b'N', b'e', b'x', b't',
+    ]);
+    finish(bytes)
+}
+
 fn physical_index(flags: u8) -> [u8; 39] {
     let mut record = [0_u8; 39];
     for slot in 0..10 {
@@ -514,6 +533,36 @@ fn accepts_closed_type_inventory_and_text_size_boundaries() -> Result<(), Box<dy
             Err(TableDefinitionError::UnsupportedColumnSize { .. })
         ));
     }
+    Ok(())
+}
+
+#[test]
+fn boolean_fixed_offset_does_not_advance_byte_backed_columns()
+-> Result<(), Box<dyn std::error::Error>> {
+    let logical = fixed_long_boolean_byte_definition(0xbeef, 4);
+    let definition = decode(&database_bytes(&logical, None))?;
+    assert_eq!(
+        definition.columns()[0].storage(),
+        ColumnStorageClass::Fixed { offset: 0 }
+    );
+    assert_eq!(
+        definition.columns()[1].storage(),
+        ColumnStorageClass::Fixed { offset: 0xbeef }
+    );
+    assert_eq!(
+        definition.columns()[2].storage(),
+        ColumnStorageClass::Fixed { offset: 4 }
+    );
+
+    let corrupt = fixed_long_boolean_byte_definition(0xbeef, 5);
+    assert!(matches!(
+        decode(&database_bytes(&corrupt, None)),
+        Err(TableDefinitionError::InvalidFixedOffset {
+            ordinal: 2,
+            raw: 5,
+            expected: 4,
+        })
+    ));
     Ok(())
 }
 

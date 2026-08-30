@@ -191,6 +191,13 @@ def _id_row() -> list[dict[str, Any]]:
     return [_value("Id", "integer", 1), _value("Name", "unicode_string", "row")]
 
 
+def _grow(table: str, count: int, field: str, value: dict[str, Any]) -> dict[str, Any]:
+    # Overflow pointers only arise when an existing packed row grows beyond
+    # its page (EXP-0060), so scenarios requiring rows.overflow_pointer grow
+    # their first rows after packing.
+    return {"action": "grow_rows", "table": table, "count": count, "field": field, "value": _value(field, value["encoding"], value["value"])}
+
+
 def _id_table(name: str = "Items") -> dict[str, Any]:
     return _table(name, [_field("Id", "dbLong"), _field("Name", "dbText", 32)])
 
@@ -203,7 +210,7 @@ def _open_scenarios() -> list[dict[str, Any]]:
             "DAO-READ-OPEN-GROWN",
             caps + ["format.pages_allocation_usage"],
             _recipe([_id_table(), _insert("Items", [_id_row()], 256), {"action": "delete_rows", "table": "Items", "count": "all"}, {"action": "reopen"}]),
-            TABLE_BRANCHES + ["rows.deleted_skip"],
+            TABLE_BRANCHES,
         ),
     ]
     for suffix, options, error_class in [
@@ -218,12 +225,20 @@ def _open_scenarios() -> list[dict[str, Any]]:
 def _alloc_scenarios() -> list[dict[str, Any]]:
     caps = ["format.pages_allocation_usage", "rows.streaming_read"]
     scenarios = [_scenario("DAO-READ-ALLOC-SMALL-INLINE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES)]
-    for position, pages, branches, forbidden_branches in [
-        ("below", EXTENDED_SLOT_PAGES - 1, ["allocation.indirect_map"], ["allocation.extended_slot"]),
-        ("at", EXTENDED_SLOT_PAGES, ["allocation.indirect_map"], ["allocation.extended_slot"]),
+    # DAO does not close at every page count: crossing the slot-0 capacity
+    # allocates several pages at once, so "above" is the first closed page
+    # count past the capacity rather than an exact number. Wide rows keep the
+    # ~16k-page tables at roughly 150k rows so every producer can snapshot
+    # them.
+    wide_table = _table("Items", [_field("Id", "dbLong"), _field("Name", "dbText", 32), _field("Payload", "dbText", 200)])
+    wide_row = _id_row() + [_value("Payload", "repeat_ascii", {"unit": "P", "length": 200})]
+    for position, pages, exact, branches, forbidden_branches in [
+        ("below", EXTENDED_SLOT_PAGES - 1, True, ["allocation.indirect_map"], ["allocation.extended_slot"]),
+        ("at", EXTENDED_SLOT_PAGES, True, ["allocation.indirect_map"], ["allocation.extended_slot"]),
         (
             "above",
             EXTENDED_SLOT_PAGES + 1,
+            False,
             ["allocation.indirect_map", "allocation.extended_slot"],
             [],
         ),
@@ -234,13 +249,13 @@ def _alloc_scenarios() -> list[dict[str, Any]]:
                 caps,
                 _recipe(
                     [
-                        _id_table(),
+                        wide_table,
                         {
                             "action": "insert_until_page_count",
                             "table": "Items",
-                            "row": _id_row(),
+                            "row": wide_row,
                             "page_count": pages,
-                            "require_exact_page_count": True,
+                            "require_exact_page_count": exact,
                         },
                     ]
                 ),
@@ -256,7 +271,7 @@ def _alloc_scenarios() -> list[dict[str, Any]]:
         _scenario("DAO-READ-ALLOC-DELETE-REINSERT", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "delete_rows", "table": "Items", "count": 32}, _insert("Items", [_id_row()], 32)]), TABLE_BRANCHES + ["rows.deleted_skip"]),
         _scenario("DAO-READ-ALLOC-DROP-RECREATE", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table(), _insert("Items", [_id_row()], 64), {"action": "drop_table", "name": "Items"}, _id_table(), _insert("Items", [_id_row()], 8)]), TABLE_BRANCHES),
         _scenario("DAO-READ-ALLOC-IDLE-REOPEN", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 8), {"action": "reopen"}, {"action": "reopen"}]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _id_table("Gamma"), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [_id_row()], 512)]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
+        _scenario("DAO-READ-ALLOC-MULTIPLE-TABLES", caps + ["schema.catalog_and_table_definitions"], _recipe([_id_table("Alpha"), _id_table("Beta"), _table("Gamma", [_field("Id", "dbLong"), _field("Payload", "dbText", 255)]), _insert("Alpha", [_id_row()], 8), _insert("Beta", [_id_row()], 64), _insert("Gamma", [[_value("Id", "integer", 1), _value("Payload", "unicode_string", "p")]], 512), _grow("Gamma", 4, "Payload", {"encoding": "repeat_ascii", "value": {"unit": "G", "length": 255}})]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
     ]
     return scenarios
 
@@ -268,7 +283,7 @@ def _schema_scenarios() -> list[dict[str, Any]]:
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-TYPE-{case.name}", caps + [ALL_TYPES], _recipe([_table("Typed", [_field("Id", "dbLong"), case.field()])]), TABLE_BRANCHES))
     for suffix, size in [("TEXT-SIZE-1", 1), ("TEXT-SIZE-255", 255)]:
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", caps, _recipe([_table("Typed", [_field("Value", "dbText", size)])]), TABLE_BRANCHES))
-    scenarios.append(_scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps + [ALL_TYPES], _recipe([_table("Wide", [_field(f"F{index:02d}", TYPE_CASES[index % len(TYPE_CASES)].dao_type) for index in range(64)])]), TABLE_BRANCHES + ["tdef.continuation_chain"]))
+    scenarios.append(_scenario("DAO-READ-SCHEMA-WIDE-TABLE", caps + [ALL_TYPES], _recipe([_table("Wide", [_field(f"Field_{index:02d}_Boundary", TYPE_CASES[index % len(TYPE_CASES)].dao_type) for index in range(64)])]), TABLE_BRANCHES + ["tdef.continuation_chain"]))
     index_caps = caps + ["indexes.primary_unique_non_unique"]
     two_columns = [_field("Id", "dbLong"), _field("Code", "dbText", 16)]
     for suffix, index, extra in [
@@ -279,9 +294,17 @@ def _schema_scenarios() -> list[dict[str, Any]]:
         ("INDEX-COMPOSITE-DESCENDING", _index("ByIdCodeDesc", [("Id", True), ("Code", True)]), ["indexes.composite_ascending_descending"]),
         ("INDEX-COMPOSITE-MIXED", _index("ByIdAscCodeDesc", [("Id", False), ("Code", True)]), ["indexes.composite_ascending_descending"]),
     ]:
-        branches = TABLE_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index", "index.branch_leaf_traversal"]
+        branches = TABLE_BRANCHES + ["values.variable_short", "tdef.physical_index", "tdef.logical_index"]
+        if suffix != "INDEX-PRIMARY":
+            branches.append("index.branch_leaf_traversal")
         branches.append("index.composite_key_lossless" if len(index["fields"]) > 1 else "index.single_field_key")
-        rows = [[_value("Id", "integer", number), _value("Code", "unicode_string", f"C{number:02d}")] for number in (3, 1, 2)]
+        rows = [
+            [
+                _value("Id", "integer", number),
+                _value("Code", "unicode_string", f"C{number:015d}"),
+            ]
+            for number in range(256)
+        ]
         scenarios.append(_scenario(f"DAO-READ-SCHEMA-{suffix}", index_caps + extra, _recipe([_table("Keyed", two_columns, [index]), _insert("Keyed", rows)]), branches))
     relationship = {"action": "create_relationship", "name": "ParentChild", "table": "Parent", "foreign_table": "Child", "fields": [{"field": "Id", "foreign_field": "ParentId"}], "cascade_updates": False, "cascade_deletes": False}
     parent = _table("Parent", [_field("Id", "dbLong")], [_index("PrimaryKey", [("Id", False)], primary=True, unique=True, required=True)])
@@ -305,15 +328,15 @@ def _value_scenarios() -> list[dict[str, Any]]:
 
 def _rows_scenarios() -> list[dict[str, Any]]:
     caps = ["rows.streaming_read"]
-    table = _table("Items", [_field("Id", "dbLong"), _field("Name", "dbText", 255), _field("Note", "dbText", 255)])
-    long_row = [_value("Id", "integer", 1), _value("Name", "repeat_ascii", {"unit": "N", "length": 255}), _value("Note", "repeat_ascii", {"unit": "O", "length": 255})]
+    table = _table("Items", [_field("Id", "dbLong"), _field("Note", "dbText", 255)])
+    long_row = [_value("Id", "integer", 1), _value("Note", "repeat_ascii", {"unit": "O", "length": 8})]
     return [
         _scenario("DAO-READ-ROWS-EMPTY-TABLE", caps, _recipe([_id_table()]), TABLE_BRANCHES),
         _scenario("DAO-READ-ROWS-SINGLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()])]), TABLE_BRANCHES),
         _scenario("DAO-READ-ROWS-DUPLICATES", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 3)]), TABLE_BRANCHES),
-        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 16)]), TABLE_BRANCHES + ["values.variable_short", "rows.overflow_pointer", "rows.wide_variable_layout"]),
+        _scenario("DAO-READ-ROWS-PAGE-SPAN", caps, _recipe([table, _insert("Items", [long_row], 512), _grow("Items", 4, "Note", {"encoding": "repeat_ascii", "value": {"unit": "Q", "length": 255}})]), TABLE_BRANCHES + ["values.variable_short", "rows.overflow_pointer", "rows.wide_variable_layout"]),
         _scenario("DAO-READ-ROWS-DELETED-MIDDLE", caps, _recipe([_id_table(), _insert("Items", [_id_row()], 9), {"action": "delete_rows", "table": "Items", "count": 4}, _insert("Items", [_id_row()], 2)]), TABLE_BRANCHES + ["rows.deleted_skip"]),
-        _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096)]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
+        _scenario("DAO-READ-ROWS-MANY", caps + ["format.pages_allocation_usage"], _recipe([_id_table(), _insert("Items", [_id_row()], 4096), _grow("Items", 8, "Name", {"encoding": "repeat_ascii", "value": {"unit": "R", "length": 32}})]), TABLE_BRANCHES + ["rows.overflow_pointer"]),
     ]
 
 
