@@ -1,0 +1,374 @@
+name: Windows DAO allocation A9
+
+on:
+  workflow_dispatch:
+    inputs:
+      accept_microsoft_access_runtime_license:
+        description: Accept Microsoft's Access Runtime license for this run
+        required: true
+        type: boolean
+        default: false
+      run_acquisition:
+        description: Run the preregistered A9 allocation acquisition (issue 99)
+        required: true
+        type: boolean
+        default: false
+      approve_acquisition:
+        description: Approve the single preregistered DAO acquisition
+        required: true
+        type: boolean
+        default: false
+      plan_sha256:
+        description: SHA-256 of the reviewed acquisition plan
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-dao-allocation-a9-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  provider-probe:
+    name: Probe x86 DAO and optionally acquire
+    runs-on: windows-2022
+    timeout-minutes: 240
+    env:
+      ODT_URL: https://download.microsoft.com/download/6c1eeb25-cf8b-41d9-8d0d-cc1dbc032140/officedeploymenttool_20228-20124.exe
+      ODT_SHA256: 92a3cbd56191533e36bde1c6e4640883c900c00d1b5d43a974c870893681e0d4
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify preregistration and human approval
+        if: inputs.run_acquisition
+        shell: powershell
+        env:
+          APPROVED: ${{ inputs.approve_acquisition }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.plan_sha256 }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:GITHUB_RUN_ATTEMPT -cne "1") {
+            throw "The preregistered acquisition permits only the first workflow attempt."
+          }
+          if ($env:APPROVED -cne "true") {
+            throw "The DAO acquisition requires explicit human approval."
+          }
+          if ($env:EXPECTED_PLAN_SHA256 -cnotmatch "^[0-9a-f]{64}$") {
+            throw "The reviewed plan SHA-256 is required."
+          }
+          $plan = "oracle/windows-dao/acquisition/a9-allocation.plan.json"
+          $actual = (Get-FileHash -LiteralPath $plan -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -cne $env:EXPECTED_PLAN_SHA256) {
+            throw "The checked-in acquisition plan does not match the approved digest."
+          }
+          python oracle/windows-dao/scripts/dao_allocation_a9.py plan $plan .
+          if ($LASTEXITCODE -ne 0) {
+            throw "The acquisition plan inputs do not match their pinned digests."
+          }
+
+      - name: Record runner identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\dao-hosted-probe"
+          New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
+          [ordered]@{
+            document_type = "jet3_windows_hosted_runner"
+            github_sha = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            github_run_attempt = $env:GITHUB_RUN_ATTEMPT
+            requested_image = "windows-2022"
+            image_os = $env:ImageOS
+            image_version = $env:ImageVersion
+            windows_version = [Environment]::OSVersion.VersionString
+            process_architecture = $env:PROCESSOR_ARCHITECTURE
+          } | ConvertTo-Json -Depth 4 | Set-Content `
+            -LiteralPath (Join-Path $artifactRoot "runner.json") `
+            -Encoding UTF8
+
+      - name: Probe the untouched runner image
+        id: stock
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\dao-hosted-probe"
+          $output = Join-Path $artifactRoot "environment-stock.json"
+          $stdout = Join-Path $artifactRoot "probe-stock.stdout.log"
+          $stderr = Join-Path $artifactRoot "probe-stock.stderr.log"
+          $x86PowerShell = Join-Path $env:WINDIR `
+            "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+          if (-not (Test-Path -LiteralPath $x86PowerShell -PathType Leaf)) {
+            throw "x86 Windows PowerShell is unavailable."
+          }
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+          $probe = Invoke-Jet3BootstrapProcess `
+            -Executable $x86PowerShell `
+            -Arguments @(
+              "-NoLogo", "-NoProfile", "-NonInteractive",
+              "-ExecutionPolicy", "Bypass",
+              "-File", "oracle/windows-dao/scripts/probe-provider.ps1",
+              "-ProtocolVersion", "1.2.0", "-OutputPath", $output
+            ) `
+            -Label "Stock DAO provider probe" `
+            -TimeoutSeconds 120 -MaximumOutputBytes 1MB
+          [IO.File]::WriteAllText($stdout, $probe.stdout)
+          [IO.File]::WriteAllText($stderr, $probe.stderr)
+          $probeExit = $probe.exit_code
+          "exit_code=$probeExit" | Out-File -FilePath $env:GITHUB_OUTPUT `
+            -Encoding utf8 -Append
+          if ($probeExit -notin @(0, 3)) {
+            throw "Stock provider probe returned unexpected exit $probeExit."
+          }
+          exit 0
+
+      - name: Install the Microsoft 365 Access Runtime (x86)
+        id: install
+        if: >-
+          steps.stock.outputs.exit_code == '3' &&
+          inputs.accept_microsoft_access_runtime_license
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+
+          function Invoke-ProcessWithTimeout {
+            param(
+              [Parameter(Mandatory = $true)][string]$FilePath,
+              [Parameter(Mandatory = $true)][string[]]$ArgumentList,
+              [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+            )
+            $process = Start-Process -FilePath $FilePath -PassThru `
+              -ArgumentList $ArgumentList
+            if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+              Stop-Jet3BootstrapProcessTree -Process $process `
+                -Label "Microsoft runtime installation"
+              throw "Timed out while running $([IO.Path]::GetFileName($FilePath))."
+            }
+            return $process.ExitCode
+          }
+
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\dao-hosted-probe"
+          $odtRoot = Join-Path $env:RUNNER_TEMP "jet3-odt"
+          New-Item -ItemType Directory -Force -Path $artifactRoot, $odtRoot |
+            Out-Null
+          $installRecord = Join-Path $artifactRoot "runtime-install.json"
+          [ordered]@{
+            document_type = "jet3_windows_hosted_runtime_install"
+            status = "started"
+            github_sha = $env:GITHUB_SHA
+            odt_download_url = $env:ODT_URL
+            odt_expected_sha256 = $env:ODT_SHA256
+            office_client_edition = "32"
+            product_id = "AccessRuntimeRetail"
+          } | ConvertTo-Json -Depth 4 | Set-Content `
+            -LiteralPath $installRecord -Encoding UTF8
+
+          $odtPackage = Join-Path $odtRoot "officedeploymenttool.exe"
+          Invoke-WebRequest -UseBasicParsing -Uri $env:ODT_URL `
+            -OutFile $odtPackage
+          $packageInfo = Get-Item -LiteralPath $odtPackage
+          if ($packageInfo.Length -lt 1MB -or $packageInfo.Length -gt 16MB) {
+            throw "The ODT package size is outside the reviewed bounds."
+          }
+          $packageHash = (
+            Get-FileHash -LiteralPath $odtPackage -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          if ($packageHash -cne $env:ODT_SHA256) {
+            throw "The ODT package does not match its pinned SHA-256."
+          }
+          $signature = Get-AuthenticodeSignature -LiteralPath $odtPackage
+          if (
+            $signature.Status -ne [Management.Automation.SignatureStatus]::Valid -or
+            $null -eq $signature.SignerCertificate -or
+            $signature.SignerCertificate.Subject -notmatch '(^|, )O=Microsoft Corporation(,|$)'
+          ) {
+            throw "The ODT package does not have a valid Microsoft signature."
+          }
+
+          $extractRoot = Join-Path $odtRoot "extracted"
+          New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+          $extractExit = Invoke-ProcessWithTimeout -FilePath $odtPackage `
+            -ArgumentList @("/quiet", "/extract:$extractRoot") `
+            -TimeoutSeconds 120
+          if ($extractExit -ne 0) {
+            throw "The Office Deployment Tool could not be extracted."
+          }
+          $setup = Join-Path $extractRoot "setup.exe"
+          if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) {
+            throw "The extracted Office Deployment Tool is incomplete."
+          }
+
+          $configuration = Join-Path $odtRoot "access-runtime-x86.xml"
+          @'
+          <Configuration>
+            <Add OfficeClientEdition="32" Channel="Current">
+              <Product ID="AccessRuntimeRetail">
+                <Language ID="en-us" />
+              </Product>
+            </Add>
+            <Display Level="None" AcceptEULA="TRUE" />
+            <Updates Enabled="FALSE" />
+          </Configuration>
+          '@ | Set-Content -LiteralPath $configuration -Encoding UTF8
+          $installExit = Invoke-ProcessWithTimeout -FilePath $setup `
+            -ArgumentList @("/configure", $configuration) `
+            -TimeoutSeconds 1200
+          if ($installExit -ne 0) {
+            throw "Access Runtime installation failed with exit $installExit."
+          }
+
+          [ordered]@{
+            document_type = "jet3_windows_hosted_runtime_install"
+            status = "installed"
+            github_sha = $env:GITHUB_SHA
+            odt_download_url = $env:ODT_URL
+            odt_sha256 = $packageHash
+            odt_signer_subject = $signature.SignerCertificate.Subject
+            office_client_edition = "32"
+            product_id = "AccessRuntimeRetail"
+            install_exit_code = $installExit
+          } | ConvertTo-Json -Depth 4 | Set-Content `
+            -LiteralPath $installRecord -Encoding UTF8
+
+      - name: Probe after Access Runtime installation
+        id: hosted
+        if: >-
+          always() && steps.stock.outputs.exit_code == '3' &&
+          steps.install.outcome == 'success'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\dao-hosted-probe"
+          $output = Join-Path $artifactRoot "environment.json"
+          $stdout = Join-Path $artifactRoot "probe-installed.stdout.log"
+          $stderr = Join-Path $artifactRoot "probe-installed.stderr.log"
+          $x86PowerShell = Join-Path $env:WINDIR `
+            "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+          $probe = Invoke-Jet3BootstrapProcess `
+            -Executable $x86PowerShell `
+            -Arguments @(
+              "-NoLogo", "-NoProfile", "-NonInteractive",
+              "-ExecutionPolicy", "Bypass",
+              "-File", "oracle/windows-dao/scripts/probe-provider.ps1",
+              "-ProtocolVersion", "1.2.0", "-OutputPath", $output
+            ) `
+            -Label "Installed DAO provider probe" `
+            -TimeoutSeconds 120 -MaximumOutputBytes 1MB
+          [IO.File]::WriteAllText($stdout, $probe.stdout)
+          [IO.File]::WriteAllText($stderr, $probe.stderr)
+          $probeExit = $probe.exit_code
+          "exit_code=$probeExit" | Out-File -FilePath $env:GITHUB_OUTPUT `
+            -Encoding utf8 -Append
+          if ($probeExit -notin @(0, 3)) {
+            throw "Installed provider probe returned unexpected exit $probeExit."
+          }
+          exit 0
+
+      - name: Select the stock provider record
+        if: steps.stock.outputs.exit_code == '0'
+        shell: powershell
+        run: >-
+          Copy-Item -LiteralPath
+          "artifacts/dao-hosted-probe/environment-stock.json"
+          -Destination "artifacts/dao-hosted-probe/environment.json"
+
+      - name: Acquire the A9 allocation page images
+        if: inputs.run_acquisition
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          . "oracle/windows-dao/scripts/remote/Remote.Process.ps1"
+          $x86PowerShell = Join-Path $env:WINDIR `
+            "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+          $output = Join-Path $env:GITHUB_WORKSPACE "artifacts\dao-allocation-a9"
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\dao-hosted-probe"
+          $stdout = Join-Path $artifactRoot "a9-generator.stdout.log"
+          $stderr = Join-Path $artifactRoot "a9-generator.stderr.log"
+          $arguments = @(
+              "-NoLogo", "-NoProfile", "-NonInteractive",
+              "-ExecutionPolicy", "Bypass",
+              "-File", "oracle/windows-dao/scripts/Invoke-DaoAllocationA9.ps1",
+              "-EnvironmentPath", "artifacts/dao-hosted-probe/environment.json",
+              "-OutputRoot", $output,
+              "-SourceRevision", $env:GITHUB_SHA,
+              "-PlanSha256", "${{ inputs.plan_sha256 }}",
+              "-TimeoutMinutes", "120"
+            ) | ForEach-Object { ConvertTo-Jet3ProcessArgument -Value $_ }
+          $generator = Start-Process -FilePath $x86PowerShell -PassThru `
+            -ArgumentList ($arguments -join " ") `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            if (-not $generator.WaitForExit(7200 * 1000)) {
+              Stop-Jet3BootstrapProcessTree -Process $generator `
+                -Label "A9 allocation generator"
+              throw "The A9 generator exceeded its 120-minute wall-clock ceiling."
+            }
+            if ($generator.ExitCode -ne 0) {
+              throw "The A9 generator failed with exit $($generator.ExitCode)."
+            }
+          }
+          finally {
+            $generator.Dispose()
+          }
+
+      - name: Evaluate the A9 artifact
+        if: always() && inputs.run_acquisition
+        shell: powershell
+        run: |
+          python oracle/windows-dao/scripts/dao_allocation_a9.py evaluate `
+            artifacts/dao-allocation-a9/manifest.raw.json `
+            artifacts/dao-allocation-a9 `
+            artifacts/dao-allocation-a9/report.json `
+            --expected-source-revision $env:GITHUB_SHA `
+            --expected-plan-sha256 "${{ inputs.plan_sha256 }}"
+
+      - name: Summarize the provider result
+        if: always()
+        shell: powershell
+        env:
+          PROBE_EXIT_CODE: ${{ steps.hosted.outputs.exit_code || steps.stock.outputs.exit_code }}
+        run: |
+          $summary = @(
+            "## Windows DAO allocation A9",
+            "",
+            "- Image: ``windows-2022`` / ``$env:ImageVersion``",
+            "- Commit: ``$env:GITHUB_SHA``",
+            "- Probe exit: ``$env:PROBE_EXIT_CODE``"
+          )
+          $environmentPath = "artifacts/dao-hosted-probe/environment.json"
+          if (Test-Path -LiteralPath $environmentPath -PathType Leaf) {
+            $record = Get-Content -LiteralPath $environmentPath -Raw |
+              ConvertFrom-Json
+            $summary += "- Status: ``$($record.status)``"
+            if ($null -ne $record.accepted_provider) {
+              $summary += "- Provider: ``$($record.accepted_provider.prog_id)``"
+            }
+          }
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY `
+            -Encoding utf8 -Append
+
+      - name: Upload provider diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-dao-allocation-a9-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Require a dbVersion30-capable provider
+        if: always()
+        shell: powershell
+        env:
+          PROBE_EXIT_CODE: ${{ steps.hosted.outputs.exit_code || steps.stock.outputs.exit_code }}
+        run: |
+          if ($env:PROBE_EXIT_CODE -ne "0") {
+            throw "The hosted runner did not provide a usable DAO environment."
+          }
