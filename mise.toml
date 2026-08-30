@@ -1,12 +1,10 @@
 [tools]
 python = "3.13.7"
-rust = { version = "1.96.0", profile = "minimal", components = ["clippy", "rustfmt", "llvm-tools"] }
+rust = { version = "1.96.0", profile = "minimal", components = ["clippy", "rustfmt"] }
 just = "1.46.0"
 jq = "1.8.2"
 "cargo:cargo-deny" = "0.20.2"
-"cargo:cargo-llvm-cov" = "0.8.6"
 "cargo:cargo-fuzz" = "0.13.2"
-"cargo:cargo-mutants" = "26.2.0"
 
 [hooks.postinstall]
 run = "rustup toolchain install nightly-2026-07-20 --profile minimal --component miri"

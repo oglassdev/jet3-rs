@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the binding G7 benchmark ledger and its retained artifacts."""
+"""Validate the benchmark ledger and its retained artifacts."""
 
 from __future__ import annotations
 

@@ -23,7 +23,7 @@ doc:
 quick:
     PYTHON="{{PYTHON}}" ./scripts/acceptance.sh quick
 
-# Full release contract; by design exits BLOCKED until every gate has current-commit evidence.
+# Full release check for one DAO differential bundle.
 accept:
     PYTHON="{{PYTHON}}" ./scripts/acceptance.sh full
 

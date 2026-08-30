@@ -220,7 +220,7 @@ executable path and hash. Older wrappers without the retained build
 closure are not evidence. Reports explicitly identify `smoke` or `full`
 campaigns. Smoke reports must cover at least the target's registered duration,
 and full reports must cover at least 600 seconds. A campaign report is evidence
-about one execution only; it does not by itself change G5 status.
+about one execution only; it is not a release gate.
 
 Compile without starting a fuzzing campaign:
 
@@ -242,6 +242,5 @@ extended bitmap's database-page base, or establish ownership/free-space
 semantics, and it is not DAO-verified.
 The database-opening target does not establish format correctness or replace
 the required catalog, table-definition, row, index, or long-value parsers.
-Checked malformed-corpus
-execution, ten-minute acceptance runs, resource monitoring, and the other
-requirements of validation gate G5 remain release blockers.
+Checked malformed-corpus execution, longer campaigns, and resource monitoring
+remain useful robustness work outside the three v1 release gates.
