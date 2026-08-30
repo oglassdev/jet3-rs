@@ -130,6 +130,8 @@ When the reader rejects the header (`unsupported_version`,
 python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
+python3 -B oracle/windows-dao/scripts/dao_read_diff.py plan oracle/windows-dao/acquisition/read-v1_2.plan.json .
+python3 -B oracle/windows-dao/scripts/dao_read_diff.py synthetic-dry-run /tmp/jet3-dao-read-dry-run.json
 python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
 ```
 

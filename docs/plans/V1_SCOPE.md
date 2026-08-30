@@ -44,5 +44,6 @@ delivered in this order:
 
 ## Current next step
 
-Run the DAO read differential tracked in #98, using the protocol-v1.2
-inventory and the lean Rust snapshot adapter.
+Review and approve the SHA-256-pinned #98 acquisition plan, then run the DAO
+read differential once. The producer, evaluator, hosted workflow, and
+non-evidentiary synthetic dry run are ready.

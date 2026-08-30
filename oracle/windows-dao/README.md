@@ -8,9 +8,11 @@ The retained tooling has three purposes:
 - `protocol/v1_2/` defines the shared read scenario and snapshot contract.
 - `scripts/dev/` plus `scripts/windows-dao-dev.py` support private exploratory
   runs in the local Windows VM described by `docs/LOCAL_WINDOWS_VM.md`.
-- `.github/workflows/windows-dao-hosted.yml` proves that a hosted Windows
-  runner can provide the required x86 DAO environment. A preregistered
-  differential or allocation experiment adds its own minimal producer.
+- `scripts/Invoke-DaoReadV12.ps1` is the bounded DAO producer for #98;
+  `scripts/dao_read_diff.py` canonicalizes, validates, and compares its output.
+- `.github/workflows/windows-dao-hosted.yml` probes the x86 DAO environment
+  and, only when explicitly approved against the pinned plan, runs the single
+  protocol-v1.2 acquisition.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
@@ -22,10 +24,30 @@ python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory \
   oracle/windows-dao/protocol/v1_2/scenarios.json
+python3 -B oracle/windows-dao/scripts/dao_read_diff.py plan \
+  oracle/windows-dao/acquisition/read-v1_2.plan.json .
+python3 -B oracle/windows-dao/scripts/dao_read_diff.py synthetic-dry-run \
+  /tmp/jet3-dao-read-dry-run.json
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 
 These checks execute no DAO operation and make no compatibility claim.
+The committed `acquisition/read-v1_2.synthetic.json` is the reproducible output
+of the synthetic command; it proves only that the comparison harness accepts a
+match and rejects a controlled mismatch.
+
+## Hosted acquisition
+
+`oracle/windows-dao/acquisition/read-v1_2.plan.json` pins the inventory,
+producer, evaluator, validator, workflow, and Rust dependency lock. The
+workflow rejects acquisition before its first DAO mutation unless all three
+manual inputs are supplied: `run_acquisition=true`,
+`approve_acquisition=true`, and the exact lowercase SHA-256 of that plan.
+
+One accepted run must cover all 98 scenarios. The evaluator checks every MDB
+digest, Rust coverage verdict, snapshot pair, and comparison projection before
+writing `report.json`. The artifact upload may contain MDB bytes for review,
+but those bytes and provider binaries are never committed.
 
 ## Experiment discipline
 

@@ -1,0 +1,47 @@
+{
+  "document_type": "dao_read_acquisition_plan",
+  "protocol_version": "1.2.0",
+  "issue": 98,
+  "purpose": "Run the single hosted DAO-versus-Rust read differential required for v1 verification.",
+  "inputs": {
+    ".github/workflows/windows-dao-hosted.yml": "a436f4b849031c39d94f7bab3d4acc5684300ad812d265f588d455216e8d3881",
+    "Cargo.lock": "eb8c67b84f06190369a8de28efe2a1fabdd37b2abf894989a9b076d8fe1ba3c0",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "oracle/windows-dao/protocol/v1_2/scenarios.json": "b418ebee090d2b6112ee72f5d75fef3b03a21a4008afa9edceb02bcd41a621ef",
+    "oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1": "262db0c5d08b6a41469f336029f5a20e8b306898204255f06aadc725f56968d4",
+    "oracle/windows-dao/scripts/dao_read_diff.py": "696e3b8192fc8b110b020e00dfdcbf479bd3ca3f83648b7c5a1bb17c4a017d26",
+    "oracle/windows-dao/scripts/validate_protocol_v1_2.py": "5e822535a7b66ecafd8f8f62edf2601d23d53e4b5afe0e9e00d0cb790f4415b9",
+    "rust-toolchain.toml": "fa0addad5676243d360310f981a69528b0341d295cb5012253d9721aba4d30c0"
+  },
+  "source_trees": {
+    "crates/jet3": "ac9e5760031098e0160a85cab47dca02b2ceddd2be7377b8cdd22ec919ba284c",
+    "crates/jet3-cli": "8920ad6aef637ebe49fb07cb04f05754229e75bf2f09ae472c6de3b9d61c2296",
+    "crates/jet3-testkit": "ee0b226d16c2c2c5e58756f0e05670bf1c311d8911c3e87d45f50e39a2706ae3"
+  },
+  "execution": {
+    "runner": "windows-2022",
+    "process_architecture": "x86",
+    "scenario_count": 98,
+    "attempts": 1,
+    "workflow_timeout_minutes": 240,
+    "rust_scenario_timeout_seconds": 900
+  },
+  "decision_rule": {
+    "accept": "The provider is ready, all 98 inventory scenarios execute once, every artifact validates, every Rust coverage verdict is satisfied, and every successful DAO/Rust comparison projection is byte-identical.",
+    "reject": "Any provider, generation, validation, coverage, comparison, completeness, or artifact-integrity failure rejects the acquisition.",
+    "retry": "A failure after the first DAO mutation is a scientific result and is not retried without a new human decision."
+  },
+  "publication": {
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "result_record": "One additive EXP entry derived from the validated report JSON.",
+    "support_matrix": "Only verification states directly demonstrated by an accepted acquisition may change."
+  },
+  "synthetic_dry_run": {
+    "compatibility_claim": false,
+    "required_checks": [
+      "matching_pair_accepted",
+      "mismatched_pair_rejected"
+    ]
+  }
+}

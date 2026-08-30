@@ -23,10 +23,9 @@ class WindowsDaoHostedWorkflowTests(unittest.TestCase):
         self.assertNotIn("pull_request:", self.workflow)
 
     def test_uses_explicit_windows_images_and_read_only_permissions(self) -> None:
-        self.assertIn("windows-2025", self.workflow)
         self.assertIn("windows-2022", self.workflow)
         self.assertRegex(self.workflow, r"permissions:\n  contents: read\n")
-        self.assertIn("timeout-minutes: 40", self.workflow)
+        self.assertIn("timeout-minutes: 240", self.workflow)
 
     def test_third_party_actions_are_commit_pinned(self) -> None:
         uses = re.findall(r"^\s*-?\s*uses:\s*([^\s#]+)", self.workflow, re.MULTILINE)
@@ -51,17 +50,32 @@ class WindowsDaoHostedWorkflowTests(unittest.TestCase):
         self.assertIn("[accept-access-runtime-eula]", self.workflow)
         self.assertIn('AcceptEULA="TRUE"', self.workflow)
 
-    def test_probes_stock_and_installed_x86_protocol_1_1(self) -> None:
+    def test_probes_stock_and_installed_x86_protocol_1_2(self) -> None:
         self.assertIn("environment-stock.json", self.workflow)
         self.assertIn('"SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe"', self.workflow)
         self.assertEqual(
-            self.workflow.count('"-ProtocolVersion", "1.1.0"'),
+            self.workflow.count('"-ProtocolVersion", "1.2.0"'),
             2,
         )
         self.assertEqual(self.workflow.count("probe-provider.ps1"), 2)
         self.assertEqual(self.workflow.count("Invoke-Jet3BootstrapProcess"), 2)
         self.assertEqual(self.workflow.count("-MaximumOutputBytes 1MB"), 2)
         self.assertGreaterEqual(self.workflow.count("-Encoding utf8 -Append"), 3)
+
+    def test_acquisition_is_preregistered_approved_and_single_runner(self) -> None:
+        self.assertIn("run_acquisition:", self.workflow)
+        self.assertIn("approve_acquisition:", self.workflow)
+        self.assertIn("plan_sha256:", self.workflow)
+        self.assertIn("Verify preregistration and human approval", self.workflow)
+        self.assertIn("read-v1_2.plan.json", self.workflow)
+        self.assertLess(
+            self.workflow.index("Verify preregistration and human approval"),
+            self.workflow.index("Probe the untouched runner image"),
+        )
+        self.assertIn("dao_read_diff.py plan", self.workflow)
+        self.assertNotIn("matrix.os", self.workflow)
+        self.assertIn("Invoke-DaoReadV12.ps1", self.workflow)
+        self.assertIn("dao_read_diff.py evaluate", self.workflow)
 
     def test_diagnostics_upload_even_when_probe_is_blocked(self) -> None:
         self.assertIn("if: always()", self.workflow)
