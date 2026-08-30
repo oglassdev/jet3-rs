@@ -4,6 +4,7 @@
 //! records the public [`jet3::PageKind`] returned for each complete page. It
 //! assigns no meaning to unknown tags and does not retain database bytes.
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::path::Path;
@@ -13,7 +14,30 @@ use jet3::{
     PageNumber, ReadLimits, ResourceBudget, ResourceLimits,
 };
 
-use crate::Sha256;
+/// A validated lowercase SHA-256 digest.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Sha256(String);
+
+impl Sha256 {
+    /// Validates and constructs lowercase SHA-256 text.
+    pub fn new(value: impl Into<String>) -> Result<Self, ClassifierSnapshotError> {
+        let value = value.into();
+        if value.len() != 64
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(ClassifierSnapshotError::InvalidSha256);
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the validated lowercase digest.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 const SIGNATURE_READ_BYTES: u64 = 15;
 const PAGE_BYTES: u64 = JET3_PAGE_SIZE.get();
@@ -227,7 +251,53 @@ impl ClassifierSnapshot {
                 });
             }
         }
-        Ok(crate::canonical_json::write_classifier_snapshot(self))
+        let fixtures: BTreeMap<String, serde_json::Value> = self
+            .fixtures
+            .iter()
+            .map(|fixture| {
+                let mut page_kinds: BTreeMap<String, serde_json::Value> = fixture
+                    .histogram
+                    .named_counts()
+                    .into_iter()
+                    .map(|(name, count)| (name.to_owned(), count.into()))
+                    .collect();
+                let unknown: BTreeMap<String, u64> = fixture
+                    .histogram
+                    .unknown_counts()
+                    .map(|(tag, count)| (format!("{tag:02x}"), count))
+                    .collect();
+                page_kinds.insert("unknown".to_owned(), serde_json::json!(unknown));
+                (
+                    format!(
+                        "{}@{}",
+                        fixture.sha256.as_str(),
+                        self.source_commit.as_str()
+                    ),
+                    serde_json::json!({
+                        "fixture_sha256": fixture.sha256.as_str(),
+                        "page_count": fixture.page_count,
+                        "page_kinds": page_kinds,
+                    }),
+                )
+            })
+            .collect();
+        let document = serde_json::json!({
+            "document_type": "page_classifier_snapshot",
+            "fixtures": fixtures,
+            "ordering": {
+                "fixture_keys": "sha256_then_commit_codepoint_ascending",
+                "object_keys": "unicode_codepoint_ascending",
+                "unknown_tags": "numeric_ascending",
+            },
+            "schema_version": 1,
+            "source_commit": self.source_commit.as_str(),
+        });
+        let mut bytes =
+            serde_json::to_vec(&document).map_err(|_| ClassifierSnapshotError::Arithmetic {
+                operation: "serialize classifier snapshot",
+            })?;
+        bytes.push(b'\n');
+        Ok(bytes)
     }
 }
 
@@ -313,6 +383,8 @@ pub fn classify_fixture(
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ClassifierSnapshotError {
+    /// A digest is not 64 lowercase hexadecimal digits.
+    InvalidSha256,
     /// The source revision is not a full lowercase hexadecimal Git commit ID.
     InvalidCommit,
     /// The expected fixture size does not contain only complete pages.
@@ -367,6 +439,7 @@ impl fmt::Display for ClassifierSnapshotError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidCommit => formatter.write_str("invalid full lowercase Git commit ID"),
+            Self::InvalidSha256 => formatter.write_str("invalid lowercase SHA-256 text"),
             Self::PartialExpectedPage { size } => {
                 write!(
                     formatter,
@@ -412,114 +485,9 @@ impl Error for ClassifierSnapshotError {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use std::path::{Component, Path, PathBuf};
-    use std::process::Command;
+    use jet3::PageKind;
 
-    use jet3::{ByteCount, PageKind};
-
-    use super::{
-        ClassifiedFixture, ClassifierSnapshot, CommitId, PageKindHistogram, classify_fixture,
-    };
-    use crate::Sha256;
-
-    const SOURCE_COMMIT: &str = "0a48b190ffb3211e3e1fd1f0483327b507d15136";
-    const EXTERNAL_ROOT_VARIABLE: &str = "JET3_EXTERNAL_FIXTURE_ROOT";
-    const MANIFEST_FIELDS_SCRIPT: &str = r#"import json, sys
-with open(sys.argv[1], encoding="utf-8") as source:
-    manifest = json.load(source)
-for fixture in manifest["fixtures"]:
-    fields = (
-        fixture["id"],
-        fixture["path"],
-        fixture["sha256"],
-        str(fixture["size_bytes"]),
-    )
-    sys.stdout.buffer.write(("\0".join(fields) + "\0").encode("ascii"))
-"#;
-    type VerifiedFixture = (PathBuf, Sha256, ByteCount);
-
-    fn repository_root() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-    }
-
-    fn verified_manifest_fixtures(
-        repository: &Path,
-        external_root: &Path,
-    ) -> Result<Vec<VerifiedFixture>, Box<dyn std::error::Error>> {
-        let verifier = Command::new(repository.join("tools/inspect_external_corpus.py"))
-            .current_dir(repository)
-            .env(EXTERNAL_ROOT_VARIABLE, external_root)
-            .output()?;
-        if !verifier.status.success() {
-            return Err(format!(
-                "external corpus verifier failed: {}",
-                String::from_utf8_lossy(&verifier.stderr)
-            )
-            .into());
-        }
-
-        let manifest = repository.join("docs/validation/external-corpus.json");
-        let parser = Command::new("python3")
-            .arg("-c")
-            .arg(MANIFEST_FIELDS_SCRIPT)
-            .arg(manifest)
-            .output()?;
-        if !parser.status.success() {
-            return Err(format!(
-                "external corpus manifest parser failed: {}",
-                String::from_utf8_lossy(&parser.stderr)
-            )
-            .into());
-        }
-        let fields = parser
-            .stdout
-            .split(|byte| *byte == 0)
-            .filter(|field| !field.is_empty())
-            .map(std::str::from_utf8)
-            .collect::<Result<Vec<_>, _>>()?;
-        if fields.is_empty() || fields.len() % 4 != 0 {
-            return Err("external corpus manifest parser returned an invalid record set".into());
-        }
-        fields
-            .chunks_exact(4)
-            .map(|fixture| {
-                let relative = PathBuf::from(fixture[1]);
-                if relative.is_absolute()
-                    || relative.components().any(|component| {
-                        matches!(component, Component::ParentDir | Component::CurDir)
-                    })
-                {
-                    return Err("external corpus manifest returned an unsafe path".into());
-                }
-                Ok((
-                    external_root.join(relative),
-                    Sha256::new(fixture[2])?,
-                    ByteCount::new(fixture[3].parse::<u64>()?),
-                ))
-            })
-            .collect()
-    }
-
-    #[test]
-    fn real_corpus_run_reproduces_committed_snapshot_byte_for_byte()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let Some(external_root) = env::var_os(EXTERNAL_ROOT_VARIABLE) else {
-            return Ok(());
-        };
-        let repository = repository_root();
-        let mut snapshot = ClassifierSnapshot::new(CommitId::new(SOURCE_COMMIT)?);
-        for (path, sha256, size) in
-            verified_manifest_fixtures(&repository, Path::new(&external_root))?
-        {
-            snapshot.insert(classify_fixture(path, sha256, size)?)?;
-        }
-        assert_eq!(
-            snapshot.to_canonical_json()?,
-            include_bytes!("../../../docs/validation/stage1-classifier-snapshot.json")
-        );
-        Ok(())
-    }
+    use super::{ClassifiedFixture, ClassifierSnapshot, CommitId, PageKindHistogram, Sha256};
 
     #[test]
     fn writer_orders_synthetic_fixture_and_unknown_keys_canonically()

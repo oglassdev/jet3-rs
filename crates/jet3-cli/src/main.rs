@@ -13,6 +13,8 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod snapshot;
+
 use jet3::{
     ByteCount, CandidateError, DatabaseFormatError, DatabaseOpenError, DatabaseReader, FileSource,
     JET3_PAGE_SIZE, JetFileKind, ReadLimits, ResourceBudget, ResourceLimits,
@@ -46,6 +48,7 @@ fixed 2 KiB buffer after checking both explicit scan limits.
 
 The JSON result does not validate whole-database structure or establish
 application compatibility.
+
 ";
 
 #[derive(Debug)]
@@ -73,6 +76,7 @@ enum Command {
     Help,
     Version,
     Probe(ProbeOptions),
+    Snapshot(snapshot::SnapshotCommand),
 }
 
 fn main() -> ExitCode {
@@ -84,7 +88,7 @@ fn main() -> ExitCode {
     };
 
     match command {
-        Command::Help => exit_after_write(write_stdout(HELP), 0),
+        Command::Help => exit_after_write(write_stdout(&format!("{HELP}{}", snapshot::HELP)), 0),
         Command::Version => exit_after_write(
             write_stdout(&format!("jet3-cli {}\n", env!("CARGO_PKG_VERSION"))),
             0,
@@ -92,6 +96,10 @@ fn main() -> ExitCode {
         Command::Probe(options) => match probe(&options) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
+        },
+        Command::Snapshot(command) => match snapshot::run(&command) {
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(message) => exit_after_write(write_stderr(&format!("jet3-cli: {message}\n")), 1),
         },
     }
 }
@@ -106,6 +114,9 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     }
     if first == "--version" || first == "-V" {
         return no_more(arguments, Command::Version);
+    }
+    if first == "snapshot" {
+        return snapshot::parse_args(arguments).map(Command::Snapshot);
     }
     if first != "probe" {
         return Err("unknown_command");

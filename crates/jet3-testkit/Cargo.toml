@@ -9,6 +9,9 @@ publish = false
 
 [dependencies]
 jet3 = { path = "../jet3", version = "=0.0.0" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["raw_value"] }
+sha2 = "0.11.0"
 
 [lints]
 workspace = true

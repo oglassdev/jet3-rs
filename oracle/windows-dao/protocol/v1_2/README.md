@@ -12,12 +12,15 @@ compatibility. Protocols 1.0.0 and 1.1.0 remain frozen under `protocol/v1` and
 | --- | --- | --- |
 | `scenarios.schema.json` | `dao_scenario_inventory` | Closed field set and generator grammar for every scenario. |
 | `scenarios.json` | `dao_scenario_inventory` | The declarative DAO-versus-Rust read inventory, built reproducibly by `scripts/build_v1_2_inventory.py`. |
-| `branch-registry.schema.json`, `branch-registry.json` | `dao_branch_registry` | Closed list of Rust reader coverage branch ids that a `coverage-receipt.json` may cite. |
+| `branch-registry.schema.json`, `branch-registry.json` | `dao_branch_registry` | Closed list of Rust reader coverage branch ids that a `coverage.json` receipt may cite. |
+| `coverage-receipt.schema.json` | `coverage_receipt` | Shape of the `coverage.json` the Rust producer writes beside its snapshot. |
 | `canonical-semantic-snapshot.schema.json` | `canonical_semantic_snapshot` | Shape of the canonical snapshot both producers emit. |
 
 `scripts/validate_protocol_v1_2.py schemas` lints every schema;
 `inventory <path>` validates the inventory; `document <path>` validates one
-snapshot or registry document.
+snapshot, coverage receipt, or registry document; and
+`pair <coverage> [snapshot]` verifies that the artifacts describe the same
+reader run. Opening failures have no snapshot argument.
 
 ## Scenario inventory
 
@@ -113,8 +116,16 @@ lossless `raw_hex` beside converted forms). Differences from 1.1:
   recipe and the reader's resource limits.
 
 DAO never emits allocation internals. The Rust producer additionally emits
-`coverage-receipt.json` (P8 step 2) bound to the source database SHA-256 and
-listing only registry branch ids; its schema is added in that step.
+`coverage.json` bound to the source database SHA-256: the registry branch ids
+the reader exercised and, for every inventory scenario, whether the observed
+outcome and branch set satisfy it. Both files come from one command:
+
+```sh
+cargo run -p jet3-cli -- snapshot <file.mdb> --out <dir> --scenario <DAO-READ-...>
+```
+
+When the reader rejects the header (`unsupported_version`,
+`encrypted_database`, `password_protected`) only `coverage.json` is written.
 
 ## Portable commands
 
