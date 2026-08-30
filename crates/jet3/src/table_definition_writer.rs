@@ -14,6 +14,7 @@ use crate::column_definition_writer::{
     physical_flags, resolve_column, validate_physical_index, write_column_record,
     write_logical_record, write_name, write_physical_record,
 };
+use crate::data_page_directory::MAX_STORED_ROW_LEN;
 use crate::{
     BinaryWriter, ByteCount, ColumnPhysicalType, Error, MapRowLocator, PageNumber, ResourceBudget,
 };
@@ -114,6 +115,13 @@ pub enum TableDefinitionWriteError {
         /// Column whose offset could not be represented.
         ordinal: u16,
     },
+    /// Even an all-null row cannot fit in one data-page row slot.
+    RowLayoutTooLarge {
+        /// Minimum encoded row length for the schema.
+        minimum: usize,
+        /// Maximum length after the page header and one directory entry.
+        maximum: usize,
+    },
     /// A physical index has no key fields.
     EmptyPhysicalIndex {
         /// Zero-based physical-index ordinal.
@@ -152,6 +160,22 @@ pub enum TableDefinitionWriteError {
         role: &'static str,
         /// Rejected page.
         page: PageNumber,
+    },
+    /// A required table usage-map page is zero or too large for its field.
+    InvalidMapReference {
+        /// `"owned"` or `"available"`.
+        role: &'static str,
+        /// Rejected page.
+        page: PageNumber,
+    },
+    /// A physical index targets a column type that DAO does not index.
+    UnsupportedKeyColumn {
+        /// Zero-based physical-index ordinal.
+        physical_index: u16,
+        /// Zero-based column ordinal.
+        ordinal: u16,
+        /// Rejected column type.
+        physical_type: ColumnPhysicalType,
     },
     /// A logical index references no physical index.
     InvalidPhysicalIndexOrdinal {
@@ -219,6 +243,20 @@ impl std::error::Error for TableDefinitionWriteError {
 pub fn table_definition_len(
     spec: &TableDefinitionSpec<'_>,
 ) -> Result<usize, TableDefinitionWriteError> {
+    if spec.columns.len() > MAX_COLUMN_COUNT {
+        return Err(TableDefinitionWriteError::TooManyColumns {
+            count: spec.columns.len(),
+            maximum: MAX_COLUMN_COUNT,
+        });
+    }
+    for (role, count) in [
+        ("physical", spec.physical_indexes.len()),
+        ("logical", spec.indexes.len()),
+    ] {
+        if u16::try_from(count).is_err() {
+            return Err(TableDefinitionWriteError::TooManyIndexes { role, count });
+        }
+    }
     let mut total = DEFINITION_HEADER_LEN;
     let mut add = |amount: usize| -> Result<(), TableDefinitionWriteError> {
         total = total
@@ -226,13 +264,28 @@ pub fn table_definition_len(
             .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
         Ok(())
     };
-    add(spec.physical_indexes.len() * (PHYSICAL_PREFIX_LEN + PHYSICAL_RECORD_LEN))?;
-    add(spec.columns.len() * COLUMN_RECORD_LEN)?;
+    let physical_bytes = spec
+        .physical_indexes
+        .len()
+        .checked_mul(PHYSICAL_PREFIX_LEN + PHYSICAL_RECORD_LEN)
+        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
+    add(physical_bytes)?;
+    let column_bytes = spec
+        .columns
+        .len()
+        .checked_mul(COLUMN_RECORD_LEN)
+        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
+    add(column_bytes)?;
     for column in spec.columns {
         add(1)?;
         add(column.name().len())?;
     }
-    add(spec.indexes.len() * LOGICAL_RECORD_LEN)?;
+    let logical_bytes = spec
+        .indexes
+        .len()
+        .checked_mul(LOGICAL_RECORD_LEN)
+        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
+    add(logical_bytes)?;
     for index in spec.indexes {
         add(1)?;
         add(index.name.len())?;
@@ -336,6 +389,12 @@ fn validate(
             count: spec.indexes.len(),
         }
     })?;
+    for (role, locator) in [("owned", spec.owned_map), ("available", spec.available_map)] {
+        let page = locator.page();
+        if page.get() == 0 || page.get() > 0x00ff_ffff {
+            return Err(TableDefinitionWriteError::InvalidMapReference { role, page });
+        }
+    }
     // Name uniqueness is quadratic in the (bounded) count; charge it as items.
     let name_work = u64::from(columns)
         .saturating_mul(u64::from(columns))
@@ -358,8 +417,38 @@ fn validate(
         )?;
         resolve_column(ordinal, column, &mut next_fixed_offset, &mut variables)?;
     }
+    let variable_trailer = if variables == 0 {
+        0
+    } else {
+        usize::from(variables)
+            .checked_add(2)
+            .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
+                operation: "size minimum encoded-row variable trailer",
+            }))?
+    };
+    let mut minimum_row_len = 1_usize
+        .checked_add(usize::from(next_fixed_offset))
+        .and_then(|value| value.checked_add(spec.columns.len().div_ceil(8)))
+        .and_then(|value| value.checked_add(variable_trailer))
+        .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
+            operation: "size minimum encoded row",
+        }))?;
+    if variables > 0 && minimum_row_len > u8::MAX as usize {
+        minimum_row_len =
+            minimum_row_len
+                .checked_add(1)
+                .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
+                    operation: "size minimum encoded-row jump table",
+                }))?;
+    }
+    if minimum_row_len > MAX_STORED_ROW_LEN {
+        return Err(TableDefinitionWriteError::RowLayoutTooLarge {
+            minimum: minimum_row_len,
+            maximum: MAX_STORED_ROW_LEN,
+        });
+    }
     for (ordinal, index) in (0_u16..).zip(spec.physical_indexes) {
-        validate_physical_index(ordinal, index, columns)?;
+        validate_physical_index(ordinal, index, spec.columns)?;
     }
     budget
         .charge_allocation(ByteCount::new(u64::from(physical)))

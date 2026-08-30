@@ -93,3 +93,31 @@ fn rejects_bad_names_small_output_and_exhausted_budget() {
             .contains("catalog record encoding failed")
     );
 }
+
+#[test]
+fn rejects_noncanonical_kind_and_null_table_root_without_writing() {
+    let mut output = [0xa5_u8; 64];
+    let alias = CatalogRecordSpec {
+        id: 1,
+        kind: CatalogObjectKind::Unknown(CatalogObjectKind::Table.raw()),
+        class: CatalogObjectClass::User,
+        name: b"T",
+    };
+    assert_eq!(
+        encode_catalog_record(&alias, &mut output, &mut budget()),
+        Err(CatalogRecordWriteError::NonCanonicalObjectKind { raw: 1 })
+    );
+    assert_eq!(output, [0xa5; 64]);
+
+    let null_root = CatalogRecordSpec {
+        id: 0,
+        kind: CatalogObjectKind::Table,
+        class: CatalogObjectClass::User,
+        name: b"T",
+    };
+    assert_eq!(
+        encode_catalog_record(&null_root, &mut output, &mut budget()),
+        Err(CatalogRecordWriteError::NullTableDefinition)
+    );
+    assert_eq!(output, [0xa5; 64]);
+}

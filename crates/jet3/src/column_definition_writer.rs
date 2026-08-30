@@ -321,8 +321,13 @@ pub(crate) fn write_name(
 pub(crate) fn validate_physical_index(
     physical_index: u16,
     index: &PhysicalIndexSpec<'_>,
-    column_count: u16,
+    columns: &[ColumnSpec<'_>],
 ) -> Result<(), TableDefinitionWriteError> {
+    let column_count =
+        u16::try_from(columns.len()).map_err(|_| TableDefinitionWriteError::TooManyColumns {
+            count: columns.len(),
+            maximum: u8::MAX as usize,
+        })?;
     if index.fields.is_empty() {
         return Err(TableDefinitionWriteError::EmptyPhysicalIndex { physical_index });
     }
@@ -339,6 +344,17 @@ pub(crate) fn validate_physical_index(
                 physical_index,
                 ordinal: field.column,
                 column_count,
+            });
+        }
+        let physical_type = columns[usize::from(field.column)].physical_type();
+        if matches!(
+            physical_type,
+            ColumnPhysicalType::LongBinary | ColumnPhysicalType::Memo
+        ) {
+            return Err(TableDefinitionWriteError::UnsupportedKeyColumn {
+                physical_index,
+                ordinal: field.column,
+                physical_type,
             });
         }
         if index.fields[..slot]

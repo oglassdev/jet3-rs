@@ -43,6 +43,13 @@ pub struct CatalogRecordSpec<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CatalogRecordWriteError {
+    /// An `Unknown` kind aliases a discriminant with a known interpretation.
+    NonCanonicalObjectKind {
+        /// Rejected physical kind value.
+        raw: u16,
+    },
+    /// A table cannot use database-definition page zero as its TDEF root.
+    NullTableDefinition,
     /// The name is empty.
     EmptyName,
     /// The name does not fit the one-byte name-end offset.
@@ -100,6 +107,7 @@ pub fn encode_catalog_record(
     output: &mut [u8],
     budget: &mut ResourceBudget,
 ) -> Result<ByteCount, CatalogRecordWriteError> {
+    validate_spec(spec)?;
     let length = catalog_record_len(spec.name.len())?;
     if output.len() < length {
         return Err(CatalogRecordWriteError::OutputTooSmall {
@@ -121,6 +129,18 @@ pub fn encode_catalog_record(
         BinaryWriter::new(output, budget).map_err(CatalogRecordWriteError::Resource)?;
     write_row(&mut writer, spec, name_end, flags).map_err(CatalogRecordWriteError::Resource)?;
     Ok(ByteCount::new(writer.position().get()))
+}
+
+fn validate_spec(spec: &CatalogRecordSpec<'_>) -> Result<(), CatalogRecordWriteError> {
+    match spec.kind {
+        CatalogObjectKind::Table if spec.id == 0 => {
+            Err(CatalogRecordWriteError::NullTableDefinition)
+        }
+        CatalogObjectKind::Unknown(raw) if raw == CatalogObjectKind::Table.raw() => {
+            Err(CatalogRecordWriteError::NonCanonicalObjectKind { raw })
+        }
+        CatalogObjectKind::Table | CatalogObjectKind::Unknown(_) => Ok(()),
+    }
 }
 
 fn write_row(

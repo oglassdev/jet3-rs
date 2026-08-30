@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+use crate::data_page_directory::MAX_STORED_ROW_LEN;
 use crate::{
     BinaryWriter, ByteCount, ByteOffset, ColumnDefinition, ColumnPhysicalType, ColumnStorageClass,
     Error, ResourceBudget,
@@ -195,6 +196,13 @@ pub enum RowWriteError {
         /// Maximum boundary.
         maximum: usize,
     },
+    /// The complete row cannot fit in a Jet 3 data-page row slot.
+    RowTooLong {
+        /// Complete encoded row length.
+        length: usize,
+        /// Maximum length after the page header and one directory entry.
+        maximum: usize,
+    },
     /// The output slice cannot hold the complete row.
     OutputTooSmall {
         /// Required length.
@@ -291,7 +299,12 @@ fn validate(
                 };
                 *slot = true;
                 variable_count += 1;
-                variable_bytes += width;
+                variable_bytes =
+                    variable_bytes
+                        .checked_add(width)
+                        .ok_or(RowWriteError::Resource(Error::Arithmetic {
+                            operation: "sum encoded-row variable bytes",
+                        }))?;
             }
         }
     }
@@ -309,9 +322,20 @@ fn validate(
         }
     }
     let null_len = columns.len().div_ceil(8);
-    let mut length = 1 + fixed_size + variable_bytes + null_len;
+    let mut length = 1_usize
+        .checked_add(fixed_size)
+        .and_then(|value| value.checked_add(variable_bytes))
+        .and_then(|value| value.checked_add(null_len))
+        .ok_or(RowWriteError::Resource(Error::Arithmetic {
+            operation: "size encoded row",
+        }))?;
     if variable_count > 0 {
-        length += variable_count + 1 + 1;
+        length = length
+            .checked_add(variable_count)
+            .and_then(|value| value.checked_add(2))
+            .ok_or(RowWriteError::Resource(Error::Arithmetic {
+                operation: "size encoded-row variable trailer",
+            }))?;
     }
     let wide = length > MAX_NARROW_ROW_LEN && variable_count > 0;
     if wide {
@@ -321,8 +345,17 @@ fn validate(
                 row_length: length,
             });
         }
-        length += 1;
-        let last_boundary = 1 + fixed_size + variable_bytes;
+        length = length
+            .checked_add(1)
+            .ok_or(RowWriteError::Resource(Error::Arithmetic {
+                operation: "size encoded-row jump byte",
+            }))?;
+        let last_boundary = 1_usize
+            .checked_add(fixed_size)
+            .and_then(|value| value.checked_add(variable_bytes))
+            .ok_or(RowWriteError::Resource(Error::Arithmetic {
+                operation: "size encoded-row variable boundary",
+            }))?;
         if last_boundary > MAX_WIDE_BOUNDARY {
             return Err(RowWriteError::BoundaryTooLarge {
                 index: 0,
@@ -330,6 +363,12 @@ fn validate(
                 maximum: MAX_WIDE_BOUNDARY,
             });
         }
+    }
+    if length > MAX_STORED_ROW_LEN {
+        return Err(RowWriteError::RowTooLong {
+            length,
+            maximum: MAX_STORED_ROW_LEN,
+        });
     }
     Ok(RowShape {
         fixed_size,
@@ -537,13 +576,19 @@ fn write_row(
     writer.seek(fixed_end)?;
     let mut boundaries = [0_usize; MAX_COLUMN_COUNT + 1];
     boundaries[0] = fixed_end.to_usize()?;
+    let mut variable_values = [None; MAX_COLUMN_COUNT];
+    for (column, value) in columns.iter().zip(values) {
+        if let ColumnStorageClass::Variable { index } = column.storage {
+            let slot = variable_values
+                .get_mut(usize::from(index))
+                .ok_or(Error::Arithmetic {
+                    operation: "map validated variable column",
+                })?;
+            *slot = Some(*value);
+        }
+    }
     for index in 0..shape.variable_count {
-        let Some((_, value)) = columns.iter().zip(values).find(|(column, _)| {
-            column.storage
-                == ColumnStorageClass::Variable {
-                    index: index as u16,
-                }
-        }) else {
+        let Some(value) = variable_values[index] else {
             return Err(Error::Arithmetic {
                 operation: "locate validated variable column",
             });

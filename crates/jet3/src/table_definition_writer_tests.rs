@@ -261,11 +261,89 @@ fn rejects_structural_errors_before_writing() {
         ),
     ];
     for (columns, expected) in cases {
+        if matches!(&expected, TableDefinitionWriteError::TooManyColumns { .. }) {
+            assert_eq!(
+                table_definition_len(&spec(&columns, &[], &[])),
+                Err(expected.clone())
+            );
+        }
         assert_eq!(
             encode_table_definition(&spec(&columns, &[], &[]), &mut output, &mut budget),
             Err(expected)
         );
     }
+
+    let names: [&[u8]; 9] = [b"A", b"B", b"C", b"D", b"E", b"F", b"G", b"H", b"I"];
+    let oversized_columns: Vec<_> = names
+        .into_iter()
+        .map(|name| {
+            ColumnSpec::new(
+                name,
+                ColumnPhysicalType::Text,
+                ColumnStorageKind::Fixed,
+                255,
+            )
+        })
+        .collect();
+    assert_eq!(
+        encode_table_definition(
+            &spec(&oversized_columns, &[], &[]),
+            &mut output,
+            &mut budget
+        ),
+        Err(TableDefinitionWriteError::RowLayoutTooLarge {
+            minimum: 2_298,
+            maximum: PAGE_BYTES - 12,
+        })
+    );
+
+    let columns = [ColumnSpec::new(
+        b"Notes",
+        ColumnPhysicalType::Memo,
+        ColumnStorageKind::Variable,
+        0,
+    )];
+    let fields = [IndexFieldSpec {
+        column: 0,
+        direction: IndexDirection::Ascending,
+    }];
+    let physical_indexes = [physical(&fields, false, false)];
+    assert_eq!(
+        encode_table_definition(
+            &spec(&columns, &physical_indexes, &[]),
+            &mut output,
+            &mut budget
+        ),
+        Err(TableDefinitionWriteError::UnsupportedKeyColumn {
+            physical_index: 0,
+            ordinal: 0,
+            physical_type: ColumnPhysicalType::Memo,
+        })
+    );
+
+    let columns = [ColumnSpec::new(
+        b"Id",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    let mut invalid_map = spec(&columns, &[], &[]);
+    invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0), 0);
+    assert_eq!(
+        encode_table_definition(&invalid_map, &mut output, &mut budget),
+        Err(TableDefinitionWriteError::InvalidMapReference {
+            role: "owned",
+            page: PageNumber::new(0),
+        })
+    );
+    invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0x0100_0000), 0);
+    assert_eq!(
+        encode_table_definition(&invalid_map, &mut output, &mut budget),
+        Err(TableDefinitionWriteError::InvalidMapReference {
+            role: "owned",
+            page: PageNumber::new(0x0100_0000),
+        })
+    );
     assert!(output.iter().all(|byte| *byte == 0));
 
     let columns = [ColumnSpec::new(

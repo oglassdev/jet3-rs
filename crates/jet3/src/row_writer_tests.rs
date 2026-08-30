@@ -325,6 +325,33 @@ fn reproduces_exp_0060_controls_and_wide_single_variable_rows()
 }
 
 #[test]
+fn accepts_the_absolute_maximum_single_page_row() -> Result<(), RowWriteError> {
+    let full = [0x5a_u8; 255];
+    let tail = [0xa5_u8; 249];
+    let mut layout: Vec<_> = (0_u16..7)
+        .map(|index| {
+            RowColumnLayout::new(
+                ColumnPhysicalType::Text,
+                ColumnStorageClass::Fixed {
+                    offset: index * 255,
+                },
+                255,
+            )
+        })
+        .collect();
+    layout.push(RowColumnLayout::new(
+        ColumnPhysicalType::Text,
+        ColumnStorageClass::Fixed { offset: 7 * 255 },
+        249,
+    ));
+    let mut values = vec![RowValue::Text(&full); 7];
+    values.push(RowValue::Text(&tail));
+
+    assert_eq!(encode(&layout, &values)?.len(), PAGE_BYTES - 12);
+    Ok(())
+}
+
+#[test]
 fn rejects_mismatches_unsupported_shapes_small_output_and_exhausted_budget() {
     let long = RowColumnLayout::new(
         ColumnPhysicalType::Long,
@@ -405,6 +432,28 @@ fn rejects_mismatches_unsupported_shapes_small_output_and_exhausted_budget() {
         Err(RowWriteError::UnsupportedWideVariableOffsets {
             variable_count: 2,
             row_length: 306,
+        })
+    );
+    let fixed_text = [0_u8; 255];
+    let oversized_layout: Vec<_> = (0..9)
+        .map(|index| {
+            RowColumnLayout::new(
+                ColumnPhysicalType::Text,
+                ColumnStorageClass::Fixed {
+                    offset: index * 255,
+                },
+                255,
+            )
+        })
+        .collect();
+    assert_eq!(
+        encode(
+            &oversized_layout,
+            &vec![RowValue::Text(&fixed_text); oversized_layout.len()]
+        ),
+        Err(RowWriteError::RowTooLong {
+            length: 2_298,
+            maximum: PAGE_BYTES - 12,
         })
     );
     let many = vec![long; 256];
