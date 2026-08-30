@@ -477,6 +477,7 @@ class Evaluation:
                     "free_pages": maps["free"]["pages"],
                     "free_page_count": len(maps["free"]["pages"]),
                 }
+            transitions = []
             for ordinal, (before_name, after_name) in enumerate(
                 (
                     ("01-before-first-type05", "02-after-first-type05"),
@@ -485,25 +486,57 @@ class Evaluation:
                 start=1,
             ):
                 before, after = states[before_name], states[after_name]
-                before_refs = (
-                    len(before["owned"]["references"])
+                before_refs = set(
+                    before["owned"]["references"]
                     if before["owned"]["kind"] == "type1_indirect"
-                    else 0
+                    else []
                 )
-                after_refs = (
-                    len(after["owned"]["references"])
+                after_refs = set(
+                    after["owned"]["references"]
                     if after["owned"]["kind"] == "type1_indirect"
-                    else 0
+                    else []
                 )
-                if after_refs <= before_refs:
-                    raise NoOutcome(
-                        f"r{replica}/Q4: transition {ordinal} did not extend the owned-map references"
-                    )
+                new_type05_pages = sorted(
+                    set(after["type05_pages"]) - set(before["type05_pages"])
+                )
                 if len(after["type05_pages"]) <= len(before["type05_pages"]):
                     raise NoOutcome(
                         f"r{replica}/Q4: transition {ordinal} did not add a captured type-05 page"
                     )
-            per_replica.append(states)
+                new_owned_references = after_refs - before_refs
+                linked_new_references = new_owned_references & set(new_type05_pages)
+                primary_extension = (
+                    after["owned"]["kind"] == "type1_indirect"
+                    and before_refs < after_refs
+                    and bool(linked_new_references)
+                )
+                transitions.append(
+                    {
+                        "ordinal": ordinal,
+                        "before": before_name,
+                        "after": after_name,
+                        "classification": (
+                            "primary_owned_map_extension"
+                            if primary_extension
+                            else "other_type05_growth"
+                        ),
+                        "new_type05_pages": new_type05_pages,
+                        "owned_kind_before": before["owned"]["kind"],
+                        "owned_kind_after": after["owned"]["kind"],
+                        "owned_references_before": sorted(before_refs),
+                        "owned_references_after": sorted(after_refs),
+                        "new_owned_references": sorted(new_owned_references),
+                        "linked_new_references": sorted(linked_new_references),
+                    }
+                )
+            if not any(
+                item["classification"] == "primary_owned_map_extension"
+                for item in transitions
+            ):
+                raise NoOutcome(
+                    f"r{replica}/Q4: neither captured transition extended the primary owned map"
+                )
+            per_replica.append({"checkpoints": states, "transitions": transitions})
         shape = require_same(
             [
                 {
@@ -514,13 +547,24 @@ class Evaluation:
                         "free_pages": state["free_pages"],
                         "type05_page_count": len(state["type05_pages"]),
                     }
-                    for name, state in states.items()
+                    for name, state in replica["checkpoints"].items()
                 }
-                for states in per_replica
+                for replica in per_replica
             ],
             "Q4 map contents",
         )
-        return {"map_shape": shape, "replicas": per_replica}
+        transition_classifications = require_same(
+            [
+                [transition["classification"] for transition in replica["transitions"]]
+                for replica in per_replica
+            ],
+            "Q4 transition classifications",
+        )
+        return {
+            "map_shape": shape,
+            "transition_classifications": transition_classifications,
+            "replicas": per_replica,
+        }
 
     def q5_ownership(self) -> dict[str, Any]:
         per_replica = []
@@ -803,7 +847,11 @@ def synthetic_checkpoints(replica: int) -> list[tuple[str, str, str, SyntheticDa
         db.free = set(remaining)
         result.append(("Q3", f"04-reinsert-{step}", "full", db))
 
-    def q4_state(page_count: int, refs: list[int] | None) -> SyntheticDatabase:
+    def q4_state(
+        page_count: int,
+        refs: list[int] | None,
+        other_type05_pages: tuple[int, ...] = (),
+    ) -> SyntheticDatabase:
         db = SyntheticDatabase(min(page_count, 32), replica)
         db.page_count = page_count
         db.set_tdef(20, 21)
@@ -814,14 +862,31 @@ def synthetic_checkpoints(replica: int) -> list[tuple[str, str, str, SyntheticDa
             for slot, ref in enumerate(refs):
                 owned = 21 if slot == 0 else slot * TYPE05_BITS
                 db.set_type05(ref, slot, {owned})
+        for page in other_type05_pages:
+            db.set_type05(page, 0, set())
         return db
 
     result += [
         ("Q4", "00-created", "selected", q4_state(22, None)),
         ("Q4", "01-before-first-type05", "selected", q4_state(1000, None)),
-        ("Q4", "02-after-first-type05", "selected", q4_state(1002, [1001])),
-        ("Q4", "03-before-second-type05", "selected", q4_state(16352, [1001])),
-        ("Q4", "04-after-second-type05", "selected", q4_state(16354, [1001, 16353])),
+        (
+            "Q4",
+            "02-after-first-type05",
+            "selected",
+            q4_state(1002, None, (1001,)),
+        ),
+        (
+            "Q4",
+            "03-before-second-type05",
+            "selected",
+            q4_state(16352, None, (1001,)),
+        ),
+        (
+            "Q4",
+            "04-after-second-type05",
+            "selected",
+            q4_state(16354, [16353], (1001,)),
+        ),
     ]
 
     q5_created = SyntheticDatabase(23, replica)

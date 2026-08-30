@@ -5,7 +5,7 @@
   "inputs": {
     ".github/workflows/windows-dao-allocation-a9.yml": "78fc369b33f47dd2e70418d3f21ef70b864069a658a78773361e01b460e9b3ac",
     "oracle/windows-dao/scripts/Invoke-DaoAllocationA9.ps1": "70dea1a06fe7bf14271d0bd45cb8ec7c5d2a282b9d89ea1cd85c54017163fea6",
-    "oracle/windows-dao/scripts/dao_allocation_a9.py": "29d7af10edcb0dfa7fae2ba95db11036c1c3f0003fcc9f96f213e93147dbad90",
+    "oracle/windows-dao/scripts/dao_allocation_a9.py": "4ed77d505c74fbc6e584def5fd5c252f3e3f4820947ef8f9221fdc5cab6d8967",
     "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
     "oracle/windows-dao/scripts/remote/Remote.Process.ps1": "8c130cc86060f4e2856a48421789450008fd98668ebe6849af3787d5977dda2d"
   },
@@ -83,7 +83,7 @@
       ],
       "capture": "selected",
       "procedure": "Create A9Lval(Id Long, Payload LongBinary); insert 1800-byte rows in batches of 64 keeping a copy before each batch; capture the copy and the result around the batch in which the number of tag-05 pages first increases, then again around the next increase (at most 32768 rows). The working MDB is deleted afterwards to bound the artifact.",
-      "evaluator_reports": "for every checkpoint the user table-definition page, the owned-map and free-map record kinds (type-0 inline or type-1 indirect), start page or references, exact decoded mapped page sets, mapped page counts, and the tag-05 page list; the owned/free kinds and exact mapped page sets, plus tag-05 counts, must agree across replicas. Transition granularity is one 64-row batch."
+      "evaluator_reports": "for every checkpoint the user table-definition page, the owned-map and free-map record kinds (type-0 inline or type-1 indirect), start page or references, exact decoded mapped page sets, mapped page counts, and the tag-05 page list; each captured global tag-05 increase is classified as a primary owned-map extension or other tag-05 growth, and at least one must monotonically extend the primary owned-map references with a tag-05 page added by that same transition; the owned/free kinds and exact mapped page sets, plus tag-05 counts and transition classifications, must agree across replicas. Transition granularity is one 64-row batch."
     },
     "Q5": {
       "title": "Ownership of index-tree and long-value pages",

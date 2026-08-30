@@ -183,7 +183,20 @@ class A9EvaluatorTests(unittest.TestCase):
         self.assertEqual(report["status"], "no_outcome")
         self.assertIn("page count did not grow", report["questions"]["Q2"]["reason"])
 
-    def test_q4_requires_owned_map_reference_growth(self) -> None:
+    def test_q4_classifies_global_and_primary_map_transitions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        transitions = report["questions"]["Q4"]["answer"]["replicas"][0]["transitions"]
+        self.assertEqual(
+            [transition["classification"] for transition in transitions],
+            ["other_type05_growth", "primary_owned_map_extension"],
+        )
+        self.assertEqual(transitions[0]["new_type05_pages"], [1001])
+        self.assertEqual(transitions[1]["new_type05_pages"], [16353])
+
+    def test_q4_requires_at_least_one_primary_owned_map_extension(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             manifest_path = a9.write_synthetic_artifact(root)
@@ -194,14 +207,14 @@ class A9EvaluatorTests(unittest.TestCase):
                     for item in manifest["checkpoints"]
                     if item["replica"] == replica
                     and item["question"] == "Q4"
-                    and item["name"] == "01-before-first-type05"
+                    and item["name"] == "03-before-second-type05"
                 )
                 after_entry = next(
                     item
                     for item in manifest["checkpoints"]
                     if item["replica"] == replica
                     and item["question"] == "Q4"
-                    and item["name"] == "02-after-first-type05"
+                    and item["name"] == "04-after-second-type05"
                 )
                 before = a9.load_json(root / before_entry["path"])
                 after = a9.load_json(root / after_entry["path"])
@@ -216,7 +229,38 @@ class A9EvaluatorTests(unittest.TestCase):
             report = a9.evaluate(manifest_path, root, root / "report.json")
         self.assertEqual(report["status"], "no_outcome")
         self.assertEqual(report["questions"]["Q4"]["status"], "no_outcome")
-        self.assertIn("did not extend", report["questions"]["Q4"]["reason"])
+        self.assertIn("neither captured transition", report["questions"]["Q4"]["reason"])
+
+    def test_q4_primary_extension_must_reference_the_new_type05_page(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            for replica in range(1, a9.REPLICAS + 1):
+                entry = next(
+                    item
+                    for item in manifest["checkpoints"]
+                    if item["replica"] == replica
+                    and item["question"] == "Q4"
+                    and item["name"] == "04-after-second-type05"
+                )
+                document = a9.load_json(root / entry["path"])
+                map_page = next(page for page in document["pages"] if page["page"] == 21)
+                image = bytearray.fromhex(map_page["hex"])
+                owned_start = int.from_bytes(image[10:12], "little") & 0x1FFF
+                self.assertEqual(image[owned_start], 0x01)
+                image[owned_start + 1 : owned_start + 5] = (1001).to_bytes(4, "little")
+                encoded = bytes(image)
+                map_page["hex"] = encoded.hex()
+                map_page["sha256"] = a9.sha256(encoded)
+                raw = a9.canonical_bytes(document)
+                (root / entry["path"]).write_bytes(raw)
+                entry["sha256"] = a9.sha256(raw)
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(report["questions"]["Q4"]["status"], "no_outcome")
+        self.assertIn("neither captured transition", report["questions"]["Q4"]["reason"])
 
     def test_q4_requires_replica_consistent_free_map_count(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
