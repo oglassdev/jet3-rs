@@ -4,8 +4,9 @@
     {
       "id": "database.open",
       "implementation": "partial",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/database.rs",
         "crates/jet3/src/database_tests.rs"
       ]
@@ -25,8 +26,9 @@
     {
       "id": "format.header_and_version",
       "implementation": "partial",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/database_header.rs",
         "crates/jet3/src/database_header_tests.rs",
         "crates/jet3/src/header.rs",
@@ -40,8 +42,9 @@
     {
       "id": "format.pages_allocation_usage",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/jet3_page.rs",
         "crates/jet3/src/jet3_page_tests.rs",
         "crates/jet3/src/raw_page_stream.rs",
@@ -59,8 +62,9 @@
     {
       "id": "schema.catalog_and_table_definitions",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/catalog.rs",
         "crates/jet3/src/catalog_record.rs",
         "crates/jet3/src/column_definition.rs",
@@ -80,8 +84,9 @@
     {
       "id": "values.all_dao_jet3_table_types",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/value.rs",
         "crates/jet3/src/text.rs",
         "crates/jet3/src/long_value.rs",
@@ -93,8 +98,9 @@
     {
       "id": "values.null_fixed_variable",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/row.rs",
         "crates/jet3/src/value.rs",
         "crates/jet3/src/row_tests.rs",
@@ -104,8 +110,9 @@
     {
       "id": "values.code_pages_lossless_raw",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/text.rs",
         "crates/jet3/src/text_tests.rs"
       ]
@@ -113,8 +120,9 @@
     {
       "id": "values.date_currency_binary_guid_replication",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/value.rs",
         "crates/jet3/src/value_tests.rs"
       ]
@@ -122,8 +130,9 @@
     {
       "id": "values.memo_ole_multi_page",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/long_value.rs",
         "crates/jet3/src/long_value_tests.rs"
       ]
@@ -131,8 +140,9 @@
     {
       "id": "rows.streaming_read",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/row_directory.rs",
         "crates/jet3/src/row.rs",
         "crates/jet3/src/row_directory_tests.rs",
@@ -148,8 +158,9 @@
     {
       "id": "indexes.primary_unique_non_unique",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/index_definition.rs",
         "crates/jet3/src/physical_index_definition.rs",
         "crates/jet3/src/index_tree.rs",
@@ -162,8 +173,9 @@
     {
       "id": "indexes.composite_ascending_descending",
       "implementation": "implemented",
-      "verification": "internal_only",
+      "verification": "dao_differential",
       "evidence": [
+        "docs/PROVENANCE.md",
         "crates/jet3/src/index_definition.rs",
         "crates/jet3/src/physical_index_definition.rs",
         "crates/jet3/src/index_tree.rs",

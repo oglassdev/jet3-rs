@@ -29,8 +29,6 @@ python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory \
   oracle/windows-dao/protocol/v1_2/scenarios.json
-python3 -B oracle/windows-dao/scripts/dao_read_diff.py plan \
-  oracle/windows-dao/acquisition/read-v1_2.plan.json .
 python3 -B oracle/windows-dao/scripts/dao_read_diff.py synthetic-dry-run \
   /tmp/jet3-dao-read-dry-run.json
 python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py plan \
@@ -47,16 +45,14 @@ match and rejects a controlled mismatch.
 
 ## Hosted acquisition
 
-`oracle/windows-dao/acquisition/read-v1_2.plan.json` pins the inventory,
-producer, evaluator, validator, workflow, and Rust dependency lock. The
-workflow rejects acquisition before its first DAO mutation unless all three
-manual inputs are supplied: `run_acquisition=true`,
-`approve_acquisition=true`, and the exact lowercase SHA-256 of that plan.
-
-One accepted run must cover all 98 scenarios. The evaluator checks every MDB
-digest, Rust coverage verdict, snapshot pair, and comparison projection before
-writing `report.json`. The artifact upload may contain MDB bytes for review,
-but those bytes and provider binaries are never committed.
+`oracle/windows-dao/acquisition/read-v1_2.plan.json` is the immutable consumed
+plan for the accepted run recorded by `EXP-0064`. Its approved SHA-256 is
+`b4a05fc381efdaf56011205063c07232a77d23f99837e021242ee199cda48570`.
+It pins the inventory, producer, evaluator, validator, workflow, Rust source,
+and dependency lock at the acquired revision; it is not re-pinned or validated
+against later working trees. The retained evaluator checks every MDB digest,
+Rust coverage verdict, snapshot pair, and comparison projection. Artifact MDB
+bytes remain access-controlled and are never committed.
 
 ### A9 allocation (#99)
 
