@@ -1,10 +1,8 @@
 # DAO oracle protocol 1.2.0 (differential read contract)
 
 Protocol 1.2.0 is the portable scenario-inventory and snapshot contract for
-the P8 differential read program (`IMPLEMENTATION_PLAN.md` Sections 5.1 and
-5.2). It executes no DAO operation, interprets no MDB byte, and establishes no
-compatibility. Protocols 1.0.0 and 1.1.0 remain frozen under `protocol/v1` and
-`protocol/v1_1`.
+the DAO read differential (#98). It executes no DAO operation, interprets no
+MDB byte, and establishes no compatibility by itself.
 
 ## Documents
 
@@ -38,7 +36,7 @@ Every scenario has exactly `id`, `content_sha256`, `capability_ids`,
 - `operation.mode` follows the protocol 1.0 prefix rule: `DAO-READ-*` is
   `rust_read_dao`, `DAO-WRITE-*` is `dao_open_rust`, `DAO-UPDATE-*` is
   `dao_verify_rust_update`. This revision enables only `rust_read_dao`; the
-  other modes are rejected until the P10 write/update revision.
+  other modes are rejected until their protocol revisions are defined.
 - `expected_outcome: expected_error` requires an `error_class`; `success`
   requires `error_class: null`. Negative opening scenarios generate Jet 4,
   encrypted, or password-protected databases that the Rust reader must reject
@@ -59,19 +57,18 @@ Every scenario has exactly `id`, `content_sha256`, `capability_ids`,
   no storage-form branch; a coverage receipt may report more than required
   except where a boundary explicitly lists `forbidden_branches`.
 - **Completeness is checked, not counted.** `validate_protocol_v1_2.py`
-  encodes the plan's named minimum read set (`REQUIRED_SCENARIOS`) as exact
+  encodes the required read set (`REQUIRED_SCENARIOS`) as exact
   generated scenario objects, not merely ids. Every requirement is either
   present without semantic drift or listed in the
   inventory's `deferred_requirements` with the provenance it needs; a silent
   omission fails validation, and `inventory --complete` rejects any deferral.
-  The P8 step-4 read bundle must validate with `--complete`. Current
+  The completed read bundle must validate with `--complete`. Current
   deferrals: the largest supported database size, the inline usage-map
   capacity (only an A3 design example, not an observation), extended slots
   beyond ordinal 1, and CP1251 text (`EXP-0061` did not establish it).
 - `expected_snapshot_sha256` is `null` until an accepted DAO run records the
-  DAO snapshot digest through the P8T mechanism; this inventory contains no
-  observations.
-- `preserve_paths` is empty for read scenarios; update legs use it in P10.
+  DAO snapshot digest; this inventory contains no observations.
+- `preserve_paths` is empty for read scenarios; update legs use it later.
 
 The generator recipe is a closed grammar of DAO steps (`create_database`,
 `create_table`, `create_relationship`, `insert_rows`,
@@ -137,5 +134,4 @@ python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_va
 ```
 
 These documents are experiment inputs. They record no observation and move no
-capability; matrix transitions happen only through the explicit P8 step-4
-allowlist after an accepted exact-commit DAO bundle.
+capability; matrix transitions happen only after an accepted DAO differential.

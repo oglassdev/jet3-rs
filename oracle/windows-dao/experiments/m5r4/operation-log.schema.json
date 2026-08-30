@@ -1,7 +1,0 @@
-{
-  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:jet3-rs:dao:m5r5:operation-log:1",
-  "type":"object","additionalProperties":false,
-  "required":["protocol_version","document_type","experiment_id","sample_id","phase_id","worker_run_id","started_at_utc","completed_at_utc","actions","status"],
-  "properties":{"protocol_version":{"const":"1.0.0"},"document_type":{"const":"dao_m5_operation_log"},"experiment_id":{"const":"DAO-M5-COMPACT-CONFIRM-005"},"sample_id":{"$ref":"#/$defs/id"},"phase_id":{"enum":["source","compact","verify"]},"worker_run_id":{"$ref":"#/$defs/id"},"started_at_utc":{"type":"string","format":"date-time"},"completed_at_utc":{"type":"string","format":"date-time"},"actions":{"type":"array","minItems":1,"maxItems":16,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z][a-z0-9_]{1,63}$"}},"status":{"const":"pass"}},
-  "$defs":{"id":{"type":"string","pattern":"^[A-Z0-9][A-Z0-9-]{1,63}$"}}
-}

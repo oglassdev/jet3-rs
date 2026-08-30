@@ -61,14 +61,6 @@ class SharedProtocolValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "prefixItems"):
             lint_schema({"type": "array", "prefixItems": []})
 
-    def test_m1_uses_the_shared_public_boundary(self):
-        source = (SCRIPTS / "validate_m1_protocol.py").read_text(encoding="utf-8")
-        self.assertNotIn("importlib", source)
-        self.assertNotIn("_V1", source)
-        self.assertNotIn("_walk_schema_constraints", source)
-        self.assertIn("SCHEMA_SET.validate(document)", source)
-
-
 class ProtocolV12Tests(unittest.TestCase):
     """Cross-field rules of the 1.2 differential read contract."""
 
@@ -163,7 +155,7 @@ class ProtocolV12Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "range"):
             self._validate(edited)
 
-    def test_plan_minimum_set_is_present_or_explicitly_deferred(self):
+    def test_required_set_is_present_or_explicitly_deferred(self):
         deferred = self._validate(self._copy())
         self.assertEqual(
             deferred,

@@ -42,12 +42,7 @@ delivered in this order:
 - Forms, reports, VBA, macros, query execution, passwords, encryption,
   replication semantics, multi-user locking, Jet 4, ACCDB, crash recovery.
 
-## Immediate follow-ups
+## Current next step
 
-- Reduce the semantic snapshot adapter (PR #92) to: traverse with the real
-  reader, emit canonical JSON via `serde_json`, hash with `sha2`. Drop the
-  hand-rolled SHA-256, `build.rs` identity checks, staging/durability layers,
-  and output budgeting. The same adapter serves all three legs.
-- Collapse `acceptance.sh full` to the three release gates and delete the
-  repository-contract and traceability validators and their CI jobs.
-- Retire unused experiment lanes under `oracle/windows-dao/experiments/`.
+Run the DAO read differential tracked in #98, using the protocol-v1.2
+inventory and the lean Rust snapshot adapter.
