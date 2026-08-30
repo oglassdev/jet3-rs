@@ -14,6 +14,9 @@ const OWNER_OFFSET: usize = 4;
 const ROW_COUNT_OFFSET: usize = 8;
 const DIRECTORY_OFFSET: usize = 10;
 const ENTRY_LEN: usize = 2;
+/// `EXP-0060`: maximum bytes available to one row after the page header and
+/// its required directory entry.
+pub(crate) const MAX_STORED_ROW_LEN: usize = PAGE_BYTES - DIRECTORY_OFFSET - ENTRY_LEN;
 const OFFSET_MASK: u16 = 0x1fff;
 const UNKNOWN_FLAG: u16 = 0x2000;
 const OVERFLOW_FLAG: u16 = 0x4000;
