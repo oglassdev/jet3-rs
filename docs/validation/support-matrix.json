@@ -147,19 +147,29 @@
     },
     {
       "id": "indexes.primary_unique_non_unique",
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "internal_only",
       "evidence": [
         "crates/jet3/src/index_definition.rs",
+        "crates/jet3/src/physical_index_definition.rs",
+        "crates/jet3/src/index_tree.rs",
+        "crates/jet3/src/index_tree_page.rs",
+        "crates/jet3/src/index_tree_rows.rs",
+        "crates/jet3/src/index_tree_tests.rs",
         "crates/jet3/src/table_definition_tests.rs"
       ]
     },
     {
       "id": "indexes.composite_ascending_descending",
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "internal_only",
       "evidence": [
         "crates/jet3/src/index_definition.rs",
+        "crates/jet3/src/physical_index_definition.rs",
+        "crates/jet3/src/index_tree.rs",
+        "crates/jet3/src/index_tree_page.rs",
+        "crates/jet3/src/index_tree_rows.rs",
+        "crates/jet3/src/index_tree_tests.rs",
         "crates/jet3/src/table_definition_tests.rs"
       ]
     },
