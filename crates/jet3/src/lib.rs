@@ -27,6 +27,7 @@ pub mod long_value;
 pub mod map_location;
 pub mod offset;
 pub mod page;
+pub mod page_image;
 pub mod page_kind;
 mod physical_index_definition;
 pub mod raw_page_stream;
@@ -38,6 +39,7 @@ pub mod source;
 pub mod table_definition;
 pub mod text;
 pub mod usage_map;
+pub mod usage_map_writer;
 pub mod value;
 
 pub use allocation::{
@@ -92,6 +94,7 @@ pub use long_value::{
 pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
+pub use page_image::{DataPageBuilder, PAGE_BYTES, PageImage, PageImageError, page_tag};
 pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
 pub use relationships::{Relationship, Relationships};
@@ -102,6 +105,10 @@ pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError};
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
+pub use usage_map_writer::{
+    EXTENDED_BITMAP_BITS, ExtendedUsageMapEncoder, InlineUsageMapEncoder, UsageMapWriteError,
+    encode_indirect_references, indirect_record_len,
+};
 pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 
 /// Human-readable name of the only database format targeted by this crate.
