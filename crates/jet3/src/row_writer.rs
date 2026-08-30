@@ -145,12 +145,30 @@ pub enum RowWriteError {
         /// Provided byte length.
         actual: usize,
     },
+    /// A column's declared size is incompatible with its physical type.
+    InvalidColumnSize {
+        /// Zero-based column ordinal.
+        ordinal: u16,
+        /// Column physical type.
+        physical_type: ColumnPhysicalType,
+        /// Rejected declared size.
+        size: u16,
+    },
     /// A column's storage class is incompatible with its physical type.
     InvalidStorage {
         /// Zero-based column ordinal.
         ordinal: u16,
         /// Column physical type.
         physical_type: ColumnPhysicalType,
+    },
+    /// A fixed column does not begin at the next derived offset.
+    InvalidFixedOffset {
+        /// Zero-based column ordinal.
+        ordinal: u16,
+        /// Rejected fixed offset.
+        offset: u16,
+        /// Offset derived from preceding fixed columns.
+        expected: u16,
     },
     /// Variable indexes are not exactly `0..variable_count`.
     InvalidVariableIndex {
@@ -251,18 +269,15 @@ fn validate(
     budget
         .charge_items(columns.len() as u64)
         .map_err(RowWriteError::Resource)?;
-    let mut fixed_size = 0_usize;
+    let mut next_fixed_offset = 0_u16;
     let mut variable_count = 0_usize;
     let mut variable_bytes = 0_usize;
     let mut seen_indexes = [false; MAX_COLUMN_COUNT];
     for (ordinal, (column, value)) in (0_u16..).zip(columns.iter().zip(values)) {
+        validate_column_layout(ordinal, *column, &mut next_fixed_offset)?;
         let width = value_width(ordinal, *column, *value)?;
         match column.storage {
-            ColumnStorageClass::Fixed { offset } => {
-                if column.physical_type != ColumnPhysicalType::Boolean {
-                    fixed_size = fixed_size.max(usize::from(offset) + usize::from(column.size));
-                }
-            }
+            ColumnStorageClass::Fixed { .. } => {}
             ColumnStorageClass::Variable { index } => {
                 let slot = seen_indexes
                     .get_mut(usize::from(index))
@@ -280,6 +295,7 @@ fn validate(
             }
         }
     }
+    let fixed_size = usize::from(next_fixed_offset);
     // Indexes are unique, so any index at or beyond the count leaves a hole.
     for (ordinal, column) in (0_u16..).zip(columns) {
         if let ColumnStorageClass::Variable { index } = column.storage
@@ -322,6 +338,76 @@ fn validate(
         wide,
         length,
     })
+}
+
+/// Validates the schema invariants established for column definitions.
+fn validate_column_layout(
+    ordinal: u16,
+    column: RowColumnLayout,
+    next_fixed_offset: &mut u16,
+) -> Result<(), RowWriteError> {
+    let valid_size = match column.physical_type {
+        ColumnPhysicalType::Boolean | ColumnPhysicalType::Byte => column.size == 1,
+        ColumnPhysicalType::Integer => column.size == 2,
+        ColumnPhysicalType::Long | ColumnPhysicalType::Single => column.size == 4,
+        ColumnPhysicalType::Currency
+        | ColumnPhysicalType::Double
+        | ColumnPhysicalType::DateTime => column.size == 8,
+        ColumnPhysicalType::Guid => column.size == 16,
+        ColumnPhysicalType::Binary | ColumnPhysicalType::Text => (1..=255).contains(&column.size),
+        ColumnPhysicalType::LongBinary | ColumnPhysicalType::Memo => column.size == 0,
+    };
+    if !valid_size {
+        return Err(RowWriteError::InvalidColumnSize {
+            ordinal,
+            physical_type: column.physical_type,
+            size: column.size,
+        });
+    }
+
+    let storage_error = || RowWriteError::InvalidStorage {
+        ordinal,
+        physical_type: column.physical_type,
+    };
+    match column.storage {
+        ColumnStorageClass::Fixed { offset } => {
+            if matches!(
+                column.physical_type,
+                ColumnPhysicalType::Binary
+                    | ColumnPhysicalType::LongBinary
+                    | ColumnPhysicalType::Memo
+            ) {
+                return Err(storage_error());
+            }
+            if offset != *next_fixed_offset {
+                return Err(RowWriteError::InvalidFixedOffset {
+                    ordinal,
+                    offset,
+                    expected: *next_fixed_offset,
+                });
+            }
+            if column.physical_type != ColumnPhysicalType::Boolean {
+                *next_fixed_offset =
+                    next_fixed_offset
+                        .checked_add(column.size)
+                        .ok_or(RowWriteError::Resource(Error::Arithmetic {
+                            operation: "advance encoded-row fixed offset",
+                        }))?;
+            }
+        }
+        ColumnStorageClass::Variable { .. } => {
+            if !matches!(
+                column.physical_type,
+                ColumnPhysicalType::Binary
+                    | ColumnPhysicalType::Text
+                    | ColumnPhysicalType::LongBinary
+                    | ColumnPhysicalType::Memo
+            ) {
+                return Err(storage_error());
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Checks the value against the column and returns its physical byte width.

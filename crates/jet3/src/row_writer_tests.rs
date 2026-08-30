@@ -352,6 +352,34 @@ fn rejects_mismatches_unsupported_shapes_small_output_and_exhausted_budget() {
             actual: 0,
         })
     );
+    let invalid_size = RowColumnLayout::new(
+        ColumnPhysicalType::Long,
+        ColumnStorageClass::Fixed { offset: 0 },
+        1,
+    );
+    let mut untouched = [0xa5_u8; 16];
+    assert_eq!(
+        encode_row(
+            &[invalid_size],
+            &[RowValue::Long(0x4433_2211)],
+            &mut untouched,
+            &mut ResourceBudget::new(ResourceLimits::default())
+        ),
+        Err(RowWriteError::InvalidColumnSize {
+            ordinal: 0,
+            physical_type: ColumnPhysicalType::Long,
+            size: 1,
+        })
+    );
+    assert_eq!(untouched, [0xa5; 16]);
+    assert_eq!(
+        encode(&[long, long], &[RowValue::Long(1), RowValue::Long(2)]),
+        Err(RowWriteError::InvalidFixedOffset {
+            ordinal: 1,
+            offset: 0,
+            expected: 4,
+        })
+    );
     assert_eq!(
         encode(&[text(0)], &[RowValue::Text(&[0; 256])]),
         Err(RowWriteError::InvalidWidth {
