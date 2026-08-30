@@ -1,0 +1,118 @@
+{
+  "document_type": "dao_allocation_a9_plan",
+  "issue": 99,
+  "purpose": "Acquire the Jet 3 page-allocation facts (empty template, page append, free-page reuse, table-map extension, index/long-value ownership) that the Rust writer needs, from three independent DAO replicas in one hosted job.",
+  "inputs": {
+    ".github/workflows/windows-dao-allocation-a9.yml": "76f89d99e73ccad61c66475efbffcc8fa4a99440e7ddb573294720f2561abf4e",
+    "oracle/windows-dao/scripts/Invoke-DaoAllocationA9.ps1": "f9e2bd22c10e255c2c423026db51eba0ef29164523960e688314c99cbdc531f0",
+    "oracle/windows-dao/scripts/dao_allocation_a9.py": "b0e07412710b1bb96e3886fae7ffb7131bb20ff626104bb262f6df532ef5a58a",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/remote/Remote.Process.ps1": "8c130cc86060f4e2856a48421789450008fd98668ebe6849af3787d5977dda2d"
+  },
+  "execution": {
+    "runner": "windows-2022",
+    "process_architecture": "x86",
+    "replicas": 3,
+    "attempts": 1,
+    "workflow_timeout_minutes": 240,
+    "generator_timeout_minutes": 120,
+    "bounds": {
+      "maximum_rows_per_table": 32768,
+      "maximum_pages_per_database": 40000,
+      "maximum_tag_02_and_05_pages_per_selected_capture": 64,
+      "long_binary_payload_bytes": 1800,
+      "long_binary_batch_rows": 64,
+      "memo_length": 4096
+    },
+    "capture": "Every checkpoint is taken with DAO closed and all COM objects released. 'full' captures retain every page; 'selected' captures (Q4 only) retain pages 0 and 1, every tag-02 and tag-05 page, and the pages named by the EXP-0057 locators at table-definition offsets 35 and 39. Each page image is 2048 bytes as lowercase hex with its SHA-256; each checkpoint file is listed in manifest.raw.json with its SHA-256."
+  },
+  "decoding_basis": {
+    "SRC-0020": "page tag at byte 0; data-page row directory (row count at 8-9, two-byte offsets from 10, 0x1fff mask, 0x40/0x80 flags); type-0 record = tag, 4-byte start page, low-bit-first bitmap; type-1 record = tag followed by 4-byte references to tag-05 pages whose bitmap follows a 4-byte header",
+    "EXP-0051": "global usage record on page 1 at [1915, 2048); a set bit means the page is not in use",
+    "EXP-0057": "owned-map and free-map locators at table-definition offsets 35 and 39 (row byte, three-byte little-endian page); extended absolute page = slot * 16352 + bit",
+    "EXP-0058": "an empty database has 20 pages; system table definitions are pages 2-5; any other tag-02 page is a user table definition",
+    "assumption_under_test": "The evaluator decodes the EXP-0051 record as a SRC-0020 type-0 record (tag 00, 4-byte start page, 128-byte bitmap). If its tag byte is not 00 the affected questions report no_outcome rather than guessing."
+  },
+  "questions": {
+    "Q1": {
+      "title": "Empty-database template",
+      "checkpoints": [
+        "00-empty"
+      ],
+      "capture": "full",
+      "procedure": "CreateDatabase(dbVersion30, ;LANGID=0x0409;CP=1252;COUNTRY=0), close.",
+      "evaluator_reports": "page count per replica, tag of every page, and per-page byte ranges that differ across the three replicas (constant pages are the writer's template)."
+    },
+    "Q2": {
+      "title": "Page append",
+      "checkpoints": [
+        "00-empty",
+        "01-table-created",
+        "02-before-data-page",
+        "03-after-data-page"
+      ],
+      "capture": "full",
+      "procedure": "Create table A9Rows(Id Long, Payload Text 255); then insert 200-character rows one at a time, closing between rows and keeping a copy of the prior file, until the page count first grows (at most 64 rows).",
+      "evaluator_reports": "appended page numbers, the first 16 bytes of each appended page, which global-map pages became in use or free, and which byte ranges of page 0 and page 1 changed, for the table-create and data-page transitions; must be identical across replicas."
+    },
+    "Q3": {
+      "title": "Free-page reuse",
+      "checkpoints": [
+        "00-first-table",
+        "01-second-table",
+        "02-populated",
+        "03-freed",
+        "04-reinsert-1",
+        "04-reinsert-2",
+        "04-reinsert-3",
+        "04-reinsert-4"
+      ],
+      "capture": "full",
+      "procedure": "Create A9Rows and A9Drop (8 rows); insert into A9Rows in batches of 8 until the page count has grown by 6 (at most 512 rows); delete the upper half of Ids and drop A9Drop; reinsert the deleted count in four equal steps with a capture after each.",
+      "evaluator_reports": "pages that became free at 03-freed (global map), the first table's owned and free maps after freeing, and per reinsert step the pages that became in use, which of them were previously freed, and which were appended; verdict reuse / append / mixed / none must agree across replicas."
+    },
+    "Q4": {
+      "title": "Table-map extension",
+      "checkpoints": [
+        "00-created",
+        "01-before-first-type05",
+        "02-after-first-type05",
+        "03-before-second-type05",
+        "04-after-second-type05"
+      ],
+      "capture": "selected",
+      "procedure": "Create A9Lval(Id Long, Payload LongBinary); insert 1800-byte rows in batches of 64 keeping a copy before each batch; capture the copy and the result around the batch in which the number of tag-05 pages first increases, then again around the next increase (at most 32768 rows). The working MDB is deleted afterwards to bound the artifact.",
+      "evaluator_reports": "for every checkpoint the user table-definition page, the owned-map and free-map record kinds (type-0 inline or type-1 indirect), start page or references, mapped page count, and the tag-05 page list; kinds and tag-05 counts must agree across replicas. Transition granularity is one 64-row batch."
+    },
+    "Q5": {
+      "title": "Ownership of index-tree and long-value pages",
+      "checkpoints": [
+        "00-created",
+        "01-populated"
+      ],
+      "capture": "full",
+      "procedure": "Create A9Keyed(Id Long primary key, Note Memo); insert 64 rows whose Memo is 4096 repetitions of 'L' (0x4c) so long-value pages carry a recognisable marker.",
+      "evaluator_reports": "every page that came into use, classified by tag (03 intermediate index, 04 leaf index, 01 with marker = long value, 01 otherwise = data), with membership in the table owned map, table free map, and global in-use set; the per-class all/some/none summary must agree across replicas."
+    }
+  },
+  "decision_rule": {
+    "accept": "The provider is ready, the generator completes all three replicas, every checkpoint and page digest validates, and every question Q1-Q5 is answered with replica-consistent structural results.",
+    "reject": "Any provider, plan-digest, checkpoint-integrity, page-digest, or manifest-shape failure rejects the acquisition (evaluator exit 1).",
+    "no_outcome": "An intact artifact whose generator did not complete, whose maps cannot be decoded under the stated basis, or whose replicas disagree structurally yields status no_outcome for the affected questions; no_outcome is recorded honestly, not retried.",
+    "retry": "A failure after the first DAO mutation is a scientific result and is not retried without a new human decision."
+  },
+  "publication": {
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "artifact_note": "The uploaded artifact contains page images and the small Q1/Q2/Q3/Q5 working MDBs for review; none of it is committed.",
+    "result_record": "One additive EXP entry derived from the validated report JSON.",
+    "support_matrix": "Unchanged; A9 is format discovery for the writer, not a compatibility result."
+  },
+  "synthetic_dry_run": {
+    "compatibility_claim": false,
+    "required_checks": [
+      "consistent_input_accepted",
+      "inconsistent_input_rejected"
+    ]
+  }
+}
