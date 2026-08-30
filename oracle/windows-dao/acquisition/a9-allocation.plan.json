@@ -5,7 +5,7 @@
   "inputs": {
     ".github/workflows/windows-dao-allocation-a9.yml": "76f89d99e73ccad61c66475efbffcc8fa4a99440e7ddb573294720f2561abf4e",
     "oracle/windows-dao/scripts/Invoke-DaoAllocationA9.ps1": "f9e2bd22c10e255c2c423026db51eba0ef29164523960e688314c99cbdc531f0",
-    "oracle/windows-dao/scripts/dao_allocation_a9.py": "b0e07412710b1bb96e3886fae7ffb7131bb20ff626104bb262f6df532ef5a58a",
+    "oracle/windows-dao/scripts/dao_allocation_a9.py": "103cbfaedda88de605cdce9573f3be9db8bc9cd78ae7a06e0bd28938645afa50",
     "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
     "oracle/windows-dao/scripts/remote/Remote.Process.ps1": "8c130cc86060f4e2856a48421789450008fd98668ebe6849af3787d5977dda2d"
   },

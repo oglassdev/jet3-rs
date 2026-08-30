@@ -95,6 +95,45 @@ class A9EvaluatorTests(unittest.TestCase):
         self.assertEqual(report["questions"]["Q3"]["status"], "no_outcome")
         self.assertEqual(report["questions"]["Q1"]["status"], "answered")
 
+    def test_uncaptured_indirect_reference_is_no_outcome(self) -> None:
+        with self.assertRaisesRegex(a9.NoOutcome, "reference 1001 was not captured"):
+            a9.usage_record(a9.SyntheticDatabase.type1([1001]), {})
+
+    def test_q4_requires_owned_map_reference_growth(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            for replica in range(1, a9.REPLICAS + 1):
+                before_entry = next(
+                    item
+                    for item in manifest["checkpoints"]
+                    if item["replica"] == replica
+                    and item["question"] == "Q4"
+                    and item["name"] == "01-before-first-type05"
+                )
+                after_entry = next(
+                    item
+                    for item in manifest["checkpoints"]
+                    if item["replica"] == replica
+                    and item["question"] == "Q4"
+                    and item["name"] == "02-after-first-type05"
+                )
+                before = a9.load_json(root / before_entry["path"])
+                after = a9.load_json(root / after_entry["path"])
+                before_map = next(page for page in before["pages"] if page["page"] == 21)
+                after["pages"] = [
+                    before_map if page["page"] == 21 else page for page in after["pages"]
+                ]
+                raw = a9.canonical_bytes(after)
+                (root / after_entry["path"]).write_bytes(raw)
+                after_entry["sha256"] = a9.sha256(raw)
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(report["questions"]["Q4"]["status"], "no_outcome")
+        self.assertIn("did not extend", report["questions"]["Q4"]["reason"])
+
     def test_row_directory_rejects_deleted_and_overflow_rows(self) -> None:
         page = bytearray(a9.PAGE_SIZE)
         page[0] = 0x01

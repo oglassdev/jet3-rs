@@ -187,14 +187,12 @@ def usage_record(record: bytes, pages: dict[int, bytes]) -> dict[str, Any]:
             for slot in range((len(record) - 1) // 4)
         ]
         mapped: set[int] = set()
-        missing: list[int] = []
         for slot, ref in enumerate(refs):
             if ref == 0:
                 continue
             image = pages.get(ref)
             if image is None:
-                missing.append(ref)
-                continue
+                raise NoOutcome(f"type-1 reference {ref} was not captured")
             if image[0] != 0x05:
                 raise NoOutcome(f"type-1 reference {ref} is not a type-05 page")
             mapped |= bitmap_pages(image[4:], slot * TYPE05_BITS)
@@ -202,7 +200,6 @@ def usage_record(record: bytes, pages: dict[int, bytes]) -> dict[str, Any]:
             "kind": "type1_indirect",
             "slot_count": len(refs),
             "references": [ref for ref in refs if ref],
-            "uncaptured_references": missing,
             "pages": sorted(mapped),
         }
     raise NoOutcome(f"unknown usage record tag 0x{record[0]:02x}")
@@ -416,6 +413,32 @@ class Evaluation:
                     "owned_page_count": len(maps["owned"]["pages"]),
                     "free": {key: value for key, value in maps["free"].items() if key != "pages"},
                 }
+            for ordinal, (before_name, after_name) in enumerate(
+                (
+                    ("01-before-first-type05", "02-after-first-type05"),
+                    ("03-before-second-type05", "04-after-second-type05"),
+                ),
+                start=1,
+            ):
+                before, after = states[before_name], states[after_name]
+                before_refs = (
+                    len(before["owned"]["references"])
+                    if before["owned"]["kind"] == "type1_indirect"
+                    else 0
+                )
+                after_refs = (
+                    len(after["owned"]["references"])
+                    if after["owned"]["kind"] == "type1_indirect"
+                    else 0
+                )
+                if after_refs <= before_refs:
+                    raise NoOutcome(
+                        f"r{replica}/Q4: transition {ordinal} did not extend the owned-map references"
+                    )
+                if len(after["type05_pages"]) <= len(before["type05_pages"]):
+                    raise NoOutcome(
+                        f"r{replica}/Q4: transition {ordinal} did not add a captured type-05 page"
+                    )
             per_replica.append(states)
         shape = require_same(
             [
