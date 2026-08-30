@@ -525,9 +525,35 @@ def validate_document(document: Any, *, complete: bool = False) -> str:
 def validate_document_path(path: Path, *, complete: bool = False) -> str:
     document = load_json(path)
     document_type = validate_document(document, complete=complete)
-    if document_type == "canonical_semantic_snapshot" and path.read_bytes() != canonical_json_bytes(document):
-        raise ValidationError(f"{path}: canonical snapshot bytes are not normalized")
+    if document_type in ("canonical_semantic_snapshot", "coverage_receipt") and path.read_bytes() != canonical_json_bytes(document):
+        raise ValidationError(f"{path}: canonical artifact bytes are not normalized")
     return document_type
+
+
+def validate_pair(coverage: dict[str, Any], snapshot: dict[str, Any] | None) -> None:
+    """Validate that one coverage receipt and its optional snapshot describe one run."""
+    if validate_document(coverage) != "coverage_receipt":
+        raise ValidationError("pair coverage document is not a coverage receipt")
+    if coverage["outcome"] == "opening_failure":
+        if snapshot is not None:
+            raise ValidationError("opening-failure coverage must not have a snapshot")
+        return
+    if snapshot is None:
+        raise ValidationError("successful coverage requires a snapshot")
+    if validate_document(snapshot) != "canonical_semantic_snapshot":
+        raise ValidationError("pair snapshot document is not a canonical semantic snapshot")
+    for field in ("protocol_version", "scenario_id", "producer", "database_sha256"):
+        if coverage[field] != snapshot[field]:
+            raise ValidationError(f"pair {field} values do not match")
+
+
+def validate_pair_paths(coverage_path: Path, snapshot_path: Path | None) -> None:
+    coverage = load_json(coverage_path)
+    snapshot = load_json(snapshot_path) if snapshot_path is not None else None
+    validate_pair(coverage, snapshot)
+    for path, document in ((coverage_path, coverage), (snapshot_path, snapshot)):
+        if path is not None and path.read_bytes() != canonical_json_bytes(document):
+            raise ValidationError(f"{path}: canonical artifact bytes are not normalized")
 
 
 def validate_schemas() -> None:
@@ -542,6 +568,9 @@ def main(argv: list[str] | None = None) -> int:
     inventory.add_argument("path", type=Path)
     inventory.add_argument("--complete", action="store_true", help="reject any deferred plan requirement")
     subparsers.add_parser("document", help="validate one snapshot, coverage receipt, or registry document").add_argument("path", type=Path)
+    pair = subparsers.add_parser("pair", help="validate one coverage receipt and its success snapshot")
+    pair.add_argument("coverage", type=Path)
+    pair.add_argument("snapshot", nargs="?", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "schemas":
@@ -553,9 +582,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValidationError(f"{args.path}: not a scenario inventory")
             deferred = len(document["deferred_requirements"])
             print(f"PASS: {args.path} ({len(document['scenarios'])} scenarios, {deferred} deferred plan requirements)")
-        else:
+        elif args.command == "document":
             document_type = validate_document_path(args.path)
             print(f"PASS: {args.path} ({document_type})")
+        else:
+            validate_pair_paths(args.coverage, args.snapshot)
+            print(f"PASS: {args.coverage} (snapshot pair)")
     except ValidationError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

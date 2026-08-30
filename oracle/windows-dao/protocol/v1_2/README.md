@@ -18,7 +18,9 @@ compatibility. Protocols 1.0.0 and 1.1.0 remain frozen under `protocol/v1` and
 
 `scripts/validate_protocol_v1_2.py schemas` lints every schema;
 `inventory <path>` validates the inventory; `document <path>` validates one
-snapshot, coverage receipt, or registry document.
+snapshot, coverage receipt, or registry document; and
+`pair <coverage> [snapshot]` verifies that the artifacts describe the same
+reader run. Opening failures have no snapshot argument.
 
 ## Scenario inventory
 

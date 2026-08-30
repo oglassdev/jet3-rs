@@ -45,6 +45,26 @@ fn validate_document(path: &Path) -> TestResult {
     Ok(())
 }
 
+/// Runs the protocol 1.2 Python validator on one artifact pair.
+fn validate_pair(coverage: &Path, snapshot: Option<&Path>) -> TestResult {
+    let validator = repository_root().join("oracle/windows-dao/scripts/validate_protocol_v1_2.py");
+    let default_python = if cfg!(windows) { "python" } else { "python3" };
+    let python = std::env::var("PYTHON").unwrap_or_else(|_| default_python.to_owned());
+    let mut command = Command::new(python);
+    command.arg("-B").arg(&validator).arg("pair").arg(coverage);
+    if let Some(snapshot) = snapshot {
+        command.arg(snapshot);
+    }
+    let validation = command.output()?;
+    assert!(
+        validation.status.success(),
+        "validator rejected pair:\n{}{}",
+        String::from_utf8_lossy(&validation.stdout),
+        String::from_utf8_lossy(&validation.stderr)
+    );
+    Ok(())
+}
+
 #[test]
 fn snapshot_pair_passes_the_protocol_validator() -> TestResult {
     let directory = tempfile::tempdir()?;
@@ -71,7 +91,8 @@ fn snapshot_pair_passes_the_protocol_validator() -> TestResult {
     assert!(summary.contains("\"scenario_satisfied\":true"), "{summary}");
 
     validate_document(&out.join("snapshot.json"))?;
-    validate_document(&out.join("coverage.json"))
+    validate_document(&out.join("coverage.json"))?;
+    validate_pair(&out.join("coverage.json"), Some(&out.join("snapshot.json")))
 }
 
 #[test]
@@ -129,5 +150,6 @@ fn rejected_header_writes_only_the_coverage_receipt() -> TestResult {
     );
     assert!(summary.contains("\"scenario_satisfied\":true"), "{summary}");
     assert!(!out.join("snapshot.json").exists());
-    validate_document(&out.join("coverage.json"))
+    validate_document(&out.join("coverage.json"))?;
+    validate_pair(&out.join("coverage.json"), None)
 }

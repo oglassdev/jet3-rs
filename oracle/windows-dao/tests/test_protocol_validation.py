@@ -298,6 +298,46 @@ class ProtocolV12Tests(unittest.TestCase):
             "producer_extensions": {"/tables/0/columns/0/required": {"kind": "boolean", "value": True}},
         }
 
+    def _coverage(self):
+        scenarios = []
+        for scenario in self.inventory["scenarios"]:
+            scenarios.append(
+                {
+                    "id": scenario["id"],
+                    "outcome_matches": scenario["operation"]["expected_outcome"] == "success",
+                    "missing_branches": list(scenario["required_branches"]),
+                    "forbidden_observed": [],
+                    "satisfied": False,
+                }
+            )
+        return {
+            "protocol_version": "1.2.0",
+            "document_type": "coverage_receipt",
+            "scenario_id": "DAO-READ-ROWS-DUPLICATES",
+            "producer": {"kind": "rust", "source_revision": "test"},
+            "database_sha256": "ab" * 32,
+            "outcome": "success",
+            "error_class": None,
+            "branches": [],
+            "scenarios": scenarios,
+        }
+
+    def test_snapshot_and_coverage_must_describe_the_same_run(self):
+        coverage = self._coverage()
+        snapshot = self._snapshot()
+        v1_2.validate_pair(coverage, snapshot)
+        for field, value in (
+            ("scenario_id", "DAO-READ-ROWS-SINGLE"),
+            ("database_sha256", "cd" * 32),
+            ("producer", {"kind": "rust", "source_revision": "other"}),
+        ):
+            mismatched = self._snapshot()
+            mismatched[field] = value
+            with self.assertRaisesRegex(ValidationError, f"pair {field}"):
+                v1_2.validate_pair(coverage, mismatched)
+        with self.assertRaisesRegex(ValidationError, "requires a snapshot"):
+            v1_2.validate_pair(coverage, None)
+
     def test_snapshot_rows_are_keyed_by_value_digest_and_duplicate_ordinal(self):
         snapshot = self._snapshot()
         self.assertEqual(v1_2.validate_document(snapshot), "canonical_semantic_snapshot")
