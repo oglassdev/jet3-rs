@@ -5767,6 +5767,183 @@ Use `not applicable` explicitly rather than omitting a field.
   development material and are neither committed nor redistributed
 - Review: pending independent review
 
+### EXP-0063 — First hosted protocol-1.2 read acquisition producer stop
+
+- Recorded: 2026-08-30, Claude Fable 5
+- Kind: additive exact-commit hosted scientific-event record plus explicitly
+  non-evidentiary post-event local diagnosis; a rejected acquisition under the
+  `read-v1_2.plan.json` decision rule, not a DAO read-differential result,
+  compatibility evidence, or `no_outcome`
+- Question: Why did the first approved hosted protocol-1.2 read acquisition
+  stop, and had it crossed its first DAO mutation boundary?
+- Origin: project-authored `.github/workflows/windows-dao-hosted.yml`,
+  `oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1`, the pinned plan, and the
+  retained hosted failure diagnostics establish the scientific-event facts.
+  Subsequent diagnosis used only project-authored scripts and disposable
+  outputs on the private local development VM described below. The one hosted
+  project-generated MDB was identity-hashed and read with the project's own
+  bounded reader; no donated MDB, provider binary, or third-party MDB
+  implementation was used or inspected.
+- Environment: GitHub Actions run `33323400200`, attempt 1, dispatched on
+  `main` at 2026-08-30T16:46:36Z from exact clean pushed commit
+  `cbb34df4bc84396f17bb45980cfa2a783981b67d` with
+  `accept_microsoft_access_runtime_license=true`, `run_acquisition=true`,
+  `approve_acquisition=true`, and the approved plan SHA-256
+  `1323c3784f761f930a2ec5566056cbb3cd581b79a4634b2ab5626b9057c544a9`. Job
+  `99289207309` ran on `windows-2022` image `20260824.284.2`, Windows Server
+  2022 build 20348. The stock image probe was ready without installing the
+  Access Runtime: x86 `DAO.DBEngine.36` version 3.6 from `dao360.dll` version
+  `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, with a
+  passing `dbVersion30` creation test; system ANSI code page 1252, culture
+  `en-US`, time zone UTC.
+- Protocol: the plan verification, runner identity, provider probe, and
+  `cargo build --locked --release -p jet3-cli` steps passed. The producer then
+  ran the 98-scenario inventory once in inventory order. The evaluator step
+  was skipped because the producer failed, and no redispatch was made.
+- Retained artifacts: GitHub artifact
+  `windows-dao-read-cbb34df4bc84396f17bb45980cfa2a783981b67d-1` (id
+  `9735548453`, 5,245 transport bytes, expiring 2026-09-13) containing
+  `dao-hosted-probe/environment.json` (SHA-256
+  `15a31185497a4a80f7dd8356deb9fec82028838164a5463f23defae59df273c2`, identical
+  to `environment-stock.json`), `dao-hosted-probe/runner.json` (SHA-256
+  `c18f563c889f7e7d2d7797534323dcd90292b960a6275bf2da6950887716f94f`), and one
+  47,104-byte scenario database
+  `dao-read-v1_2/DAO-READ-ALLOC-DELETE-REINSERT/database.mdb` (SHA-256
+  `364b3d2ddb50aa97f11a98e9079a836e46222938bb21e2abec5ece9ead693496`). No
+  `dao-manifest.raw.json`, DAO snapshot, or `report.json` exists.
+- Observation: the producer stopped 1.6 seconds into the first scenario,
+  `DAO-READ-ALLOC-DELETE-REINSERT`, with `System.InvalidCastException:
+  Specified cast is not valid` raised from `Invoke-DaoReadV12.ps1`. The
+  retained database has 23 pages; reading it with `jet3-cli snapshot` at the
+  same commit found the `Items` table with columns `Id` (`Long`) and `Name`
+  (`Text`) and zero rows, so `CreateDatabase`, `CreateTableDef`,
+  and `TableDefs.Append` had completed and the failure was inside the first
+  `insert_rows` step before its first `Update`.
+- Local-diagnostic status: every following `Diagnosis` item is a development
+  preflight performed after the hosted stop. Those private VM outputs are
+  external, disposable, non-preregistered, and not inputs to this hosted event
+  record; they establish no format fact, compatibility result, or support
+  state. Exact execution inputs for a replacement hosted acquisition are bound
+  separately by the re-pinned plan.
+- Diagnosis: reproduced on the private local Windows Server 2022/x86
+  development VM of `EXP-0056` with the same provider identity. With the
+  script stack retained, the exception came from `Set-RecordsetValue` line 145,
+  the single statement `$field.Value = $value`, on the second field `Name`
+  after `Id` had been assigned through the same statement; instrumentation
+  showed the field-type map and value types were correct (`dbLong`/`Int32`,
+  then `dbText`/`String`). Controlled variants on the same table showed that
+  recordset type, holding or releasing the `Field` COM wrapper, and value
+  provenance did not matter, while any single assignment statement invoked
+  first with an `Int32` and then with a `String` (or the reverse) failed with
+  the same exception, and one statement per value type succeeded. Windows
+  PowerShell 5.1 caches one COM property-set binding rule per call site, and
+  the rule bound for the first value type rejects the second. The local
+  `Row.DevJob.ps1` and `Value.DevJob.ps1` had never hit this because they
+  already use one assignment statement per DAO type.
+- Diagnosis, second defect: running the repaired producer over the whole
+  inventory on the same VM exposed a second defect that the first had masked.
+  `insert_until_page_count` measured the closed-file page count from the MDB
+  length after every `Update` while the database was still open, but DAO
+  only extends the file when the database closes: 2,000 inserted rows left
+  the open file at 40,960 bytes, `DBEngine.Idle(dbRefreshCache)` and closing
+  the recordset changed nothing, and `Database.Close` grew it to 503,808
+  bytes. The three `DAO-READ-ALLOC-EXTENDED-SLOT-1-*` scenarios would
+  therefore have inserted until the ten-million-row ceiling. The step is
+  repaired to insert adaptively sized batches with a close, measure, reopen
+  cycle between them, still failing closed on overshoot.
+- Diagnosis, inventory boundary: with that repair, the
+  `DAO-READ-ALLOC-EXTENDED-SLOT-1-ABOVE` scenario still failed twice with
+  "overshot" at 16,361 pages against its exact target of 16,353. Growing a
+  fresh table of the same `Id`/`Name` rows one row per close cycle on the VM
+  showed the closed page count rising by one page every 145 rows through
+  16,351 and 16,352, then jumping from 16,352 to 16,361 on a single row, and
+  continuing by one page thereafter. Closed page counts 16,353 through 16,360
+  therefore do not occur for this recipe, and the protocol-1.2 `above`
+  boundary as written was unattainable by any producer. The inventory
+  generator now marks `above` as non-exact (`require_exact_page_count`
+  false: stop at the first closed page count that reaches the target); the
+  `below` and `at` scenarios keep exact targets. The nine-page jump itself is
+  an observation for the writer-allocation experiment, not an interpreted
+  format fact.
+- Diagnosis, snapshot size: with the non-exact target the producer reached
+  16,361 pages, then stopped with `System.OutOfMemoryException` while
+  building the DAO snapshot: the protocol lists every row, and the
+  two-column recipe needed about 2.3 million rows (145 per page) to reach
+  the boundary, which the x86 Windows PowerShell process cannot hold. The
+  three boundary scenarios now use a third 200-character `Payload` text
+  column so the same page counts are reached with roughly 150,000 rows.
+- Diagnosis, GUID values: the next full run passed 65 scenarios, including
+  all three boundary scenarios, and stopped at `DAO-READ-VALUES-GUID-MAX`
+  with DAO's "Insufficient memory to continue the execution of the program"
+  error, which DAO also raised in the VM for an `Int64` variant. The producer
+  assigned a .NET `Guid` variant to a `dbGUID` field; it now assigns the
+  braced string form that the local `Value.DevJob.ps1` had used. Reading the
+  value back, DAO returned the text `{guid {FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}}`,
+  which the snapshot now unwraps before parsing.
+- Diagnosis, empty text: the following run passed 94 scenarios and stopped
+  at `DAO-READ-VALUES-TEXT-EMPTY` with DAO error "Field 'Typed.Value' cannot
+  be a zero-length string". The inventory stores empty text as a state
+  distinct from Null, which DAO only accepts when the field's
+  `AllowZeroLength` property is true, as the `EXP-0061` development job had
+  set; the producer now sets it for every `dbText` and `dbMemo` field.
+- Diagnosis, reader tombstone bound: the first complete 98-scenario producer
+  run then failed evaluation in the Rust reader itself on
+  `DAO-READ-ALLOC-DELETE-REINSERT`: DAO records a deleted first-packed row as
+  directory entry `0xc800`, a zero-length `0xc000` tombstone whose masked
+  start 2,048 equals the page end, a state `EXP-0060` records as valid. The
+  reader rejected masked starts equal to the page length outright; it now
+  admits them for hidden entries only, with a focused regression test.
+- Diagnosis, unattainable overflow branch: evaluation next stopped on
+  `DAO-READ-ALLOC-MULTIPLE-TABLES` with an unsatisfied coverage verdict for
+  `rows.overflow_pointer`. Per `EXP-0060`, overflow pointers only arise when
+  an existing packed row grows beyond its source page, and the recipe
+  grammar had no growth action, so no DAO producer could satisfy the three
+  scenarios requiring that branch. The protocol gains a bounded `grow_rows`
+  step (grow one field of the first N rows in place), and those scenarios
+  now grow rows after packing.
+- Diagnosis, recipe and coverage contracts: local diagnostic runs exposed
+  several requirements that the declared recipes could not reach. The
+  multiple-table and page-span fixtures now use one variable field, page-span
+  inserts 512 rows, the deleted-all open-grown case no longer claims deleted
+  row coverage, and index fixtures use 256 maximum-width unique keys. The
+  primary-key fixture remains leaf-only while the five other index fixtures
+  require branch traversal. Longer wide-table field names also force the
+  intended table-definition continuation while retaining single-page
+  coverage.
+- Diagnosis, semantic adapters: DAO exposes the two sides of a relationship
+  under asymmetric names, so the reader pairs complementary mutual table
+  references and exposes only the DAO-visible foreign-side index. Boolean
+  column-definition offset words are stored but do not advance or validate
+  the fixed-data cursor. Date values now mirror .NET Framework OLE-Date
+  conversion to milliseconds, and Single values mirror its round-trip `G7`
+  or `G9` spelling, including midpoint-away rounding and normalization of
+  negative zero.
+- Local diagnostic outcome: a final-binary evaluator accepted all 98 cases
+  from the private disposable local-VM artifact (`all_matched=true`,
+  `matched_count=98`); its uncommitted `report.json` SHA-256 was
+  `16bc1c0b7ba9f8407e068495d29882fb55c92ec100b010a308e9252d77ae26df`.
+  This developer-only run is non-evidentiary, does not replace a hosted
+  preregistered acquisition, and establishes no compatibility, support, or
+  capability claim.
+- Boundary classification: `CreateDatabase` had run and a distinct scenario
+  MDB was retained, so the stop occurred after the first DAO mutation and is a
+  scientific result under the plan's `retry` rule. It is recorded once. The
+  identified producer, protocol, inventory, and parser defects are repaired in
+  the same change; because the plan pins the execution inputs, the same plan
+  file is re-pinned in place and its new SHA-256 requires a new human approval
+  before any second dispatch.
+- Interpretation and claims: this event assigns no MDB byte meaning,
+  establishes no Rust correctness, DAO compatibility, capability verification
+  state, or support-matrix movement. Every read-compatibility claim remains
+  unestablished pending an accepted acquisition.
+- Usage: `file:oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1`;
+  `file:oracle/windows-dao/acquisition/read-v1_2.plan.json`
+- Rights: the project-generated MDB and diagnostics are retained only as an
+  access-controlled GitHub artifact and a local read-only scratch copy; no MDB
+  or provider binary is committed or redistributed
+- Review: pending independent review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

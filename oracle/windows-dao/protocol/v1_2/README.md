@@ -45,11 +45,13 @@ Every scenario has exactly `id`, `content_sha256`, `capability_ids`,
   sits below, at, or above it. Boundary cases exist only where a threshold is
   recorded: the extended-slot trio uses the 16,352-page type-05 bitmap span
   recorded by `EXP-0057` through the DAO-side `insert_until_page_count`
-  primitive. That step must attain the target page count exactly or fail, so
-  the trio is classified against the slot-0 capacity rather than a possibly
-  overshot file size. The below/at cases forbid `allocation.extended_slot`;
-  the above case requires it. Step 2 receipts must enforce both required and
-  forbidden branch sets.
+  primitive. The below and at cases must attain their target page count
+  exactly. The above case stops at the first closed file whose page count
+  reaches or exceeds its target because DAO may skip intermediate closed page
+  counts; `EXP-0063` records a 16,352-to-16,361 jump for the calibration
+  recipe. The trio is classified against the slot-0 capacity; the below/at cases forbid
+  `allocation.extended_slot`, and the above case requires it. Step 2 receipts
+  must enforce both required and forbidden branch sets.
   Memo/OLE cases use the `EXP-0061` controls (32 inline, 512 single-page,
   2,048 and 4,096 chained) as controls, not as thresholds.
 - `required_branches` lists only branches that recorded provenance ties to the
@@ -72,10 +74,12 @@ Every scenario has exactly `id`, `content_sha256`, `capability_ids`,
 
 The generator recipe is a closed grammar of DAO steps (`create_database`,
 `create_table`, `create_relationship`, `insert_rows`,
-`insert_until_page_count`, `delete_rows`, `drop_table`, `reopen`,
-`close_database`). Values carry an explicit encoding per DAO type so the DAO
-producer can marshal them exactly and the expected typed snapshot value is
-unambiguous. Unknown steps, types, or encoding/type combinations fail closed.
+`insert_until_page_count`, `grow_rows`, `delete_rows`, `drop_table`,
+`reopen`, `close_database`). `grow_rows` updates a bounded prefix of existing
+rows in place so scenarios can exercise the observed overflow-pointer path.
+Values carry an explicit encoding per DAO type so the DAO producer can marshal
+them exactly and the expected typed snapshot value is unambiguous. Unknown
+steps, types, or encoding/type combinations fail closed.
 
 ## Snapshot contract
 

@@ -107,11 +107,9 @@ pub fn convert_value(decoded: &DecodedValue<'_>) -> Result<Converted, SnapshotEr
             Scalar::Text(currency_text(value.scaled(), value.scale())),
             raw,
         ),
-        ValueKind::Single(value) => TypedValue::with_raw(
-            "single",
-            Scalar::Number(canonical_number(f64::from(*value))?),
-            raw,
-        ),
+        ValueKind::Single(value) => {
+            TypedValue::with_raw("single", Scalar::Number(canonical_single(*value)?), raw)
+        }
         ValueKind::Double(value) => {
             TypedValue::with_raw("double", Scalar::Number(canonical_number(*value)?), raw)
         }
@@ -171,6 +169,72 @@ pub fn canonical_number(value: f64) -> Result<Box<RawValue>, SnapshotError> {
     }
     let text = python_repr(value);
     RawValue::from_string(text).map_err(SnapshotError::Json)
+}
+
+/// Spells a finite single using .NET Framework's round-trip numeric value:
+/// seven significant digits when they round-trip, otherwise nine.
+fn canonical_single(value: f32) -> Result<Box<RawValue>, SnapshotError> {
+    if !value.is_finite() {
+        return Err(SnapshotError::NonFiniteNumber);
+    }
+    if value == 0.0 {
+        return RawValue::from_string("0.0".to_owned()).map_err(SnapshotError::Json);
+    }
+    let seven_digits = framework_significant_digits(value, 7);
+    let text = if seven_digits
+        .parse::<f32>()
+        .is_ok_and(|parsed| parsed.to_bits() == value.to_bits())
+    {
+        seven_digits
+    } else {
+        framework_significant_digits(value, 9)
+    };
+    let parsed = text
+        .parse::<f64>()
+        .map_err(|_| SnapshotError::UnsupportedValue("single round-trip spelling"))?;
+    let serialized = serde_json::to_string(&parsed).map_err(SnapshotError::Json)?;
+    let serialized = if let Some((mantissa, exponent)) = serialized.split_once('e') {
+        let exponent = exponent
+            .parse::<i32>()
+            .map_err(|_| SnapshotError::UnsupportedValue("single JSON exponent"))?;
+        format!("{mantissa}e{exponent:+03}")
+    } else {
+        serialized
+    };
+    RawValue::from_string(serialized).map_err(SnapshotError::Json)
+}
+
+/// Rounds decimal significant digits away from zero at a midpoint, matching
+/// the .NET Framework numeric formatter used by Windows PowerShell 5.1.
+fn framework_significant_digits(value: f32, precision: usize) -> String {
+    let exact = format!("{:.16e}", value.abs());
+    let (mantissa, exponent) = exact.split_once('e').unwrap_or((&exact, "0"));
+    let mut exponent = exponent.parse::<i32>().unwrap_or(0);
+    let digits: Vec<u8> = mantissa
+        .bytes()
+        .filter(|byte| byte.is_ascii_digit())
+        .collect();
+    let mut rounded = digits[..precision].to_vec();
+    if digits[precision] >= b'5' {
+        let mut carry = true;
+        for digit in rounded.iter_mut().rev() {
+            if *digit == b'9' {
+                *digit = b'0';
+            } else {
+                *digit += 1;
+                carry = false;
+                break;
+            }
+        }
+        if carry {
+            rounded.fill(b'0');
+            rounded[0] = b'1';
+            exponent += 1;
+        }
+    }
+    let sign = if value.is_sign_negative() { "-" } else { "" };
+    let fraction = String::from_utf8_lossy(&rounded[1..]);
+    format!("{sign}{}.{fraction}e{exponent}", char::from(rounded[0]))
 }
 
 /// Python `repr` spelling: shortest round-trip digits, fixed notation for
@@ -249,35 +313,37 @@ pub fn guid_text(bytes: [u8; 16]) -> String {
     )
 }
 
-/// Renders an OLE Automation day count as `YYYY-MM-DDTHH:MM:SS[.fffffffff]`.
+/// Renders an OLE Automation day count as `YYYY-MM-DDTHH:MM:SS[.fff]`.
 ///
-/// Years are limited to 0100–9999, the fraction is rounded to nanoseconds,
-/// a zero fraction is omitted, and trailing fraction zeros are trimmed.
+/// The DAO producer exposes dates through .NET `DateTime`, whose OLE-date
+/// conversion rounds to milliseconds. A zero fraction is omitted and trailing
+/// fraction zeros are trimmed.
 pub fn datetime_text(days: f64) -> Result<String, SnapshotError> {
-    const NANOS_PER_DAY: f64 = 86_400_000_000_000.0;
+    const MILLIS_PER_DAY: i64 = 86_400_000;
     let invalid = || SnapshotError::DateTimeOutOfRange(days);
-    if !days.is_finite() || !(-657_435.0..=2_958_465.999_999_99).contains(&days) {
+    if !days.is_finite() || days <= -657_435.0 || days >= 2_958_466.0 {
         return Err(invalid());
     }
     let epoch = days_before_year(1899) + days_before_month(1899, 12) + 29;
-    let mut ordinal = epoch + days.trunc() as i64;
-    let mut nanoseconds = (days.fract().abs() * NANOS_PER_DAY).round() as u64;
-    if nanoseconds == NANOS_PER_DAY as u64 {
-        ordinal += 1;
-        nanoseconds = 0;
+    let scaled = days * MILLIS_PER_DAY as f64;
+    let mut milliseconds = (scaled + if days >= 0.0 { 0.5 } else { -0.5 }) as i64;
+    if milliseconds < 0 {
+        milliseconds -= (milliseconds % MILLIS_PER_DAY) * 2;
     }
+    let ordinal = epoch + milliseconds.div_euclid(MILLIS_PER_DAY);
+    let milliseconds = milliseconds.rem_euclid(MILLIS_PER_DAY);
     let (year, month, day) = date_from_ordinal(ordinal).ok_or_else(invalid)?;
     if year < 100 {
         return Err(invalid());
     }
-    let hour = nanoseconds / 3_600_000_000_000;
-    let minute = nanoseconds % 3_600_000_000_000 / 60_000_000_000;
-    let second = nanoseconds % 60_000_000_000 / 1_000_000_000;
-    let fraction = nanoseconds % 1_000_000_000;
+    let hour = milliseconds / 3_600_000;
+    let minute = milliseconds % 3_600_000 / 60_000;
+    let second = milliseconds % 60_000 / 1_000;
+    let fraction = milliseconds % 1_000;
     let mut text = format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}");
     if fraction != 0 {
         text.push('.');
-        text.push_str(format!("{fraction:09}").trim_end_matches('0'));
+        text.push_str(format!("{fraction:03}").trim_end_matches('0'));
     }
     Ok(text)
 }
@@ -322,8 +388,8 @@ fn date_from_ordinal(ordinal: i64) -> Option<(i64, u8, u8)> {
 #[cfg(test)]
 mod tests {
     use super::{
-        currency_text, datetime_text, guid_text, normalized_attributes, normalized_size,
-        python_repr,
+        canonical_single, currency_text, datetime_text, guid_text, normalized_attributes,
+        normalized_size, python_repr,
     };
     use jet3::{ColumnPhysicalType, ColumnStorageClass};
 
@@ -368,14 +434,18 @@ mod tests {
             let [case, kind, bits, _, expected, ..] = fields.as_slice() else {
                 return Err(format!("malformed float vector {fields:?}").into());
             };
-            let value = match *kind {
-                "single" => f64::from(f32::from_bits(u32::from_str_radix(bits, 16)?)),
-                _ => f64::from_bits(u64::from_str_radix(bits, 16)?),
+            let actual = match *kind {
+                "single" => {
+                    let value = f32::from_bits(u32::from_str_radix(bits, 16)?);
+                    let raw = canonical_single(value)?;
+                    raw.get().to_owned()
+                }
+                _ => python_repr(f64::from_bits(u64::from_str_radix(bits, 16)?)),
             };
-            assert_eq!(python_repr(value), *expected, "{case}");
+            assert_eq!(actual, *expected, "{case}");
             seen += 1;
         }
-        assert_eq!(seen, 18);
+        assert_eq!(seen, 20);
         Ok(())
     }
 

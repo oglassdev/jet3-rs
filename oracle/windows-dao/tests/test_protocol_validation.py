@@ -157,6 +157,30 @@ class ProtocolV12Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "range"):
             self._validate(edited)
 
+        grown = self._copy()
+        scenario = self._find(grown, "DAO-READ-ROWS-MANY")
+        grow = next(
+            step
+            for step in scenario["generator_recipe"]["steps"]
+            if step["action"] == "grow_rows"
+        )
+        grow["value"]["value"]["length"] = 33
+        self._rehash(scenario)
+        with self.assertRaisesRegex(ValidationError, "exceeds the declared size 32"):
+            self._validate(grown)
+
+        too_many = self._copy()
+        scenario = self._find(too_many, "DAO-READ-ROWS-MANY")
+        insert = next(
+            step
+            for step in scenario["generator_recipe"]["steps"]
+            if step["action"] == "insert_rows"
+        )
+        insert["repeat"] = 7
+        self._rehash(scenario)
+        with self.assertRaisesRegex(ValidationError, "more rows than were inserted"):
+            self._validate(too_many)
+
     def test_required_set_is_present_or_explicitly_deferred(self):
         deferred = self._validate(self._copy())
         self.assertEqual(
@@ -222,7 +246,10 @@ class ProtocolV12Tests(unittest.TestCase):
                     for step in scenario["generator_recipe"]["steps"]
                     if step["action"] == "insert_until_page_count"
                 )
-                self.assertTrue(insert["require_exact_page_count"])
+                self.assertEqual(
+                    insert["require_exact_page_count"],
+                    boundary["position"] in ("below", "at"),
+                )
                 if boundary["position"] in ("below", "at"):
                     self.assertIn(
                         "allocation.extended_slot", boundary["forbidden_branches"]

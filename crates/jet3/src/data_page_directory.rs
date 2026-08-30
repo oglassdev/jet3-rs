@@ -165,10 +165,12 @@ fn validate_entry(
         return Err(DataPageDirectoryError::UnknownFlag { row, raw_offset });
     }
     let start = usize::from(raw_offset & OFFSET_MASK);
-    if start >= PAGE_BYTES {
+    let hidden = raw_offset & HIDDEN_FLAG != 0;
+    // EXP-0060: a deleted slot is zero-length, so a hidden start may equal
+    // the page end; an active row must start inside the page.
+    if start > PAGE_BYTES || (start == PAGE_BYTES && !hidden) {
         return Err(DataPageDirectoryError::OffsetOutOfPage { row, raw_offset });
     }
-    let hidden = raw_offset & HIDDEN_FLAG != 0;
     if start < directory_end || start > end || (!hidden && start == end) {
         return Err(DataPageDirectoryError::InvalidBounds {
             row,

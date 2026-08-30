@@ -255,6 +255,7 @@ def _validate_recipe(recipe: dict[str, Any], location: str) -> None:
     if sum(step["action"] == "create_database" for step in steps) != 1 or sum(step["action"] == "close_database" for step in steps) != 1:
         raise ValidationError(f"{location}.steps: exactly one create_database and one close_database")
     tables: dict[str, dict[str, dict[str, Any]]] = {}
+    row_counts: dict[str, int | None] = {}
     for index, step in enumerate(steps):
         where = f"{location}.steps[{index}]"
         action = step["action"]
@@ -280,6 +281,7 @@ def _validate_recipe(recipe: dict[str, Any], location: str) -> None:
                 if entry["primary"] and not (entry["unique"] and entry["required"]):
                     raise ValidationError(f"{where}.indexes: primary index {entry['name']!r} must be unique and required")
             tables[step["name"]] = fields
+            row_counts[step["name"]] = 0
         elif action == "create_relationship":
             for side in ("table", "foreign_table"):
                 if step[side] not in tables:
@@ -287,6 +289,16 @@ def _validate_recipe(recipe: dict[str, Any], location: str) -> None:
             for pair in step["fields"]:
                 if pair["field"] not in tables[step["table"]] or pair["foreign_field"] not in tables[step["foreign_table"]]:
                     raise ValidationError(f"{where}.fields: relationship references an unknown field")
+        elif action == "grow_rows":
+            fields = tables.get(step["table"])
+            if fields is None:
+                raise ValidationError(f"{where}.table: unknown table {step['table']!r}")
+            if step["field"] not in fields or step["value"]["field"] != step["field"]:
+                raise ValidationError(f"{where}.field: unknown or mismatched field {step['field']!r}")
+            _validate_value(step["value"], fields[step["field"]], f"{where}.value")
+            available = row_counts[step["table"]]
+            if available is not None and step["count"] > available:
+                raise ValidationError(f"{where}.count: grow step requests more rows than were inserted")
         elif action in ("insert_rows", "insert_until_page_count", "delete_rows"):
             fields = tables.get(step["table"])
             if fields is None:
@@ -303,10 +315,21 @@ def _validate_recipe(recipe: dict[str, Any], location: str) -> None:
                 for name, column in fields.items():
                     if column["required"] and name not in seen:
                         raise ValidationError(f"{where}.rows[{row_index}]: required field {name!r} is missing")
+            if action == "insert_rows" and row_counts[step["table"]] is not None:
+                row_counts[step["table"]] += len(rows) * step["repeat"]
+            elif action == "insert_until_page_count":
+                row_counts[step["table"]] = None
+            elif step["count"] == "all":
+                row_counts[step["table"]] = 0
+            elif row_counts[step["table"]] is not None:
+                if step["count"] > row_counts[step["table"]]:
+                    raise ValidationError(f"{where}.count: delete step requests more rows than were inserted")
+                row_counts[step["table"]] -= step["count"]
         elif action == "drop_table":
             if step["name"] not in tables:
                 raise ValidationError(f"{where}.name: unknown table {step['name']!r}")
             del tables[step["name"]]
+            del row_counts[step["name"]]
 
 
 def validate_required_coverage(document: dict[str, Any], *, complete: bool) -> list[str]:

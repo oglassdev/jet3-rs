@@ -264,7 +264,12 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
             let primary = match logical.kind() {
                 IndexDefinitionKind::Primary => true,
                 IndexDefinitionKind::Ordinary => false,
-                IndexDefinitionKind::Relationship(_) => continue,
+                IndexDefinitionKind::Relationship(reference) => {
+                    if !relationship_side_has_dao_index(reference.side()) {
+                        continue;
+                    }
+                    false
+                }
             };
             let physical = definition
                 .physical_indexes()
@@ -338,55 +343,9 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
     }
 
     /// Pairs the primary-side and foreign-side records of each relationship
-    /// by name and mutual table references.
+    /// by mutual table references and complementary side metadata.
     fn pair_relationships(&mut self) -> Result<Vec<Relationship>, SnapshotError> {
-        let mut sides = std::mem::take(&mut self.sides);
-        sides.sort_by(|left, right| left.name.cmp(&right.name));
-        let mut relationships = Vec::new();
-        let mut remaining = sides.into_iter().peekable();
-        while let Some(first) = remaining.next() {
-            let unpaired = || SnapshotError::UnpairedRelationship(first.name.clone());
-            let second = remaining
-                .next_if(|candidate| candidate.name == first.name)
-                .ok_or_else(unpaired)?;
-            let (primary, foreign) = match (first.side, second.side) {
-                (RelationshipSide::PrimaryTable, RelationshipSide::ForeignTable) => (first, second),
-                (RelationshipSide::ForeignTable, RelationshipSide::PrimaryTable) => (second, first),
-                _ => return Err(unpaired()),
-            };
-            if primary.related_table != foreign.table_root
-                || foreign.related_table != primary.table_root
-                || primary.fields.len() != foreign.fields.len()
-                || primary.cascade_updates != foreign.cascade_updates
-                || primary.cascade_deletes != foreign.cascade_deletes
-            {
-                return Err(SnapshotError::UnpairedRelationship(primary.name));
-            }
-            let mut attributes = 0;
-            if foreign.cascade_updates {
-                attributes |= RELATION_UPDATE_CASCADE;
-            }
-            if foreign.cascade_deletes {
-                attributes |= RELATION_DELETE_CASCADE;
-            }
-            relationships.push(Relationship {
-                attributes,
-                fields: primary
-                    .fields
-                    .into_iter()
-                    .zip(foreign.fields)
-                    .map(|(field, foreign_field)| RelationshipField {
-                        field,
-                        foreign_field,
-                    })
-                    .collect(),
-                foreign_table: foreign.table_name,
-                name: foreign.name,
-                properties: PropertyMap::new(),
-                table: primary.table_name,
-            });
-        }
-        Ok(relationships)
+        pair_relationship_sides(std::mem::take(&mut self.sides))
     }
 
     fn index_tree(
@@ -468,6 +427,75 @@ impl<S: jet3::ReadAt> Reader<'_, S> {
         self.branches.extend(branches);
         Ok(rows)
     }
+}
+
+fn pair_relationship_sides(
+    mut sides: Vec<RelationshipSideRecord>,
+) -> Result<Vec<Relationship>, SnapshotError> {
+    let mut relationships = Vec::new();
+    while let Some(first) = sides.pop() {
+        let matches = sides
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| relationship_sides_match(&first, candidate))
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        if matches.len() != 1 {
+            return Err(SnapshotError::UnpairedRelationship(first.name));
+        }
+        let second = sides.remove(matches[0]);
+        let (primary, foreign) = match (first.side, second.side) {
+            (RelationshipSide::PrimaryTable, RelationshipSide::ForeignTable) => (first, second),
+            (RelationshipSide::ForeignTable, RelationshipSide::PrimaryTable) => (second, first),
+            _ => return Err(SnapshotError::UnpairedRelationship(first.name)),
+        };
+        let mut attributes = 0;
+        if foreign.cascade_updates {
+            attributes |= RELATION_UPDATE_CASCADE;
+        }
+        if foreign.cascade_deletes {
+            attributes |= RELATION_DELETE_CASCADE;
+        }
+        relationships.push(Relationship {
+            attributes,
+            fields: primary
+                .fields
+                .into_iter()
+                .zip(foreign.fields)
+                .map(|(field, foreign_field)| RelationshipField {
+                    field,
+                    foreign_field,
+                })
+                .collect(),
+            foreign_table: foreign.table_name,
+            name: foreign.name,
+            properties: PropertyMap::new(),
+            table: primary.table_name,
+        });
+    }
+    relationships.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(relationships)
+}
+
+fn relationship_sides_match(left: &RelationshipSideRecord, right: &RelationshipSideRecord) -> bool {
+    matches!(
+        (left.side, right.side),
+        (
+            RelationshipSide::PrimaryTable,
+            RelationshipSide::ForeignTable
+        ) | (
+            RelationshipSide::ForeignTable,
+            RelationshipSide::PrimaryTable
+        )
+    ) && left.related_table == right.table_root
+        && right.related_table == left.table_root
+        && left.fields.len() == right.fields.len()
+        && left.cascade_updates == right.cascade_updates
+        && left.cascade_deletes == right.cascade_deletes
+}
+
+const fn relationship_side_has_dao_index(side: RelationshipSide) -> bool {
+    matches!(side, RelationshipSide::ForeignTable)
 }
 
 type Pending = Vec<(String, LongValueReference)>;
@@ -565,12 +593,112 @@ fn ascii_name(decoded: Option<&str>, raw: &[u8]) -> Result<String, SnapshotError
 
 #[cfg(test)]
 mod tests {
-    use super::{Branches, record_value_branches};
+    use jet3::{PageNumber, RelationshipSide};
+
+    use super::{
+        Branches, RelationshipSideRecord, SnapshotError, pair_relationship_sides,
+        record_value_branches, relationship_side_has_dao_index,
+    };
 
     #[test]
     fn boolean_values_observe_the_fixed_scalar_branch() {
         let mut branches = Branches::new();
         record_value_branches(&jet3::ValueKind::Boolean(true), &mut branches);
         assert!(branches.contains("values.fixed_scalar"));
+    }
+
+    #[test]
+    fn pairs_differently_named_relationship_sides_by_mutual_references() -> Result<(), SnapshotError>
+    {
+        let relationships = pair_relationship_sides(vec![
+            relationship_side(
+                ".rB",
+                "Parent",
+                30,
+                RelationshipSide::PrimaryTable,
+                33,
+                "Id",
+            ),
+            relationship_side(
+                "ParentChild",
+                "Child",
+                33,
+                RelationshipSide::ForeignTable,
+                30,
+                "ParentId",
+            ),
+        ])?;
+
+        assert_eq!(relationships.len(), 1);
+        assert_eq!(relationships[0].name, "ParentChild");
+        assert_eq!(relationships[0].table, "Parent");
+        assert_eq!(relationships[0].foreign_table, "Child");
+        assert_eq!(relationships[0].fields[0].field, "Id");
+        assert_eq!(relationships[0].fields[0].foreign_field, "ParentId");
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_ambiguous_relationship_sides() {
+        let result = pair_relationship_sides(vec![
+            relationship_side(
+                ".rB",
+                "Parent",
+                30,
+                RelationshipSide::PrimaryTable,
+                33,
+                "Id",
+            ),
+            relationship_side(
+                ".rC",
+                "Parent",
+                30,
+                RelationshipSide::PrimaryTable,
+                33,
+                "OtherId",
+            ),
+            relationship_side(
+                "ParentChild",
+                "Child",
+                33,
+                RelationshipSide::ForeignTable,
+                30,
+                "ParentId",
+            ),
+        ]);
+        assert!(matches!(
+            result,
+            Err(SnapshotError::UnpairedRelationship(_))
+        ));
+    }
+
+    #[test]
+    fn exposes_only_the_foreign_relationship_side_as_a_dao_index() {
+        assert!(!relationship_side_has_dao_index(
+            RelationshipSide::PrimaryTable
+        ));
+        assert!(relationship_side_has_dao_index(
+            RelationshipSide::ForeignTable
+        ));
+    }
+
+    fn relationship_side(
+        name: &str,
+        table_name: &str,
+        table_root: u64,
+        side: RelationshipSide,
+        related_table: u64,
+        field: &str,
+    ) -> RelationshipSideRecord {
+        RelationshipSideRecord {
+            name: name.to_owned(),
+            table_name: table_name.to_owned(),
+            table_root: PageNumber::new(table_root),
+            side,
+            related_table: PageNumber::new(related_table),
+            fields: vec![field.to_owned()],
+            cascade_updates: false,
+            cascade_deletes: false,
+        }
     }
 }

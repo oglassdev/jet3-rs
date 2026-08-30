@@ -132,17 +132,28 @@ function Set-RecordsetValue {
         $field = $Recordset.Fields.Item([string]$Plan.field)
         $daoType = [string]$FieldTypes[[string]$Plan.field]
         $value = Get-DeclaredValue -Plan $Plan -DaoType $daoType
+        # One assignment statement per DAO type: Windows PowerShell caches a
+        # COM property-set rule per call site, and a rule bound for one value
+        # type rejects the next type with InvalidCastException.
         if ($null -eq $value) {
             $field.Value = [DBNull]::Value
+            return
         }
-        elseif ($daoType -ceq "dbLongBinary") {
-            $field.AppendChunk([byte[]]$value)
-        }
-        elseif ($daoType -ceq "dbMemo") {
-            $field.AppendChunk([string]$value)
-        }
-        else {
-            $field.Value = $value
+        switch ($daoType) {
+            "dbBoolean" { $field.Value = [bool]$value }
+            "dbByte" { $field.Value = [byte]$value }
+            "dbInteger" { $field.Value = [int16]$value }
+            "dbLong" { $field.Value = [int32]$value }
+            "dbCurrency" { $field.Value = [decimal]$value }
+            "dbSingle" { $field.Value = [single]$value }
+            "dbDouble" { $field.Value = [double]$value }
+            "dbDate" { $field.Value = [datetime]$value }
+            "dbBinary" { $field.Value = [byte[]]$value }
+            "dbText" { $field.Value = [string]$value }
+            "dbLongBinary" { $field.AppendChunk([byte[]]$value) }
+            "dbMemo" { $field.AppendChunk([string]$value) }
+            "dbGUID" { $field.Value = "{" + ([guid]$value).ToString() + "}" }
+            default { throw "Unsupported DAO field type $daoType for $($Plan.field)." }
         }
     }
     finally { Release-ComObject -Value $field }
@@ -153,9 +164,7 @@ function Add-RecipeRows {
         [object]$Database,
         [string]$TableName,
         [object[]]$Rows,
-        [int]$Repeat,
-        [string]$DatabasePath,
-        [int]$TargetPageCount = 0
+        [int]$Repeat
     )
     $recordset = $null
     try {
@@ -170,7 +179,7 @@ function Add-RecipeRows {
             finally { Release-ComObject -Value $field }
         }
         $generated = 0
-        do {
+        while ($Repeat -gt 0) {
             foreach ($values in $Rows) {
                 $recordset.AddNew()
                 foreach ($plan in $values) {
@@ -181,23 +190,67 @@ function Add-RecipeRows {
                 if ($generated -gt $MaximumGeneratedRows) {
                     throw "The DAO row-generation ceiling was exceeded."
                 }
-                if ($TargetPageCount -gt 0) {
-                    $pages = [int]((Get-Item -LiteralPath $DatabasePath).Length / 2048)
-                    if ($pages -gt $TargetPageCount) {
-                        throw "DAO overshot the exact page-count target."
-                    }
-                    if ($pages -eq $TargetPageCount) { return }
-                }
             }
             $Repeat--
-        } while ($TargetPageCount -gt 0 -or $Repeat -gt 0)
-        if ($TargetPageCount -gt 0) {
-            throw "DAO did not reach the exact page-count target."
         }
     }
     finally {
         if ($null -ne $recordset) { try { $recordset.Close() } catch { } }
         Release-ComObject -Value $recordset
+    }
+}
+
+function Get-ClosedPageCount {
+    param([string]$DatabasePath)
+    $length = (Get-Item -LiteralPath $DatabasePath).Length
+    if ($length % 2048 -ne 0) { throw "The closed database length is not page aligned." }
+    return [int]($length / 2048)
+}
+
+# DAO grows the file only when the database closes, so the page-count target
+# is reached by inserting a batch, closing, measuring, and reopening. Each
+# batch targets half of the pages still missing at the rows-per-page rate
+# observed so far, because DAO also adds allocation pages as the table grows;
+# the final pages are approached one row per cycle. A non-exact target stops
+# at the first closed page count that reaches it.
+function Add-RowsUntilPageCount {
+    param(
+        [object]$Engine,
+        [string]$DatabasePath,
+        [string]$Connect,
+        [string]$TableName,
+        [object[]]$Row,
+        [int]$TargetPageCount,
+        [bool]$RequireExact
+    )
+    $database = $null
+    $rowsInserted = 0
+    $startPages = Get-ClosedPageCount -DatabasePath $DatabasePath
+    $pages = $startPages
+    $rowsPerPage = 1
+    while ($pages -lt $TargetPageCount) {
+        $missing = $TargetPageCount - $pages
+        $batch = [Math]::Max(1, [Math]::Floor(($missing - 1) * $rowsPerPage / 2))
+        if ($rowsInserted + $batch -gt $MaximumGeneratedRows) {
+            throw "The DAO row-generation ceiling was exceeded."
+        }
+        try {
+            $database = $Engine.OpenDatabase($DatabasePath, $false, $false, $Connect)
+            Add-RecipeRows -Database $database -TableName $TableName -Rows @(,$Row) -Repeat $batch
+        }
+        finally {
+            if ($null -ne $database) { try { $database.Close() } catch { } }
+            Release-ComObject -Value $database
+            $database = $null
+        }
+        $rowsInserted += $batch
+        $pages = Get-ClosedPageCount -DatabasePath $DatabasePath
+        if ($pages -gt $startPages) {
+            $rowsPerPage = [Math]::Max(1, [Math]::Floor($rowsInserted / ($pages - $startPages)))
+        }
+    }
+    if ($RequireExact -and $pages -ne $TargetPageCount) {
+        throw "DAO overshot the exact page-count target ($pages of $TargetPageCount)."
     }
 }
 
@@ -217,6 +270,11 @@ function New-RecipeTable {
                     $field = $table.CreateField([string]$fieldPlan.name, $type)
                 }
                 $field.Required = [bool]$fieldPlan.required
+                # Empty text is a distinct stored state in the inventory; DAO
+                # rejects it unless the field allows zero-length values.
+                if ([string]$fieldPlan.dao_type -in @("dbText", "dbMemo")) {
+                    $field.AllowZeroLength = $true
+                }
                 $table.Fields.Append($field)
             }
             finally { Release-ComObject -Value $field }
@@ -272,6 +330,51 @@ function New-RecipeRelationship {
         $Database.Relations.Append($relation)
     }
     finally { Release-ComObject -Value $relation }
+}
+
+# Grows one field of the first rows in place so packed primary rows move to
+# overflow storage; DAO only creates overflow pointers on row growth.
+function Grow-RecipeRows {
+    param([object]$Database, [object]$Step)
+    if ([string]$Step.field -cne [string]$Step.value.field) {
+        throw "The grow step field does not match its value plan."
+    }
+    $recordset = $null
+    try {
+        $recordset = $Database.OpenRecordset([string]$Step.table)
+        $types = @{}
+        for ($ordinal = 0; $ordinal -lt $recordset.Fields.Count; $ordinal++) {
+            $field = $null
+            try {
+                $field = $recordset.Fields.Item($ordinal)
+                $types[[string]$field.Name] = $DaoTypeNames[[int]$field.Type]
+            }
+            finally { Release-ComObject -Value $field }
+        }
+        $requested = [int]$Step.count
+        $available = 0
+        if (-not $recordset.EOF) { $recordset.MoveFirst() }
+        while (-not $recordset.EOF -and $available -lt $requested) {
+            $available++
+            $recordset.MoveNext()
+        }
+        if ($available -ne $requested) {
+            throw "The grow step requested more rows than DAO returned."
+        }
+        $recordset.MoveFirst()
+        $remaining = $requested
+        while (-not $recordset.EOF -and $remaining -gt 0) {
+            $recordset.Edit()
+            Set-RecordsetValue -Recordset $recordset -Plan $Step.value -FieldTypes $types
+            $recordset.Update()
+            $remaining--
+            $recordset.MoveNext()
+        }
+    }
+    finally {
+        if ($null -ne $recordset) { try { $recordset.Close() } catch { } }
+        Release-ComObject -Value $recordset
+    }
 }
 
 function Remove-RecipeRows {
@@ -363,7 +466,10 @@ function Get-TypedValue {
             return [ordered]@{ code_page = 1252; kind = "memo"; raw_hex = Convert-ToLowerHex ($CodePage.GetBytes($text)); value = $text }
         }
         15 {
-            $guid = [guid]$raw
+            # DAO returns GUID fields as the text "{guid {XXXXXXXX-...}}".
+            $guidText = [string]$raw
+            if ($guidText -cmatch '^\{guid (\{[0-9A-Fa-f-]{36}\})\}$') { $guidText = $Matches[1] }
+            $guid = [guid]$guidText
             return [ordered]@{ kind = "guid"; raw_hex = Convert-ToLowerHex ($guid.ToByteArray()); value = $guid.ToString("D").ToLowerInvariant() }
         }
         default { throw "DAO returned unsupported field type $($Field.Type)." }
@@ -560,14 +666,18 @@ function Invoke-Scenario {
                 "create_relationship" { New-RecipeRelationship -Database $database -Step $step }
                 "insert_rows" {
                     Add-RecipeRows -Database $database -TableName ([string]$step.table) `
-                        -Rows @($step.rows) -Repeat ([int]$step.repeat) `
-                        -DatabasePath $databasePath
+                        -Rows @($step.rows) -Repeat ([int]$step.repeat)
                 }
                 "insert_until_page_count" {
-                    Add-RecipeRows -Database $database -TableName ([string]$step.table) `
-                        -Rows @(,@($step.row)) -Repeat 1 -DatabasePath $databasePath `
-                        -TargetPageCount ([int]$step.page_count)
+                    $database.Close(); Release-ComObject -Value $database; $database = $null
+                    $connect = if ($null -eq $recipe.password) { "" } else { ";PWD=$($recipe.password)" }
+                    Add-RowsUntilPageCount -Engine $engine -DatabasePath $databasePath `
+                        -Connect $connect -TableName ([string]$step.table) `
+                        -Row @($step.row) -TargetPageCount ([int]$step.page_count) `
+                        -RequireExact ([bool]$step.require_exact_page_count)
+                    $database = $engine.OpenDatabase($databasePath, $false, $false, $connect)
                 }
+                "grow_rows" { Grow-RecipeRows -Database $database -Step $step }
                 "delete_rows" { Remove-RecipeRows -Database $database -TableName ([string]$step.table) -Count $step.count }
                 "drop_table" { $database.TableDefs.Delete([string]$step.name) }
                 "reopen" {
