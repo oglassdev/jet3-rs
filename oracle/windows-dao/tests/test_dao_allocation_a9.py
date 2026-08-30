@@ -23,6 +23,45 @@ GENERATOR = SCRIPTS / "Invoke-DaoAllocationA9.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-dao-allocation-a9.yml"
 
 
+def mutate_map_bit(
+    manifest: dict,
+    root: Path,
+    *,
+    replica: int,
+    checkpoint_name: str,
+    row: int,
+    page: int,
+    set_bit: bool,
+) -> None:
+    entry = next(
+        item
+        for item in manifest["checkpoints"]
+        if item["replica"] == replica
+        and item["question"] == "Q4"
+        and item["name"] == checkpoint_name
+    )
+    document = a9.load_json(root / entry["path"])
+    map_image = next(item for item in document["pages"] if item["page"] == 21)
+    image = bytearray.fromhex(map_image["hex"])
+    start = int.from_bytes(image[10 + 2 * row : 12 + 2 * row], "little") & 0x1FFF
+    base = int.from_bytes(image[start + 1 : start + 5], "little")
+    relative = page - base
+    if relative < 0:
+        raise AssertionError("test page precedes the type-0 map base")
+    byte = start + 5 + relative // 8
+    mask = 1 << (relative % 8)
+    if set_bit:
+        image[byte] |= mask
+    else:
+        image[byte] &= ~mask
+    encoded = bytes(image)
+    map_image["hex"] = encoded.hex()
+    map_image["sha256"] = a9.sha256(encoded)
+    raw = a9.canonical_bytes(document)
+    (root / entry["path"]).write_bytes(raw)
+    entry["sha256"] = a9.sha256(raw)
+
+
 class A9PlanTests(unittest.TestCase):
     def test_plan_pins_every_execution_input(self) -> None:
         a9.validate_plan(PLAN, ROOT)
@@ -99,6 +138,51 @@ class A9EvaluatorTests(unittest.TestCase):
         with self.assertRaisesRegex(a9.NoOutcome, "reference 1001 was not captured"):
             a9.usage_record(a9.SyntheticDatabase.type1([1001]), {})
 
+    def test_complete_manifest_requires_exact_preregistered_checkpoints(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            manifest["checkpoints"].pop()
+            a9.write_canonical(manifest_path, manifest)
+            with self.assertRaisesRegex(a9.EvaluationError, "every preregistered checkpoint"):
+                a9.evaluate(manifest_path, root, root / "report.json")
+
+    def test_manifest_cannot_select_the_q5_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            manifest["memo_marker_hex"] = ""
+            a9.write_canonical(manifest_path, manifest)
+            with self.assertRaisesRegex(a9.EvaluationError, "memo marker differs"):
+                a9.evaluate(manifest_path, root, root / "report.json")
+
+    def test_q2_requires_both_preregistered_page_growth_transitions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            for entry in manifest["checkpoints"]:
+                if entry["question"] == "Q2" and entry["name"] == "01-table-created":
+                    empty = next(
+                        item
+                        for item in manifest["checkpoints"]
+                        if item["replica"] == entry["replica"]
+                        and item["question"] == "Q2"
+                        and item["name"] == "00-empty"
+                    )
+                    document = a9.load_json(root / empty["path"])
+                    document["name"] = entry["name"]
+                    raw = a9.canonical_bytes(document)
+                    (root / entry["path"]).write_bytes(raw)
+                    entry["page_count"] = document["page_count"]
+                    entry["sha256"] = a9.sha256(raw)
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertIn("page count did not grow", report["questions"]["Q2"]["reason"])
+
     def test_q4_requires_owned_map_reference_growth(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -134,6 +218,110 @@ class A9EvaluatorTests(unittest.TestCase):
         self.assertEqual(report["questions"]["Q4"]["status"], "no_outcome")
         self.assertIn("did not extend", report["questions"]["Q4"]["reason"])
 
+    def test_q4_requires_replica_consistent_free_map_count(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            mutate_map_bit(
+                manifest,
+                root,
+                replica=3,
+                checkpoint_name="00-created",
+                row=1,
+                page=21,
+                set_bit=True,
+            )
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertIn("replicas disagree", report["questions"]["Q4"]["reason"])
+
+    def test_q4_requires_replica_consistent_free_map_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            for replica in range(1, a9.REPLICAS + 1):
+                mutate_map_bit(
+                    manifest,
+                    root,
+                    replica=replica,
+                    checkpoint_name="00-created",
+                    row=1,
+                    page=20,
+                    set_bit=True,
+                )
+            mutate_map_bit(
+                manifest,
+                root,
+                replica=3,
+                checkpoint_name="00-created",
+                row=1,
+                page=20,
+                set_bit=False,
+            )
+            mutate_map_bit(
+                manifest,
+                root,
+                replica=3,
+                checkpoint_name="00-created",
+                row=1,
+                page=21,
+                set_bit=True,
+            )
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertIn("replicas disagree", report["questions"]["Q4"]["reason"])
+
+    def test_q4_rejects_mapped_page_outside_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            mutate_map_bit(
+                manifest,
+                root,
+                replica=1,
+                checkpoint_name="00-created",
+                row=0,
+                page=22,
+                set_bit=True,
+            )
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertIn("outside the checkpoint", report["questions"]["Q4"]["reason"])
+
+    def test_q4_rejects_free_page_not_owned(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = a9.write_synthetic_artifact(root)
+            manifest = a9.load_json(manifest_path)
+            mutate_map_bit(
+                manifest,
+                root,
+                replica=1,
+                checkpoint_name="00-created",
+                row=0,
+                page=20,
+                set_bit=False,
+            )
+            mutate_map_bit(
+                manifest,
+                root,
+                replica=1,
+                checkpoint_name="00-created",
+                row=1,
+                page=20,
+                set_bit=True,
+            )
+            a9.write_canonical(manifest_path, manifest)
+            report = a9.evaluate(manifest_path, root, root / "report.json")
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertIn("not present in the owned map", report["questions"]["Q4"]["reason"])
+
     def test_row_directory_rejects_deleted_and_overflow_rows(self) -> None:
         page = bytearray(a9.PAGE_SIZE)
         page[0] = 0x01
@@ -168,6 +356,10 @@ class A9WorkflowTests(unittest.TestCase):
             "Invoke-DaoAllocationA9.ps1",
             "dao_allocation_a9.py evaluate",
             "if-no-files-found: error",
+            'GITHUB_RUN_ATTEMPT -cne "1"',
+            "WaitForExit(7200 * 1000)",
+            "--expected-source-revision",
+            "--expected-plan-sha256",
         ):
             self.assertIn(token, self.workflow)
         self.assertLess(

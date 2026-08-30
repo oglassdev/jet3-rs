@@ -64,8 +64,14 @@ but those bytes and provider binaries are never committed.
 page-allocation questions (Q1 empty template, Q2 page append, Q3 free-page
 reuse, Q4 table-map extension, Q5 index/long-value ownership) that the future
 writer needs, and pins the generator, evaluator, probe, process helper, and
-workflow. `windows-dao-allocation-a9.yml` uses the same three manual inputs
-plus `plan_sha256` and refuses before any DAO mutation unless all match.
+workflow. `windows-dao-allocation-a9.yml` uses the same explicit acquisition
+approval and exact `plan_sha256` gate and refuses before any DAO mutation
+unless all match. Workflow reruns are rejected; a new dispatch is a new
+explicit human decision.
+
+The workflow terminates the generator process tree at the preregistered
+120-minute wall-clock ceiling. The evaluator requires the manifest to bind
+both the approved plan digest and the checked-out source revision.
 
 One job runs three independent replicas. Each checkpoint is a closed-file
 capture of raw 2 KiB page images (hex plus SHA-256 per page) written under

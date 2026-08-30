@@ -14,6 +14,7 @@ import argparse
 import copy
 import hashlib
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -34,9 +35,34 @@ TYPE05_BITS = 16352
 # EXP-0058: an empty database has 20 pages and system table definitions at 2-5.
 EMPTY_PAGE_COUNT = 20
 SYSTEM_TDEF_PAGES = frozenset((2, 3, 4, 5))
-MAX_PAGES = 65536
+MAX_PAGES = 40000
 MAX_CHECKPOINT_BYTES = 64 * 1024 * 1024
 QUESTIONS = ("Q1", "Q2", "Q3", "Q4", "Q5")
+MEMO_MARKER = b"L" * 64
+EXPECTED_CHECKPOINTS = {
+    "Q1": {"00-empty": "full"},
+    "Q2": {
+        "00-empty": "full",
+        "01-table-created": "full",
+        "02-before-data-page": "full",
+        "03-after-data-page": "full",
+    },
+    "Q3": {
+        "00-first-table": "full",
+        "01-second-table": "full",
+        "02-populated": "full",
+        "03-freed": "full",
+        **{f"04-reinsert-{step}": "full" for step in range(1, 5)},
+    },
+    "Q4": {
+        "00-created": "selected",
+        "01-before-first-type05": "selected",
+        "02-after-first-type05": "selected",
+        "03-before-second-type05": "selected",
+        "04-after-second-type05": "selected",
+    },
+    "Q5": {"00-created": "full", "01-populated": "full"},
+}
 
 
 class EvaluationError(Exception):
@@ -81,9 +107,13 @@ class Checkpoint:
         for item in document["pages"]:
             number = int(item["page"])
             image = bytes.fromhex(item["hex"])
-            if len(image) != PAGE_SIZE or number in self.pages or number >= self.page_count:
+            if (
+                len(image) != PAGE_SIZE
+                or number in self.pages
+                or not 0 <= number < self.page_count
+            ):
                 raise EvaluationError(f"{self.label}: malformed page image {number}")
-            if sha256(image) != item["sha256"]:
+            if not valid_digest(item.get("sha256")) or sha256(image) != item["sha256"]:
                 raise EvaluationError(f"{self.label}: page {number} digest differs")
             self.pages[number] = image
         if self.capture == "full" and sorted(self.pages) != list(range(self.page_count)):
@@ -112,7 +142,7 @@ def load_checkpoints(manifest: dict[str, Any], root: Path) -> dict[tuple[int, st
         raw = (root / relative).read_bytes()
         if len(raw) > MAX_CHECKPOINT_BYTES:
             raise EvaluationError(f"{entry['path']}: checkpoint exceeds the size bound")
-        if sha256(raw) != entry["sha256"]:
+        if not valid_digest(entry.get("sha256")) or sha256(raw) != entry["sha256"]:
             raise EvaluationError(f"{entry['path']}: checkpoint digest differs")
         document = json.loads(raw.decode("utf-8"))
         if document.get("document_type") != "dao_allocation_a9_checkpoint":
@@ -128,6 +158,10 @@ def load_checkpoints(manifest: dict[str, Any], root: Path) -> dict[tuple[int, st
             raise EvaluationError(f"{checkpoint.label}: duplicate checkpoint")
         result[key] = checkpoint
     return result
+
+
+def valid_digest(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
 # --- page primitives (SRC-0020, EXP-0051, EXP-0057) --------------------------
@@ -223,6 +257,23 @@ def table_maps(checkpoint: Checkpoint, tdef_page: int) -> dict[str, Any]:
         decoded = usage_record(record, checkpoint.pages)
         decoded["locator"] = {"row": row, "page": page}
         result[name] = decoded
+    for name in ("owned", "free"):
+        outside = [
+            page
+            for page in result[name]["pages"]
+            if not 0 <= page < checkpoint.page_count
+        ]
+        if outside:
+            raise NoOutcome(
+                f"{checkpoint.label}: {name} map contains pages outside the checkpoint: {outside}"
+            )
+    owned = set(result["owned"]["pages"])
+    free = set(result["free"]["pages"])
+    if not free <= owned:
+        raise NoOutcome(
+            f"{checkpoint.label}: free map contains pages not present in the owned map: "
+            f"{sorted(free - owned)}"
+        )
     return result
 
 
@@ -291,7 +342,7 @@ class Evaluation:
     def __init__(self, manifest: dict[str, Any], root: Path) -> None:
         self.manifest = manifest
         self.checkpoints = load_checkpoints(manifest, root)
-        self.marker = bytes.fromhex(str(manifest["memo_marker_hex"]))
+        self.marker = MEMO_MARKER
 
     def get(self, replica: int, question: str, name: str) -> Checkpoint:
         try:
@@ -309,6 +360,14 @@ class Evaluation:
         }
         return {
             "page_count": page_count,
+            "replicas": [
+                {
+                    "replica": item.replica,
+                    "page_count": item.page_count,
+                    "page_tags": [item.tag(page) for page in range(item.page_count)],
+                }
+                for item in replicas
+            ],
             "matches_exp_0058_page_count": page_count == EMPTY_PAGE_COUNT,
             "page_tags": [replicas[0].tag(page) for page in range(page_count)],
             "varying_byte_ranges": varying,
@@ -317,6 +376,8 @@ class Evaluation:
 
     def q2_append(self) -> dict[str, Any]:
         def transition(before: Checkpoint, after: Checkpoint) -> dict[str, Any]:
+            if after.page_count <= before.page_count:
+                raise NoOutcome(f"{before.label} to {after.label}: page count did not grow")
             appended = list(range(before.page_count, after.page_count))
             return {
                 "appended_pages": appended,
@@ -410,8 +471,11 @@ class Evaluation:
                     "tdef_page": tdefs[0],
                     "type05_pages": checkpoint.tagged(0x05),
                     "owned": {key: value for key, value in maps["owned"].items() if key != "pages"},
+                    "owned_pages": maps["owned"]["pages"],
                     "owned_page_count": len(maps["owned"]["pages"]),
                     "free": {key: value for key, value in maps["free"].items() if key != "pages"},
+                    "free_pages": maps["free"]["pages"],
+                    "free_page_count": len(maps["free"]["pages"]),
                 }
             for ordinal, (before_name, after_name) in enumerate(
                 (
@@ -442,12 +506,21 @@ class Evaluation:
             per_replica.append(states)
         shape = require_same(
             [
-                {name: (state["owned"]["kind"], len(state["type05_pages"])) for name, state in states.items()}
+                {
+                    name: {
+                        "owned_kind": state["owned"]["kind"],
+                        "owned_pages": state["owned_pages"],
+                        "free_kind": state["free"]["kind"],
+                        "free_pages": state["free_pages"],
+                        "type05_page_count": len(state["type05_pages"]),
+                    }
+                    for name, state in states.items()
+                }
                 for states in per_replica
             ],
-            "Q4 map kinds",
+            "Q4 map contents",
         )
-        return {"map_kind_and_type05_count": shape, "replicas": per_replica}
+        return {"map_shape": shape, "replicas": per_replica}
 
     def q5_ownership(self) -> dict[str, Any]:
         per_replica = []
@@ -460,10 +533,9 @@ class Evaluation:
             maps = table_maps(populated, tdefs[0])
             owned, free = set(maps["owned"]["pages"]), set(maps["free"]["pages"])
             in_use = global_map(populated)["in_use"]
-            new_pages = sorted(
-                (in_use - global_map(created)["in_use"])
-                | set(range(created.page_count, populated.page_count))
-            )
+            new_pages = sorted(in_use - global_map(created)["in_use"])
+            if not new_pages:
+                raise NoOutcome(f"r{replica}/Q5: population did not bring any page into use")
             pages = [
                 {
                     "page": page,
@@ -486,17 +558,74 @@ class Evaluation:
         return {"summary": summary, "replicas": per_replica}
 
 
-def evaluate(manifest_path: Path, root: Path, output: Path) -> dict[str, Any]:
+def evaluate(
+    manifest_path: Path,
+    root: Path,
+    output: Path,
+    *,
+    expected_source_revision: str | None = None,
+    expected_plan_sha256: str | None = None,
+) -> dict[str, Any]:
     manifest = load_json(manifest_path)
     if manifest.get("document_type") != "dao_allocation_a9_manifest" or manifest.get("issue") != ISSUE:
         raise EvaluationError("manifest has the wrong document type or issue")
     if manifest.get("replica_count") != REPLICAS:
         raise EvaluationError("manifest does not declare three replicas")
+    if manifest.get("status") not in ("complete", "failed"):
+        raise EvaluationError("manifest has an invalid generator status")
+    source_revision = manifest.get("source_revision")
+    if source_revision != "synthetic" and (
+        not isinstance(source_revision, str)
+        or re.fullmatch(r"[0-9a-f]{40}", source_revision) is None
+    ):
+        raise EvaluationError("manifest has an invalid source revision")
+    if expected_source_revision is not None and source_revision != expected_source_revision:
+        raise EvaluationError("manifest source revision differs from the workflow revision")
+    plan_sha256 = manifest.get("plan_sha256")
+    if not valid_digest(plan_sha256):
+        raise EvaluationError("manifest has an invalid acquisition plan digest")
+    if expected_plan_sha256 is not None and plan_sha256 != expected_plan_sha256:
+        raise EvaluationError("manifest plan digest differs from the approved plan")
+    provider = manifest.get("provider")
+    if source_revision != "synthetic" and (
+        not isinstance(provider, dict)
+        or not all(
+            isinstance(provider.get(field), str) and provider[field]
+            for field in ("prog_id", "provider_version", "server_file_version")
+        )
+        or not valid_digest(provider.get("server_sha256"))
+    ):
+        raise EvaluationError("manifest has invalid provider identity")
+    if manifest.get("memo_marker_hex") != MEMO_MARKER.hex():
+        raise EvaluationError("manifest memo marker differs from the preregistered marker")
+    checkpoints = manifest.get("checkpoints")
+    if not isinstance(checkpoints, list):
+        raise EvaluationError("manifest checkpoints must be an array")
+    actual = {
+        (entry.get("replica"), entry.get("question"), entry.get("name")): entry.get("capture")
+        for entry in checkpoints
+        if isinstance(entry, dict)
+    }
+    if len(actual) != len(checkpoints):
+        raise EvaluationError("manifest has duplicate or malformed checkpoint entries")
+    expected = {
+        (replica, question, name): capture
+        for replica in range(1, REPLICAS + 1)
+        for question, names in EXPECTED_CHECKPOINTS.items()
+        for name, capture in names.items()
+    }
+    if set(actual) - set(expected):
+        raise EvaluationError("manifest declares an unexpected checkpoint")
+    if any(actual[key] != expected[key] for key in actual):
+        raise EvaluationError("manifest declares an unexpected capture mode")
+    if manifest.get("status") == "complete" and actual != expected:
+        raise EvaluationError("complete manifest does not contain every preregistered checkpoint")
     report: dict[str, Any] = {
         "document_type": "dao_allocation_a9_report",
         "issue": ISSUE,
         "compatibility_claim": False,
         "source_revision": manifest.get("source_revision"),
+        "plan_sha256": manifest.get("plan_sha256"),
         "provider": manifest.get("provider"),
         "generator_status": manifest.get("status"),
         "checkpoint_count": len(manifest.get("checkpoints", [])),
@@ -679,11 +808,12 @@ def synthetic_checkpoints(replica: int) -> list[tuple[str, str, str, SyntheticDa
         db.page_count = page_count
         db.set_tdef(20, 21)
         if refs is None:
-            db.set_map_page(21, db.type0(20, {21, 22}), db.type0(20, {22}))
+            db.set_map_page(21, db.type0(20, {20, 21}), db.type0(20, set()))
         else:
-            db.set_map_page(21, db.type1(refs + [0] * (4 - len(refs))), db.type0(20, {22}))
+            db.set_map_page(21, db.type1(refs + [0] * (4 - len(refs))), db.type0(20, set()))
             for slot, ref in enumerate(refs):
-                db.set_type05(ref, slot, {slot * TYPE05_BITS + 21})
+                owned = 21 if slot == 0 else slot * TYPE05_BITS
+                db.set_type05(ref, slot, {owned})
         return db
 
     result += [
@@ -746,6 +876,7 @@ def write_synthetic_artifact(root: Path) -> Path:
             "document_type": "dao_allocation_a9_manifest",
             "issue": ISSUE,
             "source_revision": "synthetic",
+            "plan_sha256": "0" * 64,
             "status": "complete",
             "detail": "synthetic",
             "provider": None,
@@ -802,6 +933,8 @@ def parser() -> argparse.ArgumentParser:
     evaluate_command.add_argument("manifest", type=Path)
     evaluate_command.add_argument("artifact_root", type=Path)
     evaluate_command.add_argument("output", type=Path)
+    evaluate_command.add_argument("--expected-source-revision", required=True)
+    evaluate_command.add_argument("--expected-plan-sha256", required=True)
     dry_run = commands.add_parser("synthetic-dry-run")
     dry_run.add_argument("output", type=Path)
     return result
@@ -813,7 +946,13 @@ def main(arguments: list[str]) -> int:
         if args.command == "plan":
             validate_plan(args.plan, args.repository_root)
         elif args.command == "evaluate":
-            report = evaluate(args.manifest, args.artifact_root, args.output)
+            report = evaluate(
+                args.manifest,
+                args.artifact_root,
+                args.output,
+                expected_source_revision=args.expected_source_revision,
+                expected_plan_sha256=args.expected_plan_sha256,
+            )
             print(f"{report['status']}: {args.output}")
             if report["status"] != "accepted":
                 return 2

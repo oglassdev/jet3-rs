@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][string]$EnvironmentPath,
     [Parameter(Mandatory = $true)][string]$OutputRoot,
     [Parameter(Mandatory = $true)][string]$SourceRevision,
+    [Parameter(Mandatory = $true)][string]$PlanSha256,
     [int]$TimeoutMinutes = 120
 )
 
@@ -231,6 +232,7 @@ function Get-PageTags {
 
 function Get-TaggedPageCount {
     param([string]$Path, [byte]$Tag)
+    [void](Get-PageCount -Path $Path)
     $tags = Get-PageTags -Bytes ([IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path)))
     return @($tags | Where-Object { $_ -eq $Tag }).Count
 }
@@ -261,8 +263,8 @@ function Get-SelectedPages {
 function Save-Checkpoint {
     param([string]$Path, [int]$Replica, [string]$Question, [string]$Name, [ValidateSet("full", "selected")][string]$Capture)
     Assert-Budget
-    $bytes = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path))
     $pageCount = Get-PageCount -Path $Path
+    $bytes = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path))
     $numbers = if ($Capture -ceq "full") { @(0..($pageCount - 1)) } else { Get-SelectedPages -Bytes $bytes }
     $pages = New-Object Collections.ArrayList
     foreach ($number in $numbers) {
@@ -355,26 +357,31 @@ function Invoke-Replica {
 
     # Q4: long-binary growth until the first and second tag-05 pages appear (EXP-0057).
     $q4 = Join-Path $work "q4.mdb"
-    New-Database -Path $q4
-    New-Table -Path $q4 -Name "A9Lval" -Kind "long_binary"
-    Save-Checkpoint -Path $q4 -Replica $Replica -Question "Q4" -Name "00-created" -Capture "selected"
-    $rows = 0
-    foreach ($ordinal in @("first", "second")) {
-        $observed = Get-TaggedPageCount -Path $q4 -Tag 5
-        $found = $false
-        while ($rows -lt $MaximumRows) {
-            Copy-Item -LiteralPath $q4 -Destination $previous -Force
-            Add-Rows -Path $q4 -Table "A9Lval" -FirstId ($rows + 1) -Count $LongBinaryBatch -Kind "long_binary"
-            $rows += $LongBinaryBatch
-            if ((Get-TaggedPageCount -Path $q4 -Tag 5) -gt $observed) { $found = $true; break }
+    try {
+        New-Database -Path $q4
+        New-Table -Path $q4 -Name "A9Lval" -Kind "long_binary"
+        Save-Checkpoint -Path $q4 -Replica $Replica -Question "Q4" -Name "00-created" -Capture "selected"
+        $rows = 0
+        foreach ($ordinal in @("first", "second")) {
+            $observed = Get-TaggedPageCount -Path $q4 -Tag 5
+            $found = $false
+            while ($rows -lt $MaximumRows) {
+                Copy-Item -LiteralPath $q4 -Destination $previous -Force
+                Add-Rows -Path $q4 -Table "A9Lval" -FirstId ($rows + 1) -Count $LongBinaryBatch -Kind "long_binary"
+                $rows += $LongBinaryBatch
+                if ((Get-TaggedPageCount -Path $q4 -Tag 5) -gt $observed) { $found = $true; break }
+            }
+            if (-not $found) { throw "Q4: the $ordinal type-05 page did not appear within $MaximumRows rows." }
+            $prefix = if ($ordinal -ceq "first") { "01" } else { "03" }
+            $suffix = if ($ordinal -ceq "first") { "02" } else { "04" }
+            Save-Checkpoint -Path $previous -Replica $Replica -Question "Q4" -Name "$prefix-before-$ordinal-type05" -Capture "selected"
+            Save-Checkpoint -Path $q4 -Replica $Replica -Question "Q4" -Name "$suffix-after-$ordinal-type05" -Capture "selected"
         }
-        if (-not $found) { throw "Q4: the $ordinal type-05 page did not appear within $MaximumRows rows." }
-        $prefix = if ($ordinal -ceq "first") { "01" } else { "03" }
-        $suffix = if ($ordinal -ceq "first") { "02" } else { "04" }
-        Save-Checkpoint -Path $previous -Replica $Replica -Question "Q4" -Name "$prefix-before-$ordinal-type05" -Capture "selected"
-        Save-Checkpoint -Path $q4 -Replica $Replica -Question "Q4" -Name "$suffix-after-$ordinal-type05" -Capture "selected"
     }
-    Remove-Item -LiteralPath $q4 -Force
+    finally {
+        Remove-Item -LiteralPath $q4 -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $previous -Force -ErrorAction SilentlyContinue
+    }
 
     # Q5: primary key plus memo; index-tree and long-value page ownership.
     $q5 = Join-Path $work "q5.mdb"
@@ -383,10 +390,11 @@ function Invoke-Replica {
     Save-Checkpoint -Path $q5 -Replica $Replica -Question "Q5" -Name "00-created" -Capture "full"
     Add-Rows -Path $q5 -Table "A9Keyed" -FirstId 1 -Count 64 -Kind "keyed_memo"
     Save-Checkpoint -Path $q5 -Replica $Replica -Question "Q5" -Name "01-populated" -Capture "full"
-    Remove-Item -LiteralPath $previous -Force -ErrorAction SilentlyContinue
 }
 
 if ([IntPtr]::Size -ne 4) { throw "The A9 generator must run in an x86 process." }
+if ($SourceRevision -cnotmatch "^[0-9a-f]{40}$") { throw "The source revision is invalid." }
+if ($PlanSha256 -cnotmatch "^[0-9a-f]{64}$") { throw "The acquisition plan digest is invalid." }
 $environment = Get-Content -LiteralPath $EnvironmentPath -Raw | ConvertFrom-Json
 if ([string]$environment.status -cne "ready" -or $null -eq $environment.accepted_provider) {
     throw "The provider environment is not ready."
@@ -414,6 +422,7 @@ finally {
         document_type = "dao_allocation_a9_manifest"
         issue = 99
         source_revision = $SourceRevision
+        plan_sha256 = $PlanSha256
         status = $status
         detail = $detail
         provider = [ordered]@{
