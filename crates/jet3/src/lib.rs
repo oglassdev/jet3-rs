@@ -9,7 +9,9 @@ pub mod binary_writer;
 pub mod candidate;
 pub mod catalog;
 pub mod catalog_record;
+pub mod catalog_record_writer;
 pub mod column_definition;
+pub mod column_definition_writer;
 pub mod commit_state;
 mod data_page_directory;
 pub mod database;
@@ -35,8 +37,10 @@ pub mod relationships;
 pub mod resource;
 pub mod row;
 pub mod row_directory;
+pub mod row_writer;
 pub mod source;
 pub mod table_definition;
+pub mod table_definition_writer;
 pub mod text;
 pub mod usage_map;
 pub mod usage_map_writer;
@@ -60,8 +64,15 @@ pub use catalog_record::{
     CatalogName, CatalogNameEncoding, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
     CatalogRecord, CatalogRecordError,
 };
+pub use catalog_record_writer::{
+    CatalogRecordSpec, CatalogRecordWriteError, catalog_record_len, encode_catalog_record,
+};
 pub use column_definition::{
     ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
+};
+pub use column_definition_writer::{
+    ColumnSpec, ColumnStorageKind, IndexFieldSpec, LogicalIndexKindSpec, LogicalIndexSpec,
+    PhysicalIndexSpec,
 };
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
@@ -101,8 +112,12 @@ pub use relationships::{Relationship, Relationships};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use row::{RawField, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};
+pub use row_writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
 pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError};
+pub use table_definition_writer::{
+    TableDefinitionSpec, TableDefinitionWriteError, encode_table_definition, table_definition_len,
+};
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 pub use usage_map_writer::{
