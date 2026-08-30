@@ -305,13 +305,19 @@ jobs:
             -ArgumentList ($arguments -join " ") `
             -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
+            $null = $generator.Handle
             if (-not $generator.WaitForExit(7200 * 1000)) {
               Stop-Jet3BootstrapProcessTree -Process $generator `
                 -Label "A9 allocation generator"
               throw "The A9 generator exceeded its 120-minute wall-clock ceiling."
             }
-            if ($generator.ExitCode -ne 0) {
-              throw "The A9 generator failed with exit $($generator.ExitCode)."
+            $generator.WaitForExit()
+            $generatorExitCode = $generator.ExitCode
+            if ($null -eq $generatorExitCode) {
+              throw "The A9 generator did not expose an exit code."
+            }
+            if ($generatorExitCode -ne 0) {
+              throw "The A9 generator failed with exit $generatorExitCode."
             }
           }
           finally {

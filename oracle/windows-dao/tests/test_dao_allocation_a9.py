@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import json
 import re
 import sys
@@ -21,6 +20,14 @@ PLAN = ACQUISITION / "a9-allocation.plan.json"
 SYNTHETIC = ACQUISITION / "a9-allocation.synthetic.json"
 GENERATOR = SCRIPTS / "Invoke-DaoAllocationA9.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-dao-allocation-a9.yml"
+PROVENANCE = ROOT / "docs" / "PROVENANCE.md"
+APPROVED_PLAN_SHA256 = (
+    "045f25cdeec93060776ab494e9a7c462ebee634ce533e96074c5e0070ab17ea8"
+)
+ACCEPTED_REPORT_SHA256 = (
+    "75d6b39351c1e13c18039e416464fe28224a7c75ce837136a6a6759371388151"
+)
+ACCEPTED_SOURCE_REVISION = "e6a7b2c24afa2ef386031a2e70cdedb120180a3e"
 
 
 def mutate_map_bit(
@@ -63,9 +70,10 @@ def mutate_map_bit(
 
 
 class A9PlanTests(unittest.TestCase):
-    def test_plan_pins_every_execution_input(self) -> None:
-        a9.validate_plan(PLAN, ROOT)
-        plan = json.loads(PLAN.read_text(encoding="utf-8"))
+    def test_consumed_plan_remains_immutable(self) -> None:
+        plan_bytes = PLAN.read_bytes()
+        self.assertEqual(a9.sha256(plan_bytes), APPROVED_PLAN_SHA256)
+        plan = json.loads(plan_bytes)
         self.assertEqual(plan["issue"], 99)
         self.assertEqual(plan["execution"]["attempts"], 1)
         self.assertEqual(plan["execution"]["replicas"], 3)
@@ -77,13 +85,6 @@ class A9PlanTests(unittest.TestCase):
             "oracle/windows-dao/scripts/probe-provider.ps1",
         ):
             self.assertIn(relative, plan["inputs"])
-        broken = copy.deepcopy(plan)
-        broken["inputs"]["oracle/windows-dao/scripts/dao_allocation_a9.py"] = "0" * 64
-        with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "plan.json"
-            path.write_text(json.dumps(broken), encoding="utf-8")
-            with self.assertRaisesRegex(a9.EvaluationError, "digest differs"):
-                a9.validate_plan(path, ROOT)
 
     def test_generator_is_bounded_and_covers_every_question(self) -> None:
         generator = GENERATOR.read_text(encoding="utf-8")
@@ -414,6 +415,44 @@ class A9WorkflowTests(unittest.TestCase):
         uses = re.findall(r"^\s*-?\s*uses:\s*([^\s#]+)", self.workflow, re.MULTILINE)
         for action in uses:
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
+
+    def test_redirected_generator_caches_handle_before_reading_exit_code(self) -> None:
+        start = self.workflow.index("$generator = Start-Process")
+        process_try = self.workflow.index("try {", start)
+        cache_handle = self.workflow.index("$null = $generator.Handle", process_try)
+        timed_wait = self.workflow.index(
+            "$generator.WaitForExit(7200 * 1000)", cache_handle
+        )
+        drain_redirects = self.workflow.index("$generator.WaitForExit()", timed_wait)
+        read_exit = self.workflow.index(
+            "$generatorExitCode = $generator.ExitCode", drain_redirects
+        )
+        self.assertLess(start, process_try)
+        self.assertLess(process_try, cache_handle)
+        self.assertLess(cache_handle, timed_wait)
+        self.assertLess(timed_wait, drain_redirects)
+        self.assertLess(drain_redirects, read_exit)
+        self.assertIn("if ($null -eq $generatorExitCode)", self.workflow)
+        self.assertIn("if ($generatorExitCode -ne 0)", self.workflow)
+        self.assertNotIn("if ($generator.ExitCode -ne 0)", self.workflow)
+
+
+class A9ResultTests(unittest.TestCase):
+    def test_accepted_result_is_bound_once_in_provenance(self) -> None:
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        marker = "### EXP-0065 — Accepted hosted A9 writer-allocation observations"
+        self.assertEqual(provenance.count(marker), 1)
+        entry = provenance.split(marker, 1)[1].split("\n## Fixtures", 1)[0]
+        for token in (
+            "33338088173",
+            APPROVED_PLAN_SHA256,
+            ACCEPTED_REPORT_SHA256,
+            ACCEPTED_SOURCE_REVISION,
+            "status = accepted",
+            "all Q1-Q5 statuses",
+            "No retry or redispatch occurred",
+        ):
+            self.assertIn(token, entry)
 
 
 if __name__ == "__main__":

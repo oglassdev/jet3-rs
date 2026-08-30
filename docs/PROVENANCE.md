@@ -6004,6 +6004,95 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: report integrity independently reproduced; entry and matrix review
   pending
 
+### EXP-0065 — Accepted hosted A9 writer-allocation observations
+
+- Recorded: 2026-08-30, OpenAI Codex
+- Kind: controlled hosted DAO format-discovery acquisition with three replicas
+  and an accepted evaluator report; descriptive provider observation only, not
+  a Rust-correctness, compatibility, or support result
+- Question: For the five preregistered A9 questions, what empty-database,
+  append, reuse, table-map-extension, and index/long-value ownership behavior
+  does DAO 3.6 exhibit consistently across three fresh Jet 3 databases?
+- Origin and binding: GitHub Actions run `33338088173`, attempt 1, executed
+  `.github/workflows/windows-dao-allocation-a9.yml` from exact clean pushed
+  source revision `e6a7b2c24afa2ef386031a2e70cdedb120180a3e`. The retained manifest binds
+  immutable approved plan SHA-256
+  `045f25cdeec93060776ab494e9a7c462ebee634ce533e96074c5e0070ab17ea8`,
+  issue 99, and three replicas. No donated MDB or third-party MDB
+  implementation was used.
+- Environment: GitHub `windows-2022` image `win22`, version
+  `20260824.284.2`, Windows Server 2022 build `10.0.20348`; x86 Windows
+  PowerShell `5.1.20348.5499`; culture `en-US`, ANSI code page 1252, and UTC.
+  The stock machine-registered `DAO.DBEngine.36` provider reported version
+  3.6 from `dao360.dll` file version `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  and passed the disposable `dbVersion30` creation probe. Runtime installation
+  was not attempted.
+- Protocol and retained artifact: execute Q1 through Q5 in order for each of
+  three fresh replicas under the plan's row, page, tagged-page, payload, and
+  wall-clock bounds; close DAO before every capture; record 20 checkpoints per
+  replica; then validate the manifest, checkpoint digests, page digests, map
+  decoding, and cross-replica agreement. GitHub artifact id `9739695284`,
+  `windows-dao-allocation-a9-e6a7b2c24afa2ef386031a2e70cdedb120180a3e-1`,
+  was 305,059 compressed bytes with GitHub transport digest
+  `sha256:f5dd0523628be82c70bf58b771edb2c08f50c55393be8176a545081fed2e7f6c`.
+- Validation result: `manifest.raw.json` records `status = complete`, detail
+  `All replicas completed.`, three replicas, and 60 retained checkpoints. The
+  canonical evaluator report records `status = accepted`,
+  `generator_status = complete`, `checkpoint_count = 60`, all Q1-Q5 statuses
+  `answered`, and `compatibility_claim = false`; its SHA-256 is
+  `75d6b39351c1e13c18039e416464fe28224a7c75ce837136a6a6759371388151`.
+  A separate read-only local invocation of the checked evaluator over the
+  downloaded artifact accepted it and reproduced that report byte for byte.
+- Q1 observation: every empty database has 20 pages, matching the page count
+  recorded by `EXP-0058`. A9 establishes the full page-tag vector. Pages 0-2
+  and 6-17 are constant across replicas; only delimited byte ranges on pages
+  3-5, 18, and 19 vary.
+- Q2 observation: creating `A9Rows` appends pages 20-22, with tags 02, 01, and
+  01 respectively; the first subsequent data-page growth appends page 23 with
+  tag 01. Those pages become in use in the global map. Both transitions change
+  page 0 only at `[1538,1539)` and page 1 only at `[1922,1923)`, identically
+  across replicas.
+- Q3 observation: freeing rows and dropping the second table leaves page count
+  32 and makes pages 23-25 and 29-31 free. The surviving table's owned map
+  names pages 26-28 and its free map names page 28. Four reinsert steps append
+  no pages and reuse freed pages 23, 24, and 25 in steps 1, 3, and 4; step 2
+  needs no newly in-use page. Every replica's verdict is `reuse`.
+- Q4 observation: the first observed global tag-05 growth adds page 7041 while
+  the table owned map remains type-0 inline, so the evaluator classifies it as
+  `other_type05_growth`. The second adds page 13020 and converts the primary
+  owned map from type-0 inline to type-1 indirect with exact references
+  `[13020]`, so it is `primary_owned_map_extension`. The free map remains
+  type-0 inline. Exact decoded map sets, map kinds, tag-05 counts, and both
+  transition classifications agree across all replicas.
+- Q5 observation: each populated replica adds 193 classified pages: 65 data
+  and 128 long-value pages. All are globally in use. Some data pages occur in
+  the table owned and free maps, while no long-value page occurs in either
+  table map; all three replicas have the same all/some/none summary.
+- Workflow conclusion: the GitHub workflow is red only because Windows
+  PowerShell exposed a null `Process.ExitCode` after the redirected generator
+  had completed. The acquisition step consequently threw `The A9 generator
+  failed with exit .`; generator stderr was empty, the complete manifest and
+  all checkpoints were already retained, and the following evaluator step
+  accepted them. This wrapper false negative does not alter the report-backed
+  accepted scientific outcome. No retry or redispatch occurred or is
+  authorized by this entry.
+- Interpretation and claims: these observations are narrow implementation
+  input for a future writer change. They assign no meaning beyond the five
+  preregistered questions, establish no Rust correctness or DAO differential,
+  and do not justify capability, compatibility, or support-matrix movement.
+- Usage: future separately reviewed writer-allocation implementation;
+  `file:oracle/windows-dao/acquisition/a9-allocation.plan.json`;
+  `file:oracle/windows-dao/scripts/dao_allocation_a9.py`
+- Rights: project-generated through the licensed Microsoft DAO provider and
+  retained as an access-controlled GitHub Actions artifact and a temporary
+  read-only local copy; no provider binary, MDB, checkpoint page image, or
+  report is committed or redistributed by this repository
+- Review: retained artifact identity, manifest completeness, report identity,
+  report status, question results, runner failure log, and independent
+  byte-for-byte evaluator recomputation checked; focused A9 contract tests must
+  pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
