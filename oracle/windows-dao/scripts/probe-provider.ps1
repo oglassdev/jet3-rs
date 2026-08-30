@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$OutputPath,
-    [ValidateSet("1.0.0", "1.1.0")]
+    [ValidateSet("1.0.0", "1.1.0", "1.2.0")]
     [string]$ProtocolVersion = "1.0.0",
     [switch]$SkipDbVersion30Test
 )

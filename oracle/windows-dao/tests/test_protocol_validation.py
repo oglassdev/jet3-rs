@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from protocol_validation import (  # noqa: E402
 )
 import build_v1_2_inventory  # noqa: E402
 import validate_protocol_v1_2 as v1_2  # noqa: E402
+import dao_read_diff  # noqa: E402
 
 
 class SharedProtocolValidationTests(unittest.TestCase):
@@ -416,6 +418,47 @@ class ProtocolV12Tests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(ValidationError, "unknown table"):
             v1_2.validate_document(bad_relationship)
+
+    def test_dao_comparison_ignores_only_declared_producer_fields(self):
+        dao = self._snapshot()
+        dao["producer"] = {"kind": "dao", "source_revision": "dao-test"}
+        rust = self._snapshot()
+        result = dao_read_diff.compare_snapshots(dao, rust)
+        self.assertTrue(result["matched"])
+
+        changed = self._snapshot()
+        changed["tables"][0]["attributes"] = 1
+        with self.assertRaisesRegex(ValidationError, "projections differ"):
+            dao_read_diff.compare_snapshots(dao, changed)
+
+    def test_dao_canonicalizer_derives_and_orders_row_identities(self):
+        snapshot = self._snapshot()
+        snapshot["producer"] = {"kind": "dao", "source_revision": "dao-test"}
+        rows = snapshot["tables"][0]["rows"]
+        rows.reverse()
+        for row in rows:
+            row["canonical_key"] = "0" * 64
+            row["duplicate_ordinal"] = 99
+        snapshot["database_properties"]["Float"] = {
+            "kind": "double",
+            "raw_hex": "000000000000f83f",
+            "value": "1.5",
+        }
+        canonical = dao_read_diff.canonicalize_snapshot(snapshot)
+        self.assertEqual(
+            [row["duplicate_ordinal"] for row in canonical["tables"][0]["rows"]],
+            [0, 1],
+        )
+        self.assertEqual(canonical["database_properties"]["Float"]["value"], 1.5)
+
+    def test_synthetic_dry_run_accepts_match_and_rejects_mismatch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "report.json"
+            dao_read_diff.synthetic_dry_run(output)
+            report = json.loads(output.read_text(encoding="utf-8"))
+        self.assertFalse(report["compatibility_claim"])
+        self.assertTrue(report["matching_pair_accepted"])
+        self.assertTrue(report["mismatched_pair_rejected"])
 
 
 if __name__ == "__main__":
