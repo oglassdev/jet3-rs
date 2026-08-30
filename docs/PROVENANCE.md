@@ -6082,6 +6082,7 @@ Use `not applicable` explicitly rather than omitting a field.
   preregistered questions, establish no Rust correctness or DAO differential,
   and do not justify capability, compatibility, or support-matrix movement.
 - Usage: future separately reviewed writer-allocation implementation;
+  `file:crates/jet3/src/page_append_plan.rs`;
   `file:oracle/windows-dao/acquisition/a9-allocation.plan.json`;
   `file:oracle/windows-dao/scripts/dao_allocation_a9.py`
 - Rights: project-generated through the licensed Microsoft DAO provider and
