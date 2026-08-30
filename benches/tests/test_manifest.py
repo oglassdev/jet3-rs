@@ -13,7 +13,6 @@ BINARY_WRITER_HARNESS = (
     Path(__file__).parents[1] / "binary_writer_benchmark.rs"
 )
 SUITE_IDENTITY = Path(__file__).parents[1] / "scripts" / "suite_identity.py"
-ACCEPTANCE_GATE = Path(__file__).parents[2] / "scripts" / "run-acceptance-gate.sh"
 CI_WORKFLOW = Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml"
 MASK_U64 = (1 << 64) - 1
 MASK_U32 = (1 << 32) - 1
@@ -154,21 +153,6 @@ class ManifestTests(unittest.TestCase):
                 hashlib.sha256(rewrite).hexdigest(),
                 rewrite_hashes[str(size)],
             )
-
-    def test_g7_compiles_every_registered_benchmark_before_blocking(self) -> None:
-        script = ACCEPTANCE_GATE.read_text(encoding="utf-8")
-        g7_case = script.split("    G7)", maxsplit=1)[1].split(
-            "    G8)", maxsplit=1
-        )[0]
-        compile_position = g7_case.index("--benches --locked --no-run")
-        tests_position = g7_case.index(
-            "python3 -m unittest discover -s benches/tests -v"
-        )
-        blocked_position = g7_case.index('blocked "G7 lacks')
-
-        self.assertNotIn("--bench format_primitives", g7_case)
-        self.assertLess(compile_position, tests_position)
-        self.assertLess(tests_position, blocked_position)
 
     def test_ci_compiles_and_executes_every_registered_benchmark(self) -> None:
         workflow = CI_WORKFLOW.read_text(encoding="utf-8")

@@ -1,119 +1,39 @@
 # Evidence and status vocabulary
 
-The support matrix records implementation and verification independently.
-This prevents a complete-looking implementation from becoming a compatibility
-claim without independent evidence.
+The support matrix records implementation and verification independently. An
+implemented capability is not a compatibility claim without DAO differential
+evidence.
 
 ## Implementation state
 
 | State | Meaning |
 | --- | --- |
-| `not_started` | No production implementation is claimed. Scaffolding and test plans may exist. |
-| `partial` | Some behavior exists, but the declared capability is incomplete or has known unsupported cases. |
-| `implemented` | The declared behavior and documented limits are implemented. This says nothing about interoperability. |
-| `out_of_scope_v1` | Intentionally unsupported in v1. It must not be silently accepted as supported. |
+| `not_started` | No production implementation is claimed. |
+| `partial` | Some behavior exists, but the capability is incomplete. |
+| `implemented` | The documented behavior and limits are implemented. |
+| `out_of_scope_v1` | The capability is intentionally unsupported in v1. |
 
 ## Verification state
 
-Except for `not_applicable`, the states form a cumulative evidence ladder in
-the order shown. Advancing a state retains the artifacts required by every
-earlier state. The required kind of evidence still depends on the capability.
-
 | State | Meaning |
 | --- | --- |
-| `unverified` | No current evidence is recorded. |
-| `internal_only` | Unit, property, golden, or round-trip tests pass using project code. Not an interoperability claim. |
-| `independent_check` | A verifier independent of the writer, or an applicable external standard tool, accepts the artifact. Still not DAO compatibility. |
-| `dao_opened` | In addition to applicable independent checks, the recorded DAO environment opened or validated the MDB, but full semantic equivalence was not shown. |
-| `dao_differential` | DAO and Rust canonical semantic results agree for the required scenario set and operation, including preservation checks for updates. |
-| `not_applicable` | External DAO evidence does not apply, normally for an explicitly out-of-scope item or a Rust-only safety property. A reason is required. |
+| `unverified` | No evidence is recorded. |
+| `internal_only` | Project tests pass; this is not interoperability evidence. |
+| `independent_check` | An independent verifier accepts the artifact. |
+| `dao_opened` | The recorded DAO environment opened or validated the MDB. |
+| `dao_differential` | DAO and Rust canonical semantic results agree. |
+| `not_applicable` | External verification does not apply. |
 
-`dao_opened` is deliberately weaker than `dao_differential`. Neither state may
-be inferred from a file being accepted by the Rust reader. `internal_only` and
-every higher state require at least one `test` artifact: it must be a test-only
-Rust file, name stable scenario IDs from `tests/manifest.json`, map those IDs to
-the file's Cargo target or unit-test module, and retain every manifested test
-function in the commit-bound blob. Production modules are `source` evidence
-even when they contain inline `#[cfg(test)]` code.
+Only `implemented` capabilities with `dao_differential` verification may be
+described as DAO-compatible. Evidence references in the support matrix point
+to the checked source, test, report, or DAO bundle that supports the recorded
+state.
 
-## User-facing labels
+Each release leg retains its validated DAO differential bundle. The bundle
+records the scenario input, canonical DAO and Rust snapshots, comparison
+result, provider environment, fixture hashes, and release commit. The protocol
+validator checks its machine-readable canonical snapshot document.
 
-Tooling derives labels rather than storing them:
-
-- **unsupported**: `out_of_scope_v1`;
-- **planned**: `not_started`;
-- **experimental**: `partial`, or `implemented` below its required verification
-  state;
-- **supported**: `implemented` and the entry's `required_verification` is met by
-  current, commit-bound evidence.
-
-The project must not use “DAO verified,” “Access compatible,” or equivalent
-wording without an evidence bundle meeting the relevant definition above.
-
-## Required evidence bundle
-
-Each DAO run writes an immutable directory identified by git commit and run ID.
-The bundle contains:
-
-- scenario input JSON and its SHA-256;
-- source MDB SHA-256, output MDB SHA-256, and canonical snapshot SHA-256;
-- canonical DAO snapshot and canonical Rust snapshot;
-- an operation log and machine-readable pass/fail report;
-- git commit and dirty-worktree flag;
-- Windows edition/build and architecture;
-- DAO/Access/Jet provider identity and exact version;
-- PowerShell/runtime version, locale, ANSI/OEM code pages, and time zone;
-- oracle source revision and command line; and
-- timestamps plus explicit skipped/unsupported cases.
-
-Evidence from a dirty tree may guide development but cannot satisfy a release
-gate. Test reports and fixture manifests must refer to stable scenario IDs; a
-changed scenario receives a new content hash.
-
-The support matrix may retain a source or test artifact from the immutable
-commit where that exact blob entered the implementation. This is lineage
-evidence: the validator resolves the recorded commit and verifies the blob
-hash. It is not release evidence. An `independent_report`, `dao_bundle`, or
-release-gate report must bind the exact clean release commit and cannot be
-satisfied by an earlier lineage record.
-
-## Detached release-evidence overlays
-
-A detached overlay is an untrusted inventory presented to the checked
-release-evidence validator. It binds its files, contracts, requested adapter,
-expected output, and exact commit. Adapter artifact kinds and maximum
-verification levels are intrinsic code properties; the checked policy may only
-enable, disable, or forbid the closed adapter catalog and cannot relabel an
-adapter.
-
-`repository.dirty: false` means that the tracked index and worktree exactly
-match the named `HEAD`. The policy permits only untracked acceptance outputs
-under `artifacts/acceptance/**`, because the acceptance process itself retains
-immutable results there. This is a repeated check of a caller-maintained
-quiescent workspace, not a transactional lock against concurrent same-account
-mutation.
-
-Failed publication retains its uniquely created private stage for inspection
-and never recursively deletes a pathname. Publication is presently available
-only under a quiescent, current-account-owned POSIX parent with protected
-ancestor permissions and atomic no-replace support. Windows publication fails
-closed until equivalent trusted-parent handle and ACL enforcement exists.
-
-The production policy currently enables no evidence adapters. Consequently,
-the overlay validator and staging foundation cannot advance any support-matrix
-verification state or substantiate a compatibility claim yet.
-
-## Clean-room evidence ledger
-
-`docs/PROVENANCE.md` is the required ledger for every technical source,
-observed behavior, experiment, and fixture origin. An entry records:
-
-- a stable ID, date, author, and public source citation or experiment protocol;
-- what was learned, without importing implementation code;
-- fixture/scenario IDs and hashes;
-- environment and exact commands needed to reproduce the observation; and
-- any license or redistribution restriction.
-
-MDB Tools and other implementations may appear only as licensed black-box test
-or performance oracles. Their code, derived pseudocode, implementation details,
-and data structures are prohibited sources.
+`docs/PROVENANCE.md` remains the clean-room ledger for every technical source,
+observed behavior, experiment, and fixture origin. Every format constant in
+`crates/jet3` cites the applicable `SRC-` or `EXP-` entry there.

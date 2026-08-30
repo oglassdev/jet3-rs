@@ -206,7 +206,7 @@ A physical stage advances only through all applicable gates:
 3. Add focused exact-boundary and corruption tests for every length, count,
    offset, reference, tag, flag, chain, and termination rule.
 4. Add a dedicated registered fuzz target and manifested synthetic seeds for
-   each parser named by G5. Fuzzing proves robustness only, not correctness.
+   each parser boundary. Fuzzing proves robustness only, not correctness.
 5. Compare semantic output against an independently generated DAO snapshot at
    the exact clean pushed commit before changing a capability to DAO-verified.
 6. Use an independent structural verifier for writer output; the reader can

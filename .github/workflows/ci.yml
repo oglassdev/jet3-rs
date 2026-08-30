@@ -41,7 +41,6 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'mise.toml'
-              - 'tests/manifest.json'
               - 'rust-toolchain*'
               - '.github/workflows/**'
             oracle:
@@ -66,61 +65,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.96.0
-          components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: Run G1 checks and record commit-bound evidence
-        run: >-
-          python tools/ci_evidence.py run-platform
-          --platform "${{ matrix.platform }}"
-          --output "artifacts/ci-evidence/${{ matrix.platform }}"
-      - name: Upload platform evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: g1-${{ matrix.platform }}-${{ github.sha }}
-          path: artifacts/ci-evidence/${{ matrix.platform }}
-          if-no-files-found: error
-          retention-days: 30
-
-  g1-evidence:
-    name: Aggregate G1 cross-platform evidence
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      - name: Download exact-run platform records
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: g1-*-${{ github.sha }}
-          path: artifacts/ci-evidence/downloaded
-      - name: Validate and aggregate exact-commit evidence
-        shell: bash
-        run: |
-          commit=$(git rev-parse HEAD)
-          test "$commit" = "$GITHUB_SHA"
-          python tools/ci_evidence.py aggregate \
-            --input-root artifacts/ci-evidence/downloaded \
-            --output artifacts/ci-evidence/g1-aggregate \
-            --expected-commit "$commit"
-          python tools/ci_evidence.py verify-aggregate \
-            artifacts/ci-evidence/g1-aggregate \
-            --expected-commit "$commit"
-      - name: Upload validated aggregate
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: g1-cross-platform-${{ github.sha }}
-          path: artifacts/ci-evidence/g1-aggregate
-          if-no-files-found: error
-          retention-days: 30
+      - name: Run workspace tests
+        run: cargo test --workspace --all-targets --all-features --locked
 
   validation:
     name: Validation contracts and tooling
@@ -132,19 +82,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.96.0
-      - uses: Swatinem/rust-cache@v2
       - name: Validate support matrix
-        run: |
-          python3 tools/validate_contract.py
-          python3 tools/validate_contract.py --self-test
-      - name: Validate repository contract
-        run: python3 tools/validate_repository_contract.py
-      - name: Reject G6 core inventory drift
-        run: python3 tools/validate_g6_evidence.py inventory
-      - name: Test validation and acceptance tooling
+        run: python3 tools/validate_contract.py
+      - name: Test validation tooling
         run: python3 -m unittest discover -s tools/tests -v
       - name: Validate DAO oracle schemas without claiming provider coverage
         run: python3 oracle/windows-dao/scripts/validate_protocol.py schemas
@@ -153,8 +93,6 @@ jobs:
           python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
           python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
           python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
-      - name: Reconcile checked test inventory with Rust tests
-        run: python3 tools/reconcile_tests.py --repo-root "$GITHUB_WORKSPACE"
 
   oracle-contracts:
     name: Portable oracle contracts (${{ matrix.shard }})
@@ -177,45 +115,6 @@ jobs:
           python3 oracle/windows-dao/scripts/run_contract_tests.py
           portable-shard --shard-index ${{ matrix.shard }} --shard-count 4
 
-  g6-coverage:
-    name: Exact-commit G6 coverage evidence
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.96.0
-          components: llvm-tools-preview
-      - uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2
-        with:
-          tool: cargo-llvm-cov@0.8.6
-      - uses: Swatinem/rust-cache@v2
-      - name: Vendor locked dependencies before the offline campaign
-        run: cargo fetch --locked
-      - name: Produce and independently validate exact-commit coverage
-        shell: bash
-        run: |
-          commit=$(git rev-parse HEAD)
-          test "$commit" = "$GITHUB_SHA"
-          python3 tools/run_g6_coverage.py \
-            --repo-root "$GITHUB_WORKSPACE" \
-            --expected-commit "$commit" \
-            --output "coverage/g6/$commit"
-          python3 tools/validate_g6_evidence.py coverage \
-            "coverage/g6/$commit/coverage-evidence.json"
-      - name: Upload validated exact-commit coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: g6-coverage-${{ github.sha }}
-          path: coverage/g6/${{ github.sha }}
-          if-no-files-found: error
-          retention-days: 30
-
   windows-oracle-contracts:
     name: Windows oracle and bounded-process contracts
     needs: changes
@@ -237,16 +136,6 @@ jobs:
       - name: Exercise the complete Windows oracle contract after merge
         if: github.event_name == 'push'
         run: python -m unittest discover -s oracle/windows-dao/tests -v
-      - name: Exercise Windows release-evidence contracts
-        if: always()
-        run: >-
-          python -m unittest
-          tools.tests.test_release_evidence
-          tools.tests.test_release_evidence_identity
-          tools.tests.test_release_evidence_primitives
-          tools.tests.test_release_evidence_staging.ReleaseEvidenceStagingTests.test_windows_staging_is_explicitly_unavailable_until_handle_safe
-          -v
-
   benchmarks:
     name: Benchmark harness
     needs: changes

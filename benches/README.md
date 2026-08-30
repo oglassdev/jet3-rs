@@ -159,7 +159,7 @@ baseline approved.
 `manifest.json` is the scenario inventory for this checked-foundations
 Criterion suite. It is not an approved-baseline ledger and does not conform to
 the binding `docs/validation/schema/benchmark-manifest.schema.json`. That
-binding schema remains the only contract for checked G7 baseline entries.
+binding schema remains the contract for checked baseline entries.
 
 `comparison-input.schema.json` documents the comparator's normalized,
 commit-bound input format. It is local tooling structure, not a substitute for
@@ -190,7 +190,7 @@ retained benchmark artifact.
 
 ## Scope limit
 
-This foundation does not satisfy G7. It has no Jet catalog, row, index, CRUD,
+This foundation has no Jet catalog, row, index, CRUD,
 Memo/OLE, creation, or semantic-verification benchmarks; no 100,000-row
 dataset; no approved baseline; and no integrated peak-RSS or output-size
 collector. Synthetic generic Jet signature recognition does not identify a Jet
@@ -204,8 +204,7 @@ synthetic candidate inspection proves only a generic signature and exact 2 KiB
 geometry; it does not identify Jet 3, inspect encryption, validate structure,
 or demonstrate compatibility. Commit-region reads preserve contextual bytes
 without `.ldb` lock evidence and cannot diagnose validity, corruption, clean
-shutdown, Jet generation, user ownership, or compatibility. Those remain
-explicit release blockers.
+shutdown, Jet generation, user ownership, or compatibility.
 
 Binary-writer cases likewise encode deterministic integers into fixed buffers
 only. They do not construct a database, establish deterministic MDB output, or

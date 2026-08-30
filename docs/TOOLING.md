@@ -16,24 +16,20 @@ not activated in the current shell.
 
 | Tool | Pinned version | Project use |
 | --- | --- | --- |
-| Python | 3.13.7 | Validation, evidence, benchmark, fuzz, and DAO protocol tooling |
-| Rust stable | 1.96.0 | Production builds, tests, docs, Clippy, formatting, and coverage |
+| Python | 3.13.7 | Validation, benchmark, fuzz, and DAO protocol tooling |
+| Rust stable | 1.96.0 | Production builds, tests, docs, Clippy, and formatting |
 | Rust nightly | nightly-2026-07-20 | Fuzzing and Miri |
 | just | 1.46.0 | Everyday command recipes |
 | jq | 1.8.2 | Benchmark metadata capture and shell contract tests |
 | cargo-deny | 0.20.2 | Dependency license, source, ban, and advisory policy |
-| cargo-llvm-cov | 0.8.6 | G6 coverage evidence |
 | cargo-fuzz | 0.13.2 | Registered fuzz targets and campaigns |
-| cargo-mutants | 26.2.0 | G6 mutation evidence in the supported v26 report format |
 
-The stable Rust installation includes `clippy`, `rustfmt`, and the LLVM tools
-component (`llvm-tools-preview` in CI/rustup terminology and `llvm-tools` in
-mise's installed-component inventory). A mise post-install hook provisions the
-separately pinned nightly toolchain with `miri`; keeping nightly out of the
-active tool list leaves Rust 1.96.0 as the unambiguous default while `cargo
-+nightly-2026-07-20 ...` remains available. These pins mirror the checked CI
-and evidence contracts; `rust-toolchain.toml` remains the toolchain contract
-for Rust-native tooling outside mise.
+The stable Rust installation includes `clippy` and `rustfmt`. A mise
+post-install hook provisions the separately pinned nightly toolchain with
+`miri`; keeping nightly out of the active tool list leaves Rust 1.96.0 as the
+unambiguous default while `cargo +nightly-2026-07-20 ...` remains available.
+These pins mirror CI; `rust-toolchain.toml` remains the toolchain contract for
+Rust-native tooling outside mise.
 
 ## Host prerequisites
 

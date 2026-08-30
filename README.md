@@ -27,17 +27,17 @@ is claimed.
 ./scripts/acceptance.sh quick
 ```
 
-The eventual complete acceptance gate has a stable entry point:
+Validate one DAO differential bundle with the full entry point:
 
 ```sh
-./scripts/acceptance.sh full
+./scripts/acceptance.sh full path/to/canonical-snapshot.json
 ```
 
-During bootstrap, `full` intentionally exits nonzero with `BLOCKED` after the
-wired checks; missing release gates are never treated as a pass.
+Without a bundle argument or `JET3_DAO_BUNDLE`, `full` exits nonzero with a
+one-line reason.
 
-See [validation/README.md](docs/validation/README.md) for the distinction
-between currently wired bootstrap checks and the full v1 acceptance contract.
+See [validation/README.md](docs/validation/README.md) for capability status and
+the three v1 release gates.
 See [TOOLING.md](docs/TOOLING.md) for the pinned mise-managed developer tools
 and the remaining host prerequisites.
 

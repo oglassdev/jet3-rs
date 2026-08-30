@@ -1,978 +1,253 @@
 {
-  "schema_version": 2,
-  "product_scope": {
-    "format": "Microsoft Jet 3 / Access 97",
-    "encrypted": false,
-    "runtime_external_mdb_dependency": false
-  },
-  "state_vocabulary": {
-    "implementation": [
-      "not_started",
-      "partial",
-      "implemented",
-      "out_of_scope_v1"
-    ],
-    "verification": [
-      "unverified",
-      "internal_only",
-      "independent_check",
-      "dao_opened",
-      "dao_differential",
-      "not_applicable"
-    ]
-  },
+  "schema_version": 3,
   "capabilities": [
     {
       "id": "database.open",
       "implementation": "partial",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The bounded reader now admits only the exploratory Jet 3, unencrypted, no-password opening state and rejects other version or protection states with structured errors. It retains exact page-zero bytes and geometry, but does not validate the remaining header, allocation state, catalog, or whole-database structure, and has no release-eligible DAO differential evidence.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/database.rs",
-          "sha256": "ade820197519da154de38a2b39a6e2f2cf82a271863ed026771c83ab57a360fb",
-          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
-          "capability_id": "database.open"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/database_tests.rs",
-          "sha256": "5facf7e0952440581f4d31b085864e8ffb005ce4c52e9346192cce52a1bdea01",
-          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
-          "capability_id": "database.open",
-          "scenario_ids": [
-            "UT-DATABASE-001",
-            "UT-DATABASE-024"
-          ]
-        }
+        "crates/jet3/src/database.rs",
+        "crates/jet3/src/database_tests.rs"
       ]
     },
     {
       "id": "database.create_empty",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "dao_differential",
       "evidence": []
     },
     {
       "id": "database.validate",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "independent_check",
       "evidence": []
     },
     {
       "id": "format.header_and_version",
       "implementation": "partial",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "Generic Jet signature recognition, Jet 3 page-size geometry, a typed snapshot of the complete first database page, and the exploratory Jet 3 unencrypted no-password opening discriminator are implemented. The remaining page-zero fields are uninterpreted, commit-state pairs are not standalone validity evidence, and contemporaneous .ldb correlation plus release-eligible DAO differential evidence are absent.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/database_header.rs",
-          "sha256": "4a9340d94b67f4f97e07575a93b11b92d34738d118add7f3e196162131f3a968",
-          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
-          "capability_id": "format.header_and_version"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/database_header_tests.rs",
-          "sha256": "d0668c0a3d25d3df587630396bd57a420efa37d1782bfb7e376482587aeacf4e",
-          "commit": "27a346ed568236de9b177dcea0c88bb26f2b01b6",
-          "capability_id": "format.header_and_version",
-          "scenario_ids": [
-            "UT-DBHEADER-001",
-            "UT-DBHEADER-002",
-            "UT-DBHEADER-003",
-            "UT-DBHEADER-004",
-            "UT-DBHEADER-005",
-            "UT-DBHEADER-006",
-            "UT-DBHEADER-007",
-            "UT-DBHEADER-008",
-            "UT-DBHEADER-009",
-            "UT-DBHEADER-010"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/header.rs",
-          "sha256": "9e96022f0dacf4b3a8fd7b893ad3dafcdaef6e392e9ab8b140f4ffac3e281c22",
-          "commit": "06dc93400f26579a76eceece088d823c44a3a0b7",
-          "capability_id": "format.header_and_version"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/header_tests.rs",
-          "sha256": "143f512066dc2a698072fd08b26be000876d3ad39684dad61d5fefec640dda26",
-          "commit": "06dc93400f26579a76eceece088d823c44a3a0b7",
-          "capability_id": "format.header_and_version",
-          "scenario_ids": [
-            "UT-HEADER-001",
-            "UT-HEADER-002",
-            "UT-HEADER-003",
-            "UT-HEADER-004",
-            "UT-HEADER-005",
-            "UT-HEADER-006",
-            "UT-HEADER-007",
-            "UT-HEADER-008",
-            "UT-HEADER-009",
-            "UT-HEADER-010",
-            "UT-HEADER-011",
-            "UT-HEADER-012",
-            "UT-HEADER-013"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/candidate.rs",
-          "sha256": "f9637fcb2b5d0b2ad8a7a9dc12269e9bfa7d38d37aa97f5141fc70c7ab0243fc",
-          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
-          "capability_id": "format.header_and_version"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/candidate_tests.rs",
-          "sha256": "f28c97bf4ee1c1b40f85742cffca05b667df7f572c780a78bd7349362a87501e",
-          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
-          "capability_id": "format.header_and_version",
-          "scenario_ids": [
-            "UT-CANDIDATE-001",
-            "UT-CANDIDATE-002",
-            "UT-CANDIDATE-003",
-            "UT-CANDIDATE-004",
-            "UT-CANDIDATE-005",
-            "UT-CANDIDATE-006",
-            "UT-CANDIDATE-007",
-            "UT-CANDIDATE-008",
-            "UT-CANDIDATE-009",
-            "UT-CANDIDATE-010",
-            "UT-CANDIDATE-011",
-            "UT-CANDIDATE-012",
-            "UT-CANDIDATE-013",
-            "UT-CANDIDATE-014",
-            "UT-CANDIDATE-015"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/commit_state.rs",
-          "sha256": "73600300cbbf2cce0a7ffcb30716e0c24dea8c22c6ef5a9993830b1d6636495e",
-          "commit": "6a8f4cf5ef3d7b5540caa26af157bc2f4e6549fd",
-          "capability_id": "format.header_and_version"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/commit_state_tests.rs",
-          "sha256": "8fb10981c76447598fafb062b123d6318860e319bec476f32fda2173a769cb07",
-          "commit": "9a9457e8c811f4632150c8c0a465687965887c14",
-          "capability_id": "format.header_and_version",
-          "scenario_ids": [
-            "UT-COMMIT-001",
-            "UT-COMMIT-002",
-            "UT-COMMIT-003",
-            "UT-COMMIT-004",
-            "UT-COMMIT-005",
-            "UT-COMMIT-006",
-            "UT-COMMIT-007",
-            "UT-COMMIT-008",
-            "UT-COMMIT-009",
-            "UT-COMMIT-010",
-            "UT-COMMIT-011",
-            "UT-COMMIT-012"
-          ]
-        }
+        "crates/jet3/src/database_header.rs",
+        "crates/jet3/src/database_header_tests.rs",
+        "crates/jet3/src/header.rs",
+        "crates/jet3/src/header_tests.rs",
+        "crates/jet3/src/candidate.rs",
+        "crates/jet3/src/candidate_tests.rs",
+        "crates/jet3/src/commit_state.rs",
+        "crates/jet3/src/commit_state_tests.rs"
       ]
     },
     {
       "id": "format.pages_allocation_usage",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "Bounded complete-page reads, allocation-free sequential streaming, SRC-0020 detached usage-map primitives, and EXP-0057 table-owned page traversal are implemented. From a caller-supplied table-definition root, the reader locates and delimits the owned-map row, handles inline maps, treats a zero type-1 slot as null, follows a bounded prefix of direct checked type-05 page references, and derives extended pages from the checked slot-relative base. Traversal rejects malformed row directories and flags, out-of-capture references, self-references, repeated pages, nonzero slots after null, arithmetic overflow, and resource exhaustion with fixed page storage and pre-charged visited state. This does not locate a catalog, discover table roots, establish global allocation state, choose pages for writes, decode row values, or provide DAO differential verification. The implementation and exploratory observations remain internal_only and make no compatibility claim.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/jet3_page.rs",
-          "sha256": "2b6e6a20ba7ac48250b84ed9a98d6e908a518d1ddd87c0256e8d4b685e1649c6",
-          "commit": "dafa5b0a7721a69a06ac17d59e682608f1f60b02",
-          "capability_id": "format.pages_allocation_usage"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/jet3_page_tests.rs",
-          "sha256": "bff23b9a03e21578052e2bebb5f36eb6cf169cdf4ff737ab46ea05ae98409cb1",
-          "commit": "dafa5b0a7721a69a06ac17d59e682608f1f60b02",
-          "capability_id": "format.pages_allocation_usage",
-          "scenario_ids": [
-            "UT-JET3-PAGE-001",
-            "UT-JET3-PAGE-002",
-            "UT-JET3-PAGE-003",
-            "UT-JET3-PAGE-004",
-            "UT-JET3-PAGE-005",
-            "UT-JET3-PAGE-006",
-            "UT-JET3-PAGE-007",
-            "UT-JET3-PAGE-008",
-            "UT-JET3-PAGE-009",
-            "UT-JET3-PAGE-010",
-            "UT-JET3-PAGE-011",
-            "UT-JET3-PAGE-012",
-            "UT-JET3-PAGE-013",
-            "UT-JET3-PAGE-014",
-            "UT-JET3-PAGE-015"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/raw_page_stream.rs",
-          "sha256": "054359cdd1d0e03ba382c3018eb3b38d91a67940be35585db08fe08834c38367",
-          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
-          "capability_id": "format.pages_allocation_usage"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/raw_page_stream_tests.rs",
-          "sha256": "ed4649d7ca047d69454c97fdc33b5ea02e92a701b614b0cdee7e5b27c7e29fcf",
-          "commit": "9a9457e8c811f4632150c8c0a465687965887c14",
-          "capability_id": "format.pages_allocation_usage",
-          "scenario_ids": [
-            "UT-RAW-STREAM-001",
-            "UT-RAW-STREAM-002",
-            "UT-RAW-STREAM-003",
-            "UT-RAW-STREAM-004",
-            "UT-RAW-STREAM-005",
-            "UT-RAW-STREAM-006",
-            "UT-RAW-STREAM-007",
-            "UT-RAW-STREAM-008"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/tests/raw_page_stream_properties.rs",
-          "sha256": "abc10492db6014d5a46f2a48e061c305bac3c96e471150a662e89d6dc046727d",
-          "commit": "933afcbde67d3d6eaff367c615678514f7bb539f",
-          "capability_id": "format.pages_allocation_usage",
-          "scenario_ids": [
-            "PROP-RAW-STREAM-001",
-            "PROP-RAW-STREAM-002"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/database.rs",
-          "sha256": "5b01a5e65810b19e2eee78d67a73cb702f396fbd1efeb366b2024f97f43b1b54",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/map_location.rs",
-          "sha256": "4fc00ccfaae0ed58e8f6adb82409eb3cf1e6f13fc1475caad519ff419be25c6c",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/map_location_tests.rs",
-          "sha256": "8fd2c54c63a6c9e74a714bdc0667faca43c0f8ae11675f601d762544b6442b3d",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage",
-          "scenario_ids": [
-            "UT-ALLOCATION-022",
-            "UT-ALLOCATION-023",
-            "UT-ALLOCATION-024"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/usage_map.rs",
-          "sha256": "648baf8d65de62af3e827c702a4a65b32e1c2268e4fe4c35ba33492d0c70b10c",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/usage_map_tests.rs",
-          "sha256": "76797ae10c37dad4e1a2d0d3f169eaec65c82b7a6ac1dec14d4d78facb1e4250",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage",
-          "scenario_ids": [
-            "UT-ALLOCATION-025",
-            "UT-ALLOCATION-026",
-            "UT-ALLOCATION-027",
-            "UT-ALLOCATION-028",
-            "UT-ALLOCATION-029"
-          ]
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/allocation_traverse.rs",
-          "sha256": "8c3efc654a99773340eb982cb5a764ebf46984ab6ead9daaaa9b5be10792f627",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/allocation_traverse_tests.rs",
-          "sha256": "43a5714063f60c5bda8b01f80427f19d34ae6ec464aa0c65f047322d092a2914",
-          "commit": "94cba9e6e39c5c513659dba628860d403d13a012",
-          "capability_id": "format.pages_allocation_usage",
-          "scenario_ids": [
-            "UT-ALLOCATION-013",
-            "UT-ALLOCATION-014",
-            "UT-ALLOCATION-015",
-            "UT-ALLOCATION-016",
-            "UT-ALLOCATION-017",
-            "UT-ALLOCATION-018",
-            "UT-ALLOCATION-019",
-            "UT-ALLOCATION-020",
-            "UT-ALLOCATION-021",
-            "UT-ALLOCATION-030",
-            "UT-ALLOCATION-031",
-            "UT-ALLOCATION-032",
-            "UT-ALLOCATION-033",
-            "UT-ALLOCATION-034",
-            "UT-ALLOCATION-035",
-            "UT-ALLOCATION-036",
-            "UT-ALLOCATION-037"
-          ]
-        }
+        "crates/jet3/src/jet3_page.rs",
+        "crates/jet3/src/jet3_page_tests.rs",
+        "crates/jet3/src/raw_page_stream.rs",
+        "crates/jet3/src/raw_page_stream_tests.rs",
+        "crates/jet3/tests/raw_page_stream_properties.rs",
+        "crates/jet3/src/database.rs",
+        "crates/jet3/src/map_location.rs",
+        "crates/jet3/src/map_location_tests.rs",
+        "crates/jet3/src/usage_map.rs",
+        "crates/jet3/src/usage_map_tests.rs",
+        "crates/jet3/src/allocation_traverse.rs",
+        "crates/jet3/src/allocation_traverse_tests.rs"
       ]
     },
     {
       "id": "schema.catalog_and_table_definitions",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The bounded reader now streams the allocation-admitted catalog and decodes referenced table-definition chains into immutable typed column, physical-index, logical-index, and minimum relationship-reference metadata while retaining sourced raw fields. Index roots are classified but never traversed. Relationship cascade semantics, rows, and values remain outside this capability, and the local exploratory observations are not DAO differential evidence or a compatibility claim.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/catalog.rs",
-          "sha256": "ba273b8cc403941a9373be867c99b91e4f9d2ac9ef9386be4ee9f2c047ea9ad3",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/catalog_record.rs",
-          "sha256": "77568d67b9ba7a9d9213992900d49a2268cab9246f3bfbf3c0595838c49289f0",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/column_definition.rs",
-          "sha256": "c39ccc19fbb6aa485fae659413d9276e4a7a8d9210c4722a5b796d3a1c5cf0d3",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/index_definition.rs",
-          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/table_definition.rs",
-          "sha256": "4afaaa3da8537243e827e5f2d1fca388ed6c7a2edaa5cb43fdf43c5982621978",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/catalog_tests.rs",
-          "sha256": "54117c2679c100c10cafc169fbb478e64f09ff85b5993e15d324e7af20635bee",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions",
-          "scenario_ids": [
-            "UT-CATALOG-001",
-            "UT-CATALOG-002",
-            "UT-CATALOG-003",
-            "UT-CATALOG-004",
-            "UT-CATALOG-005",
-            "UT-CATALOG-012"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/catalog_record_tests.rs",
-          "sha256": "581ed9dea8506e82f0c68f413ee4f3ee6f6c250c68f066cc636d4f034d2edb75",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions",
-          "scenario_ids": [
-            "UT-CATALOG-006",
-            "UT-CATALOG-007",
-            "UT-CATALOG-008",
-            "UT-CATALOG-009",
-            "UT-CATALOG-010",
-            "UT-CATALOG-011"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/table_definition_tests.rs",
-          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "schema.catalog_and_table_definitions",
-          "scenario_ids": [
-            "UT-TABLE-DEFINITION-001",
-            "UT-TABLE-DEFINITION-002",
-            "UT-TABLE-DEFINITION-003",
-            "UT-TABLE-DEFINITION-004",
-            "UT-TABLE-DEFINITION-005",
-            "UT-TABLE-DEFINITION-006",
-            "UT-TABLE-DEFINITION-007",
-            "UT-TABLE-DEFINITION-008",
-            "UT-TABLE-DEFINITION-009"
-          ]
-        }
+        "crates/jet3/src/catalog.rs",
+        "crates/jet3/src/catalog_record.rs",
+        "crates/jet3/src/column_definition.rs",
+        "crates/jet3/src/index_definition.rs",
+        "crates/jet3/src/table_definition.rs",
+        "crates/jet3/src/catalog_tests.rs",
+        "crates/jet3/src/catalog_record_tests.rs",
+        "crates/jet3/src/table_definition_tests.rs"
       ]
     },
     {
       "id": "schema.create_drop_tables",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "dao_differential",
       "evidence": []
     },
     {
       "id": "values.all_dao_jet3_table_types",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The value layer decodes every member of the closed 13-type Jet 3 table inventory from validated row fields, retaining exact field bytes and streaming external Memo/OLE fragments. Text code pages remain explicit, unsupported forms fail closed, and EXP-0061 plus synthetic tests are development-only/internal_only rather than the required DAO differential verification.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/value.rs",
-          "sha256": "033b09b84e72712faa4a1faa98b98fa192430025417d9ba4ef237e44ddeaec2f",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.all_dao_jet3_table_types"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/text.rs",
-          "sha256": "15fedb4795903cc037424a7271f29e0b7b66e2c207f88edb62b63bf2d408a8c4",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.all_dao_jet3_table_types"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/long_value.rs",
-          "sha256": "c11795ad7e3d08862a67d0fc9dab4808e13b4bee64e9da2af57361308b5f5787",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.all_dao_jet3_table_types"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/value_tests.rs",
-          "sha256": "5b088017d785ecf11240cef1ea875214ef72fa62a862b6bea85fbdfb476993c4",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.all_dao_jet3_table_types",
-          "scenario_ids": [
-            "UT-VALUE-001",
-            "UT-VALUE-002",
-            "UT-VALUE-003"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/text_tests.rs",
-          "sha256": "2fbbf33adc1d572b903d2d0000d3a681cb21f6ce24bae22e13d936a52f70dab9",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.all_dao_jet3_table_types",
-          "scenario_ids": [
-            "UT-TEXT-001",
-            "UT-TEXT-002",
-            "UT-TEXT-003"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/long_value_tests.rs",
-          "sha256": "a995253a6f3b42b8f850d7cda8899d9ffad835d72a9c0fa91162b1cd6a856fa8",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.all_dao_jet3_table_types",
-          "scenario_ids": [
-            "UT-LONG-VALUE-001",
-            "UT-LONG-VALUE-002",
-            "UT-LONG-VALUE-003",
-            "UT-LONG-VALUE-004"
-          ]
-        }
+        "crates/jet3/src/value.rs",
+        "crates/jet3/src/text.rs",
+        "crates/jet3/src/long_value.rs",
+        "crates/jet3/src/value_tests.rs",
+        "crates/jet3/src/text_tests.rs",
+        "crates/jet3/src/long_value_tests.rs"
       ]
     },
     {
       "id": "values.null_fixed_variable",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "RowView validates fixed and variable boundaries, preserves present empty values distinctly from null, interprets the observed Boolean bit as true/false rather than nullable storage, and delegates typed output through one operation-wide decoded-byte budget. EXP-0060/EXP-0061 and synthetic tests are internal_only and provide no DAO differential verification or compatibility claim.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/row.rs",
-          "sha256": "a77c5734e24b9644ac638c865ec55ee73750f48cb179ac1a27325b5d614015fb",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.null_fixed_variable"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/value.rs",
-          "sha256": "033b09b84e72712faa4a1faa98b98fa192430025417d9ba4ef237e44ddeaec2f",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.null_fixed_variable"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/row_tests.rs",
-          "sha256": "82ddd92ef43956464f35e9cb09b6e2fad65ffe017de61f42f1d376f240a002f1",
-          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
-          "capability_id": "values.null_fixed_variable",
-          "scenario_ids": [
-            "UT-ROW-001",
-            "UT-ROW-003"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/value_tests.rs",
-          "sha256": "5b088017d785ecf11240cef1ea875214ef72fa62a862b6bea85fbdfb476993c4",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.null_fixed_variable",
-          "scenario_ids": [
-            "UT-VALUE-002",
-            "UT-VALUE-003"
-          ]
-        }
+        "crates/jet3/src/row.rs",
+        "crates/jet3/src/value.rs",
+        "crates/jet3/src/row_tests.rs",
+        "crates/jet3/src/value_tests.rs"
       ]
     },
     {
       "id": "values.code_pages_lossless_raw",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The text layer implements complete public CP1251 and CP1252 byte mappings, rejects undefined bytes, retains exact source bytes beside Unicode output, and requires callers to select the code page explicitly. EXP-0061 does not prove physical CP1251 selection, and no DAO differential verification or compatibility claim follows.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/text.rs",
-          "sha256": "15fedb4795903cc037424a7271f29e0b7b66e2c207f88edb62b63bf2d408a8c4",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.code_pages_lossless_raw"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/text_tests.rs",
-          "sha256": "2fbbf33adc1d572b903d2d0000d3a681cb21f6ce24bae22e13d936a52f70dab9",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.code_pages_lossless_raw",
-          "scenario_ids": [
-            "UT-TEXT-001",
-            "UT-TEXT-002",
-            "UT-TEXT-003"
-          ]
-        }
+        "crates/jet3/src/text.rs",
+        "crates/jet3/src/text_tests.rs"
       ]
     },
     {
       "id": "values.date_currency_binary_guid_replication",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The scalar layer retains exact bytes and exposes OLE Automation day counts, Currency's exact scale-4 integer, short binary slices, and GUID display-byte ordering with width and decoded-byte checks. EXP-0061 and synthetic tests are internal_only and do not satisfy the required DAO differential verification.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/value.rs",
-          "sha256": "033b09b84e72712faa4a1faa98b98fa192430025417d9ba4ef237e44ddeaec2f",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.date_currency_binary_guid_replication"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/value_tests.rs",
-          "sha256": "5b088017d785ecf11240cef1ea875214ef72fa62a862b6bea85fbdfb476993c4",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.date_currency_binary_guid_replication",
-          "scenario_ids": [
-            "UT-VALUE-001",
-            "UT-VALUE-003"
-          ]
-        }
+        "crates/jet3/src/value.rs",
+        "crates/jet3/src/value_tests.rs"
       ]
     },
     {
       "id": "values.memo_ole_multi_page",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The lending long-value cursor decodes inline values and streams the observed single-page or chained Memo/OLE forms through one row-page buffer. It retains exact headers/fragments and rejects malformed flags, reserved bytes, owners, directories, offsets, lengths, termination, self-links, cycles, truncation, and resource exhaustion. Storage thresholds and other forms remain unsupported; EXP-0061 and synthetic tests are internal_only rather than DAO differential verification.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/long_value.rs",
-          "sha256": "c11795ad7e3d08862a67d0fc9dab4808e13b4bee64e9da2af57361308b5f5787",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.memo_ole_multi_page"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/long_value_tests.rs",
-          "sha256": "a995253a6f3b42b8f850d7cda8899d9ffad835d72a9c0fa91162b1cd6a856fa8",
-          "commit": "7f930aa3c760deeb21ec076b1210c8e6b691e5f8",
-          "capability_id": "values.memo_ole_multi_page",
-          "scenario_ids": [
-            "UT-LONG-VALUE-001",
-            "UT-LONG-VALUE-002",
-            "UT-LONG-VALUE-003",
-            "UT-LONG-VALUE-004"
-          ]
-        }
+        "crates/jet3/src/long_value.rs",
+        "crates/jet3/src/long_value_tests.rs"
       ]
     },
     {
       "id": "rows.streaming_read",
       "implementation": "implemented",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "The bounded lending RowCursor streams allocation-admitted table-owned rows using one row-page buffer plus pre-charged bounded overflow scratch. It validates reverse-packed directories, ownership, flags, fixed/variable/null boundaries, skips deleted and hidden storage slots, follows observed slot-plus-u24 overflow pointers iteratively, and rejects wrong kinds/owners, malformed offsets, overlap, truncation, self-links, cycles, directory drift, and resource exhaustion. Wider multi-variable layouts and pointer forms beyond EXP-0060 remain unsupported; exploratory evidence and synthetic tests are internal_only and make no compatibility claim.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/row_directory.rs",
-          "sha256": "dc25a29bce44e56ea706f0a456271f79047be2c27774d850adf8cbe10dc817eb",
-          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
-          "capability_id": "rows.streaming_read"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/row.rs",
-          "sha256": "13e9fed43a277afd6d1f6aa63f0e6e85dc86162d8b601482855b418dc2cede98",
-          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
-          "capability_id": "rows.streaming_read"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/row_directory_tests.rs",
-          "sha256": "c1ab888eb090786951b595ea1842c4151ae43d08e3eb0d440d2deaca66bc2c17",
-          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
-          "capability_id": "rows.streaming_read",
-          "scenario_ids": [
-            "UT-ROW-DIRECTORY-001",
-            "UT-ROW-DIRECTORY-002",
-            "UT-ROW-DIRECTORY-003",
-            "UT-ROW-DIRECTORY-004"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/row_tests.rs",
-          "sha256": "82ddd92ef43956464f35e9cb09b6e2fad65ffe017de61f42f1d376f240a002f1",
-          "commit": "87e13a66f5c542d18227ea94027a4fec38f31719",
-          "capability_id": "rows.streaming_read",
-          "scenario_ids": [
-            "UT-ROW-001",
-            "UT-ROW-002",
-            "UT-ROW-003"
-          ]
-        }
+        "crates/jet3/src/row_directory.rs",
+        "crates/jet3/src/row.rs",
+        "crates/jet3/src/row_directory_tests.rs",
+        "crates/jet3/src/row_tests.rs"
       ]
     },
     {
       "id": "rows.insert_update_delete",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "dao_differential",
       "evidence": []
     },
     {
       "id": "indexes.primary_unique_non_unique",
       "implementation": "partial",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "Table-definition parsing preserves primary, unique, required, and nonunique logical-index flags and typed physical root references. Index-tree traversal, lookup, and key interpretation remain unimplemented; exploratory VM observations are not DAO differential evidence.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/index_definition.rs",
-          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "indexes.primary_unique_non_unique"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/table_definition_tests.rs",
-          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "indexes.primary_unique_non_unique",
-          "scenario_ids": [
-            "UT-TABLE-DEFINITION-001",
-            "UT-TABLE-DEFINITION-006"
-          ]
-        }
+        "crates/jet3/src/index_definition.rs",
+        "crates/jet3/src/table_definition_tests.rs"
       ]
     },
     {
       "id": "indexes.composite_ascending_descending",
       "implementation": "partial",
       "verification": "internal_only",
-      "required_verification": "dao_differential",
-      "reason": "Table-definition parsing preserves composite field slots and each observed ascending/descending marker. Index-tree traversal, lookup, and ordering behavior remain unimplemented; exploratory VM observations are not DAO differential evidence.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/index_definition.rs",
-          "sha256": "33533dfc057233af64cba9dc5c41fadc47d879f7de4a3b967e6b68921e3e3532",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "indexes.composite_ascending_descending"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/table_definition_tests.rs",
-          "sha256": "7d57eed01005393b8b8328e6fbca1604404fa318c830407c8145e7120c42e238",
-          "commit": "64dc05a6b8218e1830c1a06e9469310f2153fc45",
-          "capability_id": "indexes.composite_ascending_descending",
-          "scenario_ids": [
-            "UT-TABLE-DEFINITION-001",
-            "UT-TABLE-DEFINITION-006"
-          ]
-        }
+        "crates/jet3/src/index_definition.rs",
+        "crates/jet3/src/table_definition_tests.rs"
       ]
     },
     {
       "id": "indexes.crud_maintenance",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "dao_differential",
       "evidence": []
     },
     {
       "id": "relationships.create_drop_preserve_metadata",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "dao_differential",
       "evidence": []
     },
     {
       "id": "transactions.copy_on_write_atomic_publish",
       "implementation": "partial",
       "verification": "internal_only",
-      "required_verification": "independent_check",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/atomic.rs",
-          "sha256": "126dc31dbe5bc29eca15246dff399cb3eea464dea8a49dc2109a404806be5725",
-          "commit": "fdd61c6322a5168b454c013ea72bc8c422ea3c36",
-          "capability_id": "transactions.copy_on_write_atomic_publish"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/atomic_tests.rs",
-          "sha256": "ae3e3c2e2f8cd21acdcbc6e39b045414ab16a1b29b317b5b65a7decb250ab93b",
-          "commit": "fdd61c6322a5168b454c013ea72bc8c422ea3c36",
-          "capability_id": "transactions.copy_on_write_atomic_publish",
-          "scenario_ids": [
-            "UT-ATOMIC-001",
-            "UT-ATOMIC-002",
-            "UT-ATOMIC-003",
-            "UT-ATOMIC-004",
-            "UT-ATOMIC-005",
-            "UT-ATOMIC-006",
-            "UT-ATOMIC-007"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/tests/atomic_publication.rs",
-          "sha256": "765dc7b14d5842f044bb235400a0147cf8f0e88910255e01ba3bd7a880c6b3cd",
-          "commit": "fdf206155f06a226421948adef83e6217f7c8256",
-          "capability_id": "transactions.copy_on_write_atomic_publish",
-          "scenario_ids": [
-            "IT-ATOMIC-001",
-            "IT-ATOMIC-002"
-          ]
-        }
+        "crates/jet3/src/atomic.rs",
+        "crates/jet3/src/atomic_tests.rs",
+        "crates/jet3/tests/atomic_publication.rs"
       ]
     },
     {
       "id": "output.deterministic_configuration",
       "implementation": "not_started",
       "verification": "unverified",
-      "required_verification": "independent_check",
       "evidence": []
     },
     {
       "id": "safety.malformed_input_bounds_and_limits",
       "implementation": "partial",
       "verification": "internal_only",
-      "required_verification": "independent_check",
-      "reason": "Format-neutral checked cursors, fixed-slice encoding, cumulative resource budgets, bounded sources, and atomic publication foundations have internal tests; malformed Jet structure coverage and the required independent verifier remain incomplete.",
       "evidence": [
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/binary.rs",
-          "sha256": "704e6cf18b3650dc0b43603d217e73dbf27ed92725d65d55985c2d2460c24840",
-          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
-          "capability_id": "safety.malformed_input_bounds_and_limits"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/binary_writer.rs",
-          "sha256": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
-          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
-          "capability_id": "safety.malformed_input_bounds_and_limits"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/limits.rs",
-          "sha256": "9b0c9981316f78198581d8ff87f1f5fba45e7297615815718424539a8fc2b443",
-          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
-          "capability_id": "safety.malformed_input_bounds_and_limits"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/source.rs",
-          "sha256": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
-          "commit": "dcf932c84b5ba18c64f2f6a58f7c06f2ded037b3",
-          "capability_id": "safety.malformed_input_bounds_and_limits"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/resource.rs",
-          "sha256": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
-          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
-          "capability_id": "safety.malformed_input_bounds_and_limits"
-        },
-        {
-          "kind": "source",
-          "path": "crates/jet3/src/atomic.rs",
-          "sha256": "d48ecb87af16bd4f584635d6889cd79d710fd112548eb5c37418b17378e0aee5",
-          "commit": "9d964693ce1ff38fe21fe012ff0c5dd75f019793",
-          "capability_id": "safety.malformed_input_bounds_and_limits"
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/binary_writer_tests.rs",
-          "sha256": "a2991dfb51911b3a165f655124284149ab96393ee9ee3f56e842e2a6deb053a8",
-          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
-          "capability_id": "safety.malformed_input_bounds_and_limits",
-          "scenario_ids": [
-            "UT-BINARY-WRITER-001",
-            "UT-BINARY-WRITER-002",
-            "UT-BINARY-WRITER-003",
-            "UT-BINARY-WRITER-004",
-            "UT-BINARY-WRITER-005"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/src/resource_tests.rs",
-          "sha256": "14010ee06552f6d7692fa833c67ce6680a7ef26e519f53667e99413c27b0404f",
-          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
-          "capability_id": "safety.malformed_input_bounds_and_limits",
-          "scenario_ids": [
-            "UT-RESOURCE-001",
-            "UT-RESOURCE-002",
-            "UT-RESOURCE-003",
-            "UT-RESOURCE-004",
-            "UT-RESOURCE-005",
-            "UT-RESOURCE-006",
-            "UT-RESOURCE-007",
-            "UT-RESOURCE-008",
-            "UT-RESOURCE-009",
-            "UT-RESOURCE-010",
-            "UT-RESOURCE-011"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/tests/binary_writer_properties.rs",
-          "sha256": "e9a507a44b8e8b3694a5dcab4f0f5871fa3cdc630a161a60966e824ee63596ad",
-          "commit": "8be99577aa6e75d39dacecfc9b5acef150a95269",
-          "capability_id": "safety.malformed_input_bounds_and_limits",
-          "scenario_ids": [
-            "PROP-BINARY-WRITER-001",
-            "PROP-BINARY-WRITER-002"
-          ]
-        },
-        {
-          "kind": "test",
-          "path": "crates/jet3/tests/foundation_properties.rs",
-          "sha256": "29ae0cd91254de9a07a6f673f0940aa9d7af7447637a8236818cd6fb108ce811",
-          "commit": "e761151b39577eee6db207dba371aa983e048a7c",
-          "capability_id": "safety.malformed_input_bounds_and_limits",
-          "scenario_ids": [
-            "PROP-FOUNDATION-001",
-            "PROP-FOUNDATION-002",
-            "PROP-FOUNDATION-003",
-            "PROP-FOUNDATION-004",
-            "PROP-FOUNDATION-005",
-            "PROP-FOUNDATION-006"
-          ]
-        }
+        "crates/jet3/src/binary.rs",
+        "crates/jet3/src/binary_writer.rs",
+        "crates/jet3/src/limits.rs",
+        "crates/jet3/src/source.rs",
+        "crates/jet3/src/resource.rs",
+        "crates/jet3/src/atomic.rs",
+        "crates/jet3/src/binary_writer_tests.rs",
+        "crates/jet3/src/resource_tests.rs",
+        "crates/jet3/tests/binary_writer_properties.rs",
+        "crates/jet3/tests/foundation_properties.rs"
       ]
     },
     {
       "id": "ui.forms_reports_vba_macros",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Access UI objects are explicitly outside v1.",
       "evidence": []
     },
     {
       "id": "queries.execute_saved",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Saved-query execution is explicitly outside v1.",
       "evidence": []
     },
     {
       "id": "security.passwords_encryption",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Passwords and encryption are explicitly outside v1.",
       "evidence": []
     },
     {
       "id": "replication.active_behavior",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Only lossless preservation of required replication fields is in v1.",
       "evidence": []
     },
     {
       "id": "locking.concurrent_multi_user",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Concurrent multi-user Jet locking is explicitly outside v1.",
       "evidence": []
     },
     {
       "id": "format.jet4_accdb",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Jet 4 and ACCDB are explicitly outside v1.",
       "evidence": []
     },
     {
       "id": "recovery.jet_equivalent_in_place",
       "implementation": "out_of_scope_v1",
       "verification": "not_applicable",
-      "required_verification": "not_applicable",
-      "reason": "Jet-equivalent in-place crash recovery is explicitly outside v1.",
       "evidence": []
     }
   ]
