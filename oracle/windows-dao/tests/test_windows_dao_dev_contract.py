@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -57,6 +59,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "row",
                 "value",
                 "index",
+                "bootstrap-layout",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -96,6 +99,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                     CLIENT.ROW_JOB.name,
                     CLIENT.VALUE_JOB.name,
                     CLIENT.INDEX_JOB.name,
+                    CLIENT.BOOTSTRAP_LAYOUT_JOB.name,
                 },
             )
 
@@ -129,6 +133,43 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             with self.assertRaises(CLIENT.DevClientError):
                 CLIENT.validate_args(args)
 
+    def test_bootstrap_layout_binds_and_verifies_the_committed_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            args = self.args(root, identity)
+            args.job = "bootstrap-layout"
+            CLIENT.validate_args(args)
+            self.assertEqual(
+                args.plan_sha256,
+                hashlib.sha256(CLIENT.BOOTSTRAP_LAYOUT_PLAN.read_bytes()).hexdigest(),
+            )
+            invocation = CLIENT.invocation_script(args)
+            self.assertIn("-PlanSha256 ([string]$c.plan_sha256)", invocation)
+            self.assertIn("-PlanPath ([string]$c.plan)", invocation)
+            staged = CLIENT.stage_job(args)
+            self.assertTrue((staged / CLIENT.BOOTSTRAP_LAYOUT_PLAN.name).is_file())
+            self.assertTrue((staged / CLIENT.BOOTSTRAP_LAYOUT_ANALYZER.name).is_file())
+
+            altered_plan = root / "altered.plan.json"
+            altered_plan.write_text(
+                json.dumps(
+                    {
+                        "document_type": "dao_bootstrap_layout_plan",
+                        "issue": 100,
+                        "development_only": True,
+                        "inputs": {"scripts/windows-dao-dev.py": "0" * 64},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(CLIENT, "BOOTSTRAP_LAYOUT_PLAN", altered_plan):
+                with self.assertRaisesRegex(
+                    CLIENT.DevClientError, "differs from its plan"
+                ):
+                    CLIENT.verified_bootstrap_plan_sha256()
+
 
 class WindowsDaoDevRemoteContractTests(unittest.TestCase):
     @classmethod
@@ -139,7 +180,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -234,8 +275,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -255,8 +296,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -267,8 +308,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -287,6 +328,24 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             self.assertIn(f'"{scenario}"', index)
             self.assertIn(f'"{scenario}"', self.publication)
         self.assertNotIn("CompactDatabase", index)
+
+    def test_bootstrap_layout_is_plan_bound_bounded_and_development_only(self) -> None:
+        job = CLIENT.BOOTSTRAP_LAYOUT_JOB.read_text(encoding="utf-8")
+        plan = json.loads(CLIENT.BOOTSTRAP_LAYOUT_PLAN.read_text(encoding="utf-8"))
+        self.assertIn('$Job -ceq "bootstrap-layout"', self.remote)
+        self.assertIn("BootstrapLayoutJobPath", self.remote)
+        self.assertIn("PlanSha256", self.remote)
+        self.assertIn("foreach ($replica in 1..3)", job)
+        self.assertIn("development_only = $true", job)
+        self.assertIn("$MaximumPages = 64", job)
+        self.assertIn("$MaximumVariants = 64", job)
+        self.assertNotIn("CompactDatabase", job)
+        self.assertIn("204-database bound", self.publication)
+        self.assertTrue(plan["development_only"])
+        self.assertEqual(plan["issue"], 100)
+        for relative, expected in plan["inputs"].items():
+            actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+            self.assertEqual(actual, expected, relative)
 
 
 if __name__ == "__main__":

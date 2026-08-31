@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -16,7 +16,10 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ValueJobPath,
     [Parameter(Mandatory = $true)]
-    [string]$IndexJobPath
+    [string]$IndexJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapLayoutJobPath,
+    [string]$PlanSha256 = ""
 )
 
 Set-StrictMode -Version Latest
@@ -39,6 +42,7 @@ $scriptPath = switch ($Job) {
     "row" { $RowJobPath }
     "value" { $ValueJobPath }
     "index" { $IndexJobPath }
+    "bootstrap-layout" { $BootstrapLayoutJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -57,6 +61,9 @@ $arguments = @(
 if ($Job -ceq "table-definition") {
     $arguments += @("-TypeInputPath", $TableDefinitionTypeInputPath)
 }
+elseif ($Job -ceq "bootstrap-layout") {
+    $arguments += @("-PlanSha256", $PlanSha256)
+}
 & (Join-Path $PSHOME "powershell.exe") @arguments
 $jobExitCode = [int]$LASTEXITCODE
 $resultName = switch ($Job) {
@@ -65,6 +72,7 @@ $resultName = switch ($Job) {
     "row" { "row-job-result.json" }
     "value" { "value-job-result.json" }
     "index" { "index-job-result.json" }
+    "bootstrap-layout" { "bootstrap-layout-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -79,6 +87,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         row_scenarios = @()
         value_scenarios = @()
         index_scenarios = @()
+        bootstrap_layout_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
     exit 1
@@ -91,6 +100,7 @@ $tableDefinitionTypeResults = @()
 $rowScenarios = @()
 $valueScenarios = @()
 $indexScenarios = @()
+$bootstrapLayoutReplicas = @()
 if ($Job -ceq "catalog") { $catalogCheckpoints = @($jobResult.checkpoints) }
 elseif ($Job -ceq "table-definition") {
     $tableDefinitionCheckpoints = @($jobResult.checkpoints)
@@ -99,6 +109,9 @@ elseif ($Job -ceq "table-definition") {
 elseif ($Job -ceq "row") { $rowScenarios = @($jobResult.scenarios) }
 elseif ($Job -ceq "value") { $valueScenarios = @($jobResult.scenarios) }
 elseif ($Job -ceq "index") { $indexScenarios = @($jobResult.scenarios) }
+elseif ($Job -ceq "bootstrap-layout") {
+    $bootstrapLayoutReplicas = @($jobResult.replicas)
+}
 $result = [ordered]@{
     development_only = $true
     job = $Job
@@ -110,6 +123,7 @@ $result = [ordered]@{
     row_scenarios = @($rowScenarios)
     value_scenarios = @($valueScenarios)
     index_scenarios = @($indexScenarios)
+    bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
 exit $jobExitCode

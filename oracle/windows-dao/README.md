@@ -18,6 +18,10 @@ The retained tooling has three purposes:
   its plan, evaluates its artifact, and runs the synthetic dry run.
   `.github/workflows/windows-dao-allocation-a9.yml` hosts it under the same
   gating as the read differential.
+- `acquisition/bootstrap-layout.plan.json`,
+  `scripts/dev/BootstrapLayout.DevJob.ps1`, and
+  `scripts/bootstrap_layout.py` define the development-only local-VM
+  preregistration that blocks the next narrow creation slice in #100.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
@@ -35,6 +39,7 @@ python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py plan \
   oracle/windows-dao/acquisition/a9-allocation.plan.json .
 python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py synthetic-dry-run \
   /tmp/jet3-dao-a9-dry-run.json
+python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_layout.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 
@@ -81,7 +86,10 @@ rejects a tampered one.
 
 ## Experiment discipline
 
-Preregister each hosted experiment as one SHA-256-pinned plan before acquiring
-data. Record the validated outcome once as an additive `EXP-` entry. A failure
-after the first DAO mutation is a scientific result and must not be retried
-without a human decision.
+Preregister each experiment as one SHA-256-pinned plan before acquiring data.
+For `bootstrap-layout`, the local client verifies every pinned input before
+staging, the guest rechecks the plan and staged producer inputs before probing
+DAO, and the host analyzer writes the canonical report after publication.
+Record the validated outcome once as an additive `EXP-` entry. A failure after
+the first DAO mutation is a scientific result and must not be retried without
+a human decision.

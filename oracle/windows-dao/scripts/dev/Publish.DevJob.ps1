@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -81,6 +81,45 @@ switch ($Job) {
             "relationship-created", "relationship-update", "relationship-delete",
             "relationship-cascade", "relationship-deleted"
         )) { [void]$names.Add("index-$name.mdb") }
+    }
+    "bootstrap-layout" {
+        [void]$names.Add("bootstrap-layout-job-result.json")
+        $jobResultPath = Join-Path $Source "bootstrap-layout-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Bootstrap-layout result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                [void]$referenced.Add([string]$checkpoint.database)
+            }
+            if (-not [string]::IsNullOrEmpty([string]$replica.baseline.database)) {
+                [void]$referenced.Add([string]$replica.baseline.database)
+            }
+            foreach ($variant in @($replica.variants)) {
+                [void]$referenced.Add([string]$variant.database)
+            }
+        }
+        if ($referenced.Count -gt 204) {
+            throw "Bootstrap-layout output exceeds the 204-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Bootstrap-layout result contains duplicate database names."
+        }
+        foreach ($name in $referenced) {
+            if ($name -cnotmatch '^bootstrap-layout-r[1-3]-(empty|created|renamed|variant-[a-z0-9-]+)\.mdb$') {
+                throw "Bootstrap-layout output contains an unexpected database name."
+            }
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File |
+            Where-Object { $_.Name -clike "bootstrap-layout-*.mdb" } |
+            ForEach-Object { $_.Name } | Sort-Object)
+        $expected = @($referenced | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "Bootstrap-layout MDB inventory differs from its result."
+        }
     }
 }
 
