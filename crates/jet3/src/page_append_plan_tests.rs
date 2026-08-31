@@ -1,4 +1,4 @@
-use super::{AppendPageError, AppendPagePlan};
+use super::{AppendPageError, AppendPagePlan, ExistingPageError, plan_existing_page};
 use crate::limits::ReadLimits;
 use crate::{
     ByteCount, InlineUsageMapEncoder, PageImage, PageKind, PageNumber, ResourceBudget,
@@ -27,6 +27,36 @@ fn free_pages(
         map.set_page(PageNumber::new(page))?;
     }
     Ok(())
+}
+
+#[test]
+fn existing_page_boundaries_preserve_complete_images() -> TestResult {
+    for page in [0, 19] {
+        let mut bytes = [0xab; crate::PAGE_BYTES];
+        bytes[0] = page as u8;
+        bytes[crate::PAGE_BYTES - 1] = 0x11;
+        let image = PageImage::from_bytes(bytes);
+
+        let (number, planned_image) =
+            plan_existing_page(PageNumber::new(page), image.clone())?.into_parts();
+        assert_eq!(number, PageNumber::new(page));
+        assert_eq!(planned_image, image);
+        assert_eq!(planned_image.as_bytes(), &bytes);
+    }
+    Ok(())
+}
+
+#[test]
+fn existing_page_rejects_the_first_append_slot() {
+    assert_eq!(
+        plan_existing_page(
+            PageNumber::new(20),
+            PageImage::new(PageKind::TableDefinition),
+        ),
+        Err(ExistingPageError::OutsideEmptyDatabase {
+            page: PageNumber::new(20),
+        })
+    );
 }
 
 #[test]
