@@ -1,8 +1,9 @@
-//! Crate-private composition of complete page images with fresh append slots.
+//! Crate-private composition of complete page images with physical page slots.
 //!
-//! This module does not build pages or perform I/O. It assigns the next
-//! physical page number to an already-complete [`PageImage`] and applies the
-//! matching global-map transition observed in `EXP-0065`.
+//! This module does not build pages or perform I/O. It pairs already-complete
+//! [`PageImage`] values with existing slots in the fixed empty-database image,
+//! or assigns fresh append slots and applies the matching global-map transition
+//! observed in `EXP-0065`.
 
 #![allow(
     dead_code,
@@ -39,6 +40,45 @@ impl PlannedPage {
     pub(crate) fn into_parts(self) -> (PageNumber, PageImage) {
         (self.number, self.image)
     }
+}
+
+/// Structured failure while planning one existing empty-database page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ExistingPageError {
+    /// The requested page is not part of the observed 20-page empty image.
+    OutsideEmptyDatabase {
+        /// Rejected existing page.
+        page: PageNumber,
+    },
+}
+
+impl fmt::Display for ExistingPageError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OutsideEmptyDatabase { page } => write!(
+                formatter,
+                "page {} is outside the {EMPTY_DATABASE_PAGE_COUNT}-page empty database",
+                page.get()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ExistingPageError {}
+
+/// Pairs a complete image with one existing page in the fixed empty database.
+///
+/// The image is moved through unchanged and is not inspected. `EXP-0065` Q1
+/// establishes only that the observed empty database has pages 0 through 19;
+/// this function assigns no semantic role to any page or byte.
+pub(crate) fn plan_existing_page(
+    number: PageNumber,
+    image: PageImage,
+) -> Result<PlannedPage, ExistingPageError> {
+    if number.get() >= EMPTY_DATABASE_PAGE_COUNT {
+        return Err(ExistingPageError::OutsideEmptyDatabase { page: number });
+    }
+    Ok(PlannedPage { number, image })
 }
 
 /// Structured failure while planning one fresh page append.
