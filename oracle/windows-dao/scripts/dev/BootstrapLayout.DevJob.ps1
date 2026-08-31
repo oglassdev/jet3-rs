@@ -671,6 +671,23 @@ function Test-BaselineEndpoints {
     return $endpoints
 }
 
+function Get-PageForRange {
+    param(
+        [long]$Start,
+        [long]$End
+    )
+
+    if ($Start -lt 0 -or $End -le $Start) {
+        throw "Variant range is empty or reversed."
+    }
+    $page = [int][Math]::Floor([double]$Start / [double]$PageSize)
+    $pageStart = [long]$page * $PageSize
+    if ($End -gt ($pageStart + $PageSize)) {
+        throw "Variant range crosses its declared page."
+    }
+    return $page
+}
+
 function Add-VariantSpec {
     param(
         [Collections.ArrayList]$Specs,
@@ -775,13 +792,13 @@ function Invoke-ReplicaCore {
         -Mutation "copy_byte" -MutationOffset $pageZeroStart
     if ($dateCreated.report.status -eq "resolved") {
         $offset = [int]$dateCreated.offsets[0]
-        Add-VariantSpec -Specs $specs -Name "date-created-zero" -Kind "candidate_date_created" -BaseCheckpoint "renamed" -Page ([int]($offset / $PageSize)) `
+        Add-VariantSpec -Specs $specs -Name "date-created-zero" -Kind "candidate_date_created" -BaseCheckpoint "renamed" -Page (Get-PageForRange -Start $offset -End ($offset + 8)) `
             -Ranges @([ordered]@{ start = [long]$offset; end = [long]($offset + 8) }) `
             -Mutation "zero_date" -MutationOffset $offset
     }
     if ($dateUpdated.report.status -eq "resolved") {
         $offset = [int]$dateUpdated.offsets[0]
-        Add-VariantSpec -Specs $specs -Name "date-updated-zero" -Kind "candidate_date_updated" -BaseCheckpoint "renamed" -Page ([int]($offset / $PageSize)) `
+        Add-VariantSpec -Specs $specs -Name "date-updated-zero" -Kind "candidate_date_updated" -BaseCheckpoint "renamed" -Page (Get-PageForRange -Start $offset -End ($offset + 8)) `
             -Ranges @([ordered]@{ start = [long]$offset; end = [long]($offset + 8) }) `
             -Mutation "zero_date" -MutationOffset $offset
     }

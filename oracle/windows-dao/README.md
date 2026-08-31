@@ -18,10 +18,12 @@ The retained tooling has three purposes:
   its plan, evaluates its artifact, and runs the synthetic dry run.
   `.github/workflows/windows-dao-allocation-a9.yml` hosts it under the same
   gating as the read differential.
-- `acquisition/bootstrap-layout.plan.json`,
+- `acquisition/bootstrap-layout.plan.json` retains the consumed acquisition
+  rejected by `EXP-0067`; `acquisition/bootstrap-layout-floor.plan.json`,
   `scripts/dev/BootstrapLayout.DevJob.ps1`, and
   `scripts/bootstrap_layout.py` define the development-only local-VM
-  preregistration that blocks the next narrow creation slice in #100.
+  floor-corrected preregistration that blocks the next narrow creation slice
+  in #100.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
