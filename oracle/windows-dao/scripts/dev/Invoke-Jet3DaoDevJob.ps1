@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -26,6 +26,10 @@ param(
     [string]$ValueJobPath,
     [Parameter(Mandatory = $true)]
     [string]$IndexJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapLayoutJobPath,
+    [string]$PlanSha256 = "",
+    [string]$PlanPath = "",
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
 )
 
@@ -365,10 +369,48 @@ if ($Job -ceq "table-definition" -and
     [Console]::Error.WriteLine("INVALID: table-definition job inputs do not exist.")
     exit 2
 }
-foreach ($requiredHelper in @($DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath)) {
+foreach ($requiredHelper in @(
+    $DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath,
+    $BootstrapLayoutJobPath
+)) {
     if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
         [Console]::Error.WriteLine("INVALID: staged development helper does not exist.")
         exit 2
+    }
+}
+if ($Job -ceq "bootstrap-layout" -and $PlanSha256 -cnotmatch "^[0-9a-f]{64}$") {
+    [Console]::Error.WriteLine("INVALID: bootstrap-layout plan digest is malformed.")
+    exit 2
+}
+if ($Job -ceq "bootstrap-layout") {
+    if (-not (Test-Path -LiteralPath $PlanPath -PathType Leaf)) {
+        [Console]::Error.WriteLine("INVALID: bootstrap-layout plan is missing.")
+        exit 2
+    }
+    $actualPlanSha256 = (Get-FileHash -LiteralPath $PlanPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualPlanSha256 -cne $PlanSha256) {
+        [Console]::Error.WriteLine("INVALID: bootstrap-layout plan digest differs after staging.")
+        exit 2
+    }
+    $plan = Get-Content -LiteralPath $PlanPath -Raw | ConvertFrom-Json
+    $guestInputs = [ordered]@{
+        "oracle/windows-dao/scripts/probe-provider.ps1" = $ProviderProbePath
+        "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1" = $PSCommandPath
+        "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1" = $DispatchPath
+        "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1" = $PublicationPath
+        "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1" = $BootstrapLayoutJobPath
+    }
+    foreach ($entry in $guestInputs.GetEnumerator()) {
+        $pin = $plan.inputs.PSObject.Properties[$entry.Key]
+        if ($null -eq $pin) {
+            [Console]::Error.WriteLine("INVALID: bootstrap-layout plan omits a staged input.")
+            exit 2
+        }
+        $actual = (Get-FileHash -LiteralPath $entry.Value -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -cne [string]$pin.Value) {
+            [Console]::Error.WriteLine("INVALID: bootstrap-layout staged input differs from its plan.")
+            exit 2
+        }
     }
 }
 
@@ -401,6 +443,7 @@ $tableDefinitionTypeResults = @()
 $rowScenarios = @()
 $valueScenarios = @()
 $indexScenarios = @()
+$bootstrapLayoutReplicas = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -626,7 +669,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -636,7 +679,8 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index") -and 
             -ExecutionPolicy Bypass -File $DispatchPath -Job $Job -RunRoot $runRoot `
             -CatalogJobPath $CatalogJobPath -TableDefinitionJobPath $TableDefinitionJobPath `
             -TableDefinitionTypeInputPath $TableDefinitionTypeInputPath -RowJobPath $RowJobPath `
-            -ValueJobPath $ValueJobPath -IndexJobPath $IndexJobPath
+            -ValueJobPath $ValueJobPath -IndexJobPath $IndexJobPath `
+            -BootstrapLayoutJobPath $BootstrapLayoutJobPath -PlanSha256 $PlanSha256
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
         if (-not (Test-Path -LiteralPath $dispatchResultPath -PathType Leaf)) {
@@ -653,6 +697,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index") -and 
             $rowScenarios = @($dispatchResult.row_scenarios)
             $valueScenarios = @($dispatchResult.value_scenarios)
             $indexScenarios = @($dispatchResult.index_scenarios)
+            $bootstrapLayoutReplicas = @($dispatchResult.bootstrap_layout_replicas)
             $status = [string]$dispatchResult.status
             $detail = [string]$dispatchResult.detail
             $exitCode = $dispatchExitCode
@@ -681,6 +726,8 @@ $result = [ordered]@{
     row_scenarios = @($rowScenarios)
     value_scenarios = @($valueScenarios)
     index_scenarios = @($indexScenarios)
+    plan_sha256 = $PlanSha256
+    bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

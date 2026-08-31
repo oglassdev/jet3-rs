@@ -37,6 +37,7 @@ just windows-dev-table-definition
 just windows-dev-row
 just windows-dev-value
 just windows-dev-index
+just windows-dev-bootstrap-layout
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -87,6 +88,15 @@ It closes DAO before publishing the fixed 11 MDB filenames, never compacts,
 and keeps every database below 16 MiB. Populated GUID keys remain outside the
 observed inventory because this local provider rejected their first indexed
 insertion.
+
+`bootstrap-layout` is the SHA-256-pinned, development-only writer-bootstrap
+experiment for issue #100. It creates three fresh databases containing one
+empty Long-column table, performs the single preregistered rename used to
+separate candidate timestamps, and evaluates a finite set of read-only DAO
+ablation controls once each. Its analyzer may establish necessity, never
+sufficiency. Honest `no_outcome` results are retained without retry. The job
+does not test user rows, user indexes, relationships, publication by Rust, or
+DAO interoperability.
 
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and

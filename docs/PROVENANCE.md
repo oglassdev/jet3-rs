@@ -6094,6 +6094,49 @@ Use `not applicable` explicitly rather than omitting a field.
   byte-for-byte evaluator recomputation checked; focused A9 contract tests must
   pass
 
+### EXP-0066 — Preregistered local writer-bootstrap layout experiment
+
+- Recorded: 2026-08-30, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or format observation has occurred
+- Question: For one empty table containing one Long column, which candidate
+  page-0 byte, catalog timestamp fields, structural LvProp reference, and
+  bounded existing/appended page mutation groups can be identified, and which
+  preregistered groups are necessary for DAO read-only open and enumeration?
+- Origin: project-authored clean-room experiment design using only the DAO
+  operations documented by the retained public-source inventory and the exact
+  bounded facts recorded by `EXP-0058`, `EXP-0059`, `EXP-0061`, and
+  `EXP-0065`; no third-party MDB implementation or donated MDB is an input
+- Protocol: execute three independent fresh `dbVersion30` replicas once in the
+  private local Windows development VM. Capture empty, created, and renamed
+  checkpoints with DAO closed; use the one clock-separated rename only to
+  distinguish candidate timestamps; run created-state page ablations and
+  renamed-state timestamp ablations once through four read-only DAO endpoints;
+  verify exact clone reconstruction and unchanged post-open hashes. LvProp is
+  correlation-only because no valid empty replacement encoding is established.
+  Failures and ambiguous correlations yield an honest `no_outcome` and are not
+  retried.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/bootstrap-layout.plan.json`, SHA-256
+  `73e402a255795eb6bd08bffa5e3611ceef219f6e810e99f9715f0e69b4aef8fc`.
+  The plan pins the host client, provider probe, guest runner, dispatcher,
+  publisher, producer, and host analyzer. The host and guest both reject input
+  digest mismatches before the first DAO mutation.
+- Observation: `preregistration.acquisition_started` is `false`. No new MDB,
+  provider output, canonical report, or scientific result exists.
+- Interpretation: this entry fixes the bounded experiment and its
+  necessity-only decision rules. It establishes no format fact, sufficiency,
+  Rust correctness, compatibility, or support result. Post-hoc inspection of
+  retained A9 or catalog MDBs remains design input only.
+- Usage: `file:oracle/windows-dao/acquisition/bootstrap-layout.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/bootstrap_layout.py`;
+  `file:docs/LOCAL_WINDOWS_VM.md`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent plan, producer, analyzer, and negative-control
+  review before local acquisition
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

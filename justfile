@@ -63,3 +63,7 @@ windows-dev-value:
 # Discover index-tree pages, key encodings, and relationship metadata.
 windows-dev-index:
     "{{PYTHON}}" scripts/windows-dao-dev.py index --timeout 600
+
+# Run the preregistered writer-bootstrap layout experiment in the local VM.
+windows-dev-bootstrap-layout:
+    "{{PYTHON}}" scripts/windows-dao-dev.py bootstrap-layout --timeout 900

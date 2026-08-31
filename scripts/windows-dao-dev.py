@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import ntpath
 import os
@@ -45,6 +46,28 @@ STAGED_PUBLICATION = (
 ROW_JOB = ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Row.DevJob.ps1"
 VALUE_JOB = ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Value.DevJob.ps1"
 INDEX_JOB = ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "Index.DevJob.ps1"
+BOOTSTRAP_LAYOUT_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "BootstrapLayout.DevJob.ps1"
+)
+BOOTSTRAP_LAYOUT_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "bootstrap-layout.plan.json"
+)
+BOOTSTRAP_LAYOUT_ANALYZER = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "bootstrap_layout.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -58,11 +81,43 @@ ALLOWED_JOBS = (
     "row",
     "value",
     "index",
+    "bootstrap-layout",
 )
 
 
 class DevClientError(RuntimeError):
     """A local request or returned development result is invalid."""
+
+
+def verified_bootstrap_plan_sha256() -> str:
+    try:
+        plan_bytes = BOOTSTRAP_LAYOUT_PLAN.read_bytes()
+        plan = json.loads(plan_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise DevClientError("bootstrap-layout plan is unreadable") from error
+    if (
+        not isinstance(plan, dict)
+        or plan.get("document_type") != "dao_bootstrap_layout_plan"
+        or plan.get("issue") != 100
+        or plan.get("development_only") is not True
+    ):
+        raise DevClientError("bootstrap-layout plan is malformed")
+    inputs = plan.get("inputs")
+    if not isinstance(inputs, dict) or not inputs:
+        raise DevClientError("bootstrap-layout plan has no pinned inputs")
+    for relative, expected in inputs.items():
+        if (
+            not isinstance(relative, str)
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+        ):
+            raise DevClientError("bootstrap-layout input pin is malformed")
+        path = (ROOT / relative).resolve()
+        if not path.is_relative_to(ROOT) or not path.is_file():
+            raise DevClientError("bootstrap-layout input is missing or outside the repository")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise DevClientError(f"bootstrap-layout input differs from its plan: {relative}")
+    return hashlib.sha256(plan_bytes).hexdigest()
 
 
 def powershell_encoded(script: str) -> str:
@@ -111,6 +166,9 @@ def validate_args(args: argparse.Namespace) -> None:
     args.remote_shared_root = canonical_windows_path(
         args.remote_shared_root, label="remote shared root"
     )
+    args.plan_sha256 = (
+        verified_bootstrap_plan_sha256() if args.job == "bootstrap-layout" else ""
+    )
 
 
 def stage_job(args: argparse.Namespace) -> Path:
@@ -134,6 +192,25 @@ def stage_job(args: argparse.Namespace) -> Path:
         shutil.copyfile(ROW_JOB, staging / ROW_JOB.name)
         shutil.copyfile(VALUE_JOB, staging / VALUE_JOB.name)
         shutil.copyfile(INDEX_JOB, staging / INDEX_JOB.name)
+        shutil.copyfile(BOOTSTRAP_LAYOUT_JOB, staging / BOOTSTRAP_LAYOUT_JOB.name)
+        if args.job == "bootstrap-layout":
+            shutil.copyfile(
+                BOOTSTRAP_LAYOUT_ANALYZER, staging / BOOTSTRAP_LAYOUT_ANALYZER.name
+            )
+            shutil.copyfile(
+                BOOTSTRAP_LAYOUT_PLAN, staging / BOOTSTRAP_LAYOUT_PLAN.name
+            )
+            if verified_bootstrap_plan_sha256() != args.plan_sha256:
+                raise DevClientError("bootstrap-layout plan changed during staging")
+            plan = json.loads(BOOTSTRAP_LAYOUT_PLAN.read_bytes())
+            for relative, expected in plan["inputs"].items():
+                staged_input = staging / Path(relative).name
+                if staged_input.is_file() and (
+                    hashlib.sha256(staged_input.read_bytes()).hexdigest() != expected
+                ):
+                    raise DevClientError(
+                        f"staged bootstrap-layout input differs from its plan: {relative}"
+                    )
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -156,6 +233,9 @@ def invocation_script(args: argparse.Namespace) -> str:
         "row_job": ntpath.join(remote_input, ROW_JOB.name),
         "value_job": ntpath.join(remote_input, VALUE_JOB.name),
         "index_job": ntpath.join(remote_input, INDEX_JOB.name),
+        "bootstrap_layout_job": ntpath.join(remote_input, BOOTSTRAP_LAYOUT_JOB.name),
+        "plan_sha256": args.plan_sha256,
+        "plan": ntpath.join(remote_input, BOOTSTRAP_LAYOUT_PLAN.name),
         "output": ntpath.join(args.remote_shared_root, "outbox", args.run_id),
     }
     encoded = base64.b64encode(
@@ -178,7 +258,9 @@ def invocation_script(args: argparse.Namespace) -> str:
         "-PublicationPath ([string]$c.publication) "
         "-RowJobPath ([string]$c.row_job) "
         "-ValueJobPath ([string]$c.value_job) "
-        "-IndexJobPath ([string]$c.index_job);"
+        "-IndexJobPath ([string]$c.index_job) "
+        "-BootstrapLayoutJobPath ([string]$c.bootstrap_layout_job) "
+        "-PlanSha256 ([string]$c.plan_sha256) -PlanPath ([string]$c.plan);"
         "exit $LASTEXITCODE"
     )
 
@@ -224,6 +306,45 @@ def run_remote(args: argparse.Namespace) -> int:
         raise DevClientError(f"remote job exceeded {args.timeout} seconds") from error
 
 
+def analyze_bootstrap_output(args: argparse.Namespace) -> Path:
+    if verified_bootstrap_plan_sha256() != args.plan_sha256:
+        raise DevClientError("bootstrap-layout plan or input changed during acquisition")
+    staged_analyzer = (
+        args.shared_root / "inbox" / args.run_id / BOOTSTRAP_LAYOUT_ANALYZER.name
+    )
+    plan = json.loads(BOOTSTRAP_LAYOUT_PLAN.read_bytes())
+    expected_analyzer = plan["inputs"][
+        "oracle/windows-dao/scripts/bootstrap_layout.py"
+    ]
+    if (
+        not staged_analyzer.is_file()
+        or hashlib.sha256(staged_analyzer.read_bytes()).hexdigest()
+        != expected_analyzer
+    ):
+        raise DevClientError("staged bootstrap-layout analyzer differs from its plan")
+    output = args.shared_root / "outbox" / args.run_id
+    job_result = output / "bootstrap-layout-job-result.json"
+    report = output / "bootstrap-layout-report.json"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(staged_analyzer),
+            str(job_result),
+            "--expected-plan-sha256",
+            args.plan_sha256,
+            "--output",
+            str(report),
+        ],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0 or not report.is_file():
+        raise DevClientError("bootstrap-layout analyzer rejected the published result")
+    return report
+
+
 def validated_result(args: argparse.Namespace, exit_code: int) -> dict[str, object]:
     result_path = args.shared_root / "outbox" / args.run_id / "result.json"
     if not result_path.is_file() or result_path.is_symlink():
@@ -238,6 +359,8 @@ def validated_result(args: argparse.Namespace, exit_code: int) -> dict[str, obje
         "run_id": args.run_id,
         "status": {0: "pass", 1: "fail", 3: "blocked"}.get(exit_code),
     }
+    if args.job == "bootstrap-layout":
+        expected["plan_sha256"] = args.plan_sha256
     if not isinstance(document, dict) or any(
         document.get(key) != value for key, value in expected.items()
     ):
@@ -252,6 +375,9 @@ def run(args: argparse.Namespace) -> int:
     if exit_code not in (0, 1, 3):
         raise DevClientError(f"remote job returned unexpected exit code {exit_code}")
     result = validated_result(args, exit_code)
+    report = None
+    if args.job == "bootstrap-layout" and exit_code in (0, 1):
+        report = analyze_bootstrap_output(args)
     print(
         json.dumps(
             {
@@ -260,6 +386,7 @@ def run(args: argparse.Namespace) -> int:
                 "job": args.job,
                 "output": str(args.shared_root / "outbox" / args.run_id),
                 "status": result["status"],
+                "report": str(report) if report is not None else None,
             },
             sort_keys=True,
         )
