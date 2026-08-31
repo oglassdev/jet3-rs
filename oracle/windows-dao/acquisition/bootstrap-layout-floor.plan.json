@@ -1,0 +1,108 @@
+{
+  "document_type": "dao_bootstrap_layout_floor_plan",
+  "experiment_id": "bootstrap_layout_floor",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Repeat only the writer-bootstrap questions from EXP-0066 on fresh replicas after correcting the timestamp page-metadata calculation rejected by EXP-0067.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_preregistration": "EXP-0066",
+    "prior_rejected_acquisition": "EXP-0067",
+    "prior_run_id": "20260831T003722Z-bootstrap",
+    "authorization": "The human operator explicitly authorized one corrected acquisition after reviewing the EXP-0067 rejection.",
+    "amendment_rule": "This is a distinct next experiment, not a revision or retroactive repair. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision."
+  },
+  "correction_contract": {
+    "change": "Derive timestamp variant page metadata as floor(offset / 2048), and reject a timestamp mutation range that crosses its declared page.",
+    "regression": "Absolute timestamp offset 38381 maps to zero-based page 18, not page 19.",
+    "fresh_inputs": "Use three new databases and new variants. No MDB, result JSON, corrected projection, or derived answer from run 20260831T003722Z-bootstrap is an experiment input."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "f6ad311031e39cd5c19526b22b5c21ac7f8874949a82eec84b504be0b981ddc3",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "f5ed1b5d04f632ef20483aa6526e51693a7ea9a0170821f869ea93faf0534381",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "42ead0007ff899b7f586cdc897b2e037a8d155931f8ec48988c46c16701b26c3",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "e7e07d560484ea6399275a963591a115c9c7ac3ec069a4ca80432d8f5a403759",
+    "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "2aae85c0a9e3cfdfd7a2d1c04fe0505e008b615cc11d72e7f76d6033cd99c955",
+    "oracle/windows-dao/scripts/bootstrap_layout.py": "f78e4986f00e4e303e26038bb4ee012fb2352dbe7f443fa3a5e0337f7b868d06"
+  },
+  "basis": {
+    "EXP-0058": "Dynamic catalog-root discovery, catalog-owned page 18 in the observed controls, table record identifier to table-definition correlation, and the bounded catalog row fields recorded there.",
+    "EXP-0059": "Table-definition chain and owned/free map locator meanings.",
+    "EXP-0061": "External long-value pointer, LVAL owner, and bounded row-directory structure only.",
+    "EXP-0065": "Only its preregistered Q1/Q2 facts: empty page count and tags, page append sequence, global-map transitions, and changed byte ranges. No post-hoc semantic page-role inference is admitted.",
+    "EXP-0067": "Only the validation-rejection identity and the project producer's page-rounding defect. None of its raw endpoint patterns or Q1-Q3 observations are admitted."
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": "For each independent replica, create one fresh dbVersion30 CP1252 database, create one empty table named BootstrapLayout with one Long field named Id, wait exactly two seconds, and rename the table to BootstrapRenamed.",
+    "checkpoints": [
+      "empty",
+      "created",
+      "renamed"
+    ],
+    "bounds": {
+      "maximum_pages_per_database": 64,
+      "maximum_table_definitions": 128,
+      "maximum_variants_per_replica": 64,
+      "maximum_replicas": 3,
+      "maximum_clock_separation_seconds": 2
+    },
+    "capture": "Close and release every DAO object before each MDB copy or hash. Retain the three closed checkpoints, bounded semantic metadata, and only the preregistered ablation clones. MDBs remain external."
+  },
+  "questions": {
+    "Q1": {
+      "title": "Candidate page-0 byte",
+      "question": "Does page-0 byte range [1538,1539) satisfy the candidate-counter hypothesis across the fixed create and rename sequence, and is its post-create value necessary for the read-only DAO endpoints?",
+      "measurement": "Record the byte value at empty, created, and renamed plus every page-0 changed range for empty-to-created and created-to-renamed. Any additional page-0 change makes this question no_outcome rather than being assigned a meaning.",
+      "ablation": "From the created checkpoint, make one clone per replica and replace exactly [1538,1539) with the empty-checkpoint byte. Test for BootstrapLayout; the rename is not part of this necessity result."
+    },
+    "Q2": {
+      "title": "Candidate catalog timestamp fields and LvProp structure",
+      "question": "Can DAO DateCreated and LastUpdated be correlated to unique eight-byte OLE Date values after the single clock-separated rename, and can the DAO-visible LvProp bytes be correlated structurally through one exact EXP-0061 external pointer/header? Which correlated timestamp values are necessary for the read-only DAO endpoints?",
+      "ablation": "If and only if a timestamp correlation is unique in the renamed checkpoint, replace that timestamp separately with valid OLE Date zero and test for BootstrapRenamed. A failed or ambiguous timestamp correlation is no_outcome and creates no variant. LvProp is correlation-only: EXP-0061 does not establish an empty replacement encoding, so this plan performs no LvProp ablation and makes no LvProp necessity claim."
+    },
+    "Q3": {
+      "title": "Required existing and appended page mutation groups",
+      "question": "Which bounded page mutation groups from empty to created are necessary for DAO to open the database, enumerate the BootstrapLayout TableDef and its Id field, and open the empty table?",
+      "ablation": "Starting from the created checkpoint, for each changed pre-existing page other than page 0 create one clone that restores the entire page from the empty checkpoint. For each appended page, create one clone that replaces the entire page with zeros. The rename transition is excluded."
+    }
+  },
+  "ablation_contract": {
+    "endpoints": [
+      "OpenDatabase read-only",
+      "TableDefs enumeration finds the base checkpoint's table: BootstrapLayout for created-state page controls or BootstrapRenamed for renamed-state timestamp controls",
+      "field enumeration finds exactly Id as Long",
+      "open that base checkpoint's table as an empty snapshot"
+    ],
+    "execution": "Run every predefined clone through the endpoints once. Hash immediately before and after DAO access; a changed hash yields no_outcome for that variant because DAO may have repaired it.",
+    "interpretation": "A failed endpoint with an unchanged post-access hash may establish necessity of that mutation group. A passing endpoint set reports not_observed_necessary. Leave-one-out results never establish sufficiency or a minimal complete mutation set."
+  },
+  "decision_rule": {
+    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three fresh replicas and predefined variants run once; files, hashes, bounds, page/range containment, and result shape validate; and the analyzer emits a deterministic accepted or no_outcome report.",
+    "no_outcome": "Timestamp or LvProp ambiguity, replica disagreement, a baseline endpoint failure, a post-access hash change, or an otherwise intact but non-decisive observation is reported honestly as no_outcome.",
+    "rejected": "A plan/input digest mismatch, malformed or missing checkpoint, bound violation, page/range mismatch, unexpected variant, file digest mismatch, or result-shape failure rejects validation.",
+    "retry": "This authorization permits one new acquisition only. There is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "user rows",
+    "user indexes",
+    "relationships",
+    "free-page reuse",
+    "extended allocation maps",
+    "general long-value allocation or thresholds",
+    "public Rust API expansion",
+    "Rust publication or I/O",
+    "hosted write differential #102",
+    "compatibility or support claims"
+  ]
+}

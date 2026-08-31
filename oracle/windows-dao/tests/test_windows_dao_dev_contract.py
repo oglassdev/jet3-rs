@@ -22,6 +22,9 @@ REMOTE_PATH = (
 )
 DISPATCH_PATH = REMOTE_PATH.with_name("Dispatch.DevJob.ps1")
 PUBLICATION_PATH = REMOTE_PATH.with_name("Publish.DevJob.ps1")
+CONSUMED_BOOTSTRAP_PLAN = (
+    ROOT / "oracle" / "windows-dao" / "acquisition" / "bootstrap-layout.plan.json"
+)
 SPEC = importlib.util.spec_from_file_location("windows_dao_dev", CLIENT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 CLIENT = importlib.util.module_from_spec(SPEC)
@@ -133,7 +136,25 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             with self.assertRaises(CLIENT.DevClientError):
                 CLIENT.validate_args(args)
 
-    def test_bootstrap_layout_binds_and_verifies_the_committed_plan(self) -> None:
+    def test_consumed_bootstrap_plan_remains_immutable(self) -> None:
+        expected_inputs = {
+            "scripts/windows-dao-dev.py": "029c871b9fbeef228f015e5561f7b8a9980645f605c398157cc75bf35c623715",
+            "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+            "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "f5ed1b5d04f632ef20483aa6526e51693a7ea9a0170821f869ea93faf0534381",
+            "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "42ead0007ff899b7f586cdc897b2e037a8d155931f8ec48988c46c16701b26c3",
+            "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "e7e07d560484ea6399275a963591a115c9c7ac3ec069a4ca80432d8f5a403759",
+            "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "e04cecec6a3678b76bd1b54bd2d77fc52b94316c1e38e584bc373654e59a4a88",
+            "oracle/windows-dao/scripts/bootstrap_layout.py": "f78e4986f00e4e303e26038bb4ee012fb2352dbe7f443fa3a5e0337f7b868d06",
+        }
+        document = json.loads(CONSUMED_BOOTSTRAP_PLAN.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            hashlib.sha256(CONSUMED_BOOTSTRAP_PLAN.read_bytes()).hexdigest(),
+            "73e402a255795eb6bd08bffa5e3611ceef219f6e810e99f9715f0e69b4aef8fc",
+        )
+        self.assertEqual(document["inputs"], expected_inputs)
+
+    def test_bootstrap_layout_binds_and_verifies_the_active_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             identity = root / "identity"
@@ -156,7 +177,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             altered_plan.write_text(
                 json.dumps(
                     {
-                        "document_type": "dao_bootstrap_layout_plan",
+                        "document_type": "dao_bootstrap_layout_floor_plan",
                         "issue": 100,
                         "development_only": True,
                         "inputs": {"scripts/windows-dao-dev.py": "0" * 64},
@@ -346,6 +367,17 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         for relative, expected in plan["inputs"].items():
             actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, relative)
+
+    def test_bootstrap_timestamp_pages_use_floor_division(self) -> None:
+        job = CLIENT.BOOTSTRAP_LAYOUT_JOB.read_text(encoding="utf-8")
+
+        self.assertEqual(38381 // 2048, 18)
+        self.assertIn(
+            "[int][Math]::Floor([double]$Start / [double]$PageSize)", job
+        )
+        self.assertEqual(job.count("Get-PageForRange -Start $offset"), 2)
+        self.assertIn("Variant range crosses its declared page.", job)
+        self.assertNotIn("[int]($offset / $PageSize)", job)
 
 
 if __name__ == "__main__":

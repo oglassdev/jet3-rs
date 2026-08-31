@@ -6186,6 +6186,51 @@ Use `not applicable` explicitly rather than omitting a field.
   rejection path were independently rechecked; no scientific outcome exists
   to review
 
+### EXP-0068 — Preregistered local writer-bootstrap page-floor experiment
+
+- Recorded: 2026-08-30, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration for one new
+  human-authorized acquisition; no acquisition or format observation has
+  occurred under this plan
+- Question: For three fresh replicas of the `EXP-0066` scenario, can the same
+  bounded Q1--Q3 questions produce a canonical report after timestamp page
+  metadata is derived with floor division?
+- Origin: project-authored clean-room experiment design using only the exact
+  basis admitted by `EXP-0066`. `EXP-0067` contributes only the identity of the
+  rejected run and its project-producer rounding defect; none of that run's
+  MDB bytes, endpoint patterns, corrected projections, or Q1--Q3 observations
+  are inputs.
+- Protocol: create three new independent `dbVersion30` replicas and execute
+  the unchanged `EXP-0066` scenario, checkpoints, ablations, bounds, read-only
+  endpoints, decision rules, and exclusions once. The only producer correction
+  derives timestamp page metadata as `floor(offset / 2048)` and rejects a
+  timestamp range that crosses that page. The exact rejected offset 38,381 is
+  fixed as a regression mapping to zero-based page 18. This is a distinct next
+  experiment, not a revision or retroactive repair of `EXP-0066`.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/bootstrap-layout-floor.plan.json`, SHA-256
+  `c0161be2ba1189249d743c9198bcd004dd9d927edcc7d753cffe79c421677773`.
+  The plan pins the host client, provider probe, guest runner, dispatcher,
+  publisher, corrected producer, and unchanged host analyzer. The host and
+  guest reject digest mismatches before the first DAO mutation.
+- Observation: `preregistration.acquisition_started` is `false`. The explicit
+  post-`EXP-0067` authorization permits one new acquisition only. No new MDB,
+  provider output, canonical report, or scientific result exists.
+- Interpretation: this entry fixes only the timestamp page-metadata defect and
+  preserves the original experiment's questions and lane boundaries. It
+  establishes no format or necessity fact, sufficiency, writer implementation
+  fact, Rust correctness, compatibility, support result, or support-matrix
+  movement.
+- Usage:
+  `file:oracle/windows-dao/acquisition/bootstrap-layout-floor.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/bootstrap_layout.py`;
+  `file:docs/LOCAL_WINDOWS_VM.md`; issue `#100`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent correction-boundary, plan-pin, producer,
+  analyzer, and negative-control review before local acquisition
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

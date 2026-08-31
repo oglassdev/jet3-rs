@@ -59,7 +59,7 @@ BOOTSTRAP_LAYOUT_PLAN = (
     / "oracle"
     / "windows-dao"
     / "acquisition"
-    / "bootstrap-layout.plan.json"
+    / "bootstrap-layout-floor.plan.json"
 )
 BOOTSTRAP_LAYOUT_ANALYZER = (
     ROOT
@@ -97,7 +97,7 @@ def verified_bootstrap_plan_sha256() -> str:
         raise DevClientError("bootstrap-layout plan is unreadable") from error
     if (
         not isinstance(plan, dict)
-        or plan.get("document_type") != "dao_bootstrap_layout_plan"
+        or plan.get("document_type") != "dao_bootstrap_layout_floor_plan"
         or plan.get("issue") != 100
         or plan.get("development_only") is not True
     ):
