@@ -6137,6 +6137,55 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent plan, producer, analyzer, and negative-control
   review before local acquisition
 
+### EXP-0067 — Validation-rejected local writer-bootstrap acquisition
+
+- Recorded: 2026-08-30, OpenAI Codex
+- Kind: development-only local DAO acquisition record; validation rejected;
+  not an accepted or `no_outcome` scientific result
+- Question: Did the one-shot acquisition preregistered by `EXP-0066` execute
+  and produce a canonical analyzer report that can support its Q1--Q3 decision
+  rules?
+- Origin: project-authored clean-room experiment at merged commit
+  `188541e73b3bab67a3589c69661881ecb132d70c`, using the exact plan and seven
+  input-file digests pinned by `EXP-0066`; no third-party MDB implementation or
+  donated MDB was an input
+- Environment: private local Windows development VM; x86 provider probe
+  reported `READY`; external `environment.json`, 4,277 bytes, SHA-256
+  `cb67c16ed03b5d18295b9c4c98178741b81238bec8e1a0c0040cd345e597f754`
+- Protocol: run ID `20260831T003722Z-bootstrap` executed the pinned
+  `bootstrap-layout` job once. The guest attempted all three bounded replicas,
+  published the exact closed inventory, and the host invoked the pinned
+  analyzer. No redispatch occurred.
+- Artifacts: external `bootstrap-layout-job-result.json`, 266,194 bytes,
+  SHA-256
+  `37bc5372b5445d25847d1e7b6e3e3eaedbc400d9b915ca23fc103dd79c6016f0`;
+  external `result.json`, 323,792 bytes, SHA-256
+  `22dc55f800df2757c05e1e0d035806bc95d9dfa4b55eb2e042fd04025c88ca89`;
+  plan SHA-256
+  `73e402a255795eb6bd08bffa5e3611ceef219f6e810e99f9715f0e69b4aef8fc`.
+  The MDB checkpoints and variants remain external. No
+  `bootstrap-layout-report.json` exists.
+- Observation: the producer reported timestamp range `[38381,38389)` on page
+  19 for every replica. That range is on zero-based page 18. The pinned
+  analyzer therefore stopped at
+  `$.replicas[0].variants[1].ranges[0] is outside page 19`. The project
+  producer calculated the page with `[int]($offset / $PageSize)`; PowerShell
+  rounded `38381 / 2048` to 19 instead of taking the required floor. Retained
+  artifact hashes and exact mutation reconstruction otherwise matched, but
+  the immutable producer JSON remains malformed under the pinned analyzer.
+- Interpretation: the acquisition is validation-rejected. It establishes no
+  Q1--Q3 format or necessity fact, writer implementation fact, sufficiency,
+  Rust correctness, compatibility, support result, or support-matrix movement.
+  Removing or correcting the bad metadata after acquisition would be
+  exploratory only and cannot retroactively create preregistered evidence.
+- Usage: `EXP-0066`; `file:oracle/windows-dao/acquisition/bootstrap-layout.plan.json`;
+  issue `#100`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: retained identities, page arithmetic, reconstruction, and the
+  rejection path were independently rechecked; no scientific outcome exists
+  to review
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
