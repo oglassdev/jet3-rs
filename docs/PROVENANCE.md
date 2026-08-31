@@ -6231,6 +6231,126 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent correction-boundary, plan-pin, producer,
   analyzer, and negative-control review before local acquisition
 
+### EXP-0069 — Validated no-outcome writer-bootstrap page-floor result
+
+- Recorded: 2026-08-30, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO `no_outcome`
+  result derived from the canonical analyzer report
+- Question: For the three fresh replicas preregistered by `EXP-0068`, what
+  answers do the bounded Q1--Q3 observations support after correcting the
+  timestamp page-metadata calculation?
+- Origin: project-authored clean-room experiment at merged preregistration
+  commit `ead2a92d8b92cfde0437e90465561387c2eecd65`, using the exact basis and
+  fresh-input boundary fixed by `EXP-0068`; no MDB, result, corrected
+  projection, endpoint pattern, or Q1--Q3 answer from `EXP-0067` was an input
+- Environment: private local Windows development VM; the x86 provider probe
+  reported `ready`; external `environment.json`, 4,277 bytes, SHA-256
+  `129a6dbb8b67935582a43b42bde7023063c0bceac026c7a553cdada6f26c8659`
+- Protocol: run ID `20260831T005855Z-bootstrap-floor` executed the pinned
+  `bootstrap-layout` job once under plan SHA-256
+  `c0161be2ba1189249d743c9198bcd004dd9d927edcc7d753cffe79c421677773`.
+  The guest result status was `pass`; all three fresh replicas completed once,
+  and no redispatch occurred.
+- Artifacts: external `bootstrap-layout-job-result.json`, 265,572 bytes,
+  SHA-256
+  `8f5f0ae133ef51def6d0b4372f76d7447554bdd1af25934f45fae00758946275`;
+  external `result.json`, 323,040 bytes, SHA-256
+  `f599f3ec0ad2303346940698514812b9e12e04b552c9c624f37c0bc67412e5ae`;
+  external canonical `bootstrap-layout-report.json`, 18,643 bytes, SHA-256
+  `9bb8b7b2cbe02f03dacbc81bbce3001b85ea5f9dfd36ad1ea531172ad3fd2040`.
+  The report has `document_type` `bootstrap_layout_report`,
+  `development_only: true`, the exact plan digest above, status `no_outcome`,
+  and `compatibility_claim: false`, `sufficiency_claim: false`, and
+  `support_movement: false`. MDB checkpoints and variants remain external.
+- Q1 observation: `candidate_page0.status` is `answered` and its outcome is
+  `not_observed_necessary`. In every replica the page-0 values were empty `0`,
+  created `2`, and renamed `3`; both empty-to-created and created-to-renamed
+  changed ranges were exactly `[1538,1539)`.
+- Q2 observation: `candidate_catalog_fields.status` is `no_outcome`.
+  `date_created.status` is `no_outcome` for the verbatim reason `at least one
+  replica did not resolve the correlation`. `date_updated.status` is
+  `answered` with outcome `not_observed_necessary`. `lvprop.status` is
+  `no_outcome` for the verbatim reason `at least one replica did not resolve
+  the structural correlation`. LvProp is structural correlation only; no
+  LvProp necessity claim is made.
+- Q3 observation: `required_mutation_groups.status` is `answered`. Every group
+  below has status `answered`; ranges are absolute and half-open:
+  - `appended-page-20`: kind `zero_appended_page`, page 20, range
+    `[40960,43008)`, outcome `necessary`
+  - `appended-page-21`: kind `zero_appended_page`, page 21, range
+    `[43008,45056)`, outcome `not_observed_necessary`
+  - `appended-page-22`: kind `zero_appended_page`, page 22, range
+    `[45056,47104)`, outcome `necessary`
+  - `existing-page-1`: kind `revert_existing_page`, page 1, range
+    `[3970,3971)`, outcome `not_observed_necessary`
+  - `existing-page-11`: kind `revert_existing_page`, page 11, ranges
+    `[22530,22531)`, `[22560,22561)`, `[22813,22814)`, `[22816,22817)`,
+    `[22820,22821)`, `[22825,22826)`, `[22829,22830)`, `[22834,22835)`,
+    `[22838,22839)`, `[22840,22841)`, `[22843,22844)`, `[22847,22850)`,
+    and `[22855,22857)`, outcome `not_observed_necessary`
+  - `existing-page-13`: kind `revert_existing_page`, page 13, ranges
+    `[26626,26627)`, `[26665,26667)`, `[26936,26937)`, `[26939,26940)`,
+    `[26943,26944)`, `[26945,26946)`, `[26948,26949)`, `[26952,26953)`,
+    `[26961,26962)`, `[26966,26967)`, `[26970,26971)`, `[26975,26976)`,
+    `[26979,26980)`, `[26984,26985)`, `[26988,26989)`, `[26997,26998)`,
+    `[26999,27000)`, `[27002,27003)`, `[27006,27007)`, `[27008,27009)`,
+    `[27011,27012)`, `[27015,27018)`, `[27023,27027)`, and `[27032,27034)`,
+    outcome `necessary`
+  - `existing-page-18`: kind `revert_existing_page`, page 18, ranges
+    `[36866,36868)`, `[36872,36873)`, `[36890,36892)`, `[38363,38365)`,
+    `[38368,38369)`, `[38371,38373)`, `[38374,38390)`, `[38394,38412)`,
+    `[38414,38415)`, `[38416,38417)`, and `[38423,38438)`, outcome
+    `necessary`
+  - `existing-page-19`: kind `revert_existing_page`, page 19, ranges
+    `[38914,38915)`, `[38920,38921)`, `[38954,38958)`, `[40690,40698)`,
+    and `[40699,40720)`, outcome `necessary`
+  - `existing-page-2`: kind `revert_existing_page`, page 2, ranges
+    `[4108,4109)`, `[4143,4144)`, and `[4151,4152)`, outcome
+    `not_observed_necessary`
+  - `existing-page-3`: kind `revert_existing_page`, page 3, ranges
+    `[6156,6157)` and `[6191,6192)`, outcome `not_observed_necessary`
+  - `existing-page-6`: kind `revert_existing_page`, page 6, ranges
+    `[12747,12748)` and `[12880,12881)`, outcome `not_observed_necessary`
+  - `existing-page-9`: kind `revert_existing_page`, page 9, ranges
+    `[18434,18435)`, `[18464,18465)`, `[18466,18468)`, `[18469,18471)`,
+    `[18472,18474)`, `[18475,18477)`, `[18478,18479)`, `[18747,18762)`,
+    `[18764,18776)`, `[18777,18827)`, `[18828,18839)`, `[18840,18853)`,
+    `[18856,18860)`, `[18862,18870)`, and `[18873,18875)`, outcome
+    `necessary`
+- Replica agreement: replicas 1, 2, and 3 each have status `pass`,
+  `baseline_passed: true`, 12 mutation groups, identical page-0 values and
+  changed ranges, identical correlation statuses (`date_created: no_outcome`,
+  `date_updated: resolved`, `lvprop: no_outcome`), and identical outcomes for
+  all 14 variants. Their empty/created/renamed checkpoint SHA-256 identities
+  are respectively: replica 1
+  `b10d1db864749a03638244bd85f31d7e0957369cd4acdc43228029b971095abb` /
+  `5e81875bc3ab0fafdbd17915092e0b372765722b7c2cd90a624072a9565f84cc` /
+  `eb91ca438c7a906d0506063074149ada0b353480c932fc6ce68d2389093b8006`;
+  replica 2
+  `4483a86b1f5e81db6239668efd0f47c9121c1bc91141143cdaa243942ec2d8bc` /
+  `4be8d61df5b72f64197d826f4c51898ab2aee33e2be7bb826a750bbb7fc9f9a0` /
+  `30f7e8157b4fcd541bdc1a1678b2519279b8bcb3adb2d63cfb5632ad64664e4a`;
+  replica 3
+  `92e4ba497e682cafa9eff3e489b4063e1ef1f2b54add765c95a951cd4c0e2899` /
+  `70eeb39fdfbf8a09e36efc26b5c842e09b146d79184a39268bf30c357be9e305` /
+  `1c60183a0a410990743f0b29c7b0ef8f7a5bb27bb75345dd8bfd2f5ca3aca9d6`.
+- Interpretation and claims: the overall result is honestly `no_outcome`
+  because DateCreated and LvProp were not resolved. The answered Q1, timestamp,
+  and Q3 observations are necessity-only leave-one-out results. They establish
+  neither sufficiency nor a minimal complete mutation set, and establish no
+  Rust writer correctness, DAO compatibility, support result, or
+  support-matrix movement.
+- Usage: future separately reviewed issue `#100` writer-bootstrap work;
+  `EXP-0068`;
+  `file:oracle/windows-dao/acquisition/bootstrap-layout-floor.plan.json`;
+  `file:oracle/windows-dao/scripts/bootstrap_layout.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: retained JSON identities, plan binding, report status and false
+  claim flags, all question fields, three-replica agreement, checkpoint
+  identities, exact mutation reconstruction, and deterministic canonical
+  report checked; focused bootstrap analyzer and pin-contract tests must pass
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
