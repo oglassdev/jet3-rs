@@ -26,6 +26,8 @@ MAX_ITEMS = 64
 MAX_TEXT = 512
 CHECKPOINT_NAMES = ("empty", "table1", "table2", "query", "relationship")
 DOCUMENT_TYPE = "dao_system_catalog_job_result"
+LONG_VALUE_DOCUMENT_TYPE = "dao_long_value_maps_job_result"
+LONG_VALUE_CHECKPOINT_NAMES = ("empty", "table", "row")
 DEFINITION_PREFIX = b"\x02\x01\x56\x43"
 LONG_VALUE_OWNER = b"LVAL"
 SYSTEM_FLAG = 0x80000000
@@ -568,11 +570,38 @@ def _definition(data: bytes, root: int) -> dict[str, Any]:
         entry["name"] = name
     if offset + 2 > total or body[total - 2 :] != b"\xff\xff":
         raise DecodeError(f"{what}: logical definition does not end in ff ff")
+    suffix = body[offset : total - 2]
+    if len(suffix) % 10:
+        raise DecodeError(f"{what}: long-value map suffix is not a sequence of 10-byte groups")
+    long_value_maps = []
+    seen_long_value_columns: set[int] = set()
+    for group_offset in range(0, len(suffix), 10):
+        raw = suffix[group_offset : group_offset + 10]
+        ordinal = _u16(raw, 0, what)
+        if ordinal >= column_count:
+            raise DecodeError(f"{what}: long-value map names column {ordinal}")
+        if ordinal in seen_long_value_columns:
+            raise DecodeError(f"{what}: long-value map repeats column {ordinal}")
+        column = columns[ordinal]
+        if column["type"] not in ("Memo", "LongBinary"):
+            raise DecodeError(
+                f"{what}: long-value map names non-long-value column {ordinal}"
+            )
+        seen_long_value_columns.add(ordinal)
+        long_value_maps.append(
+            {
+                "available": {"row": raw[6], "page": int.from_bytes(raw[7:10], "little")},
+                "column": ordinal,
+                "column_name": column["name"],
+                "owned": {"row": raw[2], "page": int.from_bytes(raw[3:6], "little")},
+            }
+        )
     return {
         "columns": columns,
         "header_unknown_hex": body[16:20].hex() + body[33:35].hex(),
         "logical_indexes": logical_indexes,
         "logical_length": total,
+        "long_value_maps": long_value_maps,
         "maps": maps,
         "marker": marker,
         "pages": pages,
@@ -580,7 +609,7 @@ def _definition(data: bytes, root: int) -> dict[str, Any]:
         "root": root,
         "row_count": _u32(body, 12, what),
         "row_count_offset": file_offset(12),
-        "suffix_hex": body[offset : total - 2].hex(),
+        "suffix_hex": suffix.hex(),
     }
 
 
@@ -836,6 +865,7 @@ def analyze_checkpoint(data: bytes) -> dict[str, Any]:
         if data_pages is None:
             data_pages, long_value_pages = _table_pages(data, definition)
         entry["data_pages"] = data_pages
+        entry["long_value_pages"] = long_value_pages
         for page in data_pages:
             _assign_role(roles, page, "data", label)
         for page in long_value_pages:
@@ -846,6 +876,28 @@ def analyze_checkpoint(data: bytes) -> dict[str, Any]:
             _assign_role(roles, locator["page"], "map_rows", label)
             map_rows[(locator["page"], locator["row"])] = f"{label} {kind} map"
             map_pages.add(locator["page"])
+        for long_value_map in definition["long_value_maps"]:
+            for kind in ("owned", "available"):
+                locator = long_value_map[kind]
+                _locator_row(
+                    data,
+                    locator,
+                    f"{label} column {long_value_map['column_name']} {kind} map",
+                )
+                if locator["page"] not in roles:
+                    _assign_role(roles, locator["page"], "long_value_map_rows", label)
+                elif roles[locator["page"]]["role"] not in (
+                    "map_rows",
+                    "long_value_map_rows",
+                ):
+                    raise DecodeError(
+                        f"page {locator['page']} is both {roles[locator['page']]['role']} and long_value_map_rows"
+                    )
+                roles[locator["page"]]["owners"].add(label)
+                map_rows[(locator["page"], locator["row"])] = (
+                    f"{label} column {long_value_map['column_name']} {kind} map"
+                )
+                map_pages.add(locator["page"])
         for index_entry in definition["physical_indexes"]:
             index_label = f"{label} index {index_entry['index']}"
             offset = index_entry["entry_count_offset"]
@@ -961,6 +1013,7 @@ def _definition_identity(entry: dict[str, Any]) -> dict[str, Any]:
         ],
         "root": definition["root"],
         "suffix_hex": definition["suffix_hex"],
+        "long_value_maps": definition["long_value_maps"],
     }
 
 
@@ -1321,6 +1374,186 @@ def _incomplete_reason(document: dict[str, Any], replicas: list[dict[str, Any]])
     return None
 
 
+def _long_value_observation(analysis: dict[str, Any]) -> dict[str, Any]:
+    tables = []
+    for root in sorted(analysis["tables"]):
+        table = analysis["tables"][root]
+        expected_columns = [
+            {"column": column["ordinal"], "column_name": column["name"]}
+            for column in table["definition"]["columns"]
+            if column["type"] in ("Memo", "LongBinary")
+        ]
+        mappings = []
+        for mapping in table["definition"]["long_value_maps"]:
+            mappings.append(
+                {
+                    **mapping,
+                    "available_pages": sorted(
+                        _locator_pages(
+                            analysis["data"],
+                            mapping["available"],
+                            f"table {root} {table['name']} column {mapping['column_name']} available map",
+                        )
+                    ),
+                    "owned_pages": sorted(
+                        _locator_pages(
+                            analysis["data"],
+                            mapping["owned"],
+                            f"table {root} {table['name']} column {mapping['column_name']} owned map",
+                        )
+                    ),
+                }
+            )
+        tables.append(
+            {
+                "long_value_maps": mappings,
+                "long_value_columns": expected_columns,
+                "long_value_pages": table["long_value_pages"],
+                "name": table["name"],
+                "root": root,
+                "suffix_complete": expected_columns
+                == [
+                    {
+                        "column": mapping["column"],
+                        "column_name": mapping["column_name"],
+                    }
+                    for mapping in mappings
+                ],
+            }
+        )
+    return {
+        "pages": analysis["pages"],
+        "tables": tables,
+        "unassigned_pages": [
+            page["page"] for page in analysis["pages"] if page["role"] == "unassigned"
+        ],
+    }
+
+
+def build_long_value_report(
+    document: dict[str, Any], replicas: list[dict[str, Any]]
+) -> dict[str, Any]:
+    analyses: list[dict[str, Any]] = []
+    observations: list[dict[str, Any]] = []
+    decode_error = None
+    for replica in replicas:
+        per_analysis = {}
+        per_observation = {}
+        for checkpoint in replica["checkpoints"]:
+            name = checkpoint["name"]
+            try:
+                analysis = analyze_checkpoint(replica["images"][name])
+                per_analysis[name] = analysis
+                per_observation[name] = _long_value_observation(analysis)
+            except DecodeError as error:
+                decode_error = f"replica {replica['replica']} checkpoint {name}: {error}"
+                break
+        analyses.append(per_analysis)
+        observations.append(per_observation)
+    reason = _incomplete_reason(document, replicas) or decode_error
+    common_count = min(len(replica["checkpoints"]) for replica in replicas)
+    common = list(LONG_VALUE_CHECKPOINT_NAMES[:common_count])
+    if reason is None:
+        for replica_index in range(1, len(observations)):
+            for checkpoint in common:
+                difference = _first_difference(
+                    observations[0][checkpoint],
+                    observations[replica_index][checkpoint],
+                    f"replica {replica_index + 1} checkpoint {checkpoint}",
+                )
+                if difference is not None:
+                    reason = difference
+                    break
+            if reason is not None:
+                break
+    predictions: dict[str, Any] = {}
+    if reason is None and tuple(common) == LONG_VALUE_CHECKPOINT_NAMES:
+        empty = observations[0]["empty"]
+        table = observations[0]["table"]
+        row = observations[0]["row"]
+        gamma_table = next((entry for entry in table["tables"] if entry["name"] == "Gamma"), None)
+        gamma_row = next((entry for entry in row["tables"] if entry["name"] == "Gamma"), None)
+        if gamma_table is None or gamma_row is None:
+            reason = "Gamma did not resolve to one catalog table at both post-create checkpoints"
+        else:
+            table_maps = gamma_table["long_value_maps"]
+            row_maps = gamma_row["long_value_maps"]
+            grammar = (
+                len(table_maps) == 1
+                and len(row_maps) == 1
+                and table_maps[0]["column"] == 1
+                and table_maps[0]["column_name"] == "Note"
+                and table_maps[0]["owned"] == row_maps[0]["owned"]
+                and table_maps[0]["available"] == row_maps[0]["available"]
+            )
+            added_owned = sorted(set(row_maps[0]["owned_pages"]) - set(table_maps[0]["owned_pages"])) if grammar else []
+            added_long_value_pages = sorted(
+                set(gamma_row["long_value_pages"])
+                - set(gamma_table["long_value_pages"])
+            )
+            complete_suffixes = all(
+                entry["suffix_complete"]
+                for checkpoint in (empty, table, row)
+                for entry in checkpoint["tables"]
+            )
+            map_tracks_external = bool(added_owned) and added_owned == added_long_value_pages
+            predictions = {
+                "all_empty_pages_assigned": empty["unassigned_pages"] == [],
+                "all_long_value_columns_have_one_suffix_group": complete_suffixes,
+                "gamma_note_has_one_suffix_group": grammar,
+                "gamma_new_long_value_pages": added_long_value_pages,
+                "note_owned_map_added_pages": added_owned,
+                "note_owned_map_tracks_external_long_value_page": map_tracks_external,
+            }
+            if not all(
+                (
+                    predictions["all_empty_pages_assigned"],
+                    complete_suffixes,
+                    grammar,
+                    map_tracks_external,
+                )
+            ):
+                reason = "one or more preregistered H5 predictions was not observed"
+    elif reason is None:
+        reason = "not every preregistered checkpoint is present"
+    status = "answered" if reason is None else "no_outcome"
+    question = {
+        "checkpoints": observations[0] if observations else {},
+        "predictions": predictions,
+        "status": status,
+    }
+    if reason is not None:
+        question["reason"] = reason
+    summaries = [
+        {
+            "checkpoints": [
+                {
+                    "database": checkpoint["database"],
+                    "name": checkpoint["name"],
+                    "sha256": checkpoint["sha256"],
+                    "size": checkpoint["size"],
+                }
+                for checkpoint in replica["checkpoints"]
+            ],
+            "error": replica["error"],
+            "replica": replica["replica"],
+            "status": replica["status"],
+        }
+        for replica in replicas
+    ]
+    return {
+        "checkpoints_compared": common,
+        "compatibility_claim": False,
+        "development_only": True,
+        "document_type": "long_value_maps_report",
+        "plan_sha256": document["plan_sha256"],
+        "questions": {"H5": question},
+        "replicas": summaries,
+        "status": "accepted" if status == "answered" else "no_outcome",
+        "support_movement": False,
+    }
+
+
 def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate validated replicas into the deterministic report."""
     analyses = []
@@ -1397,6 +1630,7 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
 
 
 def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[str, Any]:
+    global CHECKPOINT_NAMES
     expected = _digest(expected_plan_sha256, "--expected-plan-sha256")
     document = load_json(job_result)
     item = _expect_keys(
@@ -1405,8 +1639,10 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         set(),
         "$",
     )
-    if item["document_type"] != DOCUMENT_TYPE:
-        raise AnalysisError(f"$.document_type must be {DOCUMENT_TYPE}")
+    if item["document_type"] not in (DOCUMENT_TYPE, LONG_VALUE_DOCUMENT_TYPE):
+        raise AnalysisError(
+            f"$.document_type must be {DOCUMENT_TYPE} or {LONG_VALUE_DOCUMENT_TYPE}"
+        )
     if item["development_only"] is not True:
         raise AnalysisError("$.development_only must be true")
     _string(item["run_id"], "$.run_id", maximum=128)
@@ -1414,16 +1650,26 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         raise AnalysisError("$.status must be pass or fail")
     if _digest(item["plan_sha256"], "$.plan_sha256") != expected:
         raise AnalysisError("job result plan digest differs from the approved plan")
-    raw_replicas = item["replicas"]
-    if not isinstance(raw_replicas, list) or not 1 <= len(raw_replicas) <= MAX_REPLICAS:
-        raise AnalysisError(f"$.replicas must contain one through {MAX_REPLICAS} replicas")
-    replicas = [
-        _replica(raw, f"$.replicas[{index}]", job_result.parent)
-        for index, raw in enumerate(raw_replicas)
-    ]
-    if [replica["replica"] for replica in replicas] != list(range(1, len(replicas) + 1)):
-        raise AnalysisError("$.replicas must be numbered 1 through n in order")
-    report = build_report(item, replicas)
+    old_checkpoint_names = CHECKPOINT_NAMES
+    if item["document_type"] == LONG_VALUE_DOCUMENT_TYPE:
+        CHECKPOINT_NAMES = LONG_VALUE_CHECKPOINT_NAMES
+    try:
+        raw_replicas = item["replicas"]
+        if not isinstance(raw_replicas, list) or not 1 <= len(raw_replicas) <= MAX_REPLICAS:
+            raise AnalysisError(f"$.replicas must contain one through {MAX_REPLICAS} replicas")
+        replicas = [
+            _replica(raw, f"$.replicas[{index}]", job_result.parent)
+            for index, raw in enumerate(raw_replicas)
+        ]
+        if [replica["replica"] for replica in replicas] != list(range(1, len(replicas) + 1)):
+            raise AnalysisError("$.replicas must be numbered 1 through n in order")
+        report = (
+            build_long_value_report(item, replicas)
+            if item["document_type"] == LONG_VALUE_DOCUMENT_TYPE
+            else build_report(item, replicas)
+        )
+    finally:
+        CHECKPOINT_NAMES = old_checkpoint_names
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(canonical_bytes(report))
     return report

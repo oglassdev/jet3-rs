@@ -6789,6 +6789,62 @@ Use `not applicable` explicitly rather than omitting a field.
   three-replica agreement, checkpoint identities, and zero unattributed
   ranges checked
 
+### EXP-0074 — Preregistered local long-value column-map experiment
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or format observation has occurred under this plan
+- Question: Across three fresh replicas, does the table-definition suffix
+  decode as one 10-byte group per Memo or LongBinary column, does that grammar
+  assign every page of the empty image, and does a user Memo column's owned
+  map add the page that receives one external long value?
+- Origin: project-authored clean-room experiment using only `EXP-0051`,
+  `EXP-0057`, `EXP-0059`, `EXP-0060`, `EXP-0061`, and `EXP-0073` as recorded
+  above. Interactive decoding of the externally retained `EXP-0073`
+  checkpoints suggested H5 but is design input only, not an experiment input
+  or result.
+- Protocol: create three independent fresh `dbVersion30` CP1252 replicas
+  once. Per replica capture the closed checkpoints `empty`; `table` after
+  creating `Gamma` with Long `Id` and Memo `Note`; and `row` after inserting
+  exactly one row whose 4,101-character Memo forces external storage. Close
+  and release DAO before every copy or hash; retain all nine MDBs externally.
+- Hypothesis H5: the definition suffix consists of 10-byte groups containing
+  a little-endian column ordinal followed by owned and available map locators,
+  each in row-byte-plus-24-bit-little-endian-page form. In the empty image the
+  decoded locators assign page 7 through `MSysObjects.LvExtra`; `Gamma.Note`
+  has exactly one group of the same shape; and inserting the row adds its
+  external long-value page to Note's owned map.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/long-value-maps.plan.json`, SHA-256
+  `5b2fc593ddfaaa303c37e885d68ab1964e99779593f307ea3bfb702a4c0621d9`.
+  The plan pins the host client, provider probe, guest runner, dispatcher,
+  publisher, producer, and analyzer. Host and guest reject any plan or staged
+  input mismatch before the first DAO mutation.
+- Observation: `preregistration.acquisition_started` is `false`. Committing
+  this plan does not authorize acquisition. After review and merge, one
+  explicit human authorization is required for one local-VM run.
+- Decision rule: H5 is `answered` only if all three replicas complete all
+  three checkpoints once, their decoded suffixes and page roles agree, every
+  Memo or LongBinary column has exactly one group, every empty page is
+  assigned, `Gamma.Note` has the predicted single group, and its newly added
+  owned-map pages equal Gamma's newly appearing long-value pages. Replica
+  failure, disagreement, decode failure, or a missing prediction is an honest
+  `no_outcome`; digest, bound, result-shape, or checkpoint defects reject
+  validation. There is no automatic retry after the first DAO mutation.
+- Interpretation: this entry fixes an acquisition and analysis contract only.
+  It establishes no new format fact, Rust writer correctness, compatibility,
+  support result, or support-matrix movement. The optional property-blob
+  question is explicitly excluded.
+- Usage: future `EXP-0075`; issue `#100`;
+  `file:oracle/windows-dao/acquisition/long-value-maps.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/system_catalog.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent evidence-boundary, hypothesis, plan-pin,
+  producer, analyzer, and no-retry review before merge and local acquisition
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

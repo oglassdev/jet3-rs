@@ -50,6 +50,7 @@ ACES_COLUMNS = [
 QUERIES_COLUMNS = [("ObjectId", 4, 0x13, 4), ("Name1", 10, 0x12, 255)]
 RELATIONSHIPS_COLUMNS = [("szRelationship", 10, 0x12, 255), ("grbit", 4, 0x13, 4)]
 ALPHA_COLUMNS = [("Id", 4, 0x03, 4)]
+GAMMA_COLUMNS = [("Id", 4, 0x03, 4), ("Note", 12, 0x02, 0)]
 
 
 def digest(data: bytes) -> str:
@@ -163,6 +164,7 @@ def definition(
     marker: int = 0x53,
     constant: int = 0,
     indexes: list[dict] | None = None,
+    suffix: bytes = b"",
 ) -> bytearray:
     columns = layout(spec)
     indexes = indexes or []
@@ -184,6 +186,7 @@ def definition(
         record[0] = column["type_code"]
         record[1:3] = le16(column["ordinal"])
         record[3:5] = le16(column["variable_index"])
+        record[5:7] = le16(column["ordinal"] if marker == 0x4E and constant == 1 else 0)
         record[7:9] = le16(constant)
         record[9:13] = CONTEXT
         record[13] = column["class"]
@@ -218,6 +221,7 @@ def definition(
     for index in indexes:
         raw = index["name"].encode("cp1252")
         body += bytes([len(raw)]) + raw
+    body += suffix
     body += b"\xff\xff"
     body[8:12] = le32(len(body))
     image = bytearray(PAGE)
@@ -294,6 +298,145 @@ def build_image(replica: int, with_alpha: bool, *, marker: int = 0x53, stray: bo
     return b"".join(bytes(page) for page in pages)
 
 
+def build_long_value_image(
+    replica: int,
+    checkpoint: str,
+    *,
+    missing_gamma_suffix: bool = False,
+    wrong_transition: bool = False,
+) -> bytes:
+    with_gamma = checkpoint != "empty"
+    with_row = checkpoint == "row"
+    stamp = 46000.0 + replica / 1000
+    objects = [
+        (TABLES_ID, CONTAINERS_PARENT, "Tables", 3, SYSTEM),
+        (DATABASES_ID, CONTAINERS_PARENT, "Databases", 3, SYSTEM),
+        (RELATIONSHIPS_ID, CONTAINERS_PARENT, "Relationships", 3, SYSTEM),
+        (MSYSDB_ID, DATABASES_ID, "MSysDb", 2, SYSTEM),
+        (2, TABLES_ID, "MSysObjects", 1, SYSTEM),
+        (3, TABLES_ID, "MSysACEs", 1, SYSTEM),
+        (4, TABLES_ID, "MSysQueries", 1, SYSTEM),
+        (5, TABLES_ID, "MSysRelationships", 1, SYSTEM),
+    ]
+    if with_gamma:
+        objects.append((ALPHA_ROOT, TABLES_ID, "Gamma", 1, 0))
+    object_columns = layout(OBJECTS_COLUMNS)
+    object_rows = [
+        encode_row(
+            object_columns,
+            [
+                ident,
+                parent,
+                name,
+                kind,
+                stamp,
+                stamp,
+                b"\x03\x01",
+                flags,
+                b"\x2b" + bytes(11) if name == "Gamma" else None,
+            ],
+        )
+        for ident, parent, name, kind, flags in objects
+    ]
+    ace_columns = layout(ACES_COLUMNS)
+    ace_rows = [
+        encode_row(ace_columns, [ident, b"\x03\x01", 393216, ident == TABLES_ID])
+        for ident, *_ in objects
+    ]
+    count = len(objects)
+    pages = [bytearray(PAGE) for _ in range(11)]
+    pages[0][1538] = 1 if with_gamma else 0
+    pages[1] = data_page(1, [map_record(set()), bytes(20)])
+    objects_suffix = (
+        le16(8)
+        + bytes([0])
+        + (10).to_bytes(3, "little")
+        + bytes([1])
+        + (10).to_bytes(3, "little")
+    )
+    pages[2] = definition(
+        2,
+        OBJECTS_COLUMNS,
+        owned=(6, 0),
+        available=(6, 1),
+        row_count=count,
+        suffix=objects_suffix,
+        indexes=[
+            {
+                "keys": [(0, 1)],
+                "map": (6, 2),
+                "root": 7,
+                "flags": 1,
+                "entry_count": count,
+                "name": "Id",
+                "class": 1,
+            }
+        ],
+    )
+    pages[3] = definition(3, ACES_COLUMNS, owned=(6, 3), available=(6, 4), row_count=count)
+    pages[4] = definition(4, QUERIES_COLUMNS, owned=(6, 5), available=(6, 6), row_count=0)
+    pages[5] = definition(5, RELATIONSHIPS_COLUMNS, owned=(6, 7), available=(6, 8), row_count=0)
+    pages[6] = data_page(
+        0,
+        [
+            map_record({8}),
+            map_record({8}),
+            map_record({7}),
+            map_record({9}),
+            map_record({9}),
+            map_record(set()),
+            map_record(set()),
+            map_record(set()),
+            map_record(set()),
+        ],
+    )
+    pages[7][0] = 4
+    pages[7][4:8] = le32(2)
+    pages[8] = data_page(2, object_rows)
+    pages[9] = data_page(3, ace_rows)
+    pages[10] = data_page(0, [map_record(set()), map_record(set())])
+    if with_gamma:
+        gamma_suffix = b"" if missing_gamma_suffix else (
+            le16(1)
+            + bytes([2])
+            + (12).to_bytes(3, "little")
+            + bytes([3])
+            + (12).to_bytes(3, "little")
+        )
+        pages.append(
+            definition(
+                ALPHA_ROOT,
+                GAMMA_COLUMNS,
+                owned=(12, 0),
+                available=(12, 1),
+                row_count=1 if with_row else 0,
+                marker=0x4E,
+                constant=1,
+                suffix=gamma_suffix,
+            )
+        )
+        note_owned = {13 if wrong_transition else 14} if with_row else set()
+        pages.append(
+            data_page(
+                0,
+                [
+                    map_record({13, 14} if with_row else set()),
+                    map_record(set()),
+                    map_record(note_owned),
+                    map_record(set()),
+                ],
+            )
+        )
+    if with_row:
+        gamma_row = encode_row(
+            layout(GAMMA_COLUMNS),
+            [1, b"\x05\x10\x00\x80" + le32(14) + bytes(4)],
+        )
+        pages.append(data_page(ALPHA_ROOT, [gamma_row]))
+        pages.append(data_page(catalog.LONG_VALUE_OWNER, [bytes(43)]))
+    return b"".join(bytes(page) for page in pages)
+
+
 def dao_metadata(replica: int, with_alpha: bool, *, extra_table: str | None = None) -> dict:
     stamp = 46000.0 + replica / 1000
     system_names = ["MSysACEs", "MSysObjects", "MSysQueries", "MSysRelationships"]
@@ -353,6 +496,49 @@ def synthetic_document(root: Path, *, markers: dict[int, int] | None = None, str
     }
 
 
+def long_value_document(
+    root: Path,
+    *,
+    missing_gamma_suffix: bool = False,
+    wrong_transition: bool = False,
+) -> dict:
+    replicas = []
+    for replica in (1, 2, 3):
+        checkpoints = []
+        for name in catalog.LONG_VALUE_CHECKPOINT_NAMES:
+            image = build_long_value_image(
+                replica,
+                name,
+                missing_gamma_suffix=missing_gamma_suffix,
+                wrong_transition=wrong_transition,
+            )
+            checkpoints.append(
+                write_checkpoint(
+                    root,
+                    replica,
+                    name,
+                    image,
+                    dao_metadata(replica, name != "empty"),
+                )
+            )
+        replicas.append(
+            {
+                "replica": replica,
+                "status": "pass",
+                "error": None,
+                "checkpoints": checkpoints,
+            }
+        )
+    return {
+        "document_type": catalog.LONG_VALUE_DOCUMENT_TYPE,
+        "development_only": True,
+        "plan_sha256": PLAN_SHA256,
+        "run_id": "synthetic-long-value-maps",
+        "status": "pass",
+        "replicas": replicas,
+    }
+
+
 def write_job(root: Path, document: dict) -> Path:
     path = root / "system-catalog-job-result.json"
     path.write_text(json.dumps(document), encoding="utf-8")
@@ -407,6 +593,71 @@ class SystemCatalogTests(unittest.TestCase):
         self.assertEqual(rows["MSysACEs"]["rows"][0], {"ACM": 393216, "FInheritable": True, "ObjectId": TABLES_ID, "SID": "0301"})
         self.assertFalse(rows["MSysACEs"]["rows"][1]["FInheritable"])
         self.assertEqual(report["replicas"][0]["dao_errors"], ["refused"])
+
+    def test_h5_accepts_complete_suffixes_and_exact_new_page_transition(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = long_value_document(root)
+            job = write_job(root, document)
+            first = root / "h5-first.json"
+            second = root / "h5-second.json"
+            report = catalog.evaluate(job, PLAN_SHA256, first)
+            catalog.evaluate(job, PLAN_SHA256, second)
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+        self.assertEqual(report["status"], "accepted")
+        h5 = report["questions"]["H5"]
+        self.assertEqual(h5["status"], "answered")
+        self.assertEqual(
+            h5["predictions"],
+            {
+                "all_empty_pages_assigned": True,
+                "all_long_value_columns_have_one_suffix_group": True,
+                "gamma_new_long_value_pages": [14],
+                "gamma_note_has_one_suffix_group": True,
+                "note_owned_map_added_pages": [14],
+                "note_owned_map_tracks_external_long_value_page": True,
+            },
+        )
+        empty_roles = {
+            page["page"]: page["role"]
+            for page in h5["checkpoints"]["empty"]["pages"]
+        }
+        self.assertEqual(empty_roles[10], "long_value_map_rows")
+
+    def test_h5_missing_gamma_group_is_no_outcome_even_when_page_is_assigned(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = self.evaluate(
+                root,
+                long_value_document(root, missing_gamma_suffix=True),
+            )
+        h5 = report["questions"]["H5"]
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertFalse(
+            h5["predictions"]["all_long_value_columns_have_one_suffix_group"]
+        )
+        gamma = next(
+            table
+            for table in h5["checkpoints"]["table"]["tables"]
+            if table["name"] == "Gamma"
+        )
+        self.assertFalse(gamma["suffix_complete"])
+        self.assertEqual(h5["checkpoints"]["table"]["unassigned_pages"], [])
+
+    def test_h5_owned_map_must_match_exact_new_long_value_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = self.evaluate(
+                root,
+                long_value_document(root, wrong_transition=True),
+            )
+        predictions = report["questions"]["H5"]["predictions"]
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(predictions["note_owned_map_added_pages"], [13])
+        self.assertEqual(predictions["gamma_new_long_value_pages"], [14])
+        self.assertFalse(
+            predictions["note_owned_map_tracks_external_long_value_page"]
+        )
 
     def test_q4_attributes_row_insertion_and_reports_stray_byte(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -574,6 +825,43 @@ class SystemCatalogTests(unittest.TestCase):
         data = bytes(PAGE * 2) + bytes(image)
         with self.assertRaisesRegex(catalog.DecodeError, "hole in its key slots"):
             catalog._definition(data, 2)
+
+    def test_definition_decodes_long_value_column_map_suffix(self) -> None:
+        suffix = le16(1) + bytes([3]) + (12).to_bytes(3, "little") + bytes([4]) + (13).to_bytes(3, "little")
+        image = definition(
+            2,
+            [("Id", 4, 0x03, 4), ("Note", 12, 0x02, 0)],
+            owned=(6, 0),
+            available=(6, 1),
+            row_count=0,
+            marker=0x4E,
+            constant=1,
+            suffix=suffix,
+        )
+        decoded = catalog._definition(bytes(PAGE * 2) + bytes(image), 2)
+        self.assertEqual(
+            decoded["long_value_maps"],
+            [{
+                "available": {"page": 13, "row": 4},
+                "column": 1,
+                "column_name": "Note",
+                "owned": {"page": 12, "row": 3},
+            }],
+        )
+
+    def test_definition_rejects_long_value_map_for_scalar_column(self) -> None:
+        image = definition(
+            2,
+            [("Id", 4, 0x03, 4)],
+            owned=(6, 0),
+            available=(6, 1),
+            row_count=0,
+            marker=0x4E,
+            constant=1,
+            suffix=le16(0) + bytes(8),
+        )
+        with self.assertRaisesRegex(catalog.DecodeError, "non-long-value column"):
+            catalog._definition(bytes(PAGE * 2) + bytes(image), 2)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -155,6 +155,39 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "System-catalog MDB inventory differs from its result."
+        }
+    }
+    "long-value-maps" {
+        [void]$names.Add("long-value-maps-job-result.json")
+        $jobResultPath = Join-Path $Source "long-value-maps-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Long-value-maps result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                [void]$referenced.Add([string]$checkpoint.database)
+            }
+        }
+        if ($referenced.Count -gt 9) {
+            throw "Long-value-maps output exceeds the 9-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Long-value-maps result contains duplicate database names."
+        }
+        foreach ($name in $referenced) {
+            if ($name -cnotmatch '^long-value-maps-r[1-3]-(empty|table|row)\.mdb$') {
+                throw "Long-value-maps output contains an unexpected database name."
+            }
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File |
+            Where-Object { $_.Name -clike "long-value-maps-*.mdb" } |
+            ForEach-Object { $_.Name } | Sort-Object)
+        $expected = @($referenced | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "Long-value-maps MDB inventory differs from its result."
         }
     }
 }
