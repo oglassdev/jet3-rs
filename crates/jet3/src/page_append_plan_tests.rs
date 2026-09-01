@@ -1,4 +1,6 @@
-use super::{AppendPageError, AppendPagePlan, ExistingPageError, plan_existing_page};
+use super::{
+    AppendPageError, AppendPagePlan, ExistingPageError, plan_existing_page, plan_existing_pages,
+};
 use crate::limits::ReadLimits;
 use crate::{
     ByteCount, InlineUsageMapEncoder, PageImage, PageKind, PageNumber, ResourceBudget,
@@ -57,6 +59,22 @@ fn existing_page_rejects_the_first_append_slot() {
             page: PageNumber::new(20),
         })
     );
+}
+
+#[test]
+fn exact_existing_batch_pairs_all_slots_without_a_failure_state() {
+    let images: [PageImage; 20] = std::array::from_fn(|index| {
+        let mut bytes = [0x5a; crate::PAGE_BYTES];
+        bytes[11] = index as u8;
+        PageImage::from_bytes(bytes)
+    });
+
+    let planned = plan_existing_pages(images.clone());
+    assert_eq!(planned.len(), 20);
+    for (index, (page, image)) in planned.zip(images).enumerate() {
+        assert_eq!(page.number(), PageNumber::new(index as u64));
+        assert_eq!(page.image(), &image);
+    }
 }
 
 #[test]
