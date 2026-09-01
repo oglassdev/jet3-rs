@@ -38,6 +38,7 @@ just windows-dev-row
 just windows-dev-value
 just windows-dev-index
 just windows-dev-bootstrap-layout
+just windows-dev-system-catalog
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -97,6 +98,16 @@ ablation controls once each. Its analyzer may establish necessity, never
 sufficiency. Honest `no_outcome` results are retained without retry. The job
 does not test user rows, user indexes, relationships, publication by Rust, or
 DAO interoperability.
+
+`system-catalog` is the SHA-256-pinned, development-only successor for the
+system-table semantics question in issue #100. Three replicas each create a
+fresh database and capture it closed after each of five steps: empty, table
+`Alpha`, indexed table `Beta`, saved query `QueryOne`, and relation
+`BetaAlpha`. Each closed checkpoint is reopened read-only to record the
+DAO-visible TableDef, Container, QueryDef, Relation, and Property metadata;
+refused reads are recorded per item, never retried. Its analyzer decodes the
+system tables from the captured bytes under the plan's pinned hypotheses and
+makes no writer, compatibility, or support claim.
 
 ## Interactive discovery loop
 

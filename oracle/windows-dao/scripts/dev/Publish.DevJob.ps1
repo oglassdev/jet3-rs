@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -122,6 +122,39 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Bootstrap-layout MDB inventory differs from its result."
+        }
+    }
+    "system-catalog" {
+        [void]$names.Add("system-catalog-job-result.json")
+        $jobResultPath = Join-Path $Source "system-catalog-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "System-catalog result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                [void]$referenced.Add([string]$checkpoint.database)
+            }
+        }
+        if ($referenced.Count -gt 15) {
+            throw "System-catalog output exceeds the 15-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "System-catalog result contains duplicate database names."
+        }
+        foreach ($name in $referenced) {
+            if ($name -cnotmatch '^system-catalog-r[1-3]-(empty|table1|table2|query|relationship)\.mdb$') {
+                throw "System-catalog output contains an unexpected database name."
+            }
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File |
+            Where-Object { $_.Name -clike "system-catalog-*.mdb" } |
+            ForEach-Object { $_.Name } | Sort-Object)
+        $expected = @($referenced | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "System-catalog MDB inventory differs from its result."
         }
     }
 }

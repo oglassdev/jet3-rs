@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -19,7 +19,10 @@ param(
     [string]$IndexJobPath,
     [Parameter(Mandatory = $true)]
     [string]$BootstrapLayoutJobPath,
-    [string]$PlanSha256 = ""
+    [Parameter(Mandatory = $true)]
+    [string]$SystemCatalogJobPath,
+    [string]$PlanSha256 = "",
+    [string]$RunId = ""
 )
 
 Set-StrictMode -Version Latest
@@ -43,6 +46,7 @@ $scriptPath = switch ($Job) {
     "value" { $ValueJobPath }
     "index" { $IndexJobPath }
     "bootstrap-layout" { $BootstrapLayoutJobPath }
+    "system-catalog" { $SystemCatalogJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -64,6 +68,9 @@ if ($Job -ceq "table-definition") {
 elseif ($Job -ceq "bootstrap-layout") {
     $arguments += @("-PlanSha256", $PlanSha256)
 }
+elseif ($Job -ceq "system-catalog") {
+    $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId)
+}
 & (Join-Path $PSHOME "powershell.exe") @arguments
 $jobExitCode = [int]$LASTEXITCODE
 $resultName = switch ($Job) {
@@ -73,6 +80,7 @@ $resultName = switch ($Job) {
     "value" { "value-job-result.json" }
     "index" { "index-job-result.json" }
     "bootstrap-layout" { "bootstrap-layout-job-result.json" }
+    "system-catalog" { "system-catalog-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -88,6 +96,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         value_scenarios = @()
         index_scenarios = @()
         bootstrap_layout_replicas = @()
+        system_catalog_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
     exit 1
@@ -101,6 +110,17 @@ $rowScenarios = @()
 $valueScenarios = @()
 $indexScenarios = @()
 $bootstrapLayoutReplicas = @()
+$systemCatalogReplicas = @()
+# The system-catalog result carries no detail field; derive one from its status.
+$detail = if ($Job -ceq "system-catalog") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three system-catalog replicas once without retry."
+    }
+    else {
+        "At least one system-catalog replica failed; per-replica error records the message."
+    }
+}
+else { [string]$jobResult.detail }
 if ($Job -ceq "catalog") { $catalogCheckpoints = @($jobResult.checkpoints) }
 elseif ($Job -ceq "table-definition") {
     $tableDefinitionCheckpoints = @($jobResult.checkpoints)
@@ -112,11 +132,14 @@ elseif ($Job -ceq "index") { $indexScenarios = @($jobResult.scenarios) }
 elseif ($Job -ceq "bootstrap-layout") {
     $bootstrapLayoutReplicas = @($jobResult.replicas)
 }
+elseif ($Job -ceq "system-catalog") {
+    $systemCatalogReplicas = @($jobResult.replicas)
+}
 $result = [ordered]@{
     development_only = $true
     job = $Job
     status = [string]$jobResult.status
-    detail = [string]$jobResult.detail
+    detail = $detail
     catalog_checkpoints = @($catalogCheckpoints)
     table_definition_checkpoints = @($tableDefinitionCheckpoints)
     table_definition_type_results = @($tableDefinitionTypeResults)
@@ -124,6 +147,7 @@ $result = [ordered]@{
     value_scenarios = @($valueScenarios)
     index_scenarios = @($indexScenarios)
     bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
+    system_catalog_replicas = @($systemCatalogReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
 exit $jobExitCode

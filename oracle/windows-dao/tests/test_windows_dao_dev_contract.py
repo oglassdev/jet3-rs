@@ -70,6 +70,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "value",
                 "index",
                 "bootstrap-layout",
+                "system-catalog",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -110,6 +111,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                     CLIENT.VALUE_JOB.name,
                     CLIENT.INDEX_JOB.name,
                     CLIENT.BOOTSTRAP_LAYOUT_JOB.name,
+                    CLIENT.SYSTEM_CATALOG_JOB.name,
                 },
             )
 
@@ -172,42 +174,63 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         )
         self.assertEqual(document["document_type"], "dao_bootstrap_layout_floor_plan")
 
-    def test_bootstrap_layout_binds_and_verifies_the_active_plan(self) -> None:
+    def pinned_plan_copy(self, root: Path, binding, name: str) -> Path:
+        """Copy a plan with its input pins recomputed from the working tree."""
+        plan = json.loads(binding.plan.read_text(encoding="utf-8"))
+        plan["inputs"] = {
+            relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+            for relative in plan["inputs"]
+        }
+        copy = root / name
+        copy.write_text(json.dumps(plan), encoding="utf-8")
+        return copy
+
+    def assert_plan_bound_job(self, job: str, plan_attribute: str) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            binding = CLIENT.plan_binding(job)
+            if not binding.analyzer.is_file():
+                self.skipTest(f"{binding.analyzer.name} is not present yet")
+            pinned = self.pinned_plan_copy(root, binding, "pinned.plan.json")
+            with mock.patch.object(CLIENT, plan_attribute, pinned):
+                args = self.args(root, identity)
+                args.job = job
+                CLIENT.validate_args(args)
+                self.assertEqual(
+                    args.plan_sha256, hashlib.sha256(pinned.read_bytes()).hexdigest()
+                )
+                invocation = CLIENT.invocation_script(args)
+                self.assertIn("-PlanSha256 ([string]$c.plan_sha256)", invocation)
+                self.assertIn("-PlanPath ([string]$c.plan)", invocation)
+                self.assertIn("-SystemCatalogJobPath ([string]$c.system_catalog_job)", invocation)
+                staged = CLIENT.stage_job(args)
+                self.assertTrue((staged / pinned.name).is_file())
+                self.assertTrue((staged / binding.analyzer.name).is_file())
+
+            altered = json.loads(pinned.read_text(encoding="utf-8"))
+            altered["inputs"]["scripts/windows-dao-dev.py"] = "0" * 64
+            pinned.write_text(json.dumps(altered), encoding="utf-8")
+            with mock.patch.object(CLIENT, plan_attribute, pinned):
+                with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+                    CLIENT.verified_plan_sha256(CLIENT.plan_binding(job))
+
+    def test_bootstrap_layout_binds_and_verifies_a_pinned_plan(self) -> None:
+        self.assert_plan_bound_job("bootstrap-layout", "BOOTSTRAP_LAYOUT_PLAN")
+
+    def test_system_catalog_binds_and_verifies_a_pinned_plan(self) -> None:
+        self.assert_plan_bound_job("system-catalog", "SYSTEM_CATALOG_PLAN")
+
+    def test_consumed_bootstrap_sufficiency_plan_refuses_to_run(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             identity = root / "identity"
             identity.write_text("private", encoding="utf-8")
             args = self.args(root, identity)
             args.job = "bootstrap-layout"
-            CLIENT.validate_args(args)
-            self.assertEqual(
-                args.plan_sha256,
-                hashlib.sha256(CLIENT.BOOTSTRAP_LAYOUT_PLAN.read_bytes()).hexdigest(),
-            )
-            invocation = CLIENT.invocation_script(args)
-            self.assertIn("-PlanSha256 ([string]$c.plan_sha256)", invocation)
-            self.assertIn("-PlanPath ([string]$c.plan)", invocation)
-            staged = CLIENT.stage_job(args)
-            self.assertTrue((staged / CLIENT.BOOTSTRAP_LAYOUT_PLAN.name).is_file())
-            self.assertTrue((staged / CLIENT.BOOTSTRAP_LAYOUT_ANALYZER.name).is_file())
-
-            altered_plan = root / "altered.plan.json"
-            altered_plan.write_text(
-                json.dumps(
-                    {
-                        "document_type": "dao_bootstrap_layout_sufficiency_plan",
-                        "issue": 100,
-                        "development_only": True,
-                        "inputs": {"scripts/windows-dao-dev.py": "0" * 64},
-                    }
-                ),
-                encoding="utf-8",
-            )
-            with mock.patch.object(CLIENT, "BOOTSTRAP_LAYOUT_PLAN", altered_plan):
-                with self.assertRaisesRegex(
-                    CLIENT.DevClientError, "differs from its plan"
-                ):
-                    CLIENT.verified_bootstrap_plan_sha256()
+            with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+                CLIENT.validate_args(args)
 
 
 class WindowsDaoDevRemoteContractTests(unittest.TestCase):
@@ -219,7 +242,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -314,8 +337,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -335,8 +358,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -347,8 +370,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -403,9 +426,54 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             plan["execution"]["bounds"]["maximum_published_databases"],
             3 * (4 + 1 + 1 + 64),
         )
-        for relative, expected in plan["inputs"].items():
-            actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-            self.assertEqual(actual, expected, relative)
+        # The sufficiency plan is consumed: the shared dev tooling has moved on,
+        # so its pins must no longer verify and the job must refuse to run.
+        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+            CLIENT.verified_plan_sha256(CLIENT.plan_binding("bootstrap-layout"))
+
+    def test_system_catalog_is_plan_bound_bounded_and_development_only(self) -> None:
+        job = CLIENT.SYSTEM_CATALOG_JOB.read_text(encoding="utf-8")
+        plan = json.loads(CLIENT.SYSTEM_CATALOG_PLAN.read_text(encoding="utf-8"))
+        self.assertIn('"system-catalog" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"', self.remote)
+        self.assertIn("SystemCatalogJobPath", self.remote)
+        self.assertIn("system_catalog_replicas", self.remote)
+        self.assertIn('"system-catalog" { $SystemCatalogJobPath }', self.dispatch)
+        self.assertIn('"-PlanSha256", $PlanSha256, "-RunId", $RunId', self.dispatch)
+        self.assertIn("15-database bound", self.publication)
+        self.assertIn("foreach ($replica in 1..3)", job)
+        self.assertIn("development_only = $true", job)
+        self.assertIn('document_type = "dao_system_catalog_job_result"', job)
+        self.assertIn("$MaximumPages = 64", job)
+        self.assertIn("$MaximumTables = 16", job)
+        self.assertIn("$MaximumPropertyValueCharacters = 256", job)
+        self.assertIn("sha256_after_metadata", job)
+        self.assertNotIn("CompactDatabase", job)
+        for name in ("empty", "table1", "table2", "query", "relationship"):
+            self.assertIn(f'-Name "{name}"', job)
+        self.assertEqual(plan["document_type"], "dao_system_catalog_plan")
+        self.assertEqual(plan["issue"], 100)
+        self.assertTrue(plan["development_only"])
+        self.assertEqual(
+            plan["execution"]["checkpoints"],
+            ["empty", "table1", "table2", "query", "relationship"],
+        )
+        bounds = plan["execution"]["bounds"]
+        self.assertEqual(bounds["maximum_pages_per_database"], 64)
+        self.assertEqual(bounds["maximum_replicas"], 3)
+        self.assertEqual(bounds["maximum_checkpoints"], 5)
+        self.assertEqual(bounds["maximum_property_value_characters"], 256)
+        self.assertEqual(
+            set(plan["inputs"]),
+            {
+                "scripts/windows-dao-dev.py",
+                "oracle/windows-dao/scripts/probe-provider.ps1",
+                "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1",
+                "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1",
+                "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1",
+                "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1",
+                "oracle/windows-dao/scripts/system_catalog.py",
+            },
+        )
 
     def test_bootstrap_detail_normalization_covers_failure_and_repair_surfaces(self) -> None:
         job = CLIENT.BOOTSTRAP_LAYOUT_JOB.read_text(encoding="utf-8")

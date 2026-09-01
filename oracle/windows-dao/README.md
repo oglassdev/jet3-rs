@@ -25,6 +25,11 @@ The retained tooling has three purposes:
   `scripts/dev/BootstrapLayout.DevJob.ps1`, and `scripts/bootstrap_layout.py`
   define the active development-only local-VM successor for the unresolved
   correlations and bounded all-groups sufficiency question in #100.
+- `acquisition/system-catalog.plan.json`, `scripts/dev/SystemCatalog.DevJob.ps1`,
+  and `scripts/system_catalog.py` define the development-only local-VM
+  system-catalog semantics experiment for #100: five closed checkpoints per
+  replica with DAO-visible catalog metadata, analyzed against pinned
+  system-table hypotheses.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
