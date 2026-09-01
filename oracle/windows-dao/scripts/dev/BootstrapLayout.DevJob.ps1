@@ -28,6 +28,7 @@ $MaximumCatalogRows = 512
 $MaximumLvPropBytes = 65536
 $MaximumVariants = 64
 $TimestampAnchorWindowBytes = 64
+$MaximumDetailCharacters = 512
 
 function Write-JsonDocument {
     param([string]$Path, [object]$Document)
@@ -78,6 +79,43 @@ function Get-BoundedFileFacts {
     }
 }
 
+function ConvertTo-BoundedDetail {
+    param(
+        [AllowNull()][object]$Detail,
+        [AllowNull()][object]$Suffix = $null
+    )
+
+    $text = ([string]$Detail -replace '\s+', ' ').Trim()
+    if ([string]::IsNullOrEmpty($text)) {
+        $text = "No additional detail was reported."
+    }
+    $suffixText = ([string]$Suffix -replace '\s+', ' ').Trim()
+    if (-not [string]::IsNullOrEmpty($suffixText)) {
+        $suffixText = " " + $suffixText
+    }
+    if (($text.Length + $suffixText.Length) -le $MaximumDetailCharacters) {
+        return $text + $suffixText
+    }
+
+    $ellipsis = "..."
+    if ([string]::IsNullOrEmpty($suffixText)) {
+        return $text.Substring(0, $MaximumDetailCharacters - $ellipsis.Length) + $ellipsis
+    }
+
+    $maximumSuffixCharacters = 192
+    if ($suffixText.Length -gt $maximumSuffixCharacters) {
+        $suffixText = $suffixText.Substring(
+            0,
+            $maximumSuffixCharacters - $ellipsis.Length
+        ) + $ellipsis
+    }
+    $prefixCharacters = $MaximumDetailCharacters - $suffixText.Length - $ellipsis.Length
+    if ($text.Length -gt $prefixCharacters) {
+        $text = $text.Substring(0, $prefixCharacters) + $ellipsis
+    }
+    return $text + $suffixText
+}
+
 function New-ArtifactObservation {
     param(
         [AllowNull()][object]$Database,
@@ -95,6 +133,7 @@ function New-ArtifactObservation {
         $sizeBefore = [long]$BeforeFacts.size
         $sha256Before = [string]$BeforeFacts.sha256
     }
+    $boundedDetail = ConvertTo-BoundedDetail -Detail $Detail
     return [ordered]@{
         database = $databaseValue
         size_before = $sizeBefore
@@ -106,9 +145,9 @@ function New-ArtifactObservation {
             table_enumerated = $false
             field_enumerated = $false
             table_opened = $false
-            detail = $Detail
+            detail = $boundedDetail
         }
-        detail = $Detail
+        detail = $boundedDetail
     }
 }
 
@@ -121,12 +160,17 @@ function Complete-ArtifactObservation {
 
     $Observation.size_after = [long]$AfterFacts.size
     $Observation.sha256_after = [string]$AfterFacts.sha256
+    $endpointDetail = ConvertTo-BoundedDetail -Detail $Endpoints.detail
+    $Endpoints.detail = $endpointDetail
     $Observation.endpoints = $Endpoints
-    $Observation.detail = [string]$Endpoints.detail
+    $repairSuffix = $null
     if ($Observation.size_before -ne $Observation.size_after -or
         $Observation.sha256_before -cne $Observation.sha256_after) {
-        $Observation.detail += " DAO changed the artifact during read-only endpoint checks."
+        $repairSuffix = "DAO changed the artifact during read-only endpoint checks."
     }
+    $Observation.detail = ConvertTo-BoundedDetail `
+        -Detail $endpointDetail `
+        -Suffix $repairSuffix
 }
 
 function Invoke-WithDatabase {
@@ -335,7 +379,9 @@ function Get-LvPropSnapshot {
         return [pscustomobject]@{
             report = [ordered]@{
                 status = "no_outcome"
-                detail = $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+                detail = ConvertTo-BoundedDetail -Detail (
+                    $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+                )
             }
             bytes = $null
         }
@@ -754,10 +800,13 @@ function Test-BaselineEndpoints {
             throw "Expected the target table snapshot to be empty."
         }
         $endpoints.table_opened = $true
-        $endpoints.detail = "All bounded read-only endpoints passed."
+        $endpoints.detail = ConvertTo-BoundedDetail `
+            -Detail "All bounded read-only endpoints passed."
     }
     catch {
-        $endpoints.detail = $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+        $endpoints.detail = ConvertTo-BoundedDetail -Detail (
+            $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+        )
     }
     finally {
         if ($null -ne $recordset) {
@@ -1055,7 +1104,7 @@ function Invoke-Replica {
     $state = [ordered]@{
         replica = $Replica
         status = "fail"
-        detail = "Replica did not start."
+        detail = ConvertTo-BoundedDetail -Detail "Replica did not start."
         checkpoints = New-Object Collections.ArrayList
         page0_values = $null
         page0_changed_ranges = $null
@@ -1073,11 +1122,14 @@ function Invoke-Replica {
     try {
         Invoke-ReplicaCore -Replica $Replica -State $state
         $state.status = "pass"
-        $state.detail = "Completed the preregistered replica once without retry."
+        $state.detail = ConvertTo-BoundedDetail `
+            -Detail "Completed the preregistered replica once without retry."
     }
     catch {
         $state.status = "fail"
-        $state.detail = $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+        $state.detail = ConvertTo-BoundedDetail -Detail (
+            $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+        )
     }
     finally {
         $workingPath = Join-Path $RunRoot "working-r$Replica.mdb"
@@ -1088,7 +1140,9 @@ function Invoke-Replica {
         }
         catch {
             $state.status = "fail"
-            $state.detail += " Working-file cleanup failed: " + $_.Exception.Message
+            $state.detail = ConvertTo-BoundedDetail `
+                -Detail $state.detail `
+                -Suffix ("Working-file cleanup failed: " + $_.Exception.Message)
         }
     }
     return $state
@@ -1104,7 +1158,10 @@ try {
     $result = [ordered]@{
         development_only = $true
         status = "pass"
-        detail = "Attempted each of the three bounded bootstrap-layout replicas once; per-replica status records partial outcomes."
+        detail = ConvertTo-BoundedDetail -Detail (
+            "Attempted each of the three bounded bootstrap-layout replicas once; " +
+            "per-replica status records partial outcomes."
+        )
         plan_sha256 = $PlanSha256
         replicas = @($replicas)
     }
@@ -1115,7 +1172,9 @@ catch {
     $result = [ordered]@{
         development_only = $true
         status = "fail"
-        detail = $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+        detail = ConvertTo-BoundedDetail -Detail (
+            $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+        )
         plan_sha256 = $PlanSha256
         replicas = @($replicas)
     }

@@ -433,6 +433,49 @@ class BootstrapLayoutTests(unittest.TestCase):
         self.assertEqual(report["status"], "no_outcome")
         self.assertEqual(report["replicas"][0]["status"], "no_outcome")
 
+    def test_accepts_producer_bounded_failure_and_repair_details(self) -> None:
+        repair = "DAO changed the artifact during read-only endpoint checks."
+        endpoint_detail = "System.Exception: " + "e" * 600
+        endpoint_detail = endpoint_detail[:509] + "..."
+        artifact_prefix_length = 512 - len(" " + repair) - len("...")
+        artifact_detail = (
+            endpoint_detail[:artifact_prefix_length] + "... " + repair
+        )
+        replica_detail = "System.Exception: " + "r" * 600
+        replica_detail = replica_detail[:509] + "..."
+        self.assertEqual(len(endpoint_detail), 512)
+        self.assertEqual(len(artifact_detail), 512)
+        self.assertEqual(len(replica_detail), 512)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            failed = document["replicas"][1]
+            failed["status"] = "fail"
+            failed["detail"] = replica_detail
+            baseline = failed["baseline"]
+            baseline_path = root / baseline["database"]
+            repaired = bytearray(baseline_path.read_bytes())
+            repaired[500] ^= 1
+            baseline_path.write_bytes(repaired)
+            baseline["sha256_after"] = digest(bytes(repaired))
+            baseline["endpoints"]["detail"] = endpoint_detail
+            baseline["detail"] = artifact_detail
+
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "bounded.json"
+            )
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertEqual(report["replicas"][1]["detail"], replica_detail)
+
+            failed["detail"] += "x"
+            with self.assertRaisesRegex(
+                bootstrap.AnalysisError, "at most 512 characters"
+            ):
+                bootstrap.evaluate(
+                    write_job(root, document), PLAN_SHA256, root / "too-long.json"
+                )
+
     def test_extra_created_to_renamed_page0_range_makes_q1_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

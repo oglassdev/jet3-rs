@@ -6394,7 +6394,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/bootstrap-layout-sufficiency.plan.json`,
   SHA-256
-  `28943c5f1efc62c89036fce4d997ab717321d152de3918f06d3bb1b9585ee5aa`.
+  `da56d399dd4608a6d938deac3dde4ce0d6125a15a56dc8204be1ebe9338b6994`.
   The plan pins the host client, provider probe, guest runner, dispatcher,
   publisher, producer, and host analyzer. The host and guest reject plan or
   staged-input digest mismatches before the first DAO mutation.

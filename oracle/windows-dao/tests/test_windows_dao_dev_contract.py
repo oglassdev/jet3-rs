@@ -407,6 +407,37 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, relative)
 
+    def test_bootstrap_detail_normalization_covers_failure_and_repair_surfaces(self) -> None:
+        job = CLIENT.BOOTSTRAP_LAYOUT_JOB.read_text(encoding="utf-8")
+        helper_start = job.index("function ConvertTo-BoundedDetail")
+        helper_end = job.index("function New-ArtifactObservation")
+        helper = job[helper_start:helper_end]
+
+        self.assertIn("$MaximumDetailCharacters = 512", job)
+        self.assertIn("No additional detail was reported.", helper)
+        self.assertIn("$maximumSuffixCharacters = 192", helper)
+        self.assertIn(
+            "$text.Substring(0, $MaximumDetailCharacters - $ellipsis.Length)",
+            helper,
+        )
+        self.assertIn("$suffixText = $suffixText.Substring(", helper)
+        self.assertIn("-Suffix $repairSuffix", job)
+        self.assertIn(
+            '-Suffix ("Working-file cleanup failed: " + $_.Exception.Message)',
+            job,
+        )
+        self.assertNotIn("$Observation.detail +=", job)
+
+        exception_detail = '$_.Exception.GetType().FullName + ": " + $_.Exception.Message'
+        self.assertEqual(job.count(exception_detail), 4)
+        offset = 0
+        while (position := job.find(exception_detail, offset)) >= 0:
+            self.assertIn(
+                "ConvertTo-BoundedDetail",
+                job[max(0, position - 120) : position],
+            )
+            offset = position + len(exception_detail)
+
     def test_bootstrap_timestamp_pages_use_floor_division(self) -> None:
         job = CLIENT.BOOTSTRAP_LAYOUT_JOB.read_text(encoding="utf-8")
 

@@ -22,7 +22,7 @@
     "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "f5ed1b5d04f632ef20483aa6526e51693a7ea9a0170821f869ea93faf0534381",
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "42ead0007ff899b7f586cdc897b2e037a8d155931f8ec48988c46c16701b26c3",
     "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "12249f3d7e82193bb47391760c1a92b816438ce726b89bd80e89dcab39fee781",
-    "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "8fad1a0ba81f516dd9fd66dd7c484ff54454847c6d3f0569dd76f69d8be22ccb",
+    "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "583d77a60d8fe915983ca7366ea48198f27c226caaf7c58f43b65866af5d17d7",
     "oracle/windows-dao/scripts/bootstrap_layout.py": "b29983ba258aad95031031e8b8adbe41a53f98d1b1a9c492c66f75128559e8f8"
   },
   "basis": {
