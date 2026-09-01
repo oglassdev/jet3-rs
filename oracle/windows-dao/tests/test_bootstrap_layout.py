@@ -31,18 +31,23 @@ def endpoints(value: bool) -> dict[str, bool]:
     return {name: value for name in bootstrap.ENDPOINT_NAMES}
 
 
-def table_dao(name: str) -> dict:
+def table_dao(name: str, *, with_lvprop: bool = False) -> dict:
+    lvprop = (
+        {
+            "status": "captured",
+            "detail": "captured once",
+            "length": len(PAYLOAD),
+            "bytes_hex": PAYLOAD.hex(),
+        }
+        if with_lvprop
+        else {"status": "no_outcome", "detail": "property not set"}
+    )
     return {
         "table_name": name,
         "date_created_oadate": CREATED_DATE,
         "last_updated_oadate": UPDATED_DATE,
         "fields": [{"name": "Id", "type": 4}],
-        "lvprop": {
-            "status": "captured",
-            "detail": "captured once",
-            "length": len(PAYLOAD),
-            "bytes_hex": PAYLOAD.hex(),
-        },
+        "lvprop": lvprop,
     }
 
 
@@ -78,24 +83,35 @@ def synthetic_document(root: Path) -> dict:
         created[0][1538] = 7
         created[1][1922] = 0x0F
         created.extend(bytearray(bootstrap.PAGE_BYTES) for _ in range(3))
+        created[18][10] = replica
         created[20][0] = 2
         created[21][0] = 1
         created[22][0] = 1
-        created[22][4:8] = b"LVAL"
-        created[22][8:10] = (1).to_bytes(2, "little")
-        payload_start = bootstrap.PAGE_BYTES - len(PAYLOAD)
-        created[22][10:12] = payload_start.to_bytes(2, "little")
-        created[22][payload_start:] = PAYLOAD
-        header = struct.pack("<I", len(PAYLOAD) | 0x40000000)
-        header += bytes([payload_row]) + payload_page.to_bytes(3, "little") + bytes(4)
-        created[18][200:212] = header
         renamed = copy.deepcopy(created)
         renamed[18][100:108] = struct.pack("<d", CREATED_DATE)
         renamed[18][108:116] = struct.pack("<d", UPDATED_DATE)
+        renamed[22][100:108] = struct.pack("<d", CREATED_DATE)
+        renamed[22][108:116] = struct.pack("<d", CREATED_DATE)
+        property_set = copy.deepcopy(renamed)
+        property_set[22][4:8] = b"LVAL"
+        property_set[22][8:10] = (1).to_bytes(2, "little")
+        payload_start = bootstrap.PAGE_BYTES - len(PAYLOAD)
+        property_set[22][10:12] = payload_start.to_bytes(2, "little")
+        property_set[22][payload_start:] = PAYLOAD
+        header = struct.pack("<I", len(PAYLOAD) | 0x40000000)
+        header += bytes([payload_row]) + payload_page.to_bytes(3, "little") + bytes(4)
+        property_set[18][200:212] = header
         checkpoints = [
             write_checkpoint(root, replica, "empty", empty, {"table_definition_count": 4}),
             write_checkpoint(root, replica, "created", created, table_dao("BootstrapLayout")),
             write_checkpoint(root, replica, "renamed", renamed, table_dao("BootstrapRenamed")),
+            write_checkpoint(
+                root,
+                replica,
+                "property-set",
+                property_set,
+                table_dao("BootstrapRenamed", with_lvprop=True),
+            ),
         ]
         created_bytes = b"".join(bytes(page) for page in created)
         renamed_bytes = b"".join(bytes(page) for page in renamed)
@@ -211,6 +227,8 @@ def synthetic_document(root: Path) -> dict:
         created_sha = checkpoints[1]["sha256"]
         baseline_database = f"r{replica}-variant-baseline-created.mdb"
         (root / baseline_database).write_bytes(created_bytes)
+        sufficiency_database = f"r{replica}-variant-composed.mdb"
+        (root / sufficiency_database).write_bytes(created_bytes)
         replicas.append(
             {
                 "replica": replica,
@@ -233,11 +251,13 @@ def synthetic_document(root: Path) -> dict:
                     "date_created": {
                         "status": "resolved",
                         "detail": "unique",
+                        "method": "other_timestamp_anchor",
                         "offsets": [date_created_offset],
                     },
                     "date_updated": {
                         "status": "resolved",
                         "detail": "unique",
+                        "method": "unique_exact",
                         "offsets": [date_updated_offset],
                     },
                     "lvprop": {
@@ -250,6 +270,14 @@ def synthetic_document(root: Path) -> dict:
                 },
                 "changed_page_groups": changed_groups,
                 "appended_page_groups": appended_groups,
+                "sufficiency": {
+                    "database": sufficiency_database,
+                    "size": len(created_bytes),
+                    "sha256_before_open": created_sha,
+                    "sha256_after_open": created_sha,
+                    "endpoints": {**endpoints(True), "detail": "all endpoints passed"},
+                    "detail": "all endpoints passed",
+                },
                 "variants": variants,
             }
         )
@@ -283,7 +311,11 @@ class BootstrapLayoutTests(unittest.TestCase):
         self.assertEqual(report["status"], "accepted")
         self.assertFalse(report["compatibility_claim"])
         self.assertFalse(report["support_movement"])
-        self.assertFalse(report["sufficiency_claim"])
+        self.assertTrue(report["sufficiency_claim"])
+        self.assertEqual(
+            report["questions"]["composed_image_sufficiency"]["outcome"],
+            "observed_sufficient",
+        )
         self.assertEqual(report["questions"]["candidate_page0"]["outcome"], "necessary")
         self.assertEqual(
             report["questions"]["candidate_catalog_fields"]["fields"]["lvprop"]["outcome"],
@@ -399,6 +431,55 @@ class BootstrapLayoutTests(unittest.TestCase):
                 write_job(root, document), PLAN_SHA256, root / "report.json"
             )
         self.assertEqual(report["status"], "no_outcome")
+
+    def test_rejects_timestamp_outside_the_preregistered_anchor_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            document["replicas"][0]["correlations"]["date_created"]["method"] = (
+                "unique_exact"
+            )
+            with self.assertRaisesRegex(
+                bootstrap.AnalysisError, "independently scanned OADate bytes"
+            ):
+                bootstrap.evaluate(
+                    write_job(root, document), PLAN_SHA256, root / "report.json"
+                )
+
+    def test_composed_image_is_independently_reconstructed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            sufficiency = document["replicas"][0]["sufficiency"]
+            path = root / sufficiency["database"]
+            data = bytearray(path.read_bytes())
+            data[500] ^= 1
+            path.write_bytes(data)
+            changed = digest(bytes(data))
+            sufficiency["sha256_before_open"] = changed
+            sufficiency["sha256_after_open"] = changed
+            with self.assertRaisesRegex(
+                bootstrap.AnalysisError, "independent reconstruction"
+            ):
+                bootstrap.evaluate(
+                    write_job(root, document), PLAN_SHA256, root / "report.json"
+                )
+
+    def test_composed_image_repair_is_honest_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            sufficiency = document["replicas"][0]["sufficiency"]
+            path = root / sufficiency["database"]
+            repaired = bytearray(path.read_bytes())
+            repaired[500] ^= 1
+            path.write_bytes(repaired)
+            sufficiency["sha256_after_open"] = digest(bytes(repaired))
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "report.json"
+            )
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertFalse(report["sufficiency_claim"])
 
     def test_repair_is_no_outcome_and_wrong_reconstruction_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

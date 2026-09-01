@@ -97,6 +97,9 @@ switch ($Job) {
             if (-not [string]::IsNullOrEmpty([string]$replica.baseline.database)) {
                 [void]$referenced.Add([string]$replica.baseline.database)
             }
+            if (-not [string]::IsNullOrEmpty([string]$replica.sufficiency.database)) {
+                [void]$referenced.Add([string]$replica.sufficiency.database)
+            }
             foreach ($variant in @($replica.variants)) {
                 [void]$referenced.Add([string]$variant.database)
             }
@@ -108,7 +111,7 @@ switch ($Job) {
             throw "Bootstrap-layout result contains duplicate database names."
         }
         foreach ($name in $referenced) {
-            if ($name -cnotmatch '^bootstrap-layout-r[1-3]-(empty|created|renamed|variant-[a-z0-9-]+)\.mdb$') {
+            if ($name -cnotmatch '^bootstrap-layout-r[1-3]-(empty|created|renamed|property-set|variant-[a-z0-9-]+)\.mdb$') {
                 throw "Bootstrap-layout output contains an unexpected database name."
             }
             [void]$names.Add($name)

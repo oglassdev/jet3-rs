@@ -16,6 +16,7 @@ if ($PlanSha256 -cnotmatch '^[0-9a-f]{64}$') {
 
 $DbVersion30 = 32
 $DbLong = 4
+$DbMemo = 12
 $DbOpenSnapshot = 4
 $DatabaseLocale = ";LANGID=0x0409;CP=1252;COUNTRY=0"
 $CreatedTableName = "BootstrapLayout"
@@ -26,6 +27,7 @@ $MaximumTableDefs = 128
 $MaximumCatalogRows = 512
 $MaximumLvPropBytes = 65536
 $MaximumVariants = 64
+$TimestampAnchorWindowBytes = 64
 
 function Write-JsonDocument {
     param([string]$Path, [object]$Document)
@@ -150,6 +152,33 @@ function New-BootstrapTable {
     }
 }
 
+function Add-LvPropProbe {
+    param(
+        [string]$Path,
+        [int]$Replica
+    )
+
+    Invoke-WithDatabase -Path $Path -Action {
+        param($database)
+        $definitions = $null
+        $table = $null
+        $property = $null
+        try {
+            $definitions = $database.TableDefs
+            $table = $definitions.Item($RenamedTableName)
+            $marker = "jet3-bootstrap-lvprop-r{0:d2}-" -f $Replica
+            $marker += ("x" * (768 - $marker.Length))
+            $property = $table.CreateProperty("Jet3BootstrapProbe", $DbMemo, $marker)
+            $table.Properties.Append($property)
+        }
+        finally {
+            Release-ComObject -Value $property
+            Release-ComObject -Value $table
+            Release-ComObject -Value $definitions
+        }
+    }
+}
+
 function Rename-BootstrapTable {
     param([string]$Path)
 
@@ -175,11 +204,16 @@ function Get-LvPropSnapshot {
         [string]$TableName
     )
 
+    $query = $null
     $recordset = $null
     $nameField = $null
     $lvPropField = $null
     try {
-        $recordset = $Database.OpenRecordset("MSysObjects", $DbOpenSnapshot, 0)
+        $query = $Database.CreateQueryDef(
+            "",
+            "SELECT Name, LvProp FROM MSysObjects WITH OWNERACCESS OPTION;"
+        )
+        $recordset = $query.OpenRecordset($DbOpenSnapshot, 0)
         $rowCount = 0
         $matches = New-Object Collections.ArrayList
         while (-not [bool]$recordset.EOF) {
@@ -262,6 +296,7 @@ function Get-LvPropSnapshot {
         Release-ComObject -Value $lvPropField
         Release-ComObject -Value $nameField
         Release-ComObject -Value $recordset
+        Release-ComObject -Value $query
     }
 }
 
@@ -358,7 +393,7 @@ function Save-Checkpoint {
     param(
         [string]$Source,
         [int]$Replica,
-        [ValidateSet("empty", "created", "renamed")]
+        [ValidateSet("empty", "created", "renamed", "property-set")]
         [string]$Name,
         [AllowNull()][string]$TargetName
     )
@@ -431,11 +466,23 @@ function Get-TimestampCorrelation {
         }
     }
     $offsets = @(Find-ByteSequence -Haystack $RenamedBytes -Needle $needle)
+    $resolvedOffsets = @($offsets)
+    $method = "unique_exact"
     if ($offsets.Count -ne 1) {
+        $anchorOffsets = @(Find-ByteSequence -Haystack $RenamedBytes -Needle ([BitConverter]::GetBytes($OtherOaDate)))
+        if ($anchorOffsets.Count -eq 1) {
+            $anchor = [long]$anchorOffsets[0]
+            $resolvedOffsets = @($offsets | Where-Object {
+                [Math]::Abs(([long]$_) - $anchor) -le $TimestampAnchorWindowBytes
+            })
+            $method = "other_timestamp_anchor"
+        }
+    }
+    if ($resolvedOffsets.Count -ne 1) {
         return [pscustomobject]@{
             report = [ordered]@{
                 status = "no_outcome"
-                detail = "The exact DAO OLE Date byte sequence occurred $($offsets.Count) times in the renamed MDB."
+                detail = "The exact DAO OLE Date byte sequence left $($resolvedOffsets.Count) candidates after the bounded correlation rule."
             }
             offsets = @()
         }
@@ -443,10 +490,11 @@ function Get-TimestampCorrelation {
     return [pscustomobject]@{
         report = [ordered]@{
             status = "resolved"
-            detail = "The exact DAO OLE Date byte sequence occurred once in the renamed MDB."
-            offsets = @($offsets)
+            detail = "One exact DAO OLE Date candidate survived the bounded correlation rule."
+            method = $method
+            offsets = @($resolvedOffsets)
         }
-        offsets = @($offsets)
+        offsets = @($resolvedOffsets)
     }
 }
 
@@ -731,6 +779,9 @@ function Invoke-ReplicaCore {
     Rename-BootstrapTable -Path $workingPath
     $renamed = Save-Checkpoint -Source $workingPath -Replica $Replica -Name "renamed" -TargetName $RenamedTableName
     [void]$State.checkpoints.Add($renamed.report)
+    Add-LvPropProbe -Path $workingPath -Replica $Replica
+    $propertySet = Save-Checkpoint -Source $workingPath -Replica $Replica -Name "property-set" -TargetName $RenamedTableName
+    [void]$State.checkpoints.Add($propertySet.report)
 
     $State.page0_values = [ordered]@{
         empty = [int]$empty.bytes[1538]
@@ -750,7 +801,7 @@ function Invoke-ReplicaCore {
         -OaDate ([double]$renamed.dao.last_updated_oadate) `
         -OtherOaDate ([double]$renamed.dao.date_created_oadate) `
         -RenamedBytes $renamed.bytes
-    $lvProp = Get-LvPropCorrelation -LvPropBytes $renamed.lvprop_bytes -RenamedBytes $renamed.bytes
+    $lvProp = Get-LvPropCorrelation -LvPropBytes $propertySet.lvprop_bytes -RenamedBytes $propertySet.bytes
     $State.correlations = [ordered]@{
         date_created = $dateCreated.report
         date_updated = $dateUpdated.report
@@ -853,6 +904,48 @@ function Invoke-ReplicaCore {
     }
     if ($baselineHashBefore -ne $baselineHashAfter) {
         $State.baseline.detail = "DAO changed the created baseline clone during read-only endpoint checks."
+    }
+
+    $composedName = "bootstrap-layout-r$Replica-variant-composed.mdb"
+    $composedPath = Join-Path $RunRoot $composedName
+    [byte[]]$composedBytes = New-Object byte[] $created.bytes.Length
+    [Array]::Copy($empty.bytes, 0, $composedBytes, 0, $empty.bytes.Length)
+    foreach ($range in @($State.page0_changed_ranges.empty_to_created)) {
+        $length = [int]($range.end - $range.start)
+        [Array]::Copy($created.bytes, [int]$range.start, $composedBytes, [int]$range.start, $length)
+    }
+    foreach ($group in @($changedPageGroups) + @($appendedPageGroups)) {
+        foreach ($range in @($group.ranges)) {
+            $length = [int]($range.end - $range.start)
+            [Array]::Copy($created.bytes, [int]$range.start, $composedBytes, [int]$range.start, $length)
+        }
+    }
+    [IO.File]::WriteAllBytes($composedPath, $composedBytes)
+    $composedFactsBefore = Get-BoundedFileFacts -Path $composedPath
+    $State.sufficiency = [ordered]@{
+        database = $composedName
+        size = $composedFactsBefore.size
+        sha256_before_open = [string]$composedFactsBefore.sha256
+        sha256_after_open = [string]$composedFactsBefore.sha256
+        endpoints = [ordered]@{
+            open_database = $false
+            table_enumerated = $false
+            field_enumerated = $false
+            table_opened = $false
+            detail = "Composed-image endpoints were not reached."
+        }
+        detail = "Composed-image endpoints were not reached."
+    }
+    $composedEndpoints = Test-BaselineEndpoints -Path $composedPath -TableName $CreatedTableName
+    $State.sufficiency.endpoints = $composedEndpoints
+    $State.sufficiency.detail = [string]$composedEndpoints.detail
+    $composedFactsAfter = Get-BoundedFileFacts -Path $composedPath
+    $State.sufficiency.sha256_after_open = [string]$composedFactsAfter.sha256
+    if ($composedFactsAfter.size -ne $composedFactsBefore.size) {
+        throw "DAO changed the composed candidate size during read-only endpoint checks."
+    }
+    if ($composedFactsBefore.sha256 -ne $composedFactsAfter.sha256) {
+        $State.sufficiency.detail += " DAO changed the composed candidate during read-only access."
     }
 
     foreach ($spec in $specs) {
@@ -963,6 +1056,20 @@ function Invoke-Replica {
         }
         changed_page_groups = New-Object Collections.ArrayList
         appended_page_groups = New-Object Collections.ArrayList
+        sufficiency = [ordered]@{
+            database = $null
+            size = 0
+            sha256_before_open = $null
+            sha256_after_open = $null
+            endpoints = [ordered]@{
+                open_database = $false
+                table_enumerated = $false
+                field_enumerated = $false
+                table_opened = $false
+                detail = "Composed-image endpoints were not reached."
+            }
+            detail = "Composed-image endpoints were not reached."
+        }
         variants = New-Object Collections.ArrayList
     }
     try {

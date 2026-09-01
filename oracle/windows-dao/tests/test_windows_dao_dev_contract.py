@@ -25,6 +25,13 @@ PUBLICATION_PATH = REMOTE_PATH.with_name("Publish.DevJob.ps1")
 CONSUMED_BOOTSTRAP_PLAN = (
     ROOT / "oracle" / "windows-dao" / "acquisition" / "bootstrap-layout.plan.json"
 )
+CONSUMED_BOOTSTRAP_FLOOR_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "bootstrap-layout-floor.plan.json"
+)
 SPEC = importlib.util.spec_from_file_location("windows_dao_dev", CLIENT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 CLIENT = importlib.util.module_from_spec(SPEC)
@@ -154,6 +161,17 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         )
         self.assertEqual(document["inputs"], expected_inputs)
 
+    def test_consumed_bootstrap_floor_plan_remains_immutable(self) -> None:
+        document = json.loads(
+            CONSUMED_BOOTSTRAP_FLOOR_PLAN.read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            hashlib.sha256(CONSUMED_BOOTSTRAP_FLOOR_PLAN.read_bytes()).hexdigest(),
+            "c0161be2ba1189249d743c9198bcd004dd9d927edcc7d753cffe79c421677773",
+        )
+        self.assertEqual(document["document_type"], "dao_bootstrap_layout_floor_plan")
+
     def test_bootstrap_layout_binds_and_verifies_the_active_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -177,7 +195,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             altered_plan.write_text(
                 json.dumps(
                     {
-                        "document_type": "dao_bootstrap_layout_floor_plan",
+                        "document_type": "dao_bootstrap_layout_sufficiency_plan",
                         "issue": 100,
                         "development_only": True,
                         "inputs": {"scripts/windows-dao-dev.py": "0" * 64},
@@ -362,6 +380,11 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn("$MaximumVariants = 64", job)
         self.assertNotIn("CompactDatabase", job)
         self.assertIn("204-database bound", self.publication)
+        self.assertIn("WITH OWNERACCESS OPTION", job)
+        self.assertIn("$TimestampAnchorWindowBytes = 64", job)
+        self.assertIn('Name "property-set"', job)
+        self.assertIn("$State.sufficiency", job)
+        self.assertIn("replica.sufficiency.database", self.publication)
         self.assertTrue(plan["development_only"])
         self.assertEqual(plan["issue"], 100)
         for relative, expected in plan["inputs"].items():

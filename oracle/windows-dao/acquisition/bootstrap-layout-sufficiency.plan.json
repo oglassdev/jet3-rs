@@ -1,0 +1,113 @@
+{
+  "document_type": "dao_bootstrap_layout_sufficiency_plan",
+  "experiment_id": "bootstrap_layout_sufficiency",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Resolve the two EXP-0069 catalog-correlation no_outcomes and test whether one complete empty-to-created mutation-group reconstruction is sufficient for DAO's bounded read-only endpoints.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_preregistration": "EXP-0068",
+    "prior_result": "EXP-0069",
+    "authorization": "No acquisition is authorized by committing this plan. After review and merge, the human operator may explicitly authorize one local-VM acquisition.",
+    "amendment_rule": "This is a distinct successor experiment, not a revision or retroactive repair. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision."
+  },
+  "evidence_boundary": {
+    "admitted_prior_result": "EXP-0069 only as recorded in docs/PROVENANCE.md: DateCreated and LvProp correlations were no_outcome, LastUpdated was resolved, and the page groups were necessity-only. No prior MDB, producer JSON, unrecorded endpoint pattern, or post-hoc byte inspection is an experiment input.",
+    "not_composition_evidence": "EXP-0069 is not treated as sufficiency or composition evidence. The new composed candidate and its DAO observation are generated only under this plan from fresh checkpoints.",
+    "claims": "A successful result may establish only bounded sufficiency of the complete observed empty-to-created group reconstruction for this scenario and these read-only endpoints. It cannot establish a minimal group set, general encoding, Rust writer correctness, compatibility, support, or support-matrix movement."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "d089975e2680382d79dbb578270e0d094a88bfc292146e452e2391c962c04c58",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "f5ed1b5d04f632ef20483aa6526e51693a7ea9a0170821f869ea93faf0534381",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "42ead0007ff899b7f586cdc897b2e037a8d155931f8ec48988c46c16701b26c3",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "70ae2742df55835069eb9c52e4e20bea219a7a6752b65d88d46addc9e40a72c9",
+    "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "e6fd1f4ed9c6e0585b5080401f1343403396106b44840c42e2cf347fc9594806",
+    "oracle/windows-dao/scripts/bootstrap_layout.py": "201bfb20a8cca779a69c866a27d871d5931a8e9180624c46578ea242a83cfc12"
+  },
+  "basis": {
+    "EXP-0058": "Dynamic catalog-root discovery, catalog-owned page 18 in the observed controls, table record identifier to table-definition correlation, and the bounded catalog row fields recorded there.",
+    "EXP-0059": "Table-definition chain and owned/free map locator meanings.",
+    "EXP-0061": "OLE Date encoding and external long-value header, LVAL owner, and bounded row-directory structure only.",
+    "EXP-0065": "Only its preregistered Q1/Q2 facts: empty page count and tags, page append sequence, global-map transitions, and changed byte ranges.",
+    "EXP-0069": "Only its validated, additive result as described by evidence_boundary; its necessity results are controls and are not admitted as composition evidence."
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": "For each independent replica, create one fresh dbVersion30 CP1252 database, capture it closed, create one empty table named BootstrapLayout with one Long field named Id, capture it closed, wait exactly two seconds, rename it to BootstrapRenamed, and capture it closed. Only after that renamed checkpoint, add one DAO-visible custom Memo property named Jet3BootstrapProbe whose value is a deterministic replica-specific 768-character CP1252 marker, then capture the separate property-set checkpoint.",
+    "checkpoints": [
+      "empty",
+      "created",
+      "renamed",
+      "property-set"
+    ],
+    "isolation": "The property-set checkpoint is downstream of renamed. Its custom property and all resulting bytes are excluded from the empty-to-created mutation groups, the composed candidate, and the sufficiency leg.",
+    "bounds": {
+      "maximum_pages_per_database": 64,
+      "maximum_table_definitions": 128,
+      "maximum_catalog_rows": 512,
+      "maximum_lvprop_bytes": 65536,
+      "maximum_variants_per_replica": 64,
+      "maximum_replicas": 3,
+      "maximum_clock_separation_seconds": 2,
+      "timestamp_anchor_window_bytes": 64,
+      "lvprop_marker_characters": 768
+    },
+    "capture": "Close and release every DAO object before each MDB copy or hash. Retain four closed checkpoints, bounded semantic metadata, the existing preregistered control ablations, and one composed candidate per replica. MDBs remain external."
+  },
+  "questions": {
+    "Q1": {
+      "title": "DateCreated and LvProp correlations",
+      "date_created": "Scan the renamed image for exact little-endian OLE Date bytes returned by DAO. Accept a unique whole-image match, or, when the DateCreated bytes repeat, accept exactly one match within plus or minus 64 absolute file bytes of exactly one LastUpdated match. Any other candidate count, equal DAO timestamps, replica disagreement, or out-of-window attribution is no_outcome.",
+      "timestamp_ablation": "If and only if a timestamp correlation resolves, retain the EXP-0068 valid-OLE-Date-zero ablation and bounded read-only endpoints. These controls do not broaden the EXP-0069 necessity claim.",
+      "lvprop": "Read Name and LvProp through one temporary, non-persisted DAO QueryDef using WITH OWNERACCESS OPTION after the property-set checkpoint. Correlate the exact bounded DAO-visible LvProp payload to one complete EXP-0061 single-page LVAL row and one derived external header. Missing permission, null/empty payload, non-single-page storage, ambiguity, or replica disagreement is no_outcome.",
+      "separation": "LvProp evidence comes only from property-set. No property-set byte participates in Q2."
+    },
+    "Q2": {
+      "title": "Complete-group composed-image sufficiency",
+      "composition": "Allocate a new byte array at the created-checkpoint length; copy only the empty checkpoint bytes into its prefix; then apply source bytes for every exact page-0 empty-to-created range, every exact changed range on pre-existing pages 1 through empty_page_count-1, and every complete appended page. Do not copy the created file as the candidate.",
+      "independent_check": "The pinned analyzer independently repeats the range application and requires the reconstruction to equal the created checkpoint byte for byte. Equality is only a completeness/integrity check on the preregistered construction, not an input or a compatibility claim.",
+      "dao_observation": "Run the composed candidate once through OpenDatabase read-only, TableDefs enumeration for BootstrapLayout, exact Id/Long field enumeration, and an empty snapshot open. Hash immediately before and after DAO access.",
+      "answer": "All endpoints passing with an unchanged hash in all replicas is observed_sufficient for this bounded complete-group reconstruction. A consistent endpoint failure with unchanged hashes is not_observed_sufficient. Any repair, replica disagreement, baseline failure, or incomplete reconstruction is no_outcome or validation rejection according to the decision rule."
+    }
+  },
+  "controls": {
+    "baseline": "An exact created-checkpoint clone must pass the same endpoints with an unchanged hash in every replica.",
+    "necessity_repetition": "Retain the EXP-0068 page-0 and per-existing/appended-page leave-one-out controls as execution-integrity controls. They remain necessity-only and cannot establish sufficiency or a minimal set.",
+    "endpoint_contract": [
+      "OpenDatabase read-only",
+      "TableDefs enumeration finds exactly the checkpoint's target table",
+      "field enumeration finds exactly Id as Long",
+      "open the target table as an empty snapshot"
+    ]
+  },
+  "decision_rule": {
+    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three fresh replicas, controls, and composed candidates run once; files, hashes, bounds, checkpoint separation, page/range containment, independent reconstruction, and result shape validate; and the analyzer emits one deterministic accepted report. An accepted report may contain either observed_sufficient or not_observed_sufficient.",
+    "no_outcome": "Unresolved DateCreated or LvProp correlation, replica disagreement, a baseline endpoint failure, a post-access hash change, a partial producer failure after acquisition starts, or an otherwise intact but non-decisive observation is reported honestly as no_outcome.",
+    "rejected": "A plan/input digest mismatch, malformed or missing checkpoint, bound violation, property contamination of the created candidate, page/range mismatch, incomplete reconstruction, unexpected variant, file digest mismatch, or result-shape failure rejects validation.",
+    "retry": "This plan authorizes no run by itself. A later explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "minimal mutation-set claims",
+    "general timestamp or LvProp encoding beyond the bounded controls",
+    "user rows",
+    "user indexes",
+    "relationships",
+    "free-page reuse",
+    "extended allocation maps",
+    "general long-value allocation or thresholds",
+    "public Rust API expansion",
+    "Rust publication or I/O",
+    "hosted write differential #102",
+    "compatibility or support claims"
+  ]
+}

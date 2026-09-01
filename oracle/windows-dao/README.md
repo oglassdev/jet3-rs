@@ -20,10 +20,11 @@ The retained tooling has three purposes:
   gating as the read differential.
 - `acquisition/bootstrap-layout.plan.json` retains the consumed acquisition
   rejected by `EXP-0067`; `acquisition/bootstrap-layout-floor.plan.json`,
-  `scripts/dev/BootstrapLayout.DevJob.ps1`, and
-  `scripts/bootstrap_layout.py` define the development-only local-VM
-  floor-corrected preregistration that blocks the next narrow creation slice
-  in #100.
+  consumed by `EXP-0069`, also remains immutable.
+  `acquisition/bootstrap-layout-sufficiency.plan.json`,
+  `scripts/dev/BootstrapLayout.DevJob.ps1`, and `scripts/bootstrap_layout.py`
+  define the active development-only local-VM successor for the unresolved
+  correlations and bounded all-groups sufficiency question in #100.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.

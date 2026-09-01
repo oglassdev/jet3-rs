@@ -6351,6 +6351,73 @@ Use `not applicable` explicitly rather than omitting a field.
   identities, exact mutation reconstruction, and deterministic canonical
   report checked; focused bootstrap analyzer and pin-contract tests must pass
 
+### EXP-0070 — Preregistered local bootstrap-correlation and sufficiency successor
+
+- Recorded: 2026-08-31, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or format observation has occurred under this plan
+- Question: For three fresh replicas, can the unresolved `EXP-0069`
+  DateCreated and LvProp correlations be resolved under bounded, independently
+  checked rules, and is a candidate assembled from the complete observed
+  empty-to-created mutation groups sufficient for the four bounded read-only
+  DAO endpoints?
+- Origin: project-authored clean-room successor using the exact basis admitted
+  by `EXP-0068` plus only the validated, additive `EXP-0069` result recorded
+  above. No prior MDB, producer JSON, unrecorded endpoint pattern, corrected
+  projection, or post-hoc byte inspection is an experiment input, and
+  `EXP-0069` is not treated as composition or sufficiency evidence.
+- Protocol: create three independent fresh `dbVersion30` replicas once. For
+  DateCreated, admit either one exact whole-image OLE Date match or exactly one
+  match in the fixed plus-or-minus-64-byte window around one exact LastUpdated
+  match. After the property-free empty, created, and renamed checkpoints, add
+  one deterministic 768-character custom DAO Memo property and capture a
+  separate `property-set` checkpoint; read `MSysObjects` through one temporary
+  `WITH OWNERACCESS OPTION` QueryDef and require one exact `EXP-0061`
+  single-page LvProp row/header correlation. The downstream property checkpoint
+  cannot contribute bytes to the created-state sufficiency candidate.
+- Sufficiency protocol: allocate a new created-length byte array, copy only the
+  empty checkpoint into its prefix, and apply every exact page-0 and existing-
+  page empty-to-created changed range plus every complete appended page. The
+  producer does not copy the created file as the candidate. The pinned analyzer
+  independently repeats the application and uses byte equality with the
+  created checkpoint solely as a completeness and integrity check, then
+  validates the candidate's once-only DAO endpoint result and unchanged hash.
+  The `EXP-0068` leave-one-out variants are repeated only as execution-integrity
+  controls and cannot broaden the necessity claims already recorded by
+  `EXP-0069`.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/bootstrap-layout-sufficiency.plan.json`,
+  SHA-256
+  `0fc3e3447fb60b14fa6fca3ec89152ccc364165f9f74933b509d534da3d2d00b`.
+  The plan pins the host client, provider probe, guest runner, dispatcher,
+  publisher, producer, and host analyzer. The host and guest reject plan or
+  staged-input digest mismatches before the first DAO mutation.
+- Observation: `preregistration.acquisition_started` is `false`. Committing the
+  plan does not authorize acquisition. After review and merge, one explicit
+  human authorization is required for one local-VM run. No new MDB, provider
+  output, canonical report, or scientific result exists.
+- Decision rule: a validated, replica-consistent, unchanged-hash endpoint pass
+  reports `observed_sufficient` only for this complete-group scenario. A
+  consistent unchanged-hash endpoint failure reports
+  `not_observed_sufficient`. Unresolved correlation, repair, baseline failure,
+  replica disagreement, or an otherwise intact non-decisive result is an
+  honest `no_outcome`; integrity and shape defects reject validation. There is
+  no automatic retry after the first DAO mutation.
+- Interpretation: this entry fixes a bounded acquisition and analysis contract
+  only. It establishes no format fact, minimal mutation set, general timestamp
+  or LvProp encoding, Rust writer correctness, compatibility, support result,
+  or support-matrix movement.
+- Usage:
+  `file:oracle/windows-dao/acquisition/bootstrap-layout-sufficiency.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/bootstrap_layout.py`;
+  `file:docs/LOCAL_WINDOWS_VM.md`; issue `#100`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent evidence-boundary, checkpoint-isolation,
+  plan-pin, producer, analyzer, sufficiency-negative-control, and no-retry
+  review before merge and local acquisition
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
