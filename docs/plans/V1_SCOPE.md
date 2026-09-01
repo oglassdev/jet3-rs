@@ -30,9 +30,8 @@ delivered in this order:
   commit.
 - Every format constant in `crates/jet3` cites a provenance entry.
 
-`scripts/acceptance.sh full` and the G0–G8 gate set in
-`docs/validation/ACCEPTANCE.md` are to be reduced to the three gates above
-(tracked as an issue).
+`docs/validation/ACCEPTANCE.md` describes these gates and the
+`scripts/acceptance.sh` checks that cover them.
 
 ## Explicitly out of v1
 
