@@ -81,6 +81,23 @@ pub(crate) fn plan_existing_page(
     Ok(PlannedPage { number, image })
 }
 
+/// Pairs exactly 20 complete images with existing slots 0 through 19.
+///
+/// The fixed-size input makes every slot valid by construction. As with
+/// [`plan_existing_page`], the images are moved through without inspection or
+/// any assignment of bootstrap semantics.
+pub(crate) fn plan_existing_pages(
+    images: [PageImage; EMPTY_DATABASE_PAGE_COUNT as usize],
+) -> impl ExactSizeIterator<Item = PlannedPage> {
+    images
+        .into_iter()
+        .enumerate()
+        .map(|(number, image)| PlannedPage {
+            number: PageNumber::new(number as u64),
+            image,
+        })
+}
+
 /// Structured failure while planning one fresh page append.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AppendPageError {
