@@ -19,7 +19,9 @@ REPLICA_COUNT = 3
 MAX_PAGES = 64
 MAX_ITEMS = 64
 MAX_JSON_BYTES = 1024 * 1024
-CHECKPOINT_NAMES = ("empty", "created", "renamed")
+TIMESTAMP_ANCHOR_WINDOW_BYTES = 64
+BASE_CHECKPOINT_NAMES = ("empty", "created", "renamed")
+CHECKPOINT_NAMES = (*BASE_CHECKPOINT_NAMES, "property-set")
 CORRELATION_NAMES = ("date_created", "date_updated", "lvprop")
 ENDPOINT_NAMES = (
     "open_database",
@@ -27,6 +29,18 @@ ENDPOINT_NAMES = (
     "field_enumerated",
     "table_opened",
 )
+VALID_ENDPOINT_FRONTIERS = {
+    tuple(index < reached for index in range(len(ENDPOINT_NAMES)))
+    for reached in range(len(ENDPOINT_NAMES) + 1)
+}
+ARTIFACT_OBSERVATION_FIELDS = {
+    "database",
+    "size_before",
+    "size_after",
+    "sha256_before",
+    "sha256_after",
+    "endpoints",
+}
 VARIANT_KINDS = {
     "candidate_page0",
     "candidate_date_created",
@@ -179,12 +193,16 @@ def _ranges(
     return result
 
 
-def _endpoints(value: dict[str, Any], location: str) -> dict[str, bool]:
+def _endpoint_frontier(value: Any, location: str) -> dict[str, bool]:
+    if not isinstance(value, dict):
+        raise AnalysisError(f"{location} must be an object")
     result: dict[str, bool] = {}
     for name in ENDPOINT_NAMES:
         if name not in value or type(value[name]) is not bool:
             raise AnalysisError(f"{location}.{name} must be boolean")
         result[name] = value[name]
+    if tuple(result.values()) not in VALID_ENDPOINT_FRONTIERS:
+        raise AnalysisError(f"{location} is not a reachable DAO endpoint frontier")
     return result
 
 
@@ -198,6 +216,85 @@ def _read_file(root: Path, database: str, size: int, digest: str, location: str)
     if sha256(data) != digest:
         raise AnalysisError(f"{location}.database digest differs from metadata")
     return data
+
+
+def _artifact_observation_contract(
+    value: Any,
+    location: str,
+    *,
+    required: set[str] | None = None,
+    optional: set[str] | None = None,
+) -> tuple[dict[str, Any], dict[str, bool]]:
+    item = _expect_keys(
+        value,
+        ARTIFACT_OBSERVATION_FIELDS | (required or set()),
+        {"detail"} | (optional or set()),
+        location,
+    )
+    endpoint_item = _expect_keys(
+        item["endpoints"], set(ENDPOINT_NAMES), {"detail"}, f"{location}.endpoints"
+    )
+    endpoints = _endpoint_frontier(endpoint_item, f"{location}.endpoints")
+    if "detail" in endpoint_item:
+        _detail(endpoint_item["detail"], f"{location}.endpoints.detail")
+    if "detail" in item:
+        _detail(item["detail"], f"{location}.detail")
+    return item, endpoints
+
+
+def _artifact_observation(
+    value: Any,
+    location: str,
+    root: Path,
+    *,
+    expected_before: bytes,
+    required: set[str] | None = None,
+    optional: set[str] | None = None,
+) -> dict[str, Any]:
+    item, endpoints = _artifact_observation_contract(
+        value, location, required=required, optional=optional
+    )
+    database = _database(item["database"], f"{location}.database")
+    size_before = _size(item["size_before"], f"{location}.size_before")
+    size_after = _size(item["size_after"], f"{location}.size_after")
+    before = _digest(item["sha256_before"], f"{location}.sha256_before")
+    after = _digest(item["sha256_after"], f"{location}.sha256_after")
+    if size_before != len(expected_before) or before != sha256(expected_before):
+        raise AnalysisError(f"{location} pre-open snapshot differs from its expected image")
+    current = _read_file(root, database, size_after, after, location)
+    repaired = size_before != size_after or before != after
+    if not repaired and current != expected_before:
+        raise AnalysisError(f"{location} unchanged snapshot differs from its expected image")
+    return {
+        "endpoints": endpoints,
+        "repaired": repaired,
+        "sha256": before,
+    }
+
+
+def _partial_artifact_observation(
+    value: Any,
+    location: str,
+    root: Path,
+    *,
+    expected_before: bytes | None,
+) -> dict[str, Any] | None:
+    item, _ = _artifact_observation_contract(value, location)
+    identity = [
+        item[name]
+        for name in (
+            "database",
+            "size_before",
+            "size_after",
+            "sha256_before",
+            "sha256_after",
+        )
+    ]
+    if all(part is None for part in identity):
+        return None
+    if any(part is None for part in identity) or expected_before is None:
+        raise AnalysisError(f"{location} has incomplete artifact snapshots")
+    return _artifact_observation(item, location, root, expected_before=expected_before)
 
 
 def _dao(value: Any, checkpoint: str, location: str) -> dict[str, Any]:
@@ -311,17 +408,51 @@ def _reported_date_correlation(
     location: str,
     renamed: bytes,
     oadate: float | None,
-    other: float | None,
+    *,
+    distinct_from: float | None,
+    last_updated_anchor: float | None,
+    allow_last_updated_anchor: bool,
 ) -> dict[str, Any]:
-    item = _expect_keys(value, {"status", "detail"}, {"offsets"}, location)
+    if allow_last_updated_anchor != (last_updated_anchor is not None):
+        raise AnalysisError(f"{location} has an invalid timestamp-correlation policy")
+    item = _expect_keys(value, {"status", "detail"}, {"method", "offsets"}, location)
     _detail(item["detail"], f"{location}.detail")
     matches = [] if oadate is None else _find_all(renamed, struct.pack("<d", oadate))
-    resolved = oadate is not None and other is not None and oadate != other and len(matches) == 1
+    resolved_matches = matches
+    method = "unique_exact"
+    distinct_anchor = (
+        oadate is not None
+        and distinct_from is not None
+        and oadate != distinct_from
+    )
+    usable_anchor = (
+        distinct_anchor
+        and last_updated_anchor is not None
+        and oadate != last_updated_anchor
+    )
+    if allow_last_updated_anchor and usable_anchor and len(matches) != 1:
+        anchors = _find_all(renamed, struct.pack("<d", last_updated_anchor))
+        if len(anchors) == 1:
+            resolved_matches = [
+                offset
+                for offset in matches
+                if abs(offset - anchors[0]) <= TIMESTAMP_ANCHOR_WINDOW_BYTES
+            ]
+            method = "last_updated_anchor"
+    resolved = (
+        oadate is not None
+        and distinct_anchor
+        and len(resolved_matches) == 1
+    )
     if resolved:
-        if item["status"] != "resolved" or item.get("offsets") != matches:
+        if (
+            item["status"] != "resolved"
+            or item.get("method") != method
+            or item.get("offsets") != resolved_matches
+        ):
             raise AnalysisError(f"{location} differs from independently scanned OADate bytes")
-        return {"offsets": matches, "status": "resolved"}
-    if item["status"] != "no_outcome" or "offsets" in item:
+        return {"method": method, "offsets": resolved_matches, "status": "resolved"}
+    if item["status"] != "no_outcome" or "offsets" in item or "method" in item:
         raise AnalysisError(f"{location} must be no_outcome for ambiguous OADate bytes")
     return {"status": "no_outcome"}
 
@@ -391,28 +522,31 @@ def _baseline(
     value: Any,
     location: str,
     root: Path,
-    created: dict[str, Any],
     created_bytes: bytes,
 ) -> dict[str, Any]:
-    item = _expect_keys(
-        value,
-        {"database", "sha256_before_open", "sha256_after_open", *ENDPOINT_NAMES},
-        {"detail"},
-        location,
-    )
-    database = _database(item["database"], f"{location}.database")
-    before = _digest(item["sha256_before_open"], f"{location}.sha256_before_open")
-    after = _digest(item["sha256_after_open"], f"{location}.sha256_after_open")
-    if "detail" in item:
-        _detail(item["detail"], f"{location}.detail")
-    endpoints = _endpoints(item, location)
-    current = _read_file(root, database, created["size"], after, location)
-    if before != created["sha256"]:
-        raise AnalysisError(f"{location} pre-open hash differs from the created checkpoint")
-    repaired = before != after
-    if not repaired and current != created_bytes:
-        raise AnalysisError(f"{location} is not an exact created-checkpoint clone")
-    return {"endpoints": endpoints, "repaired": repaired}
+    return _artifact_observation(value, location, root, expected_before=created_bytes)
+
+
+def _sufficiency(
+    value: Any,
+    location: str,
+    root: Path,
+    empty_bytes: bytes,
+    created: dict[str, Any],
+    created_bytes: bytes,
+    page0_ranges: list[dict[str, int]],
+    groups: list[dict[str, Any]],
+) -> dict[str, Any]:
+    expected = bytearray(created["size"])
+    expected[: len(empty_bytes)] = empty_bytes
+    for group in [{"ranges": page0_ranges}, *groups]:
+        for part in group["ranges"]:
+            start, end = part["start"], part["end"]
+            expected[start:end] = created_bytes[start:end]
+    expected_bytes = bytes(expected)
+    if expected_bytes != created_bytes:
+        raise AnalysisError(f"{location} mutation groups do not reconstruct the created checkpoint")
+    return _artifact_observation(value, location, root, expected_before=expected_bytes)
 
 
 def _groups(
@@ -447,13 +581,13 @@ def _page0(
     location: str,
 ) -> tuple[dict[str, int], dict[str, list[dict[str, int]]], bool]:
     values_item = _expect_keys(
-        values_raw, set(CHECKPOINT_NAMES), set(), f"{location}.page0_values"
+        values_raw, set(BASE_CHECKPOINT_NAMES), set(), f"{location}.page0_values"
     )
     values = {
         name: _integer(values_item[name], f"{location}.page0_values.{name}", 0, 255)
-        for name in CHECKPOINT_NAMES
+        for name in BASE_CHECKPOINT_NAMES
     }
-    for name in CHECKPOINT_NAMES:
+    for name in BASE_CHECKPOINT_NAMES:
         if images[name][1538] != values[name]:
             raise AnalysisError(f"{location}.page0_values.{name} differs from checkpoint")
     ranges_item = _expect_keys(
@@ -489,56 +623,38 @@ def _page0(
 def _parse_variant(
     value: Any,
     location: str,
-    root: Path,
     maximum: int,
     page_count: int,
-) -> tuple[dict[str, Any], bytes]:
-    required = {
+) -> dict[str, Any]:
+    variant_fields = {
         "name",
         "kind",
-        "database",
-        "size",
         "base_checkpoint",
         "ranges",
-        "sha256_before_open",
-        "sha256_after_open",
-        "endpoints",
     }
-    item = _expect_keys(value, required, {"page", "detail"}, location)
+    item = _expect_keys(
+        value,
+        variant_fields | ARTIFACT_OBSERVATION_FIELDS,
+        {"page", "detail"},
+        location,
+    )
     if item["kind"] not in VARIANT_KINDS:
         raise AnalysisError(f"{location}.kind is not preregistered")
     if item["base_checkpoint"] not in ("created", "renamed"):
         raise AnalysisError(f"{location}.base_checkpoint must be created or renamed")
-    database = _database(item["database"], f"{location}.database")
-    size = _size(item["size"], f"{location}.size")
-    if size != maximum:
-        raise AnalysisError(f"{location}.size differs from its checkpoint size")
-    before = _digest(item["sha256_before_open"], f"{location}.sha256_before_open")
-    after = _digest(item["sha256_after_open"], f"{location}.sha256_after_open")
     page = None
     if "page" in item:
         page = _integer(item["page"], f"{location}.page", 0, page_count - 1)
     ranges = _ranges(item["ranges"], f"{location}.ranges", maximum=maximum, page=page)
-    endpoints_item = _expect_keys(
-        item["endpoints"], set(ENDPOINT_NAMES), {"detail"}, f"{location}.endpoints"
-    )
-    endpoints = _endpoints(endpoints_item, f"{location}.endpoints")
-    if "detail" in endpoints_item:
-        _detail(endpoints_item["detail"], f"{location}.endpoints.detail")
-    if "detail" in item:
-        _detail(item["detail"], f"{location}.detail")
-    data = _read_file(root, database, size, after, location)
     return {
         "base_checkpoint": item["base_checkpoint"],
-        "database": database,
-        "endpoints": endpoints,
+        "database": item["database"],
         "kind": item["kind"],
         "name": _name(item["name"], f"{location}.name"),
         "page": page,
         "ranges": ranges,
-        "repaired": before != after,
-        "sha256": before,
-    }, data
+        "raw": item,
+    }
 
 
 def _apply_source(base: bytes, source: bytes | None, ranges: list[dict[str, int]]) -> bytes:
@@ -559,8 +675,8 @@ def _validate_complete_replica(
     item: dict[str, Any], root: Path, location: str
 ) -> dict[str, Any]:
     raw_checkpoints = item["checkpoints"]
-    if not isinstance(raw_checkpoints, list) or len(raw_checkpoints) != 3:
-        raise AnalysisError(f"{location}.checkpoints must contain exactly three entries")
+    if not isinstance(raw_checkpoints, list) or len(raw_checkpoints) != 4:
+        raise AnalysisError(f"{location}.checkpoints must contain exactly four entries")
     checkpoints: dict[str, dict[str, Any]] = {}
     images: dict[str, bytes] = {}
     databases: set[str] = set()
@@ -577,11 +693,14 @@ def _validate_complete_replica(
         raise AnalysisError(f"{location}.created is shorter than empty")
     if checkpoints["renamed"]["size"] != checkpoints["created"]["size"]:
         raise AnalysisError(f"{location}.renamed size differs from created")
+    if checkpoints["property-set"]["size"] < checkpoints["renamed"]["size"]:
+        raise AnalysisError(f"{location}.property-set is shorter than renamed")
     baseline = _baseline(
-        item["baseline"], f"{location}.baseline", root, checkpoints["created"], images["created"]
+        item["baseline"], f"{location}.baseline", root, images["created"]
     )
 
     renamed_dao = checkpoints["renamed"]["dao"]
+    property_dao = checkpoints["property-set"]["dao"]
     created_size = checkpoints["created"]["size"]
     page_count = checkpoints["created"]["page_count"]
     correlations_item = _expect_keys(
@@ -595,20 +714,24 @@ def _validate_complete_replica(
             f"{location}.correlations.date_created",
             images["renamed"],
             created_date,
-            updated_date,
+            distinct_from=updated_date,
+            last_updated_anchor=updated_date,
+            allow_last_updated_anchor=True,
         ),
         "date_updated": _reported_date_correlation(
             correlations_item["date_updated"],
             f"{location}.correlations.date_updated",
             images["renamed"],
             updated_date,
-            created_date,
+            distinct_from=created_date,
+            last_updated_anchor=None,
+            allow_last_updated_anchor=False,
         ),
         "lvprop": _reported_lvprop_correlation(
             correlations_item["lvprop"],
             f"{location}.correlations.lvprop",
-            images["renamed"],
-            renamed_dao,
+            images["property-set"],
+            property_dao,
         ),
     }
     page0_values, page0_ranges, page0_isolated = _page0(
@@ -657,14 +780,24 @@ def _validate_complete_replica(
         if group["ranges"] != expected:
             raise AnalysisError(f"{location}.appended_page_groups must cover complete pages")
 
+    sufficiency = _sufficiency(
+        item["sufficiency"],
+        f"{location}.sufficiency",
+        root,
+        images["empty"],
+        checkpoints["created"],
+        images["created"],
+        page0_ranges["empty_to_created"],
+        changed + appended,
+    )
+
     raw_variants = item["variants"]
     if not isinstance(raw_variants, list) or not 1 <= len(raw_variants) <= MAX_ITEMS:
         raise AnalysisError(f"{location}.variants must contain 1 through {MAX_ITEMS} entries")
-    variants_with_data = [
-        _parse_variant(raw, f"{location}.variants[{index}]", root, created_size, page_count)
+    variants = [
+        _parse_variant(raw, f"{location}.variants[{index}]", created_size, page_count)
         for index, raw in enumerate(raw_variants)
     ]
-    variants = [pair[0] for pair in variants_with_data]
     if len({variant["name"] for variant in variants}) != len(variants):
         raise AnalysisError(f"{location}.variants repeats a name")
     by_kind = {
@@ -717,24 +850,29 @@ def _validate_complete_replica(
         ):
             raise AnalysisError(f"{location}.{variant['name']} differs from its mutation group")
 
-    data_by_name = {variant["name"]: data for variant, data in variants_with_data}
-    for variant in variants:
+    for index, variant in enumerate(variants):
         kind = variant["kind"]
         expected_base = "renamed" if kind.startswith("candidate_date_") else "created"
         if variant["base_checkpoint"] != expected_base:
             raise AnalysisError(f"{location}.{variant['name']} has the wrong base checkpoint")
         source = images["empty"] if kind in ("candidate_page0", "revert_existing_page") else None
         expected = _apply_source(images[expected_base], source, variant["ranges"])
-        if sha256(expected) != variant["sha256"]:
-            raise AnalysisError(f"{location}.{variant['name']} differs outside its declared mutation")
-        if not variant["repaired"] and data_by_name[variant["name"]] != expected:
-            raise AnalysisError(f"{location}.{variant['name']} differs outside its declared mutation")
+        observation = _artifact_observation(
+            variant["raw"],
+            f"{location}.variants[{index}]",
+            root,
+            expected_before=expected,
+            required={"name", "kind", "base_checkpoint", "ranges"},
+            optional={"page"},
+        )
+        variant.update(observation)
         if variant["sha256"] == checkpoints[expected_base]["sha256"]:
             raise AnalysisError(f"{location}.{variant['name']} did not mutate its base checkpoint")
 
     summarized = [
         {
             "base_checkpoint": variant["base_checkpoint"],
+            "endpoints": variant["endpoints"],
             "kind": variant["kind"],
             "name": variant["name"],
             "outcome": _variant_outcome(variant),
@@ -761,6 +899,7 @@ def _validate_complete_replica(
         "page0_values": page0_values,
         "replica": item["replica"],
         "status": "pass",
+        "sufficiency": sufficiency,
         "variants": summarized,
     }
 
@@ -769,8 +908,8 @@ def _validate_partial_replica(
     item: dict[str, Any], root: Path, location: str
 ) -> dict[str, Any]:
     raw = item.get("checkpoints", [])
-    if not isinstance(raw, list) or len(raw) > 3:
-        raise AnalysisError(f"{location}.checkpoints must contain at most three entries")
+    if not isinstance(raw, list) or len(raw) > 4:
+        raise AnalysisError(f"{location}.checkpoints must contain at most four entries")
     checkpoints: dict[str, dict[str, Any]] = {}
     images: dict[str, bytes] = {}
     databases: set[str] = set()
@@ -783,34 +922,13 @@ def _validate_partial_replica(
         databases.add(checkpoint["database"])
 
     if "baseline" in item:
-        baseline = _expect_keys(
+        _partial_artifact_observation(
             item["baseline"],
-            {"database", "sha256_before_open", "sha256_after_open", *ENDPOINT_NAMES},
-            {"detail"},
             f"{location}.baseline",
+            root,
+            expected_before=images.get("created"),
         )
-        _endpoints(baseline, f"{location}.baseline")
-        if "detail" in baseline:
-            _detail(baseline["detail"], f"{location}.baseline.detail")
-        identity = [
-            baseline["database"],
-            baseline["sha256_before_open"],
-            baseline["sha256_after_open"],
-        ]
-        if all(value is None for value in identity):
-            pass
-        elif any(value is None for value in identity):
-            raise AnalysisError(f"{location}.baseline has incomplete file identity")
-        else:
-            if "created" not in checkpoints:
-                raise AnalysisError(f"{location}.baseline lacks its created checkpoint")
-            _baseline(
-                item["baseline"],
-                f"{location}.baseline",
-                root,
-                checkpoints["created"],
-                images["created"],
-            )
+    page0_ranges: dict[str, list[dict[str, int]]] | None = None
     has_page0 = "page0_values" in item or "page0_changed_ranges" in item
     if has_page0:
         values = item.get("page0_values")
@@ -822,7 +940,7 @@ def _validate_partial_replica(
         else:
             if not {"empty", "created", "renamed"} <= set(checkpoints):
                 raise AnalysisError(f"{location}.page0 evidence lacks all checkpoints")
-            _page0(values, ranges, images, location)
+            _, page0_ranges, _ = _page0(values, ranges, images, location)
 
     correlations: dict[str, dict[str, Any]] | None = None
     if "correlations" in item:
@@ -839,20 +957,24 @@ def _validate_partial_replica(
                     f"{location}.correlations.date_created",
                     images["renamed"],
                     created_date,
-                    updated_date,
+                    distinct_from=updated_date,
+                    last_updated_anchor=updated_date,
+                    allow_last_updated_anchor=True,
                 ),
                 "date_updated": _reported_date_correlation(
                     raw_correlations["date_updated"],
                     f"{location}.correlations.date_updated",
                     images["renamed"],
                     updated_date,
-                    created_date,
+                    distinct_from=created_date,
+                    last_updated_anchor=None,
+                    allow_last_updated_anchor=False,
                 ),
                 "lvprop": _reported_lvprop_correlation(
                     raw_correlations["lvprop"],
                     f"{location}.correlations.lvprop",
-                    images["renamed"],
-                    dao,
+                    images.get("property-set", b""),
+                    checkpoints.get("property-set", {}).get("dao"),
                 ),
             }
         else:
@@ -861,11 +983,15 @@ def _validate_partial_replica(
                 correlation = _expect_keys(
                     raw_correlations[name],
                     {"status", "detail"},
-                    {"offsets"},
+                    {"method", "offsets"},
                     f"{location}.correlations.{name}",
                 )
                 _detail(correlation["detail"], f"{location}.correlations.{name}.detail")
-                if correlation["status"] != "no_outcome" or "offsets" in correlation:
+                if (
+                    correlation["status"] != "no_outcome"
+                    or "offsets" in correlation
+                    or "method" in correlation
+                ):
                     raise AnalysisError(
                         f"{location}.correlations.{name} needs a renamed checkpoint"
                     )
@@ -930,6 +1056,33 @@ def _validate_partial_replica(
             ]:
                 raise AnalysisError(f"{location}.{group['name']} does not cover its full page")
 
+    if "sufficiency" in item:
+        if not {"empty", "created"} <= set(checkpoints) or page0_ranges is None:
+            _partial_artifact_observation(
+                item["sufficiency"],
+                f"{location}.sufficiency",
+                root,
+                expected_before=None,
+            )
+        else:
+            expected = bytearray(checkpoints["created"]["size"])
+            expected[: len(images["empty"])] = images["empty"]
+            for group in [{"ranges": page0_ranges["empty_to_created"]}, *changed, *appended]:
+                for part in group["ranges"]:
+                    start, end = part["start"], part["end"]
+                    expected[start:end] = images["created"][start:end]
+            if bytes(expected) != images["created"]:
+                raise AnalysisError(
+                    f"{location}.sufficiency mutation groups do not reconstruct "
+                    "the created checkpoint"
+                )
+            _partial_artifact_observation(
+                item["sufficiency"],
+                f"{location}.sufficiency",
+                root,
+                expected_before=bytes(expected),
+            )
+
     if "variants" in item:
         raw_variants = item["variants"]
         if not isinstance(raw_variants, list) or len(raw_variants) > MAX_ITEMS:
@@ -940,11 +1093,10 @@ def _validate_partial_replica(
         page_count = (
             checkpoints["created"]["page_count"] if "created" in checkpoints else 1
         )
-        parsed = [
-            _parse_variant(raw_variant, f"{location}.variants[{index}]", root, maximum, page_count)
+        variants = [
+            _parse_variant(raw_variant, f"{location}.variants[{index}]", maximum, page_count)
             for index, raw_variant in enumerate(raw_variants)
         ]
-        variants = [pair[0] for pair in parsed]
         if len({variant["name"] for variant in variants}) != len(variants):
             raise AnalysisError(f"{location}.variants repeats a name")
         groups = {
@@ -955,7 +1107,7 @@ def _validate_partial_replica(
             )
             for group in entries
         }
-        for variant, current in parsed:
+        for index, variant in enumerate(variants):
             kind = variant["kind"]
             base = "renamed" if kind.startswith("candidate_date_") else "created"
             if variant["base_checkpoint"] != base or base not in images:
@@ -994,11 +1146,15 @@ def _validate_partial_replica(
                 if kind == "revert_existing_page" and source is None:
                     raise AnalysisError(f"{location}.{variant['name']} lacks the empty checkpoint")
             expected_bytes = _apply_source(images[base], source, variant["ranges"])
-            if sha256(expected_bytes) != variant["sha256"]:
-                raise AnalysisError(f"{location}.{variant['name']} differs outside its declared mutation")
-            if not variant["repaired"] and current != expected_bytes:
-                raise AnalysisError(f"{location}.{variant['name']} differs outside its declared mutation")
-            if variant["sha256"] == checkpoints[base]["sha256"]:
+            observation = _artifact_observation(
+                variant["raw"],
+                f"{location}.variants[{index}]",
+                root,
+                expected_before=expected_bytes,
+                required={"name", "kind", "base_checkpoint", "ranges"},
+                optional={"page"},
+            )
+            if observation["sha256"] == checkpoints[base]["sha256"]:
                 raise AnalysisError(f"{location}.{variant['name']} did not mutate its base checkpoint")
     return {
         "checkpoint_sha256": {
@@ -1020,6 +1176,7 @@ def _validate_replica(value: Any, root: Path, location: str) -> dict[str, Any]:
         "correlations",
         "changed_page_groups",
         "appended_page_groups",
+        "sufficiency",
         "variants",
     }
     item = _expect_keys(value, {"replica", "status", "detail"}, inventory, location)
@@ -1048,6 +1205,35 @@ def _aggregate(values: list[str], label: str) -> dict[str, Any]:
     return {"reason": f"replicas disagree for {label}", "status": "no_outcome"}
 
 
+def _aggregate_variant_observations(
+    observations: list[dict[str, Any]], label: str
+) -> dict[str, Any]:
+    endpoint_maps = [observation["endpoints"] for observation in observations]
+    if any(endpoints != endpoint_maps[0] for endpoints in endpoint_maps[1:]):
+        return {
+            "reason": f"replicas disagree on the DAO endpoint map for {label}",
+            "status": "no_outcome",
+        }
+    aggregate = _aggregate(
+        [observation["outcome"] for observation in observations], label
+    )
+    return {**aggregate, "endpoints": endpoint_maps[0]}
+
+
+def _resolved_correlation(
+    replicas: list[dict[str, Any]], field: str, unresolved_reason: str
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    correlations = [replica["correlations"][field] for replica in replicas]
+    if any(correlation["status"] != "resolved" for correlation in correlations):
+        return None, {"reason": unresolved_reason, "status": "no_outcome"}
+    if any(correlation != correlations[0] for correlation in correlations[1:]):
+        return None, {
+            "reason": f"replicas disagree on the {field} correlation evidence",
+            "status": "no_outcome",
+        }
+    return correlations[0], None
+
+
 def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> dict[str, Any]:
     complete = all(replica["complete"] for replica in replicas)
     if not complete:
@@ -1057,15 +1243,16 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
             for name in (
                 "candidate_page0",
                 "candidate_catalog_fields",
+                "composed_image_sufficiency",
                 "required_mutation_groups",
             )
         }
     else:
         page0 = (
-            _aggregate(
+            _aggregate_variant_observations(
                 [
                     next(
-                        variant["outcome"]
+                        variant
                         for variant in replica["variants"]
                         if variant["kind"] == "candidate_page0"
                     )
@@ -1084,29 +1271,38 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
             ("date_created", "candidate_date_created"),
             ("date_updated", "candidate_date_updated"),
         ):
-            if any(replica["correlations"][field]["status"] == "no_outcome" for replica in replicas):
-                fields[field] = {
-                    "reason": "at least one replica did not resolve the correlation",
-                    "status": "no_outcome",
-                }
+            correlation, no_outcome = _resolved_correlation(
+                replicas,
+                field,
+                "at least one replica did not resolve the correlation",
+            )
+            if no_outcome is not None:
+                fields[field] = no_outcome
             else:
-                fields[field] = _aggregate(
-                    [
-                        next(
-                            variant["outcome"]
-                            for variant in replica["variants"]
-                            if variant["kind"] == kind
-                        )
-                        for replica in replicas
-                    ],
-                    field,
-                )
+                observations = [
+                    next(
+                        variant
+                        for variant in replica["variants"]
+                        if variant["kind"] == kind
+                    )
+                    for replica in replicas
+                ]
+                fields[field] = {
+                    **_aggregate_variant_observations(observations, field),
+                    "evidence": correlation,
+                }
+        lvprop_correlation, lvprop_no_outcome = _resolved_correlation(
+            replicas,
+            "lvprop",
+            "at least one replica did not resolve the structural correlation",
+        )
         fields["lvprop"] = (
-            {"outcome": "resolved", "status": "answered"}
-            if all(replica["correlations"]["lvprop"]["status"] == "resolved" for replica in replicas)
+            lvprop_no_outcome
+            if lvprop_no_outcome is not None
             else {
-                "reason": "at least one replica did not resolve the structural correlation",
-                "status": "no_outcome",
+                "evidence": lvprop_correlation,
+                "outcome": "resolved",
+                "status": "answered",
             }
         )
         catalog = {
@@ -1134,24 +1330,58 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
                     }
                     groups_status = "no_outcome"
                     continue
-                outcomes = [
+                observations = [
                     next(
-                        variant["outcome"]
+                        variant
                         for variant in replica["variants"]
                         if variant["name"] == name
                     )
                     for replica in replicas
                 ]
-                aggregate = _aggregate(outcomes, name)
+                aggregate = _aggregate_variant_observations(observations, name)
                 groups[name] = {**definitions[0], **aggregate}
                 if aggregate["status"] == "no_outcome":
                     groups_status = "no_outcome"
         mutation_groups: dict[str, Any] = {"groups": groups, "status": groups_status}
         if groups_reason:
             mutation_groups["reason"] = groups_reason
+        baseline_failed = any(
+            replica["baseline"]["repaired"]
+            or not all(replica["baseline"]["endpoints"].values())
+            for replica in replicas
+        )
+        endpoint_maps = [replica["sufficiency"]["endpoints"] for replica in replicas]
+        if baseline_failed:
+            sufficiency = {
+                "reason": "at least one created baseline failed or changed during DAO open",
+                "status": "no_outcome",
+            }
+        elif any(endpoints != endpoint_maps[0] for endpoints in endpoint_maps[1:]):
+            sufficiency = {
+                "reason": "replicas disagree on the composed-image DAO endpoint map",
+                "status": "no_outcome",
+            }
+        else:
+            sufficiency = {
+                **_aggregate(
+                    [
+                        "no_outcome"
+                        if replica["sufficiency"]["repaired"]
+                        else (
+                            "observed_sufficient"
+                            if all(replica["sufficiency"]["endpoints"].values())
+                            else "not_observed_sufficient"
+                        )
+                        for replica in replicas
+                    ],
+                    "composed_image_sufficiency",
+                ),
+                "endpoints": endpoint_maps[0],
+            }
         questions = {
             "candidate_catalog_fields": catalog,
             "candidate_page0": page0,
+            "composed_image_sufficiency": sufficiency,
             "required_mutation_groups": mutation_groups,
         }
 
@@ -1185,6 +1415,10 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
                 "page0_values": replica["page0_values"],
                 "replica": replica["replica"],
                 "status": "pass",
+                "sufficiency": {
+                    "endpoints": replica["sufficiency"]["endpoints"],
+                    "repaired": replica["sufficiency"]["repaired"],
+                },
                 "variants": replica["variants"],
             }
         )
@@ -1201,6 +1435,11 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
         or any(question["status"] == "no_outcome" for question in questions.values())
     ):
         status = "no_outcome"
+    bounded_sufficiency = (
+        status == "accepted"
+        and questions["composed_image_sufficiency"].get("outcome")
+        == "observed_sufficient"
+    )
     return {
         "compatibility_claim": False,
         "development_only": True,
@@ -1209,7 +1448,7 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
         "questions": questions,
         "replicas": summaries,
         "status": status,
-        "sufficiency_claim": False,
+        "sufficiency_claim": bounded_sufficiency,
         "support_movement": False,
     }
 
