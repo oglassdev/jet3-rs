@@ -6816,7 +6816,7 @@ Use `not applicable` explicitly rather than omitting a field.
   external long-value page to Note's owned map.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/long-value-maps.plan.json`, SHA-256
-  `defacc3bee5e48e3865088998e69d71159bee94c1826df8bfaf1b34ec6eb6b69`.
+  `5b2fc593ddfaaa303c37e885d68ab1964e99779593f307ea3bfb702a4c0621d9`.
   The plan pins the host client, provider probe, guest runner, dispatcher,
   publisher, producer, and analyzer. Host and guest reject any plan or staged
   input mismatch before the first DAO mutation.
@@ -6825,8 +6825,9 @@ Use `not applicable` explicitly rather than omitting a field.
   explicit human authorization is required for one local-VM run.
 - Decision rule: H5 is `answered` only if all three replicas complete all
   three checkpoints once, their decoded suffixes and page roles agree, every
-  empty page is assigned, `Gamma.Note` has the predicted single group, and
-  its owned-map transition identifies an external long-value page. Replica
+  Memo or LongBinary column has exactly one group, every empty page is
+  assigned, `Gamma.Note` has the predicted single group, and its newly added
+  owned-map pages equal Gamma's newly appearing long-value pages. Replica
   failure, disagreement, decode failure, or a missing prediction is an honest
   `no_outcome`; digest, bound, result-shape, or checkpoint defects reject
   validation. There is no automatic retry after the first DAO mutation.

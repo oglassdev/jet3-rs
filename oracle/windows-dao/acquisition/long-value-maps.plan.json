@@ -23,7 +23,7 @@
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "48a5967e9b92d37742af805462c68b062b649a2cac42544f2791e7b9b1542030",
     "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "e858eac6424a4a7f271dc16f4d726e997e9066502d008021f4997ad190c502a8",
     "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1": "673445d0987e47e92512fb7cf2ad1bc485910193a5a9f9f8555ef87b6d4e99a1",
-    "oracle/windows-dao/scripts/system_catalog.py": "28c8adf7847919f9e7e5a2b5f949a3b3850a80c041bfcb76da458be67bf50505"
+    "oracle/windows-dao/scripts/system_catalog.py": "99413dc51472ed6eb09520f9996c32505574b9681e0f5cb582c2b0c711e4a4f4"
   },
   "execution": {
     "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
@@ -55,8 +55,8 @@
   },
   "decision_rule": {
     "accepted": "The plan and staged inputs match their SHA-256 pins; the provider is ready; all three replicas complete all three checkpoints once; bounds and file digests validate; and the analyzer emits one deterministic report with H5 answered.",
-    "answered": "H5 is answered only if the decoded observations and page roles are identical across all three replicas and every preregistered prediction is observed.",
-    "no_outcome": "A replica failure or disagreement, decode failure, unassigned empty page, missing or malformed Gamma.Note suffix group, or absence of the predicted owned-map transition is recorded as no_outcome.",
+    "answered": "H5 is answered only if the decoded observations and page roles are identical across all three replicas, every Memo or LongBinary column has exactly one suffix group at every checkpoint, and the pages newly added to Gamma.Note's owned map equal the Gamma long-value pages newly appearing after insertion.",
+    "no_outcome": "A replica failure or disagreement, decode failure, unassigned empty page, missing or extra long-value-column suffix group, malformed Gamma.Note group, or mismatch between the owned-map additions and newly appearing Gamma long-value pages is recorded as no_outcome.",
     "rejected": "A plan or input digest mismatch, malformed result, bound violation, file digest mismatch, or checkpoint-order defect rejects validation.",
     "retry": "One explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
   },

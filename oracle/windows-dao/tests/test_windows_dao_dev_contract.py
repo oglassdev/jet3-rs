@@ -496,7 +496,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(plan["execution"]["bounds"]["maximum_checkpoints"], 3)
         self.assertEqual(
             CLIENT.verified_plan_sha256(CLIENT.plan_binding("long-value-maps")),
-            "defacc3bee5e48e3865088998e69d71159bee94c1826df8bfaf1b34ec6eb6b69",
+            "5b2fc593ddfaaa303c37e885d68ab1964e99779593f307ea3bfb702a4c0621d9",
         )
 
     def test_bootstrap_detail_normalization_covers_failure_and_repair_surfaces(self) -> None:

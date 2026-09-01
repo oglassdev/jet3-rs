@@ -1378,6 +1378,11 @@ def _long_value_observation(analysis: dict[str, Any]) -> dict[str, Any]:
     tables = []
     for root in sorted(analysis["tables"]):
         table = analysis["tables"][root]
+        expected_columns = [
+            {"column": column["ordinal"], "column_name": column["name"]}
+            for column in table["definition"]["columns"]
+            if column["type"] in ("Memo", "LongBinary")
+        ]
         mappings = []
         for mapping in table["definition"]["long_value_maps"]:
             mappings.append(
@@ -1402,9 +1407,18 @@ def _long_value_observation(analysis: dict[str, Any]) -> dict[str, Any]:
         tables.append(
             {
                 "long_value_maps": mappings,
+                "long_value_columns": expected_columns,
                 "long_value_pages": table["long_value_pages"],
                 "name": table["name"],
                 "root": root,
+                "suffix_complete": expected_columns
+                == [
+                    {
+                        "column": mapping["column"],
+                        "column_name": mapping["column_name"],
+                    }
+                    for mapping in mappings
+                ],
             }
         )
     return {
@@ -1473,17 +1487,28 @@ def build_long_value_report(
                 and table_maps[0]["available"] == row_maps[0]["available"]
             )
             added_owned = sorted(set(row_maps[0]["owned_pages"]) - set(table_maps[0]["owned_pages"])) if grammar else []
-            external_pages = gamma_row["long_value_pages"]
-            map_tracks_external = bool(set(added_owned) & set(external_pages))
+            added_long_value_pages = sorted(
+                set(gamma_row["long_value_pages"])
+                - set(gamma_table["long_value_pages"])
+            )
+            complete_suffixes = all(
+                entry["suffix_complete"]
+                for checkpoint in (empty, table, row)
+                for entry in checkpoint["tables"]
+            )
+            map_tracks_external = bool(added_owned) and added_owned == added_long_value_pages
             predictions = {
                 "all_empty_pages_assigned": empty["unassigned_pages"] == [],
+                "all_long_value_columns_have_one_suffix_group": complete_suffixes,
                 "gamma_note_has_one_suffix_group": grammar,
+                "gamma_new_long_value_pages": added_long_value_pages,
                 "note_owned_map_added_pages": added_owned,
                 "note_owned_map_tracks_external_long_value_page": map_tracks_external,
             }
             if not all(
                 (
                     predictions["all_empty_pages_assigned"],
+                    complete_suffixes,
                     grammar,
                     map_tracks_external,
                 )
