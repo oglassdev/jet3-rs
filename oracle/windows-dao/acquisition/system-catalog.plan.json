@@ -1,0 +1,95 @@
+{
+  "document_type": "dao_system_catalog_plan",
+  "experiment_id": "system_catalog_semantics",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Decode the semantic content of every page of a fresh DAO-created Jet 3 database and of the bounded transitions that add a table, a second indexed table, a saved query, and a relationship, so that a writer can later generate the bootstrap image from semantics rather than from copied bytes.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_result": "EXP-0071",
+    "authorization": "No acquisition is authorized by committing this plan. After review and merge, the human operator may explicitly authorize one local-VM acquisition.",
+    "amendment_rule": "This is a distinct experiment. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision."
+  },
+  "evidence_boundary": {
+    "admitted_prior_results": "EXP-0051 (global map record on page 1, set bit means not in use), EXP-0057 (table and index map locators), EXP-0058 (catalog root discovery and bounded catalog row fields), EXP-0059 (table-definition grammar for user tables), EXP-0060 (data-page row directory and row layout), EXP-0061 (OLE Date encoding, external long-value header, LVAL owner), EXP-0065 Q1/Q2 (20-page empty image and append sequence), EXP-0069 and EXP-0071 (necessity groups and the page-18 DateCreate/DateUpdate offsets). No prior MDB, producer JSON, or post-hoc byte inspection is an experiment input.",
+    "dao_limits": "The local provider has no workgroup information file. DAO therefore refuses system-table definition and row reads and every security operation. System-table structure is decoded from DAO-created bytes under the pinned hypotheses below and correlated only with DAO-visible names, attributes, timestamps, query text, and relationship fields.",
+    "claims": "A successful result establishes bounded observations about the system tables, page roles, system rows, and transition attributions of this scenario. It cannot establish Rust writer correctness, a minimal bootstrap image, compatibility, support, or support-matrix movement."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "f8442d2f048255e417fbf64c4f2e3a8ba0f5010fc04e06f3a5f1257a8073ae0c",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "e548fe306c584751933086be9ff19f6a4c71bba63abdfef3e7476c4417c6c16d",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "0779eae34ca099cb306f90df718b51e5f6d810d7a581ebe5a7b8f637a596c612",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "800fca442f18a5b716a1d7cfb6a95eb0a6753b26059dc22cbab56dca4d315a68",
+    "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1": "53d9cf7cef83795d4448e7de8d8810c61c2a693ad8085ca6ccec9ea5abb0f44f",
+    "oracle/windows-dao/scripts/system_catalog.py": "0d87adfd791d4d885093a41933d3dff2e5742f4c790df7add11f06470d0f4aa1"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": [
+      "Create one fresh dbVersion30 CP1252 database and capture it closed as `empty`.",
+      "Create table `Alpha` with one Long field `Id` and no index; capture closed as `table1`.",
+      "Create table `Beta` with Long field `Id` and Text(50) field `Name`, and a primary-key index `PrimaryKey` on `Id`; capture closed as `table2`.",
+      "Create a saved QueryDef `QueryOne` with SQL `SELECT Id FROM Alpha;`; capture closed as `query`.",
+      "Create relation `BetaAlpha` from parent `Beta`.`Id` to child `Alpha`.`Id` with no cascade attributes; capture closed as `relationship`."
+    ],
+    "checkpoints": [
+      "empty",
+      "table1",
+      "table2",
+      "query",
+      "relationship"
+    ],
+    "dao_metadata": "At every checkpoint, after reopening the closed file read-only, record for each TableDef its Name, Attributes, DateCreated, and LastUpdated as OLE Date doubles; for each Container its Name and Owner and each Document's Name and Owner; for each QueryDef its Name, SQL, DateCreated, and LastUpdated; for each Relation its Name, Table, ForeignTable, Attributes, and field pairs; and for each database Property its Name, Type, and a bounded string of its Value. Any refused read is recorded verbatim as a per-item error rather than failing the checkpoint.",
+    "capture": "Close and release every DAO object before each MDB copy or hash. Retain the five closed checkpoints per replica as external files with recorded sizes and SHA-256 digests. MDBs remain external.",
+    "bounds": {
+      "maximum_pages_per_database": 64,
+      "maximum_checkpoints": 5,
+      "maximum_replicas": 3,
+      "maximum_tables": 16,
+      "maximum_columns_per_table": 64,
+      "maximum_rows_per_page": 64,
+      "maximum_property_value_characters": 256,
+      "maximum_json_bytes": 4194304
+    }
+  },
+  "hypotheses": {
+    "H1_system_definition_grammar": "Pages 2-5 decode under the EXP-0059 grammar with exactly three relaxations: header byte 20 is 0x53 instead of 0x4e, column-record bytes [7,9) are 0 instead of 1, and column-record bytes [5,7) are 0 instead of repeating the ordinal. Column class bytes may carry the additional bit 0x10 relative to the EXP-0059 classes and Binary variable columns may carry 0x32; the class byte is recorded raw and storage follows class & 7. Header bytes [12,16) are the table's little-endian row count, and bytes [4,8) of each eight-byte physical-index prefix are that index's little-endian distinct-key count, which equals the row count only for unique indexes. The raw definition suffix is recorded but not interpreted.",
+    "H2_page_roles": "Every page of a checkpoint is assigned exactly one role from the decoded structures: 0 header; 1 global map; catalog-referenced definition roots and their continuations; data pages named by owned maps; map-row pages named by table and index map locators; index root pages named by physical-index records; long-value pages by the LVAL owner; anything else is `unassigned`. A page reachable only through the uninterpreted definition suffix is expected to remain `unassigned` under this plan.",
+    "H3_system_rows": "Data pages owned by a system table decode under EXP-0060 with the H1 column schema. MSysObjects rows carry Id, ParentId, Name, Type, Flags, DateCreate, and DateUpdate; every DAO Document, TableDef, QueryDef, and Relation name correlates to exactly one row, and DAO DateCreated and LastUpdated equal DateCreate and DateUpdate where DAO exposes them. MSysACEs rows carry ObjectId, SID, ACM, and FInheritable and reference catalog Ids. MSysQueries and MSysRelationships rows correlate to the saved query and relation.",
+    "H4_transition_attribution": "Every changed byte range between consecutive checkpoints falls inside one decoded structure: a row-directory entry or row of an identified table, a definition header row count, an index prefix entry count, a map bitmap, a global-map bitmap, page-0 range [1538,1539), an index page owned by an identified index, or an appended page with an assigned role. Ranges outside every decoded structure are reported as `unattributed`."
+  },
+  "questions": {
+    "Q1": "Do all four system table definitions decode identically in every replica and every checkpoint under H1, apart from the row-count and index-count fields, and what are their columns, indexes, and map locators?",
+    "Q2": "Is every page of every checkpoint assigned exactly one role under H2, identically across replicas, and which pages remain unassigned?",
+    "Q3": "Do the system rows decode under H3 with every DAO-visible object correlated to exactly one MSysObjects row, and what are the observed Type, Flags, and ParentId values per object class?",
+    "Q4": "Is every transition range attributed under H4, and which ranges remain unattributed?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three replicas complete every checkpoint once; files, digests, and bounds validate; and the analyzer emits one deterministic report in which each question is `answered` or `no_outcome`.",
+    "answered": "A question is answered only when its observation is identical across all three replicas modulo timestamp values and the bytes EXP-0059 already marks as varying.",
+    "no_outcome": "Replica disagreement, a decode failure under a pinned hypothesis, a DAO correlation that resolves to zero or several rows, or any unassigned page or unattributed range that differs between replicas is reported as `no_outcome` for that question with a verbatim reason.",
+    "rejected": "A plan or input digest mismatch, a malformed or missing checkpoint, a bound violation, a file digest mismatch, or a result-shape failure rejects validation.",
+    "retry": "This plan authorizes no run by itself. A later explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "user rows",
+    "index key encodings beyond identifying index pages",
+    "long-value content beyond identifying LVAL pages",
+    "free-page reuse and extended allocation maps",
+    "workgroup security semantics",
+    "Rust writer changes",
+    "public Rust API expansion",
+    "hosted write differential #102",
+    "compatibility or support claims"
+  ]
+}

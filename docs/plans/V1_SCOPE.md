@@ -44,11 +44,12 @@ delivered in this order:
 
 ## Current next step
 
-Continue #100 from EXP-0071. The validated local bootstrap-sufficiency run
-resolved the DateCreated and LastUpdated byte targets and observed that one
-complete-group reconstruction of the created image satisfies the bounded
-read-only DAO endpoints, but LvProp remains unresolved because DAO refused
-`MSysObjects` reads. The next writer step is the crate-private bootstrap
-composer over the observed page groups, with the LvProp leg deferred to a
-distinct preregistration. #102 is the separate hosted write differential
-after database creation is complete.
+Continue #100 from EXP-0071 through the preregistered EXP-0072
+system-catalog semantics experiment. Its single authorized local-VM run must
+decode the four system table definitions, assign every page of the empty
+image a role, decode the system rows, and attribute the byte ranges changed
+by adding a table, an indexed table, a saved query, and a relationship.
+DAO on the local VM has no workgroup file and cannot read system tables
+itself, so that evidence is the only route to a bootstrap composer that
+generates the image from semantics. #102 is the separate hosted write
+differential after database creation is complete.

@@ -6540,6 +6540,77 @@ Use `not applicable` explicitly rather than omitting a field.
   composed-candidate reconstruction, and verbatim LvProp failure detail
   checked
 
+
+### EXP-0072 — Preregistered local system-catalog semantics experiment
+
+- Recorded: 2026-09-01, Claude Fable 5.1
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or format observation has occurred under this plan
+- Question: For three fresh replicas, do the four system table definitions,
+  every page of the empty image, the system rows, and the byte ranges changed
+  by adding one table, one indexed table, one saved query, and one
+  relationship decode under bounded pinned hypotheses, identically across
+  replicas and correlated to DAO-visible names, attributes, timestamps, query
+  text, and relationship fields?
+- Origin: project-authored clean-room experiment using only `EXP-0051`,
+  `EXP-0057`, `EXP-0058`, `EXP-0059`, `EXP-0060`, `EXP-0061`, `EXP-0065`
+  Q1/Q2, `EXP-0069`, and `EXP-0071` as recorded above. The local provider has
+  no workgroup information file, so DAO refuses system-table definition and
+  row reads; the plan therefore decodes DAO-created bytes under pinned
+  hypotheses and correlates only what DAO exposes. Interactive discovery on
+  retained `EXP-0071` checkpoints shaped the hypotheses but is not an
+  experiment input.
+- Protocol: create three independent fresh `dbVersion30` replicas once. Per
+  replica capture five closed checkpoints: `empty`; `table1` after creating
+  `Alpha` with one Long `Id`; `table2` after creating `Beta` with Long `Id`,
+  Text(50) `Name`, and primary key `PrimaryKey`; `query` after saving
+  QueryDef `QueryOne` (`SELECT Id FROM Alpha;`); and `relationship` after
+  appending relation `BetaAlpha` from `Beta`.`Id` to `Alpha`.`Id`. At each
+  checkpoint record bounded DAO metadata for TableDefs, Containers and
+  Documents, QueryDefs, Relations, and database Properties, recording refused
+  reads verbatim per item, and re-hash after the read-only metadata open.
+- Hypotheses: H1, the `EXP-0059` grammar decodes system definitions with
+  exactly three relaxations (header byte 20 `0x53`, column constant `[7,9)`
+  zero, column ordinal repeat `[5,7)` zero), the class byte recorded raw,
+  header `[12,16)` as row count, each physical-index prefix `[4,8)` as
+  distinct-key count, and the definition suffix recorded raw. H2, every page takes exactly
+  one role derived from decoded structures or is `unassigned`. H3, system
+  rows decode under `EXP-0060` with the H1 schema and every DAO-visible name
+  correlates to exactly one `MSysObjects` row. H4, every changed range between
+  consecutive checkpoints lies inside one decoded structure or is
+  `unattributed`.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/system-catalog.plan.json`, SHA-256
+  `92d89772633c859baac50664cdc920d6d96cea8c78c9512297993f74f2f9c532`. The plan pins the host client, provider probe, guest
+  runner, dispatcher, publisher, producer, and host analyzer. The host and
+  guest reject plan or staged-input digest mismatches before the first DAO
+  mutation.
+- Observation: `preregistration.acquisition_started` is `false`. Committing
+  the plan does not authorize acquisition. After review and merge, one
+  explicit human authorization is required for one local-VM run. No new MDB,
+  provider output, canonical report, or scientific result exists.
+- Decision rule: each of Q1--Q4 is `answered` only when its observation is
+  identical across all three replicas modulo timestamp values and the bytes
+  `EXP-0059` already marks as varying; replica disagreement, a decode failure
+  under a pinned hypothesis, a zero-or-several DAO correlation, or an
+  unassigned page or unattributed range that differs between replicas is an
+  honest `no_outcome` for that question. Digest, bound, shape, or checkpoint
+  defects reject validation. There is no automatic retry after the first DAO
+  mutation.
+- Interpretation: this entry fixes a bounded acquisition and analysis
+  contract only. It establishes no format fact, Rust writer correctness,
+  minimal bootstrap image, compatibility, support result, or support-matrix
+  movement.
+- Usage: future separately reviewed issue `#100` writer-bootstrap work;
+  `file:oracle/windows-dao/acquisition/system-catalog.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/system_catalog.py`;
+  `file:docs/LOCAL_WINDOWS_VM.md`; issue `#100`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent evidence-boundary, hypothesis, plan-pin,
+  producer, analyzer, and no-retry review before merge and local acquisition
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
