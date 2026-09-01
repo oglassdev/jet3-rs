@@ -46,6 +46,7 @@ pub mod text;
 pub mod usage_map;
 pub mod usage_map_writer;
 pub mod value;
+mod whole_file_plan;
 
 pub use allocation::{
     AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
