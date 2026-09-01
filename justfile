@@ -67,3 +67,7 @@ windows-dev-index:
 # Run the preregistered writer-bootstrap layout experiment in the local VM.
 windows-dev-bootstrap-layout:
     "{{PYTHON}}" scripts/windows-dao-dev.py bootstrap-layout --timeout 900
+
+# Run one ad-hoc PowerShell script under x86 DAO in the local VM (discovery only).
+windows-dev-ps script *args:
+    "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}

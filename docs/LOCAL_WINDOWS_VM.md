@@ -98,6 +98,19 @@ sufficiency. Honest `no_outcome` results are retained without retry. The job
 does not test user rows, user indexes, relationships, publication by Rust, or
 DAO interoperability.
 
+## Interactive discovery loop
+
+`just windows-dev-ps <script.ps1> [--with <file>]...` stages one local
+PowerShell script (plus any extra files) in the shared inbox, runs it under
+x86 Windows PowerShell on the guest's local disk, and prints its log inline.
+The script sees `$env:JET3_WORK` (guest working directory) and
+`$env:JET3_OUTBOX` (shared outbox directory for MDBs or JSON to bring back).
+Pair it with `jet3-cli inspect <file> [--rows]` and
+`jet3-cli inspect <file> --page <n> --hex` on the returned MDBs to decode
+pages, catalog records, table definitions, owned pages, and rows through the
+reader. Both are development aids for sharpening a hypothesis before it is
+pinned into a preregistered plan; nothing they produce is evidence.
+
 Outputs under the external `shared/outbox/` directory are marked
 `development_only`. They are disposable diagnostics, not release evidence, and
 must not be committed or redistributed.

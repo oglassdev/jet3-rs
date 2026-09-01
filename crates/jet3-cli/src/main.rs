@@ -13,6 +13,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod inspect;
 mod snapshot;
 
 use jet3::{
@@ -77,6 +78,7 @@ enum Command {
     Version,
     Probe(ProbeOptions),
     Snapshot(snapshot::SnapshotCommand),
+    Inspect(inspect::InspectCommand),
 }
 
 fn main() -> ExitCode {
@@ -88,7 +90,10 @@ fn main() -> ExitCode {
     };
 
     match command {
-        Command::Help => exit_after_write(write_stdout(&format!("{HELP}{}", snapshot::HELP)), 0),
+        Command::Help => exit_after_write(
+            write_stdout(&format!("{HELP}{}\n{}", snapshot::HELP, inspect::HELP)),
+            0,
+        ),
         Command::Version => exit_after_write(
             write_stdout(&format!("jet3-cli {}\n", env!("CARGO_PKG_VERSION"))),
             0,
@@ -98,6 +103,10 @@ fn main() -> ExitCode {
             Err(code) => exit_after_write(write_stderr(&error_json(code)), 1),
         },
         Command::Snapshot(command) => match snapshot::run(&command) {
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(message) => exit_after_write(write_stderr(&format!("jet3-cli: {message}\n")), 1),
+        },
+        Command::Inspect(command) => match inspect::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(message) => exit_after_write(write_stderr(&format!("jet3-cli: {message}\n")), 1),
         },
@@ -117,6 +126,9 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     }
     if first == "snapshot" {
         return snapshot::parse_args(arguments).map(Command::Snapshot);
+    }
+    if first == "inspect" {
+        return inspect::parse_args(arguments).map(Command::Inspect);
     }
     if first != "probe" {
         return Err("unknown_command");
