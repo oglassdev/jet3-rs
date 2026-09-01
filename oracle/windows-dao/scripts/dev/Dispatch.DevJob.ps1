@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -48,6 +48,7 @@ $scriptPath = switch ($Job) {
     "bootstrap-layout" { $BootstrapLayoutJobPath }
     "system-catalog" { $SystemCatalogJobPath }
     "long-value-maps" { $SystemCatalogJobPath }
+    "long-value-maps-followup" { $SystemCatalogJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -69,7 +70,7 @@ if ($Job -ceq "table-definition") {
 elseif ($Job -ceq "bootstrap-layout") {
     $arguments += @("-PlanSha256", $PlanSha256)
 }
-elseif ($Job -in @("system-catalog", "long-value-maps")) {
+elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId, "-Experiment", $Job)
 }
 & (Join-Path $PSHOME "powershell.exe") @arguments
@@ -83,6 +84,7 @@ $resultName = switch ($Job) {
     "bootstrap-layout" { "bootstrap-layout-job-result.json" }
     "system-catalog" { "system-catalog-job-result.json" }
     "long-value-maps" { "long-value-maps-job-result.json" }
+    "long-value-maps-followup" { "long-value-maps-followup-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -114,7 +116,7 @@ $indexScenarios = @()
 $bootstrapLayoutReplicas = @()
 $systemCatalogReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
-$detail = if ($Job -in @("system-catalog", "long-value-maps")) {
+$detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup")) {
     if ([string]$jobResult.status -ceq "pass") {
         "Completed all three system-catalog replicas once without retry."
     }
@@ -134,7 +136,7 @@ elseif ($Job -ceq "index") { $indexScenarios = @($jobResult.scenarios) }
 elseif ($Job -ceq "bootstrap-layout") {
     $bootstrapLayoutReplicas = @($jobResult.replicas)
 }
-elseif ($Job -in @("system-catalog", "long-value-maps")) {
+elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup")) {
     $systemCatalogReplicas = @($jobResult.replicas)
 }
 $result = [ordered]@{

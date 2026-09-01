@@ -33,6 +33,9 @@ The retained tooling has three purposes:
 - `acquisition/long-value-maps.plan.json` reuses that bounded producer and
   analyzer for the three-checkpoint EXP-0074 successor that tests per-column
   long-value map locators and assigns the final empty-image page role.
+- `acquisition/long-value-maps-followup.plan.json` pins the corrected H6
+  successor after EXP-0075: exact order-insensitive suffix coverage and the
+  per-column owned-page transition against global LVAL page roles.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.

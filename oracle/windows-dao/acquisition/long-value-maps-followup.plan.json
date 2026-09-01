@@ -1,0 +1,78 @@
+{
+  "document_type": "dao_long_value_maps_followup_plan",
+  "experiment_id": "long_value_column_maps_followup",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Resolve the two predicates that made EXP-0075 a no_outcome by testing exact order-insensitive suffix coverage and correlating Gamma.Note's owned-map additions with newly appearing globally identified long-value pages.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_result": "EXP-0075",
+    "authorization": "No acquisition is authorized by committing this plan. After review and merge, one explicit human authorization permits one local-VM acquisition.",
+    "amendment_rule": "This is a distinct immutable experiment, not a retry of EXP-0074. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision."
+  },
+  "evidence_boundary": {
+    "admitted_prior_results": "EXP-0051, EXP-0057, EXP-0059, EXP-0060, EXP-0061, EXP-0073, and the validated no_outcome EXP-0075 as recorded in docs/PROVENANCE.md.",
+    "correction_boundary": "EXP-0075 showed that MSysObjects suffix groups are not stored in ordinal order and that Gamma.Note owned pages are globally classified as long_value even though Gamma's table-owned map does not name them. H6 changes only those two failed comparisons: coverage becomes exact set equality, and the transition compares Note's owned additions with globally identified newly appearing long-value pages.",
+    "dao_limits": "The local provider has no workgroup information file. DAO system-table reads and permission operations are excluded; correlation is limited to DAO-visible table names, attributes, timestamps, and the effects of the experiment's own write.",
+    "claims": "A successful result establishes only the bounded H6 observations below. It cannot establish Rust writer correctness, compatibility, support, or support-matrix movement."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "d9e6e1b193ad49820a0420a5859431a3bd80dff3d9edfc0a4bb852aa06d8f3df",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "1467f1ff42223f78590501e831d66085a342ab79b0a5b2c4ba16eecf759511f2",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "7396a4e1c98c08e1baf3746d0fbf57c604fe5922e266552ecced27a035740734",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "13631649156db024dcf2c58fa420f4b8a0ddfef834dd530f7e92933680bc1418",
+    "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1": "297303d201af577c219411c77e2714671f1f14435c9ba84c473836c20e83fd82",
+    "oracle/windows-dao/scripts/system_catalog.py": "2614378d00a6ee6724282cd87112b08b12437140348cbaac019e22415257f733"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": [
+      "Create one fresh dbVersion30 CP1252 database and capture it closed as empty.",
+      "Create table Gamma with Long Id and Memo Note and capture it closed as table.",
+      "Insert exactly one row with Id 1 and a 4101-character Memo Note, long enough to require external storage, and capture it closed as row."
+    ],
+    "checkpoints": ["empty", "table", "row"],
+    "capture": "Close and release every DAO object before each copy or hash. Retain all nine MDB checkpoints externally with sizes and SHA-256 digests; commit none.",
+    "bounds": {
+      "maximum_pages_per_database": 64,
+      "maximum_checkpoints": 3,
+      "maximum_replicas": 3,
+      "maximum_tables": 16,
+      "maximum_columns_per_table": 64,
+      "maximum_rows_per_page": 64,
+      "maximum_property_value_characters": 256,
+      "maximum_json_bytes": 4194304
+    }
+  },
+  "hypotheses": {
+    "H6_corrected_long_value_maps": "Definition suffix groups form an exact order-insensitive one-to-one mapping with every Memo or LongBinary column. The locators assign every empty-image page. Gamma.Note carries exactly one group. Between table and row, the nonempty set of pages added to Note's owned map equals the set of globally identified long_value pages that newly appears, where the global role uses the EXP-0061 LVAL page signature and does not require Gamma's table-owned map to name those pages."
+  },
+  "questions": {
+    "H6": "Across all three replicas, does exact order-insensitive suffix coverage hold, does it assign every empty-image page, and do Gamma.Note's owned-map additions equal the newly appearing globally identified long-value pages?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and staged inputs match their SHA-256 pins; the provider is ready; all three replicas complete all three checkpoints once; bounds and file digests validate; and the analyzer emits one deterministic report with H6 answered.",
+    "answered": "H6 is answered only if observations and page roles agree across all replicas, every Memo or LongBinary column appears exactly once regardless of group order, every empty page is assigned, Gamma.Note has one stable group, and its nonempty owned-map additions exactly equal newly appearing global long_value pages.",
+    "no_outcome": "A replica failure or disagreement, decode failure, unassigned empty page, missing or extra long-value-column group, malformed Gamma.Note group, empty transition, or mismatch between Note's owned additions and newly appearing global long_value pages is recorded as no_outcome.",
+    "rejected": "A plan or input digest mismatch, malformed result, bound violation, file digest mismatch, or checkpoint-order defect rejects validation.",
+    "retry": "One explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "long-value content interpretation",
+    "property-blob decoding",
+    "workgroup security semantics",
+    "Rust writer changes",
+    "public API expansion",
+    "compatibility or support claims"
+  ]
+}

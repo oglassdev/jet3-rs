@@ -10,7 +10,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$RunId,
 
-    [ValidateSet("system-catalog", "long-value-maps")]
+    [ValidateSet("system-catalog", "long-value-maps", "long-value-maps-followup")]
     [string]$Experiment = "system-catalog"
 )
 
@@ -584,7 +584,7 @@ function Invoke-Replica {
     try {
         New-Jet3Database -Path $workingPath
         [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "empty"))
-        if ($Experiment -ceq "long-value-maps") {
+        if ($Experiment -in @("long-value-maps", "long-value-maps-followup")) {
             New-GammaTable -Path $workingPath
             [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table"))
             Add-GammaLongMemoRow -Path $workingPath
@@ -636,6 +636,9 @@ foreach ($entry in $replicas) {
 $result = [ordered]@{
     document_type = if ($Experiment -ceq "long-value-maps") {
         "dao_long_value_maps_job_result"
+    }
+    elseif ($Experiment -ceq "long-value-maps-followup") {
+        "dao_long_value_maps_followup_job_result"
     }
     else { "dao_system_catalog_job_result" }
     development_only = $true

@@ -81,6 +81,13 @@ SYSTEM_CATALOG_ANALYZER = (
 LONG_VALUE_MAPS_PLAN = (
     ROOT / "oracle" / "windows-dao" / "acquisition" / "long-value-maps.plan.json"
 )
+LONG_VALUE_MAPS_FOLLOWUP_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "long-value-maps-followup.plan.json"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -97,6 +104,7 @@ ALLOWED_JOBS = (
     "bootstrap-layout",
     "system-catalog",
     "long-value-maps",
+    "long-value-maps-followup",
 )
 
 
@@ -140,6 +148,13 @@ def plan_binding(job: str) -> PlanBinding | None:
     if job == "long-value-maps":
         return PlanBinding(
             job, LONG_VALUE_MAPS_PLAN, SYSTEM_CATALOG_ANALYZER, "dao_long_value_maps_plan"
+        )
+    if job == "long-value-maps-followup":
+        return PlanBinding(
+            job,
+            LONG_VALUE_MAPS_FOLLOWUP_PLAN,
+            SYSTEM_CATALOG_ANALYZER,
+            "dao_long_value_maps_followup_plan",
         )
     return None
 
