@@ -19,8 +19,9 @@ pub(crate) const HELP: &str = "\
   jet3-cli inspect <file> --page <number> [--hex]
 
 inspect classifies every page, lists catalog records, decodes every
-table-definition page it finds (system tables included), and lists the pages
-each table owns. --rows also streams every row of every decoded table.
+catalogued table definition (system tables included), lists the pages each
+table owns, and names tag-02 pages no catalog record points at. --rows also
+streams every row of every decoded table.
 --page dumps one page's classification, and --hex adds its bytes.
 ";
 
@@ -140,21 +141,25 @@ fn inspect_database(
 ) -> Result<Value, String> {
     let page_count = database.geometry().page_count();
     let mut pages = Vec::new();
-    let mut definition_roots = Vec::new();
+    let mut definition_pages = Vec::new();
     let mut raw = [0u8; jet3::PAGE_BYTES];
     for number in 0..page_count {
         let classified = database
             .read_classified_page(PageNumber::new(number), &mut raw, budget)
             .map_err(|e| format!("page {number}: {e}"))?;
         if classified.kind() == PageKind::TableDefinition {
-            definition_roots.push(number);
+            definition_pages.push(number);
         }
         pages.push(json!({"page": number, "kind": format!("{:?}", classified.kind())}));
     }
 
     let mut catalog = Vec::new();
+    let mut roots = Vec::new();
     let mut cursor = database.catalog(budget).map_err(|e| e.to_string())?;
     while let Some(record) = cursor.next_record().map_err(|e| e.to_string())? {
+        if let Some(root) = record.table_definition() {
+            roots.push(root.get());
+        }
         catalog.push(json!({
             "id": format!("{:?}", record.id()),
             "kind": format!("{:?}", record.kind()),
@@ -167,7 +172,7 @@ fn inspect_database(
     drop(cursor);
 
     let mut tables = Vec::new();
-    for root in definition_roots {
+    for &root in &roots {
         let definition = match database.table_definition(PageNumber::new(root), budget) {
             Ok(definition) => definition,
             Err(error) => {
@@ -182,6 +187,11 @@ fn inspect_database(
         }
         tables.push(entry);
     }
+    // Continuation pages share the definition tag, so these are listed, not decoded.
+    let uncatalogued: Vec<u64> = definition_pages
+        .into_iter()
+        .filter(|page| !roots.contains(page))
+        .collect();
 
     Ok(json!({
         "file": command.path.display().to_string(),
@@ -189,6 +199,7 @@ fn inspect_database(
         "pages": pages,
         "catalog": catalog,
         "tables": tables,
+        "uncatalogued_definition_pages": uncatalogued,
     }))
 }
 

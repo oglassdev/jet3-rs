@@ -15,6 +15,7 @@ import base64
 import json
 import ntpath
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -89,6 +90,8 @@ def main() -> int:
     shared = Path(args.shared_root).expanduser().resolve()
     if not args.script.is_file():
         parser.error(f"script not found: {args.script}")
+    if not re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}", args.run_id):
+        parser.error("--run-id must match <UTC timestamp>-<lowercase-slug>")
 
     inbox = shared / "inbox" / args.run_id
     outbox = shared / "outbox" / args.run_id
