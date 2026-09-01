@@ -55,13 +55,29 @@ fn database_bytes(
     bytes[0x42..0x50].copy_from_slice(&[
         0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
     ]);
+    // One long-value map group per Memo or LongBinary column, reusing the
+    // two table map rows.
+    let raw_suffix: Vec<u8> = columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| {
+            matches!(
+                column.physical_type(),
+                ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
+            )
+        })
+        .flat_map(|(ordinal, _)| {
+            let [low, high] = (ordinal as u16).to_le_bytes();
+            [low, high, 0, MAP_PAGE as u8, 0, 0, 1, MAP_PAGE as u8, 0, 0]
+        })
+        .collect();
     let spec = TableDefinitionSpec {
         columns,
         physical_indexes: &[],
         indexes: &[],
         owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE as u64), 0),
         available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE as u64), 1),
-        raw_suffix: &[],
+        raw_suffix: &raw_suffix,
     };
     let mut budget = ResourceBudget::new(ResourceLimits::default());
     encode_table_definition(

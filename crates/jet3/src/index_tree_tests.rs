@@ -78,7 +78,15 @@ fn definition_with(columns: &[ColumnSpec], keys: &[(u16, bool)]) -> Vec<u8> {
     logical[9..13].copy_from_slice(&u32::MAX.to_le_bytes());
     logical[17..19].copy_from_slice(&[4, 4]);
     bytes.extend_from_slice(&logical);
-    bytes.extend_from_slice(&[3, b'I', b'd', b'x', 0xff, 0xff]);
+    bytes.extend_from_slice(&[3, b'I', b'd', b'x']);
+    for column in columns
+        .iter()
+        .filter(|column| matches!(column.physical_type, 11 | 12))
+    {
+        let [low, high] = column.ordinal.to_le_bytes();
+        bytes.extend_from_slice(&[low, high, 0, MAP_PAGE as u8, 0, 0, 1, MAP_PAGE as u8, 0, 0]);
+    }
+    bytes.extend_from_slice(&[0xff, 0xff]);
     let length = bytes.len() as u32;
     bytes[8..12].copy_from_slice(&length.to_le_bytes());
     bytes
@@ -128,7 +136,11 @@ fn database_with_definition(definition: &[u8]) -> Vec<u8> {
         0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
     ]);
     bytes[ROOT * PAGE_BYTES..ROOT * PAGE_BYTES + definition.len()].copy_from_slice(definition);
-    bytes[MAP_PAGE * PAGE_BYTES] = 1;
+    let map = &mut bytes[MAP_PAGE * PAGE_BYTES..(MAP_PAGE + 1) * PAGE_BYTES];
+    map[0] = 1;
+    map[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    map[10..12].copy_from_slice(&((PAGE_BYTES - 1) as u16).to_le_bytes());
+    map[12..14].copy_from_slice(&((PAGE_BYTES - 2) as u16).to_le_bytes());
     write_row_page(&mut bytes, ROW_PAGE, 4);
     bytes
 }
@@ -322,65 +334,6 @@ fn exact_depth_succeeds_and_one_over_is_resource_rejected() -> Result<(), Box<dy
             maximum: 1,
         })
     ));
-    Ok(())
-}
-
-#[test]
-fn key_inventory_is_typed_only_for_observed_encodings_and_other_bytes_are_lossless()
--> Result<(), Box<dyn std::error::Error>> {
-    let cases: &[(u8, u8, u16, &[u8], IndexKeyEncoding)] = &[
-        (1, 3, 1, &[0x7f, 0xff], IndexKeyEncoding::Boolean),
-        (2, 3, 1, &[0x7f, 0x7f], IndexKeyEncoding::Byte),
-        (3, 3, 2, &[0x7f, 0x80, 0], IndexKeyEncoding::Integer),
-        (4, 3, 4, &[0x7f, 0x80, 0, 0, 0], IndexKeyEncoding::Long),
-        (
-            5,
-            3,
-            8,
-            &[0x7f, 0x80, 0, 0, 0, 0, 0, 0, 0],
-            IndexKeyEncoding::Currency,
-        ),
-        (6, 3, 4, &[0x7f, 0x80, 0, 0, 0], IndexKeyEncoding::Single),
-        (
-            7,
-            3,
-            8,
-            &[0x7f, 0x80, 0, 0, 0, 0, 0, 0, 0],
-            IndexKeyEncoding::Double,
-        ),
-        (
-            8,
-            3,
-            8,
-            &[0x7f, 0xc0, 0, 0, 0, 0, 0, 0, 0],
-            IndexKeyEncoding::DateTime,
-        ),
-        (9, 2, 3, &[0x7f, 1, 2, 3, 3], IndexKeyEncoding::Binary),
-        (10, 2, 20, &[0x7f, 0x60, 0], IndexKeyEncoding::TextCollation),
-        (4, 3, 4, &[0], IndexKeyEncoding::Null),
-        (11, 2, 0, &[0xde, 0xad], IndexKeyEncoding::Unsupported),
-        (12, 2, 0, &[0xbe, 0xef], IndexKeyEncoding::Unsupported),
-        (15, 3, 16, &[0xca, 0xfe], IndexKeyEncoding::Unsupported),
-    ];
-    for (physical_type, class, size, raw_key, expected) in cases {
-        let mut bytes = database_bytes(*physical_type, *class, *size);
-        let entry = leaf_entry(raw_key, 0);
-        write_node(
-            &mut bytes,
-            NodeSpec {
-                page: INDEX_ROOT,
-                tag: 4,
-                previous: 0,
-                next: 0,
-                tail_child: 0,
-                prefix: &[],
-                entries: &[&entry],
-            },
-        );
-        let (tree, _) = traverse_with_limits(&bytes, limits(&bytes))?;
-        assert_eq!(tree.entries()[0].key().encoding(), *expected);
-        assert_eq!(tree.entries()[0].key().raw_bytes(), *raw_key);
-    }
     Ok(())
 }
 
@@ -796,3 +749,6 @@ fn invalid_row_reference_and_error_sources_remain_structured()
     assert!(plain.source().is_none());
     Ok(())
 }
+
+#[path = "index_tree_key_inventory_tests.rs"]
+mod key_inventory;

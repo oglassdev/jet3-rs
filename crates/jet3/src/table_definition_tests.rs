@@ -1,14 +1,16 @@
-use super::TableDefinitionError;
+use super::{TableDefinitionError, TableDefinitionKind};
 use crate::{
     AllocationTraversalError, ByteCount, ColumnPhysicalType, ColumnStorageClass, DatabaseReader,
-    Error, IndexDefinitionError, IndexDefinitionKind, IndexDirection, JET3_PAGE_SIZE, PageNumber,
-    ReadLimits, RelationshipSide, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+    Error, IndexDefinitionError, IndexDefinitionKind, IndexDirection, JET3_PAGE_SIZE,
+    LongValueMapError, PageNumber, ReadLimits, RelationshipSide, ResourceBudget, ResourceLimitKind,
+    ResourceLimits, SliceSource,
 };
 use std::error::Error as _;
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const ROOT: usize = 1;
 const MAP_PAGE: usize = 2;
+const MAP_ROWS: u16 = 4;
 const INDEX_ROOT: usize = 3;
 const CONTINUATION: usize = 4;
 const RELATED_ROOT: usize = 5;
@@ -16,6 +18,80 @@ const COLUMN_ONLY_OFFSET: usize = 43;
 const COLUMN_OFFSET: usize = 51;
 const PHYSICAL_OFFSET: usize = COLUMN_OFFSET + 18 + 3;
 const LOGICAL_OFFSET: usize = PHYSICAL_OFFSET + 39;
+const USER_MARKER: u8 = 0x4e;
+const SYSTEM_MARKER: u8 = 0x53;
+
+/// One column for [`build_definition`]: type, class, fixed offset, size, name.
+type ColumnSpec = (u8, u8, u16, u16, Vec<u8>);
+
+/// Builds a complete logical definition under either marker, deriving the
+/// variable counters, the marker-specific constant and ordinal repeat, and
+/// the header counts from the supplied records.
+fn build_definition(
+    marker: u8,
+    columns: &[ColumnSpec],
+    physical: &[[u8; 39]],
+    logical: &[([u8; 20], &[u8])],
+    suffix: &[u8],
+) -> Vec<u8> {
+    let mut bytes = definition_header(logical.len() as u16, physical.len() as u16);
+    bytes[20] = marker;
+    let variable_count = columns.iter().filter(|column| column.1 & 7 == 2).count() as u16;
+    bytes[21..23].copy_from_slice(&(columns.len() as u16).to_le_bytes());
+    bytes[23..25].copy_from_slice(&variable_count.to_le_bytes());
+    bytes[25..27].copy_from_slice(&(columns.len() as u16).to_le_bytes());
+    bytes.extend(std::iter::repeat_n(0, physical.len() * 8));
+    let mut variables_seen = 0_u16;
+    for (ordinal, (physical_type, class, fixed_offset, size, _)) in columns.iter().enumerate() {
+        let ordinal = ordinal as u16;
+        let mut record = column_record(*physical_type, *class, *fixed_offset, *size);
+        record[1..3].copy_from_slice(&ordinal.to_le_bytes());
+        if marker == SYSTEM_MARKER {
+            record[5..7].fill(0);
+            record[7..9].fill(0);
+        } else {
+            record[5..7].copy_from_slice(&ordinal.to_le_bytes());
+        }
+        record[3..5].copy_from_slice(&variables_seen.to_le_bytes());
+        if class & 7 == 2 {
+            variables_seen += 1;
+        }
+        bytes.extend_from_slice(&record);
+    }
+    for (_, _, _, _, name) in columns {
+        bytes.push(name.len() as u8);
+        bytes.extend_from_slice(name);
+    }
+    for record in physical {
+        bytes.extend_from_slice(record);
+    }
+    for (record, _) in logical {
+        bytes.extend_from_slice(record);
+    }
+    for (_, name) in logical {
+        bytes.push(name.len() as u8);
+        bytes.extend_from_slice(name);
+    }
+    bytes.extend_from_slice(suffix);
+    finish(bytes)
+}
+
+fn group(ordinal: u16, owned_row: u8, available_row: u8, page: u8) -> [u8; 10] {
+    let [low, high] = ordinal.to_le_bytes();
+    [low, high, owned_row, page, 0, 0, available_row, page, 0, 0]
+}
+
+/// A definition whose column records and suffix span two pages.
+fn many_memo_definition() -> Vec<u8> {
+    let columns: Vec<ColumnSpec> = (0..120_u16)
+        .map(|ordinal| (12, 2, 0, 0, format!("M{ordinal}").into_bytes()))
+        .collect();
+    let suffix: Vec<u8> = (0..120_u16)
+        .rev()
+        .flat_map(|ordinal| group(ordinal, 0, 1, MAP_PAGE as u8))
+        .collect();
+    build_definition(USER_MARKER, &columns, &[], &[], &suffix)
+}
 
 fn column_record(physical_type: u8, class: u8, fixed_offset: u16, size: u16) -> [u8; 18] {
     let mut record = [0_u8; 18];
@@ -53,10 +129,14 @@ fn column_only_definition() -> Vec<u8> {
 }
 
 fn custom_column_definition(record: [u8; 18], variable_count: u16) -> Vec<u8> {
+    let physical_type = record[0];
     let mut bytes = definition_header(0, 0);
     bytes[23..25].copy_from_slice(&variable_count.to_le_bytes());
     bytes.extend_from_slice(&record);
     bytes.extend_from_slice(&[2, b'I', b'd']);
+    if matches!(physical_type, 11 | 12) {
+        bytes.extend_from_slice(&group(0, 0, 1, MAP_PAGE as u8));
+    }
     finish(bytes)
 }
 
@@ -148,7 +228,13 @@ fn database_bytes(logical: &[u8], next: Option<usize>) -> Vec<u8> {
             .unwrap_or_default()
             .to_le_bytes(),
     );
-    bytes[MAP_PAGE * PAGE_BYTES] = 1;
+    let map = &mut bytes[MAP_PAGE * PAGE_BYTES..(MAP_PAGE + 1) * PAGE_BYTES];
+    map[0] = 1;
+    map[8..10].copy_from_slice(&MAP_ROWS.to_le_bytes());
+    for row in 0..usize::from(MAP_ROWS) {
+        let start = (PAGE_BYTES - 8 * (row + 1)) as u16;
+        map[10 + 2 * row..12 + 2 * row].copy_from_slice(&start.to_le_bytes());
+    }
     bytes[INDEX_ROOT * PAGE_BYTES] = 4;
     bytes[RELATED_ROOT * PAGE_BYTES] = 2;
     if logical.len() > PAGE_BYTES {
@@ -198,6 +284,8 @@ fn decodes_fixed_column_and_primary_index_losslessly() -> Result<(), Box<dyn std
     );
     assert_eq!(definition.maps().available().row(), 1);
     assert_eq!(definition.raw_header()[20], 0x4e);
+    assert_eq!(definition.kind(), TableDefinitionKind::User);
+    assert!(definition.long_value_maps().is_empty());
     assert_eq!(definition.columns().len(), 1);
     let column = &definition.columns()[0];
     assert_eq!(column.name().decoded_ascii(), Some("Id"));
@@ -306,14 +394,15 @@ fn preserves_primary_relationship_side() -> Result<(), Box<dyn std::error::Error
 #[test]
 fn follows_exact_multi_page_chain_and_rejects_chain_corruption()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut logical = column_only_definition();
-    logical.splice(logical.len() - 2..logical.len() - 2, vec![0x5a; PAGE_BYTES]);
+    let logical = many_memo_definition();
+    assert!(logical.len() > PAGE_BYTES);
     let length = u32::try_from(logical.len())?;
-    logical[8..12].copy_from_slice(&length.to_le_bytes());
     let bytes = database_bytes(&logical, Some(CONTINUATION));
     let definition = decode(&bytes)?;
     assert_eq!(definition.logical_length(), length);
-    assert_eq!(definition.raw_suffix().len(), PAGE_BYTES);
+    assert_eq!(definition.raw_suffix().len(), 1200);
+    assert_eq!(definition.long_value_maps().len(), 120);
+    assert_eq!(definition.long_value_maps()[0].column().get(), 119);
 
     let truncated = database_bytes(&logical, None);
     assert!(matches!(
@@ -452,7 +541,7 @@ fn rejects_each_logical_index_class_invariant() -> Result<(), Box<dyn std::error
         (LOGICAL_OFFSET + 8, 1),
         (LOGICAL_OFFSET, 1),
         (LOGICAL_OFFSET + 9, 0),
-        (PHYSICAL_OFFSET + 38, 1),
+        (PHYSICAL_OFFSET + 38, 8),
         (LOGICAL_OFFSET + 19, 3),
     ];
     for &(offset, value) in cases {
@@ -464,13 +553,22 @@ fn rejects_each_logical_index_class_invariant() -> Result<(), Box<dyn std::error
         ));
     }
 
-    let mut ordinary = primary;
+    let mut ordinary = primary.clone();
     ordinary[LOGICAL_OFFSET + 19] = 0;
     let definition = decode(&database_bytes(&ordinary, None))?;
     assert_eq!(
         definition.indexes()[0].kind(),
         IndexDefinitionKind::Ordinary
     );
+
+    let mut unique_only = primary;
+    unique_only[PHYSICAL_OFFSET + 38] = 1;
+    assert!(matches!(
+        decode(&database_bytes(&unique_only, None)),
+        Err(TableDefinitionError::Index(
+            IndexDefinitionError::InvalidPrimaryFlags { raw: 1, .. }
+        ))
+    ));
 
     let relationship = relationship_definition();
     for (offset, value) in [
@@ -567,32 +665,6 @@ fn boolean_fixed_offset_does_not_advance_byte_backed_columns()
 }
 
 #[test]
-fn definition_errors_expose_display_and_nested_sources() {
-    let plain = TableDefinitionError::InvalidHeaderMarker { raw: 0 };
-    assert!(plain.to_string().contains("table definition failed"));
-    assert!(plain.source().is_none());
-
-    let resource = TableDefinitionError::Resource(Error::Arithmetic {
-        operation: "test table definition source",
-    });
-    assert!(resource.source().is_some());
-
-    let index = IndexDefinitionError::Truncated {
-        offset: 1,
-        needed: 2,
-        length: 1,
-    };
-    assert!(index.to_string().contains("invalid table index definition"));
-    assert!(index.source().is_none());
-    assert!(TableDefinitionError::Index(index).source().is_some());
-
-    let index_resource = IndexDefinitionError::Resource(Error::Arithmetic {
-        operation: "test index definition source",
-    });
-    assert!(index_resource.source().is_some());
-}
-
-#[test]
 fn rejects_truncated_counts_duplicate_keys_and_out_of_range_references() {
     let mut logical = column_only_definition();
     logical[21..23].copy_from_slice(&2_u16.to_le_bytes());
@@ -641,6 +713,11 @@ fn exact_allocation_item_and_chain_budgets_reject_one_over()
                 kind: ResourceLimitKind::AllocationBytes,
                 ..
             }
+        )) | Err(TableDefinitionError::LongValueMap(
+            LongValueMapError::Resource(Error::ResourceLimitExceeded {
+                kind: ResourceLimitKind::AllocationBytes,
+                ..
+            })
         )) | Err(TableDefinitionError::Chain(
             AllocationTraversalError::Resource(Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::AllocationBytes,
@@ -657,6 +734,11 @@ fn exact_allocation_item_and_chain_budgets_reject_one_over()
                 kind: ResourceLimitKind::ItemWork,
                 ..
             }
+        )) | Err(TableDefinitionError::LongValueMap(
+            LongValueMapError::Resource(Error::ResourceLimitExceeded {
+                kind: ResourceLimitKind::ItemWork,
+                ..
+            })
         )) | Err(TableDefinitionError::Index(IndexDefinitionError::Resource(
             Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::ItemWork,
@@ -665,11 +747,7 @@ fn exact_allocation_item_and_chain_budgets_reject_one_over()
         )))
     ));
 
-    let mut logical = column_only_definition();
-    logical.splice(logical.len() - 2..logical.len() - 2, vec![0; PAGE_BYTES]);
-    let length = u32::try_from(logical.len())?;
-    logical[8..12].copy_from_slice(&length.to_le_bytes());
-    let chained = database_bytes(&logical, Some(CONTINUATION));
+    let chained = database_bytes(&many_memo_definition(), Some(CONTINUATION));
     decode_with_limits(&chained, limits(&chained).with_max_chain_depth(2))?;
     assert!(matches!(
         decode_with_limits(&chained, limits(&chained).with_max_chain_depth(1)),
@@ -682,3 +760,6 @@ fn exact_allocation_item_and_chain_budgets_reject_one_over()
     ));
     Ok(())
 }
+
+#[path = "table_definition_system_tests.rs"]
+mod system;

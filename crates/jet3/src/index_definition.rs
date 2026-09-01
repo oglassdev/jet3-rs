@@ -12,7 +12,7 @@ pub use crate::physical_index_definition::{
     IndexDirection, IndexField, IndexUsageMapReference, PhysicalIndexDefinition,
 };
 use crate::physical_index_definition::{
-    KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, SUPPORTED_FLAGS, decode_physical,
+    KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, decode_physical,
 };
 use crate::{ByteCount, Error, PageGeometry, PageNumber, ResourceBudget};
 
@@ -304,6 +304,8 @@ pub(crate) struct IndexDecodeContext<'a> {
     pub(crate) column_count: u16,
     pub(crate) logical_count: u16,
     pub(crate) physical_count: u16,
+    pub(crate) supported_physical_flags: &'static [u8],
+    pub(crate) primary_flags: u8,
     pub(crate) table_root: PageNumber,
     pub(crate) geometry: PageGeometry,
 }
@@ -343,6 +345,7 @@ pub(crate) fn decode_indexes(
             sourced_prefix,
             raw_record,
             context.column_count,
+            context.supported_physical_flags,
             context.geometry,
             budget,
         )?);
@@ -450,7 +453,7 @@ pub(crate) fn decode_indexes(
                     }
                     primary_seen = true;
                     let flags = physical[usize::from(physical_ordinal)].raw_flags();
-                    if flags != SUPPORTED_FLAGS {
+                    if flags != context.primary_flags {
                         return Err(IndexDefinitionError::InvalidPrimaryFlags {
                             logical_index,
                             raw: flags,

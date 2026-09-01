@@ -1,5 +1,7 @@
 //! Bounded immutable Jet 3 table definitions from `EXP-0059`, composed with
-//! the table allocation-map locators from `EXP-0057`.
+//! the table allocation-map locators from `EXP-0057`, the system-definition
+//! relaxations from `EXP-0073`, and the long-value map suffix from
+//! `EXP-0077`.
 //!
 //! Definitions retain sourced bytes and typed references. Callers can pass a
 //! decoded definition to [`crate::DatabaseReader::index_tree`] separately.
@@ -11,10 +13,14 @@ use crate::index_definition::{
     DecodedIndexes, IndexDecodeContext, IndexDefinition, IndexDefinitionError, IndexDefinitionKind,
     PhysicalIndexDefinition, decode_indexes,
 };
+use crate::long_value_map::{LongValueMapDefinition, LongValueMapError, decode_long_value_maps};
+use crate::physical_index_definition::{
+    SYSTEM_PRIMARY_FLAGS, SYSTEM_SUPPORTED_FLAGS, USER_PRIMARY_FLAGS, USER_SUPPORTED_FLAGS,
+};
 use crate::{
     AllocationTraversalError, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
     MapLocationError, PageChainWalker, PageKind, PageNumber, ReadAt, ResourceBudget,
-    TableMapLocations, locate_table_maps,
+    TableMapLocations, locate_table_maps, locate_usage_map,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -23,17 +29,35 @@ const DEFINITION_HEADER_LEN: usize = 43;
 const PHYSICAL_PREFIX_LEN: usize = 8;
 const TERMINATOR_LEN: usize = 2;
 const DEFINITION_PREFIX: [u8; 4] = [0x02, 0x01, 0x56, 0x43];
-const HEADER_MARKER: u8 = 0x4e;
+/// `EXP-0059`: byte 20 of every user table definition.
+const USER_HEADER_MARKER: u8 = 0x4e;
+/// `EXP-0073`: byte 20 of every system table definition.
+const SYSTEM_HEADER_MARKER: u8 = 0x53;
+
+/// Header-marker class of a table definition.
+///
+/// The class selects which sourced column-record constants are admitted:
+/// `EXP-0059` values for user tables and the `EXP-0073` relaxations for
+/// system tables.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TableDefinitionKind {
+    /// Marker `0x4e`, created for user tables.
+    User,
+    /// Marker `0x53`, created for the `MSys*` system tables.
+    System,
+}
 
 /// One complete immutable table definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableDefinition {
     root: PageNumber,
+    kind: TableDefinitionKind,
     logical_length: u32,
     maps: TableMapLocations,
     columns: Vec<ColumnDefinition>,
     physical_indexes: Vec<PhysicalIndexDefinition>,
     indexes: Vec<IndexDefinition>,
+    long_value_maps: Vec<LongValueMapDefinition>,
     raw_header: [u8; DEFINITION_HEADER_LEN],
     raw_suffix: Vec<u8>,
 }
@@ -43,6 +67,19 @@ impl TableDefinition {
     /// Returns the table-definition root page.
     pub const fn root(&self) -> PageNumber {
         self.root
+    }
+
+    #[must_use]
+    /// Returns the header-marker class of the definition.
+    pub const fn kind(&self) -> TableDefinitionKind {
+        self.kind
+    }
+
+    #[must_use]
+    /// Returns one long-value map group per Memo or LongBinary column, in
+    /// stored order.
+    pub fn long_value_maps(&self) -> &[LongValueMapDefinition] {
+        &self.long_value_maps
     }
 
     #[must_use]
@@ -81,7 +118,7 @@ impl TableDefinition {
         &self.raw_header
     }
 
-    /// Returns still-uninterpreted sourced bytes before the final `ff ff`.
+    /// Returns the sourced suffix bytes before the final `ff ff`.
     #[must_use]
     pub fn raw_suffix(&self) -> &[u8] {
         &self.raw_suffix
@@ -100,6 +137,8 @@ pub enum TableDefinitionError {
     Page(DatabasePageError),
     /// Physical or logical index decoding failed.
     Index(IndexDefinitionError),
+    /// Long-value map suffix decoding failed.
+    LongValueMap(LongValueMapError),
     /// The root page lacks the observed table-definition prefix.
     InvalidPrefix {
         /// Root page being decoded.
@@ -269,6 +308,7 @@ impl std::error::Error for TableDefinitionError {
             Self::MapLocation(source) => Some(source),
             Self::Page(source) => Some(source),
             Self::Index(source) => Some(source),
+            Self::LongValueMap(source) => Some(source),
             Self::Resource(source) => Some(source),
             _ => None,
         }
@@ -285,7 +325,7 @@ impl<S: ReadAt> DatabaseReader<S> {
         let geometry = self.geometry();
         let (bytes, maps) = read_definition_chain(self, root, budget)?;
         let mut definition = decode_definition(&bytes, root, maps, geometry, budget)?;
-        validate_index_references(self, &definition, budget)?;
+        validate_references(self, &definition, budget)?;
         definition.logical_length = u32::try_from(bytes.len()).map_err(|_| {
             TableDefinitionError::Resource(Error::IntegerConversion {
                 value: bytes.len() as u128,
@@ -392,11 +432,11 @@ fn decode_definition(
     budget: &mut ResourceBudget,
 ) -> Result<TableDefinition, TableDefinitionError> {
     let raw_header = array_at::<DEFINITION_HEADER_LEN>(bytes, 0)?;
-    if raw_header[20] != HEADER_MARKER {
-        return Err(TableDefinitionError::InvalidHeaderMarker {
-            raw: raw_header[20],
-        });
-    }
+    let kind = match raw_header[20] {
+        USER_HEADER_MARKER => TableDefinitionKind::User,
+        SYSTEM_HEADER_MARKER => TableDefinitionKind::System,
+        raw => return Err(TableDefinitionError::InvalidHeaderMarker { raw }),
+    };
     let column_count = u16_at(bytes, 21);
     let variable_count = u16_at(bytes, 23);
     let repeated_column_count = u16_at(bytes, 25);
@@ -427,7 +467,14 @@ fn decode_definition(
                 operation: "locate column records",
             }))?;
     checked_slice(bytes, prefix_offset, prefix_bytes)?;
-    let columns = decode_columns(bytes, &mut offset, column_count, variable_count, budget)?;
+    let columns = decode_columns(
+        bytes,
+        &mut offset,
+        kind,
+        column_count,
+        variable_count,
+        budget,
+    )?;
     let DecodedIndexes { physical, logical } = decode_indexes(
         IndexDecodeContext {
             bytes,
@@ -436,6 +483,14 @@ fn decode_definition(
             column_count,
             logical_count,
             physical_count,
+            supported_physical_flags: match kind {
+                TableDefinitionKind::User => USER_SUPPORTED_FLAGS,
+                TableDefinitionKind::System => SYSTEM_SUPPORTED_FLAGS,
+            },
+            primary_flags: match kind {
+                TableDefinitionKind::User => USER_PRIMARY_FLAGS,
+                TableDefinitionKind::System => SYSTEM_PRIMARY_FLAGS,
+            },
             table_root: root,
             geometry,
         },
@@ -464,24 +519,43 @@ fn decode_definition(
         });
     }
     let raw_suffix = copy_owned(&bytes[offset..suffix_end], budget)?;
+    let long_value_maps = decode_long_value_maps(&raw_suffix, &columns, geometry, budget)
+        .map_err(TableDefinitionError::LongValueMap)?;
     Ok(TableDefinition {
         root,
+        kind,
         logical_length: 0,
         maps,
         columns,
         physical_indexes: physical,
         indexes: logical,
+        long_value_maps,
         raw_header,
         raw_suffix,
     })
 }
 
-fn validate_index_references<S: ReadAt>(
+fn validate_references<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     definition: &TableDefinition,
     budget: &mut ResourceBudget,
 ) -> Result<(), TableDefinitionError> {
     let mut page = [0_u8; PAGE_BYTES];
+    for map in &definition.long_value_maps {
+        for (role, locator) in [("owned", map.owned()), ("available", map.available())] {
+            let classified = database
+                .read_classified_page(locator.page(), &mut page, budget)
+                .map_err(TableDefinitionError::Page)?;
+            locate_usage_map(classified, locator, budget).map_err(|source| {
+                TableDefinitionError::LongValueMap(LongValueMapError::InvalidMapRow {
+                    ordinal: map.column().get(),
+                    role,
+                    locator,
+                    source,
+                })
+            })?;
+        }
+    }
     for physical in &definition.physical_indexes {
         validate_reference_kind(
             database,

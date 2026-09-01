@@ -1,7 +1,8 @@
 #![no_main]
 
 // Every database byte is project-authored synthetic input. Physical assertions
-// are limited to SRC-0020, EXP-0057, and development-only EXP-0059.
+// are limited to SRC-0020, EXP-0057, and development-only EXP-0059, EXP-0073,
+// and EXP-0077.
 
 use std::hint::black_box;
 
@@ -19,14 +20,10 @@ const CONTROL_BYTES: usize = 6;
 fuzz_target!(|data: &[u8]| {
     let mut bytes = [0_u8; DATABASE_BYTES];
     supported_header(&mut bytes);
-    relationship_definition(&mut bytes);
+    relationship_definition(&mut bytes, selector(data.get(5).copied()) & 1 != 0);
     let payload = data.get(CONTROL_BYTES..).unwrap_or_default();
     if !payload.starts_with(b"valid-definition") && !payload.starts_with(b"tight-resources") {
-        mutate_selected_region(
-            &mut bytes,
-            selector(data.get(5).copied()) % 5,
-            payload,
-        );
+        mutate_selected_region(&mut bytes, selector(data.get(5).copied()) % 6, payload);
     }
 
     let limits = ResourceLimits::new(ReadLimits::default())
@@ -49,7 +46,14 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     black_box(definition.logical_length());
+    black_box(definition.kind());
     black_box(definition.raw_suffix());
+    for map in definition.long_value_maps() {
+        black_box(map.column());
+        black_box(map.owned());
+        black_box(map.available());
+        black_box(map.raw_group());
+    }
     for column in definition.columns() {
         black_box(column.name().raw_bytes());
         black_box(column.physical_type().raw());
@@ -77,27 +81,50 @@ fn supported_header(bytes: &mut [u8; DATABASE_BYTES]) {
     ]);
 }
 
-fn relationship_definition(bytes: &mut [u8; DATABASE_BYTES]) {
-    let mut logical = [0x5a_u8; PAGE_BYTES + 34];
-    logical[..43].fill(0);
+/// A two-page user or system definition with one Memo column, one long-value
+/// map group, and one relationship index.
+fn relationship_definition(bytes: &mut [u8; DATABASE_BYTES], system: bool) {
+    const COLUMN_COUNT: u16 = 100;
+    const MEMO_ORDINAL: u16 = COLUMN_COUNT - 1;
+    let mut logical = Vec::with_capacity(PAGE_BYTES + 512);
+    logical.extend_from_slice(&[0_u8; 43]);
     logical[..4].copy_from_slice(&[0x02, 0x01, 0x56, 0x43]);
     logical[4..8].copy_from_slice(&4_u32.to_le_bytes());
-    logical[20] = 0x4e;
-    logical[21..23].copy_from_slice(&1_u16.to_le_bytes());
-    logical[25..27].copy_from_slice(&1_u16.to_le_bytes());
+    logical[20] = if system { 0x53 } else { 0x4e };
+    logical[21..23].copy_from_slice(&COLUMN_COUNT.to_le_bytes());
+    logical[23..25].copy_from_slice(&1_u16.to_le_bytes());
+    logical[25..27].copy_from_slice(&COLUMN_COUNT.to_le_bytes());
     logical[27..29].copy_from_slice(&1_u16.to_le_bytes());
     logical[31..33].copy_from_slice(&1_u16.to_le_bytes());
     logical[35..39].copy_from_slice(&[0, 2, 0, 0]);
     logical[39..43].copy_from_slice(&[1, 2, 0, 0]);
-    logical[43..51].fill(0);
-    let mut column = [0_u8; 18];
-    column[0] = 4;
-    column[7..9].copy_from_slice(&1_u16.to_le_bytes());
-    column[9..13].copy_from_slice(&[0x09, 0x04, 0xe4, 0x04]);
-    column[13] = 3;
-    column[16..18].copy_from_slice(&4_u16.to_le_bytes());
-    logical[51..69].copy_from_slice(&column);
-    logical[69..72].copy_from_slice(&[2, b'I', b'd']);
+    logical.extend_from_slice(&[0_u8; 8]);
+    for ordinal in 0..COLUMN_COUNT {
+        let mut column = [0_u8; 18];
+        column[0] = if ordinal == MEMO_ORDINAL { 12 } else { 4 };
+        column[1..3].copy_from_slice(&ordinal.to_le_bytes());
+        if !system {
+            column[5..7].copy_from_slice(&ordinal.to_le_bytes());
+            column[7..9].copy_from_slice(&1_u16.to_le_bytes());
+        }
+        column[9..13].copy_from_slice(&[0x09, 0x04, 0xe4, 0x04]);
+        column[13] = match (system, ordinal == MEMO_ORDINAL) {
+            (false, false) => 3,
+            (false, true) => 2,
+            (true, false) => 0x13,
+            (true, true) => 0x12,
+        };
+        if ordinal != MEMO_ORDINAL {
+            column[14..16].copy_from_slice(&(ordinal * 4).to_le_bytes());
+            column[16..18].copy_from_slice(&4_u16.to_le_bytes());
+        }
+        logical.extend_from_slice(&column);
+    }
+    for ordinal in 0..COLUMN_COUNT {
+        let name = format!("C{ordinal}");
+        logical.push(name.len() as u8);
+        logical.extend_from_slice(name.as_bytes());
+    }
     let mut physical = [0_u8; 39];
     for slot in 0..10 {
         physical[slot * 3..slot * 3 + 2].copy_from_slice(&u16::MAX.to_le_bytes());
@@ -106,21 +133,31 @@ fn relationship_definition(bytes: &mut [u8; DATABASE_BYTES]) {
     physical[2] = 1;
     physical[31..34].copy_from_slice(&[2, 0, 0]);
     physical[34..38].copy_from_slice(&3_u32.to_le_bytes());
-    logical[72..111].copy_from_slice(&physical);
+    physical[38] = if system { 2 } else { 0 };
+    logical.extend_from_slice(&physical);
     let mut index = [0_u8; 20];
     index[8] = 2;
     index[9..13].copy_from_slice(&1_u32.to_le_bytes());
     index[13..17].copy_from_slice(&5_u32.to_le_bytes());
     index[17..19].copy_from_slice(&[1, 1]);
     index[19] = 2;
-    logical[111..131].copy_from_slice(&index);
-    logical[131..135].copy_from_slice(&[3, b'R', b'e', b'l']);
-    logical[PAGE_BYTES + 32..].copy_from_slice(&[0xff, 0xff]);
+    logical.extend_from_slice(&index);
+    logical.extend_from_slice(&[3, b'R', b'e', b'l']);
+    let [low, high] = MEMO_ORDINAL.to_le_bytes();
+    logical.extend_from_slice(&[low, high, 2, 2, 0, 0, 3, 2, 0, 0, 0xff, 0xff]);
     let logical_length = logical.len() as u32;
     logical[8..12].copy_from_slice(&logical_length.to_le_bytes());
+    assert!(logical.len() > PAGE_BYTES);
+    assert!(logical.len() - PAGE_BYTES <= PAGE_BYTES - 8);
 
     bytes[PAGE_BYTES..2 * PAGE_BYTES].copy_from_slice(&logical[..PAGE_BYTES]);
-    bytes[2 * PAGE_BYTES] = 1;
+    let map = &mut bytes[2 * PAGE_BYTES..3 * PAGE_BYTES];
+    map[0] = 1;
+    map[8..10].copy_from_slice(&4_u16.to_le_bytes());
+    for row in 0..4 {
+        let start = (PAGE_BYTES - 8 * (row + 1)) as u16;
+        map[10 + 2 * row..12 + 2 * row].copy_from_slice(&start.to_le_bytes());
+    }
     bytes[3 * PAGE_BYTES] = 4;
     let continuation = &mut bytes[4 * PAGE_BYTES..5 * PAGE_BYTES];
     continuation[..4].copy_from_slice(&[0x02, 0x01, 0x56, 0x43]);
@@ -137,7 +174,8 @@ fn mutate_selected_region(bytes: &mut [u8; DATABASE_BYTES], mode: u8, payload: &
         1 => (4 * PAGE_BYTES, PAGE_BYTES),
         2 => (2 * PAGE_BYTES, PAGE_BYTES),
         3 => (3 * PAGE_BYTES, PAGE_BYTES),
-        _ => (5 * PAGE_BYTES, PAGE_BYTES),
+        4 => (5 * PAGE_BYTES, PAGE_BYTES),
+        _ => (0, PAGE_BYTES),
     };
     let length = payload.len().min(maximum);
     bytes[start..start + length].copy_from_slice(&payload[..length]);
