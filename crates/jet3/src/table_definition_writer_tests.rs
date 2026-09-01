@@ -52,15 +52,49 @@ fn spec<'a>(
     physical_indexes: &'a [PhysicalIndexSpec<'a>],
     indexes: &'a [LogicalIndexSpec<'a>],
 ) -> TableDefinitionSpec<'a> {
+    let raw_suffix = if columns.iter().any(|column| {
+        matches!(
+            column.physical_type(),
+            ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
+        )
+    }) {
+        &LONG_VALUE_SUFFIX[..]
+    } else {
+        &[]
+    };
     TableDefinitionSpec {
         columns,
         physical_indexes,
         indexes,
         owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
         available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
-        raw_suffix: &[7, 7],
+        raw_suffix,
     }
 }
+
+/// One long-value map group each for `Ole` (ordinal 11) and `Notes` (12).
+const LONG_VALUE_SUFFIX: [u8; 20] = [
+    11,
+    0,
+    2,
+    MAP_PAGE as u8,
+    0,
+    0,
+    3,
+    MAP_PAGE as u8,
+    0,
+    0,
+    12,
+    0,
+    2,
+    MAP_PAGE as u8,
+    0,
+    0,
+    3,
+    MAP_PAGE as u8,
+    0,
+    0,
+];
 
 fn decode(logical: &[u8]) -> Result<TableDefinition, Box<dyn std::error::Error>> {
     let mut bytes = vec![0_u8; 6 * PAGE_BYTES];
@@ -71,7 +105,13 @@ fn decode(logical: &[u8]) -> Result<TableDefinition, Box<dyn std::error::Error>>
     ]);
     let root = ROOT as usize * PAGE_BYTES;
     bytes[root..root + logical.len()].copy_from_slice(logical);
-    bytes[MAP_PAGE as usize * PAGE_BYTES] = 1;
+    let map = &mut bytes[MAP_PAGE as usize * PAGE_BYTES..(MAP_PAGE as usize + 1) * PAGE_BYTES];
+    map[0] = 1;
+    map[8..10].copy_from_slice(&4_u16.to_le_bytes());
+    for row in 0..4 {
+        let start = (PAGE_BYTES - 8 * (row + 1)) as u16;
+        map[10 + 2 * row..12 + 2 * row].copy_from_slice(&start.to_le_bytes());
+    }
     bytes[INDEX_ROOT as usize * PAGE_BYTES] = 4;
     bytes[RELATED_ROOT as usize * PAGE_BYTES] = 2;
     let mut budget = ResourceBudget::new(ResourceLimits::new(ReadLimits::new(
@@ -139,7 +179,8 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
     assert_eq!(decoded.logical_length(), length.get() as u32);
     assert_eq!(decoded.maps().owned().page(), PageNumber::new(MAP_PAGE));
     assert_eq!(decoded.maps().available().row(), 1);
-    assert_eq!(decoded.raw_suffix(), &[7, 7]);
+    assert_eq!(decoded.raw_suffix(), &LONG_VALUE_SUFFIX);
+    assert_eq!(decoded.long_value_maps().len(), 2);
     assert_eq!(decoded.columns().len(), columns.len());
     for (column, expected) in decoded.columns().iter().zip(&columns) {
         assert_eq!(column.name().raw_bytes(), expected.name());

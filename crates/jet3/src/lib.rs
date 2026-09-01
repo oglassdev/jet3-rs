@@ -26,6 +26,7 @@ mod index_tree_rows;
 pub mod jet3_page;
 pub mod limits;
 pub mod long_value;
+pub mod long_value_map;
 pub mod map_location;
 pub mod offset;
 pub mod page;
@@ -104,6 +105,7 @@ pub use long_value::{
     ExternalLongValueStorage, InlineLongValue, LongValue, LongValueChunk, LongValueChunkValue,
     LongValueCursor, LongValueError, LongValueKind, LongValueReference,
 };
+pub use long_value_map::{LONG_VALUE_MAP_GROUP_LEN, LongValueMapDefinition, LongValueMapError};
 pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
@@ -116,7 +118,7 @@ pub use row::{RawField, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};
 pub use row_writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
 pub use source::{FileSource, ReadAt, SliceSource};
-pub use table_definition::{TableDefinition, TableDefinitionError};
+pub use table_definition::{TableDefinition, TableDefinitionError, TableDefinitionKind};
 pub use table_definition_writer::{
     TableDefinitionSpec, TableDefinitionWriteError, encode_table_definition, table_definition_len,
 };

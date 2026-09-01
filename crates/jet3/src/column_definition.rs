@@ -1,18 +1,28 @@
 //! Lossless Jet 3 column definitions and database-code-page names.
 //!
-//! `SRC-0023` supplies the checked DAO candidate inventory and `EXP-0059`
-//! supplies the physical type, size, class, ordinal, and name observations.
+//! `SRC-0023` supplies the checked DAO candidate inventory, `EXP-0059`
+//! supplies the user-table physical type, size, class, ordinal, and name
+//! observations, and `EXP-0073` supplies the system-table relaxations.
 
 use std::mem::size_of;
 
 use crate::definition_name::{DefinitionName, contains_name};
-use crate::table_definition::TableDefinitionError;
+use crate::table_definition::{TableDefinitionError, TableDefinitionKind};
 use crate::{ByteCount, Error, ResourceBudget};
 
 pub(crate) const COLUMN_RECORD_LEN: usize = 18;
+/// `EXP-0059` user classes; `EXP-0073` system classes carry the same low
+/// three bits (the pinned `system_catalog.py` analyzer's storage mask) under
+/// retained high bits.
+const STORAGE_CLASS_MASK: u8 = 0x07;
 const VARIABLE_CLASS: u8 = 2;
 const FIXED_CLASS: u8 = 3;
 const AUTO_INCREMENT_CLASS: u8 = 7;
+const USER_CLASSES: [u8; 3] = [VARIABLE_CLASS, FIXED_CLASS, AUTO_INCREMENT_CLASS];
+const SYSTEM_CLASSES: [u8; 3] = [0x12, 0x13, 0x32];
+/// `EXP-0059`: sourced value 1 at `[7,9)`; `EXP-0073`: zero in system tables.
+const USER_COLUMN_CONSTANT: u16 = 1;
+const SYSTEM_COLUMN_CONSTANT: u16 = 0;
 
 /// A zero-based table-column ordinal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -175,10 +185,16 @@ impl ColumnDefinition {
 pub(crate) fn decode_columns(
     bytes: &[u8],
     offset: &mut usize,
+    kind: TableDefinitionKind,
     column_count: u16,
     variable_count: u16,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<ColumnDefinition>, TableDefinitionError> {
+    // EXP-0073: system records repeat zero instead of the ordinal.
+    let (expected_constant, admitted_classes, repeats_ordinal) = match kind {
+        TableDefinitionKind::User => (USER_COLUMN_CONSTANT, USER_CLASSES, true),
+        TableDefinitionKind::System => (SYSTEM_COLUMN_CONSTANT, SYSTEM_CLASSES, false),
+    };
     budget
         .charge_items(u64::from(column_count).saturating_mul(2))
         .map_err(TableDefinitionError::Resource)?;
@@ -195,7 +211,8 @@ pub(crate) fn decode_columns(
         let first_ordinal = u16_at(&raw_record, 1);
         let variable_counter = u16_at(&raw_record, 3);
         let repeated_ordinal = u16_at(&raw_record, 5);
-        if first_ordinal != record_ordinal || repeated_ordinal != record_ordinal {
+        let expected_repeat = if repeats_ordinal { record_ordinal } else { 0 };
+        if first_ordinal != record_ordinal || repeated_ordinal != expected_repeat {
             return Err(TableDefinitionError::InvalidColumnOrdinal {
                 record: record_ordinal,
                 first: first_ordinal,
@@ -210,7 +227,7 @@ pub(crate) fn decode_columns(
             });
         }
         let sourced_constant = u16_at(&raw_record, 7);
-        if sourced_constant != 1 {
+        if sourced_constant != expected_constant {
             return Err(TableDefinitionError::InvalidColumnConstant {
                 ordinal: record_ordinal,
                 raw: sourced_constant,
@@ -227,7 +244,14 @@ pub(crate) fn decode_columns(
         let size = u16_at(&raw_record, 16);
         validate_size(record_ordinal, physical_type, size)?;
         let raw_class = raw_record[13];
-        let storage = match raw_class {
+        if !admitted_classes.contains(&raw_class) {
+            return Err(TableDefinitionError::UnsupportedColumnClass {
+                ordinal: record_ordinal,
+                physical_type,
+                raw: raw_class,
+            });
+        }
+        let storage = match raw_class & STORAGE_CLASS_MASK {
             VARIABLE_CLASS => {
                 if !matches!(
                     physical_type,
@@ -253,6 +277,7 @@ pub(crate) fn decode_columns(
             }
             FIXED_CLASS | AUTO_INCREMENT_CLASS => {
                 if raw_class == AUTO_INCREMENT_CLASS && physical_type != ColumnPhysicalType::Long {
+                    // AUTO_INCREMENT_CLASS is admitted for user tables only.
                     return Err(TableDefinitionError::UnsupportedColumnClass {
                         ordinal: record_ordinal,
                         physical_type,

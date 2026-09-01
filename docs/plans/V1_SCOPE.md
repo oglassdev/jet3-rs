@@ -43,13 +43,12 @@ delivered in this order:
 
 ## Current next step
 
-Continue #100 from the accepted EXP-0073 system-catalog result. It supplies
-the system table definitions, a page-role map for the empty image (page 7
-excepted), the system row encodings, and full attribution of the create,
-index, query, and relationship transitions. The next writer step is the
-crate-private bootstrap composer that generates the empty image and the
-create transition from those semantics, validated later by DAO endpoints
-under a fresh preregistration. The raw definition suffix and page 7 remain
-uninterpreted and are the first candidates for a follow-up experiment.
-#102 is the separate hosted write differential after database creation is
-complete.
+Continue #100 with the crate-private bootstrap composer. The reader now
+accepts the EXP-0073 system definitions and decodes and validates the
+per-column long-value maps accepted by EXP-0077, including the map that
+assigns empty-image page 7. The composer is the next writer step: generate
+the empty image and create transition from those accepted semantics, adding
+typed system-marker and suffix encoding where the composition needs it.
+Validate the resulting writer behavior later through DAO endpoints under a
+fresh preregistration. #102 remains the separate hosted write differential
+after database creation is complete.

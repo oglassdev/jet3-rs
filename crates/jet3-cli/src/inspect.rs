@@ -273,8 +273,20 @@ fn definition_json(definition: &TableDefinition) -> Value {
             })
         })
         .collect();
+    let long_value_maps: Vec<Value> = definition
+        .long_value_maps()
+        .iter()
+        .map(|map| {
+            json!({
+                "column": map.column().get(),
+                "owned": {"page": map.owned().page().get(), "row": map.owned().row()},
+                "available": {"page": map.available().page().get(), "row": map.available().row()},
+            })
+        })
+        .collect();
     json!({
         "root": definition.root().get(),
+        "kind": format!("{:?}", definition.kind()),
         "logical_length": definition.logical_length(),
         "raw_header": hex_string(definition.raw_header()),
         "maps": {
@@ -284,6 +296,7 @@ fn definition_json(definition: &TableDefinition) -> Value {
         "columns": columns,
         "physical_indexes": physical_indexes,
         "indexes": indexes,
+        "long_value_maps": long_value_maps,
         "raw_suffix": hex_string(definition.raw_suffix()),
     })
 }
