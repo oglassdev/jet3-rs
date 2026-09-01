@@ -826,6 +826,7 @@ def _validate_complete_replica(
     summarized = [
         {
             "base_checkpoint": variant["base_checkpoint"],
+            "endpoints": variant["endpoints"],
             "kind": variant["kind"],
             "name": variant["name"],
             "outcome": _variant_outcome(variant),
@@ -1198,6 +1199,35 @@ def _aggregate(values: list[str], label: str) -> dict[str, Any]:
     return {"reason": f"replicas disagree for {label}", "status": "no_outcome"}
 
 
+def _aggregate_variant_observations(
+    observations: list[dict[str, Any]], label: str
+) -> dict[str, Any]:
+    endpoint_maps = [observation["endpoints"] for observation in observations]
+    if any(endpoints != endpoint_maps[0] for endpoints in endpoint_maps[1:]):
+        return {
+            "reason": f"replicas disagree on the DAO endpoint map for {label}",
+            "status": "no_outcome",
+        }
+    aggregate = _aggregate(
+        [observation["outcome"] for observation in observations], label
+    )
+    return {**aggregate, "endpoints": endpoint_maps[0]}
+
+
+def _resolved_correlation(
+    replicas: list[dict[str, Any]], field: str, unresolved_reason: str
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    correlations = [replica["correlations"][field] for replica in replicas]
+    if any(correlation["status"] != "resolved" for correlation in correlations):
+        return None, {"reason": unresolved_reason, "status": "no_outcome"}
+    if any(correlation != correlations[0] for correlation in correlations[1:]):
+        return None, {
+            "reason": f"replicas disagree on the {field} correlation evidence",
+            "status": "no_outcome",
+        }
+    return correlations[0], None
+
+
 def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> dict[str, Any]:
     complete = all(replica["complete"] for replica in replicas)
     if not complete:
@@ -1213,10 +1243,10 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
         }
     else:
         page0 = (
-            _aggregate(
+            _aggregate_variant_observations(
                 [
                     next(
-                        variant["outcome"]
+                        variant
                         for variant in replica["variants"]
                         if variant["kind"] == "candidate_page0"
                     )
@@ -1235,29 +1265,38 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
             ("date_created", "candidate_date_created"),
             ("date_updated", "candidate_date_updated"),
         ):
-            if any(replica["correlations"][field]["status"] == "no_outcome" for replica in replicas):
-                fields[field] = {
-                    "reason": "at least one replica did not resolve the correlation",
-                    "status": "no_outcome",
-                }
+            correlation, no_outcome = _resolved_correlation(
+                replicas,
+                field,
+                "at least one replica did not resolve the correlation",
+            )
+            if no_outcome is not None:
+                fields[field] = no_outcome
             else:
-                fields[field] = _aggregate(
-                    [
-                        next(
-                            variant["outcome"]
-                            for variant in replica["variants"]
-                            if variant["kind"] == kind
-                        )
-                        for replica in replicas
-                    ],
-                    field,
-                )
+                observations = [
+                    next(
+                        variant
+                        for variant in replica["variants"]
+                        if variant["kind"] == kind
+                    )
+                    for replica in replicas
+                ]
+                fields[field] = {
+                    **_aggregate_variant_observations(observations, field),
+                    "evidence": correlation,
+                }
+        lvprop_correlation, lvprop_no_outcome = _resolved_correlation(
+            replicas,
+            "lvprop",
+            "at least one replica did not resolve the structural correlation",
+        )
         fields["lvprop"] = (
-            {"outcome": "resolved", "status": "answered"}
-            if all(replica["correlations"]["lvprop"]["status"] == "resolved" for replica in replicas)
+            lvprop_no_outcome
+            if lvprop_no_outcome is not None
             else {
-                "reason": "at least one replica did not resolve the structural correlation",
-                "status": "no_outcome",
+                "evidence": lvprop_correlation,
+                "outcome": "resolved",
+                "status": "answered",
             }
         )
         catalog = {
@@ -1285,34 +1324,54 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
                     }
                     groups_status = "no_outcome"
                     continue
-                outcomes = [
+                observations = [
                     next(
-                        variant["outcome"]
+                        variant
                         for variant in replica["variants"]
                         if variant["name"] == name
                     )
                     for replica in replicas
                 ]
-                aggregate = _aggregate(outcomes, name)
+                aggregate = _aggregate_variant_observations(observations, name)
                 groups[name] = {**definitions[0], **aggregate}
                 if aggregate["status"] == "no_outcome":
                     groups_status = "no_outcome"
         mutation_groups: dict[str, Any] = {"groups": groups, "status": groups_status}
         if groups_reason:
             mutation_groups["reason"] = groups_reason
-        sufficiency = _aggregate(
-            [
-                "no_outcome"
-                if replica["sufficiency"]["repaired"]
-                else (
-                    "observed_sufficient"
-                    if all(replica["sufficiency"]["endpoints"].values())
-                    else "not_observed_sufficient"
-                )
-                for replica in replicas
-            ],
-            "composed_image_sufficiency",
+        baseline_failed = any(
+            replica["baseline"]["repaired"]
+            or not all(replica["baseline"]["endpoints"].values())
+            for replica in replicas
         )
+        endpoint_maps = [replica["sufficiency"]["endpoints"] for replica in replicas]
+        if baseline_failed:
+            sufficiency = {
+                "reason": "at least one created baseline failed or changed during DAO open",
+                "status": "no_outcome",
+            }
+        elif any(endpoints != endpoint_maps[0] for endpoints in endpoint_maps[1:]):
+            sufficiency = {
+                "reason": "replicas disagree on the composed-image DAO endpoint map",
+                "status": "no_outcome",
+            }
+        else:
+            sufficiency = {
+                **_aggregate(
+                    [
+                        "no_outcome"
+                        if replica["sufficiency"]["repaired"]
+                        else (
+                            "observed_sufficient"
+                            if all(replica["sufficiency"]["endpoints"].values())
+                            else "not_observed_sufficient"
+                        )
+                        for replica in replicas
+                    ],
+                    "composed_image_sufficiency",
+                ),
+                "endpoints": endpoint_maps[0],
+            }
         questions = {
             "candidate_catalog_fields": catalog,
             "candidate_page0": page0,
@@ -1371,7 +1430,8 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
     ):
         status = "no_outcome"
     bounded_sufficiency = (
-        questions["composed_image_sufficiency"].get("outcome")
+        status == "accepted"
+        and questions["composed_image_sufficiency"].get("outcome")
         == "observed_sufficient"
     )
     return {

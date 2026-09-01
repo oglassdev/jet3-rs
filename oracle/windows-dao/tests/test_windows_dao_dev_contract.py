@@ -379,7 +379,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn("$MaximumPages = 64", job)
         self.assertIn("$MaximumVariants = 64", job)
         self.assertNotIn("CompactDatabase", job)
-        self.assertIn("204-database bound", self.publication)
+        self.assertIn("$referenced.Count -gt 210", self.publication)
+        self.assertIn("210-database bound", self.publication)
         self.assertIn("WITH OWNERACCESS OPTION", job)
         self.assertIn("$TimestampAnchorWindowBytes = 64", job)
         self.assertIn('Name "property-set"', job)
@@ -387,6 +388,10 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn("replica.sufficiency.database", self.publication)
         self.assertTrue(plan["development_only"])
         self.assertEqual(plan["issue"], 100)
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_published_databases"],
+            3 * (4 + 1 + 1 + 64),
+        )
         for relative, expected in plan["inputs"].items():
             actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, relative)

@@ -6388,7 +6388,7 @@ Use `not applicable` explicitly rather than omitting a field.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/bootstrap-layout-sufficiency.plan.json`,
   SHA-256
-  `0fc3e3447fb60b14fa6fca3ec89152ccc364165f9f74933b509d534da3d2d00b`.
+  `0ee0212d7cd102a6518051c2a7e2025d58157771bd9aed552b88a4c870d7d82e`.
   The plan pins the host client, provider probe, guest runner, dispatcher,
   publisher, producer, and host analyzer. The host and guest reject plan or
   staged-input digest mismatches before the first DAO mutation.
@@ -6396,13 +6396,15 @@ Use `not applicable` explicitly rather than omitting a field.
   plan does not authorize acquisition. After review and merge, one explicit
   human authorization is required for one local-VM run. No new MDB, provider
   output, canonical report, or scientific result exists.
-- Decision rule: a validated, replica-consistent, unchanged-hash endpoint pass
-  reports `observed_sufficient` only for this complete-group scenario. A
-  consistent unchanged-hash endpoint failure reports
-  `not_observed_sufficient`. Unresolved correlation, repair, baseline failure,
-  replica disagreement, or an otherwise intact non-decisive result is an
-  honest `no_outcome`; integrity and shape defects reject validation. There is
-  no automatic retry after the first DAO mutation.
+- Decision rule: validated correlations require identical canonical methods
+  and byte targets across replicas. A validated, identical, unchanged-hash DAO
+  endpoint map reports `observed_sufficient` or `not_observed_sufficient` only
+  for this complete-group scenario. Unresolved correlation, baseline failure
+  or repair, composed-image repair, correlation-target or endpoint-frontier
+  disagreement, or an otherwise intact non-decisive result is an honest
+  `no_outcome`; a failed or repaired created baseline also forces the
+  sufficiency claim false. Integrity and shape defects reject validation.
+  There is no automatic retry after the first DAO mutation.
 - Interpretation: this entry fixes a bounded acquisition and analysis contract
   only. It establishes no format fact, minimal mutation set, general timestamp
   or LvProp encoding, Rust writer correctness, compatibility, support result,

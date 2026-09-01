@@ -104,8 +104,8 @@ switch ($Job) {
                 [void]$referenced.Add([string]$variant.database)
             }
         }
-        if ($referenced.Count -gt 204) {
-            throw "Bootstrap-layout output exceeds the 204-database bound."
+        if ($referenced.Count -gt 210) {
+            throw "Bootstrap-layout output exceeds the 210-database bound."
         }
         if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
             throw "Bootstrap-layout result contains duplicate database names."

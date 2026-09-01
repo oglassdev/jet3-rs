@@ -321,6 +321,22 @@ class BootstrapLayoutTests(unittest.TestCase):
             report["questions"]["candidate_catalog_fields"]["fields"]["lvprop"]["outcome"],
             "resolved",
         )
+        self.assertEqual(
+            report["questions"]["candidate_catalog_fields"]["fields"]["date_created"][
+                "evidence"
+            ]["method"],
+            "other_timestamp_anchor",
+        )
+        self.assertEqual(
+            report["questions"]["candidate_catalog_fields"]["fields"]["lvprop"][
+                "evidence"
+            ]["header_offset"],
+            18 * bootstrap.PAGE_BYTES + 200,
+        )
+        self.assertEqual(
+            report["questions"]["composed_image_sufficiency"]["endpoints"],
+            endpoints(True),
+        )
 
     def test_partial_failed_replica_is_canonical_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -481,6 +497,126 @@ class BootstrapLayoutTests(unittest.TestCase):
         self.assertEqual(report["status"], "no_outcome")
         self.assertFalse(report["sufficiency_claim"])
 
+    def test_failed_created_baseline_blocks_sufficiency(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            document["replicas"][0]["baseline"]["table_opened"] = False
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "report.json"
+            )
+        self.assertEqual(
+            report["questions"]["composed_image_sufficiency"],
+            {
+                "reason": "at least one created baseline failed or changed during DAO open",
+                "status": "no_outcome",
+            },
+        )
+        self.assertFalse(report["sufficiency_claim"])
+
+    def test_correlation_evidence_disagreement_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            replica = document["replicas"][1]
+            duplicate_start = 22 * bootstrap.PAGE_BYTES + 100
+            duplicate_end = duplicate_start + 16
+
+            renamed = replica["checkpoints"][2]
+            renamed_path = root / renamed["database"]
+            renamed_bytes = bytearray(renamed_path.read_bytes())
+            renamed_bytes[duplicate_start:duplicate_end] = bytes(16)
+            renamed_path.write_bytes(renamed_bytes)
+            renamed["sha256"] = digest(bytes(renamed_bytes))
+            replica["correlations"]["date_created"]["method"] = "unique_exact"
+
+            for variant in replica["variants"]:
+                if not variant["kind"].startswith("candidate_date_"):
+                    continue
+                path = root / variant["database"]
+                data = bytearray(path.read_bytes())
+                data[duplicate_start:duplicate_end] = bytes(16)
+                path.write_bytes(data)
+                variant["sha256_before_open"] = digest(bytes(data))
+                variant["sha256_after_open"] = digest(bytes(data))
+
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "report.json"
+            )
+        self.assertEqual(
+            report["questions"]["candidate_catalog_fields"]["fields"][
+                "date_created"
+            ],
+            {
+                "reason": "replicas disagree on the date_created correlation evidence",
+                "status": "no_outcome",
+            },
+        )
+        self.assertFalse(report["sufficiency_claim"])
+
+    def test_lvprop_locator_disagreement_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            replica = document["replicas"][1]
+            old_offset = 18 * bootstrap.PAGE_BYTES + 200
+            new_offset = old_offset + 20
+            property_set = replica["checkpoints"][3]
+            path = root / property_set["database"]
+            data = bytearray(path.read_bytes())
+            header = bytes(data[old_offset : old_offset + 12])
+            data[old_offset : old_offset + 12] = bytes(12)
+            data[new_offset : new_offset + 12] = header
+            path.write_bytes(data)
+            property_set["sha256"] = digest(bytes(data))
+            replica["correlations"]["lvprop"]["header_offset"] = new_offset
+
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "report.json"
+            )
+        self.assertEqual(
+            report["questions"]["candidate_catalog_fields"]["fields"]["lvprop"],
+            {
+                "reason": "replicas disagree on the lvprop correlation evidence",
+                "status": "no_outcome",
+            },
+        )
+        self.assertFalse(report["sufficiency_claim"])
+
+    def test_composed_endpoint_frontier_disagreement_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            first_frontier = {
+                "open_database": True,
+                "table_enumerated": False,
+                "field_enumerated": False,
+                "table_opened": False,
+            }
+            second_frontier = {
+                "open_database": True,
+                "table_enumerated": True,
+                "field_enumerated": False,
+                "table_opened": False,
+            }
+            for replica, frontier in zip(
+                document["replicas"],
+                (first_frontier, second_frontier, first_frontier),
+                strict=True,
+            ):
+                replica["sufficiency"]["endpoints"].update(frontier)
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "report.json"
+            )
+        self.assertEqual(
+            report["questions"]["composed_image_sufficiency"],
+            {
+                "reason": "replicas disagree on the composed-image DAO endpoint map",
+                "status": "no_outcome",
+            },
+        )
+        self.assertFalse(report["sufficiency_claim"])
+
     def test_repair_is_no_outcome_and_wrong_reconstruction_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -508,6 +644,11 @@ class BootstrapLayoutTests(unittest.TestCase):
                 write_job(root, document), PLAN_SHA256, root / "baseline.json"
             )
             self.assertEqual(report["status"], "no_outcome")
+            self.assertEqual(
+                report["questions"]["composed_image_sufficiency"]["status"],
+                "no_outcome",
+            )
+            self.assertFalse(report["sufficiency_claim"])
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             document = synthetic_document(root)
