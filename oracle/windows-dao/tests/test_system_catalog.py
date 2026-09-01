@@ -499,6 +499,7 @@ def synthetic_document(root: Path, *, markers: dict[int, int] | None = None, str
 def long_value_document(
     root: Path,
     *,
+    followup: bool = False,
     missing_gamma_suffix: bool = False,
     wrong_transition: bool = False,
 ) -> dict:
@@ -530,7 +531,11 @@ def long_value_document(
             }
         )
     return {
-        "document_type": catalog.LONG_VALUE_DOCUMENT_TYPE,
+        "document_type": (
+            catalog.LONG_VALUE_FOLLOWUP_DOCUMENT_TYPE
+            if followup
+            else catalog.LONG_VALUE_DOCUMENT_TYPE
+        ),
         "development_only": True,
         "plan_sha256": PLAN_SHA256,
         "run_id": "synthetic-long-value-maps",
@@ -657,6 +662,62 @@ class SystemCatalogTests(unittest.TestCase):
         self.assertEqual(predictions["gamma_new_long_value_pages"], [14])
         self.assertFalse(
             predictions["note_owned_map_tracks_external_long_value_page"]
+        )
+
+    def test_h6_accepts_unordered_coverage_and_global_long_value_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = long_value_document(root, followup=True)
+            report = self.evaluate(root, document)
+        self.assertEqual(report["document_type"], "long_value_maps_followup_report")
+        self.assertEqual(report["status"], "accepted")
+        h6 = report["questions"]["H6"]
+        self.assertEqual(h6["status"], "answered")
+        self.assertEqual(h6["predictions"]["gamma_new_long_value_pages"], [14])
+        self.assertEqual(h6["predictions"]["note_owned_map_added_pages"], [14])
+        self.assertTrue(
+            h6["predictions"]["note_owned_map_tracks_external_long_value_page"]
+        )
+
+    def test_h6_wrong_column_page_transition_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = self.evaluate(
+                root,
+                long_value_document(root, followup=True, wrong_transition=True),
+            )
+        predictions = report["questions"]["H6"]["predictions"]
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(
+            report["questions"]["H6"]["reason"],
+            "one or more preregistered H6 predictions was not observed",
+        )
+        self.assertEqual(predictions["gamma_new_long_value_pages"], [14])
+        self.assertEqual(predictions["note_owned_map_added_pages"], [13])
+
+    def test_followup_coverage_is_order_insensitive_but_exact(self) -> None:
+        expected = [
+            {"column": 8, "column_name": "Database"},
+            {"column": 9, "column_name": "Connect"},
+        ]
+        reversed_mappings = [
+            {"column": 9, "column_name": "Connect"},
+            {"column": 8, "column_name": "Database"},
+        ]
+        self.assertFalse(
+            catalog._same_long_value_columns(
+                expected, reversed_mappings, ordered=True
+            )
+        )
+        self.assertTrue(
+            catalog._same_long_value_columns(
+                expected, reversed_mappings, ordered=False
+            )
+        )
+        self.assertFalse(
+            catalog._same_long_value_columns(
+                expected, reversed_mappings[:1], ordered=False
+            )
         )
 
     def test_q4_attributes_row_insertion_and_reports_stray_byte(self) -> None:

@@ -6922,6 +6922,56 @@ Use `not applicable` explicitly rather than omitting a field.
   reproducibility, all question fields, replica completion, and false claim
   flags checked
 
+### EXP-0076 — Preregistered corrected long-value column-map experiment
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or format observation has occurred under this plan
+- Question: Across three new fresh replicas, does exact order-insensitive
+  suffix coverage assign every empty-image page, and do `Gamma.Note`'s
+  owned-map additions exactly equal the newly appearing globally identified
+  long-value pages?
+- Origin: project-authored clean-room follow-up using only `EXP-0051`,
+  `EXP-0057`, `EXP-0059`, `EXP-0060`, `EXP-0061`, `EXP-0073`, and the
+  validated `EXP-0075` no-outcome as recorded above. This is a distinct
+  experiment, not a reinterpretation or redispatch of `EXP-0074`.
+- Correction boundary: `EXP-0075` recorded two failed comparisons. Its system
+  suffix groups were not stored in ordinal order, despite each expected
+  column appearing once, so H6 uses exact set equality. Its Gamma column pages
+  carried the global `long_value` role but were absent from Gamma's table-owned
+  map, so H6 compares Note's owned additions with newly appearing pages having
+  the `EXP-0061` global LVAL signature. No other hypothesis changes.
+- Protocol: repeat the bounded three-replica `empty`, `table`, and `row`
+  scenario fixed by `EXP-0074`, using new fresh databases and one
+  4,101-character `Gamma.Note` value per replica. Close and release DAO before
+  each capture; retain the nine MDBs externally and commit none.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/long-value-maps-followup.plan.json`, SHA-256
+  `1052458ff87814bf8ac2d5dd09da740eb61565c0aaf27654228c9352c85dd46c`.
+  It pins the host client, provider probe, guest runner, dispatcher, publisher,
+  producer, and analyzer; host and guest reject mismatches before mutation.
+- Observation: `preregistration.acquisition_started` is `false`. Committing
+  the plan does not itself authorize acquisition. After independent review and
+  merge, one explicit human authorization permits one local-VM run.
+- Decision rule: H6 is answered only when all replicas agree, every Memo or
+  LongBinary column appears exactly once regardless of group order, every
+  empty page is assigned, `Gamma.Note` has one stable group, and the nonempty
+  pages added to its owned map exactly equal newly appearing global
+  `long_value` pages. Any missing predicate is an honest `no_outcome`; input,
+  digest, bound, shape, or checkpoint defects reject validation. There is no
+  automatic retry after the first DAO mutation.
+- Interpretation: this entry fixes only a corrected acquisition and analysis
+  contract. It establishes no new format fact, Rust writer correctness,
+  compatibility, support result, or support-matrix movement.
+- Usage: future `EXP-0077`; issue `#100`;
+  `file:oracle/windows-dao/acquisition/long-value-maps-followup.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/system_catalog.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending repeated independent evidence-boundary, plan-pin, producer,
+  analyzer, decision-rule, and no-retry review before merge and acquisition
+
 
 ## Fixtures and black-box results
 

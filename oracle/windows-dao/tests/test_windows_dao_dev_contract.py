@@ -72,6 +72,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "bootstrap-layout",
                 "system-catalog",
                 "long-value-maps",
+                "long-value-maps-followup",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -226,6 +227,11 @@ class WindowsDaoDevClientTests(unittest.TestCase):
     def test_long_value_maps_binds_and_verifies_a_pinned_plan(self) -> None:
         self.assert_plan_bound_job("long-value-maps", "LONG_VALUE_MAPS_PLAN")
 
+    def test_long_value_maps_followup_binds_and_verifies_a_pinned_plan(self) -> None:
+        self.assert_plan_bound_job(
+            "long-value-maps-followup", "LONG_VALUE_MAPS_FOLLOWUP_PLAN"
+        )
+
     def test_consumed_bootstrap_sufficiency_plan_refuses_to_run(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -246,7 +252,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -341,8 +347,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -362,8 +368,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -374,8 +380,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -494,9 +500,33 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(plan["execution"]["checkpoints"], ["empty", "table", "row"])
         self.assertEqual(plan["execution"]["bounds"]["maximum_replicas"], 3)
         self.assertEqual(plan["execution"]["bounds"]["maximum_checkpoints"], 3)
+        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+            CLIENT.verified_plan_sha256(CLIENT.plan_binding("long-value-maps"))
+
+    def test_long_value_maps_followup_is_pinned_and_bounded(self) -> None:
+        plan = json.loads(
+            CLIENT.LONG_VALUE_MAPS_FOLLOWUP_PLAN.read_text(encoding="utf-8")
+        )
+        self.assertIn(
+            '"long-value-maps-followup" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"',
+            self.remote,
+        )
+        self.assertIn(
+            '"long-value-maps-followup" { $SystemCatalogJobPath }',
+            self.dispatch,
+        )
+        self.assertIn('"long-value-maps-followup" {', self.publication)
         self.assertEqual(
-            CLIENT.verified_plan_sha256(CLIENT.plan_binding("long-value-maps")),
-            "5b2fc593ddfaaa303c37e885d68ab1964e99779593f307ea3bfb702a4c0621d9",
+            plan["document_type"], "dao_long_value_maps_followup_plan"
+        )
+        self.assertEqual(plan["execution"]["checkpoints"], ["empty", "table", "row"])
+        self.assertEqual(plan["execution"]["bounds"]["maximum_replicas"], 3)
+        self.assertEqual(plan["execution"]["bounds"]["maximum_checkpoints"], 3)
+        self.assertEqual(
+            CLIENT.verified_plan_sha256(
+                CLIENT.plan_binding("long-value-maps-followup")
+            ),
+            "1052458ff87814bf8ac2d5dd09da740eb61565c0aaf27654228c9352c85dd46c",
         )
 
     def test_bootstrap_detail_normalization_covers_failure_and_repair_surfaces(self) -> None:

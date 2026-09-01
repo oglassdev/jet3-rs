@@ -27,6 +27,7 @@ MAX_TEXT = 512
 CHECKPOINT_NAMES = ("empty", "table1", "table2", "query", "relationship")
 DOCUMENT_TYPE = "dao_system_catalog_job_result"
 LONG_VALUE_DOCUMENT_TYPE = "dao_long_value_maps_job_result"
+LONG_VALUE_FOLLOWUP_DOCUMENT_TYPE = "dao_long_value_maps_followup_job_result"
 LONG_VALUE_CHECKPOINT_NAMES = ("empty", "table", "row")
 DEFINITION_PREFIX = b"\x02\x01\x56\x43"
 LONG_VALUE_OWNER = b"LVAL"
@@ -1374,6 +1375,22 @@ def _incomplete_reason(document: dict[str, Any], replicas: list[dict[str, Any]])
     return None
 
 
+def _same_long_value_columns(
+    expected: list[dict[str, Any]], mappings: list[dict[str, Any]], *, ordered: bool
+) -> bool:
+    expected_pairs = [
+        (column["column"], column["column_name"]) for column in expected
+    ]
+    mapping_pairs = [
+        (mapping["column"], mapping["column_name"]) for mapping in mappings
+    ]
+    return (
+        expected_pairs == mapping_pairs
+        if ordered
+        else sorted(expected_pairs) == sorted(mapping_pairs)
+    )
+
+
 def _long_value_observation(analysis: dict[str, Any]) -> dict[str, Any]:
     tables = []
     for root in sorted(analysis["tables"]):
@@ -1411,14 +1428,12 @@ def _long_value_observation(analysis: dict[str, Any]) -> dict[str, Any]:
                 "long_value_pages": table["long_value_pages"],
                 "name": table["name"],
                 "root": root,
-                "suffix_complete": expected_columns
-                == [
-                    {
-                        "column": mapping["column"],
-                        "column_name": mapping["column_name"],
-                    }
-                    for mapping in mappings
-                ],
+                "suffix_complete": _same_long_value_columns(
+                    expected_columns, mappings, ordered=True
+                ),
+                "suffix_set_complete": _same_long_value_columns(
+                    expected_columns, mappings, ordered=False
+                ),
             }
         )
     return {
@@ -1431,7 +1446,10 @@ def _long_value_observation(analysis: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_long_value_report(
-    document: dict[str, Any], replicas: list[dict[str, Any]]
+    document: dict[str, Any],
+    replicas: list[dict[str, Any]],
+    *,
+    followup: bool = False,
 ) -> dict[str, Any]:
     analyses: list[dict[str, Any]] = []
     observations: list[dict[str, Any]] = []
@@ -1487,12 +1505,25 @@ def build_long_value_report(
                 and table_maps[0]["available"] == row_maps[0]["available"]
             )
             added_owned = sorted(set(row_maps[0]["owned_pages"]) - set(table_maps[0]["owned_pages"])) if grammar else []
-            added_long_value_pages = sorted(
-                set(gamma_row["long_value_pages"])
-                - set(gamma_table["long_value_pages"])
-            )
+            if followup:
+                table_long_value_pages = {
+                    page["page"]
+                    for page in table["pages"]
+                    if page["role"] == "long_value"
+                }
+                added_long_value_pages = sorted(
+                    page["page"]
+                    for page in row["pages"]
+                    if page["role"] == "long_value"
+                    and page["page"] not in table_long_value_pages
+                )
+            else:
+                added_long_value_pages = sorted(
+                    set(gamma_row["long_value_pages"])
+                    - set(gamma_table["long_value_pages"])
+                )
             complete_suffixes = all(
-                entry["suffix_complete"]
+                entry["suffix_set_complete" if followup else "suffix_complete"]
                 for checkpoint in (empty, table, row)
                 for entry in checkpoint["tables"]
             )
@@ -1513,7 +1544,10 @@ def build_long_value_report(
                     map_tracks_external,
                 )
             ):
-                reason = "one or more preregistered H5 predictions was not observed"
+                hypothesis = "H6" if followup else "H5"
+                reason = (
+                    f"one or more preregistered {hypothesis} predictions was not observed"
+                )
     elif reason is None:
         reason = "not every preregistered checkpoint is present"
     status = "answered" if reason is None else "no_outcome"
@@ -1541,13 +1575,18 @@ def build_long_value_report(
         }
         for replica in replicas
     ]
+    question_name = "H6" if followup else "H5"
     return {
         "checkpoints_compared": common,
         "compatibility_claim": False,
         "development_only": True,
-        "document_type": "long_value_maps_report",
+        "document_type": (
+            "long_value_maps_followup_report"
+            if followup
+            else "long_value_maps_report"
+        ),
         "plan_sha256": document["plan_sha256"],
-        "questions": {"H5": question},
+        "questions": {question_name: question},
         "replicas": summaries,
         "status": "accepted" if status == "answered" else "no_outcome",
         "support_movement": False,
@@ -1639,9 +1678,13 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         set(),
         "$",
     )
-    if item["document_type"] not in (DOCUMENT_TYPE, LONG_VALUE_DOCUMENT_TYPE):
+    if item["document_type"] not in (
+        DOCUMENT_TYPE,
+        LONG_VALUE_DOCUMENT_TYPE,
+        LONG_VALUE_FOLLOWUP_DOCUMENT_TYPE,
+    ):
         raise AnalysisError(
-            f"$.document_type must be {DOCUMENT_TYPE} or {LONG_VALUE_DOCUMENT_TYPE}"
+            f"$.document_type must be {DOCUMENT_TYPE}, {LONG_VALUE_DOCUMENT_TYPE}, or {LONG_VALUE_FOLLOWUP_DOCUMENT_TYPE}"
         )
     if item["development_only"] is not True:
         raise AnalysisError("$.development_only must be true")
@@ -1651,7 +1694,10 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
     if _digest(item["plan_sha256"], "$.plan_sha256") != expected:
         raise AnalysisError("job result plan digest differs from the approved plan")
     old_checkpoint_names = CHECKPOINT_NAMES
-    if item["document_type"] == LONG_VALUE_DOCUMENT_TYPE:
+    if item["document_type"] in (
+        LONG_VALUE_DOCUMENT_TYPE,
+        LONG_VALUE_FOLLOWUP_DOCUMENT_TYPE,
+    ):
         CHECKPOINT_NAMES = LONG_VALUE_CHECKPOINT_NAMES
     try:
         raw_replicas = item["replicas"]
@@ -1663,11 +1709,12 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         ]
         if [replica["replica"] for replica in replicas] != list(range(1, len(replicas) + 1)):
             raise AnalysisError("$.replicas must be numbered 1 through n in order")
-        report = (
-            build_long_value_report(item, replicas)
-            if item["document_type"] == LONG_VALUE_DOCUMENT_TYPE
-            else build_report(item, replicas)
-        )
+        if item["document_type"] == LONG_VALUE_DOCUMENT_TYPE:
+            report = build_long_value_report(item, replicas)
+        elif item["document_type"] == LONG_VALUE_FOLLOWUP_DOCUMENT_TYPE:
+            report = build_long_value_report(item, replicas, followup=True)
+        else:
+            report = build_report(item, replicas)
     finally:
         CHECKPOINT_NAMES = old_checkpoint_names
     output.parent.mkdir(parents=True, exist_ok=True)
