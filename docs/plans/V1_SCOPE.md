@@ -44,9 +44,11 @@ delivered in this order:
 
 ## Current next step
 
-Continue #100 from the accepted A9 allocation result. The next writer layer
-needs a narrow local-VM bootstrap-layout observation before implementation:
-the semantic roles and references connecting the empty 20-page image, the
-first table-definition pages, its map rows, and the catalog update. This
-discovery remains development-only; #102 is the separate hosted write
-differential after database creation is complete.
+Continue #100 from EXP-0071. The validated local bootstrap-sufficiency run
+resolved the DateCreated and LastUpdated byte targets and observed that one
+complete-group reconstruction of the created image satisfies the bounded
+read-only DAO endpoints, but LvProp remains unresolved because DAO refused
+`MSysObjects` reads. The next writer step is the crate-private bootstrap
+composer over the observed page groups, with the LvProp leg deferred to a
+distinct preregistration. #102 is the separate hosted write differential
+after database creation is complete.
