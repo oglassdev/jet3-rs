@@ -163,6 +163,7 @@ def definition(
     marker: int = 0x53,
     constant: int = 0,
     indexes: list[dict] | None = None,
+    suffix: bytes = b"",
 ) -> bytearray:
     columns = layout(spec)
     indexes = indexes or []
@@ -218,6 +219,7 @@ def definition(
     for index in indexes:
         raw = index["name"].encode("cp1252")
         body += bytes([len(raw)]) + raw
+    body += suffix
     body += b"\xff\xff"
     body[8:12] = le32(len(body))
     image = bytearray(PAGE)
@@ -574,6 +576,43 @@ class SystemCatalogTests(unittest.TestCase):
         data = bytes(PAGE * 2) + bytes(image)
         with self.assertRaisesRegex(catalog.DecodeError, "hole in its key slots"):
             catalog._definition(data, 2)
+
+    def test_definition_decodes_long_value_column_map_suffix(self) -> None:
+        suffix = le16(1) + bytes([3]) + (12).to_bytes(3, "little") + bytes([4]) + (13).to_bytes(3, "little")
+        image = definition(
+            2,
+            [("Id", 4, 0x03, 4), ("Note", 12, 0x02, 0)],
+            owned=(6, 0),
+            available=(6, 1),
+            row_count=0,
+            marker=0x4E,
+            constant=1,
+            suffix=suffix,
+        )
+        decoded = catalog._definition(bytes(PAGE * 2) + bytes(image), 2)
+        self.assertEqual(
+            decoded["long_value_maps"],
+            [{
+                "available": {"page": 13, "row": 4},
+                "column": 1,
+                "column_name": "Note",
+                "owned": {"page": 12, "row": 3},
+            }],
+        )
+
+    def test_definition_rejects_long_value_map_for_scalar_column(self) -> None:
+        image = definition(
+            2,
+            [("Id", 4, 0x03, 4)],
+            owned=(6, 0),
+            available=(6, 1),
+            row_count=0,
+            marker=0x4E,
+            constant=1,
+            suffix=le16(0) + bytes(8),
+        )
+        with self.assertRaisesRegex(catalog.DecodeError, "non-long-value column"):
+            catalog._definition(bytes(PAGE * 2) + bytes(image), 2)
 
 
 if __name__ == "__main__":

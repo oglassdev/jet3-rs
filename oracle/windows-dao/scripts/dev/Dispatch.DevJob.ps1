@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -47,6 +47,7 @@ $scriptPath = switch ($Job) {
     "index" { $IndexJobPath }
     "bootstrap-layout" { $BootstrapLayoutJobPath }
     "system-catalog" { $SystemCatalogJobPath }
+    "long-value-maps" { $SystemCatalogJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -68,8 +69,8 @@ if ($Job -ceq "table-definition") {
 elseif ($Job -ceq "bootstrap-layout") {
     $arguments += @("-PlanSha256", $PlanSha256)
 }
-elseif ($Job -ceq "system-catalog") {
-    $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId)
+elseif ($Job -in @("system-catalog", "long-value-maps")) {
+    $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId, "-Experiment", $Job)
 }
 & (Join-Path $PSHOME "powershell.exe") @arguments
 $jobExitCode = [int]$LASTEXITCODE
@@ -81,6 +82,7 @@ $resultName = switch ($Job) {
     "index" { "index-job-result.json" }
     "bootstrap-layout" { "bootstrap-layout-job-result.json" }
     "system-catalog" { "system-catalog-job-result.json" }
+    "long-value-maps" { "long-value-maps-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -112,7 +114,7 @@ $indexScenarios = @()
 $bootstrapLayoutReplicas = @()
 $systemCatalogReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
-$detail = if ($Job -ceq "system-catalog") {
+$detail = if ($Job -in @("system-catalog", "long-value-maps")) {
     if ([string]$jobResult.status -ceq "pass") {
         "Completed all three system-catalog replicas once without retry."
     }
@@ -132,7 +134,7 @@ elseif ($Job -ceq "index") { $indexScenarios = @($jobResult.scenarios) }
 elseif ($Job -ceq "bootstrap-layout") {
     $bootstrapLayoutReplicas = @($jobResult.replicas)
 }
-elseif ($Job -ceq "system-catalog") {
+elseif ($Job -in @("system-catalog", "long-value-maps")) {
     $systemCatalogReplicas = @($jobResult.replicas)
 }
 $result = [ordered]@{

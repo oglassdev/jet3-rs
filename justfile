@@ -72,6 +72,10 @@ windows-dev-bootstrap-layout:
 windows-dev-system-catalog:
     "{{PYTHON}}" scripts/windows-dao-dev.py system-catalog --timeout 900
 
+# Run the preregistered long-value column-map experiment in the local VM.
+windows-dev-long-value-maps:
+    "{{PYTHON}}" scripts/windows-dao-dev.py long-value-maps --timeout 900
+
 # Run one ad-hoc PowerShell script under x86 DAO in the local VM (discovery only).
 windows-dev-ps script *args:
     "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}

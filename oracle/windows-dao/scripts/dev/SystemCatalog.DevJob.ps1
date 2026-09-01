@@ -8,7 +8,10 @@ param(
     [string]$PlanSha256,
 
     [Parameter(Mandatory = $true)]
-    [string]$RunId
+    [string]$RunId,
+
+    [ValidateSet("system-catalog", "long-value-maps")]
+    [string]$Experiment = "system-catalog"
 )
 
 Set-StrictMode -Version Latest
@@ -20,6 +23,7 @@ if ($PlanSha256 -cnotmatch '^[0-9a-f]{64}$') {
 $DbVersion30 = 32
 $DbLong = 4
 $DbText = 10
+$DbMemo = 12
 $DatabaseLocale = ";LANGID=0x0409;CP=1252;COUNTRY=0"
 $PageSize = 2048
 $MaximumPages = 64
@@ -135,6 +139,55 @@ function New-AlphaTable {
         finally {
             Release-ComObject -Value $field
             Release-ComObject -Value $table
+        }
+    }
+}
+
+function New-GammaTable {
+    param([string]$Path)
+
+    Invoke-WithDatabase -Path $Path -Action {
+        param($database)
+        $table = $null
+        $idField = $null
+        $noteField = $null
+        try {
+            $table = $database.CreateTableDef("Gamma")
+            $idField = $table.CreateField("Id", $DbLong)
+            $table.Fields.Append($idField)
+            $noteField = $table.CreateField("Note", $DbMemo)
+            $table.Fields.Append($noteField)
+            $database.TableDefs.Append($table)
+        }
+        finally {
+            Release-ComObject -Value $noteField
+            Release-ComObject -Value $idField
+            Release-ComObject -Value $table
+        }
+    }
+}
+
+function Add-GammaLongMemoRow {
+    param([string]$Path)
+
+    Invoke-WithDatabase -Path $Path -Action {
+        param($database)
+        $records = $null
+        try {
+            $records = $database.OpenRecordset("Gamma")
+            $records.AddNew()
+            $records.Fields.Item("Id").Value = 1
+            $records.Fields.Item("Note").Value = ("memo-" + ("x" * 4096))
+            $records.Update()
+            $records.Close()
+            Release-ComObject -Value $records
+            $records = $null
+        }
+        finally {
+            if ($null -ne $records) {
+                try { $records.Close() } catch { }
+            }
+            Release-ComObject -Value $records
         }
     }
 }
@@ -501,7 +554,7 @@ function Save-Checkpoint {
     )
 
     # DAO is closed and released by the preceding mutation before the copy.
-    $fileName = "system-catalog-r$Replica-$Name.mdb"
+    $fileName = "$Experiment-r$Replica-$Name.mdb"
     $destination = Join-Path $RunRoot $fileName
     Copy-Item -LiteralPath $Source -Destination $destination
     $size = Get-BoundedSize -Path $destination
@@ -531,14 +584,22 @@ function Invoke-Replica {
     try {
         New-Jet3Database -Path $workingPath
         [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "empty"))
-        New-AlphaTable -Path $workingPath
-        [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table1"))
-        New-BetaTable -Path $workingPath
-        [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table2"))
-        New-SavedQuery -Path $workingPath
-        [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "query"))
-        New-BetaAlphaRelation -Path $workingPath
-        [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "relationship"))
+        if ($Experiment -ceq "long-value-maps") {
+            New-GammaTable -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table"))
+            Add-GammaLongMemoRow -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "row"))
+        }
+        else {
+            New-AlphaTable -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table1"))
+            New-BetaTable -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table2"))
+            New-SavedQuery -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "query"))
+            New-BetaAlphaRelation -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "relationship"))
+        }
         $state.status = "pass"
     }
     catch {
@@ -561,7 +622,7 @@ function Invoke-Replica {
 }
 
 [void][IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($RunRoot))
-$resultPath = Join-Path $RunRoot "system-catalog-job-result.json"
+$resultPath = Join-Path $RunRoot "$Experiment-job-result.json"
 $replicas = New-Object Collections.ArrayList
 foreach ($replica in 1..3) {
     [void]$replicas.Add((Invoke-Replica -Replica $replica))
@@ -573,7 +634,10 @@ foreach ($entry in $replicas) {
     }
 }
 $result = [ordered]@{
-    document_type = "dao_system_catalog_job_result"
+    document_type = if ($Experiment -ceq "long-value-maps") {
+        "dao_long_value_maps_job_result"
+    }
+    else { "dao_system_catalog_job_result" }
     development_only = $true
     plan_sha256 = $PlanSha256
     run_id = $RunId

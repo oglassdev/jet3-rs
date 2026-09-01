@@ -30,6 +30,9 @@ The retained tooling has three purposes:
   system-catalog semantics experiment for #100: five closed checkpoints per
   replica with DAO-visible catalog metadata, analyzed against pinned
   system-table hypotheses.
+- `acquisition/long-value-maps.plan.json` reuses that bounded producer and
+  analyzer for the three-checkpoint EXP-0074 successor that tests per-column
+  long-value map locators and assigns the final empty-image page role.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.

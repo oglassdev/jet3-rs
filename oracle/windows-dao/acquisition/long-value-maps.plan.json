@@ -1,0 +1,78 @@
+{
+  "document_type": "dao_long_value_maps_plan",
+  "experiment_id": "long_value_column_maps",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Close the remaining empty-image page-role gap by testing the 10-byte per-long-value-column definition suffix grammar and observing the map transition caused by one external Memo value.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_result": "EXP-0073",
+    "authorization": "No acquisition is authorized by committing this plan. After review and merge, the human operator may explicitly authorize one local-VM acquisition.",
+    "amendment_rule": "This is one immutable experiment. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision."
+  },
+  "evidence_boundary": {
+    "admitted_prior_results": "EXP-0051, EXP-0057, EXP-0059, EXP-0060, EXP-0061, and EXP-0073 as recorded in docs/PROVENANCE.md.",
+    "design_input": "Interactive decoding of the externally retained EXP-0073 checkpoints suggested H5. Those bytes are design input only and are not an experiment input or result.",
+    "dao_limits": "The local provider has no workgroup information file. DAO system-table reads and permission operations are excluded; correlation is limited to DAO-visible table names, attributes, and timestamps.",
+    "claims": "A successful result establishes only the bounded H5 observations below. It cannot establish Rust writer correctness, compatibility, support, or support-matrix movement."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "06dfb002dc7821293e0ae285103e39cfbc89e719979fc4375d81b3cb1a8949d4",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "b0cb6346183ad6b5d8923e4dc377c23599605d4568121816c7a5f340424b3c9e",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "48a5967e9b92d37742af805462c68b062b649a2cac42544f2791e7b9b1542030",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "e858eac6424a4a7f271dc16f4d726e997e9066502d008021f4997ad190c502a8",
+    "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1": "673445d0987e47e92512fb7cf2ad1bc485910193a5a9f9f8555ef87b6d4e99a1",
+    "oracle/windows-dao/scripts/system_catalog.py": "28c8adf7847919f9e7e5a2b5f949a3b3850a80c041bfcb76da458be67bf50505"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": [
+      "Create one fresh dbVersion30 CP1252 database and capture it closed as empty.",
+      "Create table Gamma with Long Id and Memo Note and capture it closed as table.",
+      "Insert exactly one row with Id 1 and a 4101-character Memo Note, long enough to require external storage, and capture it closed as row."
+    ],
+    "checkpoints": ["empty", "table", "row"],
+    "capture": "Close and release every DAO object before each copy or hash. Retain all nine MDB checkpoints externally with sizes and SHA-256 digests; commit none.",
+    "bounds": {
+      "maximum_pages_per_database": 64,
+      "maximum_checkpoints": 3,
+      "maximum_replicas": 3,
+      "maximum_tables": 16,
+      "maximum_columns_per_table": 64,
+      "maximum_rows_per_page": 64,
+      "maximum_property_value_characters": 256,
+      "maximum_json_bytes": 4194304
+    }
+  },
+  "hypotheses": {
+    "H5_long_value_column_maps": "The definition suffix is a sequence of 10-byte groups, one for each Memo or LongBinary column: a little-endian two-byte column ordinal, then an owned-map locator and an available-map locator, each encoded as one row byte followed by a little-endian 24-bit page. In the empty image this assigns every page, including page 7 through MSysObjects.LvExtra. Gamma.Note carries exactly one group of the same shape. After inserting the external Memo, Note's per-column owned map adds the page that holds that external long value."
+  },
+  "questions": {
+    "H5": "Across all three replicas, does the suffix decode under H5, does it assign every empty-image page, does Gamma.Note use the same one-group shape, and does its owned map add an external long-value page after the row insertion?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and staged inputs match their SHA-256 pins; the provider is ready; all three replicas complete all three checkpoints once; bounds and file digests validate; and the analyzer emits one deterministic report with H5 answered.",
+    "answered": "H5 is answered only if the decoded observations and page roles are identical across all three replicas and every preregistered prediction is observed.",
+    "no_outcome": "A replica failure or disagreement, decode failure, unassigned empty page, missing or malformed Gamma.Note suffix group, or absence of the predicted owned-map transition is recorded as no_outcome.",
+    "rejected": "A plan or input digest mismatch, malformed result, bound violation, file digest mismatch, or checkpoint-order defect rejects validation.",
+    "retry": "One explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "long-value content interpretation",
+    "the optional property-blob question",
+    "workgroup security semantics",
+    "Rust writer changes",
+    "public API expansion",
+    "compatibility or support claims"
+  ]
+}
