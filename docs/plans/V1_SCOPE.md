@@ -44,12 +44,13 @@ delivered in this order:
 
 ## Current next step
 
-Continue #100 from EXP-0071 through the preregistered EXP-0072
-system-catalog semantics experiment. Its single authorized local-VM run must
-decode the four system table definitions, assign every page of the empty
-image a role, decode the system rows, and attribute the byte ranges changed
-by adding a table, an indexed table, a saved query, and a relationship.
-DAO on the local VM has no workgroup file and cannot read system tables
-itself, so that evidence is the only route to a bootstrap composer that
-generates the image from semantics. #102 is the separate hosted write
-differential after database creation is complete.
+Continue #100 from the accepted EXP-0073 system-catalog result. It supplies
+the system table definitions, a page-role map for the empty image (page 7
+excepted), the system row encodings, and full attribution of the create,
+index, query, and relationship transitions. The next writer step is the
+crate-private bootstrap composer that generates the empty image and the
+create transition from those semantics, validated later by DAO endpoints
+under a fresh preregistration. The raw definition suffix and page 7 remain
+uninterpreted and are the first candidates for a follow-up experiment.
+#102 is the separate hosted write differential after database creation is
+complete.

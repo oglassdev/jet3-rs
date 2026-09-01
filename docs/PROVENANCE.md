@@ -6611,6 +6611,184 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent evidence-boundary, hypothesis, plan-pin,
   producer, analyzer, and no-retry review before merge and local acquisition
 
+
+### EXP-0073 — Accepted local system-catalog semantics result
+
+- Recorded: 2026-09-01, Claude Fable 5.1
+- Kind: validated SHA-256-pinned, development-only local DAO `accepted`
+  result derived from the canonical analyzer report
+- Question: For the three fresh replicas preregistered by `EXP-0072`, what do
+  the system table definitions, page roles, system rows, and transition
+  attributions look like under hypotheses H1--H4?
+- Origin: project-authored clean-room experiment at merged preregistration
+  commit `b195014e1898fdc64566951d0ef07d2babb91344`, using the exact basis and evidence boundary fixed by
+  `EXP-0072`; one explicit human authorization preceded the single
+  acquisition
+- Environment: private local Windows development VM; the x86 provider probe
+  reported `ready`; external `environment.json`, 4,277 bytes, SHA-256
+  `2d0dde2fb8484974f9437d613ea6fd539ab8ac01984b0caba9becb106df8ed77`
+- Protocol: run ID `20260901T211001Z-system-catalog` executed the pinned
+  `system-catalog` job once under plan SHA-256
+  `92d89772633c859baac50664cdc920d6d96cea8c78c9512297993f74f2f9c532`. The
+  host client verified every input pin before staging and after acquisition.
+  The guest result status was `pass`; all three replicas completed all five
+  checkpoints once, no DAO per-item read errored, every checkpoint's digest
+  was unchanged after the read-only metadata open, and no redispatch
+  occurred.
+- Artifacts: external `system-catalog-job-result.json`, 279,086 bytes,
+  SHA-256
+  `c237ad4c43130b35294d2ebbed53ef43043cba2aeaeb8cf0f2cfc1ada8b6041b`;
+  external `result.json`, 321,852 bytes, SHA-256
+  `b38ac4f11c7f313dc1315265f401da12a04fb1bf36d74e97af5e9b494f620c88`;
+  external canonical `system-catalog-report.json`, 64,955 bytes, SHA-256
+  `4870565bb327f82924e7765ef793fd3c8427b39b36bd2333671f1363d5734b3a`,
+  reproduced byte-identically by re-running the pinned analyzer on the host.
+  The report has `document_type` `system_catalog_report`,
+  `development_only: true`, the exact plan digest above, status `accepted`,
+  `compatibility_claim: false`, and `support_movement: false`. Checkpoint
+  sizes were identical across replicas: `empty` 40,960; `table1` 47,104;
+  `table2` 53,248; `query` 55,296; `relationship` 59,392 bytes. The fifteen
+  MDB checkpoints remain external.
+- Q1 observation (`answered`): all four system definitions decoded
+  identically across replicas and checkpoints under H1 except row counts and
+  distinct-key counts. Every header byte 20 was `0x53`; every column
+  constant `[7,9)` and ordinal repeat `[5,7)` was zero; header bytes
+  `[16,20)` and `[33,35)` were zero; context bytes were `09 04 e4 04`;
+  physical-index prefix bytes `[0,4)` were zero.
+  - `MSysObjects`, root 2, logical length 708, owned map page 6 row 0,
+    available map page 6 row 1, 17 columns: 0 `Id` Long class `0x13` fixed
+    offset 0 size 4; 1 `ParentId` Long `0x13` offset 4 size 4; 2 `Name` Text
+    `0x12` variable 0 size 255; 3 `Type` Integer `0x13` offset 8 size 2;
+    4 `DateCreate` Date `0x13` offset 10 size 8; 5 `DateUpdate` Date `0x13`
+    offset 18 size 8; 6 `Owner` Binary `0x32` variable 1 size 255; 7 `Flags`
+    Long `0x13` offset 26 size 4; 8 `Database` Memo `0x12` variable 2;
+    9 `Connect` Memo `0x12` variable 3; 10 `ForeignName` Text `0x12` variable
+    4 size 255; 11 `RmtInfoShort` Binary `0x12` variable 5 size 255;
+    12 `RmtInfoLong` LongBinary `0x12` variable 6; 13 `Lv` LongBinary `0x12`
+    variable 7; 14 `LvProp` LongBinary `0x12` variable 8; 15 `LvModule`
+    LongBinary `0x12` variable 9; 16 `LvExtra` LongBinary `0x12` variable 10.
+    Physical index 0 keys (`ParentId` ascending, `Name` ascending), map page 8
+    row 0, root page 9, flags `0x01`; physical index 1 key (`Id` ascending),
+    map page 10 row 0, root page 11, flags `0x01`. Logical indexes `Id`
+    (physical 1, class 1) and `ParentIdName` (physical 0, class 0). Raw
+    suffix
+    `09000406000005060000080002060000030600000d00080600000906000010000e060000000700000f000c0600000d0600000e000a0600000b0600000c000606000007060000`.
+    Row counts 8, 9, 10, 11, 12 across the five checkpoints; both index
+    counts equal.
+  - `MSysACEs`, root 3, logical length 223, maps page 12 rows 0 and 1,
+    columns 0 `ObjectId` Long `0x13` offset 0 size 4; 1 `SID` Binary `0x32`
+    variable 0 size 255; 2 `ACM` Long `0x13` offset 4 size 4;
+    3 `FInheritable` Boolean `0x13` offset 0 size 1. Physical index 0 key
+    (`ObjectId` ascending), map page 12 row 2, root page 13, flags `0x08`;
+    logical index `ObjectId` class 0; empty suffix. Row counts 16, 18, 20,
+    22, 24; distinct-key counts 8, 9, 10, 11, 12.
+  - `MSysQueries`, root 4, logical length 319, maps page 12 rows 3 and 4,
+    columns 0 `ObjectId` Long `0x13` offset 0 size 4; 1 `Attribute` Byte
+    `0x13` offset 4 size 1; 2 `Order` Binary `0x12` variable 0 size 255;
+    3 `Name1` Text `0x12` variable 1 size 255; 4 `Name2` Text `0x12` variable
+    2 size 255; 5 `Expression` Memo `0x12` variable 3; 6 `Flag` Integer
+    `0x13` offset 5 size 2. Physical index 0 keys (`ObjectId`, `Attribute`,
+    `Order`, all ascending), map page 12 row 7, root page 14, flags `0x01`;
+    logical index `ObjectIdAttribute` class 1; suffix
+    `0500050c0000060c0000`. Row counts 0, 0, 0, 4, 4.
+  - `MSysRelationships`, root 5, logical length 526, maps page 12 rows 8 and
+    9, columns 0 `szRelationship` Text `0x12` variable 0 size 255; 1 `grbit`
+    Long `0x13` offset 0; 2 `ccolumn` Long `0x13` offset 4; 3 `icolumn` Long
+    `0x13` offset 8; 4 `szObject` Text `0x12` variable 1; 5 `szColumn` Text
+    `0x12` variable 2; 6 `szReferencedObject` Text `0x12` variable 3;
+    7 `szReferencedColumn` Text `0x12` variable 4, all Text size 255.
+    Physical indexes 0, 1, 2 on `szRelationship`, `szObject`, and
+    `szReferencedObject` ascending, maps page 12 rows 10, 11, 12, roots
+    pages 15, 16, 17, flags `0x02`; logical indexes `szObject` (physical 1),
+    `szReferencedObject` (physical 2), `szRelationship` (physical 0), all
+    class 0; empty suffix. Row counts 0, 0, 0, 0, 1.
+- Q2 observation (`answered`): page roles were identical across replicas.
+  At `empty`: 0 header; 1 global map; 2--5 definition roots; 6 map rows
+  (`MSysObjects`); 7 `unassigned` (tag `0x01`, one 133-byte zero row); 8 map
+  rows and 9 index root (`MSysObjects` index 0); 10 map rows and 11 index
+  root (`MSysObjects` index 1); 12 map rows (`MSysACEs`, `MSysQueries`,
+  `MSysRelationships` and their indexes); 13 index root (`MSysACEs`); 14
+  index root (`MSysQueries`); 15--17 index roots (`MSysRelationships`); 18
+  data (`MSysObjects`); 19 data (`MSysACEs`). Appended pages: `table1` 20
+  definition root `Alpha`, 21 map rows, 22 long value; `table2` 23
+  definition root `Beta`, 24 map rows (table and index), 25 index root;
+  `query` 26 data (`MSysQueries`); `relationship` 27 data
+  (`MSysRelationships`), 28 index root (`Alpha` index 0). Page 7 was the
+  only unassigned page at every checkpoint.
+- Q3 observation (`answered`): every DAO-visible Document, TableDef,
+  QueryDef, and Relation name correlated to exactly one `MSysObjects` row in
+  every replica, each Document's row `ParentId` equalled its container's
+  row `Id`, and every DAO `DateCreated`/`LastUpdated` exposed for TableDefs
+  and the QueryDef equalled the row's `DateCreate`/`DateUpdate` exactly.
+  Observed per class (`Type`, `Flags`, `ParentId`): containers `Tables`,
+  `Databases`, `Relationships` type 3, flags `0x80000000`, parent
+  `0x0f000000`, ids `0x0f000001`--`0x0f000003`; `MSysDb` type 2, flags
+  `0x80000000`, parent `Databases`, id `0x10000000`; system tables type 1,
+  flags `0x80000000`, parent `Tables`, ids 2--5; user tables `Alpha` and
+  `Beta` type 1, flags 0, parent `Tables`, ids 20 and 23 equal to their
+  definition roots; `QueryOne` type 5, flags 0, parent `Tables`, id
+  `0x80000000`; `BetaAlpha` type 8, flags 0, parent `Relationships`, id
+  `0x80000001`. Every row had `Name` and `Owner` present; user tables and the
+  query also had `LvProp` present. `MSysACEs` held two rows per object
+  (`SID` `0301` and `0201`) plus inheritable container rows with `SID`
+  `0204`; every `ObjectId` matched a catalog row. `MSysQueries` held four
+  rows for `QueryOne` with `Attribute` 0, 255, 6 (inline Memo `Expression`,
+  header `020000800000000000000000`, 14 bytes), and 5 (`Name1` `Alpha`).
+  `MSysRelationships` held one row `BetaAlpha`, `grbit` 0, `ccolumn` 1,
+  `icolumn` 0, `szObject` `Alpha`, `szColumn` `Id`, `szReferencedObject`
+  `Beta`, `szReferencedColumn` `Id`.
+- Q4 observation (`answered`): every changed range in all four transitions
+  was attributed, with zero `unattributed` ranges, identically across
+  replicas. Each transition changed page 0 `[1538,1539)`, the page-1 global
+  map row, the affected definitions' row counts and index distinct-key
+  counts, the `MSysObjects` and `MSysACEs` row directories, new rows, and
+  index pages 9, 11, and 13. `empty`→`table1` additionally changed page 6
+  rows 10 and 11 (map rows reachable only through the raw suffix, tracking
+  the appended long-value page 22) and appended pages 20--22.
+  `table1`→`table2` changed long-value page 22 and appended 23--25.
+  `table2`→`query` changed the `MSysQueries` maps on page 12 and index page
+  14 and appended data page 26. `query`→`relationship` changed the
+  `MSysRelationships` maps and index pages 15--17, the `Alpha` and `Beta`
+  definition bodies (recorded as `definition_other`), `Alpha`'s new index
+  count and map row on page 21, and appended pages 27 and 28.
+- Replica agreement: replicas 1, 2, and 3 each have status `pass` with five
+  checkpoints and no DAO errors. Their empty/table1/table2/query/relationship
+  checkpoint SHA-256 identities are respectively: replica 1
+  `dd0ffd3a2cfbfc001fb44398c4d1390a8e13e47744aa6e3a6fae5ea8d9fb9419` /
+  `9e02d1ca66dd5bfcabbc48b6d1310a69d4f45398be66b64ce5f1b330802db785` /
+  `82a5ac820776e76d4702c0482a8c263c7a417dcf80367b15ef9558831a24f379` /
+  `cac0467cf1f55c786629cf65249264fb600329e2f6707bc30deb16407dbee860` /
+  `916a3b77057b2ec3a1c675796f372f20e30c124b5812fdf94d86233506046fed`;
+  replica 2
+  `af4d45242fc8144365b99892b1fe4e5849e13cf8d5bf88fb4a409e04685ff09f` /
+  `3ee2f14952168baa0d4941ddf6dd723e219b21bb50d92a114fc34b48072c351b` /
+  `dbcb63119d48855f38537f376f331aec1ddd4021edc38fc61d2d5e16844682e7` /
+  `55e355c8b2610e3f96b68d71133ebf85cd5906f47a06a7af3ebec35fcb1b6f1e` /
+  `6613ec1c454db6be0ec1ffc84672f28a0b2b7ce96fd362d3326e329dceb00e92`;
+  replica 3
+  `7827358a8c13460a3cfcbc408dfd273d47de3f31c087eabdf0bfc3c8b6c5aa8c` /
+  `a28709db9b115f04e0b1e674bfefc117de465e68876a1b0deba8fd23d3c52353` /
+  `6cca18c79dc7b35b65dc5f0709b985af190a9e712fc6a2e41b8a446dc7fb08e4` /
+  `8d96f815e7b7001cb14861a1968c6ea09dc60a0563558d71e0fdb630966c2851` /
+  `ffb1bd672fcc6a593b7e3459a3afef82cee6974b197fdb1065f523ed177de526`.
+- Interpretation and claims: this establishes, for this scenario and
+  provider, the system definition grammar relaxations of H1, a complete
+  page-role assignment for the empty image except page 7, the system row
+  encodings and per-class catalog values above, and full attribution of the
+  bounded transitions. The raw definition suffix, page 7, index page
+  contents, and long-value contents remain uninterpreted. It establishes no
+  Rust writer correctness, no minimal bootstrap image, no DAO compatibility,
+  no support result, and no support-matrix movement.
+- Usage: future separately reviewed issue `#100` writer-bootstrap work;
+  `EXP-0072`; `file:oracle/windows-dao/acquisition/system-catalog.plan.json`;
+  `file:oracle/windows-dao/scripts/system_catalog.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: retained JSON identities, plan binding, host re-analysis
+  determinism, report status and false claim flags, all question fields,
+  three-replica agreement, checkpoint identities, and zero unattributed
+  ranges checked
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
