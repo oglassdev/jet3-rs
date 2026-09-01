@@ -6429,6 +6429,117 @@ Use `not applicable` explicitly rather than omitting a field.
   plan-pin, producer, analyzer, sufficiency-negative-control, and no-retry
   review before merge and local acquisition
 
+### EXP-0071 — Validated no-outcome bootstrap-correlation and sufficiency result
+
+- Recorded: 2026-09-01, Claude Fable 5.1
+- Kind: validated SHA-256-pinned, development-only local DAO `no_outcome`
+  result derived from the canonical analyzer report
+- Question: For the three fresh replicas preregistered by `EXP-0070`, which
+  DateCreated, LastUpdated, and LvProp correlations resolve under the
+  preregistered rules, and is the complete-group composed image sufficient for
+  the four bounded read-only DAO endpoints?
+- Origin: project-authored clean-room experiment at merged preregistration
+  commit `4896a72998925a9e17672ed26fdd153e8b63800c`, using the exact basis and
+  evidence boundary fixed by `EXP-0070`; one explicit human authorization
+  preceded the single acquisition
+- Environment: private local Windows development VM; the x86 provider probe
+  reported `ready`; external `environment.json`, 4,277 bytes, SHA-256
+  `9ac5ff05613b8dd7f1502db2454d84795da5a7ce4d45ee58e16ff6c99ca40c08`
+- Protocol: run ID `20260901T201319Z-bootstrap-sufficiency` executed the
+  pinned `bootstrap-layout` job once under plan SHA-256
+  `da56d399dd4608a6d938deac3dde4ce0d6125a15a56dc8204be1ebe9338b6994`. The host
+  client verified every input pin before staging and after acquisition. The
+  guest result status was `pass`; all three fresh replicas, controls, and
+  composed candidates completed once, and no redispatch occurred.
+- Artifacts: external `bootstrap-layout-job-result.json`, 286,684 bytes,
+  SHA-256
+  `f5972585496ee1315b5022a8025f3132835ef64f4abd7265040d331a43d5b71e`;
+  external `result.json`, 348,544 bytes, SHA-256
+  `b3178ef47de7057979f5fc012c2eda817d82d19df5f855fb29a4ebcb6b5050dc`;
+  external canonical `bootstrap-layout-report.json`, 26,358 bytes, SHA-256
+  `297840058d80578436f624bc3bed987af9e63f52b3acbeba23de6e53abb99972`,
+  reproduced byte-identically by re-running the pinned analyzer on the host.
+  The report has `document_type` `bootstrap_layout_report`,
+  `development_only: true`, the exact plan digest above, status `no_outcome`,
+  and `compatibility_claim: false`, `sufficiency_claim: false`, and
+  `support_movement: false`. The four MDB checkpoints, the composed candidate,
+  and every variant per replica remain external.
+- Q1 timestamp observation: `date_created.status` is `answered` with evidence
+  `status: resolved`, method `last_updated_anchor`, offsets `[38373]`, and
+  outcome `not_observed_necessary`. `date_updated.status` is `answered` with
+  evidence `status: resolved`, method `unique_exact`, offsets `[38381]`, and
+  outcome `not_observed_necessary`. Both offsets are absolute file offsets on
+  zero-based page 18, and the DateCreated eight-byte range `[38373,38381)`
+  immediately precedes the LastUpdated range `[38381,38389)`. The
+  valid-OLE-Date-zero ablations of each range left all four endpoints `true`
+  in every replica.
+- Q1 LvProp observation: `lvprop.status` is `no_outcome` for the verbatim
+  reason `at least one replica did not resolve the structural correlation`.
+  In every replica and at both the renamed and property-set checkpoints the
+  producer recorded the verbatim DAO error `Record(s) cannot be read; no read
+  permission on 'MSysObjects'.` for the temporary `WITH OWNERACCESS OPTION`
+  QueryDef, so no bounded LvProp payload was observed and no header, page, or
+  row target exists. `candidate_catalog_fields.status` is therefore
+  `no_outcome`.
+- Page-0 control observation: `candidate_page0.status` is `answered` with
+  outcome `not_observed_necessary`; page-0 values were empty `0`, created
+  `2`, and renamed `3`, and both changed ranges were exactly `[1538,1539)`.
+- Q2 observation: `composed_image_sufficiency.status` is `answered` with
+  outcome `observed_sufficient`. In every replica the created baseline passed,
+  the independently reconstructed candidate equalled the created checkpoint,
+  and the composed candidate returned `open_database`, `table_enumerated`,
+  `field_enumerated`, and `table_opened` all `true` with `repaired: false`
+  (unchanged bounded size and SHA-256 after DAO access).
+- Necessity-repetition controls: `required_mutation_groups.status` is
+  `answered` with 12 groups whose kinds, pages, absolute half-open ranges, and
+  outcomes are identical to those recorded in `EXP-0069`: pages 9, 13, 18, 19,
+  20, and 22 `necessary`; pages 1, 2, 3, 6, 11, and 21
+  `not_observed_necessary`. These repeat `EXP-0069` as execution-integrity
+  controls and do not broaden its necessity claims.
+- Replica agreement: replicas 1, 2, and 3 each have status `pass`,
+  `baseline_passed: true`, 12 mutation groups, 15 variants with identical
+  outcomes, identical correlation statuses (`date_created: resolved`,
+  `date_updated: resolved`, `lvprop: no_outcome`), identical timestamp methods
+  and offsets, and identical sufficiency endpoint maps. Their
+  empty/created/renamed/property-set checkpoint SHA-256 identities are
+  respectively: replica 1
+  `144059824f73e6f34f81110f9e40c84d346377322fe81b017d676103810fe893` /
+  `ef088de81fc376b2425af8115d7b5ef6cb84869451ec22925f62748c613a6d71` /
+  `3c1eba87eaec92b361ede96ff65f6bdbe0226eb41f8190993b697b088a48d757` /
+  `fb074af5a21a9645fc5233210ec6d45bc6484bad24996235395d4ceb98145f78`;
+  replica 2
+  `ce95e6b140fbf19f2b7ca390f24f60c998ad313152bf1f9df0c5394a24a67f0b` /
+  `f06241c91b71fbfcae9f680e530186a3c0c467ef5e5e97182bed3da04bdf5432` /
+  `b5d1f83af5a5ecb2df2ad872583a4dd9a0473f7e09a1f02dc502adbf5e24d067` /
+  `650e1984fada143ed9afc9d3f6fb04366e44b80b319c8229155efe9ab6638456`;
+  replica 3
+  `a6b330f13094ef58e7f3836e215d0c113f1e03ff9c2ebf2c36d9668b2eb4f224` /
+  `ef7346052ec8cc6db1b7c4ce864351b71694e8e5a0e3bfd779c23e73d10c268c` /
+  `b314acd9bc6a47463df8468a8eca2c3e69769531c7ab7a45b4a55a25febb0212` /
+  `4eb9a5c252d8504d38350ce2d0ad9271bfecb2945dc14a43d45e0f1eea9e44c6`.
+- Interpretation and claims: the overall result is honestly `no_outcome`
+  because LvProp was not resolved, and `sufficiency_claim` stays `false` as the
+  `EXP-0070` decision rule requires. The answered subresults are retained as
+  recorded: the replica-consistent DateCreated and LastUpdated byte targets on
+  page 18 for this scenario, and the observation that one complete-group
+  reconstruction from the empty checkpoint satisfied all four bounded
+  read-only endpoints in every replica. This establishes no minimal mutation
+  set, no general timestamp or LvProp encoding, no Rust writer correctness,
+  no DAO compatibility, no support result, and no support-matrix movement.
+  The `MSysObjects` permission failure is a method defect in the LvProp leg;
+  any retry requires a distinct preregistration and a new human decision.
+- Usage: future separately reviewed issue `#100` writer-bootstrap work;
+  `EXP-0070`;
+  `file:oracle/windows-dao/acquisition/bootstrap-layout-sufficiency.plan.json`;
+  `file:oracle/windows-dao/scripts/bootstrap_layout.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: retained JSON identities, plan binding, host re-analysis
+  determinism, report status and false claim flags, all question fields,
+  three-replica agreement, checkpoint identities, exact mutation and
+  composed-candidate reconstruction, and verbatim LvProp failure detail
+  checked
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
