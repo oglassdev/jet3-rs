@@ -26,6 +26,10 @@ fn ordinary_logical(physical_index: u32, class: u8) -> [u8; 20] {
 /// An `MSysACEs`-shaped system definition plus one Memo column, with the
 /// `EXP-0073` primary over unique-only flags and one `0x02`-flagged index.
 fn system_definition() -> Vec<u8> {
+    system_definition_with_first_flags(1)
+}
+
+fn system_definition_with_first_flags(first_flags: u8) -> Vec<u8> {
     let columns: Vec<ColumnSpec> = vec![
         (4, 0x13, 0, 4, b"ObjectId".to_vec()),
         (9, 0x32, 0, 255, b"SID".to_vec()),
@@ -37,7 +41,7 @@ fn system_definition() -> Vec<u8> {
     build_definition(
         SYSTEM_MARKER,
         &columns,
-        &[physical_index(1), relationship_like],
+        &[physical_index(first_flags), relationship_like],
         &[
             (ordinary_logical(0, 1), b"ObjectId"),
             (ordinary_logical(1, 0), b"SID"),
@@ -123,6 +127,16 @@ fn decodes_system_definition_under_exp_0073_relaxations() -> Result<(), Box<dyn 
     assert_eq!(definition.physical_indexes()[1].raw_flags(), 2);
     assert!(!definition.physical_indexes()[1].unique());
     assert!(!definition.physical_indexes()[1].required());
+
+    assert!(matches!(
+        decode(&database_bytes(
+            &system_definition_with_first_flags(3),
+            None
+        )),
+        Err(TableDefinitionError::Index(
+            IndexDefinitionError::UnsupportedPhysicalFlags { raw: 3, .. }
+        ))
+    ));
 
     let mut user_flags = primary_definition();
     user_flags[PHYSICAL_OFFSET + 38] = 2;

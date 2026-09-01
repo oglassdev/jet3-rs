@@ -12,7 +12,7 @@ pub use crate::physical_index_definition::{
     IndexDirection, IndexField, IndexUsageMapReference, PhysicalIndexDefinition,
 };
 use crate::physical_index_definition::{
-    KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, UNIQUE_FLAG, decode_physical,
+    KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, decode_physical,
 };
 use crate::{ByteCount, Error, PageGeometry, PageNumber, ResourceBudget};
 
@@ -304,7 +304,8 @@ pub(crate) struct IndexDecodeContext<'a> {
     pub(crate) column_count: u16,
     pub(crate) logical_count: u16,
     pub(crate) physical_count: u16,
-    pub(crate) supported_physical_flags: u8,
+    pub(crate) supported_physical_flags: &'static [u8],
+    pub(crate) primary_flags: u8,
     pub(crate) table_root: PageNumber,
     pub(crate) geometry: PageGeometry,
 }
@@ -451,10 +452,8 @@ pub(crate) fn decode_indexes(
                         return Err(IndexDefinitionError::DuplicatePrimaryIndex);
                     }
                     primary_seen = true;
-                    // EXP-0059 primaries carry 0x09; EXP-0073 system
-                    // primaries carry 0x01. Both are unique.
                     let flags = physical[usize::from(physical_ordinal)].raw_flags();
-                    if flags & UNIQUE_FLAG == 0 {
+                    if flags != context.primary_flags {
                         return Err(IndexDefinitionError::InvalidPrimaryFlags {
                             logical_index,
                             raw: flags,

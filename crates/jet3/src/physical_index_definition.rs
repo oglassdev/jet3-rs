@@ -16,8 +16,12 @@ const REQUIRED_FLAG: u8 = 0x08;
 /// `EXP-0073`: set on every `MSysRelationships` index; retained without an
 /// assigned meaning.
 const UNINTERPRETED_FLAG: u8 = 0x02;
-pub(crate) const USER_SUPPORTED_FLAGS: u8 = UNIQUE_FLAG | REQUIRED_FLAG;
-pub(crate) const SYSTEM_SUPPORTED_FLAGS: u8 = USER_SUPPORTED_FLAGS | UNINTERPRETED_FLAG;
+pub(crate) const USER_PRIMARY_FLAGS: u8 = UNIQUE_FLAG | REQUIRED_FLAG;
+pub(crate) const SYSTEM_PRIMARY_FLAGS: u8 = UNIQUE_FLAG;
+pub(crate) const USER_SUPPORTED_FLAGS: &[u8] = &[0, UNIQUE_FLAG, REQUIRED_FLAG, USER_PRIMARY_FLAGS];
+/// `EXP-0073` observed these three complete system-index flag values. The
+/// uninterpreted `0x02` value is not assumed to compose with the others.
+pub(crate) const SYSTEM_SUPPORTED_FLAGS: &[u8] = &[UNIQUE_FLAG, UNINTERPRETED_FLAG, REQUIRED_FLAG];
 
 /// Direction of one sourced index key field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -138,7 +142,7 @@ pub(crate) fn decode_physical(
     sourced_prefix: [u8; PHYSICAL_PREFIX_LEN],
     raw_record: [u8; PHYSICAL_RECORD_LEN],
     column_count: u16,
-    supported_flags: u8,
+    supported_flags: &[u8],
     geometry: PageGeometry,
     budget: &mut ResourceBudget,
 ) -> Result<PhysicalIndexDefinition, IndexDefinitionError> {
@@ -224,7 +228,7 @@ pub(crate) fn decode_physical(
         })?;
     }
     let raw_flags = raw_record[38];
-    if raw_flags & !supported_flags != 0 {
+    if !supported_flags.contains(&raw_flags) {
         return Err(IndexDefinitionError::UnsupportedPhysicalFlags {
             physical_index,
             raw: raw_flags,

@@ -14,7 +14,9 @@ use crate::index_definition::{
     PhysicalIndexDefinition, decode_indexes,
 };
 use crate::long_value_map::{LongValueMapDefinition, LongValueMapError, decode_long_value_maps};
-use crate::physical_index_definition::{SYSTEM_SUPPORTED_FLAGS, USER_SUPPORTED_FLAGS};
+use crate::physical_index_definition::{
+    SYSTEM_PRIMARY_FLAGS, SYSTEM_SUPPORTED_FLAGS, USER_PRIMARY_FLAGS, USER_SUPPORTED_FLAGS,
+};
 use crate::{
     AllocationTraversalError, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
     MapLocationError, PageChainWalker, PageKind, PageNumber, ReadAt, ResourceBudget,
@@ -484,6 +486,10 @@ fn decode_definition(
             supported_physical_flags: match kind {
                 TableDefinitionKind::User => USER_SUPPORTED_FLAGS,
                 TableDefinitionKind::System => SYSTEM_SUPPORTED_FLAGS,
+            },
+            primary_flags: match kind {
+                TableDefinitionKind::User => USER_PRIMARY_FLAGS,
+                TableDefinitionKind::System => SYSTEM_PRIMARY_FLAGS,
             },
             table_root: root,
             geometry,

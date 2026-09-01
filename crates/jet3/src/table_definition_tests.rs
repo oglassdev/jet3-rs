@@ -563,9 +563,12 @@ fn rejects_each_logical_index_class_invariant() -> Result<(), Box<dyn std::error
 
     let mut unique_only = primary;
     unique_only[PHYSICAL_OFFSET + 38] = 1;
-    let definition = decode(&database_bytes(&unique_only, None))?;
-    assert_eq!(definition.indexes()[0].kind(), IndexDefinitionKind::Primary);
-    assert!(!definition.physical_indexes()[0].required());
+    assert!(matches!(
+        decode(&database_bytes(&unique_only, None)),
+        Err(TableDefinitionError::Index(
+            IndexDefinitionError::InvalidPrimaryFlags { raw: 1, .. }
+        ))
+    ));
 
     let relationship = relationship_definition();
     for (offset, value) in [

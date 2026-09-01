@@ -17,6 +17,3 @@ fixtures/work/
 # Local evidence/handoff output and OS noise; never committed.
 /artifacts/
 .DS_Store
-
-# Agent scratch worktrees.
-/.claude/
