@@ -526,7 +526,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             CLIENT.verified_plan_sha256(
                 CLIENT.plan_binding("long-value-maps-followup")
             ),
-            "c9b46d888fe2d168b612f56dfbf7a47571a7eaebfad1cd535988998c29740fa4",
+            "1052458ff87814bf8ac2d5dd09da740eb61565c0aaf27654228c9352c85dd46c",
         )
 
     def test_bootstrap_detail_normalization_covers_failure_and_repair_surfaces(self) -> None:

@@ -23,7 +23,7 @@
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "7396a4e1c98c08e1baf3746d0fbf57c604fe5922e266552ecced27a035740734",
     "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "13631649156db024dcf2c58fa420f4b8a0ddfef834dd530f7e92933680bc1418",
     "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1": "297303d201af577c219411c77e2714671f1f14435c9ba84c473836c20e83fd82",
-    "oracle/windows-dao/scripts/system_catalog.py": "2614378d00a6ee6724282cd87112b08b12437140348cbaac019e22415257f733"
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
   },
   "execution": {
     "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",

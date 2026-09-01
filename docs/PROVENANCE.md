@@ -6947,7 +6947,7 @@ Use `not applicable` explicitly rather than omitting a field.
   each capture; retain the nine MDBs externally and commit none.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/long-value-maps-followup.plan.json`, SHA-256
-  `c9b46d888fe2d168b612f56dfbf7a47571a7eaebfad1cd535988998c29740fa4`.
+  `1052458ff87814bf8ac2d5dd09da740eb61565c0aaf27654228c9352c85dd46c`.
   It pins the host client, provider probe, guest runner, dispatcher, publisher,
   producer, and analyzer; host and guest reject mismatches before mutation.
 - Observation: `preregistration.acquisition_started` is `false`. Committing

@@ -1544,7 +1544,10 @@ def build_long_value_report(
                     map_tracks_external,
                 )
             ):
-                reason = "one or more preregistered H5 predictions was not observed"
+                hypothesis = "H6" if followup else "H5"
+                reason = (
+                    f"one or more preregistered {hypothesis} predictions was not observed"
+                )
     elif reason is None:
         reason = "not every preregistered checkpoint is present"
     status = "answered" if reason is None else "no_outcome"

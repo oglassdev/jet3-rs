@@ -688,6 +688,10 @@ class SystemCatalogTests(unittest.TestCase):
             )
         predictions = report["questions"]["H6"]["predictions"]
         self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(
+            report["questions"]["H6"]["reason"],
+            "one or more preregistered H6 predictions was not observed",
+        )
         self.assertEqual(predictions["gamma_new_long_value_pages"], [14])
         self.assertEqual(predictions["note_owned_map_added_pages"], [13])
 
