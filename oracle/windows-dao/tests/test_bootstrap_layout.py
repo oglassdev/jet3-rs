@@ -31,6 +31,24 @@ def endpoints(value: bool) -> dict[str, bool]:
     return {name: value for name in bootstrap.ENDPOINT_NAMES}
 
 
+def artifact_observation(
+    database: str,
+    data: bytes,
+    *,
+    passes: bool,
+    detail: str,
+) -> dict:
+    return {
+        "database": database,
+        "size_before": len(data),
+        "size_after": len(data),
+        "sha256_before": digest(data),
+        "sha256_after": digest(data),
+        "endpoints": {**endpoints(passes), "detail": detail},
+        "detail": detail,
+    }
+
+
 def table_dao(name: str, *, with_lvprop: bool = False) -> dict:
     lvprop = (
         {
@@ -156,16 +174,16 @@ def synthetic_document(root: Path) -> dict:
             data = bytes(mutated)
             (root / database).write_bytes(data)
             result = {
+                **artifact_observation(
+                    database,
+                    data,
+                    passes=passes,
+                    detail="single read-only observation",
+                ),
                 "name": name,
                 "kind": kind,
-                "database": database,
-                "size": len(data),
                 "base_checkpoint": base_checkpoint,
                 "ranges": ranges,
-                "sha256_before_open": digest(data),
-                "sha256_after_open": digest(data),
-                "endpoints": endpoints(passes),
-                "detail": "single read-only observation",
             }
             if page is not None:
                 result["page"] = page
@@ -224,7 +242,6 @@ def synthetic_document(root: Path) -> dict:
                     group["page"],
                 )
             )
-        created_sha = checkpoints[1]["sha256"]
         baseline_database = f"r{replica}-variant-baseline-created.mdb"
         (root / baseline_database).write_bytes(created_bytes)
         sufficiency_database = f"r{replica}-variant-composed.mdb"
@@ -241,17 +258,18 @@ def synthetic_document(root: Path) -> dict:
                     "created_to_renamed": [],
                 },
                 "baseline": {
-                    "database": baseline_database,
-                    "sha256_before_open": created_sha,
-                    "sha256_after_open": created_sha,
-                    **endpoints(True),
-                    "detail": "all endpoints passed",
+                    **artifact_observation(
+                        baseline_database,
+                        created_bytes,
+                        passes=True,
+                        detail="all endpoints passed",
+                    ),
                 },
                 "correlations": {
                     "date_created": {
                         "status": "resolved",
                         "detail": "unique",
-                        "method": "other_timestamp_anchor",
+                        "method": "last_updated_anchor",
                         "offsets": [date_created_offset],
                     },
                     "date_updated": {
@@ -271,12 +289,12 @@ def synthetic_document(root: Path) -> dict:
                 "changed_page_groups": changed_groups,
                 "appended_page_groups": appended_groups,
                 "sufficiency": {
-                    "database": sufficiency_database,
-                    "size": len(created_bytes),
-                    "sha256_before_open": created_sha,
-                    "sha256_after_open": created_sha,
-                    "endpoints": {**endpoints(True), "detail": "all endpoints passed"},
-                    "detail": "all endpoints passed",
+                    **artifact_observation(
+                        sufficiency_database,
+                        created_bytes,
+                        passes=True,
+                        detail="all endpoints passed",
+                    ),
                 },
                 "variants": variants,
             }
@@ -297,6 +315,25 @@ def write_job(root: Path, document: dict) -> Path:
 
 
 class BootstrapLayoutTests(unittest.TestCase):
+    def test_endpoint_frontier_model_accepts_only_sequential_states(self) -> None:
+        for bits in range(1 << len(bootstrap.ENDPOINT_NAMES)):
+            frontier = {
+                name: bool(bits & (1 << index))
+                for index, name in enumerate(bootstrap.ENDPOINT_NAMES)
+            }
+            expected = tuple(frontier.values()) in bootstrap.VALID_ENDPOINT_FRONTIERS
+            with self.subTest(frontier=tuple(frontier.values())):
+                if expected:
+                    self.assertEqual(
+                        bootstrap._endpoint_frontier(frontier, "$.endpoints"),
+                        frontier,
+                    )
+                else:
+                    with self.assertRaisesRegex(
+                        bootstrap.AnalysisError, "reachable DAO endpoint frontier"
+                    ):
+                        bootstrap._endpoint_frontier(frontier, "$.endpoints")
+
     def test_accepts_and_emits_deterministic_canonical_report(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -325,7 +362,7 @@ class BootstrapLayoutTests(unittest.TestCase):
             report["questions"]["candidate_catalog_fields"]["fields"]["date_created"][
                 "evidence"
             ]["method"],
-            "other_timestamp_anchor",
+            "last_updated_anchor",
         )
         self.assertEqual(
             report["questions"]["candidate_catalog_fields"]["fields"]["lvprop"][
@@ -372,9 +409,14 @@ class BootstrapLayoutTests(unittest.TestCase):
                 "page0_changed_ranges": None,
                 "baseline": {
                     "database": None,
-                    "sha256_before_open": None,
-                    "sha256_after_open": None,
-                    **endpoints(False),
+                    "size_before": None,
+                    "size_after": None,
+                    "sha256_before": None,
+                    "sha256_after": None,
+                    "endpoints": {
+                        **endpoints(False),
+                        "detail": "baseline was not reached",
+                    },
                     "detail": "baseline was not reached",
                 },
                 "correlations": {
@@ -412,8 +454,8 @@ class BootstrapLayoutTests(unittest.TestCase):
                 data = bytearray(path.read_bytes())
                 data[1500] = 9
                 path.write_bytes(data)
-                variant["sha256_before_open"] = digest(bytes(data))
-                variant["sha256_after_open"] = digest(bytes(data))
+                variant["sha256_before"] = digest(bytes(data))
+                variant["sha256_after"] = digest(bytes(data))
             report = bootstrap.evaluate(
                 write_job(root, document), PLAN_SHA256, root / "report.json"
             )
@@ -462,6 +504,122 @@ class BootstrapLayoutTests(unittest.TestCase):
                     write_job(root, document), PLAN_SHA256, root / "report.json"
                 )
 
+    def test_last_updated_cannot_reverse_fallback_to_date_created(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            duplicate_offset = 22 * bootstrap.PAGE_BYTES + 300
+            duplicate_created = slice(
+                22 * bootstrap.PAGE_BYTES + 100,
+                22 * bootstrap.PAGE_BYTES + 116,
+            )
+            for replica in document["replicas"]:
+                renamed = replica["checkpoints"][2]
+                path = root / renamed["database"]
+                data = bytearray(path.read_bytes())
+                data[duplicate_created] = bytes(16)
+                data[duplicate_offset : duplicate_offset + 8] = struct.pack(
+                    "<d", UPDATED_DATE
+                )
+                path.write_bytes(data)
+                renamed["sha256"] = digest(bytes(data))
+                replica["correlations"]["date_created"]["method"] = "unique_exact"
+                replica["correlations"]["date_updated"] = {
+                    "status": "no_outcome",
+                    "detail": "LastUpdated is not uniquely exact",
+                }
+                updated_variants = []
+                for variant in replica["variants"]:
+                    if variant["kind"] == "candidate_date_updated":
+                        continue
+                    if variant["kind"] == "candidate_date_created":
+                        variant_path = root / variant["database"]
+                        variant_data = bytearray(variant_path.read_bytes())
+                        variant_data[duplicate_created] = bytes(16)
+                        variant_data[duplicate_offset : duplicate_offset + 8] = struct.pack(
+                            "<d", UPDATED_DATE
+                        )
+                        variant_path.write_bytes(variant_data)
+                        variant["sha256_before"] = digest(bytes(variant_data))
+                        variant["sha256_after"] = digest(bytes(variant_data))
+                    updated_variants.append(variant)
+                replica["variants"] = updated_variants
+
+            report = bootstrap.evaluate(
+                write_job(root, document), PLAN_SHA256, root / "report.json"
+            )
+        self.assertEqual(
+            report["questions"]["candidate_catalog_fields"]["fields"]["date_updated"][
+                "status"
+            ],
+            "no_outcome",
+        )
+
+    def test_rejects_true_after_false_endpoint_evidence_on_every_surface(self) -> None:
+        for surface in ("baseline", "sufficiency", "variant"):
+            with self.subTest(surface=surface), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                document = synthetic_document(root)
+                observation = (
+                    document["replicas"][0]["variants"][0]
+                    if surface == "variant"
+                    else document["replicas"][0][surface]
+                )
+                observation["endpoints"].update(
+                    {
+                        "open_database": False,
+                        "table_enumerated": True,
+                        "field_enumerated": False,
+                        "table_opened": False,
+                    }
+                )
+                with self.assertRaisesRegex(
+                    bootstrap.AnalysisError, "reachable DAO endpoint frontier"
+                ):
+                    bootstrap.evaluate(
+                        write_job(root, document), PLAN_SHA256, root / "report.json"
+                    )
+
+    def test_bounded_size_change_is_repair_on_every_surface(self) -> None:
+        for surface in ("baseline", "sufficiency", "variant"):
+            with self.subTest(surface=surface), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                document = synthetic_document(root)
+                observation = (
+                    document["replicas"][0]["variants"][0]
+                    if surface == "variant"
+                    else document["replicas"][0][surface]
+                )
+                path = root / observation["database"]
+                repaired = path.read_bytes() + bytes(bootstrap.PAGE_BYTES)
+                path.write_bytes(repaired)
+                observation["size_after"] = len(repaired)
+                observation["sha256_after"] = digest(repaired)
+                report = bootstrap.evaluate(
+                    write_job(root, document), PLAN_SHA256, root / "report.json"
+                )
+                self.assertEqual(report["status"], "no_outcome")
+
+    def test_rejects_malformed_or_out_of_bound_artifact_snapshots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            document["replicas"][0]["baseline"]["sha256_after"] = None
+            with self.assertRaisesRegex(bootstrap.AnalysisError, "lowercase SHA-256"):
+                bootstrap.evaluate(
+                    write_job(root, document), PLAN_SHA256, root / "malformed.json"
+                )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = synthetic_document(root)
+            document["replicas"][0]["sufficiency"]["size_after"] = (
+                bootstrap.MAX_PAGES + 1
+            ) * bootstrap.PAGE_BYTES
+            with self.assertRaisesRegex(bootstrap.AnalysisError, "between"):
+                bootstrap.evaluate(
+                    write_job(root, document), PLAN_SHA256, root / "unbounded.json"
+                )
+
     def test_composed_image_is_independently_reconstructed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -472,10 +630,10 @@ class BootstrapLayoutTests(unittest.TestCase):
             data[500] ^= 1
             path.write_bytes(data)
             changed = digest(bytes(data))
-            sufficiency["sha256_before_open"] = changed
-            sufficiency["sha256_after_open"] = changed
+            sufficiency["sha256_before"] = changed
+            sufficiency["sha256_after"] = changed
             with self.assertRaisesRegex(
-                bootstrap.AnalysisError, "independent reconstruction"
+                bootstrap.AnalysisError, "expected image"
             ):
                 bootstrap.evaluate(
                     write_job(root, document), PLAN_SHA256, root / "report.json"
@@ -490,7 +648,7 @@ class BootstrapLayoutTests(unittest.TestCase):
             repaired = bytearray(path.read_bytes())
             repaired[500] ^= 1
             path.write_bytes(repaired)
-            sufficiency["sha256_after_open"] = digest(bytes(repaired))
+            sufficiency["sha256_after"] = digest(bytes(repaired))
             report = bootstrap.evaluate(
                 write_job(root, document), PLAN_SHA256, root / "report.json"
             )
@@ -501,7 +659,7 @@ class BootstrapLayoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             document = synthetic_document(root)
-            document["replicas"][0]["baseline"]["table_opened"] = False
+            document["replicas"][0]["baseline"]["endpoints"]["table_opened"] = False
             report = bootstrap.evaluate(
                 write_job(root, document), PLAN_SHA256, root / "report.json"
             )
@@ -537,8 +695,8 @@ class BootstrapLayoutTests(unittest.TestCase):
                 data = bytearray(path.read_bytes())
                 data[duplicate_start:duplicate_end] = bytes(16)
                 path.write_bytes(data)
-                variant["sha256_before_open"] = digest(bytes(data))
-                variant["sha256_after_open"] = digest(bytes(data))
+                variant["sha256_before"] = digest(bytes(data))
+                variant["sha256_after"] = digest(bytes(data))
 
             report = bootstrap.evaluate(
                 write_job(root, document), PLAN_SHA256, root / "report.json"
@@ -626,7 +784,7 @@ class BootstrapLayoutTests(unittest.TestCase):
             repaired = bytearray(path.read_bytes())
             repaired[500] ^= 1
             path.write_bytes(repaired)
-            variant["sha256_after_open"] = digest(bytes(repaired))
+            variant["sha256_after"] = digest(bytes(repaired))
             report = bootstrap.evaluate(
                 write_job(root, document), PLAN_SHA256, root / "a.json"
             )
@@ -639,7 +797,7 @@ class BootstrapLayoutTests(unittest.TestCase):
             repaired = bytearray(path.read_bytes())
             repaired[501] ^= 1
             path.write_bytes(repaired)
-            baseline["sha256_after_open"] = digest(bytes(repaired))
+            baseline["sha256_after"] = digest(bytes(repaired))
             report = bootstrap.evaluate(
                 write_job(root, document), PLAN_SHA256, root / "baseline.json"
             )
@@ -658,9 +816,9 @@ class BootstrapLayoutTests(unittest.TestCase):
             data[500] ^= 1
             path.write_bytes(data)
             changed = digest(bytes(data))
-            variant["sha256_before_open"] = changed
-            variant["sha256_after_open"] = changed
-            with self.assertRaisesRegex(bootstrap.AnalysisError, "declared mutation"):
+            variant["sha256_before"] = changed
+            variant["sha256_after"] = changed
+            with self.assertRaisesRegex(bootstrap.AnalysisError, "expected image"):
                 bootstrap.evaluate(write_job(root, document), PLAN_SHA256, root / "b.json")
 
     def test_rejects_garbage_variant_in_partial_failed_replica(self) -> None:

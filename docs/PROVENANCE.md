@@ -6367,9 +6367,11 @@ Use `not applicable` explicitly rather than omitting a field.
   projection, or post-hoc byte inspection is an experiment input, and
   `EXP-0069` is not treated as composition or sufficiency evidence.
 - Protocol: create three independent fresh `dbVersion30` replicas once. For
-  DateCreated, admit either one exact whole-image OLE Date match or exactly one
-  match in the fixed plus-or-minus-64-byte window around one exact LastUpdated
-  match. After the property-free empty, created, and renamed checkpoints, add
+  DateCreated, admit `unique_exact` for one exact whole-image OLE Date match or
+  `last_updated_anchor` for exactly one match in the fixed plus-or-minus-64-byte
+  window around one exact LastUpdated match. LastUpdated admits only
+  `unique_exact`; DateCreated can never serve as its reverse anchor. After the
+  property-free empty, created, and renamed checkpoints, add
   one deterministic 768-character custom DAO Memo property and capture a
   separate `property-set` checkpoint; read `MSysObjects` through one temporary
   `WITH OWNERACCESS OPTION` QueryDef and require one exact `EXP-0061`
@@ -6381,14 +6383,18 @@ Use `not applicable` explicitly rather than omitting a field.
   producer does not copy the created file as the candidate. The pinned analyzer
   independently repeats the application and uses byte equality with the
   created checkpoint solely as a completeness and integrity check, then
-  validates the candidate's once-only DAO endpoint result and unchanged hash.
+  validates the candidate's once-only DAO endpoint result. Baseline,
+  sufficiency, and ablation artifacts all report the same bounded before/after
+  size and SHA-256 snapshot contract. A bounded size or hash change is retained
+  as a repair and produces `no_outcome`; malformed or out-of-bound snapshots
+  reject.
   The `EXP-0068` leave-one-out variants are repeated only as execution-integrity
   controls and cannot broaden the necessity claims already recorded by
   `EXP-0069`.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/bootstrap-layout-sufficiency.plan.json`,
   SHA-256
-  `0ee0212d7cd102a6518051c2a7e2025d58157771bd9aed552b88a4c870d7d82e`.
+  `28943c5f1efc62c89036fce4d997ab717321d152de3918f06d3bb1b9585ee5aa`.
   The plan pins the host client, provider probe, guest runner, dispatcher,
   publisher, producer, and host analyzer. The host and guest reject plan or
   staged-input digest mismatches before the first DAO mutation.
@@ -6397,14 +6403,17 @@ Use `not applicable` explicitly rather than omitting a field.
   human authorization is required for one local-VM run. No new MDB, provider
   output, canonical report, or scientific result exists.
 - Decision rule: validated correlations require identical canonical methods
-  and byte targets across replicas. A validated, identical, unchanged-hash DAO
-  endpoint map reports `observed_sufficient` or `not_observed_sufficient` only
-  for this complete-group scenario. Unresolved correlation, baseline failure
-  or repair, composed-image repair, correlation-target or endpoint-frontier
-  disagreement, or an otherwise intact non-decisive result is an honest
-  `no_outcome`; a failed or repaired created baseline also forces the
-  sufficiency claim false. Integrity and shape defects reject validation.
-  There is no automatic retry after the first DAO mutation.
+  and byte targets across replicas. Endpoint evidence must be one reachable
+  sequential frontier: `FFFF`, `TFFF`, `TTFF`, `TTTF`, or `TTTT`; any
+  true-after-false pattern rejects. A validated, identical, unchanged-size and
+  unchanged-hash DAO endpoint map reports `observed_sufficient` or
+  `not_observed_sufficient` only for this complete-group scenario. Unresolved
+  correlation, baseline failure or bounded repair, composed-image bounded
+  repair, correlation-target or endpoint-frontier disagreement, or an
+  otherwise intact non-decisive result is an honest `no_outcome`; a failed or
+  repaired created baseline also forces the sufficiency claim false. Integrity,
+  bound, and shape defects reject validation. There is no automatic retry
+  after the first DAO mutation.
 - Interpretation: this entry fixes a bounded acquisition and analysis contract
   only. It establishes no format fact, minimal mutation set, general timestamp
   or LvProp encoding, Rust writer correctness, compatibility, support result,

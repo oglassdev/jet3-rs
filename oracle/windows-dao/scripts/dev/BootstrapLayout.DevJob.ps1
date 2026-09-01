@@ -78,6 +78,57 @@ function Get-BoundedFileFacts {
     }
 }
 
+function New-ArtifactObservation {
+    param(
+        [AllowNull()][object]$Database,
+        [AllowNull()][object]$BeforeFacts,
+        [string]$Detail
+    )
+
+    $databaseValue = $null
+    $sizeBefore = $null
+    $sha256Before = $null
+    if ($null -ne $Database) {
+        $databaseValue = [string]$Database
+    }
+    if ($null -ne $BeforeFacts) {
+        $sizeBefore = [long]$BeforeFacts.size
+        $sha256Before = [string]$BeforeFacts.sha256
+    }
+    return [ordered]@{
+        database = $databaseValue
+        size_before = $sizeBefore
+        size_after = $null
+        sha256_before = $sha256Before
+        sha256_after = $null
+        endpoints = [ordered]@{
+            open_database = $false
+            table_enumerated = $false
+            field_enumerated = $false
+            table_opened = $false
+            detail = $Detail
+        }
+        detail = $Detail
+    }
+}
+
+function Complete-ArtifactObservation {
+    param(
+        [object]$Observation,
+        [object]$AfterFacts,
+        [object]$Endpoints
+    )
+
+    $Observation.size_after = [long]$AfterFacts.size
+    $Observation.sha256_after = [string]$AfterFacts.sha256
+    $Observation.endpoints = $Endpoints
+    $Observation.detail = [string]$Endpoints.detail
+    if ($Observation.size_before -ne $Observation.size_after -or
+        $Observation.sha256_before -cne $Observation.sha256_after) {
+        $Observation.detail += " DAO changed the artifact during read-only endpoint checks."
+    }
+}
+
 function Invoke-WithDatabase {
     param(
         [string]$Path,
@@ -451,12 +502,20 @@ function Find-ByteSequence {
 function Get-TimestampCorrelation {
     param(
         [double]$OaDate,
-        [double]$OtherOaDate,
+        [double]$DistinctFromOaDate,
+        [AllowNull()][object]$LastUpdatedAnchor,
+        [switch]$AllowLastUpdatedAnchor,
         [byte[]]$RenamedBytes
     )
 
+    if ($AllowLastUpdatedAnchor -and $null -eq $LastUpdatedAnchor) {
+        throw "The last-updated-anchor policy requires a LastUpdated value."
+    }
+    if (-not $AllowLastUpdatedAnchor -and $null -ne $LastUpdatedAnchor) {
+        throw "The unique-exact-only policy does not admit an anchor."
+    }
     $needle = [BitConverter]::GetBytes($OaDate)
-    if ($OaDate -eq $OtherOaDate) {
+    if ($OaDate -eq $DistinctFromOaDate) {
         return [pscustomobject]@{
             report = [ordered]@{
                 status = "no_outcome"
@@ -468,14 +527,14 @@ function Get-TimestampCorrelation {
     $offsets = @(Find-ByteSequence -Haystack $RenamedBytes -Needle $needle)
     $resolvedOffsets = @($offsets)
     $method = "unique_exact"
-    if ($offsets.Count -ne 1) {
-        $anchorOffsets = @(Find-ByteSequence -Haystack $RenamedBytes -Needle ([BitConverter]::GetBytes($OtherOaDate)))
+    if ($AllowLastUpdatedAnchor -and $offsets.Count -ne 1) {
+        $anchorOffsets = @(Find-ByteSequence -Haystack $RenamedBytes -Needle ([BitConverter]::GetBytes([double]$LastUpdatedAnchor)))
         if ($anchorOffsets.Count -eq 1) {
             $anchor = [long]$anchorOffsets[0]
             $resolvedOffsets = @($offsets | Where-Object {
                 [Math]::Abs(([long]$_) - $anchor) -le $TimestampAnchorWindowBytes
             })
-            $method = "other_timestamp_anchor"
+            $method = "last_updated_anchor"
         }
     }
     if ($resolvedOffsets.Count -ne 1) {
@@ -795,11 +854,14 @@ function Invoke-ReplicaCore {
 
     $dateCreated = Get-TimestampCorrelation `
         -OaDate ([double]$renamed.dao.date_created_oadate) `
-        -OtherOaDate ([double]$renamed.dao.last_updated_oadate) `
+        -DistinctFromOaDate ([double]$renamed.dao.last_updated_oadate) `
+        -LastUpdatedAnchor ([double]$renamed.dao.last_updated_oadate) `
+        -AllowLastUpdatedAnchor `
         -RenamedBytes $renamed.bytes
     $dateUpdated = Get-TimestampCorrelation `
         -OaDate ([double]$renamed.dao.last_updated_oadate) `
-        -OtherOaDate ([double]$renamed.dao.date_created_oadate) `
+        -DistinctFromOaDate ([double]$renamed.dao.date_created_oadate) `
+        -LastUpdatedAnchor $null `
         -RenamedBytes $renamed.bytes
     $lvProp = Get-LvPropCorrelation -LvPropBytes $propertySet.lvprop_bytes -RenamedBytes $propertySet.bytes
     $State.correlations = [ordered]@{
@@ -872,7 +934,6 @@ function Invoke-ReplicaCore {
     try {
         Copy-Item -LiteralPath $created.path -Destination $baselinePath
         $baselineFactsBefore = Get-BoundedFileFacts -Path $baselinePath
-        $baselineHashBefore = [string]$baselineFactsBefore.sha256
     }
     catch {
         if (Test-Path -LiteralPath $baselinePath -PathType Leaf) {
@@ -880,31 +941,16 @@ function Invoke-ReplicaCore {
         }
         throw
     }
-    $State.baseline = [ordered]@{
-        database = $baselineName
-        sha256_before_open = $baselineHashBefore
-        sha256_after_open = $baselineHashBefore
-        open_database = $false
-        table_enumerated = $false
-        field_enumerated = $false
-        table_opened = $false
-        detail = "Baseline endpoints were not reached."
-    }
+    $State.baseline = New-ArtifactObservation `
+        -Database $baselineName `
+        -BeforeFacts $baselineFactsBefore `
+        -Detail "Baseline endpoints were not reached."
     $baselineEndpoints = Test-BaselineEndpoints -Path $baselinePath -TableName $CreatedTableName
-    $State.baseline.open_database = [bool]$baselineEndpoints.open_database
-    $State.baseline.table_enumerated = [bool]$baselineEndpoints.table_enumerated
-    $State.baseline.field_enumerated = [bool]$baselineEndpoints.field_enumerated
-    $State.baseline.table_opened = [bool]$baselineEndpoints.table_opened
-    $State.baseline.detail = [string]$baselineEndpoints.detail
     $baselineFactsAfter = Get-BoundedFileFacts -Path $baselinePath
-    $baselineHashAfter = [string]$baselineFactsAfter.sha256
-    $State.baseline.sha256_after_open = $baselineHashAfter
-    if ($baselineFactsAfter.size -ne $baselineFactsBefore.size) {
-        throw "DAO changed the created baseline clone size during read-only endpoint checks."
-    }
-    if ($baselineHashBefore -ne $baselineHashAfter) {
-        $State.baseline.detail = "DAO changed the created baseline clone during read-only endpoint checks."
-    }
+    Complete-ArtifactObservation `
+        -Observation $State.baseline `
+        -AfterFacts $baselineFactsAfter `
+        -Endpoints $baselineEndpoints
 
     $composedName = "bootstrap-layout-r$Replica-variant-composed.mdb"
     $composedPath = Join-Path $RunRoot $composedName
@@ -922,31 +968,16 @@ function Invoke-ReplicaCore {
     }
     [IO.File]::WriteAllBytes($composedPath, $composedBytes)
     $composedFactsBefore = Get-BoundedFileFacts -Path $composedPath
-    $State.sufficiency = [ordered]@{
-        database = $composedName
-        size = $composedFactsBefore.size
-        sha256_before_open = [string]$composedFactsBefore.sha256
-        sha256_after_open = [string]$composedFactsBefore.sha256
-        endpoints = [ordered]@{
-            open_database = $false
-            table_enumerated = $false
-            field_enumerated = $false
-            table_opened = $false
-            detail = "Composed-image endpoints were not reached."
-        }
-        detail = "Composed-image endpoints were not reached."
-    }
+    $State.sufficiency = New-ArtifactObservation `
+        -Database $composedName `
+        -BeforeFacts $composedFactsBefore `
+        -Detail "Composed-image endpoints were not reached."
     $composedEndpoints = Test-BaselineEndpoints -Path $composedPath -TableName $CreatedTableName
-    $State.sufficiency.endpoints = $composedEndpoints
-    $State.sufficiency.detail = [string]$composedEndpoints.detail
     $composedFactsAfter = Get-BoundedFileFacts -Path $composedPath
-    $State.sufficiency.sha256_after_open = [string]$composedFactsAfter.sha256
-    if ($composedFactsAfter.size -ne $composedFactsBefore.size) {
-        throw "DAO changed the composed candidate size during read-only endpoint checks."
-    }
-    if ($composedFactsBefore.sha256 -ne $composedFactsAfter.sha256) {
-        $State.sufficiency.detail += " DAO changed the composed candidate during read-only access."
-    }
+    Complete-ArtifactObservation `
+        -Observation $State.sufficiency `
+        -AfterFacts $composedFactsAfter `
+        -Endpoints $composedEndpoints
 
     foreach ($spec in $specs) {
         if ($spec.name -notmatch '^[a-z0-9-]+$') {
@@ -980,7 +1011,6 @@ function Invoke-ReplicaCore {
             }
             [IO.File]::WriteAllBytes($path, $bytes)
             $variantFacts = Get-BoundedFileFacts -Path $path
-            $before = [string]$variantFacts.sha256
         }
         catch {
             if (Test-Path -LiteralPath $path -PathType Leaf) {
@@ -988,50 +1018,40 @@ function Invoke-ReplicaCore {
             }
             throw
         }
-        $variant = [ordered]@{
-            name = $spec.name
-            kind = $spec.kind
-            database = $fileName
-            size = $variantFacts.size
-            base_checkpoint = $spec.base_checkpoint
-            ranges = @($spec.ranges)
-            sha256_before_open = $before
-            sha256_after_open = $before
-            endpoints = [ordered]@{
-                open_database = $false
-                table_enumerated = $false
-                field_enumerated = $false
-                table_opened = $false
-                detail = "DAO endpoints were not reached."
-            }
-            detail = "DAO endpoints were not reached."
-        }
+        $variant = New-ArtifactObservation `
+            -Database $fileName `
+            -BeforeFacts $variantFacts `
+            -Detail "DAO endpoints were not reached."
+        [void]$variant.Add("name", [string]$spec.name)
+        [void]$variant.Add("kind", [string]$spec.kind)
+        [void]$variant.Add("base_checkpoint", [string]$spec.base_checkpoint)
+        [void]$variant.Add("ranges", @($spec.ranges))
         if ($null -ne $spec.page) {
-            $variant.page = [int]$spec.page
+            [void]$variant.Add("page", [int]$spec.page)
         }
         [void]$State.variants.Add($variant)
 
         $targetName = if ($spec.base_checkpoint -eq "created") { $CreatedTableName } else { $RenamedTableName }
         $endpoints = Test-BaselineEndpoints -Path $path -TableName $targetName
-        $variant.endpoints = $endpoints
-        $variant.detail = [string]$endpoints.detail
         $afterFacts = Get-BoundedFileFacts -Path $path
-        $after = [string]$afterFacts.sha256
-        $variant.sha256_after_open = $after
-        if ($afterFacts.size -ne $variant.size) {
-            throw "DAO changed a variant clone size during read-only endpoint checks."
-        }
-        $detail = [string]$endpoints.detail
-        if ($before -ne $after) {
-            $detail += " DAO changed the clone during the read-only open."
-        }
-        $variant.detail = $detail
+        Complete-ArtifactObservation `
+            -Observation $variant `
+            -AfterFacts $afterFacts `
+            -Endpoints $endpoints
     }
 }
 
 function Invoke-Replica {
     param([int]$Replica)
 
+    $emptyBaseline = New-ArtifactObservation `
+        -Database $null `
+        -BeforeFacts $null `
+        -Detail "Baseline endpoints were not reached."
+    $emptySufficiency = New-ArtifactObservation `
+        -Database $null `
+        -BeforeFacts $null `
+        -Detail "Composed-image endpoints were not reached."
     $state = [ordered]@{
         replica = $Replica
         status = "fail"
@@ -1039,16 +1059,7 @@ function Invoke-Replica {
         checkpoints = New-Object Collections.ArrayList
         page0_values = $null
         page0_changed_ranges = $null
-        baseline = [ordered]@{
-            database = $null
-            sha256_before_open = $null
-            sha256_after_open = $null
-            open_database = $false
-            table_enumerated = $false
-            field_enumerated = $false
-            table_opened = $false
-            detail = "Baseline endpoints were not reached."
-        }
+        baseline = $emptyBaseline
         correlations = [ordered]@{
             date_created = [ordered]@{ status = "no_outcome"; detail = "Correlation was not reached." }
             date_updated = [ordered]@{ status = "no_outcome"; detail = "Correlation was not reached." }
@@ -1056,20 +1067,7 @@ function Invoke-Replica {
         }
         changed_page_groups = New-Object Collections.ArrayList
         appended_page_groups = New-Object Collections.ArrayList
-        sufficiency = [ordered]@{
-            database = $null
-            size = 0
-            sha256_before_open = $null
-            sha256_after_open = $null
-            endpoints = [ordered]@{
-                open_database = $false
-                table_enumerated = $false
-                field_enumerated = $false
-                table_opened = $false
-                detail = "Composed-image endpoints were not reached."
-            }
-            detail = "Composed-image endpoints were not reached."
-        }
+        sufficiency = $emptySufficiency
         variants = New-Object Collections.ArrayList
     }
     try {

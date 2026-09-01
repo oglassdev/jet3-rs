@@ -22,8 +22,8 @@
     "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "f5ed1b5d04f632ef20483aa6526e51693a7ea9a0170821f869ea93faf0534381",
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "42ead0007ff899b7f586cdc897b2e037a8d155931f8ec48988c46c16701b26c3",
     "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "12249f3d7e82193bb47391760c1a92b816438ce726b89bd80e89dcab39fee781",
-    "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "e6fd1f4ed9c6e0585b5080401f1343403396106b44840c42e2cf347fc9594806",
-    "oracle/windows-dao/scripts/bootstrap_layout.py": "2bb4439217f772c42b1e696d325bfcd37365da77b75b5cf73f312e0d5365b1e1"
+    "oracle/windows-dao/scripts/dev/BootstrapLayout.DevJob.ps1": "8fad1a0ba81f516dd9fd66dd7c484ff54454847c6d3f0569dd76f69d8be22ccb",
+    "oracle/windows-dao/scripts/bootstrap_layout.py": "b29983ba258aad95031031e8b8adbe41a53f98d1b1a9c492c66f75128559e8f8"
   },
   "basis": {
     "EXP-0058": "Dynamic catalog-root discovery, catalog-owned page 18 in the observed controls, table record identifier to table-definition correlation, and the bounded catalog row fields recorded there.",
@@ -56,12 +56,13 @@
       "lvprop_marker_characters": 768,
       "maximum_published_databases": 210
     },
-    "capture": "Close and release every DAO object before each MDB copy or hash. Retain four closed checkpoints, bounded semantic metadata, the existing preregistered control ablations, and one composed candidate per replica. MDBs remain external."
+    "capture": "Close and release every DAO object before each MDB copy or hash. Retain four closed checkpoints, bounded semantic metadata, the existing preregistered control ablations, and one composed candidate per replica. Every baseline, composed-candidate, and ablation observation uses the same artifact contract: database, size_before, size_after, sha256_before, sha256_after, the four-endpoint frontier, and bounded detail. MDBs remain external."
   },
   "questions": {
     "Q1": {
       "title": "DateCreated and LvProp correlations",
-      "date_created": "Scan the renamed image for exact little-endian OLE Date bytes returned by DAO. Accept a unique whole-image match, or, when the DateCreated bytes repeat, accept exactly one match within plus or minus 64 absolute file bytes of exactly one LastUpdated match. Any other candidate count, equal DAO timestamps, replica disagreement, or out-of-window attribution is no_outcome.",
+      "date_created": "Scan the renamed image for exact little-endian OLE Date bytes returned by DAO. Accept method unique_exact for a unique whole-image DateCreated match, or method last_updated_anchor when repeated DateCreated bytes leave exactly one match within plus or minus 64 absolute file bytes of exactly one LastUpdated match. Any other candidate count, equal DAO timestamps, replica disagreement, or out-of-window attribution is no_outcome.",
+      "last_updated": "Accept LastUpdated only by method unique_exact: exactly one whole-image match for the DAO value, distinct from DateCreated. DateCreated is never an anchor for LastUpdated; multiple or missing LastUpdated matches are no_outcome.",
       "timestamp_ablation": "If and only if a timestamp correlation resolves, retain the EXP-0068 valid-OLE-Date-zero ablation and bounded read-only endpoints. These controls do not broaden the EXP-0069 necessity claim.",
       "lvprop": "Read Name and LvProp through one temporary, non-persisted DAO QueryDef using WITH OWNERACCESS OPTION after the property-set checkpoint. Correlate the exact bounded DAO-visible LvProp payload to one complete EXP-0061 single-page LVAL row and one derived external header. Missing permission, null/empty payload, non-single-page storage, ambiguity, or replica disagreement is no_outcome.",
       "replica_consistency": "All three replicas must report exactly the same canonical timestamp method and offset list and exactly the same LvProp header offset, payload page, and payload row. The canonical report retains these resolved targets; any disagreement is no_outcome.",
@@ -71,12 +72,12 @@
       "title": "Complete-group composed-image sufficiency",
       "composition": "Allocate a new byte array at the created-checkpoint length; copy only the empty checkpoint bytes into its prefix; then apply source bytes for every exact page-0 empty-to-created range, every exact changed range on pre-existing pages 1 through empty_page_count-1, and every complete appended page. Do not copy the created file as the candidate.",
       "independent_check": "The pinned analyzer independently repeats the range application and requires the reconstruction to equal the created checkpoint byte for byte. Equality is only a completeness/integrity check on the preregistered construction, not an input or a compatibility claim.",
-      "dao_observation": "Run the composed candidate once through OpenDatabase read-only, TableDefs enumeration for BootstrapLayout, exact Id/Long field enumeration, and an empty snapshot open. Hash immediately before and after DAO access.",
-      "answer": "All endpoints passing with an unchanged hash in all replicas is observed_sufficient for this bounded complete-group reconstruction. One exact, replica-consistent endpoint-failure map with unchanged hashes is not_observed_sufficient. The canonical report retains the agreed endpoint map. Any endpoint-frontier disagreement, repair, created-baseline failure or repair, unresolved correlation, or incomplete reconstruction is no_outcome or validation rejection according to the decision rule."
+      "dao_observation": "Run the composed candidate once through OpenDatabase read-only, TableDefs enumeration for BootstrapLayout, exact Id/Long field enumeration, and an empty snapshot open. Record bounded size and SHA-256 immediately before and after DAO access.",
+      "answer": "All endpoints passing with unchanged size and hash in all replicas is observed_sufficient for this bounded complete-group reconstruction. One exact, replica-consistent reachable endpoint frontier with unchanged sizes and hashes is not_observed_sufficient. The only reachable frontiers are FFFF, TFFF, TTFF, TTTF, and TTTT in endpoint_contract order; true-after-false evidence rejects as malformed. The canonical report retains the agreed endpoint map. Any endpoint-frontier disagreement, bounded repair, created-baseline failure or repair, unresolved correlation, or incomplete reconstruction is no_outcome or validation rejection according to the decision rule."
     }
   },
   "controls": {
-    "baseline": "An exact created-checkpoint clone must pass the same endpoints with an unchanged hash in every replica.",
+    "baseline": "An exact created-checkpoint clone must pass the same endpoints with unchanged bounded size and hash in every replica.",
     "necessity_repetition": "Retain the EXP-0068 page-0 and per-existing/appended-page leave-one-out controls as execution-integrity controls. They remain necessity-only and cannot establish sufficiency or a minimal set.",
     "endpoint_contract": [
       "OpenDatabase read-only",
@@ -87,8 +88,8 @@
   },
   "decision_rule": {
     "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three fresh replicas, controls, and composed candidates run once; files, hashes, bounds, checkpoint separation, page/range containment, independent reconstruction, and result shape validate; and the analyzer emits one deterministic accepted report. An accepted report may contain either observed_sufficient or not_observed_sufficient.",
-    "no_outcome": "Unresolved DateCreated or LvProp correlation, disagreement in a canonical correlation target or exact DAO endpoint map, a created-baseline endpoint failure or repair, a post-access hash change, a partial producer failure after acquisition starts, or an otherwise intact but non-decisive observation is reported honestly as no_outcome. A failed or repaired created baseline forces Q2 to no_outcome and sufficiency_claim false regardless of the composed candidate observation.",
-    "rejected": "A plan/input digest mismatch, malformed or missing checkpoint, bound violation, property contamination of the created candidate, page/range mismatch, incomplete reconstruction, unexpected variant, file digest mismatch, or result-shape failure rejects validation.",
+    "no_outcome": "Unresolved DateCreated or LvProp correlation, disagreement in a canonical correlation target or exact reachable DAO endpoint frontier, a created-baseline endpoint failure or repair, any bounded post-access size or hash change, a partial producer failure after acquisition starts, or an otherwise intact but non-decisive observation is reported honestly as no_outcome. A failed or repaired created baseline forces Q2 to no_outcome and sufficiency_claim false regardless of the composed candidate observation.",
+    "rejected": "A plan/input digest mismatch, malformed or missing checkpoint, bound violation, malformed or out-of-bound before/after artifact snapshot, impossible true-after-false endpoint evidence, property contamination of the created candidate, page/range mismatch, incomplete reconstruction, unexpected variant, file digest mismatch, or result-shape failure rejects validation. A bounded, well-formed post-access size or hash change is a repair/no_outcome, not rejection.",
     "retry": "This plan authorizes no run by itself. A later explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
   },
   "publication": {

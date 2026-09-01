@@ -383,8 +383,19 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn("210-database bound", self.publication)
         self.assertIn("WITH OWNERACCESS OPTION", job)
         self.assertIn("$TimestampAnchorWindowBytes = 64", job)
+        self.assertIn("-AllowLastUpdatedAnchor", job)
+        self.assertIn("-LastUpdatedAnchor $null", job)
         self.assertIn('Name "property-set"', job)
         self.assertIn("$State.sufficiency", job)
+        for field in (
+            "size_before",
+            "size_after",
+            "sha256_before",
+            "sha256_after",
+        ):
+            self.assertIn(field, job)
+        self.assertNotIn("sha256_before_open", job)
+        self.assertNotIn("sha256_after_open", job)
         self.assertIn("replica.sufficiency.database", self.publication)
         self.assertTrue(plan["development_only"])
         self.assertEqual(plan["issue"], 100)
