@@ -6844,6 +6844,84 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent evidence-boundary, hypothesis, plan-pin,
   producer, analyzer, and no-retry review before merge and local acquisition
 
+### EXP-0075 — Validated no-outcome long-value column-map result
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO `no_outcome`
+  result derived from the canonical analyzer report
+- Question: For the three fresh replicas preregistered by `EXP-0074`, does
+  H5 assign every empty-image page, cover every Memo or LongBinary column,
+  and correlate `Gamma.Note`'s owned-map additions with newly appearing
+  Gamma long-value pages?
+- Origin: project-authored clean-room experiment at merged preregistration
+  commit `2c00b884df22080141058d8999e5d986a8785958`, using the exact evidence
+  boundary fixed by `EXP-0074`; one explicit human authorization preceded the
+  single acquisition, and no redispatch occurred
+- Environment: private local Windows development VM; the x86 provider probe
+  reported `ready`; external `environment.json`, 4,277 bytes, SHA-256
+  `95a9c81956f323b60ec38f739a31834c948868ef6079eb5a32728e102f756d70`
+- Protocol: run ID `20260901T215352Z-dev-dao` executed the pinned
+  `long-value-maps` job once under plan SHA-256
+  `5b2fc593ddfaaa303c37e885d68ab1964e99779593f307ea3bfb702a4c0621d9`.
+  Host and guest verified the plan and staged inputs. The guest result was
+  `pass`: replicas 1--3 each completed `empty`, `table`, and `row` once with
+  no recorded replica error. Checkpoint sizes agreed across replicas:
+  40,960, 47,104, and 55,296 bytes respectively.
+- Artifacts: external `long-value-maps-job-result.json`, 151,099 bytes,
+  SHA-256
+  `a9e1a7571cf04c807e20549326625235500e195b929b328cbc256583ca727a46`;
+  external `result.json`, 174,965 bytes, SHA-256
+  `dce19140b0a99566d12e91b9f9e537af236d5be0ccafb94e6e61eea57cbc9a03`;
+  external canonical `long-value-maps-report.json`, 14,289 bytes, SHA-256
+  `973b0ac01f34590834bcf818126fa0b7144d135a3886ebfdf93d0e1cb2ec139e`,
+  reproduced byte-identically with the staged pinned analyzer. The report has
+  `document_type` `long_value_maps_report`, status `no_outcome`, H5 status
+  `no_outcome`, and false compatibility and support-movement flags. All nine
+  MDB checkpoints remain external.
+- H5 observation (`no_outcome`): every empty-image page was assigned, and
+  page 7 resolved through the `MSysObjects.LvExtra` available-map locator.
+  `MSysQueries.Expression` decoded as one group at page 12 rows 5 and 6.
+  `MSysObjects` decoded seven groups whose column ordinals, in stored order,
+  were `9, 8, 13, 16, 15, 14, 12`; the report's expected ordinal-order list
+  was `8, 9, 12, 13, 14, 15, 16`. Thus each expected long-value column was
+  represented once in the reported lists, but the pinned ordered-list
+  `suffix_complete` predicate was false at every checkpoint and
+  `all_long_value_columns_have_one_suffix_group` was false.
+- Gamma observation: `Gamma.Note` decoded as exactly one group at owned map
+  page 21 row 2 and available map page 21 row 3 in both post-create
+  checkpoints. Its owned-page set changed from empty at `table` to pages 23,
+  24, and 25 at `row`. Under the pinned table-owned-page classifier, Gamma's
+  long-value-page list remained empty at both checkpoints. Consequently
+  `gamma_new_long_value_pages` was empty and
+  `note_owned_map_tracks_external_long_value_page` was false.
+- Replica identities: replica 1 empty/table/row SHA-256 values were
+  `e3ff941049b234b7cd72374ce2692d26ec12702bd2bf6f36e72a0c249a466588` /
+  `2ca6001d35dac6960fc2797214587af9745dbde8f169f377abc6fd865468898f` /
+  `319dbaed30bb014333ac710d804a94a07ca973518e0105c0ac953a37521207a4`;
+  replica 2 values were
+  `a2555f15259f2845c9f7969a6d5c0379730ea7220b86a30ee196c622fbc8853c` /
+  `f354d43f5e28a51c628463c9cd076e3adaeed99872a88ce54d4685bd2e22ca6a` /
+  `5728e764eec95c2711f2322ba35e2d57a7e2c9ff35ac1543f5847e8cd0c05ebd`;
+  replica 3 values were
+  `179151e483fcc56cf4b7896ade0ece8a4864987989dfc1ce69faa20ce134d76d` /
+  `cbe087d42e03160b46446b836868c022c7c6b2d17c8d5feb7947679106ed9582` /
+  `1614933b3c9e0237f19a58371a0873bdecd95c10a7b3f2d88c44aa3b6e1c1e20`.
+- Interpretation: H5 is not accepted. The result closes page 7's role under
+  the pinned grammar and records the bounded suffix and map observations, but
+  it does not establish the preregistered coverage-and-transition conjunction.
+  Per `EXP-0074`, analyzer repair or a second acquisition is not a retry path;
+  any follow-up requires a new preregistration and human decision. This result
+  establishes no Rust writer correctness, compatibility, support result, or
+  support-matrix movement.
+- Usage: future separately preregistered issue `#100` work; `EXP-0074`;
+  `file:oracle/windows-dao/acquisition/long-value-maps.plan.json`;
+  `file:oracle/windows-dao/scripts/system_catalog.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: plan binding, single-dispatch record, artifact identities, report
+  reproducibility, all question fields, replica completion, and false claim
+  flags checked
+
 
 ## Fixtures and black-box results
 
