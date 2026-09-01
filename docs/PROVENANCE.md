@@ -6972,6 +6972,78 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending repeated independent evidence-boundary, plan-pin, producer,
   analyzer, decision-rule, and no-retry review before merge and acquisition
 
+### EXP-0077 — Validated corrected long-value column-map result
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from the canonical analyzer report
+- Question: For the three new fresh replicas preregistered by `EXP-0076`,
+  does exact order-insensitive suffix coverage assign every empty-image page,
+  and do `Gamma.Note`'s owned-map additions exactly equal the newly appearing
+  globally identified long-value pages?
+- Origin: project-authored clean-room experiment at merged preregistration
+  commit `587246515120eec028f0bcf1de34d1adbae23908`, using the exact evidence
+  boundary fixed by `EXP-0076`; one explicit human authorization preceded the
+  single acquisition, and no redispatch occurred
+- Environment: private local Windows development VM; the x86 provider probe
+  reported `ready`; external `environment.json`, 4,277 bytes, SHA-256
+  `3e64c3751cff09f864efaa18704158b78f72b38dae6c7acc349318a286a86e54`
+- Protocol: run ID `20260901T221155Z-dev-dao` executed the pinned
+  `long-value-maps-followup` job once under plan SHA-256
+  `1052458ff87814bf8ac2d5dd09da740eb61565c0aaf27654228c9352c85dd46c`.
+  Host and guest verified the plan and staged inputs. The guest result was
+  `pass`: replicas 1--3 each completed `empty`, `table`, and `row` once with
+  no recorded replica error. Checkpoint sizes agreed across replicas:
+  40,960, 47,104, and 55,296 bytes respectively.
+- Artifacts: external `long-value-maps-followup-job-result.json`, 151,274
+  bytes, SHA-256
+  `0ea1f2c3a0a604cf83737fe83a06ab8ec40475fac6d5cf774cc8c4aa6ce3b0c0`;
+  external `result.json`, 175,140 bytes, SHA-256
+  `b0d9c40c502a23395944dd2ff90da04e78c5796c992dd9d43317fa2aa46a66c0`;
+  external canonical `long-value-maps-followup-report.json`, 14,690 bytes,
+  SHA-256
+  `2278e5adc7f31208eae155a9785c31597aa6bb3d81d47f4a009bea0b05fc6b4c`,
+  reproduced byte-identically with the staged pinned analyzer. The report has
+  `document_type` `long_value_maps_followup_report`, status `accepted`, H6
+  status `answered`, and false compatibility and support-movement flags. All
+  nine MDB checkpoints remain external.
+- H6 observation: every empty-image page was assigned. Page 7 resolved as
+  `long_value_map_rows` through the `MSysObjects.LvExtra` available-map
+  locator. Every Memo or LongBinary column had exactly one suffix group under
+  exact order-insensitive coverage; the seven `MSysObjects` groups retained
+  stored ordinal order `9, 8, 13, 16, 15, 14, 12`, and
+  `suffix_set_complete` was true.
+- Gamma observation: `Gamma.Note` had exactly one stable group at owned map
+  page 21 row 2 and available map page 21 row 3. Its owned-page set changed
+  from empty at `table` to pages 23, 24, and 25 at `row`. Those pages exactly
+  equaled the newly appearing pages with the global `long_value` role, so
+  `note_owned_map_tracks_external_long_value_page` was true in every replica.
+- Replica identities: replica 1 empty/table/row SHA-256 values were
+  `49d7ed52af6733ac891ca670a608a3c6edc9467b26d641b191b1083ad5bb8db4` /
+  `215e0c9bae9857169e425cfe82fa079aea3e139395cc37fcb0a164cd132d147b` /
+  `96b5583bf57b78a9ac9cafb93d3887e8a0b5b33fec9aa1e675fc9ec3d0d3c95b`;
+  replica 2 values were
+  `2289cdf431a044d115227250d8baf2d5e3d10b49137de756f9d584a8941143ac` /
+  `501fc7249e0501e54c4a6e458a55e1a27d564df01f99ccf87a3e1ac360f27444` /
+  `ee42be07df43588c2019fc002e294dd429da5437a3226d3e27076081832504aa`;
+  replica 3 values were
+  `bb45894ee9ce14ca6ef3102de5deda651e9ca8612c152bf701c19221a7ba11d1` /
+  `ad61a610bea0e1fa9f01bf1af7a71c8091cabfef2b12b2bf4d506b0fa21c64f6` /
+  `66400e4c76c2608bbec6e5f46a66e3af9999210a0e6982da0194a23ae8209ad0`.
+- Interpretation: H6 is accepted within its preregistered bounds. It assigns
+  page 7, establishes one 10-byte suffix group per Memo or LongBinary column
+  independent of stored group order, and correlates `Gamma.Note`'s owned-map
+  additions with newly appearing global LVAL pages. It establishes no Rust
+  writer correctness, compatibility, support result, or support-matrix
+  movement.
+- Usage: issue `#100`; `EXP-0076`;
+  `file:oracle/windows-dao/acquisition/long-value-maps-followup.plan.json`;
+  `file:oracle/windows-dao/scripts/system_catalog.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: independent single-dispatch, artifact-identity, report-reproduction,
+  H6-decision, evidence-boundary, and false-claim reviews completed
+
 
 ## Fixtures and black-box results
 
