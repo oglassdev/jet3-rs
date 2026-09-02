@@ -8501,7 +8501,6 @@ Use `not applicable` explicitly rather than omitting a field.
   scientific-protocol blocker; one low external-LVAL inventory test gap was
   fixed before pinning.
 
-
 ### EXP-0095 — No-outcome definition-continuation DAO result
 
 - Recorded: 2026-09-02, OpenAI Codex
@@ -8580,6 +8579,121 @@ Use `not applicable` explicitly rather than omitting a field.
   bound, append/close evidence, copied-versus-mutated later arms, dispatch-count
   provenance, and the reopened issue state were resolved; final reviews
   reported no remaining findings.
+
+
+### EXP-0096 — CP1252 extended catalog-name preregistration
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned development-only local DAO preregistration; acquisition
+  has not occurred and is forbidden until the exact preregistration commit is
+  merged
+- Question: across three replicas and exact isolated arms, what catalog
+  ParentId/Name key contributions does DAO emit for every defined CP1252 byte
+  above `0x7E` in three singleton positions, a repeat, and both orders with its
+  next defined neighbor; and does DAO reject the `0x7F` boundary and five
+  undefined-slot controls?
+- Origin: project-authored clean-room experiment for issue `#152`, using the
+  catalog key grammar and ASCII context weights recorded by `EXP-0087` and no
+  external MDB implementation. `EXP-0087` collectively covered `0xA0`-`0xFF`
+  in twelve multi-byte probes and recorded aggregate primary/secondary
+  behavior, but deliberately derived no per-byte map, expansion, or secondary
+  assignment and did not probe `0x80`-`0x9F`; it therefore does not answer this
+  experiment. Windows-1252 repertoire tables define the test inventory but are
+  not treated as Jet collation evidence.
+- Controlled design: the domain is all 123 defined values in `0x80`-`0xFF`,
+  excluding `0x81`, `0x8D`, `0x8F`, `0x90`, and `0x9D`. Their ordered sequence
+  is divided into 41 batches of exactly three. Each batch starts from a fresh
+  copy of its replica's retained empty image and attempts one ASCII canary plus
+  six uniquely ASCII-tagged one-Long-field table names per byte: singleton at
+  the left, interior, and right insertion positions, a repeated pair, and both
+  orders with the next defined byte. The neighbor skips undefined slots and
+  wraps from `0xFF` to `0x80`. Thus each data arm has exactly 19 user creates,
+  below the 32-row single leaf observed in `EXP-0087` after accounting for its
+  eight catalog base rows. The prior 24-name checkpoint occupied 70 pages, so
+  the new 128-page bound is prospective headroom rather than a page-count
+  observation for these new arms.
+  The domain is anchored to Python's strict CP1252/Unicode repertoire. The
+  producer excludes the five undefined slots manually before .NET decoding;
+  no claim is made that .NET itself rejects those byte values.
+- Rejection controls: one independent arm attempts an ASCII canary and names
+  containing U+007F, U+0081, U+008D, U+008F, U+0090, and U+009D. DAO receives
+  Unicode BSTR names. The latter five are controls associated with undefined
+  CP1252 slots, not evidence that those undefined bytes have mappings. Exact
+  acceptance or rejection is recorded; an accepted control is an answer only
+  if its catalog row and key decode and correlate without ambiguity.
+- Protocol: each replica creates and closes one fresh CP1252 `dbVersion30`
+  database and retains `empty`, `b00` through `b40`, and `reject` in exact
+  order. Every working arm is copied and identity-checked against `empty`, one
+  arm exists at a time, DAO is closed after every append and before capture,
+  and bounded read-only metadata must leave each retained image byte-identical.
+  A passing run retains exactly 43 MDBs per replica, 129 total. The producer
+  records the exact UTF-16LE name, intended defined bytes, created/error result,
+  normalized `create_tabledef` or `tabledefs_append` failure operation, bounded
+  sequential DAO table/field/index inventory, mutation state, phase, ordered
+  checkpoint prefix, and at most the active next checkpoint as recovery. Only
+  exceptions thrown directly by those two name-bearing DAO calls continue as
+  rejections; open, field, close, metadata, and cleanup failures stop the
+  replica.
+  A `capture_empty` failure retains `empty` as recovery or removes the partial
+  root artifact. Explicit cleanup phases prevent a completed checkpoint from
+  also appearing as recovery, and working MDBs live only in a non-published
+  subdirectory.
+- Analysis: the analyzer independently regenerates all 123 bytes, batches,
+  neighbors, names, and files; validates the exact JSON, state, size, SHA-256,
+  metadata identity, every retained checkpoint attempt, bounded sequential DAO
+  metadata shape (including actual system indexes and no user indexes), exact
+  phase-to-prefix/recovery state, and case-folded artifact inventory; then uses
+  the `EXP-0087` grammar to correlate every created name with one catalog key.
+  It preserves exact key bytes, primary sections, secondary nibbles, and row
+  locators. It strips only the exact recorded ASCII context contribution and
+  compares singleton positions, repeated contributions, and both pair orders.
+  Expansions, position dependence, non-additivity, contrary order, and stable
+  DAO rejection are retained as answered observations rather than forced into
+  the hypothesis. An accepted rejection control retains its complete decoded
+  key identity and secondary section without asserting an undefined-byte map.
+  Every retained non-empty checkpoint in a failed prefix is decoded and
+  correlated; a failure there is recorded as `decode_error` and yields
+  `no_outcome`. Normalized failure operations remain in the canonical report
+  and participate in exact replica comparison.
+- Decision rule: `accepted` requires three complete exact replicas, 129 exact
+  artifacts, unchanged metadata bytes, complete schema/key correlation for all
+  created names, all defined-byte and rejection-control outcomes, and identical
+  exact observations. Any post-mutation producer failure, incomplete arm,
+  changed metadata, catalog/DAO/attempt disagreement, decode failure, loss of
+  the bounded single-leaf grammar, or replica disagreement is `no_outcome`.
+  A pre-mutation failure, pin/inventory/bound violation, malformed input,
+  inconsistent producer state, or analyzer contract defect rejects validation.
+  No retry is allowed after the first mutation without renewed human direction.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/extended-names.plan.json`, SHA-256
+  `201e880ff1e7d08d5151df2fc53388ef296dfbd4158fc84a530510fffbc32236`;
+  producer
+  `oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1`, SHA-256
+  `a177a80638d22605a2f7836005e9cd6b7b296fdcd7a264f49e6a325c5fa39356`;
+  analyzer
+  `oracle/windows-dao/scripts/extended_names.py`, SHA-256
+  `732e8ca5edd597bf54dc73764031e4663d361f9f1c4f21747baab6dbdf352369`.
+  All nine plan inputs carry exact lowercase SHA-256 pins.
+- Interpretation: a later accepted result may establish exact catalog-key
+  observations only for the preregistered CP1252 repertoire, contexts, locale,
+  empty first-create batches, and single-leaf grammar. It cannot establish a
+  general collation, undefined-byte mapping, longer names, larger trees, map or
+  definition spill, rows, indexes, relationships, public creation, writer
+  correctness, compatibility, hosted differential `#102`, or support movement.
+- Usage: future result for issue `#152`; `EXP-0087`;
+  `file:oracle/windows-dao/acquisition/extended-names.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/extended_names.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: three independent review/fix passes completed on 2026-09-02 over the
+  scientific design, byte inventory, state machine, producer, analyzer,
+  routing, publication, bounds, evidence retention, and claim boundary. Fixes
+  covered capture and cleanup failure publication, failed-prefix decoding,
+  rejection-operation retention, source reparse points, strict replica types,
+  duplicate/recovery inventories, and the .NET/CP1252 wording. The final
+  verification reported no remaining findings; 63 focused tests passed. No
+  acquisition was performed.
 
 
 ## Fixtures and black-box results

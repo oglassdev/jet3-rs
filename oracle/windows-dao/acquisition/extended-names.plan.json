@@ -1,0 +1,80 @@
+{
+  "document_type": "dao_extended_names_plan",
+  "experiment_id": "extended-names",
+  "issue": 152,
+  "development_only": true,
+  "purpose": "Observe bounded Jet 3 catalog-name key contributions for every defined CP1252 byte above 0x7E, with explicit boundary and undefined-slot rejection controls.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0087 records the single-leaf catalog ParentId/Name key grammar, the exact primary weights for the ASCII context alphabet used here, an observed 32-row leaf, and empty first-create page framing. Its one 24-name probe image was 70 pages, so this prospective experiment uses a 128-page safety bound rather than assuming the earlier 64-page bound. Its twelve multi-byte extended-name probes collectively covered 0xA0-0xFF and observed only aggregate primary/secondary behavior; it deliberately derived no per-byte map, expansion, or secondary assignment and did not probe 0x80-0x9F. EXP-0091 records the bounded null-LvProp result but is not used to infer collation. This plan isolates every defined byte above 0x7E and does not treat CP1252 code-page tables as Jet collation evidence.",
+    "authorization": "The exact inputs were pinned after three independent review/fix passes. Acquisition remains forbidden until this preregistration commit is merged. The user's explicit standing authorization permits at most one run after that merge.",
+    "attempt_policy": "Dispatch at most one three-replica run after authorization. Once the first DAO CreateDatabase mutation begins, any failure is a scientific result and must not be retried without another explicit human decision. Only an exception thrown directly by the name-bearing CreateTableDef or TableDefs.Append call is normalized as that name's rejection and allows the bounded batch to continue. Open, field creation/append, close, metadata, and cleanup failures stop the replica."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "80a7b7e8d95c9f81675e0968ef143bc0460753f9e98983993469216b93444de8",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "2a75b5baadff7f10a479789ae74bb03964b756b86f06157dda596fc8e434122e",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "6989d940edd83ac7a4d7fdccbb284a460cf9a397b820518633f42ce3addfd2a9",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "b41138e2e349cda28ffd86f087ec14cc8cee0d3295536c5bdc3e3a8a087250e2",
+    "oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1": "a177a80638d22605a2f7836005e9cd6b7b296fdcd7a264f49e6a325c5fa39356",
+    "oracle/windows-dao/scripts/extended_names.py": "732e8ca5edd597bf54dc73764031e4663d361f9f1c4f21747baab6dbdf352369",
+    "oracle/windows-dao/scripts/schema_generalization.py": "add7667b20d47537d6255df22be42f27d8100b6f43b80bb0b2fb71d049249af7",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "defined_domain": "All 123 byte values in the strict Python cp1252/Unicode repertoire for 0x80-0xFF: every value except 0x81, 0x8D, 0x8F, 0x90, and 0x9D. The producer manually excludes those five slots before using .NET decoding; this plan does not claim that .NET itself rejects or leaves those slots undefined.",
+    "batching": "The ordered defined-byte sequence is partitioned into 41 consecutive batches of exactly three. Each batch starts from a byte-identical copy of that replica's fresh empty database and appends one ASCII canary plus six uniquely tagged forms per byte: left, interior, and right singleton positions; a repeated pair; and both orders with the next defined byte, wrapping 0xFF to 0x80. Thus each batch attempts exactly 19 one-Long-field tables and never uses an undefined byte as a neighbor.",
+    "rejection_controls": "A separate fresh-empty arm attempts one ASCII canary followed by names containing U+007F and U+0081, U+008D, U+008F, U+0090, and U+009D. Because COM receives Unicode BSTR names, the five undefined-slot controls are slot-associated Unicode control-code probes, not observations that an undefined CP1252 byte has a mapping. Their exact DAO acceptance or rejection is recorded; accepted bytes are decoded only if the recorded catalog grammar correlates them unambiguously.",
+    "isolation": "Each replica creates and closes one fresh dbVersion30 CP1252 database. It copies and identity-checks one arm at a time from the retained empty image, closes the database after every table append, and closes it before checkpoint capture. No rows or indexes are added.",
+    "checkpoints": "Retain empty, b00 through b40, and reject in that exact order per replica: 43 databases per replica and 129 for a passing run.",
+    "capture": "Record exact UTF-16LE name identity, intended defined bytes, per-name created/error outcome and normalized create_tabledef or tabledefs_append failure operation, arm-before identity, closed-file SHA-256 and size before and after bounded read-only DAO metadata access, and the bounded sequential DAO table/field/index inventory, including actual system indexes and exact one-field/no-index user schemas. Record mutation state and exact append/cleanup phase plus at most the active next checkpoint as recovery. A capture_empty failure retains empty as the expected recovery or removes a partial root artifact; a cleanup failure after a checkpoint is recorded with that checkpoint in the prefix and never duplicates it as recovery. Working MDBs stay below a non-published subdirectory. The analyzer independently regenerates the domain, batches, neighbors, names, and artifact inventory, validates and decodes every retained non-empty checkpoint even in a failed prefix, correlates created DAO names with decoded catalog keys, preserves normalized failure operations in the canonical report and replica comparison, and preserves complete key bytes, primary sections, secondary nibbles, and row locators.",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_checkpoints_per_replica": 43,
+      "maximum_recovery_databases_per_replica": 1,
+      "maximum_published_databases": 129,
+      "maximum_pages_per_database": 128,
+      "maximum_table_definitions": 32,
+      "maximum_fields_per_table": 32,
+      "maximum_indexes_per_table": 16,
+      "maximum_user_tables_per_batch": 19,
+      "maximum_fields_per_user_table": 1,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 8388608
+    }
+  },
+  "questions": {
+    "coverage": "For every exact defined CP1252 byte above 0x7E and each of its six forms, did DAO accept or reject the table name; and what happened for the six explicit rejection controls?",
+    "singleton_positions": "For each accepted byte, what exact primary contribution and secondary nibbles occur in the left, interior, and right singleton contexts, and are those observations position-independent?",
+    "pair_composition": "For each accepted repeated form, does its exact primary contribution and secondary-nibble sequence equal two ordered singleton contributions?",
+    "secondary_order": "For each accepted neighbor pair in both orders, do its exact primary contribution and secondary-nibble sequence equal the corresponding ordered singleton observations, including expansions?",
+    "replication": "Do all three replicas agree on the complete exact attempt and decoded-key observations?"
+  },
+  "decision_rule": {
+    "accepted": "All final pins match; three replicas complete the exact 43-checkpoint inventory once; every arm starts byte-identical to its retained empty image; metadata access does not change bytes; every attempt and bounded sequential DAO table/field/index shape matches the regenerated inventory; every created name correlates to exactly one completely decoded catalog key; all 123 defined-byte observations and six controls are retained; and the exact observations agree across replicas. Stable exact name-bearing DAO rejection, expansions, position dependence, non-additivity, or contrary pair order are answered observations, not validation failures. An accepted rejection control preserves its full decoded key identity without asserting an undefined-byte mapping.",
+    "no_outcome": "Any post-mutation producer failure, including capture or cleanup failure, incomplete arm, changed metadata identity, DAO/attempt/catalog disagreement, undecodable accepted control, retained-prefix key decode or correlation failure, loss of the single-leaf bounded grammar, or replica disagreement including normalized failure-operation disagreement is recorded as no_outcome.",
+    "rejected": "A pre-mutation plan, pin, provider, or infrastructure failure; malformed or duplicate JSON; inconsistent mutation/phase/checkpoint/recovery state; unexpected, reordered, duplicate, missing, symlinked, oversized, or extra artifact; bound violation; or analyzer contract defect rejects validation without a scientific outcome.",
+    "retry": "There is no automatic retry after the first DAO mutation."
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, up to 129 exact expected-name MDBs including at most one active-next-checkpoint recovery artifact per failed replica (exactly 129 for a passing job), and the deterministic analyzer report.",
+    "repository": "Never commit MDB bytes or provider binaries. Record a validated report identity and conclusion once as a later additive EXP outcome."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one later additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "CP1252 bytes 0x00-0x7E except the exact ASCII context and U+007F rejection control",
+    "a claimed mapping for undefined CP1252 slots; their Unicode controls only test rejection behavior at the BSTR boundary",
+    "names with more than two non-ASCII characters, other positions or contexts, locale/code-page variants, case folding, or general collation semantics",
+    "catalog trees beyond the recorded single-leaf grammar, more than 19 user tables per arm, rows, indexes, relationships, long field names, continuation pages, or map spill",
+    "public creation API, filesystem publication, writer correctness, hosted differential #102, compatibility claims, and support-matrix movement"
+  ]
+}

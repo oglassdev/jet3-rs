@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -470,6 +470,59 @@ switch ($Job) {
         foreach ($name in $actual) {
             [void]$names.Add($name)
         }
+    }
+    "extended-names" {
+        [void]$names.Add("extended-names-job-result.json")
+        $jobResultPath = Join-Path $Source "extended-names-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) { throw "Extended-names result is missing." }
+        $jobResultItem = Get-Item -LiteralPath $jobResultPath -Force
+        if (($jobResultItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Extended-names result must not be a reparse point." }
+        if ($jobResultItem.Length -gt 8388608) { throw "Extended-names result exceeds the 8-MiB bound." }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $checkpointNames = New-Object Collections.ArrayList
+        [void]$checkpointNames.Add("empty")
+        foreach ($index in 0..40) { [void]$checkpointNames.Add("b" + $index.ToString("D2")) }
+        [void]$checkpointNames.Add("reject")
+        $referenced = New-Object Collections.ArrayList
+        $seenReplicas = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            $replicaNumber = [int]$replica.replica
+            if ($replicaNumber -lt 1 -or $replicaNumber -gt 3 -or $replicaNumber -ne ($seenReplicas.Count + 1) -or $replicaNumber -cin $seenReplicas) { throw "Extended-names result has an unexpected replica inventory." }
+            [void]$seenReplicas.Add($replicaNumber)
+            $checkpointIndex = 0
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                if ($checkpointIndex -ge $checkpointNames.Count) { throw "Extended-names result exceeds the 43-checkpoint bound." }
+                $checkpointName = $checkpointNames[$checkpointIndex]
+                $expectedDatabase = "extended-names-r$replicaNumber-$checkpointName.mdb"
+                if ([string]$checkpoint.name -cne $checkpointName -or [string]$checkpoint.database -cne $expectedDatabase) { throw "Extended-names checkpoints are not an ordered prefix." }
+                [void]$referenced.Add($expectedDatabase); $checkpointIndex++
+            }
+            $recovery = @($replica.recovery)
+            if ($recovery.Count -gt 1) { throw "Extended-names result exceeds the one-recovery-artifact bound." }
+            foreach ($artifact in $recovery) {
+                if ($checkpointIndex -ge $checkpointNames.Count) { throw "Extended-names recovery follows a complete checkpoint inventory." }
+                $expectedName = $checkpointNames[$checkpointIndex]
+                $expectedDatabase = "extended-names-r$replicaNumber-$expectedName.mdb"
+                if ([string]$artifact.name -cne $expectedName -or [string]$artifact.database -cne $expectedDatabase) { throw "Extended-names recovery is not the active next checkpoint." }
+                [void]$referenced.Add($expectedDatabase)
+            }
+            if ([string]$replica.status -ceq "pass" -and ($checkpointIndex -ne $checkpointNames.Count -or $recovery.Count -ne 0)) { throw "Passing extended-names replica omits a checkpoint." }
+        }
+        if ($seenReplicas.Count -ne 3) {
+            $preMutationAbort = ($seenReplicas.Count -eq 1 -and [string]$jobResult.status -ceq "fail" -and -not [bool]@($jobResult.replicas)[0].mutation_started)
+            if (-not $preMutationAbort) { throw "Extended-names result has an incomplete replica inventory." }
+        }
+        if ($referenced.Count -gt 129) { throw "Extended-names output exceeds the 129-database bound." }
+        if ([string]$jobResult.status -ceq "pass" -and $referenced.Count -ne 129) { throw "Passing extended-names result omits a database." }
+        $actualItems = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb")
+        foreach ($item in $actualItems) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Extended-names output contains a reparse-point MDB." }
+            if ($item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or $item.Length -gt 262144) { throw "Extended-names output MDB violates the 128-page bound." }
+        }
+        $actual = @($actualItems | ForEach-Object { $_.Name.ToLowerInvariant() } | Sort-Object)
+        $expected = @($referenced | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) { throw "Extended-names MDB inventory differs from its result." }
+        foreach ($name in $actualItems.Name) { [void]$names.Add($name) }
     }
     "lvprop-null" {
         [void]$names.Add("lvprop-null-job-result.json")
