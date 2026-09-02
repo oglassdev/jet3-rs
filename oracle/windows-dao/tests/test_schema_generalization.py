@@ -296,22 +296,42 @@ class ProbeInventoryTests(unittest.TestCase):
             for entry in expected
         ]
 
-        self.assertEqual(len(ANALYZER.read_probe_attempts(attempts, 1)), len(expected))
+        self.assertEqual(
+            len(ANALYZER.read_probe_attempts(attempts, 1, complete=True)), len(expected)
+        )
 
         with self.assertRaisesRegex(ANALYZER.AnalysisError, "exactly 24 probed names"):
-            ANALYZER.read_probe_attempts(attempts[:-1], 1)
+            ANALYZER.read_probe_attempts(attempts[:-1], 1, complete=True)
         with self.assertRaisesRegex(ANALYZER.AnalysisError, "exactly 24 probed names"):
-            ANALYZER.read_probe_attempts([], 1)
+            ANALYZER.read_probe_attempts([], 1, complete=True)
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "exceed the bound"):
+            ANALYZER.read_probe_attempts(attempts + attempts[:1], 1, complete=False)
 
         renamed = [dict(entry) for entry in attempts]
         renamed[3]["name"] = "PxxQ"
         with self.assertRaisesRegex(ANALYZER.AnalysisError, "preregistered inventory"):
-            ANALYZER.read_probe_attempts(renamed, 1)
+            ANALYZER.read_probe_attempts(renamed, 1, complete=True)
 
         repointed = [dict(entry) for entry in attempts]
         repointed[3] = dict(repointed[3], code_points=repointed[3]["code_points"][:-1])
         with self.assertRaisesRegex(ANALYZER.AnalysisError, "preregistered inventory"):
-            ANALYZER.read_probe_attempts(repointed, 1)
+            ANALYZER.read_probe_attempts(repointed, 1, complete=True)
+
+    def test_a_failed_replica_may_stop_part_way_through_the_probe_phase(self) -> None:
+        expected = ANALYZER.expected_probe_inventory()
+        attempts = [
+            {"code_points": entry["code_points"], "created": True, "error": None, "name": entry["name"]}
+            for entry in expected
+        ]
+
+        self.assertEqual(ANALYZER.read_probe_attempts([], 1, complete=False), [])
+        self.assertEqual(
+            len(ANALYZER.read_probe_attempts(attempts[:5], 1, complete=False)), 5
+        )
+
+        out_of_order = [attempts[1], attempts[0]]
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "preregistered inventory"):
+            ANALYZER.read_probe_attempts(out_of_order, 1, complete=False)
 
     def test_a_rejected_name_stays_a_recordable_observation(self) -> None:
         expected = ANALYZER.expected_probe_inventory()
@@ -321,7 +341,9 @@ class ProbeInventoryTests(unittest.TestCase):
         ]
         attempts[5] = dict(attempts[5], created=False, error="rejected by the provider")
 
-        self.assertFalse(ANALYZER.read_probe_attempts(attempts, 1)[5]["created"])
+        self.assertFalse(
+            ANALYZER.read_probe_attempts(attempts, 1, complete=True)[5]["created"]
+        )
 
 
 class AppendedPageAttributionTests(unittest.TestCase):
@@ -384,6 +406,80 @@ class ProbeCorrelationTests(unittest.TestCase):
             ANALYZER.correlate_probe_attempts(
                 [self.attempt("P01Q", False)], [{"name": "P01Q"}]
             )
+
+
+class SchemaCorrelationTests(unittest.TestCase):
+    def analyses(self, tables: dict[str, list[str]]) -> dict[str, object]:
+        return {
+            checkpoint: {
+                "tables": {
+                    20 + index: {"flags": 0, "name": name}
+                    for index, name in enumerate(names)
+                }
+            }
+            for checkpoint, names in tables.items()
+        }
+
+    def snapshots(self, tables: dict[str, list[str]]) -> dict[str, object]:
+        return {
+            checkpoint: {
+                "tabledefs": [
+                    {
+                        "attributes": 0,
+                        "date_created": 0.0,
+                        "error": None,
+                        "fields": ANALYZER.EXPECTED_SCHEMA[name]["fields"],
+                        "indexes": ANALYZER.EXPECTED_SCHEMA[name]["indexes"],
+                        "last_updated": 0.0,
+                        "name": name,
+                    }
+                    for name in names
+                ]
+            }
+            for checkpoint, names in tables.items()
+        }
+
+    def cumulative(self) -> dict[str, list[str]]:
+        return {
+            "empty": [],
+            "alpha": ["Alpha"],
+            "beta": ["Alpha", "Beta"],
+            "gamma": ["Alpha", "Beta", "Gamma"],
+            "delta": ["Alpha", "Beta", "Gamma", "Delta"],
+        }
+
+    def test_the_planned_creates_correlate(self) -> None:
+        tables = self.cumulative()
+        ANALYZER.correlate_schema_mutations(self.analyses(tables), self.snapshots(tables))
+
+    def test_a_no_op_mutation_is_not_labelled_as_its_intended_table(self) -> None:
+        tables = self.cumulative()
+        tables["gamma"] = ["Alpha", "Beta"]
+        with self.assertRaisesRegex(ANALYZER.DecodeError, "decodes user tables"):
+            ANALYZER.correlate_schema_mutations(
+                self.analyses(tables), self.snapshots(tables)
+            )
+
+    def test_an_incomplete_schema_is_rejected(self) -> None:
+        tables = self.cumulative()
+        snapshots = self.snapshots(tables)
+        stripped = snapshots["delta"]["tabledefs"]
+        for row in stripped:
+            if row["name"] == "Delta":
+                row["indexes"] = []
+
+        with self.assertRaisesRegex(ANALYZER.DecodeError, "differs from its preregistered schema"):
+            ANALYZER.correlate_schema_mutations(self.analyses(tables), snapshots)
+
+    def test_dao_and_the_decoded_catalog_must_agree(self) -> None:
+        tables = self.cumulative()
+        snapshots = self.snapshots(tables)
+        snapshots["beta"]["tabledefs"] = [
+            row for row in snapshots["beta"]["tabledefs"] if row["name"] != "Beta"
+        ]
+
+        with self.assertRaisesRegex(ANALYZER.DecodeError, "reports DAO tables"):
+            ANALYZER.correlate_schema_mutations(self.analyses(tables), snapshots)
 
 
 class KeyFramingQuestionTests(unittest.TestCase):

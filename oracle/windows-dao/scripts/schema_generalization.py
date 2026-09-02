@@ -31,6 +31,33 @@ REPORT_TYPE = "schema_generalization_report"
 SCHEMA_CHECKPOINTS = ("empty", "alpha", "beta", "gamma", "delta")
 CHECKPOINTS = (*SCHEMA_CHECKPOINTS, "names")
 CREATED_TABLES = {"alpha": "Alpha", "beta": "Beta", "gamma": "Gamma", "delta": "Delta"}
+# The exact schema each preregistered create must produce, as DAO reports it.
+EXPECTED_SCHEMA: dict[str, dict[str, Any]] = {
+    "Alpha": {
+        "fields": [{"name": "Id", "size": 4, "type": 4}],
+        "indexes": [],
+    },
+    "Beta": {
+        "fields": [
+            {"name": "Id", "size": 4, "type": 4},
+            {"name": "Name", "size": 50, "type": 10},
+            {"name": "Note", "size": 0, "type": 12},
+        ],
+        "indexes": [],
+    },
+    "Gamma": {
+        "fields": [{"name": "Id", "size": 4, "type": 4}],
+        "indexes": [
+            {"fields": ["Id"], "name": "PrimaryKey", "primary": True, "unique": True}
+        ],
+    },
+    "Delta": {
+        "fields": [{"name": "Label", "size": 30, "type": 10}],
+        "indexes": [
+            {"fields": ["Label"], "name": "ByLabel", "primary": False, "unique": False}
+        ],
+    },
+}
 PAGE0_COUNTER = 1538
 UNASSIGNED_ROLE = "unassigned"
 LONG_KEY_MARKER = 0x7F
@@ -177,7 +204,9 @@ def validate_dao(value: Any, location: str) -> dict[str, Any]:
     return item
 
 
-def read_checkpoint(root: Path, value: Any, replica: int, name: str) -> tuple[bytes, bool]:
+def read_checkpoint(
+    root: Path, value: Any, replica: int, name: str
+) -> tuple[bytes, bool, dict[str, Any]]:
     item = exact_object(
         value,
         {"name", "database", "size", "sha256", "sha256_after_metadata", "dao"},
@@ -199,7 +228,7 @@ def read_checkpoint(root: Path, value: Any, replica: int, name: str) -> tuple[by
         raise AnalysisError(f"replica {replica} checkpoint size is invalid")
     before = digest(item["sha256"], f"replica {replica} checkpoint digest")
     after = digest(item["sha256_after_metadata"], f"replica {replica} post-metadata digest")
-    validate_dao(item["dao"], f"replica {replica} checkpoint {name}.dao")
+    dao = validate_dao(item["dao"], f"replica {replica} checkpoint {name}.dao")
     path = root / database
     if not path.is_file() or path.is_symlink():
         raise AnalysisError(f"replica {replica} checkpoint is missing or not regular")
@@ -208,7 +237,7 @@ def read_checkpoint(root: Path, value: Any, replica: int, name: str) -> tuple[by
     retained = after if repaired else before
     if len(raw) != size or hashlib.sha256(raw).hexdigest() != retained:
         raise AnalysisError(f"replica {replica} checkpoint bytes differ from metadata")
-    return raw, repaired
+    return raw, repaired, dao
 
 
 def expected_probe_inventory() -> list[dict[str, Any]]:
@@ -235,11 +264,22 @@ def expected_probe_inventory() -> list[dict[str, Any]]:
     return inventory
 
 
-def read_probe_attempts(value: Any, replica: int) -> list[dict[str, Any]]:
+def read_probe_attempts(
+    value: Any, replica: int, *, complete: bool
+) -> list[dict[str, Any]]:
+    """Check the probed-name inventory against the pinned reconstruction.
+
+    A replica that failed after its first mutation may have stopped before or
+    during the probe phase, so its attempts are required to be an ordered
+    prefix rather than the whole inventory. That keeps a post-mutation partial
+    failure an honest no_outcome instead of a validation rejection.
+    """
     expected = expected_probe_inventory()
     if len(expected) != MAX_PROBE_TABLES:
         raise AnalysisError("the pinned probe inventory does not hold 24 names")
-    if not isinstance(value, list) or len(value) != len(expected):
+    if not isinstance(value, list) or len(value) > len(expected):
+        raise AnalysisError(f"replica {replica} probe attempts exceed the bound")
+    if complete and len(value) != len(expected):
         raise AnalysisError(
             f"replica {replica} did not attempt exactly {len(expected)} probed names"
         )
@@ -628,12 +668,74 @@ def correlate_probe_attempts(
             )
 
 
+def dao_user_tables(dao: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    tables = {}
+    for row in dao["tabledefs"]:
+        if row["error"] is not None or row["name"].startswith("MSys"):
+            continue
+        tables[row["name"]] = {
+            "fields": [
+                {"name": field["name"], "size": field["size"], "type": field["type"]}
+                for field in row["fields"]
+            ],
+            "indexes": sorted(
+                (
+                    {
+                        "fields": list(entry["fields"]),
+                        "name": entry["name"],
+                        "primary": entry["primary"],
+                        "unique": entry["unique"],
+                    }
+                    for entry in row["indexes"]
+                ),
+                key=lambda entry: entry["name"],
+            ),
+        }
+    return tables
+
+
+def correlate_schema_mutations(
+    analyses: dict[str, dict[str, Any]], snapshots: dict[str, dict[str, Any]]
+) -> None:
+    """Require each fixed create to have produced its preregistered table.
+
+    Without this, a no-op or incomplete mutation would still be labelled with
+    the table the plan intended to create.
+    """
+    created: list[str] = []
+    for checkpoint in SCHEMA_CHECKPOINTS:
+        if checkpoint in CREATED_TABLES:
+            created.append(CREATED_TABLES[checkpoint])
+        decoded = sorted(
+            entry["name"]
+            for entry in analyses[checkpoint]["tables"].values()
+            if not entry["flags"] & catalog.SYSTEM_FLAG
+        )
+        if decoded != sorted(created):
+            raise DecodeError(
+                f"checkpoint {checkpoint} decodes user tables {decoded}; expected {sorted(created)}"
+            )
+        observed = dao_user_tables(snapshots[checkpoint])
+        if sorted(observed) != sorted(created):
+            raise DecodeError(
+                f"checkpoint {checkpoint} reports DAO tables {sorted(observed)}; expected {sorted(created)}"
+            )
+        for name in created:
+            if observed[name] != EXPECTED_SCHEMA[name]:
+                raise DecodeError(
+                    f"checkpoint {checkpoint} table {name} differs from its preregistered schema"
+                )
+
+
 def analyze_replica(
-    images: dict[str, bytes], attempts: list[dict[str, Any]]
+    images: dict[str, bytes],
+    snapshots: dict[str, dict[str, Any]],
+    attempts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     analyses = {
         name: catalog.analyze_checkpoint(images[name]) for name in SCHEMA_CHECKPOINTS
     }
+    correlate_schema_mutations(analyses, snapshots)
     transitions = {}
     for index, name in enumerate(SCHEMA_CHECKPOINTS[1:]):
         previous = SCHEMA_CHECKPOINTS[index]
@@ -907,17 +1009,23 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         if not isinstance(checkpoints, list) or len(checkpoints) > len(CHECKPOINTS):
             raise AnalysisError(f"replica {replica} checkpoints are invalid")
         images: dict[str, bytes] = {}
+        snapshots: dict[str, dict[str, Any]] = {}
         repaired: list[str] = []
         for index, value in enumerate(checkpoints):
             name = CHECKPOINTS[index]
-            image, metadata_repaired = read_checkpoint(job_result.parent, value, replica, name)
+            image, metadata_repaired, dao = read_checkpoint(
+                job_result.parent, value, replica, name
+            )
             images[name] = image
+            snapshots[name] = dao
             referenced.append(f"schema-generalization-r{replica}-{name}.mdb")
             if metadata_repaired:
                 repaired.append(name)
         entry: dict[str, Any] = {
             "error": item["error"],
-            "probe_attempts": read_probe_attempts(item["probe_attempts"], replica),
+            "probe_attempts": read_probe_attempts(
+                item["probe_attempts"], replica, complete=item["status"] == "pass"
+            ),
             "replica": replica,
             "status": item["status"],
         }
@@ -929,7 +1037,7 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
             else:
                 try:
                     entry["observation"] = analyze_replica(
-                        images, entry["probe_attempts"]
+                        images, snapshots, entry["probe_attempts"]
                     )
                 except (catalog.DecodeError, DecodeError) as error:
                     entry["decode_error"] = str(error)

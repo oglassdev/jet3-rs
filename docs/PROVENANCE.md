@@ -7635,26 +7635,30 @@ Use `not applicable` explicitly rather than omitting a field.
   authorized run of this plan.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/schema-generalization.plan.json`, SHA-256
-  `d1a6f8fbbe5c2571a649ea6d67f31af309b1268bcaf1d992fb5d6e5aad2f7c5b`.
+  `ee6af71a7a3835ee5f5ab0150ca09a311bd661467c009605151195eba6505ed0`.
   It pins the host client, provider probe, guest runner, dispatcher, publisher,
   producer SHA-256
   `188340bf1fed58d3ef7ed6b7180fe4fdafd0f4cf14cbfbfcb0c9433d8f1fd5c1`,
   analyzer SHA-256
-  `2f920050dd733d8eb182869bf804173970e9f28ea1842e434dc81ca982ea4c1b`,
+  `add7667b20d47537d6255df22be42f27d8100b6f43b80bb0b2fb71d049249af7`,
   and the analyzer dependency. Host and guest reject pinned producer mismatches
   before mutation; the host rechecks every staged analysis input immediately
   before evaluating the result. The analyzer independently rebuilds the probed
   name inventory from the pinned rules and rejects any run that did not attempt
   exactly those names. It also requires each probe outcome to agree with the
-  captured catalog and requires every appended page to carry a decoded role.
+  captured catalog, requires every appended page to carry a decoded role, and
+  requires each of the four creates to have produced its preregistered table
+  and schema in both the decoded catalog and the captured DAO snapshot.
 - Observation: `preregistration.acquisition_started` is `false`. Committing
   this plan does not authorize acquisition. After the exact reviewed plan and
   inputs are committed, one explicit human authorization permits one local-VM
   acquisition. There is no automatic retry after the first DAO mutation.
 - Decision rule: each question is answered only when its structural decode and
   correlations succeed and the complete observation agrees across all three
-  replicas. Metadata repair, post-mutation producer failure, decode failure, a
-  branched index root, or replica disagreement is an honest `no_outcome`;
+  replicas. Metadata repair, post-mutation producer failure including a replica
+  that stopped before or during the probe phase, decode failure, a create that
+  did not produce its preregistered schema, a branched index root, or replica
+  disagreement is an honest `no_outcome`;
   pre-mutation, plan, input, digest, bound, checkpoint, inventory, or
   result-shape defects reject or abort without a scientific outcome.
 - Interpretation: this entry fixes only an acquisition and analysis contract.
