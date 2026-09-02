@@ -88,6 +88,10 @@ windows-dev-bootstrap-composer-semantics:
 windows-dev-schema-generalization:
     "{{PYTHON}}" scripts/windows-dao-dev.py schema-generalization --timeout 900
 
+# Run the preregistered null-LvProp acceptance experiment in the local VM.
+windows-dev-lvprop-null:
+    "{{PYTHON}}" scripts/windows-dao-dev.py lvprop-null --timeout 900
+
 # Run one ad-hoc PowerShell script under x86 DAO in the local VM (discovery only).
 windows-dev-ps script *args:
     "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}

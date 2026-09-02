@@ -52,6 +52,13 @@ The retained tooling has three purposes:
 - `acquisition/bootstrap-composer-validation.plan.json` is the immutable
   consumed plan for the accepted `EXP-0085` run. Its pins bind the harness at
   that revision, so the client refuses to dispatch it again.
+- `acquisition/lvprop-null.plan.json`,
+  `scripts/dev/LvPropNull.DevJob.ps1`, and `scripts/lvprop_null.py` define the
+  issue #149 successor that compares the fixed accepted Alpha image, an Alpha
+  image with a null catalog `LvProp` and empty mapped long-value page, and a
+  fresh DAO Alpha control across three replicas. It tests only the bounded
+  structural endpoints and does not establish that the mapped page can be
+  omitted or infer a general property grammar.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
@@ -72,6 +79,7 @@ python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py synthetic-dry-run \
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_layout.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_composer_semantics.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_schema_generalization.py -v
+python3 -B -m unittest oracle/windows-dao/tests/test_lvprop_null.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 

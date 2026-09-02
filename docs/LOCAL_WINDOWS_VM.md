@@ -41,6 +41,7 @@ just windows-dev-bootstrap-layout
 just windows-dev-system-catalog
 just windows-dev-bootstrap-composer-semantics
 just windows-dev-schema-generalization
+just windows-dev-lvprop-null
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -129,6 +130,14 @@ catalog and access-control rows and appended page roles per create, and
 decomposes the long-value property payloads under one pinned chunk framing. It
 infers no property semantics, allocation policy, writer correctness,
 compatibility, or support.
+
+`lvprop-null` is the SHA-256-pinned, development-only acceptance experiment for
+issue #149. Three replicas each compare the fixed accepted Alpha composer image,
+an otherwise equivalent composer image whose catalog `LvProp` is null and whose
+mapped long-value page is empty, and a fresh DAO-created Alpha control. It runs
+the same bounded read-only Alpha endpoints against each image, records file
+identity before and after access, and makes no claim about omitting the mapped
+page, a general property grammar, arbitrary schemas, compatibility, or support.
 
 ## Interactive discovery loop
 

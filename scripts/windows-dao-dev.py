@@ -141,6 +141,20 @@ SCHEMA_GENERALIZATION_PLAN = (
 SCHEMA_GENERALIZATION_ANALYZER = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "schema_generalization.py"
 )
+LVPROP_NULL_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "LvPropNull.DevJob.ps1"
+)
+LVPROP_NULL_PLAN = (
+    ROOT / "oracle" / "windows-dao" / "acquisition" / "lvprop-null.plan.json"
+)
+LVPROP_NULL_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "lvprop_null.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -165,6 +179,7 @@ ALLOWED_JOBS = (
     "bootstrap-composer-semantics",
     "bootstrap-composer-validation",
     "schema-generalization",
+    "lvprop-null",
 )
 
 
@@ -198,6 +213,7 @@ class PlanBinding(NamedTuple):
     plan: Path
     analyzer: Path
     document_type: str
+    issue: int
 
     @property
     def analyzer_relative(self) -> str:
@@ -219,14 +235,23 @@ def plan_binding(job: str) -> PlanBinding | None:
             BOOTSTRAP_LAYOUT_PLAN,
             BOOTSTRAP_LAYOUT_ANALYZER,
             "dao_bootstrap_layout_sufficiency_plan",
+            100,
         )
     if job == "system-catalog":
         return PlanBinding(
-            job, SYSTEM_CATALOG_PLAN, SYSTEM_CATALOG_ANALYZER, "dao_system_catalog_plan"
+            job,
+            SYSTEM_CATALOG_PLAN,
+            SYSTEM_CATALOG_ANALYZER,
+            "dao_system_catalog_plan",
+            100,
         )
     if job == "long-value-maps":
         return PlanBinding(
-            job, LONG_VALUE_MAPS_PLAN, SYSTEM_CATALOG_ANALYZER, "dao_long_value_maps_plan"
+            job,
+            LONG_VALUE_MAPS_PLAN,
+            SYSTEM_CATALOG_ANALYZER,
+            "dao_long_value_maps_plan",
+            100,
         )
     if job == "long-value-maps-followup":
         return PlanBinding(
@@ -234,6 +259,7 @@ def plan_binding(job: str) -> PlanBinding | None:
             LONG_VALUE_MAPS_FOLLOWUP_PLAN,
             SYSTEM_CATALOG_ANALYZER,
             "dao_long_value_maps_followup_plan",
+            100,
         )
     if job == "bootstrap-composer-semantics":
         return PlanBinding(
@@ -241,6 +267,7 @@ def plan_binding(job: str) -> PlanBinding | None:
             BOOTSTRAP_COMPOSER_SEMANTICS_PLAN,
             BOOTSTRAP_COMPOSER_SEMANTICS_ANALYZER,
             "dao_bootstrap_composer_semantics_plan",
+            100,
         )
     if job == "bootstrap-composer-validation":
         return PlanBinding(
@@ -248,6 +275,7 @@ def plan_binding(job: str) -> PlanBinding | None:
             BOOTSTRAP_COMPOSER_VALIDATION_PLAN,
             BOOTSTRAP_COMPOSER_VALIDATION_ANALYZER,
             "dao_bootstrap_composer_validation_plan",
+            100,
         )
     if job == "schema-generalization":
         return PlanBinding(
@@ -255,6 +283,15 @@ def plan_binding(job: str) -> PlanBinding | None:
             SCHEMA_GENERALIZATION_PLAN,
             SCHEMA_GENERALIZATION_ANALYZER,
             "dao_schema_generalization_plan",
+            100,
+        )
+    if job == "lvprop-null":
+        return PlanBinding(
+            job,
+            LVPROP_NULL_PLAN,
+            LVPROP_NULL_ANALYZER,
+            "dao_lvprop_null_plan",
+            149,
         )
     return None
 
@@ -269,7 +306,7 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
     if (
         not isinstance(plan, dict)
         or plan.get("document_type") != binding.document_type
-        or plan.get("issue") != 100
+        or plan.get("issue") != binding.issue
         or plan.get("development_only") is not True
     ):
         raise DevClientError(f"{job} plan is malformed")
@@ -290,7 +327,7 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
             raise DevClientError(f"{job} input differs from its plan: {relative}")
     manifest_pin = plan.get("candidate_source_manifest")
     if manifest_pin is None:
-        if job == "bootstrap-composer-validation":
+        if job in ("bootstrap-composer-validation", "lvprop-null"):
             raise DevClientError(f"{job} candidate source manifest is missing")
         return hashlib.sha256(plan_bytes).hexdigest()
     if not isinstance(manifest_pin, dict) or set(manifest_pin) != {"path", "sha256"}:
@@ -310,7 +347,15 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
     if hashlib.sha256(manifest_bytes).hexdigest() != manifest_digest:
         raise DevClientError(f"{job} candidate source manifest differs from its plan")
     manifest = load_unique_json(manifest_bytes, f"{job} candidate source manifest")
-    if set(manifest) != {"document_type", "files"} or manifest.get("document_type") != "bootstrap_composer_candidate_sources":
+    expected_manifest_type = {
+        "bootstrap-composer-validation": "bootstrap_composer_candidate_sources",
+        "lvprop-null": "lvprop_null_candidate_sources",
+    }.get(job)
+    if (
+        expected_manifest_type is None
+        or set(manifest) != {"document_type", "files"}
+        or manifest.get("document_type") != expected_manifest_type
+    ):
         raise DevClientError(f"{job} candidate source manifest is malformed")
     candidate_sources = manifest.get("files")
     required = {
@@ -402,6 +447,70 @@ def generate_bootstrap_candidates(staging: Path, plan: dict[str, object]) -> Non
     candidate_root.rmdir()
 
 
+def generate_lvprop_null_candidates(staging: Path, plan: dict[str, object]) -> None:
+    candidate_root = staging / ".lvprop-null-candidates"
+    candidate_root.mkdir()
+    environment = os.environ.copy()
+    environment["JET3_LVPROP_NULL_CANDIDATE_DIR"] = str(candidate_root)
+    completed = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "jet3",
+            "--lib",
+            "bootstrap_composer::tests::export_lvprop_null_candidates",
+            "--",
+            "--ignored",
+            "--exact",
+        ],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise DevClientError("LvProp-null candidate exporter failed")
+    candidates = plan.get("candidates")
+    expected_names = {"lvprop-fixed-alpha.mdb", "lvprop-null-alpha.mdb"}
+    if not isinstance(candidates, dict) or set(candidates) != {
+        "candidate_fixed",
+        "candidate_null",
+    }:
+        raise DevClientError("LvProp-null candidate pins are malformed")
+    names: set[str] = set()
+    for role, raw in candidates.items():
+        if not isinstance(raw, dict) or set(raw) != {"filename", "size", "sha256"}:
+            raise DevClientError(f"LvProp-null {role} candidate pin is malformed")
+        filename = raw["filename"]
+        size = raw["size"]
+        expected = raw["sha256"]
+        if (
+            not isinstance(filename, str)
+            or Path(filename).name != filename
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+        ):
+            raise DevClientError(f"LvProp-null {role} candidate pin is malformed")
+        names.add(filename)
+        source = candidate_root / filename
+        if (
+            not source.is_file()
+            or source.is_symlink()
+            or source.stat().st_size != size
+            or hashlib.sha256(source.read_bytes()).hexdigest() != expected
+        ):
+            raise DevClientError(
+                f"generated LvProp-null {role} candidate differs from its plan"
+            )
+        source.rename(staging / filename)
+    if any(candidate_root.iterdir()) or names != expected_names:
+        raise DevClientError("LvProp-null candidate inventory is invalid")
+    candidate_root.rmdir()
+
+
 def canonical_windows_path(value: str, *, label: str) -> str:
     if len(value) > 240 or any(ord(character) < 32 for character in value):
         raise DevClientError(f"{label} is malformed")
@@ -478,6 +587,7 @@ def stage_job(args: argparse.Namespace) -> Path:
             staging / BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
         )
         shutil.copyfile(SCHEMA_GENERALIZATION_JOB, staging / SCHEMA_GENERALIZATION_JOB.name)
+        shutil.copyfile(LVPROP_NULL_JOB, staging / LVPROP_NULL_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:
             shutil.copyfile(binding.analyzer, staging / binding.analyzer.name)
@@ -496,6 +606,8 @@ def stage_job(args: argparse.Namespace) -> Path:
                     )
             if args.job == "bootstrap-composer-validation":
                 generate_bootstrap_candidates(staging, plan)
+            elif args.job == "lvprop-null":
+                generate_lvprop_null_candidates(staging, plan)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -550,6 +662,12 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
         ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
         "-SchemaGeneralizationJobPath",
         ntpath.join(remote_input, SCHEMA_GENERALIZATION_JOB.name),
+        "-LvPropNullJobPath",
+        ntpath.join(remote_input, LVPROP_NULL_JOB.name),
+        "-LvPropFixedAlphaPath",
+        ntpath.join(remote_input, "lvprop-fixed-alpha.mdb"),
+        "-LvPropNullAlphaPath",
+        ntpath.join(remote_input, "lvprop-null-alpha.mdb"),
     ]
     if binding is not None:
         command.extend(
@@ -632,6 +750,19 @@ def analyze_plan_bound_output(args: argparse.Namespace, binding: PlanBinding) ->
             ):
                 raise DevClientError(
                     "staged bootstrap candidate differs before analysis"
+                )
+    elif job == "lvprop-null":
+        for raw in plan["candidates"].values():
+            staged_candidate = staged_root / raw["filename"]
+            if (
+                not staged_candidate.is_file()
+                or staged_candidate.is_symlink()
+                or staged_candidate.stat().st_size != raw["size"]
+                or hashlib.sha256(staged_candidate.read_bytes()).hexdigest()
+                != raw["sha256"]
+            ):
+                raise DevClientError(
+                    "staged LvProp-null candidate differs before analysis"
                 )
     output = args.shared_root / "outbox" / args.run_id
     job_result = output / binding.job_result_name

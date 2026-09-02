@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -287,6 +287,49 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Schema-generalization MDB inventory differs from its result."
+        }
+    }
+    "lvprop-null" {
+        [void]$names.Add("lvprop-null-job-result.json")
+        $jobResultPath = Join-Path $Source "lvprop-null-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "LvProp-null result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($image in @($replica.images)) {
+                [void]$referenced.Add([string]$image.database)
+            }
+        }
+        if ($referenced.Count -gt 9) {
+            throw "LvProp-null output exceeds the 9-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "LvProp-null result contains duplicate database names."
+        }
+        $allowed = New-Object Collections.ArrayList
+        foreach ($replica in 1..3) {
+            [void]$allowed.Add("candidate-r$replica-fixed.mdb")
+            [void]$allowed.Add("candidate-r$replica-null.mdb")
+            [void]$allowed.Add("control-r$replica-alpha.mdb")
+        }
+        $actualReferenced = @($referenced | Sort-Object)
+        $allowedReferenced = @($allowed | Sort-Object)
+        if (@($referenced | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
+            throw "LvProp-null result has an unexpected database inventory."
+        }
+        if ([string]$jobResult.status -ceq "pass" -and
+            ($actualReferenced -join "`n") -cne ($allowedReferenced -join "`n")) {
+            throw "Passing LvProp-null result omits a database."
+        }
+        foreach ($name in $referenced) {
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb" |
+            ForEach-Object { $_.Name } | Sort-Object)
+        if (($actual -join "`n") -cne ($actualReferenced -join "`n")) {
+            throw "LvProp-null MDB inventory differs from its result."
         }
     }
     "bootstrap-composer-validation" {
