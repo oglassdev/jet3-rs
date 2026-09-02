@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -36,6 +36,8 @@ param(
     [string]$BootstrapComposerEmptyPath,
     [Parameter(Mandatory = $true)]
     [string]$BootstrapComposerAlphaPath,
+    [Parameter(Mandatory = $true)]
+    [string]$SchemaGeneralizationJobPath,
     [string]$PlanSha256 = "",
     [string]$PlanPath = "",
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
@@ -379,7 +381,8 @@ if ($Job -ceq "table-definition" -and
 }
 foreach ($requiredHelper in @(
     $DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath,
-    $BootstrapLayoutJobPath, $SystemCatalogJobPath, $BootstrapComposerValidationJobPath
+    $BootstrapLayoutJobPath, $SystemCatalogJobPath, $BootstrapComposerValidationJobPath,
+    $SchemaGeneralizationJobPath
 )) {
     if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
         [Console]::Error.WriteLine("INVALID: staged development helper does not exist.")
@@ -395,6 +398,7 @@ $planBoundJobs = @{
     "long-value-maps-followup" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "bootstrap-composer-semantics" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "bootstrap-composer-validation" = "oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1"
+    "schema-generalization" = "oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1"
 }
 if ($planBoundJobs.ContainsKey($Job)) {
     if ($PlanSha256 -cnotmatch "^[0-9a-f]{64}$") {
@@ -416,6 +420,9 @@ if ($planBoundJobs.ContainsKey($Job)) {
     }
     elseif ($Job -ceq "bootstrap-composer-validation") {
         $BootstrapComposerValidationJobPath
+    }
+    elseif ($Job -ceq "schema-generalization") {
+        $SchemaGeneralizationJobPath
     }
     else {
         $SystemCatalogJobPath
@@ -717,7 +724,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -733,6 +740,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             -BootstrapComposerValidationJobPath $BootstrapComposerValidationJobPath `
             -BootstrapComposerEmptyPath $BootstrapComposerEmptyPath `
             -BootstrapComposerAlphaPath $BootstrapComposerAlphaPath `
+            -SchemaGeneralizationJobPath $SchemaGeneralizationJobPath `
             -PlanSha256 $PlanSha256 -RunId $RunId
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
@@ -752,6 +760,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             $indexScenarios = @($dispatchResult.index_scenarios)
             $bootstrapLayoutReplicas = @($dispatchResult.bootstrap_layout_replicas)
             $systemCatalogReplicas = @($dispatchResult.system_catalog_replicas)
+            $schemaGeneralizationReplicas = @($dispatchResult.schema_generalization_replicas)
             $status = [string]$dispatchResult.status
             $detail = [string]$dispatchResult.detail
             $exitCode = $dispatchExitCode
@@ -783,6 +792,7 @@ $result = [ordered]@{
     plan_sha256 = $PlanSha256
     bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
     system_catalog_replicas = @($systemCatalogReplicas)
+    schema_generalization_replicas = @($schemaGeneralizationReplicas)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

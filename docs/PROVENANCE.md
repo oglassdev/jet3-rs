@@ -7590,6 +7590,98 @@ Use `not applicable` explicitly rather than omitting a field.
   isolated final reviews reported no findings
 
 
+### EXP-0086 — Preregistered schema-generalization experiment
+
+- Recorded: 2026-09-01, Claude Fable 5.1
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has occurred under this plan
+- Question: across three fresh replicas, what is the exact catalog name-key
+  encoding, which catalog and access-control rows and appended pages does each
+  of four distinct table creates produce, and how do the resulting long-value
+  property payloads decompose under one pinned chunk framing?
+- Origin: project-authored clean-room successor for issue `#100`, using only
+  `EXP-0058`, `EXP-0060`, `EXP-0061`, `EXP-0062`, `EXP-0073`, `EXP-0077`,
+  `EXP-0079`, and `EXP-0085` as recorded above. Retained raw artifacts and
+  post-hoc observations from earlier experiments are analyzer design inputs
+  only and are not admitted evidence for this experiment.
+- Motivation: the crate-private composer accepted by `EXP-0085` encodes fixed
+  observed bytes for exactly one empty-to-`Alpha(Id Long)` transition. A typed
+  planner for arbitrary tables, columns, and indexes cannot derive a new
+  table's index key, catalog and access-control rows, page assignment, or
+  property payload from those fixed values, so this experiment resolves each
+  of them before any planner code is written.
+- Protocol: create three independent pairs of fresh Jet 3 databases. In the
+  first, capture closed checkpoints `empty`, then after adding `Alpha` with one
+  Long field, `Beta` with Long, Text(50), and Memo fields, `Gamma` with a
+  primary unique Long index, and `Delta` with a non-primary Text index. In the
+  second, attempt each preregistered probed table name once and capture the
+  closed `names` checkpoint. Probed names cover CP1252 bytes 0x20-0x7E and
+  0xA0-0xFF except the five Access rejects, grouped so no name mixes the two
+  ranges and built from code points so the script encoding cannot affect the
+  observation, in both a forward and a reversed ordering so a context-free byte
+  map is distinguishable from a position-dependent one. A name DAO rejects is
+  recorded once and never retried. Close and release DAO before every copy,
+  record SHA-256 before and after the bounded read-only metadata access, and
+  retain all eighteen MDBs externally.
+- Design input: before this plan was pinned, its producer and analyzer were
+  exercised end to end against throwaway databases on the same VM through the
+  ad-hoc development-only helper, outside this plan's harness path. That
+  exercise corrected two producer defects, name collisions under the provider's
+  case- and accent-folding comparison and groups that straddled the two probed
+  ranges, and replaced a too-narrow key-framing hypothesis with the primary
+  weight and secondary nibble sections pinned here. Those observations are
+  design input only. They are not admitted evidence, no value from them appears
+  in any answer, and the canonical result comes solely from the single
+  authorized run of this plan.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/schema-generalization.plan.json`, SHA-256
+  `75742ec80e011791c1961c08889fc00f75ae36fd3f3b2a60402694e42d2a5bb9`.
+  It pins the host client, provider probe, guest runner, dispatcher, publisher,
+  producer SHA-256
+  `188340bf1fed58d3ef7ed6b7180fe4fdafd0f4cf14cbfbfcb0c9433d8f1fd5c1`,
+  analyzer SHA-256
+  `add7667b20d47537d6255df22be42f27d8100b6f43b80bb0b2fb71d049249af7`,
+  and the analyzer dependency. Host and guest reject pinned producer mismatches
+  before mutation; the host rechecks every staged analysis input immediately
+  before evaluating the result. The analyzer independently rebuilds the probed
+  name inventory from the pinned rules and rejects any run that did not attempt
+  exactly those names. It also requires each probe outcome to agree with the
+  captured catalog, requires every appended page to carry a decoded role, and
+  requires each of the four creates to have produced its preregistered table
+  and schema in both the decoded catalog and the captured DAO snapshot.
+- Observation: `preregistration.acquisition_started` is `false`. Committing
+  this plan does not authorize acquisition. After the exact reviewed plan and
+  inputs are committed, one explicit human authorization permits one local-VM
+  acquisition. There is no automatic retry after the first DAO mutation.
+- Decision rule: each question is answered only when its structural decode and
+  correlations succeed and the complete observation agrees across all three
+  replicas. Metadata repair, post-mutation producer failure including a replica
+  that stopped before or during the probe phase, decode failure, a create that
+  did not produce its preregistered schema, a branched index root, or replica
+  disagreement is an honest `no_outcome`;
+  pre-mutation, plan, input, digest, bound, checkpoint, inventory, or
+  result-shape defects reject or abort without a scientific outcome.
+- Interpretation: this entry fixes only an acquisition and analysis contract.
+  It establishes no name-key encoding, collation map, catalog or
+  access-control row pattern, page-allocation policy, property grammar beyond
+  the pinned framing, Rust writer correctness, compatibility, support result,
+  or support-matrix movement. It deliberately derives no map, expansion rule,
+  or secondary weight assignment for name bytes above 0x7E; a planner slice
+  built on an accepted result must reject those name bytes with a structured
+  error until a separate experiment resolves them.
+- Usage: future successor result; issue `#100`; `EXP-0085`;
+  `file:oracle/windows-dao/acquisition/schema-generalization.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/schema_generalization.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: 2026-09-01 protocol, VM wiring, and analyzer review over three
+  rounds; findings on probe-inventory enforcement, both key images,
+  appended-page attribution, probe/catalog correlation, post-mutation partial
+  failure handling, and fixed-create outcome correlation were resolved before
+  authorization
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

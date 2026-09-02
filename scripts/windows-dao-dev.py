@@ -123,6 +123,24 @@ BOOTSTRAP_COMPOSER_VALIDATION_ANALYZER = (
     / "scripts"
     / "bootstrap_composer_validation.py"
 )
+SCHEMA_GENERALIZATION_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "SchemaGeneralization.DevJob.ps1"
+)
+SCHEMA_GENERALIZATION_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "schema-generalization.plan.json"
+)
+SCHEMA_GENERALIZATION_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "schema_generalization.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -146,6 +164,7 @@ ALLOWED_JOBS = (
     "long-value-maps-followup",
     "bootstrap-composer-semantics",
     "bootstrap-composer-validation",
+    "schema-generalization",
 )
 
 
@@ -229,6 +248,13 @@ def plan_binding(job: str) -> PlanBinding | None:
             BOOTSTRAP_COMPOSER_VALIDATION_PLAN,
             BOOTSTRAP_COMPOSER_VALIDATION_ANALYZER,
             "dao_bootstrap_composer_validation_plan",
+        )
+    if job == "schema-generalization":
+        return PlanBinding(
+            job,
+            SCHEMA_GENERALIZATION_PLAN,
+            SCHEMA_GENERALIZATION_ANALYZER,
+            "dao_schema_generalization_plan",
         )
     return None
 
@@ -451,6 +477,7 @@ def stage_job(args: argparse.Namespace) -> Path:
             BOOTSTRAP_COMPOSER_VALIDATION_JOB,
             staging / BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
         )
+        shutil.copyfile(SCHEMA_GENERALIZATION_JOB, staging / SCHEMA_GENERALIZATION_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:
             shutil.copyfile(binding.analyzer, staging / binding.analyzer.name)
@@ -521,6 +548,8 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
         ntpath.join(remote_input, "bootstrap-composer-empty.mdb"),
         "-BootstrapComposerAlphaPath",
         ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
+        "-SchemaGeneralizationJobPath",
+        ntpath.join(remote_input, SCHEMA_GENERALIZATION_JOB.name),
     ]
     if binding is not None:
         command.extend(

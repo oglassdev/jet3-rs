@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -27,6 +27,8 @@ param(
     [string]$BootstrapComposerEmptyPath,
     [Parameter(Mandatory = $true)]
     [string]$BootstrapComposerAlphaPath,
+    [Parameter(Mandatory = $true)]
+    [string]$SchemaGeneralizationJobPath,
     [string]$PlanSha256 = "",
     [string]$RunId = ""
 )
@@ -57,6 +59,7 @@ $scriptPath = switch ($Job) {
     "long-value-maps-followup" { $SystemCatalogJobPath }
     "bootstrap-composer-semantics" { $SystemCatalogJobPath }
     "bootstrap-composer-validation" { $BootstrapComposerValidationJobPath }
+    "schema-generalization" { $SchemaGeneralizationJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -81,6 +84,9 @@ elseif ($Job -ceq "bootstrap-layout") {
 elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId, "-Experiment", $Job)
 }
+elseif ($Job -ceq "schema-generalization") {
+    $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId)
+}
 elseif ($Job -ceq "bootstrap-composer-validation") {
     $arguments += @(
         "-PlanSha256", $PlanSha256,
@@ -103,6 +109,7 @@ $resultName = switch ($Job) {
     "long-value-maps-followup" { "long-value-maps-followup-job-result.json" }
     "bootstrap-composer-semantics" { "bootstrap-composer-semantics-job-result.json" }
     "bootstrap-composer-validation" { "bootstrap-composer-validation-job-result.json" }
+    "schema-generalization" { "schema-generalization-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -119,6 +126,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         index_scenarios = @()
         bootstrap_layout_replicas = @()
         system_catalog_replicas = @()
+        schema_generalization_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
     exit 1
@@ -133,6 +141,7 @@ $valueScenarios = @()
 $indexScenarios = @()
 $bootstrapLayoutReplicas = @()
 $systemCatalogReplicas = @()
+$schemaGeneralizationReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
 $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     if ([string]$jobResult.status -ceq "pass") {
@@ -140,6 +149,14 @@ $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-f
     }
     else {
         "At least one system-catalog replica failed; per-replica error records the message."
+    }
+}
+elseif ($Job -ceq "schema-generalization") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three schema-generalization replicas once without retry."
+    }
+    else {
+        "At least one schema-generalization replica failed; per-replica error records the message."
     }
 }
 elseif ($Job -ceq "bootstrap-composer-validation") {
@@ -168,6 +185,9 @@ elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followu
 elseif ($Job -ceq "bootstrap-composer-validation") {
     $systemCatalogReplicas = @($jobResult.replicas)
 }
+elseif ($Job -ceq "schema-generalization") {
+    $schemaGeneralizationReplicas = @($jobResult.replicas)
+}
 $result = [ordered]@{
     development_only = $true
     job = $Job
@@ -181,6 +201,7 @@ $result = [ordered]@{
     index_scenarios = @($indexScenarios)
     bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
     system_catalog_replicas = @($systemCatalogReplicas)
+    schema_generalization_replicas = @($schemaGeneralizationReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
 exit $jobExitCode
