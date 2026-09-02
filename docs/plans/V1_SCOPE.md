@@ -65,9 +65,10 @@ page at `root+1`, the catalog `LvProp` page at `root+2`, and one index root per
 physical ordinal at `root+3+i`. That overturns the composer's current deduced
 one-index order, which places the first root before `LvProp`.
 
-Two remaining format gaps each need their own preregistered DAO validation
-before the planner can widen: where a definition continuation page lands
-(#151), then catalog name keys for bytes above `0x7E` (#152). `EXP-0094`
+Of the two format gaps that needed preregistered DAO validation before the
+planner could widen, definition-continuation placement (#151) remains open and
+catalog name keys for bytes above `0x7E` (#152) now have bounded evidence.
+`EXP-0094`
 contains the SHA-256-pinned #151 preregistration. `EXP-0095` records its
 canonical `no_outcome`: every replica reached capture of the 69-field arm, but
 that arm failed the combined 2-KiB geometry/64-page bound and could not be
@@ -94,10 +95,21 @@ the bounded DAO metadata agreed, but every replica failed catalog-key decoding
 at the former `reject` checkpoint under the all-arm decoder. The successor
 renames that checkpoint `controls`. The defined arms cannot be promoted post hoc
 and establish no catalog-name mapping or weights.
-`EXP-0099` preregisters a successor that leaves the 41 defined-byte arms
-unchanged, validates U+007F and the five undefined-slot Unicode values only at
-the BSTR/DAO metadata boundary, and never decodes that controls arm. It also
-requires exact non-ASCII JSON transport and compares exact question-bearing
+`EXP-0099` preregistered a successor that left the 41 defined-byte arms
+unchanged, validated U+007F and the five undefined-slot Unicode values only at
+the BSTR/DAO metadata boundary, and never decoded that controls arm. It also
+required exact non-ASCII JSON transport and compared exact question-bearing
 collation facts across replicas while retaining incidental locators separately.
-#152 remains evidence-blocked until that plan is merged and a renewed explicit
-human authorization permits one acquisition.
+`EXP-0101` records the authorized successor as `accepted`: all 123 defined
+bytes and all six exact forms were observed, the exact primary and secondary
+nibble results and composition predicates agreed across three replicas, and all
+seven metadata-only controls were accepted at the Unicode BSTR/DAO metadata
+boundary. This resolves #152's bounded six-form evidence question, but does not
+unblock general planner widening. Only singleton positions, repeat, and each
+byte's registered adjacent defined neighbor were tested, and secondary
+observations were sometimes noncompositional. Any implementation derived now
+must retain the current blanket rejection or fail closed to exact evidenced
+contexts and contexts supported solely by a positive composition result for
+that tested byte or pair. Arbitrary names, more than two non-ASCII bytes, and
+untested pairs or contexts need more evidence. No general collation, writer
+correctness, public compatibility, or support-matrix movement is established.

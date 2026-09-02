@@ -183,9 +183,9 @@ for the three arms are non-promotable under the all-or-`no_outcome` rule. A new
 run needs a separately pinned successor and a renewed explicit human decision.
 
 `extended-names` is the SHA-256-pinned issue #152 successor for every defined
-CP1252 byte above `0x7E`. Three replicas each retain an empty checkpoint, the
+CP1252 byte above `0x7E`. Three replicas each retained an empty checkpoint, the
 same 41 identity-isolated three-byte batch checkpoints used by the first run,
-and one metadata-only controls checkpoint. The analyzer decodes only the 41
+and one metadata-only controls checkpoint. The analyzer decoded only the 41
 defined-byte checkpoints. For the controls arm it validates exact UTF-16LE BSTR
 identity, append/failure operation, and post-close TableDefs names without
 making a CP1252 mapping or physical-key claim. It preserves raw object IDs and
@@ -193,9 +193,18 @@ row locators per replica but compares only question-bearing name outcomes,
 primary/secondary observations, and pair conclusions. A fixed non-ASCII
 sentinel must also survive the child result and the explicit-UTF-8 dispatch and
 top-level result pass-through. `EXP-0097` records the first dispatch as
-`no_outcome`; `EXP-0099` preregisters this correction. Do not dispatch it until
-the preregistration is merged and renewed explicit human authorization is
-recorded.
+`no_outcome`; `EXP-0099` preregistered the correction. `EXP-0101` records its
+one authorized acquisition as `accepted`: all 2,358 name attempts succeeded,
+all 129 images remained unchanged through metadata access, every defined byte's
+six exact forms decoded, the transport sentinel remained exact, and all five
+questions agreed across three replicas. The seven controls establish only
+exact Unicode BSTR append and post-close metadata acceptance. The bounded
+catalog-key evidence resolves issue #152's six-form experiment question, not
+general planner widening. It does not justify arbitrary names, more than two
+non-ASCII bytes, or untested byte pairs or contexts; any implementation must
+retain the blanket rejection or fail closed to evidenced or positively
+composable tested contexts. It makes no general collation, writer,
+compatibility, public-support, or support-matrix claim.
 
 `lvprop-null` is the SHA-256-pinned, development-only acceptance experiment for
 issue #149. Three replicas each compare the fixed accepted Alpha composer image,
