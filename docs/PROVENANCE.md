@@ -7682,6 +7682,158 @@ Use `not applicable` explicitly rather than omitting a field.
   authorization
 
 
+### EXP-0087 — Accepted schema-generalization DAO result
+
+- Recorded: 2026-09-02, Claude Opus 5
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from a canonical analyzer report
+- Question: the six preregistered `EXP-0086` questions on `ParentId`/`Name`
+  key framing, ASCII name collation, extended name keys, catalog and
+  access-control rows, page-zero and page assignment, and long-value property
+  framing.
+- Origin: project-authored clean-room experiment using exactly the `EXP-0086`
+  evidence boundary. The plan and every pinned input were committed to branch
+  `test/schema-generalization-preregistration` at
+  `840fcdeba7fa0bb548637585f8d5f08e55db7a28` before acquisition; those exact
+  bytes reached `main` as squash commit
+  `7194b0fa11b92c1a22d2e05b761143c1c7294045` (PR `#144`) and are identified
+  here by their SHA-256 pins. After the preregistration commit the user
+  explicitly authorized one acquisition. The run was dispatched once and was
+  not retried.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Protocol: run ID `20260902T035711Z-dev-dao` executed the committed plan
+  SHA-256
+  `75742ec80e011791c1961c08889fc00f75ae36fd3f3b2a60402694e42d2a5bb9`
+  once. Each of three replicas created two fresh `dbVersion30` CP1252
+  databases: one captured closed at the `empty`, `alpha`, `beta`, `gamma`, and
+  `delta` checkpoints, and one at `names` after attempting the 24 preregistered
+  probed table names. The pinned analyzer decoded every checkpoint, rebuilt the
+  probe inventory independently, correlated it with the captured catalog,
+  correlated each fixed create against both the decoded catalog and the bounded
+  DAO `TableDefs` snapshot, and applied the preregistered decision rule.
+- Artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `93bf1b5704b38f6aa4b052b4904cf54783bf41859e38b212b094fbb7a162e963`;
+  external `schema-generalization-job-result.json`, 368,464 bytes, SHA-256
+  `56838c6a4f2fe4b791829a64743c5c4015f61c5d578390056ff1d6f8dfdec455`;
+  external `result.json`, 467,118 bytes, SHA-256
+  `e392cd8bb95f75abfc4df2ff598bb41edd612d250c2a49084a405c38378784b4`;
+  external canonical `schema-generalization-report.json`, 32,978 bytes, SHA-256
+  `306501a7fd93f29e7e00df3223608017c97b706f573175a6f58a6ddb06ea021b`,
+  reproduced byte-identically by rerunning the pinned analyzer. The exact
+  external MDB inventory was eighteen databases, all retained outside the
+  repository: three 40,960-byte `empty`
+  (`ff38fd466998c92f52c1b45499d84d6eb8c525df22e18766feda757380490996`,
+  `7980ce46bd22fd8e60a14e1ee06e5930e2c371ce0db7d441505c0262b3c169ab`,
+  `11979f5946de747c61afa2664f07445e1fd8fc5068faa7b472ab531fbc80e0cd`),
+  three 47,104-byte `alpha`
+  (`b6e7bf7f780bf724afcbbef96e96f5fc413bdb44fe84e0a351305e35ecefe866`,
+  `4977d084f98534132c95f901f24971eef5413ec1053bf26a1704b5f0942ff932`,
+  `7425856a64b6fad7ddb02756662d0ca7e1bad45d918b955a89a6059fbfc118bc`),
+  three 51,200-byte `beta`
+  (`d18f0af09a9fcfdb35df6c46da31dcfac0d6fd3c9e7834b2422103864fdd4802`,
+  `2354f9975032fbaba97d19c2320520966605058e7da506564ff3e10a3e362825`,
+  `18abd6a5fa980ade86155a018c136766b117f561c87653e02ad99d910520df05`),
+  three 57,344-byte `gamma`
+  (`e4943a1626b3be1e5d9b2d080b4528bef9e9ced42f1b2f16985511f5dace0a11`,
+  `e891bf1858900e00b11f25708ae9c5c1939eb1e98c0bb6a07e31effc0fa39f44`,
+  `2f62521af54eb5dfaad8883b851bbcb1bdcfe358eb92ea42aea0f2ece35782ed`),
+  three 63,488-byte `delta`
+  (`a917c084177353b7800930d0c89492d6b321ea551ff8e0c77ee6b811ff369076`,
+  `87ab7217b452a402f1b35c5ccd58a38890e62d7df3a073c49dfa6fe3d891da3a`,
+  `d0dc0f97097475b08d7d5034f2f54c86cc8ef7643b7dee69aa0653dd916c022b`),
+  and three 143,360-byte `names`
+  (`71dc5b2aa1b2e057658e9acff35054554b468ddffc911e87ee91f7d8a8b0200c`,
+  `2893eb3418c4f7d80ebb956429e7d82beb2207b1625e552f73542a3fc619aa34`,
+  `369cb6e8b196920f61206128444c87de493c8af73a45f320a5d30991d8a6317c`).
+- Observation: the producer returned `pass` for all three replicas without
+  retry, DAO accepted all 24 probed names, and the canonical report has status
+  `accepted` with all six questions `answered`,
+  `compatibility_claim: false`, and `support_movement: false`. Every
+  observation below was byte-identical across all three fresh replicas.
+  - Key framing: the `MSysObjects` `ParentId`/`Name` root was a single leaf in
+    every checkpoint, holding exactly one losslessly reconstructed key per
+    decoded catalog row, each correlating to exactly one row. Every key is the
+    `EXP-0062` non-null Long encoding of `ParentId`, then `0x7f`, then primary
+    weight bytes none of which has a zero high nibble, then a nibble stream of
+    a leading zero nibble, zero or more secondary nibbles, a terminating zero
+    nibble, and zero padding to the byte boundary. Twelve keys were decoded in
+    the four-table image and thirty-two in the probed-name image.
+  - ASCII collation: one context-free CP1252 byte-to-primary-weight map
+    explains every observed name whose bytes are all at most `0x7E`, at every
+    position, in both orderings and in all three replicas, with an empty
+    secondary section. All 90 probed ASCII bytes are mapped, none is unmapped,
+    and DAO rejected none of the probed names. Observed map, source byte to
+    weight byte:
+
+        20=11 22=13 23=14 24=15 25=16 26=17 27=18 28=19 29=1a 2a=1b 2b=1c
+        2c=1d 2d=1e 2f=20 30=56 31=57 32=58 33=59 34=5a 35=5b 36=5c 37=5d
+        38=5e 39=5f 3a=21 3b=22 3c=23 3d=24 3e=25 3f=26 40=27 41=60 42=61
+        43=62 44=64 45=66 46=67 47=68 48=69 49=6a 4a=6b 4b=6c 4c=6d 4d=6f
+        4e=70 4f=72 50=73 51=74 52=75 53=76 54=77 55=78 56=7a 57=7b 58=7c
+        59=7d 5a=7e 5c=29 5e=2b 5f=2c 61=60 62=61 63=62 64=64 65=66 66=67
+        67=68 68=69 69=6a 6a=6b 6b=6c 6c=6d 6d=6f 6e=70 6f=72 70=73 71=74
+        72=75 73=76 74=77 75=78 76=7a 77=7b 78=7c 79=7d 7a=7e 7b=2e 7c=2f
+        7d=30 7e=31
+
+    Upper- and lowercase letters share one weight, so case is not recoverable
+    from a key. The map is not injective and no inverse is claimed.
+  - Extended name keys: the twelve names containing a byte above `0x7E` were
+    recorded losslessly and agreed across replicas. Names over `0xA0`–`0xBF`
+    carried one primary weight per byte and an empty secondary section; names
+    over `0xC0`–`0xFF` carried fewer primary weights than source bytes and a
+    non-empty secondary nibble stream whose order tracks the name's byte order.
+    No map, expansion rule, or secondary assignment is derived from them.
+  - Catalog and access-control rows: each of the four creates produced exactly
+    its preregistered table and schema in both the decoded catalog and the DAO
+    `TableDefs` snapshot, and added exactly one `MSysObjects` row and two
+    `MSysACEs` rows, removing none. The added object row carried `Type` 1,
+    `Flags` 0, `Owner` `0301`, `ParentId` `0x0F000001`, a non-null `LvProp`
+    long-value reference, and null in every remaining column. The two added ACE
+    rows carried the created object's `Id` with `SID` `0301`/`ACM` 983294 and
+    `SID` `0201`/`ACM` 1048319, both non-inheritable.
+  - Page zero and page assignment: each create changed exactly one page-zero
+    offset, byte 1538, advancing it 0, 2, 4, 6, 8 across the four creates. Each
+    create appended a `definition_root` page numbered equal to the new object's
+    `Id`, then a `map_rows` page; a create carrying an index appended an
+    `index_root` page after it, and the first create in a database additionally
+    appended a `long_value` page. The `EXP-0073` role decoder attributed every
+    appended page to a decoded structure and left none unassigned.
+  - Long-value property framing: every non-null catalog `LvProp` value was one
+    `EXP-0061` single-page external header naming one in-bounds unflagged
+    `LVAL` row, and every payload began with `4b 4b 44 00` and was exactly
+    covered by chunks of a four-byte little-endian inclusive length and a
+    two-byte little-endian kind. Each payload held exactly one leading kind
+    `0x0080` chunk whose body was exactly covered by two-byte length-prefixed
+    name entries, followed by one further chunk per column. All other chunk
+    bytes remain lossless and uninterpreted.
+- Interpretation: this is a bounded structural observation of what DAO 3.6
+  produced for these exact scenarios in this exact environment. Within that
+  boundary it establishes the `ParentId`/`Name` key framing, the ASCII primary
+  weight map, the per-create catalog/ACE row pattern, the page-zero counter
+  step, and the appended-page assignment order that a typed schema planner
+  needs. It does not establish writer correctness, DAO acceptance of any
+  project-composed bytes, compatibility, a hosted differential or support
+  result, or support-matrix movement; only a later DAO differential over
+  composed candidates can. It deliberately derives no weight, expansion rule,
+  or secondary assignment for name bytes above `0x7E`, no `MSysObjects` `Id`
+  allocation rule beyond the observed equality with the definition root page,
+  no rule for page-zero byte 1538 beyond the observed step, and no property
+  grammar beyond the pinned framing. A planner slice built on this result must
+  reject name bytes above `0x7E` with a structured error until a separate
+  experiment resolves them.
+- Usage: issue `#100`; `EXP-0086`; `EXP-0062`; `EXP-0073`; `EXP-0079`
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent outcome, artifact-identity, report-reproduction,
+  decision-rule, evidence-boundary, and false-claim review
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
