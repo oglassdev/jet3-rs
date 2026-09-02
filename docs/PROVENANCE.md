@@ -8253,6 +8253,135 @@ Use `not applicable` explicitly rather than omitting a field.
   reviews reported no remaining acquisition blocker.
 
 
+### EXP-0093 — Accepted multiple-index page-assignment DAO result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from a canonical analyzer report
+- Question: for the exact four empty first-create arms preregistered by
+  `EXP-0092`, what page, usage-map-row, physical-index, logical-index, flag,
+  key, and direction assignments does DAO 3.6 produce across three replicas?
+- Origin: project-authored clean-room experiment using the exact `EXP-0092`
+  bytes merged as commit
+  `ef6eb855d2c665d0abc09be2e0f47d6ebe0d90d7` (PR `#160`) and plan SHA-256
+  `4832f4fe018af2ac951f9952eaa1a87766f3a3e274d7b083795c19620ae60329`.
+  After the exact pins were independently reviewed and merged, the user's
+  2026-09-02 “Go for it” authorized one acquisition. Run ID
+  `20260902T191841Z-dev-dao` was dispatched once and was not retried. This
+  dispatch count is the observed operator action, not a cryptographic claim
+  derived from the retained artifacts.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Guest-generated UTC fields were seven hours ahead of the host clock, so they
+  are not used as wall-clock evidence; their internal ordering was coherent.
+- Protocol: for each of three replicas, the producer created one fresh empty
+  Jet 3 database, retained it, copied and identity-checked it into the `one`,
+  `two`, `three`, and `composite` first-create arms, performed each arm's one
+  `TableDefs.Append`, and retained all five images. All replicas reached phase
+  `complete` with `mutation_started: true`, status `pass`, no error, and no
+  recovery artifact. The pinned analyzer checked the job-result contract,
+  complete inventories, before/after identities, exact DAO schemas, decoded
+  catalog and table definitions, map locators and contents, `LvProp`, every
+  appended page, and empty index roots before applying the preregistered rule.
+- Artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `ce802f7dcd1fb2eea3fd49d4a8828e6707473cf9fa0069a9a8c8616e192c8f2b`;
+  external `multiple-indexes-job-result.json`, 143,016 bytes, SHA-256
+  `3ee3c5df53f4a1859188df7a1aee10eff7a29a750dcfdd972f55417400e72fc6`;
+  external `result.json`, 168,174 bytes, SHA-256
+  `74353d2534bab87c9ca338dbf9f25c123c40fa593e916c9b102a900e3874d00d`;
+  external canonical `multiple-indexes-report.json`, 13,050 bytes, SHA-256
+  `f5a8e27392c0d9d7ce20f08840988ce99842dab8c2c277901ca4528adce81750`,
+  reproduced byte-identically by rerunning the staged pinned analyzer after
+  independently rechecking the staged plan and all eight input identities.
+- Retained MDB identities:
+  - Replica 1: `empty`, 40,960 bytes,
+    `da79cff2b94d62af707efd129880a4d4f42a24c9ef37ca0e415719e8bacc73de`;
+    `one`, 49,152 bytes,
+    `f08da1e69fadc3320db7cead1aba62a30d0702d2ed7686239cb04df9ee5cb290`;
+    `two`, 51,200 bytes,
+    `83c90839c22f0ecb54ad9a64123cf381f3c513aa2a30412304eaf2151e2fe6ec`;
+    `three`, 53,248 bytes,
+    `ff8ee9cbfc42076ab89de06b8cca626cb7e4364576b9d773a43072906a16b128`;
+    `composite`, 51,200 bytes,
+    `e87d36a8b10ace00ba21a6f26ed7583c699840e2f4019dfdaf655123ff90ed63`.
+  - Replica 2: `empty`, 40,960 bytes,
+    `f29e75f601338a8cfab1c1d7f6ac1be0f7b1e2ea499c96f67dffcb629f52fd56`;
+    `one`, 49,152 bytes,
+    `90642769ef803de8c39ab2a539a89378c96643834553db31ef35b909651d45ae`;
+    `two`, 51,200 bytes,
+    `ff77dea6405bb3197deae1acd5c104000c9283c5d53d965a5255785cd068e528`;
+    `three`, 53,248 bytes,
+    `984363e77769f5f6ffb5df924b611a92011c4f8c6bdb67b21da931b0d8cb5335`;
+    `composite`, 51,200 bytes,
+    `fb159bd0e652f4e072a81f5858fa3d9259bb6e31b4ebe27753e35f216e42539e`.
+  - Replica 3: `empty`, 40,960 bytes,
+    `d0ccc8400c55dc5970cea685aa2661d4e17b9883c423bdf883f8f5ef99563a3d`;
+    `one`, 49,152 bytes,
+    `2b46a3b00853a809f04c753b2998520fb6ea4a5b26e5a8f3666460b26d825b58`;
+    `two`, 51,200 bytes,
+    `de3475d11c3bd62b14651cb31901ebf2ea04cad2c7322ced4e9f350f2ec56a73`;
+    `three`, 53,248 bytes,
+    `8a1601dd7d84316b56dfc1af6a3a0736643ed9bbbe2b5244c569ca642e0744a6`;
+    `composite`, 51,200 bytes,
+    `7caa38f4425cb29379ac649f71f2df6f137b0409bebaa60e377ce8de5be6082a`.
+  Every image retained the same size and SHA-256 through the bounded DAO
+  metadata pass, and every arm's pre-mutation identity matched its replica's
+  retained empty image.
+- Observation: the canonical report has status `accepted`;
+  `page_assignment`, `index_layout`, `map_placement`, and `replication` are all
+  `answered`; `compatibility_claim` and `support_movement` are both `false`.
+  The complete decoded observations agree across all three replicas. Each
+  20-page empty base gained definition root page 20, shared map-rows page 21,
+  and the created catalog row's `LvProp` `LVAL` page 22, followed by one empty
+  index root per physical index at pages 23 onward. The `one`, `two`, `three`,
+  and `composite` arms therefore contained 24, 25, 26, and 25 pages. Table
+  owned and available locators used page 21 rows 0 and 1 and mapped no pages.
+  Index locators used page 21 rows `2 + physical_ordinal`, and each mapped only
+  its corresponding root; no second map page appeared through three indexes.
+- Observation: physical index order matched append order: `ZPrimary`;
+  `ZPrimary, ASecondx`; `ZPrimary, MUniqueX, ASecondx`; and
+  `ZComposi, ASecondx`. Logical records appeared in name order while retaining
+  physical references `0`; `1,0`; `2,1,0`; and `1,0`. Physical flags were
+  `9`; `9,0`; `9,1,0`; and `1,0`, where the observed primary unique required,
+  unique non-primary, and ordinary shapes were 9, 1, and 0. Ascending key
+  direction was 1 and descending was 0; key order and directions matched the
+  DAO metadata, including `Code` descending then `Sequence` ascending in the
+  composite index. Every root was an owner-matched empty leaf with zero
+  entries. Every arm's `LvProp` was the same 97-byte single-page external value
+  at page 22 row 2, header `610000400216000000000000`, payload SHA-256
+  `a7cc0a54b254f877029c0dd3c2a0808d3e252869024d13c7b21510b3e15f7ecc`.
+- Interpretation: for these exact empty first-create arms, the `LvProp` page
+  precedes all index roots; index roots and map rows follow physical append
+  order; logical records use name order while referring back to those physical
+  ordinals; and the two-index composite arm has the same relative page and map
+  assignment as the two-simple-index arm. This overturns the current composer's
+  deduced indexed-create order and requires correction before an index-capable
+  public creation API. It establishes only the bounded assignments and
+  index-definition observations above. It does not establish populated
+  composite-key encoding, index-tree or row maintenance, behavior above three
+  indexes, other flag combinations or schemas, map-page spill behavior,
+  continuation-page placement, extended-name encoding, index plus long-value
+  column layout, initial rows, arbitrary `LvProp` grammar or page omission,
+  relationships, Rust writer or publication correctness, general Jet 3 or DAO
+  compatibility, a hosted differential or support result, or support-matrix
+  movement.
+- Usage: issue `#150`; `EXP-0059`; `EXP-0061`; `EXP-0062`; `EXP-0073`;
+  `EXP-0087`; `EXP-0091`; `EXP-0092`; future multiple-index planner and
+  composer work
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: three independent outcome, artifact-identity, report-reproduction,
+  decision-rule, bounded-observation, evidence-boundary, roadmap, and
+  false-claim reviews completed on 2026-09-02. The staged analyzer was
+  independently rerun byte-identically, and all three final reviews reported
+  no findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
