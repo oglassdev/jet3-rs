@@ -17,16 +17,19 @@
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
+use crate::long_value_writer::{
+    LongValueWriteError, external_long_value_header, validate_single_page_row,
+};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
-    DataPageBuilder, Error, IndexDirection, IndexFieldSpec, InlineUsageMapEncoder,
-    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageImage,
-    PageImageError, PageKind, PageNumber, PageOffset, PhysicalIndexFlagsSpec, PhysicalIndexSpec,
-    ResourceBudget, RowColumnLayout, RowValue, RowWriteError, SystemColumnClassSpec,
-    TableDefinitionKind, TableDefinitionSpec, TableDefinitionWriteError, UsageMapWriteError,
-    encode_row, encode_table_definition,
+    DataPageBuilder, Error, ExternalLongValueStorage, IndexDirection, IndexFieldSpec,
+    InlineUsageMapEncoder, LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator,
+    PAGE_BYTES, PageImage, PageImageError, PageKind, PageNumber, PageOffset,
+    PhysicalIndexFlagsSpec, PhysicalIndexSpec, ResourceBudget, RowColumnLayout, RowLocator,
+    RowValue, RowWriteError, SystemColumnClassSpec, TableDefinitionKind, TableDefinitionSpec,
+    TableDefinitionWriteError, UsageMapWriteError, encode_row, encode_table_definition,
 };
 
 const HEADER_PAGE: u64 = 0;
@@ -95,8 +98,13 @@ pub(crate) enum BootstrapComposeError {
     Row(RowWriteError),
     WholeFile(WholeFilePlanError),
     Encoding(Error),
-    IndexPageFull { needed: usize, available: usize },
+    IndexPageFull {
+        needed: usize,
+        available: usize,
+    },
     NameKey(CatalogNameKeyError),
+    /// Long-value encoding failed.
+    LongValue(LongValueWriteError),
 }
 
 impl fmt::Display for BootstrapComposeError {
@@ -115,6 +123,7 @@ impl std::error::Error for BootstrapComposeError {
             Self::WholeFile(source) => Some(source),
             Self::Encoding(source) => Some(source),
             Self::NameKey(source) => Some(source),
+            Self::LongValue(source) => Some(source),
             Self::IndexPageFull { .. } => None,
         }
     }
@@ -153,6 +162,12 @@ impl From<Error> for BootstrapComposeError {
 impl From<CatalogNameKeyError> for BootstrapComposeError {
     fn from(source: CatalogNameKeyError) -> Self {
         Self::NameKey(source)
+    }
+}
+
+impl From<LongValueWriteError> for BootstrapComposeError {
+    fn from(source: LongValueWriteError) -> Self {
+        Self::LongValue(source)
     }
 }
 
@@ -474,7 +489,9 @@ fn objects_data_page(
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
     for seed in catalog_seeds(alpha) {
-        let lvprop = (seed.id == ALPHA_ROOT as i32).then(alpha_long_value_header);
+        let lvprop = (seed.id == ALPHA_ROOT as i32)
+            .then(alpha_long_value_header)
+            .transpose()?;
         let length = encode_catalog_row(seed, lvprop, &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
@@ -588,18 +605,19 @@ fn finish_data_builder(
     Ok(image)
 }
 
-fn alpha_long_value_header() -> [u8; 12] {
-    let control = 0x4000_0000_u32 | ALPHA_LVPROP_PAYLOAD.len() as u32;
-    let mut header = [0_u8; 12];
-    header[..4].copy_from_slice(&control.to_le_bytes());
-    header[5..8].copy_from_slice(&(ALPHA_LVPROP_PAGE as u32).to_le_bytes()[..3]);
-    header
+fn alpha_long_value_header() -> Result<[u8; 12], BootstrapComposeError> {
+    Ok(external_long_value_header(
+        ALPHA_LVPROP_PAYLOAD.len(),
+        ExternalLongValueStorage::SinglePage,
+        RowLocator::new(PageNumber::new(ALPHA_LVPROP_PAGE), 0),
+    )?)
 }
 
 fn alpha_long_value_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
-    let mut image = data_page(HEADER_PAGE, &[ALPHA_LVPROP_PAYLOAD], budget)?;
-    image.write_at(PageOffset::new(4), b"LVAL", budget)?;
-    Ok(image)
+    validate_single_page_row(ALPHA_LVPROP_PAYLOAD)?;
+    let mut builder = DataPageBuilder::new_long_value(budget)?;
+    builder.append_row(ALPHA_LVPROP_PAYLOAD, budget)?;
+    finish_data_builder(builder, budget)
 }
 
 #[derive(Clone, Copy)]

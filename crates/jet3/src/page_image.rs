@@ -8,6 +8,7 @@
 
 use std::fmt;
 
+use crate::data_page_directory::LONG_VALUE_OWNER;
 use crate::{
     BinaryWriter, ByteCount, ByteOffset, Error, JET3_PAGE_SIZE, PageKind, PageNumber, PageOffset,
     ResourceBudget,
@@ -192,6 +193,20 @@ impl DataPageBuilder {
                 &owner_value.to_le_bytes(),
                 budget,
             )
+            .map_err(PageImageError::Encoding)?;
+        Ok(Self {
+            image,
+            row_count: 0,
+            free_end: PAGE_BYTES,
+        })
+    }
+
+    /// Starts an empty long-value page, owned by the ASCII `LVAL` marker
+    /// `EXP-0061` observed on every external payload page.
+    pub fn new_long_value(budget: &mut ResourceBudget) -> Result<Self, PageImageError> {
+        let mut image = PageImage::new(PageKind::Data);
+        image
+            .write_at(PageOffset::new(OWNER_OFFSET), &LONG_VALUE_OWNER, budget)
             .map_err(PageImageError::Encoding)?;
         Ok(Self {
             image,
