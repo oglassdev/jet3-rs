@@ -926,8 +926,11 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             plan["execution"]["bounds"]["maximum_published_databases"], 12
         )
         self.assertEqual(
-            {name: value.count("0") for name, value in plan["inputs"].items()},
-            {name: 64 for name in plan["inputs"]},
+            plan["inputs"],
+            {
+                relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+                for relative in plan["inputs"]
+            },
         )
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
         self.assertIn('$ScenarioFields = @{ zero = 69; one = 70; two = 140 }', job)
