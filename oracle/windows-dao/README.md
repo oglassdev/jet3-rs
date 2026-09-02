@@ -167,8 +167,12 @@ subdirectory, so cleanup failure cannot pollute the retained root inventory.
 Recovery-only salvage may retain an aligned active checkpoint,
 including `empty` after mutation begins, through 512 pages with exact size/hash
 and `interpreted=false`; it is never decoded and every post-mutation failure
-remains `no_outcome`. Acquisition remains forbidden until the exact
-preregistration commit is merged and a new explicit human decision is recorded.
+remains `no_outcome`. `EXP-0100` records the one authorized acquisition as a
+valid `no_outcome`: all three replicas completed the exact four-checkpoint
+inventory without recovery, but the 2,046-byte `zero` arm decoded with one
+continuation page where the preregistered control required zero. Diagnostic
+chains for all three arms are non-promotable. Another acquisition requires a
+separately pinned successor and renewed explicit human authorization.
 
 The issue #152 `extended-names` job partitions all 123 defined CP1252 bytes in
 `0x80`-`0xFF` into 41 independent three-byte arms per replica. Each defined arm
