@@ -1,0 +1,80 @@
+{
+  "document_type": "dao_multiple_indexes_plan",
+  "experiment_id": "multiple-indexes",
+  "issue": 150,
+  "development_only": true,
+  "purpose": "Observe the first-create page assignment, map-row placement, and logical-to-physical ordering of one, two, three, and composite Jet 3 indexes without guessing beyond the admitted table-definition and page-role grammars.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0059 establishes the bounded physical and logical index-definition records, including key directions, flags, map locators, roots, and logical-to-physical ordinals. EXP-0073 establishes the bounded system-catalog and page-role decoder. EXP-0087 observes first-create assignment for zero or one index but does not observe a second index. Discovery-only index jobs are design input and are not admitted evidence.",
+    "authorization": "Committing this plan does not authorize acquisition. After the exact plan and pinned inputs are reviewed and committed, one explicit human authorization permits one local-VM acquisition.",
+    "attempt_policy": "Dispatch exactly one three-replica run after authorization. Once the first DAO CreateDatabase mutation begins, any failure is a scientific result and must not be retried without another explicit human decision."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/multiple_indexes.py": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oracle/windows-dao/scripts/system_catalog.py": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "independence": "Each replica creates and closes one fresh dbVersion30 CP1252 database, retains it as empty, then copies and identity-checks it into four arm working files before any TableDefs mutation. Each arm receives exactly one table create and is closed before metadata capture. No rows are inserted.",
+    "checkpoints": [
+      "empty",
+      "one",
+      "two",
+      "three",
+      "composite"
+    ],
+    "scenarios": {
+      "one": "IdxOne has Long fields Id, Code, Sequence and ZPrimary(Id ascending primary unique required).",
+      "two": "IdxTwo has the same fields and appends ZPrimary before ASecondx(Code ascending ordinary).",
+      "three": "IdxTri has the same fields and appends ZPrimary, then MUniqueX(Code descending unique non-primary), then ASecondx(Sequence ascending ordinary).",
+      "composite": "IdxMix has the same fields and appends ZComposi(Code descending, Sequence ascending, unique non-primary), then ASecondx(Id descending ordinary). All table and index names are fixed-width within their classes and append order deliberately differs from lexical order."
+    },
+    "capture": "Record and validate each arm's pre-mutation size and digest against the retained empty image. Retain all fifteen expected-name MDB checkpoints with exact sizes, before-metadata SHA-256 digests, after-metadata SHA-256 digests, and bounded DAO TableDefs metadata. Capture DAO index Required and every index-field descending flag. Any retained post-mutation recovery image remains an unobserved artifact and cannot turn a failed replica into a pass.",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_checkpoints_per_replica": 5,
+      "maximum_published_databases": 15,
+      "maximum_pages_per_database": 64,
+      "maximum_table_definitions": 16,
+      "maximum_fields_per_table": 8,
+      "maximum_indexes_per_table": 4,
+      "maximum_index_fields": 4,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 4194304
+    }
+  },
+  "questions": {
+    "page_assignment": "For each first-create scenario, which pages are appended and which decoded definition, map-row, long-value, or index-root role and owner does each appended page have?",
+    "index_layout": "For every created table, what are its definition root and table maps, each physical index ordinal's keys, directions, flags, map locator, and root, each logical index record's name and physical ordinal, the logical name-sorted order, and the physical creation order?",
+    "map_placement": "Do the second and third indexes use rows on the first map page or cause another map page to be appended, and where does each root land relative to the definition root?",
+    "replication": "Are the complete decoded observations byte-for-byte identical across all three replicas?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and all staged inputs match their SHA-256 pins; all three replicas complete the exact five-checkpoint inventory once; every arm's recorded pre-mutation identity equals its retained empty image; every artifact and DAO schema validates; every appended page is attributed; all logical indexes resolve to distinct in-range physical records with the preregistered keys and directions; and the complete observations agree across replicas. Any fully decoded page or ordering layout is an answered observation even when it differs from an anticipated contiguous layout.",
+    "no_outcome": "A producer failure after the first DAO mutation, metadata digest change, replica disagreement, schema mismatch, decode failure, ambiguous logical-to-physical correlation, unattributed appended page, or incomplete scientific observation is recorded as no_outcome.",
+    "rejected": "A pre-mutation plan, input, provider, or infrastructure failure; digest mismatch; malformed result; unexpected, reordered, duplicate, missing, symlinked, oversized, or extra artifact; bound violation; or result-shape defect rejects validation without a scientific outcome.",
+    "retry": "There is no automatic retry after the first DAO mutation."
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, up to fifteen exact expected-name MDBs including explicitly identified unobserved recovery artifacts (exactly fifteen for a passing job), and the deterministic analyzer report.",
+    "repository": "Never commit MDB bytes or provider binaries. Record the validated report identity and conclusion once as an additive EXP outcome."
+  },
+  "exclusions": [
+    "populated index trees, index key bytes, uniqueness enforcement, and row insertion",
+    "definition continuation pages and names outside the admitted range",
+    "general page-allocation or free-page reuse policy",
+    "long-value property payload grammar",
+    "more than three indexes, more than two fields in a composite index, and other index flags",
+    "relationships, saved queries, public creation API, and filesystem publication",
+    "Rust writer validation, hosted write differential #102, compatibility claims, and support-matrix movement"
+  ]
+}
