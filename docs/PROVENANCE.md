@@ -7514,6 +7514,81 @@ Use `not applicable` explicitly rather than omitting a field.
   all findings were fixed before commit, and the final three reviews reported
   no remaining findings
 
+### EXP-0085 — Accepted bounded bootstrap-composer DAO validation result
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from a canonical analyzer report
+- Question: do all three copies of the exact EXP-0084 20-page empty and
+  23-page `Alpha(Id Long)` candidates pass their complete bounded read-only DAO
+  endpoint frontiers unchanged while three fresh DAO Alpha controls validate
+  the method?
+- Origin: project-authored clean-room experiment at preregistration commit
+  `7d4b09e3fae4ccd51d7269e4cf2ece8775fc0974`, using exactly the EXP-0084
+  evidence boundary. After that commit, the user explicitly authorized one
+  three-replica redispatch. The run was dispatched once and was not retried.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Protocol: run ID `20260902T024641Z-dev-dao` executed the committed plan
+  SHA-256
+  `11fd306504782f6403f6fa44d6ec805bb1385b5725f1dad2dfc841c3863634ec`
+  once. Each replica copied and read-only opened one pinned empty candidate and
+  one pinned Alpha candidate, created one fresh DAO Jet 3 Alpha control, ran
+  the fixed bounded endpoint frontiers, and checked each database identity
+  before and after access. The producer completed all three replicas once
+  without retry; the pinned analyzer then applied the preregistered decision
+  rule.
+- Artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `b6c52424eaf03dc1770a97b88980f48c5c13cfaaa34db91ead2a7728f161d258`;
+  external `bootstrap-composer-validation-job-result.json`, 126,826 bytes,
+  SHA-256
+  `0b94521fdffac7d0a6f12953d7e914dd039a27a356b91d9e88d729643f234e6d`;
+  external `result.json`, 145,352 bytes, SHA-256
+  `140ca255320fcb351788f894e8b0c9df28ee7a43b9fad393aa2f407096de731f`;
+  external canonical `bootstrap-composer-validation-report.json`, 5,624 bytes,
+  SHA-256
+  `dcf0217e1f98d044631107bb882d1c7a0c0096aa0fab7bd3380a760a286a9577`,
+  reproduced byte-identically by rerunning the pinned analyzer. The exact
+  external MDB inventory was three 40,960-byte empty candidates, each SHA-256
+  `8fad368409747adadf47704074a77e79e0bd0c5eae656566bdc72a5876f479e7`;
+  three 47,104-byte Alpha candidates, each SHA-256
+  `b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2`;
+  and three 47,104-byte controls with respective SHA-256 identities
+  `fd1ac9045e2c1db459013988c9cb7c2346c6f6a74d96073b5746412b371c09c3`,
+  `4ba15ea3a3da2e6e060e5283c8573a022f2c60612022451e8e8ea8c7a6390c74`,
+  and `54c9f2a527938f21dfab593d7bc81446a301765a2230d35d32903111d4918327`.
+- Observation: the producer and all three replicas returned `pass`. Every
+  control passed all eight Alpha endpoints unchanged. Every empty candidate
+  passed `open_database`, `version`, `tabledefs`, and `documents` unchanged.
+  Every Alpha candidate passed `open_database`, `version`, `tabledefs`,
+  `direct_lookup`, `field`, `properties`, `snapshot`, and `document`
+  unchanged; observations agreed across replicas, `Field.Required` was false,
+  and no metadata was repaired. The canonical report has status `accepted`,
+  both questions `observed_accepted`, `compatibility_claim: false`, and
+  `support_movement: false`.
+- Interpretation: DAO 3.6 observedly consumed these exact pinned empty and
+  Alpha candidate bytes at every preregistered bounded read-only endpoint in
+  all three replicas without changing them. This is a bounded structural
+  consumption result for these two images only. It does not establish overall
+  composer or writer correctness, general Jet 3 or DAO compatibility, a
+  page-zero/owner/SID/catalog grammar, arbitrary schemas/indexes/relationships
+  or initial rows, a public creation API, filesystem publication safety, a
+  hosted differential/support result, or support-matrix movement.
+- Usage: issue `#100`; acceptance gate for the exact crate-private empty and
+  `Alpha(Id Long)` composer slice; `EXP-0084`. No production format constant
+  cites this result.
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: 2026-09-01 independent single-dispatch, artifact-identity,
+  job/result binding, report-reproduction, decision-rule, environment,
+  evidence-boundary, candidate non-mutation, and false-claim review; all three
+  isolated final reviews reported no findings
+
 
 ## Fixtures and black-box results
 
