@@ -431,7 +431,7 @@ if ($planBoundJobs.ContainsKey($Job)) {
         [Console]::Error.WriteLine("INVALID: $Job plan digest differs after staging.")
         exit 2
     }
-    $plan = Get-Content -LiteralPath $PlanPath -Raw | ConvertFrom-Json
+    $plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $jobPath = if ($Job -ceq "bootstrap-layout") {
         $BootstrapLayoutJobPath
     }
@@ -567,7 +567,7 @@ if ($Job -ceq "provider-probe") {
     }
 }
 elseif ($Job -ceq "create-empty" -and $probeExitCode -eq 0) {
-    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    $environment = Get-Content -LiteralPath $environmentPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
     }
@@ -615,7 +615,7 @@ elseif ($Job -ceq "create-empty" -and $probeExitCode -eq 0) {
     }
 }
 elseif ($Job -ceq "opening-matrix" -and $probeExitCode -eq 0) {
-    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    $environment = Get-Content -LiteralPath $environmentPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
     }
@@ -649,7 +649,7 @@ elseif ($Job -ceq "opening-matrix" -and $probeExitCode -eq 0) {
     }
 }
 elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
-    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    $environment = Get-Content -LiteralPath $environmentPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
     }
@@ -779,7 +779,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
     }
 }
 elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null") -and $probeExitCode -eq 0) {
-    $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
+    $environment = Get-Content -LiteralPath $environmentPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
     }
@@ -810,7 +810,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             $exitCode = 1
         }
         else {
-            $dispatchResult = Get-Content -LiteralPath $dispatchResultPath -Raw |
+            $dispatchResult = Get-Content -LiteralPath $dispatchResultPath -Raw -Encoding UTF8 |
                 ConvertFrom-Json
             $catalogCheckpoints = @($dispatchResult.catalog_checkpoints)
             $tableDefinitionCheckpoints = @($dispatchResult.table_definition_checkpoints)

@@ -591,6 +591,31 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         )
         self.assertIn("[IO.Directory]::Move($staging, $Destination)", self.publication)
 
+    def test_json_transport_reads_explicit_utf8(self) -> None:
+        for name, script in (
+            ("dispatcher", self.dispatch),
+            ("runner", self.remote),
+            ("publisher", self.publication),
+            (
+                "table-definition producer",
+                CLIENT.TABLE_DEFINITION_JOB.read_text(encoding="utf-8"),
+            ),
+        ):
+            lines = script.splitlines()
+            reads = []
+            for position, line in enumerate(lines):
+                if "Get-Content" not in line:
+                    continue
+                command = line
+                if "ConvertFrom-Json" not in command and command.rstrip().endswith("|"):
+                    command += " " + lines[position + 1].strip()
+                if "ConvertFrom-Json" in command:
+                    reads.append(command)
+
+            self.assertTrue(reads, f"{name} has no JSON reads")
+            for command in reads:
+                self.assertIn("-Raw -Encoding UTF8", command, name)
+
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
         self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")', self.remote)
@@ -972,12 +997,20 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(plan["execution"]["bounds"]["maximum_pages_per_database"], 128)
         self.assertEqual(len(plan["inputs"]), 9)
         self.assertEqual(
-            plan["inputs"],
-            {
-                relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-                for relative in plan["inputs"]
-            },
+            hashlib.sha256(binding.plan.read_bytes()).hexdigest(),
+            "201e880ff1e7d08d5151df2fc53388ef296dfbd4158fc84a530510fffbc32236",
         )
+        self.assertTrue(
+            all(
+                isinstance(value, str)
+                and len(value) == 64
+                and value != "0" * 64
+                and all(character in "0123456789abcdef" for character in value)
+                for value in plan["inputs"].values()
+            )
+        )
+        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+            CLIENT.verified_plan_sha256(binding)
         job = CLIENT.EXTENDED_NAMES_JOB.read_text(encoding="utf-8")
         self.assertIn("$UndefinedSlots = @(0x81, 0x8D, 0x8F, 0x90, 0x9D)", job)
         self.assertIn("for ($batchIndex = 0; $batchIndex -lt 41; $batchIndex++)", job)
