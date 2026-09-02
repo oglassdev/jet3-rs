@@ -838,11 +838,13 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             self.publication,
         )
         self.assertIn("checkpoints are not an ordered prefix", self.publication)
+        self.assertIn("recovery artifact is not the next checkpoint", self.publication)
+        self.assertIn("$preMutationAbort", self.publication)
         self.assertIn("15-database bound", self.publication)
         self.assertIn('Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb"', self.publication)
         self.assertIn("$item.Length % 2048", self.publication)
-        self.assertIn("$item.Length -gt 1048576", self.publication)
-        self.assertIn("result exceeds the 8-MiB bound", self.publication)
+        self.assertIn("$item.Length -gt 131072", self.publication)
+        self.assertIn("result exceeds the 4-MiB bound", self.publication)
         self.assertIn("contains a reparse-point MDB", self.publication)
         binding = CLIENT.plan_binding("multiple-indexes")
         self.assertEqual(
@@ -868,6 +870,11 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             plan["inputs"],
         )
         self.assertIn("oracle/windows-dao/scripts/system_catalog.py", plan["inputs"])
+        job = CLIENT.MULTIPLE_INDEXES_JOB.read_text(encoding="utf-8")
+        self.assertIn("[ref]$MutationStarted", job)
+        self.assertIn("mutation_started = $false", job)
+        self.assertIn('phase = "before_create_database"', job)
+        self.assertIn("size_after_metadata", job)
 
     def test_lvprop_null_is_bounded_and_exactly_routed(self) -> None:
         self.assertIn(

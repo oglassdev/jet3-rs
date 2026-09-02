@@ -136,8 +136,9 @@ compatibility, or support.
 #150. Three replicas each create one fresh empty database, identity-check four
 pre-mutation copies, and retain closed checkpoints for the empty database plus
 one-index, two-index, three-index, and composite-index arms. Publication accepts
-exactly those 15 MDBs on success and only an ordered per-replica prefix after a
-post-mutation failure. The experiment tests this bounded page-assignment matrix;
+exactly those 15 MDBs on success and only an ordered per-replica prefix plus at
+most the next checkpoint's identified recovery image after a post-mutation
+failure. The experiment tests this bounded page-assignment matrix;
 it does not establish arbitrary index shapes, writer correctness, compatibility,
 or support.
 

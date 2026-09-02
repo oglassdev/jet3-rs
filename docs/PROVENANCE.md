@@ -8140,9 +8140,11 @@ Use `not applicable` explicitly rather than omitting a field.
   and logical-index assignments does DAO 3.6 produce when the database's first
   user table carries one index, two simple indexes, three mixed indexes, or one
   mixed-direction composite index plus a secondary index?
-- Origin: project-authored clean-room experiment for issue `#150`, using
-  `EXP-0059` and `EXP-0062` only as exploratory design input and `EXP-0073`,
-  `EXP-0087`, and `EXP-0091` as recorded evidence. `EXP-0087` observed user
+- Origin: project-authored clean-room experiment for issue `#150`, using the
+  bounded grammars recorded by `EXP-0059`, `EXP-0061`, `EXP-0062`, and
+  `EXP-0073`, and the create-time evidence in `EXP-0087` and `EXP-0091`.
+  Retained earlier artifacts and post-hoc page-placement observations are design
+  input only. `EXP-0087` observed user
   creates with zero or one index: definition root, map-rows page, then one index
   root. It did not observe a first create with an index or any one-shot user
   create with multiple indexes. `EXP-0073` observed three system indexes share
@@ -8175,12 +8177,13 @@ Use `not applicable` explicitly rather than omitting a field.
   mixed-direction composite index and one descending ordinary secondary. A
   passing run retains five MDBs per replica, exactly fifteen total.
 - Protocol: after each arm's one `TableDefs.Append`, close DAO before copying or
-  decoding the database. Hash and size every retained MDB before and after the
-  bounded read-only DAO metadata pass. Capture the exact table, field, and
-  index inventory; for every index capture name, `Primary`, `Unique`,
-  `Required`, ordered fields, and descending attributes; resolve the table and
-  its container document; and open an empty snapshot. Independently decode the
-  catalog row, complete single-page table definition, table and index usage-map
+  decoding the database. Hash and size every completed checkpoint before and
+  after the bounded read-only DAO metadata pass; an identified recovery image
+  is retained without metadata access and cannot contribute an observation.
+  Capture the exact table, field, and index inventory; for every index capture
+  name, `Primary`, `Unique`, `Required`, ordered fields, and descending
+  attributes. Independently decode the catalog row, complete single-page table
+  definition, table and index usage-map
   locators and rows, every empty index root and its owner, the first-create
   `LvProp` reference and `LVAL` page, and the role of every appended page using
   the `EXP-0073`/`EXP-0087` correlation method.
@@ -8199,13 +8202,15 @@ Use `not applicable` explicitly rather than omitting a field.
     uniqueness, or direction change it?
 - Preregistration artifacts:
   `oracle/windows-dao/acquisition/multiple-indexes.plan.json`, SHA-256
-  `<SHA256_MULTIPLE_INDEXES_PLAN>`; producer
+  `4832f4fe018af2ac951f9952eaa1a87766f3a3e274d7b083795c19620ae60329`;
+  producer
   `oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1`, SHA-256
-  `<SHA256_MULTIPLE_INDEXES_PRODUCER>`; analyzer
+  `a90f794521e514fb8ebd0b6a25f5e78db1eb54c6be12e10d1d2f2ee5017f21df`;
+  analyzer
   `oracle/windows-dao/scripts/multiple_indexes.py`, SHA-256
-  `<SHA256_MULTIPLE_INDEXES_ANALYZER>`. The final plan must pin these and every
-  host, guest, routing, publisher, and analyzer-dependency input before review
-  and merge. These conspicuous placeholders forbid acquisition from this draft.
+  `13e1ffc001c365c2fd4b053d0c0b26eb4a4a0211a65091aa198e2dec5eee14e4`.
+  The plan pins these and every host, guest, routing, publisher, and
+  analyzer-dependency input.
 - Observation: `preregistration.acquisition_started` is `false`. On 2026-09-02
   the user said “Go for it,” authorizing exactly one acquisition only after the
   exact pins replace the placeholders, are independently reviewed, and reach
@@ -8239,8 +8244,13 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:oracle/windows-dao/scripts/multiple_indexes.py`
 - Rights: future project-generated MDBs and provider outputs remain outside
   the repository and are neither committed nor redistributed
-- Review: pending independent protocol, controls, page-role correlation,
-  ordering, exact-pin, decision-rule, evidence-boundary, and false-claim review
+- Review: three independent protocol, producer, publisher, analyzer,
+  page-role-correlation, ordering, failure-recovery, decision-rule,
+  evidence-boundary, and false-claim review rounds completed on 2026-09-02.
+  Findings covering mutation classification, retained-artifact recovery,
+  metadata identity, `LvProp` correlation, empty-root validation, failed-phase
+  consistency, and continuation-page scope were fixed; the final exact-head
+  reviews reported no remaining acquisition blocker.
 
 
 ## Fixtures and black-box results

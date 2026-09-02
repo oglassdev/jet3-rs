@@ -90,13 +90,14 @@ function Invoke-WithDatabase {
 }
 
 function New-Jet3Database {
-    param([string]$Path)
+    param([string]$Path, [ref]$MutationStarted)
     $engine = $null
     $workspace = $null
     $database = $null
     try {
         $engine = New-Object -ComObject "DAO.DBEngine.36"
         $workspace = $engine.Workspaces.Item(0)
+        $MutationStarted.Value = $true
         $database = $workspace.CreateDatabase($Path, $DatabaseLocale, $DbVersion30)
         $database.Close()
         Release-ComObject -Value $database
@@ -292,8 +293,10 @@ function Save-Checkpoint {
     $size = Get-BoundedSize -Path $destination
     $sha256 = Get-Sha256 -Path $destination
     $dao = Get-DaoMetadata -Path $destination
+    $sizeAfterMetadata = Get-BoundedSize -Path $destination
     return [ordered]@{
         name = $Name; database = $fileName; size = $size; sha256 = $sha256
+        size_after_metadata = $sizeAfterMetadata
         sha256_after_metadata = Get-Sha256 -Path $destination
         arm_before = $ArmBefore; dao = $dao
     }
@@ -301,22 +304,33 @@ function Save-Checkpoint {
 
 function Invoke-Replica {
     param([int]$Replica)
-    $state = [ordered]@{ replica = $Replica; status = "fail"; error = $null; checkpoints = @(); recovery = @() }
+    $state = [ordered]@{
+        replica = $Replica; status = "fail"; error = $null
+        mutation_started = $false; phase = "before_create_database"
+        checkpoints = @(); recovery = @()
+    }
     $checkpoints = New-Object Collections.ArrayList
     $recovery = New-Object Collections.ArrayList
     $workingPaths = New-Object Collections.ArrayList
     $basePath = Join-Path $RunRoot "working-base-r$Replica.mdb"
     $arms = @{}
-    $activeScenario = $null
+    $activeCheckpoint = $null
+    $mutationStarted = $false
     try {
-        New-Jet3Database -Path $basePath
         [void]$workingPaths.Add($basePath)
+        $state.phase = "create_database"
+        $activeCheckpoint = "empty"
+        New-Jet3Database -Path $basePath -MutationStarted ([ref]$mutationStarted)
+        $state.mutation_started = $mutationStarted
+        $state.phase = "capture_empty"
         $empty = Save-Checkpoint -Source $basePath -Replica $Replica -Name "empty" -ArmBefore $null
         [void]$checkpoints.Add($empty)
+        $activeCheckpoint = $null
+        $state.phase = "copy_arms"
         foreach ($scenario in $ScenarioOrder) {
             $arm = Join-Path $RunRoot "working-$scenario-r$Replica.mdb"
-            Copy-Item -LiteralPath $basePath -Destination $arm
             [void]$workingPaths.Add($arm)
+            Copy-Item -LiteralPath $basePath -Destination $arm
             $armSize = Get-BoundedSize -Path $arm
             $armSha256 = Get-Sha256 -Path $arm
             if ($armSize -ne [long]$empty.size -or $armSha256 -cne [string]$empty.sha256) {
@@ -325,30 +339,46 @@ function Invoke-Replica {
             $arms[$scenario] = [pscustomobject]@{ path = $arm; size = $armSize; sha256 = $armSha256 }
         }
         foreach ($scenario in $ScenarioOrder) {
-            $activeScenario = $scenario
+            $activeCheckpoint = $scenario
+            $state.phase = $scenario
             $arm = $arms[$scenario]
             New-ScenarioTable -Path ([string]$arm.path) -Scenario $scenario
             [void]$checkpoints.Add((Save-Checkpoint -Source ([string]$arm.path) -Replica $Replica `
                 -Name $scenario -ArmBefore ([ordered]@{ size = [long]$arm.size; sha256 = [string]$arm.sha256 })))
-            $activeScenario = $null
+            $activeCheckpoint = $null
         }
+        $state.phase = "complete"
         $state.status = "pass"
     }
     catch {
+        $state.mutation_started = $mutationStarted
         $state.error = ConvertTo-BoundedDetail -Detail ($_.Exception.GetType().FullName + ": " + $_.Exception.Message)
-        if ($null -ne $activeScenario -and $arms.ContainsKey($activeScenario)) {
+        if ($null -ne $activeCheckpoint) {
             try {
-                $fileName = "multiple-indexes-r$Replica-$activeScenario.mdb"
-                $destination = Join-Path $RunRoot $fileName
-                if (-not (Test-Path -LiteralPath $destination -PathType Leaf)) {
-                    Copy-Item -LiteralPath ([string]$arms[$activeScenario].path) -Destination $destination
+                $source = if ($activeCheckpoint -ceq "empty") {
+                    $basePath
                 }
+                elseif ($arms.ContainsKey($activeCheckpoint)) {
+                    [string]$arms[$activeCheckpoint].path
+                }
+                else {
+                    throw "Recovery source is unavailable."
+                }
+                $fileName = "multiple-indexes-r$Replica-$activeCheckpoint.mdb"
+                $destination = Join-Path $RunRoot $fileName
+                Copy-Item -LiteralPath $source -Destination $destination -Force
                 [void]$recovery.Add([ordered]@{
-                    name = $activeScenario; database = $fileName
+                    name = $activeCheckpoint; database = $fileName
                     size = Get-BoundedSize -Path $destination; sha256 = Get-Sha256 -Path $destination
                 })
             }
             catch {
+                try {
+                    if (Test-Path -LiteralPath $destination -PathType Leaf) {
+                        Remove-Item -LiteralPath $destination -Force
+                    }
+                }
+                catch { }
                 $state.error = ConvertTo-BoundedDetail -Detail `
                     ($state.error + " Recovery retention failed: " + $_.Exception.Message)
             }
@@ -370,7 +400,14 @@ function Invoke-Replica {
 
 [void][IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($RunRoot))
 $replicas = New-Object Collections.ArrayList
-foreach ($replica in 1..3) { [void]$replicas.Add((Invoke-Replica -Replica $replica)) }
+foreach ($replica in 1..3) {
+    $entry = Invoke-Replica -Replica $replica
+    [void]$replicas.Add($entry)
+    if ([string]$entry.status -cne "pass" -and
+        -not [bool]$entry.mutation_started -and $replicas.Count -eq 1) {
+        break
+    }
+}
 $status = if (@($replicas | Where-Object { [string]$_.status -cne "pass" }).Count -eq 0) { "pass" } else { "fail" }
 $result = [ordered]@{
     document_type = "dao_multiple_indexes_job_result"; development_only = $true

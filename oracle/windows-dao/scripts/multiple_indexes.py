@@ -15,6 +15,8 @@ import system_catalog as catalog
 
 
 PAGE_BYTES = 2048
+INDEX_ENTRY_AREA_OFFSET = 248
+INDEX_ENTRY_AREA_LENGTH = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET
 MAX_JSON_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 64
 MAX_TABLES = 16
@@ -201,7 +203,16 @@ def read_checkpoint(
 ) -> tuple[bytes, bool, dict[str, Any], Any, dict[str, Any]]:
     item = exact(
         value,
-        {"name", "database", "size", "sha256", "sha256_after_metadata", "arm_before", "dao"},
+        {
+            "name",
+            "database",
+            "size",
+            "size_after_metadata",
+            "sha256",
+            "sha256_after_metadata",
+            "arm_before",
+            "dao",
+        },
         f"replica {replica} checkpoint {name}",
     )
     if item["name"] != name:
@@ -214,17 +225,24 @@ def read_checkpoint(
     if size % PAGE_BYTES:
         raise AnalysisError("checkpoint is not an exact sequence of pages")
     before = digest(item["sha256"], "checkpoint digest")
+    size_after = integer(
+        item["size_after_metadata"],
+        "post-metadata checkpoint size",
+        PAGE_BYTES,
+        MAX_PAGES * PAGE_BYTES,
+    )
+    if size_after % PAGE_BYTES:
+        raise AnalysisError("post-metadata checkpoint is not an exact sequence of pages")
     after = digest(item["sha256_after_metadata"], "post-metadata digest")
     path = root / filename
     if not path.is_file() or path.is_symlink():
         raise AnalysisError("checkpoint must be a regular non-link file")
     raw = path.read_bytes()
-    retained = after if before != after else before
-    if len(raw) != size or hashlib.sha256(raw).hexdigest() != retained:
+    if len(raw) != size_after or hashlib.sha256(raw).hexdigest() != after:
         raise AnalysisError("checkpoint bytes differ from the recorded identity")
     return (
         raw,
-        before != after,
+        size != size_after or before != after,
         validate_dao(item["dao"], f"checkpoint {name}.dao"),
         item["arm_before"],
         {"sha256": before, "size": size},
@@ -261,7 +279,79 @@ def decoded_user_table(analysis: dict[str, Any], scenario: str) -> dict[str, Any
     return users[0]
 
 
-def index_layout(table: dict[str, Any], scenario: str) -> dict[str, Any]:
+def created_lvprop(data: bytes, table_name: str) -> dict[str, Any]:
+    definition, _, rows = catalog._discover_catalog(data)
+    name_ordinal = catalog._ordinal(definition, "Name")
+    lvprop_ordinal = catalog._ordinal(definition, "LvProp")
+    if name_ordinal is None or lvprop_ordinal is None:
+        raise DecodeError("catalog lacks a Name or LvProp column")
+    required = max(name_ordinal, lvprop_ordinal)
+    matches = [
+        row
+        for row in rows
+        if len(row.get("values", [])) > required
+        and row["values"][name_ordinal] == table_name
+    ]
+    if len(matches) != 1:
+        raise DecodeError(f"catalog contains {len(matches)} rows for {table_name}")
+    value = matches[0]["values"][lvprop_ordinal]
+    if not isinstance(value, dict) or set(value) != {
+        "inline_length",
+        "long_value_header_hex",
+    }:
+        raise DecodeError(f"{table_name}.LvProp is not one external header")
+    try:
+        header = bytes.fromhex(value["long_value_header_hex"])
+    except (TypeError, ValueError) as error:
+        raise DecodeError(f"{table_name}.LvProp header is not hex") from error
+    if len(header) != 12 or value["inline_length"] != 12:
+        raise DecodeError(f"{table_name}.LvProp header is not 12 bytes")
+    if header[8:12] != bytes(4):
+        raise DecodeError(f"{table_name}.LvProp reserved bytes are nonzero")
+    control = int.from_bytes(header[:4], "little")
+    if control & 0xFF000000 != 0x40000000:
+        raise DecodeError(f"{table_name}.LvProp is not single-page external")
+    length = control & 0x00FFFFFF
+    row_number = header[4]
+    page_number = int.from_bytes(header[5:8], "little")
+    if length == 0 or length > PAGE_BYTES or page_number >= len(data) // PAGE_BYTES:
+        raise DecodeError(f"{table_name}.LvProp reference is outside the image")
+    page = catalog._page(data, page_number, f"{table_name}.LvProp")
+    if page[0] != 1 or page[4:8] != b"LVAL":
+        raise DecodeError(f"{table_name}.LvProp does not target an LVAL page")
+    directory = catalog._row_directory(page, page_number)
+    if row_number >= len(directory):
+        raise DecodeError(f"{table_name}.LvProp row is absent")
+    row = directory[row_number]
+    if row["hidden"] or row["overflow"]:
+        raise DecodeError(f"{table_name}.LvProp targets a flagged row")
+    payload = page[row["start"] : row["end"]]
+    if len(payload) != length:
+        raise DecodeError(f"{table_name}.LvProp payload length disagrees with its header")
+    return {
+        "header_hex": header.hex(),
+        "length": length,
+        "page": page_number,
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        "row": row_number,
+    }
+
+
+def validate_empty_leaf(data: bytes, root: int, owner: int, what: str) -> None:
+    page = catalog._page(data, root, what)
+    if page[0] != 4 or page[1] != 1 or int.from_bytes(page[4:8], "little") != owner:
+        raise DecodeError(f"{what} is not a leaf root owned by definition {owner}")
+    if any(page[offset : offset + 4] != bytes(4) for offset in (8, 12, 16)):
+        raise DecodeError(f"{what} has a sibling or child reference")
+    if page[20] != 0 or page[21] != 0 or any(page[22:INDEX_ENTRY_AREA_OFFSET]):
+        raise DecodeError(f"{what} has a prefix, branch marker, or entry boundary")
+    if int.from_bytes(page[2:4], "little") != INDEX_ENTRY_AREA_LENGTH:
+        raise DecodeError(f"{what} free space does not describe an empty leaf")
+
+
+def index_layout(
+    data: bytes, page_tags: dict[int, int], table: dict[str, Any], scenario: str
+) -> dict[str, Any]:
     definition = table["definition"]
     columns = definition["columns"]
     if [entry["name"] for entry in columns] != [entry["name"] for entry in FIELDS] or any(
@@ -273,6 +363,10 @@ def index_layout(table: dict[str, Any], scenario: str) -> dict[str, Any]:
     expected_indexes = EXPECTED[scenario]["indexes"]
     if len(physical) != len(expected_indexes) or len(logical) != len(expected_indexes):
         raise DecodeError(f"{scenario} decoded index counts differ from the schema")
+    if definition["row_count"] != 0:
+        raise DecodeError(f"{scenario} decoded table is not empty")
+    if definition["pages"] != [definition["root"]]:
+        raise DecodeError(f"{scenario} definition requires a continuation page")
     by_name = {entry["name"]: entry for entry in expected_indexes}
     if len({entry["name"] for entry in logical}) != len(logical) or set(entry["name"] for entry in logical) != set(by_name):
         raise DecodeError(f"{scenario} logical index names differ from the schema")
@@ -311,18 +405,41 @@ def index_layout(table: dict[str, Any], scenario: str) -> dict[str, Any]:
         expected_flags = (1 if by_name[name]["unique"] else 0) | (8 if by_name[name]["required"] else 0)
         if entry["flags"] != expected_flags:
             raise DecodeError(f"{scenario} physical flags for {name} differ from DAO metadata")
+        if entry["entry_count"] != 0:
+            raise DecodeError(f"{scenario} physical index {ordinal} is not empty")
+        root = entry["root"]
+        if page_tags.get(root) != 4:
+            raise DecodeError(f"{scenario} physical index {ordinal} root is not a leaf page")
+        validate_empty_leaf(
+            data, root, definition["root"], f"{scenario} physical index {ordinal}"
+        )
+        mapped_pages = sorted(
+            catalog._locator_pages(data, entry["map"], f"{scenario} index {ordinal} map")
+        )
         physical_rows.append(
             {
                 "entry_count": entry["entry_count"],
                 "flags": entry["flags"],
                 "keys": keys,
                 "map": entry["map"],
+                "mapped_pages": mapped_pages,
                 "name": name,
                 "physical_ordinal": ordinal,
-                "root": entry["root"],
-                "root_delta_from_definition": entry["root"] - definition["root"],
+                "root": root,
+                "root_delta_from_definition": root - definition["root"],
             }
         )
+    table_maps = {
+        kind: {
+            "locator": definition["maps"][kind],
+            "mapped_pages": sorted(
+                catalog._locator_pages(
+                    data, definition["maps"][kind], f"{scenario} table {kind} map"
+                )
+            ),
+        }
+        for kind in ("owned", "available")
+    }
     return {
         "definition_root": definition["root"],
         "definition_pages": definition["pages"],
@@ -330,13 +447,18 @@ def index_layout(table: dict[str, Any], scenario: str) -> dict[str, Any]:
         "logical_name_sorted_order": sorted(entry["name"] for entry in logical_rows),
         "physical_ordinal_order": [entry["name"] for entry in physical_rows],
         "physical_indexes": physical_rows,
-        "table_maps": definition["maps"],
+        "table_maps": table_maps,
     }
 
 
 def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, Any]:
     before_analysis = catalog.analyze_checkpoint(before)
     after_analysis = catalog.analyze_checkpoint(after)
+    if any(
+        not entry["flags"] & catalog.SYSTEM_FLAG
+        for entry in before_analysis["tables"].values()
+    ):
+        raise DecodeError(f"{scenario} empty baseline decodes a user table")
     table = decoded_user_table(after_analysis, scenario)
     before_pages = len(before) // PAGE_BYTES
     after_pages = len(after) // PAGE_BYTES
@@ -348,15 +470,35 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
         role = roles.get(page)
         if role is None or role["role"] == UNASSIGNED:
             raise DecodeError(f"{scenario} appended page {page} is unattributed")
-        appended.append({"owners": role["owners"], "page": page, "role": role["role"]})
-    layout = index_layout(table, scenario)
+        appended.append(
+            {
+                "delta_from_definition": page - table["definition"]["root"],
+                "delta_from_empty": page - before_pages,
+                "owners": role["owners"],
+                "page": page,
+                "role": role["role"],
+            }
+        )
+    layout = index_layout(
+        after, {page: entry["tag"] for page, entry in roles.items()}, table, scenario
+    )
+    lvprop = created_lvprop(after, EXPECTED[scenario]["table"])
+    if not any(
+        entry["page"] == lvprop["page"] and entry["role"] == "long_value"
+        for entry in appended
+    ):
+        raise DecodeError(f"{scenario} LvProp page is not an appended long-value page")
     map_pages = sorted(
-        {layout["table_maps"][kind]["page"] for kind in ("owned", "available")}
+        {
+            layout["table_maps"][kind]["locator"]["page"]
+            for kind in ("owned", "available")
+        }
         | {entry["map"]["page"] for entry in layout["physical_indexes"]}
     )
     return {
         "appended_pages": appended,
         "index_layout": layout,
+        "lvprop": lvprop,
         "map_pages": map_pages,
         "page_count": {"before": before_pages, "after": after_pages},
     }
@@ -379,7 +521,17 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
         else:
             value = observations[0]
             questions = {
-                "page_assignment": {"scenarios": {name: value[name]["appended_pages"] for name in SCENARIOS}, "status": "answered"},
+                "page_assignment": {
+                    "scenarios": {
+                        name: {
+                            "appended_pages": value[name]["appended_pages"],
+                            "lvprop": value[name]["lvprop"],
+                            "page_count": value[name]["page_count"],
+                        }
+                        for name in SCENARIOS
+                    },
+                    "status": "answered",
+                },
                 "index_layout": {"scenarios": {name: value[name]["index_layout"] for name in SCENARIOS}, "status": "answered"},
                 "map_placement": {"scenarios": {name: value[name]["map_pages"] for name in SCENARIOS}, "status": "answered"},
                 "replication": {"replicas": 3, "status": "answered"},
@@ -407,17 +559,41 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         raise AnalysisError("$.run_id is invalid")
     if document["status"] not in ("pass", "fail"):
         raise AnalysisError("$.status is invalid")
-    if not isinstance(document["replicas"], list) or len(document["replicas"]) != 3:
-        raise AnalysisError("$.replicas must contain exactly three replicas")
+    if not isinstance(document["replicas"], list) or not 1 <= len(document["replicas"]) <= 3:
+        raise AnalysisError("$.replicas must contain one through three replicas")
     replicas = []
     referenced = []
     for position, raw_replica in enumerate(document["replicas"]):
-        item = exact(raw_replica, {"replica", "status", "error", "checkpoints", "recovery"}, f"replicas[{position}]")
+        item = exact(
+            raw_replica,
+            {
+                "replica",
+                "status",
+                "error",
+                "mutation_started",
+                "phase",
+                "checkpoints",
+                "recovery",
+            },
+            f"replicas[{position}]",
+        )
         replica = integer(item["replica"], "replica number", 1, 3)
         if replica != position + 1:
             raise AnalysisError("replicas must be numbered 1 through 3 in order")
         if item["status"] not in ("pass", "fail"):
             raise AnalysisError("replica status is invalid")
+        if type(item["mutation_started"]) is not bool:
+            raise AnalysisError("replica mutation_started is invalid")
+        phase = text(item["phase"], "replica phase", 32)
+        if phase not in {
+            "before_create_database",
+            "create_database",
+            "capture_empty",
+            "copy_arms",
+            *SCENARIOS,
+            "complete",
+        }:
+            raise AnalysisError("replica phase is invalid")
         if item["error"] is not None:
             text(item["error"], "replica error")
         checkpoints = item["checkpoints"]
@@ -443,7 +619,12 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                     raise AnalysisError("empty checkpoint must not have an arm identity")
             else:
                 before = exact(arm_before, {"size", "sha256"}, f"{name}.arm_before")
-                if before["size"] != identities["empty"]["size"] or digest(
+                before_size = integer(
+                    before["size"], "arm size", PAGE_BYTES, MAX_PAGES * PAGE_BYTES
+                )
+                if before_size % PAGE_BYTES:
+                    raise AnalysisError("arm size is not an exact sequence of pages")
+                if before_size != identities["empty"]["size"] or digest(
                     before["sha256"], "arm digest"
                 ) != identities["empty"]["sha256"]:
                     raise AnalysisError(f"{name} arm identity differs from the retained empty image")
@@ -454,7 +635,8 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         for raw_recovery in recovery:
             value = exact(raw_recovery, {"name", "database", "size", "sha256"}, "recovery artifact")
             name = value["name"]
-            if name not in SCENARIOS or name in checkpoint_names:
+            expected_recovery = CHECKPOINTS[len(images)] if len(images) < len(CHECKPOINTS) else None
+            if name != expected_recovery or name not in CHECKPOINTS or name in checkpoint_names:
                 raise AnalysisError("recovery artifact name is invalid or duplicated")
             filename = value["database"]
             if filename != f"multiple-indexes-r{replica}-{name}.mdb" or not SAFE_MDB.fullmatch(filename):
@@ -469,9 +651,44 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
             if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest(value["sha256"], "recovery digest"):
                 raise AnalysisError("recovery artifact bytes differ from metadata")
             referenced.append(filename)
-        entry: dict[str, Any] = {"error": item["error"], "replica": replica, "status": item["status"]}
+        files = [
+            {
+                "arm_before": raw_checkpoint["arm_before"],
+                "database": raw_checkpoint["database"],
+                "name": raw_checkpoint["name"],
+                "sha256": raw_checkpoint["sha256"],
+                "sha256_after_metadata": raw_checkpoint["sha256_after_metadata"],
+                "size": raw_checkpoint["size"],
+                "size_after_metadata": raw_checkpoint["size_after_metadata"],
+            }
+            for raw_checkpoint in checkpoints
+        ]
+        files.extend(
+            {
+                "database": artifact["database"],
+                "name": artifact["name"],
+                "recovery": True,
+                "sha256": artifact["sha256"],
+                "size": artifact["size"],
+            }
+            for artifact in recovery
+        )
+        entry: dict[str, Any] = {
+            "error": item["error"],
+            "files": files,
+            "mutation_started": item["mutation_started"],
+            "phase": phase,
+            "replica": replica,
+            "status": item["status"],
+        }
         if item["status"] == "pass":
-            if tuple(images) != CHECKPOINTS or item["error"] is not None or recovery:
+            if (
+                tuple(images) != CHECKPOINTS
+                or item["error"] is not None
+                or recovery
+                or not item["mutation_started"]
+                or phase != "complete"
+            ):
                 raise AnalysisError("passing replica inventory is incomplete")
             if changed:
                 entry["metadata_changed"] = changed
@@ -486,11 +703,44 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                     entry["decode_error"] = str(error)
         elif item["error"] is None:
             raise AnalysisError("failed replica omits its error")
+        else:
+            progress = {
+                "create_database": (0, "empty", False),
+                "capture_empty": (0, "empty", True),
+                "copy_arms": (1, None, True),
+                "one": (1, "one", True),
+                "two": (2, "two", True),
+                "three": (3, "three", True),
+                "composite": (4, "composite", True),
+                "complete": (5, None, True),
+            }
+            expected = progress.get(phase)
+            if expected is None:
+                raise AnalysisError("failed replica phase is inconsistent with producer progress")
+            checkpoint_count, recovery_name, mutation_required = expected
+            if len(images) != checkpoint_count:
+                raise AnalysisError("failed replica checkpoint prefix is inconsistent with its phase")
+            if recovery and recovery[0]["name"] != recovery_name:
+                raise AnalysisError("failed replica recovery is inconsistent with its phase")
+            if recovery_name is None and recovery:
+                raise AnalysisError("failed replica phase cannot retain a recovery artifact")
+            if mutation_required and not item["mutation_started"]:
+                raise AnalysisError("failed replica phase requires a started DAO mutation")
+            if not item["mutation_started"] and recovery:
+                raise AnalysisError("pre-mutation failure cannot retain a recovery artifact")
         replicas.append(entry)
+    if not any(entry["mutation_started"] for entry in replicas):
+        raise AnalysisError("acquisition did not reach the first DAO mutation")
+    if len(replicas) != 3:
+        raise AnalysisError("post-mutation result must contain exactly three replicas")
     aggregate = "pass" if all(entry["status"] == "pass" for entry in replicas) else "fail"
     if document["status"] != aggregate:
         raise AnalysisError("job status disagrees with replica statuses")
-    retained = sorted(path.name for path in job_result.parent.glob("*.mdb"))
+    retained = sorted(
+        path.name
+        for path in job_result.parent.iterdir()
+        if path.suffix.casefold() == ".mdb"
+    )
     if retained != sorted(referenced):
         raise AnalysisError("retained MDB inventory differs from the job result")
     report = build_report(document, replicas)

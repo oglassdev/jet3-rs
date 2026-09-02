@@ -610,8 +610,7 @@ def stage_job(args: argparse.Namespace) -> Path:
             staging / BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
         )
         shutil.copyfile(SCHEMA_GENERALIZATION_JOB, staging / SCHEMA_GENERALIZATION_JOB.name)
-        if MULTIPLE_INDEXES_JOB.is_file():
-            shutil.copyfile(MULTIPLE_INDEXES_JOB, staging / MULTIPLE_INDEXES_JOB.name)
+        shutil.copyfile(MULTIPLE_INDEXES_JOB, staging / MULTIPLE_INDEXES_JOB.name)
         shutil.copyfile(LVPROP_NULL_JOB, staging / LVPROP_NULL_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:

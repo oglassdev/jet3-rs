@@ -295,8 +295,8 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Multiple-indexes result is missing."
         }
-        if ((Get-Item -LiteralPath $jobResultPath).Length -gt 8388608) {
-            throw "Multiple-indexes result exceeds the 8-MiB bound."
+        if ((Get-Item -LiteralPath $jobResultPath).Length -gt 4194304) {
+            throw "Multiple-indexes result exceeds the 4-MiB bound."
         }
         $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
         $checkpointNames = @("empty", "one", "two", "three", "composite")
@@ -305,6 +305,7 @@ switch ($Job) {
         foreach ($replica in @($jobResult.replicas)) {
             $replicaNumber = [int]$replica.replica
             if ($replicaNumber -lt 1 -or $replicaNumber -gt 3 -or
+                $replicaNumber -ne ($seenReplicas.Count + 1) -or
                 $replicaNumber -cin $seenReplicas) {
                 throw "Multiple-indexes result has an unexpected replica inventory."
             }
@@ -323,13 +324,36 @@ switch ($Job) {
                 [void]$referenced.Add($expectedDatabase)
                 $checkpointIndex++
             }
+            $recovery = @($replica.recovery)
+            if ($recovery.Count -gt 1) {
+                throw "Multiple-indexes result exceeds the one-recovery-artifact bound."
+            }
+            foreach ($artifact in $recovery) {
+                if ($checkpointIndex -ge $checkpointNames.Count) {
+                    throw "Multiple-indexes recovery artifact follows a complete checkpoint inventory."
+                }
+                $expectedName = $checkpointNames[$checkpointIndex]
+                $expectedDatabase = "multiple-indexes-r$replicaNumber-$expectedName.mdb"
+                if ([string]$artifact.name -cne $expectedName -or
+                    [string]$artifact.database -cne $expectedDatabase) {
+                    throw "Multiple-indexes recovery artifact is not the next checkpoint."
+                }
+                [void]$referenced.Add($expectedDatabase)
+            }
             if ([string]$replica.status -ceq "pass" -and
-                $checkpointIndex -ne $checkpointNames.Count) {
+                ($checkpointIndex -ne $checkpointNames.Count -or $recovery.Count -ne 0)) {
                 throw "Passing multiple-indexes replica omits a checkpoint."
             }
         }
         if ($seenReplicas.Count -ne 3) {
-            throw "Multiple-indexes result must contain exactly three replicas."
+            $preMutationAbort = (
+                $seenReplicas.Count -eq 1 -and
+                [string]$jobResult.status -ceq "fail" -and
+                -not [bool]@($jobResult.replicas)[0].mutation_started
+            )
+            if (-not $preMutationAbort) {
+                throw "Multiple-indexes result has an incomplete replica inventory."
+            }
         }
         if ($referenced.Count -gt 15) {
             throw "Multiple-indexes output exceeds the 15-database bound."
@@ -342,9 +366,9 @@ switch ($Job) {
             if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
                 throw "Multiple-indexes output contains a reparse-point MDB."
             }
-            if ($item.Length -le 0 -or ($item.Length % 2048) -ne 0 -or
-                $item.Length -gt 1048576) {
-                throw "Multiple-indexes output MDB violates the 512-page bound."
+            if ($item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or
+                $item.Length -gt 131072) {
+                throw "Multiple-indexes output MDB violates the 64-page bound."
             }
         }
         $actual = @($actualItems | ForEach-Object { $_.Name } | Sort-Object)
