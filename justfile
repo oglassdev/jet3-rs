@@ -88,6 +88,10 @@ windows-dev-bootstrap-composer-semantics:
 windows-dev-schema-generalization:
     "{{PYTHON}}" scripts/windows-dao-dev.py schema-generalization --timeout 900
 
+# Run the preregistered multiple-index page-assignment experiment in the local VM.
+windows-dev-multiple-indexes:
+    "{{PYTHON}}" scripts/windows-dao-dev.py multiple-indexes --timeout 900
+
 # Run the preregistered null-LvProp acceptance experiment in the local VM.
 windows-dev-lvprop-null:
     "{{PYTHON}}" scripts/windows-dao-dev.py lvprop-null --timeout 900
