@@ -1,12 +1,12 @@
 use super::{
-    BootstrapComposeError, INDEX_KEY_CAPACITY, OwnedIndexEntry, compose_alpha_database,
-    compose_empty_database,
+    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, INDEX_KEY_CAPACITY, OwnedIndexEntry,
+    PARENT_NAME_KEYS, compose_alpha_database, compose_empty_database,
 };
 use crate::{
-    ByteCount, CatalogObjectClass, ColumnOrdinal, DatabaseReader, JET3_PAGE_SIZE, MapRowLocator,
-    PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
-    SliceSource, TableDefinitionKind, TextCodePage, ValueKind, classify_page, locate_usage_map,
-    page_tag,
+    ByteCount, CatalogObjectClass, ColumnOrdinal, DatabaseReader, JET3_PAGE_SIZE, LongValue,
+    LongValueChunkValue, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind,
+    classify_page, locate_usage_map, page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -36,6 +36,16 @@ fn bytes(alpha: bool) -> Result<Vec<u8>, BootstrapComposeError> {
         bytes.extend_from_slice(page.image().as_bytes());
     }
     Ok(bytes)
+}
+
+fn expected_parent_entries(count: usize) -> Vec<(&'static [u8], PageNumber, u8)> {
+    let mut entries = PARENT_NAME_KEYS[..count]
+        .iter()
+        .enumerate()
+        .map(|(row, key)| (*key, PageNumber::new(18), row as u8))
+        .collect::<Vec<_>>();
+    entries.sort_unstable_by(|left, right| left.0.cmp(right.0));
+    entries
 }
 
 fn inline_map_bit(
@@ -168,12 +178,18 @@ fn normal_reader_decodes_empty_catalog_definitions_maps_and_indexes() -> TestRes
         .find(|map| map.column().get() == 16)
         .ok_or("missing LvExtra map")?;
     assert_eq!(lv_extra.available().page(), PageNumber::new(7));
+    let parent_name = database.index_tree(&objects, 0, &mut budget)?;
     assert_eq!(
-        database
-            .index_tree(&objects, 0, &mut budget)?
+        parent_name
             .entries()
-            .len(),
-        8
+            .iter()
+            .map(|entry| (
+                entry.key().raw_bytes(),
+                entry.row().page(),
+                entry.row().slot(),
+            ))
+            .collect::<Vec<_>>(),
+        expected_parent_entries(8)
     );
     assert_eq!(
         database
@@ -235,6 +251,12 @@ fn alpha_transition_appends_three_pages_and_updates_catalog_counts_and_indexes()
     assert_eq!(empty_bytes[1538], 0);
     assert_eq!(bytes[1538], 2);
     assert_eq!(
+        (0..crate::PAGE_BYTES)
+            .filter(|offset| empty_bytes[*offset] != bytes[*offset])
+            .collect::<Vec<_>>(),
+        [1538]
+    );
+    assert_eq!(
         bytes[20 * crate::PAGE_BYTES],
         page_tag(PageKind::TableDefinition)
     );
@@ -282,12 +304,18 @@ fn alpha_transition_appends_three_pages_and_updates_catalog_counts_and_indexes()
         objects.physical_indexes()[0].sourced_prefix()[4..8],
         9_u32.to_le_bytes()
     );
+    let parent_name = database.index_tree(&objects, 0, &mut budget)?;
     assert_eq!(
-        database
-            .index_tree(&objects, 0, &mut budget)?
+        parent_name
             .entries()
-            .len(),
-        9
+            .iter()
+            .map(|entry| (
+                entry.key().raw_bytes(),
+                entry.row().page(),
+                entry.row().slot(),
+            ))
+            .collect::<Vec<_>>(),
+        expected_parent_entries(9)
     );
     assert_eq!(
         database
@@ -345,6 +373,43 @@ fn alpha_transition_appends_three_pages_and_updates_catalog_counts_and_indexes()
     }
     assert!(ace_rows.next_row()?.is_none());
 
+    let mut object_rows = database.rows(&objects, &mut budget)?;
+    for _ in 0..8 {
+        object_rows
+            .next_row()?
+            .ok_or("missing initial object row")?;
+    }
+    let reference = {
+        let mut alpha_row = object_rows.next_row()?.ok_or("missing Alpha object row")?;
+        match alpha_row
+            .value(ColumnOrdinal::new(14), TextCodePage::Windows1252)?
+            .ok_or("missing Alpha LvProp")?
+            .kind()
+        {
+            ValueKind::LongValue(LongValue::External(reference)) => *reference,
+            other => return Err(format!("unexpected Alpha LvProp: {other:?}").into()),
+        }
+    };
+    assert_eq!(
+        reference.raw_header(),
+        [
+            0x2b, 0x00, 0x00, 0x40, 0x00, 0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]
+    );
+    assert_eq!(reference.length(), 43);
+    assert_eq!(reference.target().page(), PageNumber::new(22));
+    assert_eq!(reference.target().slot(), 0);
+    let mut long_value = object_rows.long_value(reference)?;
+    let chunk = long_value
+        .next_chunk()?
+        .ok_or("missing Alpha LvProp chunk")?;
+    assert_eq!(chunk.raw_row(), ALPHA_LVPROP_PAYLOAD);
+    assert!(matches!(
+        chunk.value(),
+        LongValueChunkValue::Binary(value) if *value == ALPHA_LVPROP_PAYLOAD
+    ));
+    assert!(long_value.next_chunk()?.is_none());
+
     let alpha = database.table_definition(PageNumber::new(20), &mut budget)?;
     assert_eq!(alpha.kind(), TableDefinitionKind::User);
     assert_eq!(alpha.columns().len(), 1);
@@ -370,9 +435,9 @@ fn composition_is_deterministic_and_resource_rejection_is_structured() -> TestRe
         ))
     ));
     assert!(matches!(
-        OwnedIndexEntry::parent_name(0, &[0; INDEX_KEY_CAPACITY], 0),
+        OwnedIndexEntry::raw(&[0; INDEX_KEY_CAPACITY + 1], 0),
         Err(BootstrapComposeError::IndexKeyTooLong { needed, available })
-            if needed == INDEX_KEY_CAPACITY + 7 && available == INDEX_KEY_CAPACITY
+            if needed == INDEX_KEY_CAPACITY + 1 && available == INDEX_KEY_CAPACITY
     ));
     Ok(())
 }

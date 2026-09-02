@@ -7093,6 +7093,94 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: first isolated protocol, VM wiring, and analyzer review completed;
   fixes pending repeated independent review before commit and acquisition
 
+### EXP-0079 — Accepted fixed bootstrap-composer semantics result
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from the canonical analyzer report
+- Question: For the three fresh empty-to-`Alpha(Id Long)` replicas
+  preregistered by `EXP-0078`, what are the exact lossless raw
+  `MSysObjects.ParentIdName` keys, the exact opaque external `Alpha.LvProp`
+  value, and the fixed page-0 transition?
+- Origin: project-authored clean-room experiment at preregistration commit
+  `474c378b96fcdb03a1c11c731c51c96d9cb9bdff`, using the exact evidence
+  boundary fixed by `EXP-0078`. The human
+  operator explicitly authorized the acquisition; two host preflight failures
+  occurred before any VM connection or DAO mutation, then one acquisition was
+  dispatched after the existing VM and key-only SSH were ready. No scientific
+  retry occurred.
+- Environment: private local Windows development VM; Windows NT
+  10.0.20348.0 build 20348 on AMD64; x86 Windows PowerShell Desktop
+  5.1.20348.558; DAO.DBEngine.36 provider 3.6 from x86 `dao360.dll` file
+  version 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  culture/UI culture `en-US`; ANSI code page 1252; VM time zone `Pacific
+  Standard Time` at UTC-07:00. The provider probe reported `ready`; external
+  `environment.json`, 4,277 bytes, SHA-256
+  `b30028bf555c90934b396fc2a064de138d6675cea15def1b7dd780bce78630e7`
+- Protocol: run ID `20260902T011637Z-dev-dao` executed the pinned
+  `bootstrap-composer-semantics` job once under plan SHA-256
+  `96df220c867723c8f43a2079ae67e0da8c674e5bde7e50427b69f26ab82994ca`.
+  Host and guest verified the plan and staged inputs. The guest result was
+  `pass`: replicas 1--3 each completed exactly `empty` and `alpha` once with
+  no recorded error; checkpoint sizes were 40,960 and 47,104 bytes, and DAO
+  metadata access changed no checkpoint digest.
+- Artifacts: external `bootstrap-composer-semantics-job-result.json`, 100,020
+  bytes, SHA-256
+  `cf05ea239ce951115ebf28c9a8fe4d2cb8231e21c7a153b55d3e3b0f2c683eaf`;
+  external `result.json`, 116,191 bytes, SHA-256
+  `04d49c7979f3cb34f64ccf6f529e91841931ef0a4ff2b6e3fe4a02453f659752`;
+  external canonical `bootstrap-composer-semantics-report.json`, 10,621 bytes,
+  SHA-256
+  `8ea017170549db18a5dfd69bc538afca3fa0132a2ee275810a7257a153680978`,
+  reproduced byte-identically with the staged pinned analyzer. The report has
+  status `accepted`, all three question statuses `answered`, and false
+  compatibility and support-movement flags. All six MDBs remain external.
+- Fixed key observation: the complete lossless key bytes by catalog row were
+  `Tables=7f8f0000007f7760616d667600`,
+  `Databases=7f8f0000007f64607760616076667600`,
+  `Relationships=7f8f0000007f75666d60776a727076696a737600`,
+  `MSysDb=7f8f0000027f6f767d76646100`,
+  `MSysObjects=7f8f0000017f6f767d7672616b6662777600`,
+  `MSysACEs=7f8f0000017f6f767d766062667600`,
+  `MSysQueries=7f8f0000017f6f767d76747866756a667600`,
+  `MSysRelationships=7f8f0000017f6f767d7675666d60776a727076696a737600`,
+  and `Alpha=7f8f0000017f606d73696000`. Every page-9 locator correlated
+  one-to-one with its decoded catalog row in every replica. The observation is
+  fixed bytes only; it does not establish component or text-key encoding.
+- Fixed `LvProp` observation: `Alpha.LvProp` used external header
+  `2b0000400016000000000000`, targeting page 22 row 0 with length 43. The
+  opaque payload was
+  `4b4b4400100000008000080052657175697265641700000001000800000002004964090001010000010000`,
+  SHA-256
+  `0bcca4af126edbf7a0a5435551a576e454308b95733ac2b658014a5221981abe`.
+  No property grammar is inferred.
+- Fixed page-0 observation: offset 1538 was `0` at `empty` and `2` at `alpha`,
+  and it was the only changed page-0 offset in all replicas. This does not
+  establish a general counter or update rule.
+- Replica identities: replica 1 empty/alpha SHA-256 values were
+  `3314351885fc0e0a90243e7be98241e2cbf6e9dc6f19368e927a0b6d90502f92` /
+  `642c90e8cdec8faf577affdba44faffbc0c608714cce71fe4089df445ff9b3f1`;
+  replica 2 values were
+  `7fb50c4cdcd90478cf21730d11181ce7b1c635115a963d129a63ca86b36f2367` /
+  `7ff1cebd03f7afefe14fd7618299f34b02df00d2de07de7ab7111a2c30eface1`;
+  replica 3 values were
+  `de65b67975ef1b419caf387c40842ae7f51167add2309df87e9c1314528f0c54` /
+  `b3516a730940c13b3d5f20fc4bc216ce6fe1be16f74c3187be0096d1cf797c1a`.
+- Interpretation: all three bounded questions are accepted. The fixed bytes
+  may complete the crate-private fresh-image composer, but this result does not
+  validate that composer and establishes no general key/property/page-0 rule,
+  DAO compatibility, support result, or support-matrix movement.
+- Usage: issue `#100`; `EXP-0078`;
+  `file:crates/jet3/src/bootstrap_composer.rs`;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-semantics.plan.json`;
+  `file:oracle/windows-dao/scripts/bootstrap_composer_semantics.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: independent single-dispatch, artifact-identity, report-reproduction,
+  fixed-value transcription, reader-structure, evidence-boundary,
+  environment-identity, and false-claim reviews completed
+
 
 ## Fixtures and black-box results
 

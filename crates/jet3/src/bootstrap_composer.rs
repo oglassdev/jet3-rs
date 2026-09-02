@@ -4,7 +4,9 @@
 //! whole-file primitives. It deliberately exposes no creation or I/O API and
 //! makes no DAO-compatibility claim. Page roles and the empty-to-`Alpha`
 //! transition come from `EXP-0073`; the fixed page-zero transition byte comes
-//! from `EXP-0069` and `EXP-0071`; long-value map groups come from `EXP-0077`.
+//! from `EXP-0069` and `EXP-0071`; long-value map groups come from `EXP-0077`;
+//! fixed composite keys and the opaque `Alpha.LvProp` value come from
+//! `EXP-0079`.
 
 #![allow(
     dead_code,
@@ -55,9 +57,24 @@ const INDEX_ENTRY_AREA_LEN: usize = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET;
 const INDEX_BOUNDARY_BITMAP_OFFSET: usize = 22;
 const INDEX_KEY_CAPACITY: usize = 64;
 const CATALOG_OWNER: &[u8] = &[0];
-// EXP-0073 establishes this allocation and reference, but intentionally leaves
-// the property payload uninterpreted. Keep it deterministic and opaque here.
-const ALPHA_LVPROP_PAYLOAD: &[u8] = &[0];
+// EXP-0079 records this fixed value losslessly; its property grammar remains
+// uninterpreted.
+const ALPHA_LVPROP_PAYLOAD: &[u8] =
+    b"KKD\x00\x10\x00\x00\x00\x80\x00\x08\x00Required\x17\x00\x00\x00\x01\x00\x08\x00\x00\x00\x02\x00Id\x09\x00\x01\x01\x00\x00\x01\x00\x00";
+
+// EXP-0079 records complete lossless keys for only the fixed bootstrap rows.
+// Their component and text encodings remain uninterpreted.
+const PARENT_NAME_KEYS: [&[u8]; 9] = [
+    b"\x7f\x8f\x00\x00\x00\x7f\x77\x60\x61\x6d\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x00\x7f\x64\x60\x77\x60\x61\x60\x76\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x00\x7f\x75\x66\x6d\x60\x77\x6a\x72\x70\x76\x69\x6a\x73\x76\x00",
+    b"\x7f\x8f\x00\x00\x02\x7f\x6f\x76\x7d\x76\x64\x61\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x72\x61\x6b\x66\x62\x77\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x60\x62\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x74\x78\x66\x75\x6a\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x75\x66\x6d\x60\x77\x6a\x72\x70\x76\x69\x6a\x73\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x60\x6d\x73\x69\x60\x00",
+];
 
 const TABLES_ID: i32 = 0x0f00_0001;
 const DATABASES_ID: i32 = 0x0f00_0002;
@@ -588,28 +605,18 @@ impl OwnedIndexEntry {
         entry.row = row;
         entry
     }
-    // EXP-0062 leaves composite component boundaries uninterpreted. This
-    // fixed bootstrap hypothesis is deliberately not exposed as a reusable
-    // composite or text-key encoder and still requires DAO validation.
-    fn parent_name(parent: i32, name: &[u8], row: u8) -> Result<Self, BootstrapComposeError> {
-        let mut entry = Self::long(parent, row);
-        let start = entry.len;
-        let needed = start
-            .checked_add(name.len())
-            .and_then(|length| length.checked_add(2))
-            .ok_or(Error::Arithmetic {
-                operation: "size fixed bootstrap composite index key",
-            })?;
+    fn raw(key: &[u8], row: u8) -> Result<Self, BootstrapComposeError> {
+        let needed = key.len();
         if needed > INDEX_KEY_CAPACITY {
             return Err(BootstrapComposeError::IndexKeyTooLong {
                 needed,
                 available: INDEX_KEY_CAPACITY,
             });
         }
-        entry.key[start] = 0x7f;
-        entry.key[start + 1..start + 1 + name.len()].copy_from_slice(name);
-        entry.key[start + 1 + name.len()] = 0;
+        let mut entry = Self::EMPTY;
+        entry.key[..needed].copy_from_slice(key);
         entry.len = needed;
+        entry.row = row;
         Ok(entry)
     }
 }
@@ -619,10 +626,9 @@ fn objects_parent_name_index(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    for (row, seed) in CATALOG_SEEDS.iter().enumerate() {
-        entries[row] = OwnedIndexEntry::parent_name(seed.parent, seed.name, row as u8)?;
+    for (row, key) in PARENT_NAME_KEYS.iter().enumerate() {
+        entries[row] = OwnedIndexEntry::raw(key, row as u8)?;
     }
-    entries[8] = OwnedIndexEntry::parent_name(TABLES_ID, b"Alpha", 8)?;
     let count = if alpha { 9 } else { 8 };
     sort_index_entries(&mut entries[..count]);
     index_page(
