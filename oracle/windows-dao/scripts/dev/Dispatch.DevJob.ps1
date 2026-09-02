@@ -164,7 +164,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
     exit 1
 }
 
-$jobResult = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+$jobResult = Get-Content -LiteralPath $resultPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $catalogCheckpoints = @()
 $tableDefinitionCheckpoints = @()
 $tableDefinitionTypeResults = @()

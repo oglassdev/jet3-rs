@@ -440,7 +440,7 @@ function Save-Checkpoint {
     }
 }
 
-$typeInput = Get-Content -LiteralPath $TypeInputPath -Raw | ConvertFrom-Json
+$typeInput = Get-Content -LiteralPath $TypeInputPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([int]$typeInput.schema_version -ne 1 -or
     [string]$typeInput.source_commit -cne "eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5" -or
     [string]$typeInput.source_sha256 -cne "51147cb927489b36583de4729355fccc78cc0781032453775f2a011f58535d7b" -or

@@ -88,7 +88,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Bootstrap-layout result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($checkpoint in @($replica.checkpoints)) {
@@ -130,7 +130,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "System-catalog result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($checkpoint in @($replica.checkpoints)) {
@@ -163,7 +163,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Long-value-maps result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($checkpoint in @($replica.checkpoints)) {
@@ -196,7 +196,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Long-value-maps follow-up result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($checkpoint in @($replica.checkpoints)) {
@@ -229,7 +229,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Bootstrap-composer-semantics result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($checkpoint in @($replica.checkpoints)) {
@@ -262,7 +262,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Schema-generalization result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($checkpoint in @($replica.checkpoints)) {
@@ -298,7 +298,7 @@ switch ($Job) {
         if ((Get-Item -LiteralPath $jobResultPath).Length -gt 4194304) {
             throw "Multiple-indexes result exceeds the 4-MiB bound."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $checkpointNames = @("empty", "one", "two", "three", "composite")
         $referenced = New-Object Collections.ArrayList
         $seenReplicas = New-Object Collections.ArrayList
@@ -389,7 +389,7 @@ switch ($Job) {
         if ((Get-Item -LiteralPath $jobResultPath).Length -gt 4194304) {
             throw "Definition-continuation result exceeds the 4-MiB bound."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $checkpointNames = @("empty", "zero", "one", "two")
         $referenced = New-Object Collections.ArrayList
         $seenReplicas = New-Object Collections.ArrayList
@@ -478,7 +478,7 @@ switch ($Job) {
         $jobResultItem = Get-Item -LiteralPath $jobResultPath -Force
         if (($jobResultItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Extended-names result must not be a reparse point." }
         if ($jobResultItem.Length -gt 8388608) { throw "Extended-names result exceeds the 8-MiB bound." }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $checkpointNames = New-Object Collections.ArrayList
         [void]$checkpointNames.Add("empty")
         foreach ($index in 0..40) { [void]$checkpointNames.Add("b" + $index.ToString("D2")) }
@@ -530,7 +530,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "LvProp-null result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($image in @($replica.images)) {
@@ -586,7 +586,7 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Bootstrap-composer validation result is missing."
         }
-        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             foreach ($image in @($replica.images)) {
