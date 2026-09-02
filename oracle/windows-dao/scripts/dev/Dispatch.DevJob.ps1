@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -33,6 +33,8 @@ param(
     [string]$MultipleIndexesJobPath,
     [Parameter(Mandatory = $true)]
     [string]$DefinitionContinuationJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$ExtendedNamesJobPath,
     [Parameter(Mandatory = $true)]
     [string]$LvPropNullJobPath,
     [Parameter(Mandatory = $true)]
@@ -72,6 +74,7 @@ $scriptPath = switch ($Job) {
     "schema-generalization" { $SchemaGeneralizationJobPath }
     "multiple-indexes" { $MultipleIndexesJobPath }
     "definition-continuation" { $DefinitionContinuationJobPath }
+    "extended-names" { $ExtendedNamesJobPath }
     "lvprop-null" { $LvPropNullJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
@@ -97,7 +100,7 @@ elseif ($Job -ceq "bootstrap-layout") {
 elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId, "-Experiment", $Job)
 }
-elseif ($Job -in @("schema-generalization", "multiple-indexes", "definition-continuation")) {
+elseif ($Job -in @("schema-generalization", "multiple-indexes", "definition-continuation", "extended-names")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId)
 }
 elseif ($Job -ceq "lvprop-null") {
@@ -133,6 +136,7 @@ $resultName = switch ($Job) {
     "schema-generalization" { "schema-generalization-job-result.json" }
     "multiple-indexes" { "multiple-indexes-job-result.json" }
     "definition-continuation" { "definition-continuation-job-result.json" }
+    "extended-names" { "extended-names-job-result.json" }
     "lvprop-null" { "lvprop-null-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
@@ -153,6 +157,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         schema_generalization_replicas = @()
         multiple_indexes_replicas = @()
         definition_continuation_replicas = @()
+        extended_names_replicas = @()
         lvprop_null_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
@@ -171,6 +176,7 @@ $systemCatalogReplicas = @()
 $schemaGeneralizationReplicas = @()
 $multipleIndexesReplicas = @()
 $definitionContinuationReplicas = @()
+$extendedNamesReplicas = @()
 $lvpropNullReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
 $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
@@ -203,6 +209,14 @@ elseif ($Job -ceq "definition-continuation") {
     }
     else {
         "At least one definition-continuation replica failed; per-replica error records the message."
+    }
+}
+elseif ($Job -ceq "extended-names") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three extended-names replicas once without retry."
+    }
+    else {
+        "At least one extended-names replica failed; per-replica error records the message."
     }
 }
 elseif ($Job -ceq "lvprop-null") {
@@ -248,6 +262,9 @@ elseif ($Job -ceq "multiple-indexes") {
 elseif ($Job -ceq "definition-continuation") {
     $definitionContinuationReplicas = @($jobResult.replicas)
 }
+elseif ($Job -ceq "extended-names") {
+    $extendedNamesReplicas = @($jobResult.replicas)
+}
 elseif ($Job -ceq "lvprop-null") {
     $lvpropNullReplicas = @($jobResult.replicas)
 }
@@ -267,6 +284,7 @@ $result = [ordered]@{
     schema_generalization_replicas = @($schemaGeneralizationReplicas)
     multiple_indexes_replicas = @($multipleIndexesReplicas)
     definition_continuation_replicas = @($definitionContinuationReplicas)
+    extended_names_replicas = @($extendedNamesReplicas)
     lvprop_null_replicas = @($lvpropNullReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result

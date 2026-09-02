@@ -173,6 +173,15 @@ DEFINITION_CONTINUATION_PLAN = (
 DEFINITION_CONTINUATION_ANALYZER = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "definition_continuation.py"
 )
+EXTENDED_NAMES_JOB = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "ExtendedNames.DevJob.ps1"
+)
+EXTENDED_NAMES_PLAN = (
+    ROOT / "oracle" / "windows-dao" / "acquisition" / "extended-names.plan.json"
+)
+EXTENDED_NAMES_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "extended_names.py"
+)
 LVPROP_NULL_JOB = (
     ROOT
     / "oracle"
@@ -213,6 +222,7 @@ ALLOWED_JOBS = (
     "schema-generalization",
     "multiple-indexes",
     "definition-continuation",
+    "extended-names",
     "lvprop-null",
 )
 
@@ -334,6 +344,14 @@ def plan_binding(job: str) -> PlanBinding | None:
             DEFINITION_CONTINUATION_ANALYZER,
             "dao_definition_continuation_plan",
             151,
+        )
+    if job == "extended-names":
+        return PlanBinding(
+            job,
+            EXTENDED_NAMES_PLAN,
+            EXTENDED_NAMES_ANALYZER,
+            "dao_extended_names_plan",
+            152,
         )
     if job == "lvprop-null":
         return PlanBinding(
@@ -642,6 +660,7 @@ def stage_job(args: argparse.Namespace) -> Path:
             DEFINITION_CONTINUATION_JOB,
             staging / DEFINITION_CONTINUATION_JOB.name,
         )
+        shutil.copyfile(EXTENDED_NAMES_JOB, staging / EXTENDED_NAMES_JOB.name)
         shutil.copyfile(LVPROP_NULL_JOB, staging / LVPROP_NULL_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:
@@ -721,6 +740,8 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
         ntpath.join(remote_input, MULTIPLE_INDEXES_JOB.name),
         "-DefinitionContinuationJobPath",
         ntpath.join(remote_input, DEFINITION_CONTINUATION_JOB.name),
+        "-ExtendedNamesJobPath",
+        ntpath.join(remote_input, EXTENDED_NAMES_JOB.name),
         "-LvPropNullJobPath",
         ntpath.join(remote_input, LVPROP_NULL_JOB.name),
         "-LvPropFixedAlphaPath",

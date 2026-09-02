@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -42,6 +42,8 @@ param(
     [string]$MultipleIndexesJobPath,
     [Parameter(Mandatory = $true)]
     [string]$DefinitionContinuationJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$ExtendedNamesJobPath,
     [Parameter(Mandatory = $true)]
     [string]$LvPropNullJobPath,
     [Parameter(Mandatory = $true)]
@@ -392,7 +394,7 @@ if ($Job -ceq "table-definition" -and
 foreach ($requiredHelper in @(
     $DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath,
     $BootstrapLayoutJobPath, $SystemCatalogJobPath, $BootstrapComposerValidationJobPath,
-    $SchemaGeneralizationJobPath, $MultipleIndexesJobPath, $DefinitionContinuationJobPath,
+    $SchemaGeneralizationJobPath, $MultipleIndexesJobPath, $DefinitionContinuationJobPath, $ExtendedNamesJobPath,
     $LvPropNullJobPath
 )) {
     if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
@@ -412,6 +414,7 @@ $planBoundJobs = @{
     "schema-generalization" = "oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1"
     "multiple-indexes" = "oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1"
     "definition-continuation" = "oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1"
+    "extended-names" = "oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1"
     "lvprop-null" = "oracle/windows-dao/scripts/dev/LvPropNull.DevJob.ps1"
 }
 if ($planBoundJobs.ContainsKey($Job)) {
@@ -443,6 +446,9 @@ if ($planBoundJobs.ContainsKey($Job)) {
     }
     elseif ($Job -ceq "definition-continuation") {
         $DefinitionContinuationJobPath
+    }
+    elseif ($Job -ceq "extended-names") {
+        $ExtendedNamesJobPath
     }
     elseif ($Job -ceq "lvprop-null") {
         $LvPropNullJobPath
@@ -545,6 +551,7 @@ $systemCatalogReplicas = @()
 $schemaGeneralizationReplicas = @()
 $multipleIndexesReplicas = @()
 $definitionContinuationReplicas = @()
+$extendedNamesReplicas = @()
 $lvpropNullReplicas = @()
 
 if ($Job -ceq "provider-probe") {
@@ -771,7 +778,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -790,6 +797,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             -SchemaGeneralizationJobPath $SchemaGeneralizationJobPath `
             -MultipleIndexesJobPath $MultipleIndexesJobPath `
             -DefinitionContinuationJobPath $DefinitionContinuationJobPath `
+            -ExtendedNamesJobPath $ExtendedNamesJobPath `
             -LvPropNullJobPath $LvPropNullJobPath `
             -LvPropFixedAlphaPath $LvPropFixedAlphaPath `
             -LvPropNullAlphaPath $LvPropNullAlphaPath `
@@ -815,6 +823,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             $schemaGeneralizationReplicas = @($dispatchResult.schema_generalization_replicas)
             $multipleIndexesReplicas = @($dispatchResult.multiple_indexes_replicas)
             $definitionContinuationReplicas = @($dispatchResult.definition_continuation_replicas)
+            $extendedNamesReplicas = @($dispatchResult.extended_names_replicas)
             $lvpropNullReplicas = @($dispatchResult.lvprop_null_replicas)
             $status = [string]$dispatchResult.status
             $detail = [string]$dispatchResult.detail
@@ -850,6 +859,7 @@ $result = [ordered]@{
     schema_generalization_replicas = @($schemaGeneralizationReplicas)
     multiple_indexes_replicas = @($multipleIndexesReplicas)
     definition_continuation_replicas = @($definitionContinuationReplicas)
+    extended_names_replicas = @($extendedNamesReplicas)
     lvprop_null_replicas = @($lvpropNullReplicas)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }

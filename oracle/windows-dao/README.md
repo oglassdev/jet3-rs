@@ -56,6 +56,10 @@ The retained tooling has three purposes:
   The analyzer uses `scripts/system_catalog.py` for the pinned catalog decoding;
   the experiment is limited to its exact page-assignment matrix and makes no
   arbitrary-index, writer, compatibility, or support claim.
+- `acquisition/extended-names.plan.json`,
+  `scripts/dev/ExtendedNames.DevJob.ps1`, and `scripts/extended_names.py`
+  define the SHA-256-pinned issue #152 preregistration over all defined CP1252
+  bytes above `0x7E`; acquisition still requires the pinned commit to merge.
 - `acquisition/bootstrap-composer-validation.plan.json` is the immutable
   consumed plan for the accepted `EXP-0085` run. Its pins bind the harness at
   that revision, so the client refuses to dispatch it again.
@@ -152,3 +156,15 @@ not assume consecutive continuation placement or a single-page catalog
 `LvProp`. `EXP-0095` records a canonical `no_outcome`: the 69-field arm failed
 the combined geometry/64-page capture bound in all three replicas, so no
 created-arm bytes or continuation placement were retained.
+
+The issue #152 `extended-names` preregistration partitions all 123 defined
+CP1252 bytes in `0x80`-`0xFF` into 41 independent three-byte arms per replica.
+Each arm uses exact singleton, repeated, and neighboring-pair names; a separate
+arm records U+007F and the five undefined-slot Unicode rejection controls. A
+passing run retains 43 closed MDBs per replica, 129 total. This is a bounded
+catalog-key observation, not a general collation or compatibility claim.
+`EXP-0087`'s 24-name checkpoint occupied 70 pages; this prospective job
+therefore permits 128 pages while keeping each batch at 27 catalog rows (eight
+base plus 19 created tables), below the observed 32-row single leaf. Its exact
+inputs are pinned; acquisition remains forbidden until the preregistration
+commit merges.

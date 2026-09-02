@@ -96,6 +96,10 @@ windows-dev-multiple-indexes:
 windows-dev-definition-continuation:
     "{{PYTHON}}" scripts/windows-dao-dev.py definition-continuation --timeout 900
 
+# Run the preregistered CP1252 extended catalog-name experiment.
+windows-dev-extended-names:
+    "{{PYTHON}}" scripts/windows-dao-dev.py extended-names --timeout 900
+
 # Run the preregistered null-LvProp acceptance experiment in the local VM.
 windows-dev-lvprop-null:
     "{{PYTHON}}" scripts/windows-dao-dev.py lvprop-null --timeout 900

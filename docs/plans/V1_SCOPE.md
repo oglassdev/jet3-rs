@@ -80,3 +80,13 @@ logical records, name-sorted logical order, and the observed primary, unique,
 ordinary, ascending, and descending forms. It cannot infer arbitrary schemas
 or behavior above three indexes. #102 remains the separate hosted write
 differential after database creation is complete.
+
+`EXP-0096` is the SHA-256-pinned #152 preregistration. Its bounded domain is all
+123 defined CP1252 bytes in `0x80`-`0xFF`, plus explicit U+007F and five
+undefined-slot Unicode rejection controls. Acquisition remains forbidden until
+the preregistration commit is merged. An
+accepted result may inform only the planner's catalog-key encoding for those
+exact singleton and pair contexts; it does not establish a general collation
+implementation. Its prospective 128-page bound is above the prior observed
+70-page, 24-name image, while its 19-create batches retain 27 catalog rows,
+below the observed 32-row single-leaf count.

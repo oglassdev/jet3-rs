@@ -43,6 +43,7 @@ just windows-dev-bootstrap-composer-semantics
 just windows-dev-schema-generalization
 just windows-dev-multiple-indexes
 just windows-dev-definition-continuation
+just windows-dev-extended-names
 just windows-dev-lvprop-null
 ```
 
@@ -157,6 +158,17 @@ locator chain when present, referenced versus unreferenced appended LVAL pages,
 and the complete page-0 changed-offset set plus counter values. It presumes neither consecutive
 placement nor a single-page `LvProp`, and establishes no broader allocation,
 writer, compatibility, or support claim.
+
+`extended-names` is the SHA-256-pinned issue #152 experiment for every defined
+CP1252 byte above `0x7E`. Review and pinning are complete; the preregistration
+commit must merge before the standing authorization permits one acquisition.
+Three replicas each retain an empty checkpoint, 41
+identity-isolated three-byte batch checkpoints, and one explicit rejection-arm
+checkpoint. The analyzer accepts contrary but fully decoded collation behavior
+as an answer and treats incomplete decoding, mutation failure, or replica
+disagreement as `no_outcome`. The 128-page prospective bound accommodates the
+earlier observed 70-page, 24-name image; each new batch remains at 27 catalog
+rows, below the observed 32-row single-leaf count.
 
 `lvprop-null` is the SHA-256-pinned, development-only acceptance experiment for
 issue #149. Three replicas each compare the fixed accepted Alpha composer image,
