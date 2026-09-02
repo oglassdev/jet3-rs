@@ -6,7 +6,8 @@
 //! transition come from `EXP-0073`; the fixed page-zero transition byte comes
 //! from `EXP-0069` and `EXP-0071`; long-value map groups come from `EXP-0077`;
 //! fixed composite keys and the opaque `Alpha.LvProp` value come from
-//! `EXP-0079`.
+//! `EXP-0079`; the fixed opaque page-zero candidate hypothesis is
+//! preregistered by `EXP-0084`.
 
 #![allow(
     dead_code,
@@ -28,6 +29,7 @@ use crate::{
 };
 
 const HEADER_PAGE: u64 = 0;
+const GLOBAL_MAP_PAGE: u64 = 1;
 const MSYS_OBJECTS_ROOT: u64 = 2;
 const MSYS_ACES_ROOT: u64 = 3;
 const MSYS_QUERIES_ROOT: u64 = 4;
@@ -56,7 +58,22 @@ const INDEX_ENTRY_AREA_OFFSET: usize = 248;
 const INDEX_ENTRY_AREA_LEN: usize = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET;
 const INDEX_BOUNDARY_BITMAP_OFFSET: usize = 22;
 const INDEX_KEY_CAPACITY: usize = 64;
-const CATALOG_OWNER: &[u8] = &[0];
+// EXP-0084 preregisters only these fixed per-row candidate values; their SID
+// meanings are not generalized.
+const CATALOG_OWNER_0203: &[u8] = b"\x02\x03";
+const CATALOG_OWNER_0301: &[u8] = b"\x03\x01";
+// EXP-0084 preregisters this fixed bootstrap hypothesis. Its fields remain
+// uninterpreted and no general page-zero grammar is inferred.
+const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
+    0xb5, 0x6e, 0x03, 0x62, 0x60, 0x09, 0xc2, 0x55, 0xe9, 0xa9, 0x67, 0x72, 0x40, 0x3f, 0x00, 0x9c,
+    0x7e, 0x9f, 0x90, 0xff, 0x85, 0x9a, 0x31, 0xc5, 0x79, 0xba, 0xed, 0x30, 0xbc, 0xdf, 0xcc, 0x9d,
+    0x63, 0xd9, 0xed, 0xc7, 0x9f, 0x46, 0xfb, 0x8a, 0xbc, 0x4e, 0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44,
+    0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6, 0x8a, 0x60, 0x54, 0x94, 0x7b, 0x36, 0xbc, 0x54,
+    0xdf, 0xb1, 0x77, 0xf4, 0x13, 0x43, 0xcf, 0xaf, 0xb1, 0x33, 0x34, 0x61, 0x79, 0x5b, 0x92, 0xb5,
+    0x7c, 0x2a, 0x05, 0xf1, 0x7c, 0x99, 0x01, 0x1b, 0x98, 0xfd, 0x12, 0x4f, 0x4a, 0x94, 0x6c, 0x3e,
+    0x60, 0x26, 0x5f, 0x95, 0xf8, 0xd0, 0x89, 0x24, 0x85, 0x67, 0xc6, 0x1f, 0x27, 0x44, 0xd2, 0xee,
+    0xcf, 0x65, 0xed, 0xff, 0x07, 0xc7, 0x46, 0xa1, 0x78, 0x16, 0x0c, 0xed, 0xe9, 0x2d,
+];
 // EXP-0079 records this fixed value losslessly; its property grammar remains
 // uninterpreted.
 const ALPHA_LVPROP_PAYLOAD: &[u8] =
@@ -202,17 +219,17 @@ fn header_page(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut image = PageImage::new(PageKind::DatabaseDefinition);
+    image.write_at(PageOffset::new(1), &[1], budget)?;
     image.write_at(PageOffset::new(4), b"Standard Jet DB", budget)?;
-    image.write_at(PageOffset::new(0x41), &[0x4e], budget)?;
-    image.write_at(
-        PageOffset::new(0x42),
-        &[
-            0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-        ],
-        budget,
-    )?;
+    image.write_at(PageOffset::new(24), &DATABASE_HEADER_FIXED_OPAQUE, budget)?;
+    let mut commit_state = [0_u8; 512];
+    commit_state[0] = 1;
+    for offset in (1..commit_state.len()).step_by(2) {
+        commit_state[offset] = 1;
+    }
     // EXP-0069/0071: fixed empty/first-create values 0/2; no general counter rule.
-    image.write_at(PageOffset::new(1538), &[if alpha { 2 } else { 0 }], budget)?;
+    commit_state[2] = if alpha { 2 } else { 0 };
+    image.write_at(PageOffset::new(1536), &commit_state, budget)?;
     Ok(image)
 }
 
@@ -238,7 +255,7 @@ fn global_map_page(
     let map = global_map(used_pages, budget)?;
     let mut row = [0_u8; 133];
     map.encode_into(&mut row, budget)?;
-    data_page(HEADER_PAGE, &[&row, &[0; 133]], budget)
+    data_page(GLOBAL_MAP_PAGE, &[&row, &[0; 133]], budget)
 }
 
 fn inline_map_row(
@@ -383,6 +400,7 @@ struct CatalogSeed {
     parent: i32,
     name: &'static [u8],
     kind: i16,
+    owner: &'static [u8],
 }
 const CATALOG_SEEDS: [CatalogSeed; 8] = [
     CatalogSeed {
@@ -390,48 +408,56 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         parent: ROOT_CONTAINER_ID,
         name: b"Tables",
         kind: 3,
+        owner: CATALOG_OWNER_0203,
     },
     CatalogSeed {
         id: DATABASES_ID,
         parent: ROOT_CONTAINER_ID,
         name: b"Databases",
         kind: 3,
+        owner: CATALOG_OWNER_0203,
     },
     CatalogSeed {
         id: RELATIONSHIPS_ID,
         parent: ROOT_CONTAINER_ID,
         name: b"Relationships",
         kind: 3,
+        owner: CATALOG_OWNER_0203,
     },
     CatalogSeed {
         id: MSYS_DB_ID,
         parent: DATABASES_ID,
         name: b"MSysDb",
         kind: 2,
+        owner: CATALOG_OWNER_0301,
     },
     CatalogSeed {
         id: MSYS_OBJECTS_ROOT as i32,
         parent: TABLES_ID,
         name: b"MSysObjects",
         kind: 1,
+        owner: CATALOG_OWNER_0203,
     },
     CatalogSeed {
         id: MSYS_ACES_ROOT as i32,
         parent: TABLES_ID,
         name: b"MSysACEs",
         kind: 1,
+        owner: CATALOG_OWNER_0203,
     },
     CatalogSeed {
         id: MSYS_QUERIES_ROOT as i32,
         parent: TABLES_ID,
         name: b"MSysQueries",
         kind: 1,
+        owner: CATALOG_OWNER_0203,
     },
     CatalogSeed {
         id: MSYS_RELATIONSHIPS_ROOT as i32,
         parent: TABLES_ID,
         name: b"MSysRelationships",
         kind: 1,
+        owner: CATALOG_OWNER_0203,
     },
 ];
 
@@ -452,6 +478,7 @@ fn objects_data_page(
                 parent: TABLES_ID,
                 name: b"Alpha",
                 kind: 1,
+                owner: CATALOG_OWNER_0301,
             },
             Some(alpha_long_value_header()),
             &mut row,
@@ -483,7 +510,7 @@ fn encode_catalog_row(
         RowValue::Integer(seed.kind),
         RowValue::DateTime { days: 0.0 },
         RowValue::DateTime { days: 0.0 },
-        RowValue::Binary(CATALOG_OWNER),
+        RowValue::Binary(seed.owner),
         RowValue::Long(system_flags),
         RowValue::Null,
         RowValue::Null,

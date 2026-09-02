@@ -7432,6 +7432,88 @@ Use `not applicable` explicitly rather than omitting a field.
   and analyzer/test integrity completed; all findings were fixed and the final
   reviews reported no remaining findings
 
+### EXP-0084 — Preregistered page-zero bootstrap hypothesis validation
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration successor;
+  no provider acquisition has occurred under this successor plan
+- Question: do the fixed empty and `Alpha(Id Long)` candidates containing the
+  new opaque page-zero hypothesis pass the same bounded DAO endpoint frontiers
+  fixed by `EXP-0080`, with the corrected validation mechanics from
+  `EXP-0083`?
+- Origin: project-authored clean-room successor for issue `#100`. Its candidate
+  hypothesis uses a post hoc, read-only comparison of project-generated
+  artifacts retained externally from accepted `EXP-0079`; that comparison is
+  design input rather than admitted evidence. `EXP-0083` was not acquired and
+  is superseded before dispatch.
+- Environment: no provider execution has occurred under this entry. The
+  retained design input has the local Windows/DAO environment recorded by
+  `EXP-0079`; any future one-run environment must be captured independently by
+  the pinned development protocol.
+- Protocol: generate the two candidates from the fully pinned Rust source
+  manifest, verify their exact identities, and execute at most one three-replica
+  run through
+  `oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`.
+  The plan retains the corrected analyzer/diagnostic mechanics from `EXP-0083`
+  and the endpoints, controls, bounds, decision rules, and excluded claims from
+  `EXP-0080`.
+- Design input: a post hoc, read-only comparison of the three empty and three
+  Alpha MDBs retained externally from accepted run
+  `20260902T011637Z-dev-dao` found byte-identical page-zero images within each
+  state and only byte 1538 differing across each empty/Alpha pair. This
+  inspection was not preregistered by `EXP-0079`; it is hypothesis design input
+  only, not admitted format evidence, a reinterpretation of `EXP-0079` or
+  `EXP-0082`, or a compatibility result. No provider acquisition or DAO
+  operation occurred during the inspection.
+- Candidate hypothesis: page-zero byte 1, fixed opaque bytes 24--149, and fixed
+  bytes 1536--2047 are reproduced only for these two bootstrap candidates;
+  byte 1538 retains the separately established empty/Alpha values. Global-map
+  page 1 owns itself at `[4,8)`. Fixed catalog rows carry opaque `Owner` value
+  `0203`, except `MSysDb` and `Alpha` carry `0301`. These are scoped candidate
+  constants/ranges, not a general page-zero, owner, SID, or catalog grammar;
+  variable dates and inactive definition/data-page padding remain excluded.
+- Supersession: `EXP-0083` was never acquired and is superseded because the
+  exact candidate hypothesis changed before dispatch. The same corrected
+  property-order and diagnostic-path validation mechanics are retained.
+- Artifacts: the existing
+  `oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json` is
+  replaced in place and has SHA-256
+  `11fd306504782f6403f6fa44d6ec805bb1385b5725f1dad2dfc841c3863634ec`.
+  It pins source manifest SHA-256
+  `d951a4826c36a4a63f343d35d417288b3650ce9a427efce281d602dd1f014272`,
+  producer SHA-256
+  `92685419f5e61b40297c28a893df4e79989b2d6ea2d72952cbe516b6ff1784d2`,
+  and analyzer SHA-256
+  `1bd7cf09bac1ba088bffc76e5e1da935ed5a6915c283bc14fefbd3f9f5cda7c3`.
+  The 40,960-byte empty candidate is SHA-256
+  `8fad368409747adadf47704074a77e79e0bd0c5eae656566bdc72a5876f479e7`;
+  the 47,104-byte Alpha candidate is SHA-256
+  `b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2`.
+- Observation: `preregistration.acquisition_started` is `false`. Because the
+  `EXP-0082` run mutated DAO controls, the user's earlier session-wide VM
+  authorization is not a redispatch decision. A new explicit human decision
+  is required after this successor is reviewed and committed. At most one
+  successor dispatch is permitted, with no retry after its first DAO mutation.
+- Decision rule: unchanged. With unchanged passing controls, three identical
+  complete candidate frontiers are `observed_accepted`, and three identical
+  partial frontiers are `not_observed_accepted`. Candidate change, control
+  failure/change, disagreement, or incomplete scientific execution is
+  `no_outcome`; pin, inventory, bound, malformed-shape, or integrity defects
+  reject without a canonical report.
+- Interpretation: a future accepted result applies only to these exact
+  candidates and endpoints. This preregistration does not establish composer
+  correctness or DAO compatibility, introduce a public creation or publication
+  API, support arbitrary schemas, establish page-zero grammar, or move a
+  support claim or matrix.
+- Usage: future successor result; issue `#100`; `EXP-0079`; `EXP-0082`;
+  `EXP-0083`; `file:crates/jet3/src/bootstrap_composer.rs`;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`
+- Rights: retained and future project-generated MDBs remain outside the
+  repository and are neither committed nor redistributed
+- Review: 2026-09-01 isolated format, protocol, and retained-artifact reviews;
+  all findings were fixed before commit, and the final three reviews reported
+  no remaining findings
+
 
 ## Fixtures and black-box results
 

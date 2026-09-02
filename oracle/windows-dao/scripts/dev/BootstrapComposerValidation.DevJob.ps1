@@ -29,11 +29,11 @@ $ExpectedSystemTables = @("MSysACEs", "MSysObjects", "MSysQueries", "MSysRelatio
 $ExpectedCandidates = @{
     "candidate_empty" = [pscustomobject]@{
         size = 40960
-        sha256 = "f762dbc12d80eb3fb5dae53fb58696219d48b7fa1a15d5deb5c1f9333d8862d6"
+        sha256 = "8fad368409747adadf47704074a77e79e0bd0c5eae656566bdc72a5876f479e7"
     }
     "candidate_alpha" = [pscustomobject]@{
         size = 47104
-        sha256 = "8552db1c7d0083429fcbbcf4dd59a5f1d8f36383c8bdef4d9decc06247cf77ca"
+        sha256 = "b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2"
     }
 }
 

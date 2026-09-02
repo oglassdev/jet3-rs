@@ -101,6 +101,47 @@ fn empty_image_assigns_all_twenty_observed_page_roles() -> TestResult {
     for (page, expected_kind) in bytes.chunks_exact(crate::PAGE_BYTES).zip(expected) {
         assert_eq!(page[0], page_tag(expected_kind));
     }
+    assert_eq!(
+        &bytes[crate::PAGE_BYTES + 4..crate::PAGE_BYTES + 8],
+        &1_u32.to_le_bytes()
+    );
+    Ok(())
+}
+
+#[test]
+fn page_zero_uses_the_fixed_preregistered_candidate_template() -> TestResult {
+    let empty = bytes(false)?;
+    let alpha = bytes(true)?;
+    let fixed_opaque = [
+        0xb5, 0x6e, 0x03, 0x62, 0x60, 0x09, 0xc2, 0x55, 0xe9, 0xa9, 0x67, 0x72, 0x40, 0x3f, 0x00,
+        0x9c, 0x7e, 0x9f, 0x90, 0xff, 0x85, 0x9a, 0x31, 0xc5, 0x79, 0xba, 0xed, 0x30, 0xbc, 0xdf,
+        0xcc, 0x9d, 0x63, 0xd9, 0xed, 0xc7, 0x9f, 0x46, 0xfb, 0x8a, 0xbc, 0x4e, 0x86, 0xfb, 0xec,
+        0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6, 0x8a, 0x60, 0x54, 0x94,
+        0x7b, 0x36, 0xbc, 0x54, 0xdf, 0xb1, 0x77, 0xf4, 0x13, 0x43, 0xcf, 0xaf, 0xb1, 0x33, 0x34,
+        0x61, 0x79, 0x5b, 0x92, 0xb5, 0x7c, 0x2a, 0x05, 0xf1, 0x7c, 0x99, 0x01, 0x1b, 0x98, 0xfd,
+        0x12, 0x4f, 0x4a, 0x94, 0x6c, 0x3e, 0x60, 0x26, 0x5f, 0x95, 0xf8, 0xd0, 0x89, 0x24, 0x85,
+        0x67, 0xc6, 0x1f, 0x27, 0x44, 0xd2, 0xee, 0xcf, 0x65, 0xed, 0xff, 0x07, 0xc7, 0x46, 0xa1,
+        0x78, 0x16, 0x0c, 0xed, 0xe9, 0x2d,
+    ];
+
+    assert_eq!(&empty[..24], b"\0\x01\0\0Standard Jet DB\0\0\0\0\0");
+    assert_eq!(&empty[24..150], fixed_opaque);
+    assert!(empty[150..1536].iter().all(|byte| *byte == 0));
+    assert_eq!(empty[1536], 1);
+    assert_eq!(empty[1538], 0);
+    assert!(
+        empty[1537..crate::PAGE_BYTES]
+            .iter()
+            .step_by(2)
+            .all(|byte| *byte == 1)
+    );
+    assert!(
+        empty[1540..crate::PAGE_BYTES]
+            .iter()
+            .step_by(2)
+            .all(|byte| *byte == 0)
+    );
+    assert_eq!(alpha[1538], 2);
     Ok(())
 }
 
@@ -172,6 +213,28 @@ fn normal_reader_decodes_empty_catalog_definitions_maps_and_indexes() -> TestRes
         8
     );
     assert_eq!(objects.long_value_maps().len(), 7);
+    {
+        let mut rows = database.rows(&objects, &mut budget)?;
+        for expected in [
+            b"\x02\x03".as_slice(),
+            b"\x02\x03",
+            b"\x02\x03",
+            b"\x03\x01",
+            b"\x02\x03",
+            b"\x02\x03",
+            b"\x02\x03",
+            b"\x02\x03",
+        ] {
+            let mut row = rows.next_row()?.ok_or("missing catalog row")?;
+            assert!(matches!(
+                row.value(ColumnOrdinal::new(6), TextCodePage::Windows1252)?
+                    .ok_or("missing catalog owner")?
+                    .kind(),
+                ValueKind::Binary(actual) if *actual == expected
+            ));
+        }
+        assert!(rows.next_row()?.is_none());
+    }
     let lv_extra = objects
         .long_value_maps()
         .iter()
@@ -381,6 +444,13 @@ fn alpha_transition_appends_three_pages_and_updates_catalog_counts_and_indexes()
     }
     let reference = {
         let mut alpha_row = object_rows.next_row()?.ok_or("missing Alpha object row")?;
+        assert!(matches!(
+            alpha_row
+                .value(ColumnOrdinal::new(6), TextCodePage::Windows1252)?
+                .ok_or("missing Alpha owner")?
+                .kind(),
+            ValueKind::Binary(actual) if *actual == b"\x03\x01"
+        ));
         match alpha_row
             .value(ColumnOrdinal::new(14), TextCodePage::Windows1252)?
             .ok_or("missing Alpha LvProp")?
