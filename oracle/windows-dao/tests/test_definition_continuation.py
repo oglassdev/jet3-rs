@@ -27,6 +27,24 @@ SPEC.loader.exec_module(continuation)
 PLAN = "a" * 64
 
 
+def measurement(length: int) -> dict:
+    divisible = length % continuation.PAGE_BYTES == 0
+    pages = length // continuation.PAGE_BYTES if divisible else None
+    failed = None
+    if length < continuation.PAGE_BYTES:
+        failed = "minimum_page_length"
+    elif not divisible:
+        failed = "page_alignment"
+    elif pages > continuation.MAX_CHECKPOINT_PAGES:
+        failed = "checkpoint_bound_exceeded"
+    return {
+        "raw_byte_length": length,
+        "divisible_by_page_size": divisible,
+        "page_count": pages,
+        "failed_predicate": failed,
+    }
+
+
 def dao(scenario: str | None) -> dict:
     tables = []
     if scenario is not None:
@@ -131,14 +149,25 @@ class Fixture:
         for replica in range(1, 4):
             empty = bytes(20 * continuation.PAGE_BYTES)
             empty_digest = hashlib.sha256(empty).hexdigest()
+            arm_baselines = [
+                {
+                    "name": scenario,
+                    "size": len(empty),
+                    "sha256": empty_digest,
+                    "measurement": measurement(len(empty)),
+                }
+                for scenario in continuation.SCENARIOS
+            ]
             checkpoints = [self.checkpoint(replica, "empty", empty, None, dao(None))]
-            for scenario in continuation.SCENARIOS:
+            for scenario, baseline in zip(
+                continuation.SCENARIOS, arm_baselines, strict=True
+            ):
                 checkpoints.append(
                     self.checkpoint(
                         replica,
                         scenario,
                         scenario_image(scenario),
-                        {"size": len(empty), "sha256": empty_digest},
+                        {key: value for key, value in baseline.items() if key != "name"},
                         dao(scenario),
                     )
                 )
@@ -150,6 +179,8 @@ class Fixture:
                     "mutation_started": True,
                     "phase": "complete",
                     "checkpoints": checkpoints,
+                    "arm_baselines": arm_baselines,
+                    "failure_measurement": None,
                     "recovery": [],
                 }
             )
@@ -180,6 +211,8 @@ class Fixture:
             "size_after_metadata": len(data),
             "sha256": digest_value,
             "sha256_after_metadata": digest_value,
+            "measurement": measurement(len(data)),
+            "measurement_after_metadata": measurement(len(data)),
             "arm_before": arm_before,
             "dao": metadata,
         }
@@ -215,6 +248,20 @@ class DefinitionContinuationTests(unittest.TestCase):
             report = continuation.evaluate(fixture.write(), PLAN, output)
         self.assertEqual(output.read_bytes(), continuation.canonical_bytes(report))
         return report
+
+    def test_measurement_predicates_are_exact_and_ordered(self) -> None:
+        limit = continuation.MAX_CHECKPOINT_PAGES * continuation.PAGE_BYTES
+        self.assertEqual(
+            continuation.validate_measurement(measurement(limit), "measurement"),
+            measurement(limit),
+        )
+        self.assertEqual(measurement(0)["failed_predicate"], "minimum_page_length")
+        self.assertEqual(measurement(limit + 1)["failed_predicate"], "page_alignment")
+        self.assertIsNone(measurement(limit + 1)["page_count"])
+        self.assertEqual(
+            measurement(limit + continuation.PAGE_BYTES)["failed_predicate"],
+            "checkpoint_bound_exceeded",
+        )
 
     def test_accepts_exact_counts_and_nonconsecutive_chain_placement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -256,6 +303,61 @@ class DefinitionContinuationTests(unittest.TestCase):
             with self.assertRaisesRegex(continuation.AnalysisError, "retained MDB inventory"):
                 self.evaluate(fixture)
 
+    def test_ephemeral_subdirectory_does_not_change_retained_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            working = Path(directory) / "working-definition-continuation"
+            working.mkdir()
+            (working / "working-continuation-zero-r1.mdb").write_bytes(bytes(2048))
+            self.assertEqual(self.evaluate(fixture)["status"], "accepted")
+
+    def test_arm_baselines_are_exact_ordered_and_allow_a_partial_copy_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            fixture.replicas[0]["arm_baselines"][0]["name"] = "one"
+            with self.assertRaisesRegex(continuation.AnalysisError, "ordered scenario prefix"):
+                self.evaluate(fixture)
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            for replica in fixture.replicas:
+                for checkpoint in replica["checkpoints"][1:]:
+                    (Path(directory) / checkpoint["database"]).unlink()
+                replica["checkpoints"] = replica["checkpoints"][:1]
+                replica["arm_baselines"] = replica["arm_baselines"][:1]
+                replica["status"] = "fail"
+                replica["error"] = "copy of the one arm failed"
+                replica["phase"] = "copy_arms"
+            fixture.document["status"] = "fail"
+            report = self.evaluate(fixture)
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertEqual(
+                [entry["name"] for entry in report["replicas"][0]["arm_baselines"]],
+                ["zero"],
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            replica = fixture.replicas[0]
+            for checkpoint in replica["checkpoints"][1:]:
+                (Path(directory) / checkpoint["database"]).unlink()
+            replica["checkpoints"] = replica["checkpoints"][:1]
+            replica["arm_baselines"] = replica["arm_baselines"][:2]
+            replica["status"] = "fail"
+            replica["error"] = "failure while capturing zero"
+            replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            with self.assertRaisesRegex(continuation.AnalysisError, "lacks all arm baselines"):
+                self.evaluate(fixture)
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            baseline = fixture.replicas[0]["arm_baselines"][0]
+            baseline["size"] = 257 * continuation.PAGE_BYTES
+            baseline["measurement"] = measurement(baseline["size"])
+            with self.assertRaisesRegex(continuation.AnalysisError, "arm baseline size"):
+                self.evaluate(fixture)
+
     def test_failed_prefix_and_recovery_are_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = Fixture(Path(directory))
@@ -267,6 +369,9 @@ class DefinitionContinuationTests(unittest.TestCase):
                         "database": recovery_source["database"],
                         "size": recovery_source["size"],
                         "sha256": recovery_source["sha256"],
+                        "measurement": recovery_source["measurement"],
+                        "reason": "post_mutation_failure",
+                        "interpreted": False,
                     }
                 ]
                 for checkpoint in replica["checkpoints"][3:]:
@@ -288,6 +393,66 @@ class DefinitionContinuationTests(unittest.TestCase):
             with self.assertRaisesRegex(continuation.AnalysisError, "checkpoint prefix"):
                 self.evaluate(fixture)
 
+    def test_later_pre_mutation_failure_after_global_mutation_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            replica = fixture.replicas[1]
+            for checkpoint in replica["checkpoints"]:
+                (Path(directory) / checkpoint["database"]).unlink()
+            replica["checkpoints"] = []
+            replica["arm_baselines"] = []
+            replica["status"] = "fail"
+            replica["error"] = "CreateDatabase was not entered"
+            replica["mutation_started"] = False
+            replica["phase"] = "before_create_database"
+            fixture.document["status"] = "fail"
+            self.assertEqual(self.evaluate(fixture)["status"], "no_outcome")
+
+    def test_before_create_database_rejects_started_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            replica = fixture.replicas[1]
+            for checkpoint in replica["checkpoints"]:
+                (Path(directory) / checkpoint["database"]).unlink()
+            replica["checkpoints"] = []
+            replica["arm_baselines"] = []
+            replica["status"] = "fail"
+            replica["error"] = "impossible mutation state"
+            replica["phase"] = "before_create_database"
+            fixture.document["status"] = "fail"
+            with self.assertRaisesRegex(
+                continuation.AnalysisError, "cannot have a started DAO mutation"
+            ):
+                self.evaluate(fixture)
+
+    def test_failure_measurement_must_be_reachable_from_the_producer_phase(self) -> None:
+        for phase, mutation_started, complete_inventory in (
+            ("before_create_database", False, False),
+            ("create_database", False, False),
+            ("complete", True, True),
+        ):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                fixture = Fixture(Path(directory))
+                replica = fixture.replicas[1]
+                if not complete_inventory:
+                    for checkpoint in replica["checkpoints"]:
+                        (Path(directory) / checkpoint["database"]).unlink()
+                    replica["checkpoints"] = []
+                    replica["arm_baselines"] = []
+                replica["status"] = "fail"
+                replica["error"] = "fabricated measurement state"
+                replica["mutation_started"] = mutation_started
+                replica["phase"] = phase
+                replica["failure_measurement"] = measurement(
+                    257 * continuation.PAGE_BYTES
+                )
+                fixture.document["status"] = "fail"
+                with self.assertRaisesRegex(
+                    continuation.AnalysisError,
+                    "failure_measurement is inconsistent with producer phase",
+                ):
+                    self.evaluate(fixture)
+
     def test_repeatable_final_arm_failure_remains_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = Fixture(Path(directory))
@@ -302,6 +467,9 @@ class DefinitionContinuationTests(unittest.TestCase):
                         "database": recovery["database"],
                         "size": len(empty),
                         "sha256": empty_digest,
+                        "measurement": measurement(len(empty)),
+                        "reason": "post_mutation_failure",
+                        "interpreted": False,
                     }
                 ]
                 replica["checkpoints"] = replica["checkpoints"][:3]
@@ -312,6 +480,266 @@ class DefinitionContinuationTests(unittest.TestCase):
             report = self.evaluate(fixture)
             self.assertEqual(report["status"], "no_outcome")
             self.assertEqual(report["questions"]["producer_outcome"]["status"], "no_outcome")
+
+    def test_checkpoint_bound_failure_retains_exact_512_page_uninterpreted_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            recovery_data = bytes(512 * continuation.PAGE_BYTES)
+            recovery_digest = hashlib.sha256(recovery_data).hexdigest()
+            observed = measurement(len(recovery_data))
+            for replica in fixture.replicas:
+                recovery = replica["checkpoints"][1]
+                (Path(directory) / recovery["database"]).write_bytes(recovery_data)
+                replica["recovery"] = [
+                    {
+                        "name": "zero",
+                        "database": recovery["database"],
+                        "size": len(recovery_data),
+                        "sha256": recovery_digest,
+                        "measurement": observed,
+                        "reason": "checkpoint_bound_exceeded",
+                        "interpreted": False,
+                    }
+                ]
+                for checkpoint in replica["checkpoints"][2:]:
+                    (Path(directory) / checkpoint["database"]).unlink()
+                replica["checkpoints"] = replica["checkpoints"][:1]
+                replica["failure_measurement"] = observed
+                replica["status"] = "fail"
+                replica["error"] = "checkpoint_bound_exceeded"
+                replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            report = self.evaluate(fixture)
+            self.assertEqual(report["status"], "no_outcome")
+            retained = report["replicas"][0]["files"][1]
+            self.assertTrue(retained["recovery"])
+            self.assertFalse(retained["interpreted"])
+            self.assertEqual(retained["reason"], "checkpoint_bound_exceeded")
+            self.assertEqual(retained["measurement"]["page_count"], 512)
+            self.assertEqual(
+                [entry["name"] for entry in report["replicas"][0]["arm_baselines"]],
+                list(continuation.SCENARIOS),
+            )
+
+    def test_bound_recovery_requires_the_exact_failed_measurement(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            recovery_data = bytes(257 * continuation.PAGE_BYTES)
+            observed = measurement(len(recovery_data))
+            replica = fixture.replicas[0]
+            recovery = replica["checkpoints"][1]
+            (Path(directory) / recovery["database"]).write_bytes(recovery_data)
+            replica["recovery"] = [
+                {
+                    "name": "zero",
+                    "database": recovery["database"],
+                    "size": len(recovery_data),
+                    "sha256": hashlib.sha256(recovery_data).hexdigest(),
+                    "measurement": observed,
+                    "reason": "checkpoint_bound_exceeded",
+                    "interpreted": False,
+                }
+            ]
+            for checkpoint in replica["checkpoints"][2:]:
+                (Path(directory) / checkpoint["database"]).unlink()
+            replica["checkpoints"] = replica["checkpoints"][:1]
+            replica["failure_measurement"] = measurement(
+                258 * continuation.PAGE_BYTES
+            )
+            replica["status"] = "fail"
+            replica["error"] = "checkpoint_bound_exceeded"
+            replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            with self.assertRaisesRegex(continuation.AnalysisError, "exact failed"):
+                self.evaluate(fixture)
+
+    def test_over_512_page_failure_records_measurement_without_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            observed = measurement(513 * continuation.PAGE_BYTES)
+            for replica in fixture.replicas:
+                for checkpoint in replica["checkpoints"][1:]:
+                    (Path(directory) / checkpoint["database"]).unlink()
+                replica["checkpoints"] = replica["checkpoints"][:1]
+                replica["failure_measurement"] = observed
+                replica["status"] = "fail"
+                replica["error"] = "recovery bound exceeded"
+                replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            report = self.evaluate(fixture)
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertEqual(
+                report["replicas"][0]["failure_measurement"], observed
+            )
+            self.assertEqual(len(report["replicas"][0]["files"]), 1)
+
+    def test_rejects_retained_513_page_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            replica = fixture.replicas[0]
+            recovery_data = bytes(513 * continuation.PAGE_BYTES)
+            observed = measurement(len(recovery_data))
+            recovery = replica["checkpoints"][1]
+            (Path(directory) / recovery["database"]).write_bytes(recovery_data)
+            replica["recovery"] = [
+                {
+                    "name": "zero",
+                    "database": recovery["database"],
+                    "size": len(recovery_data),
+                    "sha256": hashlib.sha256(recovery_data).hexdigest(),
+                    "measurement": observed,
+                    "reason": "checkpoint_bound_exceeded",
+                    "interpreted": False,
+                }
+            ]
+            for checkpoint in replica["checkpoints"][2:]:
+                (Path(directory) / checkpoint["database"]).unlink()
+            replica["checkpoints"] = replica["checkpoints"][:1]
+            replica["failure_measurement"] = observed
+            replica["status"] = "fail"
+            replica["error"] = "recovery bound exceeded"
+            replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            with self.assertRaisesRegex(continuation.AnalysisError, "recovery size"):
+                self.evaluate(fixture)
+
+    def test_rejects_undersized_and_unaligned_retained_recovery(self) -> None:
+        cases = ((bytes(1024), "recovery size"), (bytes(continuation.PAGE_BYTES + 1), "exact sequence"))
+        for recovery_data, message in cases:
+            with self.subTest(size=len(recovery_data)), tempfile.TemporaryDirectory() as directory:
+                fixture = Fixture(Path(directory))
+                replica = fixture.replicas[0]
+                recovery = replica["checkpoints"][1]
+                (Path(directory) / recovery["database"]).write_bytes(recovery_data)
+                replica["recovery"] = [
+                    {
+                        "name": "zero",
+                        "database": recovery["database"],
+                        "size": len(recovery_data),
+                        "sha256": hashlib.sha256(recovery_data).hexdigest(),
+                        "measurement": measurement(len(recovery_data)),
+                        "reason": "post_mutation_failure",
+                        "interpreted": False,
+                    }
+                ]
+                for checkpoint in replica["checkpoints"][2:]:
+                    (Path(directory) / checkpoint["database"]).unlink()
+                replica["checkpoints"] = replica["checkpoints"][:1]
+                replica["failure_measurement"] = measurement(len(recovery_data))
+                replica["status"] = "fail"
+                replica["error"] = "invalid recovery geometry"
+                replica["phase"] = "capture_zero"
+                fixture.document["status"] = "fail"
+                with self.assertRaisesRegex(continuation.AnalysisError, message):
+                    self.evaluate(fixture)
+
+    def test_rejects_recovery_reason_mismatches(self) -> None:
+        cases = (
+            (20, "checkpoint_bound_exceeded", None, "in-bound recovery"),
+            (257, "post_mutation_failure", "failed", "omits its checkpoint"),
+        )
+        for pages, reason, failure_kind, message in cases:
+            with self.subTest(pages=pages, reason=reason), tempfile.TemporaryDirectory() as directory:
+                fixture = Fixture(Path(directory))
+                replica = fixture.replicas[0]
+                recovery_data = bytes(pages * continuation.PAGE_BYTES)
+                observed = measurement(len(recovery_data))
+                recovery = replica["checkpoints"][1]
+                (Path(directory) / recovery["database"]).write_bytes(recovery_data)
+                replica["recovery"] = [
+                    {
+                        "name": "zero",
+                        "database": recovery["database"],
+                        "size": len(recovery_data),
+                        "sha256": hashlib.sha256(recovery_data).hexdigest(),
+                        "measurement": observed,
+                        "reason": reason,
+                        "interpreted": False,
+                    }
+                ]
+                for checkpoint in replica["checkpoints"][2:]:
+                    (Path(directory) / checkpoint["database"]).unlink()
+                replica["checkpoints"] = replica["checkpoints"][:1]
+                replica["failure_measurement"] = observed if failure_kind else None
+                replica["status"] = "fail"
+                replica["error"] = "reason mismatch"
+                replica["phase"] = "capture_zero"
+                fixture.document["status"] = "fail"
+                with self.assertRaisesRegex(continuation.AnalysisError, message):
+                    self.evaluate(fixture)
+
+    def test_rejects_post_metadata_measurement_size_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            checkpoint = fixture.replicas[0]["checkpoints"][0]
+            checkpoint["measurement_after_metadata"] = measurement(
+                checkpoint["size_after_metadata"] + continuation.PAGE_BYTES
+            )
+            with self.assertRaisesRegex(continuation.AnalysisError, "raw measurement"):
+                self.evaluate(fixture)
+
+    def test_recovery_bytes_are_never_decoded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            for replica in fixture.replicas:
+                recovery = replica["checkpoints"][1]
+                replica["recovery"] = [
+                    {
+                        "name": "zero",
+                        "database": recovery["database"],
+                        "size": recovery["size"],
+                        "sha256": recovery["sha256"],
+                        "measurement": recovery["measurement"],
+                        "reason": "post_mutation_failure",
+                        "interpreted": False,
+                    }
+                ]
+                for checkpoint in replica["checkpoints"][2:]:
+                    (Path(directory) / checkpoint["database"]).unlink()
+                replica["checkpoints"] = replica["checkpoints"][:1]
+                replica["status"] = "fail"
+                replica["error"] = "post-mutation failure"
+                replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            output = fixture.root / "definition-continuation-report.json"
+            with mock.patch.object(
+                continuation, "analyze_scenario", side_effect=AssertionError("decoded recovery")
+            ) as analyze:
+                report = continuation.evaluate(fixture.write(), PLAN, output)
+            self.assertEqual(report["status"], "no_outcome")
+            analyze.assert_not_called()
+
+    def test_rejects_inconsistent_measurement_and_interpreted_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            fixture.replicas[0]["checkpoints"][0]["measurement"]["page_count"] += 1
+            with self.assertRaisesRegex(continuation.AnalysisError, "page_count"):
+                self.evaluate(fixture)
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture(Path(directory))
+            replica = fixture.replicas[0]
+            recovery = replica["checkpoints"][1]
+            replica["recovery"] = [
+                {
+                    "name": "zero",
+                    "database": recovery["database"],
+                    "size": recovery["size"],
+                    "sha256": recovery["sha256"],
+                    "measurement": recovery["measurement"],
+                    "reason": "post_mutation_failure",
+                    "interpreted": True,
+                }
+            ]
+            for checkpoint in replica["checkpoints"][2:]:
+                (Path(directory) / checkpoint["database"]).unlink()
+            replica["checkpoints"] = replica["checkpoints"][:1]
+            replica["status"] = "fail"
+            replica["error"] = "bounded DAO failure"
+            replica["phase"] = "capture_zero"
+            fixture.document["status"] = "fail"
+            with self.assertRaisesRegex(continuation.AnalysisError, "uninterpreted"):
+                self.evaluate(fixture)
 
     def test_wrong_logical_length_is_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

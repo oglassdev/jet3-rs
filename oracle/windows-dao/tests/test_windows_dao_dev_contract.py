@@ -952,15 +952,37 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn("checkpoints are not an ordered prefix", self.publication)
         self.assertIn("recovery is not the active next checkpoint", self.publication)
         self.assertIn("12-database bound", self.publication)
-        self.assertIn("64-page bound", self.publication)
+        self.assertIn("$maximumPagesByDatabase[$expectedDatabase] = 256", self.publication)
+        self.assertIn("$maximumPagesByDatabase[$expectedDatabase] = 512", self.publication)
+        self.assertIn("$item.Length -gt $maximumBytes", self.publication)
+        self.assertNotIn(
+            "Definition-continuation output MDB violates the 64-page bound.",
+            self.publication,
+        )
         binding = CLIENT.plan_binding("definition-continuation")
         self.assertEqual(binding.plan.name, "definition-continuation.plan.json")
         self.assertEqual(binding.analyzer.name, "definition_continuation.py")
         plan = json.loads(binding.plan.read_text(encoding="utf-8"))
         self.assertEqual(plan["issue"], 151)
+        self.assertEqual(
+            hashlib.sha256(binding.plan.read_bytes()).hexdigest(),
+            "3e7172838bfd7d48b6042e1fe1a1855883be27eb3c2b8f7ad367368daa2c0cd9",
+        )
         self.assertEqual(plan["execution"]["checkpoints"], ["empty", "zero", "one", "two"])
         self.assertEqual(
             plan["execution"]["bounds"]["maximum_published_databases"], 12
+        )
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_ephemeral_working_databases"],
+            12,
+        )
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_completed_checkpoint_pages_per_database"],
+            256,
+        )
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_recovery_only_pages_per_database"],
+            512,
         )
         self.assertTrue(
             all(
@@ -971,8 +993,36 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
                 for value in plan["inputs"].values()
             )
         )
+        self.assertEqual(
+            CLIENT.verified_plan_sha256(binding),
+            "3e7172838bfd7d48b6042e1fe1a1855883be27eb3c2b8f7ad367368daa2c0cd9",
+        )
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
         self.assertIn('$ScenarioFields = @{ zero = 69; one = 70; two = 140 }', job)
+
+    def test_definition_continuation_cleanup_cannot_pollute_published_inventory(self) -> None:
+        job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
+        self.assertIn(
+            '$WorkingRoot = Join-Path $resolvedRunRoot "working-definition-continuation"',
+            job,
+        )
+        self.assertIn("working directory already exists", job)
+        self.assertIn("working path must be a non-reparse directory", job)
+        self.assertIn('$basePath = Join-Path $WorkingRoot "working-continuation-', job)
+        self.assertIn('$arm = Join-Path $WorkingRoot "working-continuation-', job)
+        self.assertIn("Cleanup failed:", job)
+
+        start = self.publication.index('    "definition-continuation" {')
+        end = self.publication.index('    "extended-names" {', start)
+        publication = self.publication[start:end]
+        self.assertIn(
+            'Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb"', publication
+        )
+        self.assertNotIn("-Recurse", publication)
+        self.assertIn(
+            "Definition-continuation MDB inventory differs from its result.",
+            publication,
+        )
 
     def test_extended_names_is_batched_bounded_and_exactly_routed(self) -> None:
         self.assertIn(

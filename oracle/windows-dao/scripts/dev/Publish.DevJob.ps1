@@ -392,6 +392,7 @@ switch ($Job) {
         $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $checkpointNames = @("empty", "zero", "one", "two")
         $referenced = New-Object Collections.ArrayList
+        $maximumPagesByDatabase = @{}
         $seenReplicas = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
             $replicaNumber = [int]$replica.replica
@@ -413,6 +414,7 @@ switch ($Job) {
                     throw "Definition-continuation checkpoints are not an ordered prefix."
                 }
                 [void]$referenced.Add($expectedDatabase)
+                $maximumPagesByDatabase[$expectedDatabase] = 256
                 $checkpointIndex++
             }
             $recovery = @($replica.recovery)
@@ -430,6 +432,7 @@ switch ($Job) {
                     throw "Definition-continuation recovery is not the active next checkpoint."
                 }
                 [void]$referenced.Add($expectedDatabase)
+                $maximumPagesByDatabase[$expectedDatabase] = 512
             }
             if ([string]$replica.status -ceq "pass" -and
                 ($checkpointIndex -ne $checkpointNames.Count -or $recovery.Count -ne 0)) {
@@ -453,19 +456,20 @@ switch ($Job) {
             throw "Passing definition-continuation result omits a database."
         }
         $actualItems = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb")
-        foreach ($item in $actualItems) {
-            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw "Definition-continuation output contains a reparse-point MDB."
-            }
-            if ($item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or
-                $item.Length -gt 131072) {
-                throw "Definition-continuation output MDB violates the 64-page bound."
-            }
-        }
         $actual = @($actualItems | ForEach-Object { $_.Name } | Sort-Object)
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Definition-continuation MDB inventory differs from its result."
+        }
+        foreach ($item in $actualItems) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Definition-continuation output contains a reparse-point MDB."
+            }
+            $maximumBytes = [long]$maximumPagesByDatabase[$item.Name] * 2048
+            if ($item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or
+                $item.Length -gt $maximumBytes) {
+                throw "Definition-continuation output MDB violates its checkpoint or recovery page bound."
+            }
         }
         foreach ($name in $actual) {
             [void]$names.Add($name)

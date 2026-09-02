@@ -157,6 +157,19 @@ not assume consecutive continuation placement or a single-page catalog
 the combined geometry/64-page capture bound in all three replicas, so no
 created-arm bytes or continuation placement were retained.
 
+The SHA-256-pinned `EXP-0098` successor keeps the exact arms and questions,
+admits completed checkpoints through 256 pages, and records raw byte length,
+divisibility, derived page count, and the exact failed predicate before applying
+that policy. Its ordered `arm_baselines` prove all three working copies matched
+the empty image before any table append; a copy failure records only the checked
+prefix. Ephemeral bases and arms stay in one non-published, non-reparse working
+subdirectory, so cleanup failure cannot pollute the retained root inventory.
+Recovery-only salvage may retain an aligned active checkpoint,
+including `empty` after mutation begins, through 512 pages with exact size/hash
+and `interpreted=false`; it is never decoded and every post-mutation failure
+remains `no_outcome`. Acquisition remains forbidden until the exact
+preregistration commit is merged and a new explicit human decision is recorded.
+
 The issue #152 `extended-names` preregistration partitions all 123 defined
 CP1252 bytes in `0x80`-`0xFF` into 41 independent three-byte arms per replica.
 Each arm uses exact singleton, repeated, and neighboring-pair names; a separate

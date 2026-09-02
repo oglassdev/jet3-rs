@@ -16,7 +16,8 @@ import system_catalog as catalog
 
 PAGE_BYTES = 2048
 MAX_JSON_BYTES = 4 * 1024 * 1024
-MAX_PAGES = 64
+MAX_CHECKPOINT_PAGES = 256
+MAX_RECOVERY_PAGES = 512
 MAX_TABLES = 16
 MAX_FIELDS = 140
 MAX_TEXT = 512
@@ -91,6 +92,40 @@ def digest(value: Any, where: str) -> str:
     return value
 
 
+def validate_measurement(value: Any, where: str) -> dict[str, Any]:
+    item = exact(
+        value,
+        {
+            "raw_byte_length",
+            "divisible_by_page_size",
+            "page_count",
+            "failed_predicate",
+        },
+        where,
+    )
+    raw_length = integer(
+        item["raw_byte_length"], f"{where}.raw_byte_length", 0, (1 << 63) - 1
+    )
+    divisible = item["divisible_by_page_size"]
+    if type(divisible) is not bool or divisible != (raw_length % PAGE_BYTES == 0):
+        raise AnalysisError(f"{where}.divisible_by_page_size is inconsistent")
+    expected_pages = raw_length // PAGE_BYTES if divisible else None
+    if item["page_count"] != expected_pages or (
+        item["page_count"] is not None and type(item["page_count"]) is not int
+    ):
+        raise AnalysisError(f"{where}.page_count is inconsistent")
+    expected_predicate = None
+    if raw_length < PAGE_BYTES:
+        expected_predicate = "minimum_page_length"
+    elif not divisible:
+        expected_predicate = "page_alignment"
+    elif expected_pages > MAX_CHECKPOINT_PAGES:
+        expected_predicate = "checkpoint_bound_exceeded"
+    if item["failed_predicate"] != expected_predicate:
+        raise AnalysisError(f"{where}.failed_predicate is inconsistent")
+    return item
+
+
 def load(path: Path) -> dict[str, Any]:
     if not path.is_file() or path.is_symlink():
         raise AnalysisError("job result must be a regular non-link file")
@@ -145,6 +180,8 @@ def read_checkpoint(
             "size_after_metadata",
             "sha256",
             "sha256_after_metadata",
+            "measurement",
+            "measurement_after_metadata",
             "arm_before",
             "dao",
         },
@@ -156,13 +193,29 @@ def read_checkpoint(
     expected = f"definition-continuation-r{replica}-{name}.mdb"
     if filename != expected or not SAFE_MDB.fullmatch(filename):
         raise AnalysisError(f"replica {replica} checkpoint filename is invalid")
-    size = integer(item["size"], "checkpoint size", PAGE_BYTES, MAX_PAGES * PAGE_BYTES)
+    measurement = validate_measurement(item["measurement"], "checkpoint measurement")
+    measurement_after = validate_measurement(
+        item["measurement_after_metadata"], "post-metadata checkpoint measurement"
+    )
+    if (
+        measurement["failed_predicate"] is not None
+        or measurement_after["failed_predicate"] is not None
+    ):
+        raise AnalysisError("completed checkpoint has a failed measurement predicate")
+    size = integer(
+        item["size"], "checkpoint size", PAGE_BYTES, MAX_CHECKPOINT_PAGES * PAGE_BYTES
+    )
     size_after = integer(
         item["size_after_metadata"],
         "post-metadata checkpoint size",
         PAGE_BYTES,
-        MAX_PAGES * PAGE_BYTES,
+        MAX_CHECKPOINT_PAGES * PAGE_BYTES,
     )
+    if (
+        size != measurement["raw_byte_length"]
+        or size_after != measurement_after["raw_byte_length"]
+    ):
+        raise AnalysisError("checkpoint size differs from its raw measurement")
     if size % PAGE_BYTES or size_after % PAGE_BYTES:
         raise AnalysisError("checkpoint is not an exact sequence of pages")
     before = digest(item["sha256"], "checkpoint digest")
@@ -285,7 +338,7 @@ def created_lvprop(
     payload = bytearray()
     while True:
         key = (locator["page"], locator["row"])
-        if key in seen or len(seen) >= MAX_PAGES:
+        if key in seen or len(seen) >= MAX_CHECKPOINT_PAGES:
             raise DecodeError(f"{table_name}.LvProp chain repeats or exceeds the bound")
         seen.add(key)
         if locator["page"] >= len(data) // PAGE_BYTES:
@@ -573,7 +626,17 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
     for position, raw_replica in enumerate(raw_replicas):
         item = exact(
             raw_replica,
-            {"replica", "status", "error", "mutation_started", "phase", "checkpoints", "recovery"},
+            {
+                "replica",
+                "status",
+                "error",
+                "mutation_started",
+                "phase",
+                "checkpoints",
+                "arm_baselines",
+                "failure_measurement",
+                "recovery",
+            },
             f"replicas[{position}]",
         )
         replica = integer(item["replica"], "replica number", 1, 3)
@@ -596,12 +659,20 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
             raise AnalysisError("replica phase is invalid")
         if item["error"] is not None:
             text(item["error"], "replica error")
+        failure_measurement = item["failure_measurement"]
+        if failure_measurement is not None:
+            failure_measurement = validate_measurement(
+                failure_measurement, "replica failure_measurement"
+            )
+            if failure_measurement["failed_predicate"] is None:
+                raise AnalysisError("failure_measurement must identify a failed predicate")
         checkpoints = item["checkpoints"]
         if not isinstance(checkpoints, list) or len(checkpoints) > len(CHECKPOINTS):
             raise AnalysisError("replica checkpoints violate the bound")
         images: dict[str, bytes] = {}
         daos: dict[str, dict[str, Any]] = {}
         identities: dict[str, dict[str, Any]] = {}
+        arm_befores: dict[str, dict[str, Any]] = {}
         changed = []
         for checkpoint_position, raw_checkpoint in enumerate(checkpoints):
             name = CHECKPOINTS[checkpoint_position]
@@ -618,18 +689,73 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 if arm_before is not None:
                     raise AnalysisError("empty checkpoint must not have an arm identity")
             else:
-                before = exact(arm_before, {"size", "sha256"}, f"{name}.arm_before")
+                before = exact(
+                    arm_before, {"size", "sha256", "measurement"}, f"{name}.arm_before"
+                )
                 before_size = integer(
-                    before["size"], "arm size", PAGE_BYTES, MAX_PAGES * PAGE_BYTES
+                    before["size"],
+                    "arm size",
+                    PAGE_BYTES,
+                    MAX_CHECKPOINT_PAGES * PAGE_BYTES,
                 )
                 if before_size % PAGE_BYTES:
                     raise AnalysisError("arm size is not an exact sequence of pages")
+                before_measurement = validate_measurement(
+                    before["measurement"], f"{name}.arm_before.measurement"
+                )
+                if (
+                    before_measurement["failed_predicate"] is not None
+                    or before_measurement["raw_byte_length"] != before_size
+                ):
+                    raise AnalysisError("arm identity has an invalid raw measurement")
+                arm_befores[name] = before
                 if before_size != identities["empty"]["size"] or digest(
                     before["sha256"], "arm digest"
                 ) != identities["empty"]["sha256"]:
                     raise AnalysisError(
                         f"{name} arm identity differs from the retained empty image"
                     )
+        raw_baselines = item["arm_baselines"]
+        if not isinstance(raw_baselines, list) or len(raw_baselines) > len(SCENARIOS):
+            raise AnalysisError("replica arm_baselines violate the bound")
+        baselines: dict[str, dict[str, Any]] = {}
+        for baseline_position, raw_baseline in enumerate(raw_baselines):
+            scenario = SCENARIOS[baseline_position]
+            baseline = exact(
+                raw_baseline,
+                {"name", "size", "sha256", "measurement"},
+                f"replica {replica} arm_baselines[{baseline_position}]",
+            )
+            if baseline["name"] != scenario:
+                raise AnalysisError("arm_baselines are not an ordered scenario prefix")
+            baseline_size = integer(
+                baseline["size"],
+                "arm baseline size",
+                PAGE_BYTES,
+                MAX_CHECKPOINT_PAGES * PAGE_BYTES,
+            )
+            baseline_measurement = validate_measurement(
+                baseline["measurement"], "arm baseline measurement"
+            )
+            if (
+                baseline_measurement["failed_predicate"] is not None
+                or baseline_measurement["raw_byte_length"] != baseline_size
+            ):
+                raise AnalysisError("arm baseline has an invalid raw measurement")
+            baseline_identity = {
+                "measurement": baseline_measurement,
+                "sha256": digest(baseline["sha256"], "arm baseline digest"),
+                "size": baseline_size,
+            }
+            if "empty" not in identities or {
+                "sha256": baseline_identity["sha256"],
+                "size": baseline_identity["size"],
+            } != identities["empty"]:
+                raise AnalysisError("arm baseline differs from the retained empty image")
+            baselines[scenario] = baseline_identity
+        for scenario, before in arm_befores.items():
+            if baselines.get(scenario) != before:
+                raise AnalysisError("checkpoint arm identity differs from its recorded baseline")
         recovery = item["recovery"]
         if not isinstance(recovery, list) or len(recovery) > 1:
             raise AnalysisError("replica recovery inventory violates the bound")
@@ -637,7 +763,15 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         for raw_recovery in recovery:
             value = exact(
                 raw_recovery,
-                {"name", "database", "size", "sha256"},
+                {
+                    "name",
+                    "database",
+                    "size",
+                    "sha256",
+                    "measurement",
+                    "reason",
+                    "interpreted",
+                },
                 "recovery artifact",
             )
             name = value["name"]
@@ -653,10 +787,27 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
             ):
                 raise AnalysisError("recovery artifact filename is invalid")
             size = integer(
-                value["size"], "recovery size", PAGE_BYTES, MAX_PAGES * PAGE_BYTES
+                value["size"],
+                "recovery size",
+                PAGE_BYTES,
+                MAX_RECOVERY_PAGES * PAGE_BYTES,
             )
             if size % PAGE_BYTES:
                 raise AnalysisError("recovery artifact is not an exact sequence of pages")
+            measurement = validate_measurement(value["measurement"], "recovery measurement")
+            if size != measurement["raw_byte_length"]:
+                raise AnalysisError("recovery size differs from its raw measurement")
+            if value["reason"] not in ("checkpoint_bound_exceeded", "post_mutation_failure"):
+                raise AnalysisError("recovery reason is invalid")
+            if value["interpreted"] is not False:
+                raise AnalysisError("recovery artifact must be explicitly uninterpreted")
+            if measurement["failed_predicate"] == "checkpoint_bound_exceeded":
+                if value["reason"] != "checkpoint_bound_exceeded":
+                    raise AnalysisError("over-bound recovery omits its checkpoint failure reason")
+            elif measurement["failed_predicate"] is not None:
+                raise AnalysisError("unaligned or undersized recovery cannot be retained")
+            elif value["reason"] != "post_mutation_failure":
+                raise AnalysisError("in-bound recovery has an invalid reason")
             path = job_result.parent / filename
             if not path.is_file() or path.is_symlink():
                 raise AnalysisError("recovery artifact must be a regular non-link file")
@@ -675,6 +826,8 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 "sha256_after_metadata": raw_checkpoint["sha256_after_metadata"],
                 "size": raw_checkpoint["size"],
                 "size_after_metadata": raw_checkpoint["size_after_metadata"],
+                "measurement": raw_checkpoint["measurement"],
+                "measurement_after_metadata": raw_checkpoint["measurement_after_metadata"],
             }
             for raw_checkpoint in checkpoints
         ]
@@ -685,12 +838,17 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 "recovery": True,
                 "sha256": artifact["sha256"],
                 "size": artifact["size"],
+                "measurement": artifact["measurement"],
+                "reason": artifact["reason"],
+                "interpreted": artifact["interpreted"],
             }
             for artifact in recovery
         )
         entry: dict[str, Any] = {
+            "arm_baselines": raw_baselines,
             "error": item["error"],
             "files": files,
+            "failure_measurement": failure_measurement,
             "mutation_started": item["mutation_started"],
             "phase": phase,
             "replica": replica,
@@ -701,6 +859,8 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 tuple(images) != CHECKPOINTS
                 or item["error"] is not None
                 or recovery
+                or tuple(baselines) != SCENARIOS
+                or failure_measurement is not None
                 or not item["mutation_started"]
                 or phase != "complete"
             ):
@@ -723,6 +883,7 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
             raise AnalysisError("failed replica omits its error")
         else:
             progress = {
+                "before_create_database": (0, None, False),
                 "create_database": (0, "empty", False),
                 "capture_empty": (0, "empty", True),
                 "copy_arms": (1, None, True),
@@ -746,10 +907,44 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 raise AnalysisError("failed replica recovery is inconsistent with its phase")
             if recovery_name is None and recovery:
                 raise AnalysisError("failed replica phase cannot retain a recovery artifact")
+            if phase in ("before_create_database", "create_database", "capture_empty") and baselines:
+                raise AnalysisError("failure before arm copying retained an arm baseline")
+            if phase == "copy_arms" and tuple(baselines) != SCENARIOS[: len(baselines)]:
+                raise AnalysisError("copy_arms failure has an invalid baseline prefix")
+            if phase not in (
+                "before_create_database",
+                "create_database",
+                "capture_empty",
+                "copy_arms",
+            ) and tuple(baselines) != SCENARIOS:
+                raise AnalysisError("table-append phase lacks all arm baselines")
             if mutation_required and not item["mutation_started"]:
                 raise AnalysisError("failed replica phase requires a started DAO mutation")
+            if phase == "before_create_database" and item["mutation_started"]:
+                raise AnalysisError(
+                    "before_create_database phase cannot have a started DAO mutation"
+                )
+            measurement_phases = {
+                "create_database",
+                "capture_empty",
+                "copy_arms",
+                *(f"append_{name}" for name in SCENARIOS),
+                *(f"capture_{name}" for name in SCENARIOS),
+            }
+            if failure_measurement is not None and (
+                phase not in measurement_phases
+                or (phase == "create_database" and not item["mutation_started"])
+            ):
+                raise AnalysisError(
+                    "failure_measurement is inconsistent with producer phase"
+                )
             if not item["mutation_started"] and recovery:
                 raise AnalysisError("pre-mutation failure cannot retain a recovery artifact")
+            if recovery and recovery[0]["reason"] == "checkpoint_bound_exceeded":
+                if failure_measurement != recovery[0]["measurement"]:
+                    raise AnalysisError(
+                        "bound-exceeded recovery lacks its exact failed checkpoint measurement"
+                    )
         replicas.append(entry)
     if not any(entry["mutation_started"] for entry in replicas):
         raise AnalysisError("acquisition did not reach the first DAO mutation")
