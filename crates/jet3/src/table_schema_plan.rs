@@ -31,10 +31,11 @@ use std::fmt;
 use crate::catalog_name_key::{CatalogNameKeyError, validate_catalog_name};
 use crate::catalog_record_writer::{CatalogRecordWriteError, catalog_record_len};
 use crate::column_definition_writer::{PhysicalIndexSpec, validate_physical_index};
-use crate::table_definition_layout::{validate_column_layout, validate_name};
+use crate::page_image::PAGE_BYTES;
+use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
-    ColumnSpec, IndexFieldSpec, PageNumber, PhysicalIndexFlagsSpec, TableDefinitionKind,
-    TableDefinitionWriteError,
+    ColumnPhysicalType, ColumnSpec, IndexFieldSpec, PageNumber, PhysicalIndexFlagsSpec,
+    TableDefinitionKind, TableDefinitionWriteError,
 };
 
 /// Index count `EXP-0087` observed on a created table.
@@ -43,6 +44,8 @@ const MAX_OBSERVED_INDEXES: usize = 1;
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// Row slot the planned table's own usage map takes on its map page.
 const OWNED_MAP_ROW: u8 = 0;
+/// Bytes of a definition the root page holds; longer needs a continuation.
+const DEFINITION_ROOT_CAPACITY: usize = PAGE_BYTES;
 
 /// Whether a planned index is the table's primary one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +99,14 @@ pub(crate) enum TableSchemaPlanError {
     Definition(TableDefinitionWriteError),
     /// The table declares no columns.
     NoColumns,
+    /// The definition needs a continuation page, whose placement no experiment
+    /// has established.
+    DefinitionNeedsContinuation {
+        /// Encoded definition length.
+        length: usize,
+        /// Bytes the definition root page holds.
+        capacity: usize,
+    },
     /// `EXP-0087` observed no create carrying this many indexes.
     UnobservedIndexCount {
         /// Declared index count.
@@ -195,6 +206,7 @@ pub(crate) fn plan_table_schema(
     }
     validate_column_layout(spec.columns, TableDefinitionKind::User, &[])
         .map_err(TableSchemaPlanError::Definition)?;
+    validate_definition_fits_root(spec)?;
     let plan = assign_pages(spec, first_page)?;
     validate_indexes(spec, &plan)?;
     Ok(plan)
@@ -204,6 +216,40 @@ pub(crate) fn plan_table_schema(
 fn validate_table_name(name: &[u8]) -> Result<(), TableSchemaPlanError> {
     validate_catalog_name(name).map_err(TableSchemaPlanError::TableNameKey)?;
     catalog_record_len(name.len()).map_err(TableSchemaPlanError::TableNameRow)?;
+    Ok(())
+}
+
+/// Refuses a definition too long for its root page.
+///
+/// `EXP-0087` observed every create appending a definition root, a map-rows
+/// page, and at most an index root, so no observed definition needed a
+/// continuation page and nothing establishes where one would land.
+fn validate_definition_fits_root(spec: &TableSchemaSpec<'_>) -> Result<(), TableSchemaPlanError> {
+    // The writer requires one long-value map group per Memo or LongBinary
+    // column, so the group count follows from the columns.
+    let long_value_maps = spec
+        .columns
+        .iter()
+        .filter(|column| {
+            matches!(
+                column.physical_type(),
+                ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
+            )
+        })
+        .count();
+    let length = definition_len(
+        spec.columns,
+        spec.indexes.iter().map(|index| index.name),
+        spec.indexes.len(),
+        long_value_maps,
+    )
+    .map_err(TableSchemaPlanError::Definition)?;
+    if length > DEFINITION_ROOT_CAPACITY {
+        return Err(TableSchemaPlanError::DefinitionNeedsContinuation {
+            length,
+            capacity: DEFINITION_ROOT_CAPACITY,
+        });
+    }
     Ok(())
 }
 

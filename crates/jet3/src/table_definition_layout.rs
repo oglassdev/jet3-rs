@@ -5,14 +5,81 @@
 //! carrying its own copy of the rules.
 
 use crate::column_definition_writer::{
-    ColumnSpec, MAX_NAME_LEN, SystemColumnClassSpec, resolve_column,
+    COLUMN_RECORD_LEN, ColumnSpec, LOGICAL_RECORD_LEN, MAX_NAME_LEN, PHYSICAL_PREFIX_LEN,
+    PHYSICAL_RECORD_LEN, SystemColumnClassSpec, resolve_column,
 };
 use crate::data_page_directory::MAX_STORED_ROW_LEN;
 use crate::table_definition_writer::TableDefinitionWriteError;
 use crate::{Error, TableDefinitionKind};
 
+use crate::LONG_VALUE_MAP_GROUP_LEN;
+
 /// `EXP-0060`: the one-byte row column count bounds a table's columns.
 const MAX_COLUMN_COUNT: usize = u8::MAX as usize;
+/// `EXP-0059`: fixed bytes before the first physical-index record.
+const DEFINITION_HEADER_LEN: usize = 43;
+/// `EXP-0059`: the two-byte end-of-definition marker.
+const TERMINATOR_LEN: usize = 2;
+
+/// Returns the exact logical length of the definition this shape encodes to.
+///
+/// The length depends only on the counts and name lengths, never on the pages
+/// the definition names, so a planner can measure a definition before it has
+/// assigned any.
+pub(crate) fn definition_len<'a>(
+    columns: &[ColumnSpec<'_>],
+    index_names: impl ExactSizeIterator<Item = &'a [u8]>,
+    physical_index_count: usize,
+    long_value_map_count: usize,
+) -> Result<usize, TableDefinitionWriteError> {
+    if columns.len() > MAX_COLUMN_COUNT {
+        return Err(TableDefinitionWriteError::TooManyColumns {
+            count: columns.len(),
+            maximum: MAX_COLUMN_COUNT,
+        });
+    }
+    for (role, count) in [
+        ("physical", physical_index_count),
+        ("logical", index_names.len()),
+    ] {
+        if u16::try_from(count).is_err() {
+            return Err(TableDefinitionWriteError::TooManyIndexes { role, count });
+        }
+    }
+    let too_long = || TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX };
+    let mut total = DEFINITION_HEADER_LEN;
+    let mut add = |amount: usize| -> Result<(), TableDefinitionWriteError> {
+        total = total.checked_add(amount).ok_or_else(too_long)?;
+        Ok(())
+    };
+    add(physical_index_count
+        .checked_mul(PHYSICAL_PREFIX_LEN + PHYSICAL_RECORD_LEN)
+        .ok_or_else(too_long)?)?;
+    add(columns
+        .len()
+        .checked_mul(COLUMN_RECORD_LEN)
+        .ok_or_else(too_long)?)?;
+    for column in columns {
+        add(1)?;
+        add(column.name().len())?;
+    }
+    add(index_names
+        .len()
+        .checked_mul(LOGICAL_RECORD_LEN)
+        .ok_or_else(too_long)?)?;
+    for name in index_names {
+        add(1)?;
+        add(name.len())?;
+    }
+    add(long_value_map_count
+        .checked_mul(LONG_VALUE_MAP_GROUP_LEN)
+        .ok_or_else(too_long)?)?;
+    add(TERMINATOR_LEN)?;
+    if u32::try_from(total).is_err() {
+        return Err(TableDefinitionWriteError::DefinitionTooLong { length: total });
+    }
+    Ok(total)
+}
 
 /// Validates every column name and class and checks that the row layout they
 /// imply still admits an all-null row in one data-page row slot.

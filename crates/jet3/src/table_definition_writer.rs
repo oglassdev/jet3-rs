@@ -9,12 +9,11 @@
 use std::fmt;
 
 use crate::column_definition_writer::{
-    COLUMN_RECORD_LEN, ColumnSpec, ColumnStorageKind, LOGICAL_RECORD_LEN, LogicalIndexKindSpec,
-    LogicalIndexSpec, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, PhysicalIndexSpec,
+    ColumnSpec, ColumnStorageKind, LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec,
     SystemColumnClassSpec, physical_flags, resolve_column, validate_physical_index,
     write_column_record, write_logical_record, write_name, write_physical_record,
 };
-use crate::table_definition_layout::{validate_column_layout, validate_name};
+use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
     BinaryWriter, ByteCount, ColumnPhysicalType, Error, MapRowLocator, PageNumber, ResourceBudget,
     TableDefinitionKind,
@@ -23,7 +22,6 @@ use crate::{
 /// `EXP-0059`: four-byte definition page prefix.
 const DEFINITION_PREFIX: [u8; 4] = [0x02, 0x01, 0x56, 0x43];
 /// `EXP-0059`: fixed header before the physical-index prefixes.
-const DEFINITION_HEADER_LEN: usize = 43;
 /// `EXP-0059`: byte 20 marker.
 const USER_HEADER_MARKER: u8 = 0x4e;
 /// `EXP-0073`: byte 20 of every observed system definition.
@@ -328,63 +326,12 @@ impl std::error::Error for TableDefinitionWriteError {
 pub fn table_definition_len(
     spec: &TableDefinitionSpec<'_>,
 ) -> Result<usize, TableDefinitionWriteError> {
-    if spec.columns.len() > MAX_COLUMN_COUNT {
-        return Err(TableDefinitionWriteError::TooManyColumns {
-            count: spec.columns.len(),
-            maximum: MAX_COLUMN_COUNT,
-        });
-    }
-    for (role, count) in [
-        ("physical", spec.physical_indexes.len()),
-        ("logical", spec.indexes.len()),
-    ] {
-        if u16::try_from(count).is_err() {
-            return Err(TableDefinitionWriteError::TooManyIndexes { role, count });
-        }
-    }
-    let mut total = DEFINITION_HEADER_LEN;
-    let mut add = |amount: usize| -> Result<(), TableDefinitionWriteError> {
-        total = total
-            .checked_add(amount)
-            .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-        Ok(())
-    };
-    let physical_bytes = spec
-        .physical_indexes
-        .len()
-        .checked_mul(PHYSICAL_PREFIX_LEN + PHYSICAL_RECORD_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-    add(physical_bytes)?;
-    let column_bytes = spec
-        .columns
-        .len()
-        .checked_mul(COLUMN_RECORD_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-    add(column_bytes)?;
-    for column in spec.columns {
-        add(1)?;
-        add(column.name().len())?;
-    }
-    let logical_bytes = spec
-        .indexes
-        .len()
-        .checked_mul(LOGICAL_RECORD_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-    add(logical_bytes)?;
-    for index in spec.indexes {
-        add(1)?;
-        add(index.name.len())?;
-    }
-    add(spec
-        .long_value_maps
-        .len()
-        .checked_mul(crate::LONG_VALUE_MAP_GROUP_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?)?;
-    add(TERMINATOR.len())?;
-    if u32::try_from(total).is_err() {
-        return Err(TableDefinitionWriteError::DefinitionTooLong { length: total });
-    }
-    Ok(total)
+    definition_len(
+        spec.columns,
+        spec.indexes.iter().map(|index| index.name),
+        spec.physical_indexes.len(),
+        spec.long_value_maps.len(),
+    )
 }
 
 /// Encodes the logical definition into `output`, returning the encoded length.

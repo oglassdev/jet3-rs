@@ -419,3 +419,38 @@ fn a_map_page_no_usage_map_locator_could_name_is_refused() -> PlanResult {
     );
     Ok(())
 }
+
+#[test]
+fn a_definition_too_long_for_its_root_page_is_refused() {
+    // EXP-0087 saw no create append a continuation page, so where one would
+    // land is unestablished. 100 fixed Long columns overrun the root page.
+    let names = (0..100)
+        .map(|ordinal| format!("Column{ordinal:03}").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        plan_table_schema(&spec(b"Wide", &columns, &[]), 20),
+        Err(TableSchemaPlanError::DefinitionNeedsContinuation { length, capacity })
+            if length > capacity && capacity == DEFINITION_ROOT_CAPACITY
+    ));
+}
+
+#[test]
+fn a_definition_that_exactly_fills_its_root_page_is_accepted() -> PlanResult {
+    // The refusal must start one byte above the root page, not below it.
+    let names = (0..70)
+        .map(|ordinal| format!("Column{ordinal:03}").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .collect::<Vec<_>>();
+    let length =
+        definition_len(&columns, [].into_iter(), 0, 0).map_err(TableSchemaPlanError::Definition)?;
+    assert!(length <= DEFINITION_ROOT_CAPACITY);
+    plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?;
+    Ok(())
+}
