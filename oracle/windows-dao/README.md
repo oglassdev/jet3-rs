@@ -142,11 +142,13 @@ Record the validated outcome once as an additive `EXP-` entry. A failure after
 the first DAO mutation is a scientific result and must not be retried without
 a human decision.
 
-The issue #151 `definition-continuation` SHA-256-pinned local job uses one fresh empty
-base per replica and exact 69-, 70-, and 140-field first-create arms to bracket
-the 2,048-byte root capacity and cross the root-plus-continuation capacity by
-17 bytes. Its
-publisher retains an exact ordered prefix and at most the active arm's bounded
-recovery image; its analyzer requires complete chain, page-role, schema,
-identity, and replica correlation. The preregistration does not assume
-consecutive continuation placement or a single-page catalog `LvProp`.
+The issue #151 `definition-continuation` SHA-256-pinned local job used one fresh
+empty base per replica and exact 69-, 70-, and 140-field first-create arms to
+bracket the 2,048-byte root capacity and cross the root-plus-continuation
+capacity by 17 bytes. Its publisher retains an exact ordered prefix and at most
+the active arm's bounded recovery image; its analyzer requires complete chain,
+page-role, schema, identity, and replica correlation. The preregistration does
+not assume consecutive continuation placement or a single-page catalog
+`LvProp`. `EXP-0095` records a canonical `no_outcome`: the 69-field arm failed
+the combined geometry/64-page capture bound in all three replicas, so no
+created-arm bytes or continuation placement were retained.

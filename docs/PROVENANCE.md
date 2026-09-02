@@ -8502,6 +8502,86 @@ Use `not applicable` explicitly rather than omitting a field.
   fixed before pinning.
 
 
+### EXP-0095 — No-outcome definition-continuation DAO result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO `no_outcome`
+  derived from a canonical analyzer report
+- Question: for the exact 69-, 70-, and 140-field first-create controls
+  preregistered by `EXP-0094`, where does DAO place and how does it chain zero,
+  one, and two table-definition continuation pages?
+- Origin: project-authored clean-room experiment using the exact `EXP-0094`
+  bytes merged as commit `3b4b823a1b13ba6874c5f553c1d3325c617db42b`
+  (PR `#162`) and plan SHA-256
+  `9acd16d15c911f6552347271ab55827c7936ba829e3d10f190d6b9fe1a4d86e1`.
+  The user explicitly authorized local experiments. Run ID
+  `20260902T201059Z-dev-dao` was dispatched exactly once; no retry occurred.
+  That dispatch count is the observed operator action, not a fact derived from
+  the retained artifacts.
+- Input identity: the retained staged plan matched the plan SHA-256 above, and
+  all eight staged inputs matched the SHA-256 identities embedded in that
+  plan. The staged producer and analyzer identities were respectively
+  `7e812dec1b76c801d6e307e503f43a6d11c34e2e71195aad7ba8386f5223ed5e`
+  and
+  `240259fe0d8d93087d0f36255e7ef8d47fc3940a70ea03bdb178ce9311a72fd6`.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Guest embedded UTC timestamps were seven hours ahead of the host run/report
+  clock while reporting Pacific UTC-07:00; they are retained as reported but
+  are not used as ordering or identity evidence.
+- Producer result: all three replicas created, closed, retained, and
+  metadata-checked their fresh 20-page empty controls without byte changes.
+  Each then reached `capture_zero` after the 69-field arm's DAO append. The
+  copied arm failed the producer's combined 2-KiB geometry/64-page bound, and
+  recovery retention failed the same check. The result does not preserve the
+  arm bytes or distinguish which clause of that combined bound failed. Each
+  replica therefore retained only its empty checkpoint; the 70- and 140-field
+  DAO table appends were not attempted.
+- Analyzer result: the pinned analyzer accepted the exact failure-state and
+  three-file inventory contract and wrote a deterministic canonical report
+  with top-level status `no_outcome`. All five questions—continuation counts,
+  placement, counters, producer outcome, and replication—are `no_outcome`
+  because no completed created checkpoint was retained. Rerunning both the
+  staged and merged analyzers reproduced the report byte-for-byte.
+- JSON artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `921a618c04af7206e0539f043499e985865274eb642aaf75bc3b0fe6689bbf9d`;
+  external `definition-continuation-job-result.json`, 12,934 bytes, SHA-256
+  `cc76b1fd197dc4aee45ef096a4c492e19ea41c4d4ee03f734adc46f579228ac5`;
+  external `result.json`, 17,746 bytes, SHA-256
+  `51536ed8a5ddc4ed3c833a74f64f0372805ea98b5de1fb4392733c85ab55f238`;
+  external canonical `definition-continuation-report.json`, 3,227 bytes,
+  SHA-256
+  `880c5126a332f6c67ae9b01107a354f252b88e30a1d216a71e4d368d57369a0b`.
+- Retained MDB identities: replica 1 empty, 40,960 bytes, SHA-256
+  `5ed3fc11013c0d07e838ffd86ae14508d072830ebf4769d4565001c27333a3c4`;
+  replica 2 empty, 40,960 bytes, SHA-256
+  `e7ea66818445cebc37f264c57b2bee3f3d5ab51b129fd66ef26177e06f63d82e`;
+  replica 3 empty, 40,960 bytes, SHA-256
+  `8d7295d726bf2ac56a2775d4431b9ed578dec19a801b8cfe77abb70d251cc3c7`.
+  No created-arm MDB was published or retained as evidence.
+- Interpretation: this result establishes no continuation count, placement,
+  pointer, page-role, page-zero, map, catalog-property, allocation, or writer
+  fact. It shows only that the exact `EXP-0094` capture bound did not retain a
+  created checkpoint after the 69-field append-and-close path returned. Issue
+  `#151` remains evidence-blocked. A successor must prospectively change and
+  repin the capture bound; because the first DAO mutation occurred, it also
+  requires a new explicit human decision before one new run.
+- Usage: issue `#151`; `EXP-0094`; future separately preregistered successor
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: two independent review/fix passes completed on 2026-09-02 over
+  artifact identity, failure state, report reproduction, issue tracking,
+  evidence boundaries, and non-reinterpretation. Findings on the combined
+  bound, append/close evidence, copied-versus-mutated later arms, dispatch-count
+  provenance, and the reopened issue state were resolved; final reviews
+  reported no remaining findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
