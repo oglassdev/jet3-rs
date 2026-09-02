@@ -43,17 +43,21 @@ delivered in this order:
 
 ## Current next step
 
-Finish #100. The typed table planner is merged: it validates a described
-table through the same table-definition and catalog encoders that will write
-it, and assigns the `EXP-0087` appended pages. The key encoder and the planner
-now derive what the composer used to carry as recorded bytes.
+Finish the focused writer experiments before exposing the creation API. The
+typed table planner and one-table composer are merged: a described table is
+validated through the same table-definition and catalog encoders that write
+it, and its pages, catalog row, and access-control rows derive from `EXP-0087`.
+The composer still requires a caller-supplied `LvProp` payload because only its
+framing, not a general grammar, is established.
 
-Wiring the composer to emit planned tables is the next slice, followed by a
-public creation API, initial rows, relationships, and safe filesystem
-publication. That slice has to place the long-value page `EXP-0087` observed
-only on a database's first create, which the planner does not assign. Still
-fixed rather than ruled: the composer's page-zero opaque region, the `LvProp`
-payloads, and the per-create catalog/ACE row writing.
+Issue #149 is first: test whether DAO accepts one exact composed Alpha image
+with a null catalog `LvProp` and an empty retained property page. Acceptance
+would admit that bounded construction as the next implementation hypothesis;
+it would not establish the same result for arbitrary schemas. The remaining
+experiments and implementation slices then proceed in small independently
+reviewed changes: multiple indexes, definition continuation placement,
+extended names, public creation, initial rows, relationships, and safe
+filesystem publication.
 
 Four format gaps each need their own preregistered DAO validation before the
 planner can widen, roughly in priority order: the `LvProp` property grammar

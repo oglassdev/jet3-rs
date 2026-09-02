@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -38,6 +38,12 @@ param(
     [string]$BootstrapComposerAlphaPath,
     [Parameter(Mandatory = $true)]
     [string]$SchemaGeneralizationJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$LvPropNullJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$LvPropFixedAlphaPath,
+    [Parameter(Mandatory = $true)]
+    [string]$LvPropNullAlphaPath,
     [string]$PlanSha256 = "",
     [string]$PlanPath = "",
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
@@ -382,7 +388,7 @@ if ($Job -ceq "table-definition" -and
 foreach ($requiredHelper in @(
     $DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath,
     $BootstrapLayoutJobPath, $SystemCatalogJobPath, $BootstrapComposerValidationJobPath,
-    $SchemaGeneralizationJobPath
+    $SchemaGeneralizationJobPath, $LvPropNullJobPath
 )) {
     if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
         [Console]::Error.WriteLine("INVALID: staged development helper does not exist.")
@@ -399,6 +405,7 @@ $planBoundJobs = @{
     "bootstrap-composer-semantics" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "bootstrap-composer-validation" = "oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1"
     "schema-generalization" = "oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1"
+    "lvprop-null" = "oracle/windows-dao/scripts/dev/LvPropNull.DevJob.ps1"
 }
 if ($planBoundJobs.ContainsKey($Job)) {
     if ($PlanSha256 -cnotmatch "^[0-9a-f]{64}$") {
@@ -423,6 +430,9 @@ if ($planBoundJobs.ContainsKey($Job)) {
     }
     elseif ($Job -ceq "schema-generalization") {
         $SchemaGeneralizationJobPath
+    }
+    elseif ($Job -ceq "lvprop-null") {
+        $LvPropNullJobPath
     }
     else {
         $SystemCatalogJobPath
@@ -466,6 +476,26 @@ if ($planBoundJobs.ContainsKey($Job)) {
             }
         }
     }
+    elseif ($Job -ceq "lvprop-null") {
+        foreach ($candidate in @(
+            [pscustomobject]@{ role = "candidate_fixed"; path = $LvPropFixedAlphaPath },
+            [pscustomobject]@{ role = "candidate_null"; path = $LvPropNullAlphaPath }
+        )) {
+            $expected = $plan.candidates.PSObject.Properties[[string]$candidate.role]
+            if ($null -eq $expected -or
+                -not (Test-Path -LiteralPath $candidate.path -PathType Leaf)) {
+                [Console]::Error.WriteLine("INVALID: LvProp-null candidate is missing or unpinned.")
+                exit 2
+            }
+            $size = (Get-Item -LiteralPath $candidate.path).Length
+            $digest = (Get-FileHash -LiteralPath $candidate.path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($size -ne [long]$expected.Value.size -or
+                $digest -cne [string]$expected.Value.sha256) {
+                [Console]::Error.WriteLine("INVALID: LvProp-null candidate differs from its plan.")
+                exit 2
+            }
+        }
+    }
 }
 
 $runRoot = Join-Path ([IO.Path]::GetFullPath($GuestOutputRoot)) ("runs\" + $RunId)
@@ -499,6 +529,8 @@ $valueScenarios = @()
 $indexScenarios = @()
 $bootstrapLayoutReplicas = @()
 $systemCatalogReplicas = @()
+$schemaGeneralizationReplicas = @()
+$lvpropNullReplicas = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -724,7 +756,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -741,6 +773,9 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             -BootstrapComposerEmptyPath $BootstrapComposerEmptyPath `
             -BootstrapComposerAlphaPath $BootstrapComposerAlphaPath `
             -SchemaGeneralizationJobPath $SchemaGeneralizationJobPath `
+            -LvPropNullJobPath $LvPropNullJobPath `
+            -LvPropFixedAlphaPath $LvPropFixedAlphaPath `
+            -LvPropNullAlphaPath $LvPropNullAlphaPath `
             -PlanSha256 $PlanSha256 -RunId $RunId
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
@@ -761,6 +796,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             $bootstrapLayoutReplicas = @($dispatchResult.bootstrap_layout_replicas)
             $systemCatalogReplicas = @($dispatchResult.system_catalog_replicas)
             $schemaGeneralizationReplicas = @($dispatchResult.schema_generalization_replicas)
+            $lvpropNullReplicas = @($dispatchResult.lvprop_null_replicas)
             $status = [string]$dispatchResult.status
             $detail = [string]$dispatchResult.detail
             $exitCode = $dispatchExitCode
@@ -793,6 +829,7 @@ $result = [ordered]@{
     bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
     system_catalog_replicas = @($systemCatalogReplicas)
     schema_generalization_replicas = @($schemaGeneralizationReplicas)
+    lvprop_null_replicas = @($lvpropNullReplicas)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

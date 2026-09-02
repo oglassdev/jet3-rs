@@ -149,6 +149,7 @@ impl<'a> PlannedCreate<'a> {
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
+        lvprop: super::CreatedLvProp,
         budget: &mut ResourceBudget,
     ) -> Result<(), BootstrapComposeError> {
         let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
@@ -158,7 +159,11 @@ impl<'a> PlannedCreate<'a> {
             let owner = self.plan.definition_root().get();
             plan.append(empty_index_page(owner, budget)?, &mut append_map, budget)?;
         }
-        plan.append(self.long_value_page_image(budget)?, &mut append_map, budget)?;
+        plan.append(
+            self.long_value_page_image(lvprop, budget)?,
+            &mut append_map,
+            budget,
+        )?;
         Ok(())
     }
 
@@ -245,10 +250,13 @@ impl<'a> PlannedCreate<'a> {
 
     fn long_value_page_image(
         &self,
+        lvprop: super::CreatedLvProp,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, BootstrapComposeError> {
         let mut builder = DataPageBuilder::new_long_value(budget)?;
-        builder.append_row(self.create.properties, budget)?;
+        if lvprop == super::CreatedLvProp::External {
+            builder.append_row(self.create.properties, budget)?;
+        }
         finish_data_builder(builder, budget)
     }
 }

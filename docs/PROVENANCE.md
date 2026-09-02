@@ -7834,6 +7834,81 @@ Use `not applicable` explicitly rather than omitting a field.
   decision-rule, evidence-boundary, and false-claim review
 
 
+### EXP-0088 — Preregistered null-LvProp acceptance experiment
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has occurred under this plan
+- Question: across three fresh replicas, does DAO 3.6 consume unchanged an
+  otherwise fixed `Alpha(Id Long)` composer image whose catalog `LvProp` is
+  physically null, while the observed first-create page layout and map
+  references are retained and page 22 is an empty `LVAL` page?
+- Origin: project-authored clean-room successor for issue `#149`, using only
+  `EXP-0061`, `EXP-0085`, and `EXP-0087` as recorded above. The exact fixed
+  candidate is the `EXP-0085` image; the null candidate is a preregistered
+  discriminator and not an admitted format fact.
+- Motivation: `EXP-0087` observed a non-null property payload on every created
+  table but did not derive its grammar. This experiment tests the cheapest
+  bounded alternative needed by the composer: whether a null catalog value is
+  accepted without also guessing that the observed first-create long-value
+  page or its map ownership may be omitted.
+- Protocol: before any DAO mutation, generate, stage, and identity-check three
+  copies apiece of the fixed and null candidates. For each of three replicas,
+  create and close one fresh DAO Jet 3 `Alpha(Id Long)` control, then read the
+  fixed candidate, null candidate, and fresh control through the same ordered,
+  bounded endpoints. Candidate databases are opened read-only and hashed
+  immediately before and after access. The endpoint set covers database
+  version, exact table inventory and name lookup, exact `Id` field lookup and
+  bounded sorted property enumeration, an empty snapshot, and exact container
+  document lookup and inventory. Retain up to nine MDBs externally, exactly
+  nine for a passing job.
+- Preregistration artifacts:
+  `oracle/windows-dao/acquisition/lvprop-null.plan.json`, SHA-256
+  `36c2b86a317297f408f606131fa0f58d7ea305ad7daedd0ec7a31eb17cd513e3`,
+  and `oracle/windows-dao/acquisition/lvprop-null.sources.json`, SHA-256
+  `3493b9937a53daa5c38d409c7af9ebe4694ba609b26b66259f7dac7214b67d76`.
+  The plan pins every host and guest input, including producer SHA-256
+  `952066d689df5daa87723826912c95707357910f4a6cca450471648ac3755236`
+  and analyzer SHA-256
+  `a277cc1e0ed777aca0a3e95830740bcdc83de5c6771169ef4585f778aeef192c`.
+  It also pins the 47,104-byte fixed candidate as
+  `b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2`
+  and the 47,104-byte null candidate as
+  `c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21`.
+  Focused Rust tests bind their structural differences and reproduce both
+  identities from the pinned source inventory.
+- Observation: `preregistration.acquisition_started` is `false`. The user has
+  explicitly authorized experiments and merging, which permits one dispatch
+  only after these exact reviewed bytes reach `main` and the checked client
+  verifies every pin. There is no automatic retry after the first DAO control
+  mutation; a later failure is a scientific result.
+- Decision rule: the fixed candidate must be `observed_accepted` in all three
+  replicas. The null candidate is answered either when all three replicas pass
+  unchanged and match their same-replica fresh controls, or when all three
+  stop identically at one endpoint or complete unchanged with the same stable
+  semantic mismatch. A fresh or fixed control failure, mutation, replica
+  disagreement, incomplete scientific job, or unclassifiable observation is
+  an honest `no_outcome`; pin, inventory, bound, candidate-identity, or
+  result-integrity defects reject without a canonical report.
+- Interpretation: this entry fixes only an acquisition and analysis contract.
+  It establishes no property grammar, permission to omit page 22 or its map
+  references, acceptance of arbitrary schemas, indexes, relationships, or
+  initial rows, writer or publication correctness, compatibility, hosted
+  differential result, or support-matrix movement.
+- Usage: issue `#149`; `EXP-0061`; `EXP-0085`; `EXP-0087`;
+  `file:oracle/windows-dao/acquisition/lvprop-null.plan.json`;
+  `file:oracle/windows-dao/acquisition/lvprop-null.sources.json`;
+  `file:oracle/windows-dao/scripts/dev/LvPropNull.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/lvprop_null.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: 2026-09-02 protocol, candidate construction, VM wiring, recovery,
+  publisher, analyzer, decision-rule, and evidence-boundary review over three
+  rounds; findings on fixed-positive gating, candidate pre-copying, recovery
+  identity, partial-job retention and bounds, exact MDB inventory, property
+  ordering, and claim scope were resolved before authorization
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
