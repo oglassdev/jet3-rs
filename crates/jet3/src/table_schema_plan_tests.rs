@@ -14,6 +14,18 @@ const LABEL: PlannedColumn<'static> = PlannedColumn {
     storage: ColumnStorageKind::Variable,
     size: 30,
 };
+const NAME: PlannedColumn<'static> = PlannedColumn {
+    name: b"Name",
+    physical_type: ColumnPhysicalType::Text,
+    storage: ColumnStorageKind::Variable,
+    size: 50,
+};
+const NOTE: PlannedColumn<'static> = PlannedColumn {
+    name: b"Note",
+    physical_type: ColumnPhysicalType::Memo,
+    storage: ColumnStorageKind::Variable,
+    size: 0,
+};
 
 fn spec<'a>(
     name: &'a [u8],
@@ -29,8 +41,9 @@ fn spec<'a>(
 
 #[test]
 fn a_table_without_an_index_appends_a_definition_root_and_a_map_page() -> PlanResult {
-    // EXP-0087's Beta create: two appended pages, Id equal to the root page.
-    let columns = [ID];
+    // EXP-0087's Beta create (Long Id, Text(50) Name, Memo Note): two
+    // appended pages, Id equal to the root page.
+    let columns = [ID, NAME, NOTE];
     let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23)?;
     assert_eq!(plan.object_id(), 23);
     assert_eq!(plan.definition_root(), PageNumber::new(23));

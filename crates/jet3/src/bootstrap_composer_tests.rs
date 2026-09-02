@@ -607,9 +607,16 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     assert_eq!(plan.object_id(), ALPHA_ROOT as i32);
     assert_eq!(plan.definition_root(), PageNumber::new(ALPHA_ROOT));
     assert_eq!(plan.map_page(), PageNumber::new(ALPHA_MAP_PAGE));
-    // The planner deliberately plans no long-value page: EXP-0087 observed one
-    // only for a database's first create, and establishes no property grammar.
+    // The accepted Alpha image appends three pages; the planner reports two
+    // because it deliberately plans no long-value page. EXP-0087 observed one
+    // only for a database's first create and establishes no property grammar,
+    // so the composer wiring has to place it.
     assert_eq!(plan.index_root(), None);
     assert_eq!(plan.appended_page_count(), 2);
+    let alpha_pages = bytes(true)?.len() as u64 / JET3_PAGE_SIZE.get();
+    assert_eq!(
+        alpha_pages,
+        EMPTY_DATABASE_PAGE_COUNT + plan.appended_page_count() + 1
+    );
     Ok(())
 }

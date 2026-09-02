@@ -11,8 +11,11 @@
 //! extrapolating an ordering nobody has observed.
 //!
 //! `EXP-0087` establishes no property grammar beyond the pinned framing, so
-//! this module plans no `LvProp` payload. It also establishes no `Id`
-//! allocation rule beyond the observed equality with the definition root page.
+//! this module plans no `LvProp` payload and no long-value page. `EXP-0087`
+//! observed that a database's first create also appends a long-value page, so
+//! a caller composing that first create must account for it separately. It
+//! also establishes no `Id` allocation rule beyond the observed equality with
+//! the definition root page.
 
 #![allow(
     dead_code,
@@ -22,12 +25,13 @@
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, validate_catalog_name};
+use crate::physical_index_definition::KEY_SLOT_COUNT;
 use crate::{ColumnPhysicalType, ColumnStorageKind, PageNumber};
 
-/// Largest column count a planned table may carry.
+/// `EXP-0060`: one-byte column count, so at most 255 columns.
 const MAX_COLUMNS: usize = 255;
-/// Largest field count one planned index may carry.
-const MAX_INDEX_FIELDS: usize = 10;
+/// `EXP-0059`: one key slot per indexed column in the physical definition.
+const MAX_INDEX_FIELDS: usize = KEY_SLOT_COUNT;
 /// Index count `EXP-0087` observed on a created table.
 const MAX_OBSERVED_INDEXES: usize = 1;
 
@@ -209,7 +213,8 @@ impl TableSchemaPlan {
         self.index_root
     }
 
-    /// Returns how many pages the create appends.
+    /// Returns how many pages the create appends, excluding the long-value
+    /// page `EXP-0087` observed only on a database's first create.
     pub(crate) const fn appended_page_count(&self) -> u64 {
         if self.index_root.is_some() { 3 } else { 2 }
     }

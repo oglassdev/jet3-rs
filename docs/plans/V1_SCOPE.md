@@ -50,9 +50,11 @@ appended-page assignment. The key encoder and the typed table planner now
 derive what the composer used to carry as recorded bytes.
 
 What is still fixed rather than ruled: the composer's page-zero opaque region,
-the `LvProp` payloads, and the per-create catalog/ACE row writing. Wiring the
-composer to emit planned tables is the next slice, followed by a public
-creation API, initial rows, relationships, and safe filesystem publication.
+the `LvProp` payloads, and the per-create catalog/ACE row writing. The planner
+also assigns no long-value page, which `EXP-0087` observed only on a
+database's first create. Wiring the composer to emit planned tables, including
+that first-create page, is the next slice, followed by a public creation API,
+initial rows, relationships, and safe filesystem publication.
 
 Two gaps need their own focused DAO validation before the planner can widen:
 table names containing bytes above `0x7E`, whose secondary weights and
