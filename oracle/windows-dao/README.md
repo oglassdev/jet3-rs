@@ -141,3 +141,12 @@ DAO, and the host analyzer writes the canonical report after publication.
 Record the validated outcome once as an additive `EXP-` entry. A failure after
 the first DAO mutation is a scientific result and must not be retried without
 a human decision.
+
+The issue #151 `definition-continuation` draft local job uses one fresh empty
+base per replica and exact 69-, 70-, and 140-field first-create arms to bracket
+the 2,048-byte root capacity and cross the root-plus-continuation capacity by
+17 bytes. Its
+publisher retains an exact ordered prefix and at most the active arm's bounded
+recovery image; its analyzer requires complete chain, page-role, schema,
+identity, and replica correlation. The preregistration does not assume
+consecutive continuation placement or a single-page catalog `LvProp`.

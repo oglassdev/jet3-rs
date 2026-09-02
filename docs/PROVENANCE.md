@@ -8382,6 +8382,111 @@ Use `not applicable` explicitly rather than omitting a field.
   no findings.
 
 
+### EXP-0094 — Draft table-definition continuation placement preregistration
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-placeholder, development-only local DAO preregistration draft;
+  acquisition is forbidden until exact pins replace every placeholder, review
+  is complete, the result is committed and merged, and a human explicitly
+  authorizes one run
+- Question: across three replicas beginning from identity-checked copies of one
+  fresh empty Jet 3 database apiece, where does DAO place and how does it chain
+  exactly zero, one, and two table-definition continuation pages?
+- Origin: project-authored clean-room experiment for issue `#151`, using only
+  the bounded definition grammar recorded by `EXP-0059`, the catalog and page
+  correlation recorded by `EXP-0073`, and the empty first-create framing in
+  `EXP-0087` and `EXP-0093`. The 2,048-byte definition-root capacity, 2,040-byte
+  continuation contribution, 18-byte physical-column records, and one-byte
+  name length followed by CP1252 bytes yield exact no-index logical lengths
+  `45 + 29n` for the fixed ten-byte names below. Earlier boundary placement is
+  design input only; it does not establish the requested DAO placement.
+- Controlled design: every arm uses only fixed `dbLong` fields, no index, no
+  rows, and equal eight-byte ASCII table names. Every field name is ten ASCII
+  bytes at or below `0x7E`: `F000AAAAAA` through the arm's final ordinal. The
+  `zero` arm has 69 fields and logical length 2,046, two bytes below the root
+  capacity. The `one` arm has 70 fields and logical length 2,075, crossing that
+  capacity by 27 bytes. The `two` arm has 140 fields and logical length 4,105,
+  crossing the root plus one continuation capacity of 4,088 by 17 bytes. These
+  require zero, one, and two continuation contributions under the recorded
+  grammar without using an extended name byte or exceeding DAO's field count.
+- Protocol: each of three replicas creates and closes one fresh CP1252
+  `dbVersion30` database, retains it as `empty`, then copies and identity-checks
+  it into independent `zero`, `one`, and `two` working arms before mutation.
+  Each arm receives exactly one `TableDefs.Append` and is closed before copying
+  and bounded read-only DAO metadata capture. A passing run retains four MDBs
+  per replica, exactly twelve total. Every image is hashed and sized before and
+  after metadata access; every arm records its pre-mutation identity. The
+  producer records `mutation_started`, a bounded phase, an ordered checkpoint
+  prefix, and at most the active arm's recovery image, then stops that replica
+  after a failure. A pre-mutation failure may stop the run after replica one;
+  any post-mutation result must contain all three replica records.
+- Analysis: the analyzer validates the exact result shape, plan binding, file
+  type, name, inventory, size, digest, ordered checkpoint prefix, active-arm
+  recovery, phase, mutation state, DAO schema, and unchanged metadata identity.
+  It widens only the shared decoder's per-process work bound from 64 to 140
+  columns; the admitted byte grammar is unchanged. It decodes every definition
+  page and pointer, requires the controls' exact zero/one/two continuation
+  counts, records each page's logical interval/capacity/used bytes, identifies
+  the catalog object ID with the definition root, records table maps and the
+  page-0 counter before/after/delta, and requires a recorded role and owner for
+  every appended page. Nonconsecutive continuation placement is accepted when
+  the complete chain and all page roles correlate. Because a wide catalog
+  `LvProp` may itself change storage class, analysis preserves its raw 12-byte
+  header, classifies only the `EXP-0061` inline/single/chained flag, and for an
+  external value validates the bounded locator chain, exact declared payload
+  length, terminal pointer, active attributed `LVAL` rows, and total appended
+  `LVAL` inventory; it does not preregister a single-page property assumption.
+- Questions:
+  - Counts: do exact logical lengths 2,046, 2,075, and 4,105 carry zero, one,
+    and two continuation pages?
+  - Placement: where do the root and continuation pages land relative to the
+    empty boundary, what pointer order and logical chunks do they carry, and
+    what role and owner accounts for every appended page?
+  - Counters: what page-0 counter values and deltas accompany each bounded
+    create and catalog object ID, without assigning an unrecorded semantic?
+  - Replication: do all complete relative observations agree across replicas?
+- Decision rule: an `accepted` report requires final exact plan and input pins,
+  three complete replicas, exact four-checkpoint inventories, pre-mutation arm
+  identity, unchanged metadata bytes, exact DAO schemas, fully decoded chains
+  with the required continuation counts, total appended-page attribution,
+  counter/catalog-root observations, and identical complete relative
+  observations. A fully decoded nonconsecutive layout is answered evidence.
+  Changed bytes, schema or replica disagreement, an unexpected continuation
+  count, incomplete decoding or page attribution, ambiguous correlation, or a
+  post-mutation producer failure is `no_outcome`. A stable same-arm DAO refusal
+  may be recorded only as a bounded rejection when all retained prior and
+  active-arm bytes fully correlate; it cannot answer an unattempted later arm.
+  A pre-mutation failure, pin/inventory/bound violation, inconsistent producer
+  state, or result-contract defect rejects validation without a scientific
+  answer. No retry is permitted after the first DAO mutation without a renewed
+  explicit human decision.
+- Preregistration artifacts: draft plan
+  `oracle/windows-dao/acquisition/definition-continuation.plan.json`; producer
+  `oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`; analyzer
+  `oracle/windows-dao/scripts/definition_continuation.py`; shared host, guest,
+  dispatch, publication, focused contract-test, recipe, and documentation
+  changes. All eight plan input hashes and the plan hash remain deliberate
+  64-zero placeholders in this draft and convey no acquisition authority.
+- Interpretation: a later accepted result may establish continuation count,
+  placement, pointer order, page roles, and counter observations only for these
+  exact empty first-create fixed-Long schemas through 140 fields and two
+  continuation pages. It cannot establish longer chains, other field types or
+  name lengths, indexed or populated wide definitions, long-value property
+  grammar, general allocation or free-page reuse, continuation writing,
+  extended names, public creation, initial rows, relationships, filesystem
+  publication, writer correctness, general Jet 3 or DAO compatibility, hosted
+  differential #102, or support-matrix movement.
+- Usage: future result for issue `#151`; `EXP-0059`; `EXP-0073`; `EXP-0087`;
+  `EXP-0093`; `file:oracle/windows-dao/acquisition/definition-continuation.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/definition_continuation.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent protocol, boundary-calculation, producer,
+  analyzer, routing, publication, failure-state, evidence-boundary, and
+  false-claim review before pins may be finalized
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

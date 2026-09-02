@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -375,6 +375,97 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Multiple-indexes MDB inventory differs from its result."
+        }
+        foreach ($name in $actual) {
+            [void]$names.Add($name)
+        }
+    }
+    "definition-continuation" {
+        [void]$names.Add("definition-continuation-job-result.json")
+        $jobResultPath = Join-Path $Source "definition-continuation-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Definition-continuation result is missing."
+        }
+        if ((Get-Item -LiteralPath $jobResultPath).Length -gt 4194304) {
+            throw "Definition-continuation result exceeds the 4-MiB bound."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $checkpointNames = @("empty", "zero", "one", "two")
+        $referenced = New-Object Collections.ArrayList
+        $seenReplicas = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            $replicaNumber = [int]$replica.replica
+            if ($replicaNumber -lt 1 -or $replicaNumber -gt 3 -or
+                $replicaNumber -ne ($seenReplicas.Count + 1) -or
+                $replicaNumber -cin $seenReplicas) {
+                throw "Definition-continuation result has an unexpected replica inventory."
+            }
+            [void]$seenReplicas.Add($replicaNumber)
+            $checkpointIndex = 0
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                if ($checkpointIndex -ge $checkpointNames.Count) {
+                    throw "Definition-continuation result exceeds the four-checkpoint bound."
+                }
+                $checkpointName = $checkpointNames[$checkpointIndex]
+                $expectedDatabase = "definition-continuation-r$replicaNumber-$checkpointName.mdb"
+                if ([string]$checkpoint.name -cne $checkpointName -or
+                    [string]$checkpoint.database -cne $expectedDatabase) {
+                    throw "Definition-continuation checkpoints are not an ordered prefix."
+                }
+                [void]$referenced.Add($expectedDatabase)
+                $checkpointIndex++
+            }
+            $recovery = @($replica.recovery)
+            if ($recovery.Count -gt 1) {
+                throw "Definition-continuation result exceeds the one-recovery-artifact bound."
+            }
+            foreach ($artifact in $recovery) {
+                if ($checkpointIndex -ge $checkpointNames.Count) {
+                    throw "Definition-continuation recovery follows a complete checkpoint inventory."
+                }
+                $expectedName = $checkpointNames[$checkpointIndex]
+                $expectedDatabase = "definition-continuation-r$replicaNumber-$expectedName.mdb"
+                if ([string]$artifact.name -cne $expectedName -or
+                    [string]$artifact.database -cne $expectedDatabase) {
+                    throw "Definition-continuation recovery is not the active next checkpoint."
+                }
+                [void]$referenced.Add($expectedDatabase)
+            }
+            if ([string]$replica.status -ceq "pass" -and
+                ($checkpointIndex -ne $checkpointNames.Count -or $recovery.Count -ne 0)) {
+                throw "Passing definition-continuation replica omits a checkpoint."
+            }
+        }
+        if ($seenReplicas.Count -ne 3) {
+            $preMutationAbort = (
+                $seenReplicas.Count -eq 1 -and
+                [string]$jobResult.status -ceq "fail" -and
+                -not [bool]@($jobResult.replicas)[0].mutation_started
+            )
+            if (-not $preMutationAbort) {
+                throw "Definition-continuation result has an incomplete replica inventory."
+            }
+        }
+        if ($referenced.Count -gt 12) {
+            throw "Definition-continuation output exceeds the 12-database bound."
+        }
+        if ([string]$jobResult.status -ceq "pass" -and $referenced.Count -ne 12) {
+            throw "Passing definition-continuation result omits a database."
+        }
+        $actualItems = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb")
+        foreach ($item in $actualItems) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Definition-continuation output contains a reparse-point MDB."
+            }
+            if ($item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or
+                $item.Length -gt 131072) {
+                throw "Definition-continuation output MDB violates the 64-page bound."
+            }
+        }
+        $actual = @($actualItems | ForEach-Object { $_.Name } | Sort-Object)
+        $expected = @($referenced | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "Definition-continuation MDB inventory differs from its result."
         }
         foreach ($name in $actual) {
             [void]$names.Add($name)

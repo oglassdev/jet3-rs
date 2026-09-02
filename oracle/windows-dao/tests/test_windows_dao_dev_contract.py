@@ -76,6 +76,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "bootstrap-composer-validation",
                 "schema-generalization",
                 "multiple-indexes",
+                "definition-continuation",
                 "lvprop-null",
             ),
         )
@@ -121,6 +122,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 CLIENT.SYSTEM_CATALOG_JOB.name,
                 CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
                 CLIENT.SCHEMA_GENERALIZATION_JOB.name,
+                CLIENT.DEFINITION_CONTINUATION_JOB.name,
                 CLIENT.LVPROP_NULL_JOB.name,
             }
             if CLIENT.MULTIPLE_INDEXES_JOB.is_file():
@@ -249,6 +251,8 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 staged(CLIENT.SCHEMA_GENERALIZATION_JOB),
                 "-MultipleIndexesJobPath",
                 staged(CLIENT.MULTIPLE_INDEXES_JOB),
+                "-DefinitionContinuationJobPath",
+                staged(CLIENT.DEFINITION_CONTINUATION_JOB),
                 "-LvPropNullJobPath",
                 staged(CLIENT.LVPROP_NULL_JOB),
                 "-LvPropFixedAlphaPath",
@@ -375,6 +379,18 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         self.assertEqual(binding.report_name, "multiple-indexes-report.json")
         self.assert_plan_bound_job("multiple-indexes", "MULTIPLE_INDEXES_PLAN")
 
+    def test_definition_continuation_binds_issue_151(self) -> None:
+        binding = CLIENT.plan_binding("definition-continuation")
+        self.assertEqual(binding.issue, 151)
+        self.assertEqual(binding.document_type, "dao_definition_continuation_plan")
+        self.assertEqual(
+            binding.job_result_name, "definition-continuation-job-result.json"
+        )
+        self.assertEqual(binding.report_name, "definition-continuation-report.json")
+        self.assert_plan_bound_job(
+            "definition-continuation", "DEFINITION_CONTINUATION_PLAN"
+        )
+
     def test_lvprop_null_binds_issue_149_and_verifies_a_pinned_plan(self) -> None:
         binding = CLIENT.plan_binding("lvprop-null")
         self.assertEqual(binding.issue, 149)
@@ -470,7 +486,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -565,8 +581,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -586,8 +602,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -598,8 +614,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "lvprop-null")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -873,6 +889,49 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         job = CLIENT.MULTIPLE_INDEXES_JOB.read_text(encoding="utf-8")
         self.assertIn("[ref]$MutationStarted", job)
         self.assertIn("mutation_started = $false", job)
+        self.assertIn('phase = "before_create_database"', job)
+        self.assertIn("size_after_metadata", job)
+
+    def test_definition_continuation_is_bounded_and_exactly_routed(self) -> None:
+        self.assertIn(
+            '"definition-continuation" = "oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1"',
+            self.remote,
+        )
+        self.assertIn(
+            '"definition-continuation" { $DefinitionContinuationJobPath }',
+            self.dispatch,
+        )
+        self.assertIn(
+            '"definition-continuation" { "definition-continuation-job-result.json" }',
+            self.dispatch,
+        )
+        self.assertIn("definition_continuation_replicas", self.dispatch)
+        self.assertIn("definition_continuation_replicas", self.remote)
+        self.assertIn('"definition-continuation" {', self.publication)
+        self.assertIn(
+            '$checkpointNames = @("empty", "zero", "one", "two")',
+            self.publication,
+        )
+        self.assertIn("checkpoints are not an ordered prefix", self.publication)
+        self.assertIn("recovery is not the active next checkpoint", self.publication)
+        self.assertIn("12-database bound", self.publication)
+        self.assertIn("64-page bound", self.publication)
+        binding = CLIENT.plan_binding("definition-continuation")
+        self.assertEqual(binding.plan.name, "definition-continuation.plan.json")
+        self.assertEqual(binding.analyzer.name, "definition_continuation.py")
+        plan = json.loads(binding.plan.read_text(encoding="utf-8"))
+        self.assertEqual(plan["issue"], 151)
+        self.assertEqual(plan["execution"]["checkpoints"], ["empty", "zero", "one", "two"])
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_published_databases"], 12
+        )
+        self.assertEqual(
+            {name: value.count("0") for name, value in plan["inputs"].items()},
+            {name: 64 for name in plan["inputs"]},
+        )
+        job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
+        self.assertIn('$ScenarioFields = @{ zero = 69; one = 70; two = 140 }', job)
+        self.assertIn("[ref]$MutationStarted", job)
         self.assertIn('phase = "before_create_database"', job)
         self.assertIn("size_after_metadata", job)
 
