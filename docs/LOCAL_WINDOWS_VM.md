@@ -144,15 +144,30 @@ failure. The experiment tests this bounded page-assignment matrix;
 it does not establish arbitrary index shapes, writer correctness, compatibility,
 or support.
 
-`definition-continuation` is the SHA-256-pinned development-only experiment for
-issue #151. It cannot run until the exact preregistration is merged and the
-standing human authorization remains in effect. Three replicas each create one fresh empty database,
+`definition-continuation` is the development-only experiment for issue #151.
+`EXP-0095` records that its first run retained no created-arm bytes after the
+combined 64-page capture check failed. The SHA-256-pinned `EXP-0098` successor
+must not run until its exact preregistration commit is merged and a new explicit
+human decision is recorded. Three
+replicas each create one fresh empty database,
 identity-check three pre-mutation copies, and retain closed checkpoints for the
 empty database plus exact 2,046-, 2,075-, and 4,105-byte table definitions. The
 controls require zero, one, and two continuation pages under the recorded
 grammar. Publication accepts exactly those 12 MDBs on success and only an
 ordered per-replica prefix plus the active checkpoint's one bounded recovery
-image after failure. The analyzer records chain pointers, logical chunks,
+image after failure. Ordered `arm_baselines` record every successfully checked
+working copy before any table append; append and capture phases require all
+three, while a `copy_arms` failure may record only its checked prefix.
+Ephemeral base and arm MDBs live under one non-published, non-reparse working
+subdirectory, so a cleanup failure cannot add an unrecorded root artifact.
+Completed checkpoints are limited to 256 pages. Before
+policy enforcement, the producer records exact raw byte length, divisibility,
+derived page count, and failed predicate. An aligned recovery-only image may be
+salvaged through 512 pages with exact size/hash and `interpreted=false`; this
+may include the active `empty` checkpoint after `CreateDatabase` marks mutation
+started. Recovery is not opened or decoded, and every post-mutation failure
+remains `no_outcome`.
+The analyzer records chain pointers, logical chunks,
 appended-page roles, map locators, raw `LvProp` framing, its bounded external
 locator chain when present, referenced versus unreferenced appended LVAL pages,
 and the complete page-0 changed-offset set plus counter values. It presumes neither consecutive

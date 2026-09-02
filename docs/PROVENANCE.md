@@ -8792,6 +8792,102 @@ Use `not applicable` explicitly rather than omitting a field.
   review is pending
 
 
+### EXP-0098 — Definition-continuation bounded-capture successor preregistration
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; acquisition
+  has not occurred and is forbidden until the exact preregistration commit is
+  merged
+- Question: for the unchanged exact 69-, 70-, and 140-field first-create
+  controls from `EXP-0094`, where does DAO place and how does it chain zero,
+  one, and two table-definition continuation pages when completed checkpoints
+  may contain at most 256 pages?
+- Prior evidence and design boundary: `EXP-0095` established only that all
+  three replicas reached `capture_zero` and that the former combined
+  geometry/64-page check retained no created checkpoint. It did not preserve
+  that arm's byte length, divisibility, page count, failed clause, or bytes.
+  `EXP-0059`'s separate wide-table observation referenced zero-based page index
+  172, implying a file of at least 173 pages. That is design input for choosing
+  256, the smallest power of two at least 173, as the completed-checkpoint
+  bound, not evidence about these controls or the failed arm.
+  The existing 512-page schema-generalization file ceiling is reused only as
+  a recovery-salvage bound.
+- Controlled design: the scenario names, order, schemas, questions, and three
+  independent replicas are unchanged from `EXP-0094`. Each replica retains an
+  empty control, copies and identity-checks all three working arms before any
+  table append, then attempts `zero`, `one`, and `two` in order. The producer
+  keeps at most twelve fixed-name ephemeral MDBs in one newly created,
+  non-reparse working subdirectory that root publication never traverses, so a
+  cleanup failure cannot contaminate the retained evidence inventory. It
+  records exact `arm_baselines` in that order; `copy_arms` failure admits only
+  the successfully checked prefix, while every append or capture phase requires
+  all three. Every post-mutation producer failure remains `no_outcome`;
+  stable failures, measured bound failures, and recovered bytes do not answer
+  a scientific question.
+- Measurement and capture: before enforcing checkpoint policy, the producer
+  records the exact raw byte length, whether it is divisible by 2,048, the
+  derived page count when divisible, and the first failed predicate in the
+  fixed order `minimum_page_length`, `page_alignment`, then
+  `checkpoint_bound_exceeded`. Completed checkpoints must be regular,
+  non-reparse files of one through 256 pages and carry the measurement, size,
+  and SHA-256 both before and after bounded read-only DAO metadata access.
+  Failure records preserve a failed measurement even if no MDB can be
+  retained. `failure_measurement` is reachable only during `create_database`
+  after mutation starts, `capture_empty`, `copy_arms`, or a scenario append or
+  capture; it must be null before `CreateDatabase` and for cleanup-only failure
+  after phase `complete`.
+- Recovery: after `CreateDatabase` sets `mutation_started`, an active checkpoint
+  image that is an aligned sequence of one through 512 pages may be retained
+  with exact size, SHA-256, measurement, reason, and `interpreted=false`. This
+  includes the active `empty` image during `create_database` or `capture_empty`
+  as well as an active scenario image during append or capture. An image above
+  the completed-checkpoint bound is labeled
+  `checkpoint_bound_exceeded`. Recovery receives no DAO metadata access, is
+  never decoded, and cannot contribute to continuation, placement, counter,
+  producer-completion, or replication answers. An image above 512 pages is not
+  retained; its exact failed measurement remains in the job result.
+- Decision rule: `accepted` is unchanged from `EXP-0094` except for the
+  256-page completed-checkpoint ceiling and exact measurement contract. Any
+  post-mutation failure, including a minimum-length, alignment,
+  completed-checkpoint-bound, or recovery-bound failure, is `no_outcome`. A
+  malformed or inconsistent measurement, an invalid or incomplete
+  `arm_baselines` state, a completed checkpoint above 256 pages, a retained
+  recovery above 512 pages, an unexpected file, or another input/result
+  contract defect rejects validation. There is no automatic retry after
+  mutation.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/definition-continuation.plan.json`, SHA-256
+  `3e7172838bfd7d48b6042e1fe1a1855883be27eb3c2b8f7ad367368daa2c0cd9`;
+  producer `oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`,
+  SHA-256
+  `22ccb5c7bd57aef41031bb42bf031b71151c38ef8476dcbf0e9743a5304f45e6`;
+  analyzer `oracle/windows-dao/scripts/definition_continuation.py`, SHA-256
+  `2d1abfde48b9fbf9f3c7e3985919b513f28df5d6b87bf8de601eb870f5d6852d`.
+  All eight staged inputs carry exact lowercase SHA-256 pins.
+- Authorization: the prior standing decision was consumed by the
+  `EXP-0095` post-mutation run. This preregistration does not authorize
+  acquisition. One new run requires merge and a new explicit human decision.
+- Interpretation: a later accepted report may establish only the same exact
+  bounded facts and exclusions as `EXP-0094`. Raising the capture ceiling and
+  retaining uninterpreted recovery do not establish larger databases,
+  arbitrary wide schemas, longer chains, allocation policy, writer
+  correctness, compatibility, or support.
+- Usage: issue `#151`; `EXP-0059`; `EXP-0094`; `EXP-0095`;
+  `file:oracle/windows-dao/acquisition/definition-continuation.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/definition_continuation.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: independent review/fix passes identified and corrected asymmetric
+  publication bounds for completed versus recovery artifacts and acceptance of
+  a later replica's pre-mutation failure after an earlier global mutation, while
+  rejecting an impossible `before_create_database` phase that claims mutation
+  already started. Further review isolated ephemeral working MDBs from root
+  publication and bound `failure_measurement` to producer-reachable phases.
+  Focused analyzer and shared development-contract tests cover the corrections;
+  exact-head review remains pending before acquisition.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

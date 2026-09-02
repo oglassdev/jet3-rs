@@ -72,8 +72,13 @@ contains the SHA-256-pinned #151 preregistration. `EXP-0095` records its
 canonical `no_outcome`: every replica reached capture of the 69-field arm, but
 that arm failed the combined 2-KiB geometry/64-page bound and could not be
 retained. No continuation placement was observed, and the 70- and 140-field
-DAO table appends were not attempted. A separately pinned successor with a revised capture
-bound and a new explicit run decision is required. #150 is
+DAO table appends were not attempted. The SHA-256-pinned `EXP-0098` successor
+keeps the exact scenarios and questions, raises completed
+checkpoints to 256 pages, records exact raw length/divisibility/derived pages
+and the failed predicate before enforcement, records all three ordered copied
+arm identities before table append, and permits only uninterpreted recovery
+salvage through 512 pages. It cannot run until its exact preregistration commit
+is merged and a new explicit human run decision is made. #150 is
 evidence-complete. Its bounded implementation slice is unblocked but must
 correct the existing one-index page order while adding multiple physical and
 logical records, name-sorted logical order, and the observed primary, unique,
