@@ -43,21 +43,22 @@ delivered in this order:
 
 ## Current next step
 
-Finish #100. `EXP-0087` accepted the `schema-generalization` experiment, which
-established the catalog name-key encoding and its ASCII collation map, the
-per-create catalog and access-control rows, the page-zero counter step, and the
-appended-page assignment. The key encoder and the typed table planner now
-derive what the composer used to carry as recorded bytes.
+Finish #100. The typed table planner is merged: it validates a described
+table through the same table-definition and catalog encoders that will write
+it, and assigns the `EXP-0087` appended pages. The key encoder and the planner
+now derive what the composer used to carry as recorded bytes.
 
-What is still fixed rather than ruled: the composer's page-zero opaque region,
-the `LvProp` payloads, and the per-create catalog/ACE row writing. The planner
-also assigns no long-value page, which `EXP-0087` observed only on a
-database's first create. Wiring the composer to emit planned tables, including
-that first-create page, is the next slice, followed by a public creation API,
-initial rows, relationships, and safe filesystem publication.
+Wiring the composer to emit planned tables is the next slice, followed by a
+public creation API, initial rows, relationships, and safe filesystem
+publication. That slice has to place the long-value page `EXP-0087` observed
+only on a database's first create, which the planner does not assign. Still
+fixed rather than ruled: the composer's page-zero opaque region, the `LvProp`
+payloads, and the per-create catalog/ACE row writing.
 
-Two gaps need their own focused DAO validation before the planner can widen:
-table names containing bytes above `0x7E`, whose secondary weights and
-expansions `EXP-0087` deliberately left uninterpreted, and tables carrying more
-than one index, which no observed create had. #102 remains the separate hosted
-write differential after database creation is complete.
+Four format gaps each need their own preregistered DAO validation before the
+planner can widen, roughly in priority order: the `LvProp` property grammar
+(#149), which is the one that blocks composing an arbitrary table; the page
+assignment for more than one index (#150), which also covers the composite and
+descending shapes; where a definition continuation page lands (#151); and
+catalog name keys for bytes above `0x7E` (#152). #102 remains the separate
+hosted write differential after database creation is complete.
