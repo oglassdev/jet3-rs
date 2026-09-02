@@ -47,22 +47,23 @@ Finish the focused writer experiments before exposing the creation API. The
 typed table planner and one-table composer are merged: a described table is
 validated through the same table-definition and catalog encoders that write
 it, and its pages, catalog row, and access-control rows derive from `EXP-0087`.
-The composer still requires a caller-supplied `LvProp` payload because only its
-framing, not a general grammar, is established.
+The composer still requires a caller-supplied `LvProp` payload in code because
+only its framing, not a general grammar, is established. `EXP-0091` now admits
+the exact null-`LvProp` plus retained-empty-page construction as the bounded
+replacement hypothesis for the next implementation slice.
 
-Issue #149 is first: test whether DAO accepts one exact composed Alpha image
-with a null catalog `LvProp` and an empty retained property page. Acceptance
-would admit that bounded construction as the next implementation hypothesis;
-it would not establish the same result for arbitrary schemas. The remaining
-experiments and implementation slices then proceed in small independently
+`EXP-0091` observed DAO accept one exact composed Alpha image with a null
+catalog `LvProp` and an empty retained property page. That admits the bounded
+construction as the next implementation hypothesis; it does not establish the
+same result for arbitrary schemas or permit omitting the retained page. The
+remaining experiments and implementation slices proceed in small independently
 reviewed changes: multiple indexes, definition continuation placement,
 extended names, public creation, initial rows, relationships, and safe
 filesystem publication.
 
-Four format gaps each need their own preregistered DAO validation before the
-planner can widen, roughly in priority order: the `LvProp` property grammar
-(#149), which is the one that blocks composing an arbitrary table; the page
-assignment for more than one index (#150), which also covers the composite and
-descending shapes; where a definition continuation page lands (#151); and
-catalog name keys for bytes above `0x7E` (#152). #102 remains the separate
-hosted write differential after database creation is complete.
+Three remaining format gaps each need their own preregistered DAO validation
+before the planner can widen, roughly in priority order: the page assignment
+for more than one index (#150), which also covers the composite and descending
+shapes; where a definition continuation page lands (#151); and catalog name
+keys for bytes above `0x7E` (#152). #102 remains the separate hosted write
+differential after database creation is complete.

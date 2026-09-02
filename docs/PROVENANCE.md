@@ -7830,8 +7830,10 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: issue `#100`; `EXP-0086`; `EXP-0062`; `EXP-0073`; `EXP-0079`
 - Rights: all project-generated MDBs and provider outputs remain outside the
   repository and are neither committed nor redistributed
-- Review: pending independent outcome, artifact-identity, report-reproduction,
-  decision-rule, evidence-boundary, and false-claim review
+- Review: three independent outcome, artifact-identity, report-reproduction,
+  decision-rule, evidence-boundary, and false-claim review rounds; findings on
+  analyzer verification scope and the direct payload-necessity claim were
+  resolved, and final audits reported no remaining findings
 
 
 ### EXP-0088 — Preregistered null-LvProp acceptance experiment
@@ -8049,6 +8051,83 @@ Use `not applicable` explicitly rather than omitting a field.
   findings on stable order-mismatch classification, target-only replica
   disagreement, sorted-versus-casefold wording, and normalization ambiguity
   were resolved, and final audits reported no remaining findings
+
+
+### EXP-0091 — Accepted null-LvProp DAO result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from a canonical analyzer report
+- Question: for the exact fixed and null-`LvProp` candidates preregistered by
+  `EXP-0090`, do all three replicas pass the bounded read-only DAO endpoint
+  frontier unchanged and match fresh DAO Alpha controls in the exact
+  producer-order observations?
+- Origin: project-authored clean-room experiment using the exact `EXP-0090`
+  successor bytes merged as commit
+  `6035d5daa37be18708ceff6f62c1395f49930646` (PR `#158`) and plan SHA-256
+  `a7a466c9f7f3dbc27869342f5de36ac13420818b47980c12f18104335306d0a5`.
+  After the `EXP-0089` validation rejection and successor merge, the user
+  explicitly authorized one new run. Run ID `20260902T181521Z-dev-dao` was
+  dispatched exactly once and was not retried.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Protocol: the producer created three fresh DAO Jet 3 `Alpha(Id Long)`
+  controls and read the three pre-copied fixed candidates, three pre-copied
+  null candidates, and controls through the eight ordered endpoints. It
+  returned `pass` for all three replicas without retry and published exactly
+  nine 47,104-byte MDBs. The pinned analyzer rechecked the job-result contract,
+  every retained MDB identity, bounds, inventories, endpoint shapes, candidate
+  pins, control gates, and order-sensitive snapshot correlations before
+  applying the decision rule.
+- Artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `f46c7d2962510205cd14dc161b6bfeae971a66e9ab98e73ec3b8e195aa607cd1`;
+  external `lvprop-null-job-result.json`, 176,260 bytes, SHA-256
+  `cb9768f02c6aec89afe2163231dff47ac50818c0b85eaee695c7d8c64441236d`;
+  external `result.json`, 196,569 bytes, SHA-256
+  `048b67b39495ef75cf12849ee614e9b6529cb44ff2c1b6bcac8f3023291d175b`;
+  external canonical `lvprop-null-report.json`, 6,921 bytes, SHA-256
+  `92983fcfb16776f28e81c770774df17039bfb33cb1c949b153d60beb80371fe7`,
+  reproduced byte-identically by rerunning the pinned analyzer.
+- Retained MDB identities: the three fixed candidates remained SHA-256
+  `b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2`,
+  and the three null candidates remained SHA-256
+  `c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21`.
+  Fresh controls for replicas 1--3 remained SHA-256 respectively
+  `588bde05a78c3b5b19212f94f5de0ac3748e2a4bdfe7d55710d2bebcfce9e95f`,
+  `bb1c3a8b7fe4a76568c551c60db30d45ad9d7305de4bddb5b8c42322af0fba83`,
+  and `cb37e2c2cea23897e360603942f5b403ae11a4ac8b49524b0a86979e966dc2f6`.
+  Every retained image had the same size and SHA-256 before and after DAO
+  access; the report records `metadata_repaired: false` for all nine.
+- Observation: the canonical report has status `accepted`, with both
+  `fixed_candidate` and `null_candidate` status `observed_accepted`,
+  `compatibility_claim: false`, and `support_movement: false`. In every
+  replica, both candidates and the fresh control completed `open_database`,
+  `version`, `tabledefs`, `direct_lookup`, `field`, `properties`, `snapshot`,
+  and `document`. The candidate observations matched the fresh controls and
+  agreed across replicas exactly, including producer property order.
+- Interpretation: in this exact 23-page first-create construction, DAO 3.6
+  consumed unchanged an empty `Alpha` table with one nullable Long field whose
+  catalog `LvProp` is physically null and whose mapped page 22 is an empty
+  `LVAL` page. At the bounded endpoint frontier, its observations were the same
+  as the fixed payload-bearing candidate and fresh DAO-created controls. This
+  establishes that the recorded Alpha property payload is not required for
+  DAO's bounded read-only consumption of this exact construction. It does not
+  establish a general property grammar, acceptance of null `LvProp` for
+  arbitrary schemas, permission to omit page 22 or either map reference,
+  property ordering semantics, writer or publication correctness, general
+  compatibility, a hosted differential or support result, or support-matrix
+  movement.
+- Usage: issue `#149`; `EXP-0085`; `EXP-0088`; `EXP-0089`; `EXP-0090`;
+  future composed-candidate differentials
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent outcome, artifact-identity, report-reproduction,
+  decision-rule, evidence-boundary, and false-claim review
 
 
 ## Fixtures and black-box results
