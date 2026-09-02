@@ -1,11 +1,15 @@
 use super::{
-    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, compose_alpha_database, compose_empty_database,
+    ALPHA_LVPROP_PAYLOAD, ALPHA_MAP_PAGE, ALPHA_ROOT, BootstrapComposeError,
+    compose_alpha_database, compose_empty_database,
 };
+use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
+use crate::table_schema_plan::{TableSchemaSpec, plan_table_schema};
 use crate::{
-    ByteCount, CatalogObjectClass, ColumnOrdinal, DatabaseReader, JET3_PAGE_SIZE, LongValue,
-    LongValueChunkValue, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind,
-    classify_page, locate_usage_map, page_tag,
+    ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, ColumnSpec,
+    ColumnStorageKind, DatabaseReader, JET3_PAGE_SIZE, LongValue, LongValueChunkValue,
+    MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
+    ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind, classify_page,
+    locate_usage_map, page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -580,5 +584,40 @@ fn candidate_export_refuses_nonempty_directory() -> TestResult {
     assert!(!root.join("bootstrap-composer-alpha.mdb").exists());
     fs::remove_file(sentinel)?;
     fs::remove_dir(root)?;
+    Ok(())
+}
+
+#[test]
+fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
+    // The Alpha image DAO accepted in EXP-0085 is the fixed case the general
+    // EXP-0087 assignment has to agree with.
+    let columns = [ColumnSpec::new(
+        b"Id",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    let plan = plan_table_schema(
+        &TableSchemaSpec {
+            name: b"Alpha",
+            columns: &columns,
+            indexes: &[],
+        },
+        EMPTY_DATABASE_PAGE_COUNT,
+    )?;
+    assert_eq!(plan.object_id(), ALPHA_ROOT as i32);
+    assert_eq!(plan.definition_root(), PageNumber::new(ALPHA_ROOT));
+    assert_eq!(plan.map_page(), PageNumber::new(ALPHA_MAP_PAGE));
+    // The accepted Alpha image appends three pages; the planner reports two
+    // because it deliberately plans no long-value page. EXP-0087 observed one
+    // only for a database's first create and establishes no property grammar,
+    // so the composer wiring has to place it.
+    assert_eq!(plan.index_root(), None);
+    assert_eq!(plan.appended_page_count(), 2);
+    let alpha_pages = bytes(true)?.len() as u64 / JET3_PAGE_SIZE.get();
+    assert_eq!(
+        alpha_pages,
+        EMPTY_DATABASE_PAGE_COUNT + plan.appended_page_count() + 1
+    );
     Ok(())
 }

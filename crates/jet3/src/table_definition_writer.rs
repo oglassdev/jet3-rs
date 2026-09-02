@@ -9,12 +9,11 @@
 use std::fmt;
 
 use crate::column_definition_writer::{
-    COLUMN_RECORD_LEN, ColumnSpec, ColumnStorageKind, LOGICAL_RECORD_LEN, LogicalIndexKindSpec,
-    LogicalIndexSpec, MAX_NAME_LEN, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, PhysicalIndexSpec,
+    ColumnSpec, ColumnStorageKind, LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec,
     SystemColumnClassSpec, physical_flags, resolve_column, validate_physical_index,
     write_column_record, write_logical_record, write_name, write_physical_record,
 };
-use crate::data_page_directory::MAX_STORED_ROW_LEN;
+use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
     BinaryWriter, ByteCount, ColumnPhysicalType, Error, MapRowLocator, PageNumber, ResourceBudget,
     TableDefinitionKind,
@@ -23,7 +22,6 @@ use crate::{
 /// `EXP-0059`: four-byte definition page prefix.
 const DEFINITION_PREFIX: [u8; 4] = [0x02, 0x01, 0x56, 0x43];
 /// `EXP-0059`: fixed header before the physical-index prefixes.
-const DEFINITION_HEADER_LEN: usize = 43;
 /// `EXP-0059`: byte 20 marker.
 const USER_HEADER_MARKER: u8 = 0x4e;
 /// `EXP-0073`: byte 20 of every observed system definition.
@@ -328,63 +326,12 @@ impl std::error::Error for TableDefinitionWriteError {
 pub fn table_definition_len(
     spec: &TableDefinitionSpec<'_>,
 ) -> Result<usize, TableDefinitionWriteError> {
-    if spec.columns.len() > MAX_COLUMN_COUNT {
-        return Err(TableDefinitionWriteError::TooManyColumns {
-            count: spec.columns.len(),
-            maximum: MAX_COLUMN_COUNT,
-        });
-    }
-    for (role, count) in [
-        ("physical", spec.physical_indexes.len()),
-        ("logical", spec.indexes.len()),
-    ] {
-        if u16::try_from(count).is_err() {
-            return Err(TableDefinitionWriteError::TooManyIndexes { role, count });
-        }
-    }
-    let mut total = DEFINITION_HEADER_LEN;
-    let mut add = |amount: usize| -> Result<(), TableDefinitionWriteError> {
-        total = total
-            .checked_add(amount)
-            .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-        Ok(())
-    };
-    let physical_bytes = spec
-        .physical_indexes
-        .len()
-        .checked_mul(PHYSICAL_PREFIX_LEN + PHYSICAL_RECORD_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-    add(physical_bytes)?;
-    let column_bytes = spec
-        .columns
-        .len()
-        .checked_mul(COLUMN_RECORD_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-    add(column_bytes)?;
-    for column in spec.columns {
-        add(1)?;
-        add(column.name().len())?;
-    }
-    let logical_bytes = spec
-        .indexes
-        .len()
-        .checked_mul(LOGICAL_RECORD_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?;
-    add(logical_bytes)?;
-    for index in spec.indexes {
-        add(1)?;
-        add(index.name.len())?;
-    }
-    add(spec
-        .long_value_maps
-        .len()
-        .checked_mul(crate::LONG_VALUE_MAP_GROUP_LEN)
-        .ok_or(TableDefinitionWriteError::DefinitionTooLong { length: usize::MAX })?)?;
-    add(TERMINATOR.len())?;
-    if u32::try_from(total).is_err() {
-        return Err(TableDefinitionWriteError::DefinitionTooLong { length: total });
-    }
-    Ok(total)
+    definition_len(
+        spec.columns,
+        spec.indexes.iter().map(|index| index.name),
+        spec.physical_indexes.len(),
+        spec.long_value_maps.len(),
+    )
 }
 
 /// Encodes the logical definition into `output`, returning the encoded length.
@@ -519,58 +466,7 @@ fn validate(
         .charge_items(name_work)
         .map_err(TableDefinitionWriteError::Resource)?;
 
-    let mut next_fixed_offset = 0_u16;
-    let mut variables = 0_u16;
-    for (ordinal, column) in (0_u16..).zip(spec.columns) {
-        validate_name(
-            "column",
-            ordinal,
-            column.name(),
-            spec.columns[..usize::from(ordinal)]
-                .iter()
-                .map(ColumnSpec::name),
-        )?;
-        resolve_column(
-            ordinal,
-            column,
-            spec.kind,
-            spec.system_column_classes
-                .get(usize::from(ordinal))
-                .copied(),
-            &mut next_fixed_offset,
-            &mut variables,
-        )?;
-    }
-    let variable_trailer = if variables == 0 {
-        0
-    } else {
-        usize::from(variables)
-            .checked_add(2)
-            .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
-                operation: "size minimum encoded-row variable trailer",
-            }))?
-    };
-    let mut minimum_row_len = 1_usize
-        .checked_add(usize::from(next_fixed_offset))
-        .and_then(|value| value.checked_add(spec.columns.len().div_ceil(8)))
-        .and_then(|value| value.checked_add(variable_trailer))
-        .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
-            operation: "size minimum encoded row",
-        }))?;
-    if variables > 0 && minimum_row_len > u8::MAX as usize {
-        minimum_row_len =
-            minimum_row_len
-                .checked_add(1)
-                .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
-                    operation: "size minimum encoded-row jump table",
-                }))?;
-    }
-    if minimum_row_len > MAX_STORED_ROW_LEN {
-        return Err(TableDefinitionWriteError::RowLayoutTooLarge {
-            minimum: minimum_row_len,
-            maximum: MAX_STORED_ROW_LEN,
-        });
-    }
+    let variables = validate_column_layout(spec.columns, spec.kind, spec.system_column_classes)?;
     for (ordinal, index) in (0_u16..).zip(spec.physical_indexes) {
         validate_physical_index(ordinal, index, spec.columns)?;
         let admitted = match spec.kind {
@@ -719,30 +615,6 @@ fn validate_long_value_maps(
         return Err(TableDefinitionWriteError::MissingLongValueMap {
             column: column as u16,
         });
-    }
-    Ok(())
-}
-
-fn validate_name<'a>(
-    role: &'static str,
-    ordinal: u16,
-    name: &[u8],
-    earlier: impl Iterator<Item = &'a [u8]>,
-) -> Result<(), TableDefinitionWriteError> {
-    if name.is_empty() {
-        return Err(TableDefinitionWriteError::EmptyName { role, ordinal });
-    }
-    if name.len() > MAX_NAME_LEN {
-        return Err(TableDefinitionWriteError::NameTooLong {
-            role,
-            ordinal,
-            length: name.len(),
-            maximum: MAX_NAME_LEN,
-        });
-    }
-    let mut earlier = earlier;
-    if earlier.any(|other| other == name) {
-        return Err(TableDefinitionWriteError::DuplicateName { role, ordinal });
     }
     Ok(())
 }
