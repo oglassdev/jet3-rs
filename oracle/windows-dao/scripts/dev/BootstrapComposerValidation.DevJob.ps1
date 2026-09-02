@@ -61,6 +61,17 @@ function ConvertTo-BoundedDetail {
     return $text
 }
 
+function ConvertTo-EndpointDetail {
+    param(
+        [string]$Path,
+        [object]$ErrorRecord
+    )
+
+    $detail = $ErrorRecord.Exception.GetType().FullName + ": " + $ErrorRecord.Exception.Message
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    return ConvertTo-BoundedDetail -Detail $detail.Replace($fullPath, "<DATABASE>")
+}
+
 function Write-JsonDocument {
     param([string]$Path, [object]$Document)
 
@@ -203,7 +214,7 @@ function Test-EmptyCandidate {
         return [ordered]@{
             status = "fail"
             completed = @($completed)
-            detail = ConvertTo-BoundedDetail -Detail ($_.Exception.GetType().FullName + ": " + $_.Exception.Message)
+            detail = ConvertTo-EndpointDetail -Path $Path -ErrorRecord $_
             snapshot = $snapshot
         }
     }
@@ -309,7 +320,7 @@ function Test-AlphaImage {
         return [ordered]@{
             status = "fail"
             completed = @($completed)
-            detail = ConvertTo-BoundedDetail -Detail ($_.Exception.GetType().FullName + ": " + $_.Exception.Message)
+            detail = ConvertTo-EndpointDetail -Path $Path -ErrorRecord $_
             snapshot = $snapshot
         }
     }

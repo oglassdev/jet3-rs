@@ -117,15 +117,15 @@ def exact_names(value: Any, expected: list[str], location: str) -> list[str]:
 def property_shape(value: Any, location: str) -> list[dict[str, Any]]:
     if not isinstance(value, list) or len(value) > 64:
         raise AnalysisError(f"{location} must contain at most 64 properties")
-    prior = ""
+    names: set[str] = set()
     for index, raw in enumerate(value):
         item = exact_object(raw, {"name", "type"}, f"{location}[{index}]")
         name = bounded_text(item["name"], f"{location}[{index}].name", 256)
-        if index and name < prior:
-            raise AnalysisError(f"{location} must be ordered by property name")
+        if not name or name in names:
+            raise AnalysisError(f"{location} property names must be nonempty and unique")
         if type(item["type"]) is not int or not -(1 << 31) <= item["type"] < (1 << 31):
             raise AnalysisError(f"{location}[{index}].type is invalid")
-        prior = name
+        names.add(name)
     return value
 
 

@@ -7304,6 +7304,134 @@ Use `not applicable` explicitly rather than omitting a field.
   passes completed; shell-safety, UTF-16 command bounds, exact option ordering,
   plan/client pins, and pre-mutation classification have no remaining findings
 
+### EXP-0082 — Validation-rejected bootstrap-composer DAO result
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: validation-rejected SHA-256-pinned, development-only local DAO result;
+  no canonical analyzer report or accepted scientific answer exists
+- Question: For the two deterministic candidates preregistered by `EXP-0081`,
+  do all three replicas pass the fixed read-only DAO endpoint frontiers without
+  changing while the fresh DAO Alpha controls validate the endpoint method?
+- Origin: project-authored clean-room experiment at preregistration commit
+  `787ee7d374fec2837cdf6ef46568cc2782acdd75`, using plan SHA-256
+  `7b2b5aa51477495ed1109279e4988fb6428d9712a999ea7aeb3462d2f46dd7ac`.
+  The user authorized local VM use. Run ID
+  `20260902T015852Z-dev-dao` was dispatched exactly once; no retry occurred.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558;
+  culture/UI culture `en-US`; ANSI code page 1252; VM time zone `Pacific
+  Standard Time` at UTC-07:00. The provider probe reported `ready` for x86
+  `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version 03.60.9765.0,
+  SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  External `environment.json` is 4,277 bytes, SHA-256
+  `5b797a3b1bac11bc288dd2a78210f5c68dfe943c0130c2c5b9a18f871aed081b`.
+- Protocol result: the guest producer returned `pass`: all three replicas
+  completed one empty candidate, one Alpha candidate, and one fresh DAO Alpha
+  control, and published exactly nine MDBs. Every candidate retained its
+  preregistered size and SHA-256 before and after DAO access. Every control was
+  47,104 bytes, passed all eight Alpha endpoints, and retained its own digest
+  before and after access.
+- Raw candidate observation: in every replica both candidates failed at the
+  first endpoint with no completed frontier. DAO reported `Unrecognized
+  database format` for each guest-local path. The empty candidate remained
+  SHA-256
+  `f762dbc12d80eb3fb5dae53fb58696219d48b7fa1a15d5deb5c1f9333d8862d6`;
+  the Alpha candidate remained SHA-256
+  `8552db1c7d0083429fcbbcf4dd59a5f1d8f36383c8bdef4d9decc06247cf77ca`.
+  This raw producer observation is not an accepted analyzer answer.
+- Control observation: replicas 1--3 passed `open_database`, `version`,
+  `tabledefs`, `direct_lookup`, `field`, `properties`, `snapshot`, and
+  `document`. Their unchanged SHA-256 identities were respectively
+  `e8565a35e9d5b5efb0956efc2e240dfe48f597f62d42a892b55cfbdf5c90be30`,
+  `a26f9dae2cccbe7b19b4daed4e8b2987c6ce84f7bbb65eb93de0689d3596a2b3`,
+  and `06625e1ff4d1b3b2a4a10cf04f5b59ec9cf8842a3c734bedd15305f7efd4e831`.
+- Validation rejection: the pinned analyzer rejected the first control's
+  bounded `table_properties` sequence because it imposed Python code-point
+  ordering, while the pinned Windows producer used PowerShell `Sort-Object`.
+  The plan required bounded property enumeration, not that cross-runtime sort
+  equivalence. No canonical report was written. Additionally, raw COM details
+  embedded replica-specific database paths, so a successor must normalize the
+  diagnostic path before applying detail-agreement rules rather than reanalyze
+  this result as accepted.
+- Artifacts: external
+  `bootstrap-composer-validation-job-result.json`, 68,164 bytes, SHA-256
+  `2d83c0395cd6eda18e93f4c4c5f30382f82a10486006bfb5aacf23134c37202f`;
+  external `result.json`, 78,815 bytes, SHA-256
+  `654b10cd08d26020c3364a81a49cdf7311187eed57268dd78572ece5a3f44401`;
+  nine external MDBs with the identities above. No MDB or provider binary is
+  committed.
+- Interpretation: status is `validation_rejected`. The retained producer JSON
+  motivates a corrected successor but does not establish an accepted negative
+  answer, composer correctness, DAO compatibility, public creation, safe
+  publication, arbitrary schema support, a support result, or support-matrix
+  movement. Because DAO mutation occurred, any redispatch requires a new human
+  decision even within the otherwise authorized VM session.
+- Usage: issue `#100`; `EXP-0081`; future separately preregistered successor;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`;
+  `file:oracle/windows-dao/scripts/bootstrap_composer_validation.py`
+- Rights: project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: independent outcome, artifact-identity, rejection,
+  environment-identity, evidence-boundary, and non-reinterpretation review
+  completed with no remaining findings
+
+### EXP-0083 — Preregistered normalized bootstrap-composer validation
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration successor;
+  no provider acquisition has occurred under this successor plan
+- Question: the candidates, DAO endpoint frontiers, controls, bounds, decision
+  rules, and excluded claims remain exactly those fixed by `EXP-0080` and
+  carried through `EXP-0081`.
+- Origin: `EXP-0082` completed its producer once but was validation-rejected
+  without a canonical report. The rejection exposed two method defects: an
+  analyzer-only cross-runtime property-order constraint absent from the plan,
+  and replica-specific database paths inside otherwise equivalent bounded COM
+  diagnostic details.
+- Protocol correction: property sequences are accepted in their bounded
+  producer order while requiring nonempty unique names and bounded integer
+  types. The producer replaces only the exact current database path in an
+  endpoint exception with `<DATABASE>` before bounding the detail. Endpoint
+  status, frontier, normalized detail, and snapshot must still agree across
+  candidate replicas. No DAO endpoint, candidate byte, control mutation, or
+  scientific decision rule changes.
+- Preregistration artifact: the existing
+  `oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json` is
+  replaced in place and now has SHA-256
+  `2a817c1abd4008818057df867732b4fce733e6d43dfbbaa7d1155c767aa64e29`.
+  The corrected dedicated producer is pinned at SHA-256
+  `ebae76a459ffa2690ee1e2a507cc169753ee9ec8fd5ac5b3dcc0187ba2baa9ef`;
+  the corrected analyzer is pinned at SHA-256
+  `98c33992e9459d05023fee55eb981e480ade3d71ff7c6e3c3e88072ef44cc26a`.
+  All other input, source-manifest, candidate, and transport pins remain those
+  reviewed for `EXP-0081`.
+- Observation: `preregistration.acquisition_started` is `false`. Because the
+  `EXP-0082` run mutated DAO controls, the user's earlier session-wide VM
+  authorization is not by itself a redispatch decision under the project
+  protocol. A new explicit human decision is required after this successor is
+  reviewed and committed. At most one successor dispatch is permitted, with no
+  retry after its first DAO mutation.
+- Decision rule: unchanged. With unchanged passing controls, three identical
+  complete candidate frontiers are `observed_accepted`, and three identical
+  partial frontiers are `not_observed_accepted`. Candidate change, control
+  failure/change, disagreement, or incomplete scientific execution is
+  `no_outcome`; pin, inventory, bound, malformed-shape, or integrity defects
+  reject without a canonical report.
+- Interpretation: this corrects validation mechanics only. It does not
+  reinterpret `EXP-0082`, establish composer correctness or DAO compatibility,
+  introduce a public creation or publication API, support arbitrary schemas,
+  or move any support claim or matrix.
+- Usage: future successor result; issue `#100`; `EXP-0082`;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/bootstrap_composer_validation.py`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: two isolated review passes across outcome/protocol, Windows producer,
+  and analyzer/test integrity completed; all findings were fixed and the final
+  reviews reported no remaining findings
+
 
 ## Fixtures and black-box results
 

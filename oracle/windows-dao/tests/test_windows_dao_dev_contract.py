@@ -745,6 +745,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn('"bootstrap-composer-validation" {', self.publication)
         self.assertIn("9-database bound", self.publication)
         self.assertIn('OpenDatabase($Path, $false, $true)', job)
+        self.assertIn('detail.Replace($fullPath, "<DATABASE>")', job)
         self.assertIn("foreach ($replica in 1..3)", job)
         self.assertNotIn("CompactDatabase", job)
         self.assertEqual(plan["execution"]["attempts"], 1)

@@ -7,7 +7,8 @@
     "acquisition_started": false,
     "prior_evidence": "EXP-0079 fixed the observed empty-to-Alpha constants before this validation was designed.",
     "prior_transport_abort": "The first committed plan was never acquired: Windows rejected the outer encoded PowerShell command line before the staged runner, provider probe, or DAO executed, and no outbox was created. This successor replaces that transport with one bounded, shell-safe direct x86 PowerShell command.",
-    "authorization": "The user explicitly authorized this and future local Windows VM usage for the current session. Acquisition remains forbidden until this plan and its exact pins are reviewed and committed.",
+    "prior_validation_rejection": "The EXP-0082 run completed all producer replicas once, but the pinned analyzer rejected PowerShell property order and wrote no canonical report. Its raw candidate failures also embedded replica-specific paths. This successor removes the unplanned cross-runtime ordering constraint and normalizes only the current database path in bounded endpoint diagnostics.",
+    "authorization": "The earlier session-wide VM authorization does not authorize redispatch after EXP-0082 mutated DAO controls. Acquisition remains forbidden until this successor plan and its exact pins are reviewed and committed and the user makes a new explicit redispatch decision.",
     "attempt_policy": "Dispatch exactly one three-replica run. Once the first DAO control mutation begins, any failure is a scientific result and must not be retried without a new human decision."
   },
   "evidence_boundary": {
@@ -26,8 +27,8 @@
     "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "74272fb2f393b7be49df07e2439c11a5e36dab6d62bc47d2f9cda4baf702ed27",
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "09e1b4060ae17e05b3d6f347344910c31d732922828dc34d2dada46e1dc51ea0",
     "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "a3e27f03603d59952ae1b7713254e781b2110b8ff875ed922827a4463c6575df",
-    "oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1": "21eb77e5cc237f9f897ed0df74c2f91bf6c9162207f951cdb5e786a396917127",
-    "oracle/windows-dao/scripts/bootstrap_composer_validation.py": "a57a94728c88edf14247af4ec7426c0f4b79fbc3311643f944aa8015ca0429fc"
+    "oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1": "ebae76a459ffa2690ee1e2a507cc169753ee9ec8fd5ac5b3dcc0187ba2baa9ef",
+    "oracle/windows-dao/scripts/bootstrap_composer_validation.py": "98c33992e9459d05023fee55eb981e480ade3d71ff7c6e3c3e88072ef44cc26a"
   },
   "candidate_source_manifest": {
     "path": "oracle/windows-dao/acquisition/bootstrap-composer-validation.sources.json",

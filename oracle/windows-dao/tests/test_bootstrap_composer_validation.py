@@ -220,6 +220,19 @@ class BootstrapComposerValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(ANALYZER.AnalysisError, "retained identity"):
                 self.evaluate(root, document, pins)
 
+    def test_property_shape_accepts_producer_order_but_rejects_duplicates(self) -> None:
+        properties = [
+            {"name": "ValidationRule", "type": 10},
+            {"name": "RecordCount", "type": 4},
+            {"name": "Name", "type": 10},
+        ]
+        self.assertEqual(
+            ANALYZER.property_shape(properties, "properties"), properties
+        )
+        properties.append({"name": "Name", "type": 10})
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "nonempty and unique"):
+            ANALYZER.property_shape(properties, "properties")
+
     def test_order_status_and_unique_json_fields_are_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
