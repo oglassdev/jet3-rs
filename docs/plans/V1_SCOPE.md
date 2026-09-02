@@ -73,15 +73,17 @@ canonical `no_outcome`: every replica reached capture of the 69-field arm, but
 that arm failed the combined 2-KiB geometry/64-page bound and could not be
 retained. No continuation placement was observed, and the 70- and 140-field
 DAO table appends were not attempted. The SHA-256-pinned `EXP-0098` successor
-keeps the exact scenarios and questions, raises completed
-checkpoints to 256 pages, records exact raw length/divisibility/derived pages
-and the failed predicate before enforcement, records all three ordered copied
-arm identities before table append, and permits only uninterpreted recovery
-salvage through 512 pages. It cannot run until its exact preregistration commit
-is merged and a new explicit human run decision is made. #150 is
-evidence-complete. Its bounded implementation slice is unblocked but must
-correct the existing one-index page order while adding multiple physical and
-logical records, name-sorted logical order, and the observed primary, unique,
+kept the exact scenarios and questions while raising completed checkpoints to
+256 pages. `EXP-0100` records its valid `no_outcome`: all three producers
+completed all four checkpoints without recovery, but the analyzer found one
+continuation page in the 2,046-byte `zero` control where the preregistration
+required zero. The diagnostic one-, one-, and two-continuation chains are not
+promotable under the all-or-`no_outcome` decision. #151 remains evidence-blocked
+and another run requires a separately pinned successor plus renewed human
+authorization. #150 is evidence-complete. Its bounded implementation slice is
+unblocked but must correct the existing one-index page order while adding
+multiple physical and logical records, name-sorted logical order, and the
+observed primary, unique,
 ordinary, ascending, and descending forms. It cannot infer arbitrary schemas
 or behavior above three indexes. #102 remains the separate hosted write
 differential after database creation is complete.

@@ -8980,6 +8980,93 @@ Use `not applicable` explicitly rather than omitting a field.
   contract tests passed; no acquisition
 
 
+### EXP-0100 — No-outcome definition-continuation successor result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO `no_outcome`
+  derived from a canonical analyzer report; the result contract was valid and
+  was not rejected
+- Question: for the unchanged exact 69-, 70-, and 140-field first-create
+  controls preregistered by `EXP-0098`, where does DAO place and how does it
+  chain zero, one, and two table-definition continuation pages?
+- Origin: project-authored clean-room experiment using the exact `EXP-0098`
+  bytes merged as commit `04a72fc7becc7df355e5c51ee081f68535dccd20` (PR
+  `#167`) and plan SHA-256
+  `3e7172838bfd7d48b6042e1fe1a1855883be27eb3c2b8f7ad367368daa2c0cd9`.
+  The user explicitly authorized exactly one successor acquisition. Run ID
+  `20260902T230927Z-dev-dao` was dispatched exactly once; no retry occurred.
+  That dispatch count is the observed operator action, not a fact derived from
+  the retained artifacts.
+- Input identity: the retained staged plan matched the plan SHA-256 above, and
+  all eight staged inputs matched the exact lowercase SHA-256 identities
+  embedded in that plan. The retained plan and staged inputs also matched the
+  merged preregistration files.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Guest embedded UTC timestamps were seven hours ahead of the host run/report
+  clock while reporting Pacific UTC-07:00; they are retained as reported but
+  are not used as ordering or identity evidence.
+- Producer result: all three replicas reported `pass`, phase `complete`, and
+  `mutation_started=true`. Each retained the exact ordered `empty`, `zero`,
+  `one`, and `two` checkpoints with the required pre-mutation arm identities,
+  measurements, unchanged bounded metadata identities, and no recovery image.
+  The completed images were respectively 20, 67, 69, and 220 pages in every
+  replica, within the prospectively raised 256-page bound.
+- Analyzer result: the pinned analyzer accepted the complete producer,
+  artifact, and result contracts, then classified the scientific result as
+  `no_outcome`. Every replica had the exact decode error `zero has 1
+  continuation pages; the control requires 0`. Continuation counts, placement,
+  counters, producer outcome, and replication all have status `no_outcome`
+  with the common reason `at least one complete checkpoint failed a recorded
+  grammar or control`. Rerunning the staged and merged analyzers reproduced the
+  canonical report byte-for-byte. The explicit-UTF-8 outer result and direct
+  child job result also carried equal replica values.
+- JSON artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `1d0d2771313c3c67c93e84c295cb4d9a688bd387555a455d14d21f78186f7f54`;
+  external `definition-continuation-job-result.json`, 643,657 bytes, SHA-256
+  `47d9552e1ddfc59b721c097359499a829239e93586eff7779f2c4b0c24a5dcc7`;
+  external `result.json`, 786,331 bytes, SHA-256
+  `6d6958496d582f3adfdc6a38e16fdff29a8ef7fbfc3efb769f8bc2984a531326`;
+  external canonical `definition-continuation-report.json`, 11,538 bytes,
+  SHA-256
+  `57105444758f02112f1b33745f7bb13eb420e167dbbd661d7abfe52c906e97c6`.
+- Retained MDB inventory: twelve external MDBs, four per replica, totaling
+  2,310,144 bytes. The canonical filename-sorted JSON array of
+  `{name,size,sha256}` objects, serialized with two-space indentation, sorted
+  keys, and one trailing LF, is 1,929 bytes with SHA-256
+  `5b8e3ad75d90107c0aacf2a69e065b1d05a01d8dc5091b10d74443db3a7893f4`.
+  The MDBs and the inventory serialization remain outside the repository.
+- Non-promotable diagnostic: separate inspection of the retained complete
+  images found the `zero` logical definition length 2,046 on chain `[20, 66]`,
+  the `one` length 2,075 on `[20, 68]`, and the `two` length 4,105 on
+  `[20, 219, 218]`, corresponding to one, one, and two continuation pages.
+  These values diagnose the failed zero-control assumption only. The
+  preregistered all-or-`no_outcome` decision forbids promoting any count,
+  placement, pointer, or other format fact from this run.
+- Interpretation: this valid result establishes no continuation count,
+  placement, pointer order, page-role, page-zero, map, catalog-property,
+  allocation, writer, compatibility, or support fact. It shows that the exact
+  `EXP-0098` producer captured all scenarios successfully, but the recorded
+  zero-control expectation conflicts with the retained grammar decode. Issue
+  `#151` remains evidence-blocked. Because DAO mutation occurred, another
+  acquisition requires a separately pinned successor and renewed explicit
+  human authorization.
+- Usage: issue `#151`; `EXP-0059`; `EXP-0094`; `EXP-0095`; `EXP-0098`; future
+  separately preregistered successor
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: three independent review/fix passes completed on 2026-09-02 over
+  artifact identity, producer state, inventory, canonical report reproduction,
+  UTF-8 transport equality, result classification, evidence boundaries, and
+  cross-document consistency. Low wording findings were corrected; final
+  exact-head verification found no remaining findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
