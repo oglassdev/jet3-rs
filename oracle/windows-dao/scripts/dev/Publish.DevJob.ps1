@@ -486,7 +486,7 @@ switch ($Job) {
         $checkpointNames = New-Object Collections.ArrayList
         [void]$checkpointNames.Add("empty")
         foreach ($index in 0..40) { [void]$checkpointNames.Add("b" + $index.ToString("D2")) }
-        [void]$checkpointNames.Add("reject")
+        [void]$checkpointNames.Add("controls")
         $referenced = New-Object Collections.ArrayList
         $seenReplicas = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {
@@ -511,6 +511,10 @@ switch ($Job) {
                 [void]$referenced.Add($expectedDatabase)
             }
             if ([string]$replica.status -ceq "pass" -and ($checkpointIndex -ne $checkpointNames.Count -or $recovery.Count -ne 0)) { throw "Passing extended-names replica omits a checkpoint." }
+        }
+        if ($seenReplicas.Count -gt 1 -and
+            -not [bool]@($jobResult.replicas)[0].mutation_started) {
+            throw "Extended-names result continued after replica-1 pre-mutation failure."
         }
         if ($seenReplicas.Count -ne 3) {
             $preMutationAbort = ($seenReplicas.Count -eq 1 -and [string]$jobResult.status -ceq "fail" -and -not [bool]@($jobResult.replicas)[0].mutation_started)

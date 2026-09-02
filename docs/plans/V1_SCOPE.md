@@ -86,11 +86,16 @@ ordinary, ascending, and descending forms. It cannot infer arbitrary schemas
 or behavior above three indexes. #102 remains the separate hosted write
 differential after database creation is complete.
 
-`EXP-0096` is the SHA-256-pinned #152 preregistration. `EXP-0097` records its
-canonical `no_outcome`: all 2,358 DAO name attempts reported creation and the
-bounded DAO metadata agreed, but every replica failed catalog-key decoding at
-the rejection checkpoint with `checkpoint reject: a catalog row has malformed
-identity fields`. Under the preregistered all-or-`no_outcome` rule, the defined
-arms cannot be promoted post hoc and establish no catalog-name mapping or
-weights. #152 remains open and evidence-blocked; another acquisition requires
-a separately pinned successor and renewed explicit human authorization.
+`EXP-0096` is the first SHA-256-pinned #152 preregistration. `EXP-0097` records
+its canonical `no_outcome`: all 2,358 DAO name attempts reported creation and
+the bounded DAO metadata agreed, but every replica failed catalog-key decoding
+at the former `reject` checkpoint under the all-arm decoder. The successor
+renames that checkpoint `controls`. The defined arms cannot be promoted post hoc
+and establish no catalog-name mapping or weights.
+`EXP-0099` preregisters a successor that leaves the 41 defined-byte arms
+unchanged, validates U+007F and the five undefined-slot Unicode values only at
+the BSTR/DAO metadata boundary, and never decodes that controls arm. It also
+requires exact non-ASCII JSON transport and compares exact question-bearing
+collation facts across replicas while retaining incidental locators separately.
+#152 remains evidence-blocked until that plan is merged and a renewed explicit
+human authorization permits one acquisition.

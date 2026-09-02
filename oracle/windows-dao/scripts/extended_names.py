@@ -20,8 +20,9 @@ PAGE_BYTES = 2048
 UNDEFINED_SLOTS = (0x81, 0x8D, 0x8F, 0x90, 0x9D)
 DEFINED_BYTES = tuple(value for value in range(0x80, 0x100) if value not in UNDEFINED_SLOTS)
 BATCHES = tuple(tuple(DEFINED_BYTES[offset : offset + 3]) for offset in range(0, len(DEFINED_BYTES), 3))
-CHECKPOINT_NAMES = ("empty", *(f"b{index:02d}" for index in range(len(BATCHES))), "reject")
-REJECTION_POINTS = (0x7F, *UNDEFINED_SLOTS)
+CHECKPOINT_NAMES = ("empty", *(f"b{index:02d}" for index in range(len(BATCHES))), "controls")
+CONTROL_POINTS = (0x7F, *UNDEFINED_SLOTS)
+TRANSPORT_SENTINEL = "T" + bytes(DEFINED_BYTES).decode("cp1252") + "".join(chr(point) for point in CONTROL_POINTS) + "Z"
 PLAN_DIGEST = re.compile(r"[0-9a-f]{64}")
 RUN_ID = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}")
 MAXIMUM_JSON_BYTES = 8 * 1024 * 1024
@@ -88,9 +89,9 @@ def batch_specs(index: int) -> list[dict[str, Any]]:
     return specs
 
 
-def rejection_specs() -> list[dict[str, Any]]:
+def control_specs() -> list[dict[str, Any]]:
     specs = [{"role": "ascii_control", "name": "CREJECTB", "inserted": [], "prefix": "CREJECTB", "suffix": ""}]
-    for point in REJECTION_POINTS:
+    for point in CONTROL_POINTS:
         specs.append({
             "role": "boundary_7f" if point == 0x7F else f"undefined_{point:02X}",
             "name": f"R{point:02X}A{chr(point)}Z",
@@ -136,8 +137,35 @@ def load_document(path: Path) -> dict[str, Any]:
     return value
 
 
+def transport_sentinels_changed(path: Path, child_replicas: list[Any]) -> bool:
+    if path.is_symlink() or not path.is_file():
+        raise ValidationError("top-level transport result must be a regular non-link file")
+    try:
+        raw = path.read_bytes()
+    except OSError as error:
+        raise ValidationError("top-level transport result is unreadable") from error
+    if len(raw) > MAXIMUM_JSON_BYTES:
+        raise ValidationError("top-level transport result exceeds the 8-MiB bound")
+    try:
+        value = json.loads(raw, object_pairs_hook=reject_duplicates)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValidationError("top-level transport result is malformed") from error
+    if not isinstance(value, dict) or not isinstance(value.get("extended_names_replicas"), list):
+        raise ValidationError("top-level transport result omits extended-name replicas")
+    outer = value["extended_names_replicas"]
+    if len(outer) != len(child_replicas):
+        raise ValidationError("top-level transport replica inventory differs from the child result")
+    changed = False
+    for expected_replica, (transported, child) in enumerate(zip(outer, child_replicas, strict=True), 1):
+        if not isinstance(transported, dict) or type(transported.get("replica")) is not int or transported["replica"] != expected_replica:
+            raise ValidationError("top-level transport replica identity is malformed")
+        if transported.get("transport_sentinel") != child.get("transport_sentinel"):
+            changed = True
+    return changed
+
+
 def read_image(root: Path, filename: str, size: Any, sha256: Any) -> bytes:
-    if not isinstance(filename, str) or not re.fullmatch(r"extended-names-r[1-3]-(?:empty|b(?:0[0-9]|[1-3][0-9]|40)|reject)\.mdb", filename):
+    if not isinstance(filename, str) or not re.fullmatch(r"extended-names-r[1-3]-(?:empty|b(?:0[0-9]|[1-3][0-9]|40)|controls)\.mdb", filename):
         raise ValidationError("checkpoint database name is invalid")
     path = root / filename
     if path.is_symlink() or not path.is_file():
@@ -151,7 +179,7 @@ def read_image(root: Path, filename: str, size: Any, sha256: Any) -> bytes:
 
 
 def validate_attempts(name: str, attempts: Any) -> list[dict[str, Any]]:
-    expected = rejection_specs() if name == "reject" else batch_specs(int(name[1:]))
+    expected = control_specs() if name == "controls" else batch_specs(int(name[1:]))
     if not isinstance(attempts, list) or len(attempts) != len(expected):
         raise ValidationError(f"checkpoint {name} attempt inventory is invalid")
     result = []
@@ -235,7 +263,7 @@ def isolate_primary(primary: bytes, prefix: str, suffix: str, what: str) -> byte
 
 
 def analyze_arm(data: bytes, name: str, attempts: list[dict[str, Any]], dao: Any) -> dict[str, Any]:
-    expected = rejection_specs() if name == "reject" else batch_specs(int(name[1:]))
+    expected = batch_specs(int(name[1:]))
     wanted_names = {entry["name"] for entry in expected}
     created = {entry["name"] for entry in attempts if entry["created"]}
     if user_tables(dao) != created:
@@ -265,22 +293,50 @@ def analyze_arm(data: bytes, name: str, attempts: list[dict[str, Any]], dao: Any
                 "secondary_nibbles": key["secondary_nibbles"],
                 "row_page": key["row_page"], "row_slot": key["row_slot"],
             })
-            if name != "reject" or spec["role"] == "ascii_control":
-                row["isolated_primary_hex"] = contribution.hex()
+            row["isolated_primary_hex"] = contribution.hex()
             if spec["role"] == "ascii_control" and (contribution or key["secondary_nibbles"]):
                 raise schema.DecodeError(f"checkpoint {name} ASCII control does not match EXP-0087 weights")
         forms.append(row)
-    return {"checkpoint": name, "bytes": list(BATCHES[int(name[1:])]) if name != "reject" else [], "forms": forms}
+    return {"checkpoint": name, "bytes": list(BATCHES[int(name[1:])]), "forms": forms}
+
+
+def analyze_controls(attempts: list[dict[str, Any]], dao: Any) -> dict[str, Any]:
+    """Preserve BSTR/DAO metadata outcomes without interpreting catalog bytes."""
+    created = {entry["name"] for entry in attempts if entry["created"]}
+    if user_tables(dao) != created:
+        raise schema.DecodeError("checkpoint controls DAO inventory disagrees with attempts")
+    return {
+        "checkpoint": "controls",
+        "forms": [
+            {
+                "role": spec["role"],
+                "name": spec["name"],
+                "name_utf16le_hex": attempt["name_utf16le_hex"],
+                "created": attempt["created"],
+                "accepted": attempt["created"],
+                "failure_operation": attempt["failure_operation"],
+                "error": attempt["error"],
+            }
+            for spec, attempt in zip(control_specs(), attempts, strict=True)
+        ],
+    }
 
 
 def validate_replica(root: Path, value: Any, expected_replica: int) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValidationError("replica is not an object")
-    exact_keys(value, {"replica", "status", "error", "mutation_started", "phase", "checkpoints", "recovery"}, "replica")
+    exact_keys(value, {"replica", "status", "error", "mutation_started", "phase", "transport_sentinel", "checkpoints", "recovery"}, "replica")
     if type(value["replica"]) is not int or value["replica"] != expected_replica or value["status"] not in ("pass", "fail") or type(value["mutation_started"]) is not bool or not isinstance(value["phase"], str):
         raise ValidationError("replica state is malformed")
     if value["error"] is not None and (not isinstance(value["error"], str) or len(value["error"]) > MAXIMUM_DETAIL):
         raise ValidationError("replica error is malformed")
+    sentinel = value["transport_sentinel"]
+    if not isinstance(sentinel, dict) or set(sentinel) != {"value", "utf16le_hex"} or not all(isinstance(item, str) for item in sentinel.values()):
+        raise ValidationError("replica transport sentinel is malformed")
+    transport_changed = sentinel != {
+        "value": TRANSPORT_SENTINEL,
+        "utf16le_hex": TRANSPORT_SENTINEL.encode("utf-16le").hex(),
+    }
     if not isinstance(value["checkpoints"], list) or not isinstance(value["recovery"], list) or len(value["recovery"]) > 1:
         raise ValidationError("replica artifact inventory is malformed")
     images: dict[str, bytes] = {}
@@ -289,6 +345,8 @@ def validate_replica(root: Path, value: Any, expected_replica: int) -> dict[str,
     files = []
     metadata_changed = False
     semantic_errors: list[str] = []
+    if transport_changed:
+        semantic_errors.append("transport sentinel did not preserve exact code points")
     empty_identity: dict[str, Any] | None = None
     for index, checkpoint in enumerate(value["checkpoints"]):
         if index >= len(CHECKPOINT_NAMES) or not isinstance(checkpoint, dict):
@@ -349,11 +407,11 @@ def validate_replica(root: Path, value: Any, expected_replica: int) -> dict[str,
             phase_index = int(cleanup_batch_phase.group(1))
             if phase_index >= len(BATCHES) or len(value["checkpoints"]) != phase_index + 2:
                 raise ValidationError("failed cleanup phase disagrees with checkpoint prefix")
-        elif value["phase"] == "append_reject":
+        elif value["phase"] == "append_controls":
             if len(value["checkpoints"]) != 1 + len(BATCHES):
                 raise ValidationError("failed phase disagrees with checkpoint prefix")
-            phase_next_name = "reject"
-        elif value["phase"] in ("cleanup_reject", "cleanup_complete"):
+            phase_next_name = "controls"
+        elif value["phase"] in ("cleanup_controls", "cleanup_complete"):
             if not complete:
                 raise ValidationError("failed cleanup phase disagrees with checkpoint prefix")
         elif value["phase"] in ("before_create_database", "create_database", "capture_empty"):
@@ -371,7 +429,7 @@ def validate_replica(root: Path, value: Any, expected_replica: int) -> dict[str,
             raise ValidationError("failed phase and mutation state disagree")
     if value["status"] == "pass" and (not complete or value["recovery"]):
         raise ValidationError("passing replica has an incomplete inventory")
-    if value["status"] == "fail" and complete and value["phase"] not in ("cleanup_reject", "cleanup_complete"):
+    if value["status"] == "fail" and complete and value["phase"] not in ("cleanup_controls", "cleanup_complete"):
         raise ValidationError("failed replica has a complete inventory")
     if complete and value["recovery"]:
         raise ValidationError("complete replica cannot retain a recovery artifact")
@@ -385,7 +443,7 @@ def validate_replica(root: Path, value: Any, expected_replica: int) -> dict[str,
             raise ValidationError("recovery does not match the failed phase")
         read_image(root, recovery["database"], recovery["size"], recovery["sha256"])
         files.append(recovery)
-    result = {k: value[k] for k in ("replica", "status", "error", "mutation_started", "phase")}
+    result = {k: value[k] for k in ("replica", "status", "error", "mutation_started", "phase", "transport_sentinel")}
     result["files"] = files
     result["metadata_changed"] = metadata_changed
     result["attempts"] = {
@@ -394,20 +452,29 @@ def validate_replica(root: Path, value: Any, expected_replica: int) -> dict[str,
     observations = []
     for name in CHECKPOINT_NAMES[1 : len(value["checkpoints"])]:
         try:
+            if name == "controls":
+                continue
             observations.append(analyze_arm(images[name], name, attempts_by_name[name], dao_by_name[name]))
         except (ValueError, schema.DecodeError) as error:
             semantic_errors.append(f"checkpoint {name}: {error}")
+    controls = None
+    if "controls" in attempts_by_name:
+        try:
+            controls = analyze_controls(attempts_by_name["controls"], dao_by_name["controls"])
+        except schema.DecodeError as error:
+            semantic_errors.append(f"checkpoint controls: {error}")
     if observations and not complete:
         result["partial_observation"] = observations
     if semantic_errors:
         result["decode_error"] = "; ".join(semantic_errors)
-    elif complete and not metadata_changed:
+    elif complete and not metadata_changed and controls is not None:
         result["observation"] = observations
+        result["controls"] = controls
     return result
 
 
-def summarize(observation: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
-    all_forms = [form for arm in observation if arm["checkpoint"] != "reject" for form in arm["forms"]]
+def summarize(observation: list[dict[str, Any]]) -> dict[str, Any]:
+    all_forms = [form for arm in observation for form in arm["forms"]]
     by_byte: dict[str, Any] = {}
     for point in DEFINED_BYTES:
         tag = f"N{point:02X}"
@@ -443,9 +510,51 @@ def summarize(observation: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[s
                 summary[f"{role}_primary_is_ordered_singletons"] = None
                 summary[f"{role}_secondary_is_ordered_singletons"] = None
         by_byte[f"{point:02x}"] = summary
-    rejection_arm = next(arm for arm in observation if arm["checkpoint"] == "reject")
-    controls = {entry["role"]: entry for entry in rejection_arm["forms"]}
-    return by_byte, controls
+    return by_byte
+
+
+def question_projection(replica: dict[str, Any]) -> dict[str, Any]:
+    """Compare only outcomes and collation facts, excluding incidental locators."""
+    summary = summarize(replica["observation"])
+    attempts = {
+        checkpoint: [
+            {
+                key: attempt[key]
+                for key in ("role", "name", "name_utf16le_hex", "inserted_bytes", "created", "failure_operation")
+            }
+            for attempt in values
+        ]
+        for checkpoint, values in replica["attempts"].items()
+        if checkpoint != "empty"
+    }
+    collation = {
+        key: {
+            field: value[field]
+            for field in (
+                "created_forms", "rejected_forms",
+                "singleton_primary_position_independent", "singleton_secondary_position_independent",
+                "repeat_primary_is_two_singletons", "repeat_secondary_is_two_singletons",
+                "forward_primary_is_ordered_singletons", "forward_secondary_is_ordered_singletons",
+                "reverse_primary_is_ordered_singletons", "reverse_secondary_is_ordered_singletons",
+            )
+        }
+        for key, value in summary.items()
+    }
+    primary_and_secondary = {
+        key: [
+            {
+                field: form.get(field)
+                for field in ("role", "created", "failure_operation", "isolated_primary_hex", "secondary_nibbles")
+            }
+            for form in value["forms"]
+        ]
+        for key, value in summary.items()
+    }
+    controls = [
+        {key: form[key] for key in ("role", "name", "name_utf16le_hex", "created", "accepted", "failure_operation")}
+        for form in replica["controls"]["forms"]
+    ]
+    return {"attempts": attempts, "collation": collation, "primary_and_secondary": primary_and_secondary, "controls": controls}
 
 
 def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> dict[str, Any]:
@@ -458,13 +567,14 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
         elif any(entry.get("decode_error") for entry in replicas):
             reason = "at least one retained checkpoint failed a recorded grammar or control"
         questions = {name: {"status": "no_outcome", "reason": reason} for name in question_names}
-    elif any(entry["observation"] != complete[0]["observation"] for entry in complete[1:]):
-        reason = "replicas disagree on the exact decoded observations"
+    elif any(question_projection(entry) != question_projection(complete[0]) for entry in complete[1:]):
+        reason = "replicas disagree on the exact question-bearing observations"
         questions = {name: {"status": "no_outcome", "reason": reason} for name in question_names}
     else:
-        summary, controls = summarize(complete[0]["observation"])
+        summary = summarize(complete[0]["observation"])
+        controls = {entry["role"]: entry for entry in complete[0]["controls"]["forms"]}
         questions = {
-            "coverage": {"status": "answered", "bytes": {key: {k: value[k] for k in ("created_forms", "rejected_forms")} for key, value in summary.items()}, "rejection_controls": controls},
+            "coverage": {"status": "answered", "bytes": {key: {k: value[k] for k in ("created_forms", "rejected_forms")} for key, value in summary.items()}, "metadata_controls": controls},
             "singleton_positions": {"status": "answered", "bytes": {key: {k: value[k] for k in ("singleton_primary_position_independent", "singleton_secondary_position_independent")} for key, value in summary.items()}},
             "pair_composition": {"status": "answered", "bytes": {key: {k: value[k] for k in ("repeat_primary_is_two_singletons", "repeat_secondary_is_two_singletons")} for key, value in summary.items()}},
             "secondary_order": {"status": "answered", "bytes": summary},
@@ -473,13 +583,13 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
     return {
         "compatibility_claim": False, "development_only": True,
         "document_type": REPORT_TYPE, "plan_sha256": document["plan_sha256"],
-        "questions": questions, "replicas": [{k: v for k, v in entry.items() if k != "observation"} for entry in replicas],
+        "questions": questions, "replicas": replicas,
         "status": "accepted" if all(value["status"] == "answered" for value in questions.values()) else "no_outcome",
         "support_movement": False,
     }
 
 
-def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[str, Any]:
+def evaluate(job_result: Path, expected_plan_sha256: str, transport_result: Path, output: Path) -> dict[str, Any]:
     expected = digest(expected_plan_sha256, "--expected-plan-sha256")
     document = load_document(job_result)
     if document["plan_sha256"] != expected:
@@ -491,6 +601,13 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
     if pre_mutation_abort:
         raise ValidationError("job stopped before the first DAO mutation")
     replicas = [validate_replica(job_result.parent, value, index) for index, value in enumerate(values, 1)]
+    if not replicas[0]["mutation_started"]:
+        raise ValidationError("replica 1 did not reach the first DAO mutation")
+    if transport_sentinels_changed(transport_result, values):
+        detail = "top-level transport did not preserve the exact non-ASCII sentinel"
+        replicas[0]["decode_error"] = detail
+        replicas[0].pop("observation", None)
+        replicas[0].pop("controls", None)
     if document["status"] == "pass" and any(entry["status"] != "pass" for entry in replicas):
         raise ValidationError("job and replica statuses disagree")
     if document["status"] == "fail" and all(entry["status"] == "pass" for entry in replicas):
@@ -520,7 +637,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
-        evaluate(args.job_result, args.expected_plan_sha256, args.output)
+        evaluate(
+            args.job_result,
+            args.expected_plan_sha256,
+            args.job_result.parent / "result.json",
+            args.output,
+        )
     except (OSError, ValidationError, schema.DecodeError) as error:
         print(f"INVALID: {error}", file=sys.stderr)
         return 1

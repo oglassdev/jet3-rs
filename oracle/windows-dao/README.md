@@ -170,19 +170,17 @@ and `interpreted=false`; it is never decoded and every post-mutation failure
 remains `no_outcome`. Acquisition remains forbidden until the exact
 preregistration commit is merged and a new explicit human decision is recorded.
 
-The issue #152 `extended-names` preregistration partitions all 123 defined
-CP1252 bytes in `0x80`-`0xFF` into 41 independent three-byte arms per replica.
-Each arm uses exact singleton, repeated, and neighboring-pair names; a separate
-arm records U+007F and the five undefined-slot Unicode rejection controls. A
-passing run retains 43 closed MDBs per replica, 129 total. This is a bounded
-catalog-key observation, not a general collation or compatibility claim.
-`EXP-0087`'s 24-name checkpoint occupied 70 pages; this prospective job
-therefore permits 128 pages while keeping each batch at 27 catalog rows (eight
-base plus 19 created tables), below the observed 32-row single leaf. Its exact
-inputs are pinned. `EXP-0097` records the one run as a canonical `no_outcome`:
-all DAO attempts reported creation and their bounded metadata agreed, but every
-replica's rejection checkpoint failed catalog-key decoding with a malformed
-identity field. The preregistered all-or-`no_outcome` rule prevents promoting
-the defined batches after that failure. #152 remains open and evidence-blocked;
-a new run requires a separately pinned successor and renewed explicit human
-authorization.
+The issue #152 `extended-names` job partitions all 123 defined CP1252 bytes in
+`0x80`-`0xFF` into 41 independent three-byte arms per replica. Each defined arm
+uses exact singleton, repeated, and neighboring-pair names. A separate controls
+arm records exact BSTR append and post-close metadata outcomes for U+007F and
+the five undefined-slot Unicode values but is never passed to the catalog
+decoder. A passing run retains 43 closed MDBs per replica, 129 total. This is a
+bounded catalog-key observation, not a general collation or compatibility
+claim. `EXP-0097` records the first run as a canonical `no_outcome`: all DAO
+attempts and metadata succeeded, but the old analyzer tried to decode the
+former `reject` checkpoint as a physical catalog-key observation. `EXP-0099`
+renames that checkpoint `controls` and is the SHA-256-pinned successor with the
+41 defined arms unchanged, metadata-only controls, question-bearing replica
+equality that excludes incidental locators, and an exact non-ASCII transport
+sentinel. Acquisition still requires renewed explicit human authorization.
