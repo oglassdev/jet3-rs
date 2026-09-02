@@ -3,6 +3,10 @@
 //! This validates a caller-described table and assigns its appended pages. It
 //! builds no page bytes and performs no I/O.
 //!
+//! Column classes, sizes, row layout, key columns, and name lengths are
+//! validated by the same table-definition and catalog encoders that will later
+//! write the table, so a plan this module accepts is one those encoders accept.
+//!
 //! `EXP-0087` observed, identically across three fresh replicas, that creating
 //! a user table appends a definition root page numbered equal to the new
 //! object's `MSysObjects` `Id`, then a page holding the table's usage-map rows,
@@ -25,28 +29,20 @@
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, validate_catalog_name};
-use crate::physical_index_definition::KEY_SLOT_COUNT;
-use crate::{ColumnPhysicalType, ColumnStorageKind, PageNumber};
+use crate::catalog_record_writer::{CatalogRecordWriteError, catalog_record_len};
+use crate::column_definition_writer::{PhysicalIndexSpec, validate_physical_index};
+use crate::table_definition_layout::{validate_column_layout, validate_name};
+use crate::{
+    ColumnSpec, IndexFieldSpec, PageNumber, PhysicalIndexFlagsSpec, TableDefinitionKind,
+    TableDefinitionWriteError,
+};
 
-/// `EXP-0060`: one-byte column count, so at most 255 columns.
-const MAX_COLUMNS: usize = 255;
-/// `EXP-0059`: one key slot per indexed column in the physical definition.
-const MAX_INDEX_FIELDS: usize = KEY_SLOT_COUNT;
 /// Index count `EXP-0087` observed on a created table.
 const MAX_OBSERVED_INDEXES: usize = 1;
-
-/// One column of a table being planned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PlannedColumn<'a> {
-    /// Column name in the database's configured code page.
-    pub(crate) name: &'a [u8],
-    /// Stored physical type.
-    pub(crate) physical_type: ColumnPhysicalType,
-    /// Whether the column occupies a fixed row slot or a variable one.
-    pub(crate) storage: ColumnStorageKind,
-    /// Declared size in bytes; zero for the long types that carry none.
-    pub(crate) size: u16,
-}
+/// `EXP-0057`: usage-map locators hold a three-byte page number.
+const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
+/// Row slot the planned table's own usage map takes on its map page.
+const OWNED_MAP_ROW: u8 = 0;
 
 /// Whether a planned index is the table's primary one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,13 +53,23 @@ pub(crate) enum PlannedIndexKind {
     Ordinary,
 }
 
+impl PlannedIndexKind {
+    /// Returns the physical flag class this index kind encodes to.
+    const fn flags(self) -> PhysicalIndexFlagsSpec {
+        match self {
+            Self::Primary => PhysicalIndexFlagsSpec::UniqueRequired,
+            Self::Ordinary => PhysicalIndexFlagsSpec::Ordinary,
+        }
+    }
+}
+
 /// One index of a table being planned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PlannedIndex<'a> {
     /// Index name in the database's configured code page.
     pub(crate) name: &'a [u8],
-    /// Zero-based ordinals of the indexed columns, in key order.
-    pub(crate) fields: &'a [u16],
+    /// Ordered key fields.
+    pub(crate) fields: &'a [IndexFieldSpec],
     /// Whether this is the table's primary index.
     pub(crate) kind: PlannedIndexKind,
 }
@@ -74,7 +80,7 @@ pub(crate) struct TableSchemaSpec<'a> {
     /// Table name in the database's configured code page.
     pub(crate) name: &'a [u8],
     /// The table's columns in ordinal order.
-    pub(crate) columns: &'a [PlannedColumn<'a>],
+    pub(crate) columns: &'a [ColumnSpec<'a>],
     /// The table's indexes.
     pub(crate) indexes: &'a [PlannedIndex<'a>],
 }
@@ -83,74 +89,19 @@ pub(crate) struct TableSchemaSpec<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum TableSchemaPlanError {
     /// The table name cannot be encoded into a catalog index key.
-    TableName(CatalogNameKeyError),
-    /// A column declares an empty name.
-    EmptyColumnName {
-        /// Zero-based ordinal of the rejected column.
-        ordinal: usize,
-    },
-    /// An index declares an empty name.
-    EmptyIndexName {
-        /// Zero-based position of the rejected index.
-        index: usize,
-    },
+    TableNameKey(CatalogNameKeyError),
+    /// The table name cannot be encoded into an `MSysObjects` row.
+    TableNameRow(CatalogRecordWriteError),
+    /// The columns or indexes cannot be encoded into a table definition.
+    Definition(TableDefinitionWriteError),
     /// The table declares no columns.
     NoColumns,
-    /// The table declares more columns than a planned table may carry.
-    TooManyColumns {
-        /// Declared column count.
-        count: usize,
-        /// Largest supported column count.
-        limit: usize,
-    },
-    /// Two columns share a name.
-    DuplicateColumnName {
-        /// Ordinal of the earlier column.
-        first: usize,
-        /// Ordinal of the later column.
-        second: usize,
-    },
-    /// Two indexes share a name.
-    DuplicateIndexName {
-        /// Position of the earlier index.
-        first: usize,
-        /// Position of the later index.
-        second: usize,
-    },
     /// `EXP-0087` observed no create carrying this many indexes.
     UnobservedIndexCount {
         /// Declared index count.
         count: usize,
         /// Largest observed index count.
         observed: usize,
-    },
-    /// An index names no columns.
-    IndexWithoutFields {
-        /// Position of the rejected index.
-        index: usize,
-    },
-    /// An index names more columns than one index may carry.
-    TooManyIndexFields {
-        /// Position of the rejected index.
-        index: usize,
-        /// Declared field count.
-        count: usize,
-        /// Largest supported field count.
-        limit: usize,
-    },
-    /// An index names a column the table does not declare.
-    IndexFieldOutOfRange {
-        /// Position of the rejected index.
-        index: usize,
-        /// The out-of-range column ordinal.
-        column: u16,
-    },
-    /// An index names the same column twice.
-    DuplicateIndexField {
-        /// Position of the rejected index.
-        index: usize,
-        /// The repeated column ordinal.
-        column: u16,
     },
     /// The table declares more than one primary index.
     MultiplePrimaryIndexes {
@@ -166,6 +117,13 @@ pub(crate) enum TableSchemaPlanError {
         /// Pages the run needs.
         needed: u64,
     },
+    /// The map page cannot be named by a three-byte usage-map locator.
+    MapPageNotAddressable {
+        /// The unaddressable map page.
+        page: u64,
+        /// Highest page a locator can name.
+        maximum: u64,
+    },
 }
 
 impl fmt::Display for TableSchemaPlanError {
@@ -177,7 +135,9 @@ impl fmt::Display for TableSchemaPlanError {
 impl std::error::Error for TableSchemaPlanError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::TableName(source) => Some(source),
+            Self::TableNameKey(source) => Some(source),
+            Self::TableNameRow(source) => Some(source),
+            Self::Definition(source) => Some(source),
             _ => None,
         }
     }
@@ -229,9 +189,32 @@ pub(crate) fn plan_table_schema(
     spec: &TableSchemaSpec<'_>,
     first_page: u64,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    validate_names(spec)?;
-    validate_indexes(spec)?;
+    validate_table_name(spec.name)?;
+    if spec.columns.is_empty() {
+        return Err(TableSchemaPlanError::NoColumns);
+    }
+    validate_column_layout(spec.columns, TableDefinitionKind::User, &[])
+        .map_err(TableSchemaPlanError::Definition)?;
+    let plan = assign_pages(spec, first_page)?;
+    validate_indexes(spec, &plan)?;
+    Ok(plan)
+}
+
+/// Checks the table name against both encodings that will carry it.
+fn validate_table_name(name: &[u8]) -> Result<(), TableSchemaPlanError> {
+    validate_catalog_name(name).map_err(TableSchemaPlanError::TableNameKey)?;
+    catalog_record_len(name.len()).map_err(TableSchemaPlanError::TableNameRow)?;
+    Ok(())
+}
+
+/// Assigns the appended page run, refusing numbers the encoders cannot name.
+fn assign_pages(
+    spec: &TableSchemaSpec<'_>,
+    first_page: u64,
+) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     let needed = if spec.indexes.is_empty() { 2 } else { 3 };
+    // `EXP-0087` numbers the object equal to its definition root, and
+    // `MSysObjects.Id` is a signed Long, so the run must stay in that range.
     let object_id = i32::try_from(first_page)
         .ok()
         .filter(|_| first_page.checked_add(needed).is_some())
@@ -239,57 +222,26 @@ pub(crate) fn plan_table_schema(
             first: first_page,
             needed,
         })?;
+    let map_page = first_page + 1;
+    if map_page > MAX_MAP_PAGE {
+        return Err(TableSchemaPlanError::MapPageNotAddressable {
+            page: map_page,
+            maximum: MAX_MAP_PAGE,
+        });
+    }
     Ok(TableSchemaPlan {
         object_id,
         definition_root: PageNumber::new(first_page),
-        map_page: PageNumber::new(first_page + 1),
+        map_page: PageNumber::new(map_page),
         index_root: (needed == 3).then(|| PageNumber::new(first_page + 2)),
     })
 }
 
-fn validate_names(spec: &TableSchemaSpec<'_>) -> Result<(), TableSchemaPlanError> {
-    validate_catalog_name(spec.name).map_err(TableSchemaPlanError::TableName)?;
-    if spec.columns.is_empty() {
-        return Err(TableSchemaPlanError::NoColumns);
-    }
-    if spec.columns.len() > MAX_COLUMNS {
-        return Err(TableSchemaPlanError::TooManyColumns {
-            count: spec.columns.len(),
-            limit: MAX_COLUMNS,
-        });
-    }
-    for (ordinal, column) in spec.columns.iter().enumerate() {
-        if column.name.is_empty() {
-            return Err(TableSchemaPlanError::EmptyColumnName { ordinal });
-        }
-        if let Some(first) = spec.columns[..ordinal]
-            .iter()
-            .position(|earlier| earlier.name == column.name)
-        {
-            return Err(TableSchemaPlanError::DuplicateColumnName {
-                first,
-                second: ordinal,
-            });
-        }
-    }
-    for (index, planned) in spec.indexes.iter().enumerate() {
-        if planned.name.is_empty() {
-            return Err(TableSchemaPlanError::EmptyIndexName { index });
-        }
-        if let Some(first) = spec.indexes[..index]
-            .iter()
-            .position(|earlier| earlier.name == planned.name)
-        {
-            return Err(TableSchemaPlanError::DuplicateIndexName {
-                first,
-                second: index,
-            });
-        }
-    }
-    Ok(())
-}
-
-fn validate_indexes(spec: &TableSchemaSpec<'_>) -> Result<(), TableSchemaPlanError> {
+/// Checks each index against the physical-index encoder and the observed count.
+fn validate_indexes(
+    spec: &TableSchemaSpec<'_>,
+    plan: &TableSchemaPlan,
+) -> Result<(), TableSchemaPlanError> {
     if spec.indexes.len() > MAX_OBSERVED_INDEXES {
         return Err(TableSchemaPlanError::UnobservedIndexCount {
             count: spec.indexes.len(),
@@ -297,31 +249,37 @@ fn validate_indexes(spec: &TableSchemaSpec<'_>) -> Result<(), TableSchemaPlanErr
         });
     }
     let mut primary: Option<usize> = None;
-    for (index, planned) in spec.indexes.iter().enumerate() {
-        if planned.fields.is_empty() {
-            return Err(TableSchemaPlanError::IndexWithoutFields { index });
-        }
-        if planned.fields.len() > MAX_INDEX_FIELDS {
-            return Err(TableSchemaPlanError::TooManyIndexFields {
-                index,
-                count: planned.fields.len(),
-                limit: MAX_INDEX_FIELDS,
-            });
-        }
-        for (position, &column) in planned.fields.iter().enumerate() {
-            if usize::from(column) >= spec.columns.len() {
-                return Err(TableSchemaPlanError::IndexFieldOutOfRange { index, column });
-            }
-            if planned.fields[..position].contains(&column) {
-                return Err(TableSchemaPlanError::DuplicateIndexField { index, column });
-            }
-        }
+    for (position, planned) in spec.indexes.iter().enumerate() {
+        let ordinal = position as u16;
+        validate_name(
+            "logical index",
+            ordinal,
+            planned.name,
+            spec.indexes[..position].iter().map(|earlier| earlier.name),
+        )
+        .map_err(TableSchemaPlanError::Definition)?;
+        let root = plan
+            .index_root
+            .ok_or(TableSchemaPlanError::UnobservedIndexCount {
+                count: spec.indexes.len(),
+                observed: MAX_OBSERVED_INDEXES,
+            })?;
+        let physical = PhysicalIndexSpec {
+            fields: planned.fields,
+            usage_map_page: plan.map_page,
+            usage_map_row: OWNED_MAP_ROW,
+            root,
+            flags: planned.kind.flags(),
+            entry_count: 0,
+        };
+        validate_physical_index(ordinal, &physical, spec.columns)
+            .map_err(TableSchemaPlanError::Definition)?;
         if planned.kind == PlannedIndexKind::Primary
-            && let Some(first) = primary.replace(index)
+            && let Some(first) = primary.replace(position)
         {
             return Err(TableSchemaPlanError::MultiplePrimaryIndexes {
                 first,
-                second: index,
+                second: position,
             });
         }
     }

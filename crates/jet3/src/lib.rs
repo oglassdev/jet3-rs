@@ -44,6 +44,7 @@ pub mod row_directory;
 pub mod row_writer;
 pub mod source;
 pub mod table_definition;
+mod table_definition_layout;
 pub mod table_definition_writer;
 mod table_schema_plan;
 pub mod text;

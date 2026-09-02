@@ -1,41 +1,55 @@
 use super::*;
 
+use crate::physical_index_definition::KEY_SLOT_COUNT;
+use crate::{ColumnPhysicalType, ColumnStorageKind, IndexDirection};
+
 type PlanResult = Result<(), TableSchemaPlanError>;
 
-const ID: PlannedColumn<'static> = PlannedColumn {
-    name: b"Id",
-    physical_type: ColumnPhysicalType::Long,
-    storage: ColumnStorageKind::Fixed,
-    size: 4,
-};
-const LABEL: PlannedColumn<'static> = PlannedColumn {
-    name: b"Label",
-    physical_type: ColumnPhysicalType::Text,
-    storage: ColumnStorageKind::Variable,
-    size: 30,
-};
-const NAME: PlannedColumn<'static> = PlannedColumn {
-    name: b"Name",
-    physical_type: ColumnPhysicalType::Text,
-    storage: ColumnStorageKind::Variable,
-    size: 50,
-};
-const NOTE: PlannedColumn<'static> = PlannedColumn {
-    name: b"Note",
-    physical_type: ColumnPhysicalType::Memo,
-    storage: ColumnStorageKind::Variable,
-    size: 0,
-};
+const ID: ColumnSpec<'static> =
+    ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4);
+const LABEL: ColumnSpec<'static> = ColumnSpec::new(
+    b"Label",
+    ColumnPhysicalType::Text,
+    ColumnStorageKind::Variable,
+    30,
+);
+const NAME: ColumnSpec<'static> = ColumnSpec::new(
+    b"Name",
+    ColumnPhysicalType::Text,
+    ColumnStorageKind::Variable,
+    50,
+);
+const NOTE: ColumnSpec<'static> = ColumnSpec::new(
+    b"Note",
+    ColumnPhysicalType::Memo,
+    ColumnStorageKind::Variable,
+    0,
+);
+
+const fn key(column: u16) -> IndexFieldSpec {
+    IndexFieldSpec {
+        column,
+        direction: IndexDirection::Ascending,
+    }
+}
 
 fn spec<'a>(
     name: &'a [u8],
-    columns: &'a [PlannedColumn<'a>],
+    columns: &'a [ColumnSpec<'a>],
     indexes: &'a [PlannedIndex<'a>],
 ) -> TableSchemaSpec<'a> {
     TableSchemaSpec {
         name,
         columns,
         indexes,
+    }
+}
+
+/// Returns the definition error planning `spec` produced, if it produced one.
+fn definition_error(spec: &TableSchemaSpec<'_>) -> Option<TableDefinitionWriteError> {
+    match plan_table_schema(spec, 20) {
+        Err(TableSchemaPlanError::Definition(error)) => Some(error),
+        _ => None,
     }
 }
 
@@ -59,7 +73,7 @@ fn an_indexed_table_appends_its_index_root_after_the_map_page() -> PlanResult {
     let columns = [LABEL];
     let indexes = [PlannedIndex {
         name: b"ByLabel",
-        fields: &[0],
+        fields: &[key(0)],
         kind: PlannedIndexKind::Ordinary,
     }];
     let plan = plan_table_schema(&spec(b"Delta", &columns, &indexes), 28)?;
@@ -77,7 +91,7 @@ fn a_primary_index_plans_the_same_pages_as_an_ordinary_one() -> PlanResult {
     let columns = [ID];
     let indexes = [PlannedIndex {
         name: b"PrimaryKey",
-        fields: &[0],
+        fields: &[key(0)],
         kind: PlannedIndexKind::Primary,
     }];
     let plan = plan_table_schema(&spec(b"Gamma", &columns, &indexes), 25)?;
@@ -91,7 +105,7 @@ fn a_table_name_byte_without_an_established_weight_is_refused() {
     let columns = [ID];
     assert_eq!(
         plan_table_schema(&spec(b"Caf\xe9", &columns, &[]), 20),
-        Err(TableSchemaPlanError::TableName(
+        Err(TableSchemaPlanError::TableNameKey(
             CatalogNameKeyError::UnmappedNameByte {
                 position: 3,
                 byte: 0xe9,
@@ -105,11 +119,122 @@ fn an_empty_table_name_is_refused() {
     let columns = [ID];
     assert_eq!(
         plan_table_schema(&spec(b"", &columns, &[]), 20),
-        Err(TableSchemaPlanError::TableName(
+        Err(TableSchemaPlanError::TableNameKey(
             CatalogNameKeyError::EmptyName
         ))
     );
 }
+
+#[test]
+fn a_table_name_too_long_for_a_catalog_row_is_refused() {
+    // The MSysObjects row's one-byte name-end offset bounds the name; the
+    // longest writable name must still plan.
+    let columns = [ID];
+    let longest = vec![b'A'; 224];
+    assert!(plan_table_schema(&spec(&longest, &columns, &[]), 20).is_ok());
+    let overlong = vec![b'A'; 225];
+    assert!(matches!(
+        plan_table_schema(&spec(&overlong, &columns, &[]), 20),
+        Err(TableSchemaPlanError::TableNameRow(
+            CatalogRecordWriteError::NameTooLong { length: 225, .. }
+        ))
+    ));
+}
+
+#[test]
+fn a_column_name_too_long_for_the_definition_is_refused() {
+    let overlong = vec![b'A'; 256];
+    let columns = [ColumnSpec::new(
+        &overlong,
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &[])),
+        Some(TableDefinitionWriteError::NameTooLong {
+            role: "column",
+            length: 256,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn an_index_name_too_long_for_the_definition_is_refused() {
+    let overlong = vec![b'A'; 256];
+    let columns = [ID];
+    let indexes = [PlannedIndex {
+        name: &overlong,
+        fields: &[key(0)],
+        kind: PlannedIndexKind::Ordinary,
+    }];
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &indexes)),
+        Some(TableDefinitionWriteError::NameTooLong {
+            role: "logical index",
+            length: 256,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_column_size_its_type_does_not_accept_is_refused() {
+    let columns = [ColumnSpec::new(
+        b"Id",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        1,
+    )];
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &[])),
+        Some(TableDefinitionWriteError::UnsupportedColumnSize {
+            ordinal: 0,
+            size: 1,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_memo_column_in_fixed_storage_is_refused() {
+    let columns = [ColumnSpec::new(
+        b"Note",
+        ColumnPhysicalType::Memo,
+        ColumnStorageKind::Fixed,
+        0,
+    )];
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &[])),
+        Some(TableDefinitionWriteError::UnsupportedColumnClass { ordinal: 0, .. })
+    ));
+}
+
+#[test]
+fn a_fixed_area_no_row_slot_could_hold_is_refused() {
+    // Each column is a fixed Text(255); enough of them overrun the row slot.
+    let names = (0..MANY_COLUMNS)
+        .map(|ordinal| format!("C{ordinal:03}").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = names
+        .iter()
+        .map(|name| {
+            ColumnSpec::new(
+                name,
+                ColumnPhysicalType::Text,
+                ColumnStorageKind::Fixed,
+                255,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        definition_error(&spec(b"Wide", &columns, &[])),
+        Some(TableDefinitionWriteError::RowLayoutTooLarge { .. })
+    ));
+}
+
+const MANY_COLUMNS: usize = 32;
 
 #[test]
 fn a_table_without_columns_is_refused() {
@@ -121,44 +246,40 @@ fn a_table_without_columns_is_refused() {
 
 #[test]
 fn a_column_count_one_above_the_limit_is_refused() {
-    let columns = vec![ID; MAX_COLUMNS + 1];
-    assert_eq!(
-        plan_table_schema(&spec(b"Wide", &columns, &[]), 20),
-        Err(TableSchemaPlanError::TooManyColumns {
-            count: MAX_COLUMNS + 1,
-            limit: MAX_COLUMNS,
-        })
-    );
-    // The duplicate names inside a limit-sized spec must still be caught.
-    let at_limit = vec![ID; MAX_COLUMNS];
-    assert_eq!(
-        plan_table_schema(&spec(b"Wide", &at_limit, &[]), 20),
-        Err(TableSchemaPlanError::DuplicateColumnName {
-            first: 0,
-            second: 1,
-        })
-    );
+    let columns = vec![ID; 256];
+    assert!(matches!(
+        definition_error(&spec(b"Wide", &columns, &[])),
+        Some(TableDefinitionWriteError::TooManyColumns { count: 256, .. })
+    ));
 }
 
 #[test]
 fn a_repeated_column_name_is_refused() {
     let columns = [ID, LABEL, ID];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &[]), 20),
-        Err(TableSchemaPlanError::DuplicateColumnName {
-            first: 0,
-            second: 2,
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &[])),
+        Some(TableDefinitionWriteError::DuplicateName {
+            role: "column",
+            ordinal: 2,
         })
-    );
+    ));
 }
 
 #[test]
 fn an_empty_column_name_is_refused() {
-    let columns = [PlannedColumn { name: b"", ..ID }];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &[]), 20),
-        Err(TableSchemaPlanError::EmptyColumnName { ordinal: 0 })
-    );
+    let columns = [ColumnSpec::new(
+        b"",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &[])),
+        Some(TableDefinitionWriteError::EmptyName {
+            role: "column",
+            ordinal: 0,
+        })
+    ));
 }
 
 #[test]
@@ -169,12 +290,12 @@ fn more_indexes_than_any_create_carried_are_refused() {
     let indexes = [
         PlannedIndex {
             name: b"ById",
-            fields: &[0],
+            fields: &[key(0)],
             kind: PlannedIndexKind::Primary,
         },
         PlannedIndex {
             name: b"ByLabel",
-            fields: &[1],
+            fields: &[key(1)],
             kind: PlannedIndexKind::Ordinary,
         },
     ];
@@ -195,10 +316,10 @@ fn an_index_naming_no_columns_is_refused() {
         fields: &[],
         kind: PlannedIndexKind::Ordinary,
     }];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
-        Err(TableSchemaPlanError::IndexWithoutFields { index: 0 })
-    );
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &indexes)),
+        Some(TableDefinitionWriteError::EmptyPhysicalIndex { physical_index: 0 })
+    ));
 }
 
 #[test]
@@ -206,16 +327,31 @@ fn an_index_naming_an_undeclared_column_is_refused() {
     let columns = [ID];
     let indexes = [PlannedIndex {
         name: b"ById",
-        fields: &[1],
+        fields: &[key(1)],
         kind: PlannedIndexKind::Ordinary,
     }];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
-        Err(TableSchemaPlanError::IndexFieldOutOfRange {
-            index: 0,
-            column: 1,
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &indexes)),
+        Some(TableDefinitionWriteError::InvalidKeyColumn { ordinal: 1, .. })
+    ));
+}
+
+#[test]
+fn an_index_over_a_memo_column_is_refused() {
+    let columns = [NOTE];
+    let indexes = [PlannedIndex {
+        name: b"ByNote",
+        fields: &[key(0)],
+        kind: PlannedIndexKind::Ordinary,
+    }];
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &indexes)),
+        Some(TableDefinitionWriteError::UnsupportedKeyColumn {
+            ordinal: 0,
+            physical_type: ColumnPhysicalType::Memo,
+            ..
         })
-    );
+    ));
 }
 
 #[test]
@@ -223,62 +359,35 @@ fn an_index_naming_one_column_twice_is_refused() {
     let columns = [ID, LABEL];
     let indexes = [PlannedIndex {
         name: b"ById",
-        fields: &[0, 1, 0],
+        fields: &[key(0), key(1), key(0)],
         kind: PlannedIndexKind::Ordinary,
     }];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
-        Err(TableSchemaPlanError::DuplicateIndexField {
-            index: 0,
-            column: 0,
-        })
-    );
+    assert!(matches!(
+        definition_error(&spec(b"Beta", &columns, &indexes)),
+        Some(TableDefinitionWriteError::DuplicateKeyColumn { ordinal: 0, .. })
+    ));
 }
 
 #[test]
 fn an_index_field_count_one_above_the_limit_is_refused() {
-    let columns = vec![ID; MAX_INDEX_FIELDS + 1];
-    let fields = (0..=MAX_INDEX_FIELDS as u16).collect::<Vec<_>>();
+    let names = (0..=KEY_SLOT_COUNT)
+        .map(|ordinal| format!("C{ordinal}").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .collect::<Vec<_>>();
+    let fields = (0..=KEY_SLOT_COUNT as u16).map(key).collect::<Vec<_>>();
     let indexes = [PlannedIndex {
         name: b"Wide",
         fields: &fields,
         kind: PlannedIndexKind::Ordinary,
     }];
-    // Duplicate column names would mask the field-count check, so name them apart.
-    let named = columns
-        .iter()
-        .enumerate()
-        .map(|(ordinal, column)| PlannedColumn {
-            name: COLUMN_NAMES[ordinal],
-            ..*column
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        plan_table_schema(&spec(b"Wide", &named, &indexes), 20),
-        Err(TableSchemaPlanError::TooManyIndexFields {
-            index: 0,
-            count: MAX_INDEX_FIELDS + 1,
-            limit: MAX_INDEX_FIELDS,
-        })
-    );
-}
-
-const COLUMN_NAMES: [&[u8]; MAX_INDEX_FIELDS + 1] = [
-    b"C0", b"C1", b"C2", b"C3", b"C4", b"C5", b"C6", b"C7", b"C8", b"C9", b"CA",
-];
-
-#[test]
-fn an_empty_index_name_is_refused() {
-    let columns = [ID];
-    let indexes = [PlannedIndex {
-        name: b"",
-        fields: &[0],
-        kind: PlannedIndexKind::Ordinary,
-    }];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
-        Err(TableSchemaPlanError::EmptyIndexName { index: 0 })
-    );
+    assert!(matches!(
+        definition_error(&spec(b"Wide", &columns, &indexes)),
+        Some(TableDefinitionWriteError::TooManyKeyFields { count, .. })
+            if count == KEY_SLOT_COUNT + 1
+    ));
 }
 
 #[test]
@@ -294,8 +403,19 @@ fn a_first_page_above_the_signed_id_range_is_refused() {
 }
 
 #[test]
-fn the_highest_representable_first_page_is_accepted() -> PlanResult {
-    let plan = plan_table_schema(&spec(b"Beta", &[ID], &[]), i32::MAX as u64)?;
-    assert_eq!(plan.object_id(), i32::MAX);
+fn a_map_page_no_usage_map_locator_could_name_is_refused() -> PlanResult {
+    // Usage-map locators hold a three-byte page, so the map page bounds the
+    // run well below the signed Id range.
+    let columns = [ID];
+    let highest = MAX_MAP_PAGE - 1;
+    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), highest)?;
+    assert_eq!(plan.map_page(), PageNumber::new(MAX_MAP_PAGE));
+    assert_eq!(
+        plan_table_schema(&spec(b"Beta", &columns, &[]), highest + 1),
+        Err(TableSchemaPlanError::MapPageNotAddressable {
+            page: MAX_MAP_PAGE + 1,
+            maximum: MAX_MAP_PAGE,
+        })
+    );
     Ok(())
 }

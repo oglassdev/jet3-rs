@@ -3,12 +3,13 @@ use super::{
     compose_alpha_database, compose_empty_database,
 };
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
-use crate::table_schema_plan::{PlannedColumn, TableSchemaSpec, plan_table_schema};
+use crate::table_schema_plan::{TableSchemaSpec, plan_table_schema};
 use crate::{
-    ByteCount, CatalogObjectClass, ColumnOrdinal, DatabaseReader, JET3_PAGE_SIZE, LongValue,
-    LongValueChunkValue, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind,
-    classify_page, locate_usage_map, page_tag,
+    ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, ColumnSpec,
+    ColumnStorageKind, DatabaseReader, JET3_PAGE_SIZE, LongValue, LongValueChunkValue,
+    MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
+    ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind, classify_page,
+    locate_usage_map, page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -590,12 +591,12 @@ fn candidate_export_refuses_nonempty_directory() -> TestResult {
 fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     // The Alpha image DAO accepted in EXP-0085 is the fixed case the general
     // EXP-0087 assignment has to agree with.
-    let columns = [PlannedColumn {
-        name: b"Id",
-        physical_type: crate::ColumnPhysicalType::Long,
-        storage: crate::ColumnStorageKind::Fixed,
-        size: 4,
-    }];
+    let columns = [ColumnSpec::new(
+        b"Id",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
     let plan = plan_table_schema(
         &TableSchemaSpec {
             name: b"Alpha",
