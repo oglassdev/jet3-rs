@@ -1,0 +1,91 @@
+{
+  "document_type": "dao_bootstrap_composer_semantics_plan",
+  "experiment_id": "bootstrap_composer_semantics",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Resolve only the fixed raw MSysObjects ParentIdName index keys, the fixed Alpha LvProp external value, and the fixed page-0 transition needed by the crate-private empty-to-Alpha bootstrap composer.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_result": "EXP-0077",
+    "authorization": "Committing this plan does not authorize acquisition. After the exact plan and pinned inputs are independently reviewed and committed, one explicit human authorization permits one local-VM acquisition.",
+    "amendment_rule": "This is a distinct experiment. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision."
+  },
+  "evidence_boundary": {
+    "admitted_prior_results": "EXP-0058 (bounded catalog-root and catalog-row fields), EXP-0060 (data-page row directory and row layout), EXP-0061 (single-page external long-value header and LVAL owner), EXP-0062 (lossless leaf-index entry reconstruction and catalog row locators), EXP-0069 and EXP-0071 (fixed page-0 observations), EXP-0073 (the four system definitions and bounded empty-to-Alpha system semantics), and EXP-0077 (long-value column-map groups and the remaining empty-image page role).",
+    "excluded_diagnostics": "Retained MDBs and post-hoc observations from earlier experiments may be used to test the analyzer as design inputs, but no raw key, LvProp payload, page-0 value, or derived answer from those artifacts is admitted as evidence for this experiment.",
+    "dao_limits": "The local provider has no workgroup information file. DAO system-table reads and permission operations are excluded; correlation is limited to the fresh DAO mutation and the admitted byte grammars.",
+    "claims": "A successful result establishes only deterministic fixed values for this exact fresh empty-to-Alpha transition. It cannot establish a general index-key grammar, a property-blob grammar, a page-0 counter rule, Rust writer correctness, compatibility, support, or support-matrix movement."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "49ebee29f62c97270aedc17efc8f9ecd49085147473e653df5386fdee55fb70b",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "74d6f5da55975d6de9705efe686779b3a156dc98a74625715af9097233e6f356",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "a99168b23cb4b6e778349123b1eb1a86db0016c0aa75d8cc900ed2002384bce9",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "757280b55eeac880220b32be9e3b25833b25824cad8e83c7ebc8e64e8e5f495d",
+    "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1": "304314b27e2737bc9edc8d2ddc50bae9166452b5b5d190bd47213f43d37ca5fa",
+    "oracle/windows-dao/scripts/bootstrap_composer_semantics.py": "e7713deb28c3cffffced95d5ba212c0ab308d2b4a92c3b089415f998a27181ec",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": [
+      "Create one fresh dbVersion30 CP1252 database and capture it closed as empty.",
+      "Create exactly one table named Alpha with one Long field named Id and no index or rows, then capture it closed as alpha."
+    ],
+    "checkpoints": [
+      "empty",
+      "alpha"
+    ],
+    "capture": "Close and release every DAO object before each MDB copy or hash. Reopen the closed checkpoint only for the existing bounded DAO metadata snapshot, verify that metadata access leaves its digest unchanged, and retain all six MDB checkpoints externally with sizes and SHA-256 digests; commit none.",
+    "bounds": {
+      "exact_empty_pages": 20,
+      "exact_alpha_pages": 23,
+      "maximum_pages_per_database": 64,
+      "maximum_checkpoints": 2,
+      "maximum_replicas": 3,
+      "maximum_tables": 16,
+      "maximum_columns_per_table": 64,
+      "maximum_rows_per_page": 64,
+      "maximum_property_value_characters": 256,
+      "maximum_json_bytes": 4194304
+    }
+  },
+  "hypotheses": {
+    "H1_fixed_parent_name_keys": "Under the EXP-0062 leaf-entry boundary, prefix-compression, and four-byte catalog-locator grammar, page 9 contains exactly one losslessly reconstructed raw key per decoded MSysObjects row. Every locator correlates to exactly one row, and the complete empty and Alpha key observations agree across all three replicas. No component or text-key grammar is inferred.",
+    "H2_fixed_alpha_lvprop": "The unique Alpha catalog row's LvProp field is one 12-byte EXP-0061 single-page external header. It names one in-bounds unflagged row on an LVAL page; the header, target page and row, payload length, payload bytes, and payload digest agree across all three replicas. The payload remains opaque.",
+    "H3_fixed_page0": "For this exact transition, record the empty and Alpha values at page-0 offset 1538 and every changed page-0 offset. The complete observation agrees across all three replicas. This does not establish a general counter or update rule."
+  },
+  "questions": {
+    "fixed_parent_name_keys": "What are the exact lossless raw ParentIdName keys for every correlated MSysObjects row in the empty and Alpha checkpoints, and are they identical across replicas?",
+    "fixed_alpha_lvprop": "What exact external header and opaque LVAL row payload does Alpha.LvProp use, and are the header, locator, payload, and digest identical across replicas?",
+    "fixed_page0": "What values occur at page-0 offset 1538 before and after Alpha creation, which page-0 offsets change, and is the complete observation identical across replicas?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three replicas complete both checkpoints once; files, digests, exact page counts, and bounds validate; and the analyzer emits one deterministic report in which all three questions are answered.",
+    "answered": "A question is answered only when every structural decode and row correlation required by its hypothesis succeeds and its complete observation is identical across all three fresh replicas.",
+    "no_outcome": "A producer or partial failure after the first DAO mutation, replica disagreement, pinned-hypothesis decode failure, absent or ambiguous catalog correlation, malformed or out-of-bounds external reference, changed digest after DAO metadata access, or incomplete observation is recorded as no_outcome.",
+    "rejected": "A pre-mutation plan, input, provider, or infrastructure failure; a plan or input digest mismatch; a malformed result; a missing or unexpected checkpoint; a file digest mismatch; an exact page-count or other bound violation; or a result-shape defect rejects or aborts validation without a scientific outcome.",
+    "retry": "One later explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "general composite or text index-key encoding",
+    "property-blob decoding or arbitrary LvProp generation",
+    "general page-0 update rules",
+    "tables other than the fixed empty Alpha table",
+    "user indexes, relationships, or initial rows",
+    "Rust writer validation",
+    "public database-creation API",
+    "filesystem publication or destination replacement",
+    "hosted write differential #102",
+    "compatibility or support claims"
+  ]
+}

@@ -7044,6 +7044,55 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: independent single-dispatch, artifact-identity, report-reproduction,
   H6-decision, evidence-boundary, and false-claim reviews completed
 
+### EXP-0078 — Preregistered fixed bootstrap-composer semantics experiment
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or format observation has occurred under this plan
+- Question: Across three fresh empty-to-`Alpha(Id Long)` replicas, what are
+  the exact lossless raw `MSysObjects.ParentIdName` keys, the exact opaque
+  external `Alpha.LvProp` value, and the fixed page-0 transition?
+- Origin: project-authored clean-room successor using only `EXP-0058`,
+  `EXP-0060`, `EXP-0061`, `EXP-0062`, `EXP-0069`, `EXP-0071`, `EXP-0073`,
+  and `EXP-0077` as recorded above. Retained raw artifacts and post-hoc
+  observations from earlier experiments are analyzer design inputs only and
+  are not admitted evidence for this experiment.
+- Protocol: create three new independent Jet 3 databases; capture each closed
+  at exactly 20-page `empty` and after adding only empty table `Alpha` with
+  one Long field `Id`, at exactly 23-page `alpha`. Close and release DAO before
+  every copy, validate the bounded DAO metadata shape, record SHA-256 before
+  and after its read-only metadata access, and retain all six MDBs externally.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/bootstrap-composer-semantics.plan.json`,
+  SHA-256
+  `96df220c867723c8f43a2079ae67e0da8c674e5bde7e50427b69f26ab82994ca`.
+  It pins the host client, provider probe, guest runner, dispatcher, publisher,
+  producer, analyzer, and analyzer dependency. Host and guest reject pinned
+  producer mismatches before mutation; the host rechecks every staged analysis
+  input immediately before evaluating the result.
+- Observation: `preregistration.acquisition_started` is `false`. Committing
+  this plan does not authorize acquisition. After the exact reviewed plan and
+  inputs are committed, one explicit human authorization permits one local-VM
+  acquisition. There is no automatic retry after the first DAO mutation.
+- Decision rule: each question is answered only when its structural decode and
+  row correlations succeed and the complete observation agrees across all
+  three replicas. Metadata repair, post-mutation producer failure, decode or
+  correlation failure, or replica disagreement is an honest `no_outcome`;
+  pre-mutation, plan, input, digest, bound, checkpoint, or result-shape defects
+  reject or abort without a scientific outcome.
+- Interpretation: this entry fixes only an acquisition and analysis contract
+  for exact values in one fresh transition. It establishes no general
+  composite/text key grammar, property format, page-0 counter, Rust writer
+  correctness, compatibility, support result, or support-matrix movement.
+- Usage: future successor result; issue `#100`;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-semantics.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/bootstrap_composer_semantics.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: first isolated protocol, VM wiring, and analyzer review completed;
+  fixes pending repeated independent review before commit and acquisition
+
 
 ## Fixtures and black-box results
 

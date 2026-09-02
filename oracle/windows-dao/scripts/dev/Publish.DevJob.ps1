@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -221,6 +221,39 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Long-value-maps follow-up MDB inventory differs from its result."
+        }
+    }
+    "bootstrap-composer-semantics" {
+        [void]$names.Add("bootstrap-composer-semantics-job-result.json")
+        $jobResultPath = Join-Path $Source "bootstrap-composer-semantics-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Bootstrap-composer-semantics result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                [void]$referenced.Add([string]$checkpoint.database)
+            }
+        }
+        if ($referenced.Count -gt 6) {
+            throw "Bootstrap-composer-semantics output exceeds the 6-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Bootstrap-composer-semantics result contains duplicate database names."
+        }
+        foreach ($name in $referenced) {
+            if ($name -cnotmatch '^bootstrap-composer-semantics-r[1-3]-(empty|alpha)\.mdb$') {
+                throw "Bootstrap-composer-semantics output contains an unexpected database name."
+            }
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File |
+            Where-Object { $_.Name -clike "bootstrap-composer-semantics-*.mdb" } |
+            ForEach-Object { $_.Name } | Sort-Object)
+        $expected = @($referenced | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "Bootstrap-composer-semantics MDB inventory differs from its result."
         }
     }
 }

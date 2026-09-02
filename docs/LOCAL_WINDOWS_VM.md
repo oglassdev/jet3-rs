@@ -39,6 +39,7 @@ just windows-dev-value
 just windows-dev-index
 just windows-dev-bootstrap-layout
 just windows-dev-system-catalog
+just windows-dev-bootstrap-composer-semantics
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -108,6 +109,15 @@ DAO-visible TableDef, Container, QueryDef, Relation, and Property metadata;
 refused reads are recorded per item, never retried. Its analyzer decodes the
 system tables from the captured bytes under the plan's pinned hypotheses and
 makes no writer, compatibility, or support claim.
+
+`bootstrap-composer-semantics` is the SHA-256-pinned, development-only fixed
+bootstrap successor for issue #100. Three replicas each capture only a fresh
+20-page empty database and the 23-page result of adding empty table `Alpha`
+with one Long field `Id`. Its analyzer losslessly records page 9's raw keys
+while correlating their row locators, follows Alpha's external `LvProp` header
+to one bounded opaque LVAL row, and records the fixed page-0 transition. It
+does not infer a general key encoding, property format, page-0 counter, writer
+correctness, compatibility, or support.
 
 ## Interactive discovery loop
 

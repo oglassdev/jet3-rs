@@ -10,7 +10,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$RunId,
 
-    [ValidateSet("system-catalog", "long-value-maps", "long-value-maps-followup")]
+    [ValidateSet("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")]
     [string]$Experiment = "system-catalog"
 )
 
@@ -590,6 +590,10 @@ function Invoke-Replica {
             Add-GammaLongMemoRow -Path $workingPath
             [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "row"))
         }
+        elseif ($Experiment -ceq "bootstrap-composer-semantics") {
+            New-AlphaTable -Path $workingPath
+            [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "alpha"))
+        }
         else {
             New-AlphaTable -Path $workingPath
             [void]$checkpoints.Add((Save-Checkpoint -Source $workingPath -Replica $Replica -Name "table1"))
@@ -639,6 +643,9 @@ $result = [ordered]@{
     }
     elseif ($Experiment -ceq "long-value-maps-followup") {
         "dao_long_value_maps_followup_job_result"
+    }
+    elseif ($Experiment -ceq "bootstrap-composer-semantics") {
+        "dao_bootstrap_composer_semantics_job_result"
     }
     else { "dao_system_catalog_job_result" }
     development_only = $true

@@ -88,6 +88,20 @@ LONG_VALUE_MAPS_FOLLOWUP_PLAN = (
     / "acquisition"
     / "long-value-maps-followup.plan.json"
 )
+BOOTSTRAP_COMPOSER_SEMANTICS_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "bootstrap-composer-semantics.plan.json"
+)
+BOOTSTRAP_COMPOSER_SEMANTICS_ANALYZER = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "bootstrap_composer_semantics.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -105,6 +119,7 @@ ALLOWED_JOBS = (
     "system-catalog",
     "long-value-maps",
     "long-value-maps-followup",
+    "bootstrap-composer-semantics",
 )
 
 
@@ -155,6 +170,13 @@ def plan_binding(job: str) -> PlanBinding | None:
             LONG_VALUE_MAPS_FOLLOWUP_PLAN,
             SYSTEM_CATALOG_ANALYZER,
             "dao_long_value_maps_followup_plan",
+        )
+    if job == "bootstrap-composer-semantics":
+        return PlanBinding(
+            job,
+            BOOTSTRAP_COMPOSER_SEMANTICS_PLAN,
+            BOOTSTRAP_COMPOSER_SEMANTICS_ANALYZER,
+            "dao_bootstrap_composer_semantics_plan",
         )
     return None
 
@@ -273,9 +295,10 @@ def stage_job(args: argparse.Namespace) -> Path:
             plan = json.loads(binding.plan.read_bytes())
             for relative, expected in plan["inputs"].items():
                 staged_input = staging / Path(relative).name
-                if staged_input.is_file() and (
-                    hashlib.sha256(staged_input.read_bytes()).hexdigest() != expected
-                ):
+                source_input = ROOT / relative
+                if not staged_input.is_file():
+                    shutil.copyfile(source_input, staged_input)
+                if hashlib.sha256(staged_input.read_bytes()).hexdigest() != expected:
                     raise DevClientError(
                         f"staged {args.job} input differs from its plan: {relative}"
                     )
@@ -383,15 +406,19 @@ def analyze_plan_bound_output(args: argparse.Namespace, binding: PlanBinding) ->
     job = binding.job
     if verified_plan_sha256(binding) != args.plan_sha256:
         raise DevClientError(f"{job} plan or input changed during acquisition")
-    staged_analyzer = args.shared_root / "inbox" / args.run_id / binding.analyzer.name
+    staged_root = args.shared_root / "inbox" / args.run_id
+    staged_analyzer = staged_root / binding.analyzer.name
     plan = json.loads(binding.plan.read_bytes())
-    expected_analyzer = plan["inputs"][binding.analyzer_relative]
-    if (
-        not staged_analyzer.is_file()
-        or hashlib.sha256(staged_analyzer.read_bytes()).hexdigest()
-        != expected_analyzer
-    ):
-        raise DevClientError(f"staged {job} analyzer differs from its plan")
+    for relative, expected in plan["inputs"].items():
+        staged_input = staged_root / Path(relative).name
+        if (
+            not staged_input.is_file()
+            or staged_input.is_symlink()
+            or hashlib.sha256(staged_input.read_bytes()).hexdigest() != expected
+        ):
+            raise DevClientError(
+                f"staged {job} input differs before analysis: {relative}"
+            )
     output = args.shared_root / "outbox" / args.run_id
     job_result = output / binding.job_result_name
     report = output / binding.report_name

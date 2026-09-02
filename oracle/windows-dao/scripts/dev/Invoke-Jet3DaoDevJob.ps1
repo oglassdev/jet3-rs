@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -387,6 +387,7 @@ $planBoundJobs = @{
     "system-catalog" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "long-value-maps" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "long-value-maps-followup" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
+    "bootstrap-composer-semantics" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
 }
 if ($planBoundJobs.ContainsKey($Job)) {
     if ($PlanSha256 -cnotmatch "^[0-9a-f]{64}$") {
@@ -681,7 +682,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."

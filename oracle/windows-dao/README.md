@@ -36,6 +36,11 @@ The retained tooling has three purposes:
 - `acquisition/long-value-maps-followup.plan.json` pins the corrected H6
   successor after EXP-0075: exact order-insensitive suffix coverage and the
   per-column owned-page transition against global LVAL page roles.
+- `acquisition/bootstrap-composer-semantics.plan.json` and
+  `scripts/bootstrap_composer_semantics.py` define the two-checkpoint successor
+  that records only the fixed empty-to-Alpha raw page-9 keys, opaque Alpha
+  `LvProp` external value, and page-0 transition required by the crate-private
+  composer.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
@@ -54,6 +59,7 @@ python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py plan \
 python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py synthetic-dry-run \
   /tmp/jet3-dao-a9-dry-run.json
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_layout.py -v
+python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_composer_semantics.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 
