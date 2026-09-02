@@ -1,6 +1,5 @@
 use super::{
-    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, INDEX_KEY_CAPACITY, OwnedIndexEntry,
-    PARENT_NAME_KEYS, compose_alpha_database, compose_empty_database,
+    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, compose_alpha_database, compose_empty_database,
 };
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, DatabaseReader, JET3_PAGE_SIZE, LongValue,
@@ -38,8 +37,24 @@ fn bytes(alpha: bool) -> Result<Vec<u8>, BootstrapComposeError> {
     Ok(bytes)
 }
 
+// EXP-0079 recorded these complete `ParentId`/`Name` keys for the fixed
+// bootstrap rows. The composer now derives its keys from the EXP-0087 encoding
+// instead of holding them, so this inventory is the check that the derivation
+// still reproduces the recorded bytes.
+const RECORDED_PARENT_NAME_KEYS: [&[u8]; 9] = [
+    b"\x7f\x8f\x00\x00\x00\x7f\x77\x60\x61\x6d\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x00\x7f\x64\x60\x77\x60\x61\x60\x76\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x00\x7f\x75\x66\x6d\x60\x77\x6a\x72\x70\x76\x69\x6a\x73\x76\x00",
+    b"\x7f\x8f\x00\x00\x02\x7f\x6f\x76\x7d\x76\x64\x61\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x72\x61\x6b\x66\x62\x77\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x60\x62\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x74\x78\x66\x75\x6a\x66\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x75\x66\x6d\x60\x77\x6a\x72\x70\x76\x69\x6a\x73\x76\x00",
+    b"\x7f\x8f\x00\x00\x01\x7f\x60\x6d\x73\x69\x60\x00",
+];
+
 fn expected_parent_entries(count: usize) -> Vec<(&'static [u8], PageNumber, u8)> {
-    let mut entries = PARENT_NAME_KEYS[..count]
+    let mut entries = RECORDED_PARENT_NAME_KEYS[..count]
         .iter()
         .enumerate()
         .map(|(row, key)| (*key, PageNumber::new(18), row as u8))
@@ -503,11 +518,6 @@ fn composition_is_deterministic_and_resource_rejection_is_structured() -> TestRe
                 ..
             })
         ))
-    ));
-    assert!(matches!(
-        OwnedIndexEntry::raw(&[0; INDEX_KEY_CAPACITY + 1], 0),
-        Err(BootstrapComposeError::IndexKeyTooLong { needed, available })
-            if needed == INDEX_KEY_CAPACITY + 1 && available == INDEX_KEY_CAPACITY
     ));
     Ok(())
 }

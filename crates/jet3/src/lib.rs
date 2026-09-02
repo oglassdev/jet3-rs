@@ -9,6 +9,7 @@ pub mod binary_writer;
 mod bootstrap_composer;
 pub mod candidate;
 pub mod catalog;
+mod catalog_name_key;
 pub mod catalog_record;
 pub mod catalog_record_writer;
 pub mod column_definition;
