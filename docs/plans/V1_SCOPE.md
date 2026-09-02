@@ -50,12 +50,14 @@ it, and its pages, catalog row, and access-control rows derive from `EXP-0087`.
 The composer still requires a caller-supplied `LvProp` payload because only its
 framing, not a general grammar, is established.
 
-Issue #149 is first: test whether DAO accepts the composed Alpha image with a
-null catalog `LvProp`. If accepted, the public creation API can avoid inventing
-a property grammar. The remaining experiments and implementation slices then
-proceed in small independently reviewed changes: multiple indexes, definition
-continuation placement, extended names, public creation, initial rows,
-relationships, and safe filesystem publication.
+Issue #149 is first: test whether DAO accepts one exact composed Alpha image
+with a null catalog `LvProp` and an empty retained property page. Acceptance
+would admit that bounded construction as the next implementation hypothesis;
+it would not establish the same result for arbitrary schemas. The remaining
+experiments and implementation slices then proceed in small independently
+reviewed changes: multiple indexes, definition continuation placement,
+extended names, public creation, initial rows, relationships, and safe
+filesystem publication.
 
 Four format gaps each need their own preregistered DAO validation before the
 planner can widen, roughly in priority order: the `LvProp` property grammar

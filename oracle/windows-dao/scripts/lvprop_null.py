@@ -36,8 +36,7 @@ CANDIDATES = {
     },
     "candidate_null": {
         "size": 47_104,
-        # Replaced after the preregistration branch generates the exact candidate.
-        "sha256": "REPLACE_WITH_NULL_CANDIDATE_SHA256",
+        "sha256": "c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21",
     },
 }
 ROLES = ("candidate_fixed", "candidate_null", "control_alpha")
@@ -131,6 +130,9 @@ def property_shape(value: Any, location: str) -> list[dict[str, Any]]:
         if type(item["type"]) is not int or not -(1 << 31) <= item["type"] < (1 << 31):
             raise AnalysisError(f"{location}[{index}].type is invalid")
         names.add(name)
+    ordered_names = [item["name"] for item in value]
+    if ordered_names != sorted(ordered_names, key=str.casefold):
+        raise AnalysisError(f"{location} properties are not sorted by name")
     return value
 
 
@@ -200,7 +202,13 @@ def validate_endpoints(value: Any, role: str, location: str) -> dict[str, Any]:
     return item
 
 
-def read_image(root: Path, value: Any, replica: int, position: int) -> dict[str, Any]:
+def read_image(
+    root: Path,
+    value: Any,
+    replica: int,
+    position: int,
+    replica_status: str,
+) -> dict[str, Any]:
     location = f"replicas[{replica - 1}].images[{position}]"
     item = exact_object(
         value,
@@ -232,7 +240,7 @@ def read_image(root: Path, value: Any, replica: int, position: int) -> dict[str,
         expected = CANDIDATES[role]
         if item["size_before"] != expected["size"] or before != expected["sha256"]:
             raise AnalysisError(f"{location} differs from the preregistered candidate")
-    elif item["size_before"] != 47_104:
+    elif replica_status == "pass" and item["size_before"] != 47_104:
         raise AnalysisError(f"{location} control is not exactly 23 pages")
     path = root / expected_name
     if not path.is_file() or path.is_symlink():
@@ -426,7 +434,13 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
             {
                 "error": item["error"],
                 "images": [
-                    read_image(job_result.parent, image, replica, index)
+                    read_image(
+                        job_result.parent,
+                        image,
+                        replica,
+                        index,
+                        item["status"],
+                    )
                     for index, image in enumerate(images)
                 ],
                 "replica": replica,
@@ -439,8 +453,40 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
     referenced = sorted(
         image["database"] for replica in replicas for image in replica["images"]
     )
-    retained = sorted(path.name for path in job_result.parent.glob("*.mdb"))
-    if retained != referenced:
+    retained_paths = sorted(
+        (
+            path
+            for path in job_result.parent.iterdir()
+            if path.suffix.casefold() == ".mdb"
+        ),
+        key=lambda path: path.name,
+    )
+    for path in retained_paths:
+        if not path.is_file() or path.is_symlink():
+            raise AnalysisError("retained MDB is not a regular file")
+        if path.stat().st_size > 64 * PAGE_BYTES:
+            raise AnalysisError("retained MDB exceeds the byte bound")
+    retained = [path.name for path in retained_paths]
+    allowed = {
+        DATABASE_NAMES[role].format(replica=replica)
+        for replica in range(1, 4)
+        for role in ROLES
+    }
+    failed_replica_names = {
+        DATABASE_NAMES[role].format(replica=replica["replica"])
+        for replica in replicas
+        if replica["status"] == "fail"
+        for role in ROLES
+    }
+    referenced_set = set(referenced)
+    retained_set = set(retained)
+    if (
+        len(referenced_set) != len(referenced)
+        or len(retained_set) != len(retained)
+        or not referenced_set <= retained_set
+        or not retained_set <= allowed
+        or not retained_set - referenced_set <= failed_replica_names
+    ):
         raise AnalysisError("retained MDB inventory differs from the job result")
     report = build_report(document, replicas)
     output.parent.mkdir(parents=True, exist_ok=True)

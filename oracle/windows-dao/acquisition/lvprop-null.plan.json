@@ -1,0 +1,110 @@
+{
+  "document_type": "dao_lvprop_null_plan",
+  "experiment_id": "lvprop-null",
+  "issue": 149,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0061 establishes the checked single-page long-value framing used by the writer. EXP-0085 observed DAO 3.6 consume the exact fixed Alpha composer image without changing it. EXP-0087 observed a non-null LvProp on every created table, fixed its bounded chunk framing without deriving the payload grammar, and observed a long-value page only on a database's first create.",
+    "hypothesis_source": "Issue #149 proposes the cheapest bounded discriminator: test whether DAO accepts a composed table whose catalog LvProp is null. The fixed candidate is the exact EXP-0085 Alpha image. The target candidate changes Alpha's catalog LvProp to null and leaves the observed 23-page first-create layout and map ownership intact while encoding page 22 as an empty LVAL page. This construction is a preregistered hypothesis, not an admitted format fact.",
+    "authorization": "Acquisition is forbidden until this plan and its exact SHA-256 pins are reviewed and committed. The user has authorized experiments generally, but the checked client must still verify the merged preregistration before the one allowed dispatch.",
+    "attempt_policy": "Dispatch exactly one three-replica run. Create the fresh DAO control before reading either candidate. Once the first DAO control mutation begins, any failure is a scientific result and must not be retried without a new human decision."
+  },
+  "evidence_boundary": {
+    "purpose": "Test whether DAO 3.6 structurally consumes the exact null-LvProp Alpha candidate at the same bounded read-only endpoints that accepted the fixed composer image, without repair.",
+    "not_claimed": [
+      "permission to omit the observed first-create long-value page or its map references",
+      "a general LvProp or property-chunk grammar",
+      "acceptance of arbitrary schemas, indexes, relationships, or initial rows",
+      "writer or filesystem-publication correctness",
+      "general Jet 3 or DAO compatibility",
+      "a hosted write differential or support-matrix movement"
+    ]
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "2b525cc29485ecd849b57223fa5851f74e78f56b084140d86ef5656a9463d4ac",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "4a03167a4b99e2714db1cff1d88db50c44ef133f0b56e4f337aa1ba1710224b3",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "5bc42fa1e0813bc8b8b1c3904655017101075d052a5e33cbec3b0d110490ee93",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "bb63eb64b0fdf3a14f0beddd2edd1494c6ff9c1a2043e19c6ade524cbeeaa1c2",
+    "oracle/windows-dao/scripts/dev/LvPropNull.DevJob.ps1": "952066d689df5daa87723826912c95707357910f4a6cca450471648ac3755236",
+    "oracle/windows-dao/scripts/lvprop_null.py": "a277cc1e0ed777aca0a3e95830740bcdc83de5c6771169ef4585f778aeef192c"
+  },
+  "candidate_source_manifest": {
+    "path": "oracle/windows-dao/acquisition/lvprop-null.sources.json",
+    "sha256": "3493b9937a53daa5c38d409c7af9ebe4694ba609b26b66259f7dac7214b67d76"
+  },
+  "candidates": {
+    "candidate_fixed": {
+      "filename": "lvprop-fixed-alpha.mdb",
+      "size": 47104,
+      "sha256": "b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2"
+    },
+    "candidate_null": {
+      "filename": "lvprop-null-alpha.mdb",
+      "size": 47104,
+      "sha256": "c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21"
+    }
+  },
+  "candidate_invariants": {
+    "shared": [
+      "exactly 23 complete 2048-byte pages",
+      "Alpha has exactly one nullable Long field named Id and no rows or indexes",
+      "except for Alpha.LvProp, the first-create page assignment, page-zero candidate byte, catalog and access-control entries, and usage-map locators retain the fixed composer construction"
+    ],
+    "fixed": "The exact EXP-0085 accepted Alpha candidate, including its external LvProp header and one page-22 LVAL payload row.",
+    "null": "Alpha's MSysObjects LvProp field is physically null; page 22 remains mapped and is a valid LVAL page with zero rows; no property payload or external header is present. Focused Rust tests bind these facts before the candidate identities are pinned."
+  },
+  "execution": {
+    "replicas": 3,
+    "attempts": 1,
+    "pre_mutation": "Copy and identity-check all six candidate replicas before the first DAO control is created. A failure in this step rejects the dispatch without a scientific outcome.",
+    "per_replica": [
+      "create one fresh DAO Jet 3 Alpha control and close it",
+      "read only the pre-copied pinned fixed Alpha candidate",
+      "read only the pre-copied pinned null-LvProp Alpha candidate",
+      "read the fresh control through the same endpoints"
+    ],
+    "candidate_open_mode": "DAO OpenDatabase with read-only true; hash and size immediately before and after all endpoint reads",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_published_databases": 9,
+      "maximum_pages_per_database": 64,
+      "expected_candidate_pages": 23,
+      "expected_control_pages": 23,
+      "maximum_table_definitions": 16,
+      "maximum_properties_per_collection": 64,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 4194304
+    }
+  },
+  "endpoints": [
+    "OpenDatabase succeeds read-only",
+    "Database.Version is exactly 3.0",
+    "TableDefs is exactly Alpha plus MSysACEs, MSysObjects, MSysQueries, and MSysRelationships",
+    "TableDefs.Item(Alpha) resolves by name",
+    "Fields.Item(Id) resolves exactly one Long field",
+    "the sorted bounded TableDef and Field property collections enumerate and Field.Required is false",
+    "OpenRecordset(Alpha, snapshot) succeeds and is empty",
+    "Containers(Tables).Documents.Item(Alpha) resolves and the document inventory is exact"
+  ],
+  "questions": {
+    "fixed_candidate": "Do all three copies of the pinned EXP-0085 fixed Alpha image pass every endpoint unchanged and match their fresh DAO controls at the normalized semantic frontier?",
+    "null_candidate": "Do all three copies of the pinned null-LvProp Alpha image pass every endpoint unchanged and match their fresh DAO controls at the normalized semantic frontier?"
+  },
+  "decision_rule": {
+    "observed_accepted": "All three fresh controls pass unchanged, all three fixed candidates pass unchanged, the selected candidate passes the complete endpoint list unchanged in all replicas, and its normalized observations match the same-replica fresh controls and agree across replicas.",
+    "not_observed_accepted": "Both control classes pass unchanged, and all three selected candidates either stop at the same endpoint with identical bounded observations or complete unchanged with the same stable semantic mismatch against their fresh controls.",
+    "no_outcome": "Use when a fresh or fixed control fails or changes, a candidate changes, replicas disagree, the scientific job is incomplete, or observations cannot be classified under the two rules above.",
+    "validation_rejection": "Reject without a canonical report when any pin, inventory, bound, preregistered candidate identity, or result-integrity check fails.",
+    "report_status": "accepted only when fixed_candidate is observed_accepted and null_candidate is either observed_accepted or not_observed_accepted; otherwise no_outcome",
+    "claims": {
+      "compatibility_claim": false,
+      "support_movement": false
+    }
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, up to nine expected-name MDBs including any unobserved recovery artifacts (exactly nine for a passing job), and the deterministic analyzer report",
+    "repository": "Never commit MDB bytes or provider binaries. Record the validated report identity and bounded conclusion once as one additive EXP outcome."
+  }
+}

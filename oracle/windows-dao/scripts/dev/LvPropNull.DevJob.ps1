@@ -33,8 +33,7 @@ $ExpectedCandidates = @{
     }
     "candidate_null" = [pscustomobject]@{
         size = 47104
-        # Replaced after the preregistration branch generates the exact candidate.
-        sha256 = "REPLACE_WITH_NULL_CANDIDATE_SHA256"
+        sha256 = "c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21"
     }
 }
 
@@ -375,11 +374,17 @@ function New-FailedImageObservation {
 
     $size = (Get-Item -LiteralPath $Path).Length
     $sha256 = Get-Sha256 -Path $Path
+    $sizeBefore = $size
+    $sha256Before = $sha256
+    if ($ExpectedCandidates.ContainsKey($Role)) {
+        $sizeBefore = [long]$ExpectedCandidates[$Role].size
+        $sha256Before = [string]$ExpectedCandidates[$Role].sha256
+    }
     return [ordered]@{
         role = $Role
         database = [IO.Path]::GetFileName($Path)
-        size_before = $size
-        sha256_before = $sha256
+        size_before = $sizeBefore
+        sha256_before = $sha256Before
         endpoints = [ordered]@{
             status = "fail"
             completed = @()
@@ -392,11 +397,33 @@ function New-FailedImageObservation {
 }
 
 [void][IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($RunRoot))
+$preparedPaths = @{}
+foreach ($replica in 1..3) {
+    $fixedPath = Join-Path $RunRoot "candidate-r$replica-fixed.mdb"
+    $nullPath = Join-Path $RunRoot "candidate-r$replica-null.mdb"
+    Copy-Item -LiteralPath $FixedCandidatePath -Destination $fixedPath
+    Copy-Item -LiteralPath $NullCandidatePath -Destination $nullPath
+    foreach ($candidate in @(
+        [pscustomobject]@{ role = "candidate_fixed"; path = $fixedPath },
+        [pscustomobject]@{ role = "candidate_null"; path = $nullPath }
+    )) {
+        $expected = $ExpectedCandidates[[string]$candidate.role]
+        $size = (Get-Item -LiteralPath $candidate.path).Length
+        $digest = Get-Sha256 -Path $candidate.path
+        if ($size -ne [long]$expected.size -or $digest -cne [string]$expected.sha256) {
+            throw "Prepared candidate differs from its preregistered identity."
+        }
+    }
+    $preparedPaths[$replica] = [pscustomobject]@{
+        fixed = $fixedPath
+        null = $nullPath
+    }
+}
 $replicas = New-Object Collections.ArrayList
 foreach ($replica in 1..3) {
     $images = New-Object Collections.ArrayList
-    $fixedPath = Join-Path $RunRoot "candidate-r$replica-fixed.mdb"
-    $nullPath = Join-Path $RunRoot "candidate-r$replica-null.mdb"
+    $fixedPath = [string]$preparedPaths[$replica].fixed
+    $nullPath = [string]$preparedPaths[$replica].null
     $controlPath = Join-Path $RunRoot "control-r$replica-alpha.mdb"
     $state = [ordered]@{
         replica = $replica
@@ -405,8 +432,6 @@ foreach ($replica in 1..3) {
         images = @()
     }
     try {
-        Copy-Item -LiteralPath $FixedCandidatePath -Destination $fixedPath
-        Copy-Item -LiteralPath $NullCandidatePath -Destination $nullPath
         New-ControlAlpha -Path $controlPath
         [void]$images.Add((Measure-Image -Path $fixedPath -Role "candidate_fixed"))
         [void]$images.Add((Measure-Image -Path $nullPath -Role "candidate_null"))
@@ -423,9 +448,16 @@ foreach ($replica in 1..3) {
         )) {
             $database = [IO.Path]::GetFileName([string]$artifact.path)
             $alreadyRecorded = @($images | Where-Object { [string]$_.database -ceq $database }).Count -ne 0
-            if (-not $alreadyRecorded -and (Test-Path -LiteralPath $artifact.path -PathType Leaf)) {
-                [void]$images.Add((New-FailedImageObservation -Path $artifact.path `
-                    -Role $artifact.role -Detail $failure))
+            try {
+                if (-not $alreadyRecorded -and (Test-Path -LiteralPath $artifact.path -PathType Leaf)) {
+                    [void]$images.Add((New-FailedImageObservation -Path $artifact.path `
+                        -Role $artifact.role -Detail $failure))
+                }
+            }
+            catch {
+                $recovery = $_.Exception.GetType().FullName + ": " + $_.Exception.Message
+                $failure = ConvertTo-BoundedDetail -Detail `
+                    ($failure + " Recovery observation failed for $database`: $recovery")
             }
         }
         $state.images = @($images)

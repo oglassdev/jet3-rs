@@ -323,13 +323,26 @@ switch ($Job) {
             ($actualReferenced -join "`n") -cne ($allowedReferenced -join "`n")) {
             throw "Passing LvProp-null result omits a database."
         }
-        foreach ($name in $referenced) {
-            [void]$names.Add($name)
+        $actualItems = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb")
+        foreach ($item in $actualItems) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "LvProp-null output contains a reparse-point MDB."
+            }
+            if ($item.Length -gt 131072) {
+                throw "LvProp-null output MDB exceeds the 64-page bound."
+            }
         }
-        $actual = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb" |
-            ForEach-Object { $_.Name } | Sort-Object)
-        if (($actual -join "`n") -cne ($actualReferenced -join "`n")) {
+        $actual = @($actualItems | ForEach-Object { $_.Name } | Sort-Object)
+        if (@($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0 -or
+            @($referenced | Where-Object { $_ -cnotin $actual }).Count -ne 0) {
             throw "LvProp-null MDB inventory differs from its result."
+        }
+        if ([string]$jobResult.status -ceq "pass" -and
+            ($actual -join "`n") -cne ($allowedReferenced -join "`n")) {
+            throw "Passing LvProp-null output omits an MDB."
+        }
+        foreach ($name in $actual) {
+            [void]$names.Add($name)
         }
     }
     "bootstrap-composer-validation" {

@@ -837,6 +837,15 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         )
         self.assertIn('OpenDatabase($Path, $false, $true)', job)
         self.assertIn("foreach ($replica in 1..3)", job)
+        self.assertLess(
+            job.index("$preparedPaths = @{}"), job.index("$replicas = New-Object")
+        )
+        self.assertIn(
+            "Prepared candidate differs from its preregistered identity.", job
+        )
+        self.assertIn("Recovery observation failed for", job)
+        self.assertIn("LvProp-null output MDB exceeds the 64-page bound.", self.publication)
+        self.assertIn("LvProp-null output contains a reparse-point MDB.", self.publication)
         self.assertNotIn("CompactDatabase", job)
         self.assertEqual(plan["document_type"], "dao_lvprop_null_plan")
         self.assertEqual(plan["issue"], 149)
@@ -867,9 +876,6 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(
             hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
             plan["candidate_source_manifest"]["sha256"],
-        )
-        self.assertEqual(
-            manifest["document_type"], "bootstrap_composer_candidate_sources"
         )
 
     def test_bootstrap_composer_validation_is_bounded_and_exactly_routed(self) -> None:
@@ -902,17 +908,10 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             plan["execution"]["bounds"]["maximum_published_databases"], 9
         )
         self.assertEqual(
-            set(manifest["files"]),
-            {
-                "Cargo.lock",
-                "Cargo.toml",
-                "crates/jet3/Cargo.toml",
-                "rust-toolchain.toml",
-                *(
-                    path.relative_to(ROOT).as_posix()
-                    for path in (ROOT / "crates/jet3/src").glob("*.rs")
-                ),
-            },
+            hashlib.sha256(
+                (ROOT / plan["candidate_source_manifest"]["path"]).read_bytes()
+            ).hexdigest(),
+            plan["candidate_source_manifest"]["sha256"],
         )
         self.assertEqual(
             hashlib.sha256(

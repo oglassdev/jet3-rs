@@ -259,6 +259,68 @@ class LvPropNullTests(unittest.TestCase):
 
         self.assertEqual(report["status"], "no_outcome")
 
+    def test_partial_control_after_mutation_is_a_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document, pins = job_document(root)
+            replica = document["replicas"][0]
+            replica["status"] = "fail"
+            replica["error"] = "control construction failed after CreateDatabase"
+            control = replica["images"][2]
+            partial = b"P" * (20 * ANALYZER.PAGE_BYTES)
+            (root / control["database"]).write_bytes(partial)
+            control["size_before"] = len(partial)
+            control["size_after"] = len(partial)
+            control["sha256_before"] = hashlib.sha256(partial).hexdigest()
+            control["sha256_after"] = hashlib.sha256(partial).hexdigest()
+            control["endpoints"] = endpoint_observation(passed=False)
+            document["status"] = "fail"
+            report = self.evaluate(root, document, pins)
+
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(
+            report["questions"]["null_candidate"]["status"], "no_outcome"
+        )
+
+    def test_failed_recovery_may_retain_an_unobserved_expected_mdb(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document, pins = job_document(root)
+            replica = document["replicas"][0]
+            replica["status"] = "fail"
+            replica["error"] = "control identity recovery failed"
+            replica["images"].pop()
+            document["status"] = "fail"
+            report = self.evaluate(root, document, pins)
+
+        self.assertEqual(report["status"], "no_outcome")
+
+    def test_unobserved_recovery_mdb_remains_size_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document, pins = job_document(root)
+            replica = document["replicas"][0]
+            replica["status"] = "fail"
+            replica["error"] = "control identity recovery failed"
+            control = replica["images"].pop()
+            (root / control["database"]).write_bytes(
+                b"X" * (65 * ANALYZER.PAGE_BYTES)
+            )
+            document["status"] = "fail"
+            with self.assertRaisesRegex(ANALYZER.AnalysisError, "byte bound"):
+                self.evaluate(root, document, pins)
+
+    def test_recovered_candidate_change_is_a_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document, pins = job_document(root, repaired_role="candidate_null")
+            document["replicas"][0]["status"] = "fail"
+            document["replicas"][0]["error"] = "post-access recovery"
+            document["status"] = "fail"
+            report = self.evaluate(root, document, pins)
+
+        self.assertEqual(report["status"], "no_outcome")
+
     def test_candidate_pin_and_retained_artifact_are_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -282,6 +344,8 @@ class LvPropNullTests(unittest.TestCase):
             {"name": "ValidationRule", "type": 10},
         ]
         self.assertEqual(ANALYZER.property_shape(properties, "properties"), properties)
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "not sorted"):
+            ANALYZER.property_shape(list(reversed(properties)), "properties")
         properties.append({"name": "Name", "type": 10})
         with self.assertRaisesRegex(ANALYZER.AnalysisError, "nonempty and unique"):
             ANALYZER.property_shape(properties, "properties")
@@ -305,6 +369,10 @@ class LvPropNullTests(unittest.TestCase):
 
             document, pins = job_document(root)
             (root / "unexpected.mdb").write_bytes(b"extra")
+            with self.assertRaisesRegex(ANALYZER.AnalysisError, "inventory"):
+                self.evaluate(root, document, pins)
+            (root / "unexpected.mdb").unlink()
+            (root / "unexpected.MDB").write_bytes(b"extra")
             with self.assertRaisesRegex(ANALYZER.AnalysisError, "inventory"):
                 self.evaluate(root, document, pins)
 

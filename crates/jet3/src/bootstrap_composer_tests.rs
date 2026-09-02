@@ -543,6 +543,7 @@ fn null_lvprop_candidate_changes_only_the_catalog_and_lval_pages() -> TestResult
             b"LVAL"
         );
         assert!(inline_map_bit(image, 6, 10, 22)?);
+        assert!(inline_map_bit(image, 6, 11, 22)?);
     }
     assert_eq!(
         u16::from_le_bytes(
@@ -626,7 +627,7 @@ fn export_dao_validation_candidates() -> TestResult {
 
 #[test]
 #[ignore = "writes private deterministic candidates for preregistered DAO validation"]
-fn export_lvprop_null_validation_candidates() -> TestResult {
+fn export_lvprop_null_candidates() -> TestResult {
     use std::path::PathBuf;
 
     let root = PathBuf::from(
