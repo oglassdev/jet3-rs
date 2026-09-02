@@ -18,6 +18,7 @@ $MaximumDetailCharacters = 512
 $UndefinedSlots = @(0x81, 0x8D, 0x8F, 0x90, 0x9D)
 $DefinedBytes = @(0x80..0xFF | Where-Object { $_ -notin $UndefinedSlots })
 $Cp1252 = [Text.Encoding]::GetEncoding(1252, [Text.EncoderFallback]::ExceptionFallback, [Text.DecoderFallback]::ExceptionFallback)
+$TransportSentinel = "T" + $Cp1252.GetString([byte[]]$DefinedBytes) + [char]0x007F + [char]0x0081 + [char]0x008D + [char]0x008F + [char]0x0090 + [char]0x009D + "Z"
 
 function Release-ComObject { param([object]$Value); if ($null -ne $Value -and [Runtime.InteropServices.Marshal]::IsComObject($Value)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($Value) } }
 function Get-Sha256 { param([string]$Path); return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
@@ -91,7 +92,7 @@ function Get-BatchSpecs {
     }
     return @($result)
 }
-function Get-RejectionSpecs {
+function Get-ControlSpecs {
     $result = New-Object Collections.ArrayList
     [void]$result.Add([pscustomobject]@{ role = "ascii_control"; name = "CREJECTB"; bytes = @() })
     foreach ($point in @(0x7F, 0x81, 0x8D, 0x8F, 0x90, 0x9D)) {
@@ -184,7 +185,7 @@ function Save-Checkpoint {
 }
 function Invoke-Replica {
     param([int]$Replica)
-    $state = [ordered]@{ replica = $Replica; status = "fail"; error = $null; mutation_started = $false; phase = "before_create_database"; checkpoints = @(); recovery = @() }
+    $state = [ordered]@{ replica = $Replica; status = "fail"; error = $null; mutation_started = $false; phase = "before_create_database"; transport_sentinel = [ordered]@{ value = $TransportSentinel; utf16le_hex = ConvertTo-Utf16LeHex $TransportSentinel }; checkpoints = @(); recovery = @() }
     $checkpoints = New-Object Collections.ArrayList; $recovery = New-Object Collections.ArrayList
     $replicaWork = Join-Path (Join-Path $RunRoot "_working") "r$Replica"
     $basePath = Join-Path $replicaWork "base.mdb"; $activeName = $null; $activePath = $null
@@ -211,17 +212,17 @@ function Invoke-Replica {
             $state.phase = "cleanup_$activeName"; $recoveryEligible = $false
             Remove-Item -LiteralPath $activePath -Force; $activeName = $null; $activePath = $null
         }
-        $activeName = "reject"; $state.phase = "append_reject"; $activePath = Join-Path $replicaWork "reject.mdb"
+        $activeName = "controls"; $state.phase = "append_controls"; $activePath = Join-Path $replicaWork "controls.mdb"
         Copy-Item -LiteralPath $basePath -Destination $activePath; $recoveryEligible = $true
         $armSize = Get-BoundedSize $activePath; $armSha256 = Get-Sha256 $activePath
-        if ($armSize -ne [long]$empty.size -or $armSha256 -cne [string]$empty.sha256) { throw "Rejection arm differs from the retained empty baseline before mutation." }
+        if ($armSize -ne [long]$empty.size -or $armSha256 -cne [string]$empty.sha256) { throw "Controls arm differs from the retained empty baseline before mutation." }
         $attempts = New-Object Collections.ArrayList
-        foreach ($spec in Get-RejectionSpecs) {
+        foreach ($spec in Get-ControlSpecs) {
             $attempt = Add-ProbeTable $activePath $spec; [void]$attempts.Add($attempt)
-            if ([string]$spec.role -ceq "ascii_control" -and -not [bool]$attempt.created) { throw "Rejection-arm ASCII control was rejected." }
+            if ([string]$spec.role -ceq "ascii_control" -and -not [bool]$attempt.created) { throw "Controls-arm ASCII control was rejected." }
         }
         [void]$checkpoints.Add((Save-Checkpoint $activePath $Replica $activeName ([ordered]@{ size = $armSize; sha256 = $armSha256 }) @($attempts)))
-        $state.phase = "cleanup_reject"; $recoveryEligible = $false
+        $state.phase = "cleanup_controls"; $recoveryEligible = $false
         Remove-Item -LiteralPath $activePath -Force; $activeName = $null; $activePath = $null
         $state.phase = "cleanup_complete"; $state.status = "pass"
     }

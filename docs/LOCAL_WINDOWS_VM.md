@@ -174,20 +174,20 @@ and the complete page-0 changed-offset set plus counter values. It presumes neit
 placement nor a single-page `LvProp`, and establishes no broader allocation,
 writer, compatibility, or support claim.
 
-`extended-names` is the SHA-256-pinned issue #152 experiment for every defined
-CP1252 byte above `0x7E`. Three replicas each retain an empty checkpoint, 41
-identity-isolated three-byte batch checkpoints, and one explicit rejection-arm
-checkpoint. The analyzer accepts contrary but fully decoded collation behavior
-as an answer and treats incomplete decoding, mutation failure, or replica
-disagreement as `no_outcome`. The 128-page prospective bound accommodates the
-earlier observed 70-page, 24-name image; each new batch remains at 27 catalog
-rows, below the observed 32-row single-leaf count.
-`EXP-0097` records the only dispatch as `no_outcome`: all DAO attempts reported
-creation and bounded metadata agreed, but each replica's rejection checkpoint
-failed catalog-key decoding with a malformed identity field. The defined arms
-cannot be promoted outside the preregistered all-or-`no_outcome` decision rule.
-#152 remains open and evidence-blocked. A separately pinned successor and
-renewed explicit human authorization are required before another dispatch.
+`extended-names` is the SHA-256-pinned issue #152 successor for every defined
+CP1252 byte above `0x7E`. Three replicas each retain an empty checkpoint, the
+same 41 identity-isolated three-byte batch checkpoints used by the first run,
+and one metadata-only controls checkpoint. The analyzer decodes only the 41
+defined-byte checkpoints. For the controls arm it validates exact UTF-16LE BSTR
+identity, append/failure operation, and post-close TableDefs names without
+making a CP1252 mapping or physical-key claim. It preserves raw object IDs and
+row locators per replica but compares only question-bearing name outcomes,
+primary/secondary observations, and pair conclusions. A fixed non-ASCII
+sentinel must also survive the child result and the explicit-UTF-8 dispatch and
+top-level result pass-through. `EXP-0097` records the first dispatch as
+`no_outcome`; `EXP-0099` preregisters this correction. Do not dispatch it until
+the preregistration is merged and renewed explicit human authorization is
+recorded.
 
 `lvprop-null` is the SHA-256-pinned, development-only acceptance experiment for
 issue #149. Three replicas each compare the fixed accepted Alpha composer image,

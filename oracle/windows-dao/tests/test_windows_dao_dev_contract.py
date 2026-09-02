@@ -993,10 +993,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
                 for value in plan["inputs"].values()
             )
         )
-        self.assertEqual(
-            CLIENT.verified_plan_sha256(binding),
-            "3e7172838bfd7d48b6042e1fe1a1855883be27eb3c2b8f7ad367368daa2c0cd9",
-        )
+        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+            CLIENT.verified_plan_sha256(binding)
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
         self.assertIn('$ScenarioFields = @{ zero = 69; one = 70; two = 140 }', job)
 
@@ -1040,6 +1038,11 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertIn("43-checkpoint bound", self.publication)
         self.assertIn("129-database bound", self.publication)
         self.assertIn("128-page bound", self.publication)
+        self.assertIn('[void]$checkpointNames.Add("controls")', self.publication)
+        self.assertIn(
+            "Extended-names result continued after replica-1 pre-mutation failure.",
+            self.publication,
+        )
         binding = CLIENT.plan_binding("extended-names")
         plan = json.loads(binding.plan.read_text(encoding="utf-8"))
         self.assertEqual(plan["issue"], 152)
@@ -1048,7 +1051,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(len(plan["inputs"]), 9)
         self.assertEqual(
             hashlib.sha256(binding.plan.read_bytes()).hexdigest(),
-            "201e880ff1e7d08d5151df2fc53388ef296dfbd4158fc84a530510fffbc32236",
+            "ee12b4c5ca9705907276d6a9cccc9de190b6c737b80e917f7f24f3078bf28254",
         )
         self.assertTrue(
             all(
@@ -1059,10 +1062,9 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
                 for value in plan["inputs"].values()
             )
         )
-        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
-            CLIENT.verified_plan_sha256(binding)
         job = CLIENT.EXTENDED_NAMES_JOB.read_text(encoding="utf-8")
         self.assertIn("$UndefinedSlots = @(0x81, 0x8D, 0x8F, 0x90, 0x9D)", job)
+        self.assertIn('$activeName = "controls"', job)
         self.assertIn("for ($batchIndex = 0; $batchIndex -lt 41; $batchIndex++)", job)
         self.assertIn("foreach ($replica in 1..3)", job)
         self.assertIn("[ref]$MutationStarted", job)

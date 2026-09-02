@@ -8888,6 +8888,98 @@ Use `not applicable` explicitly rather than omitting a field.
   exact-head review remains pending before acquisition.
 
 
+### EXP-0099 — Metadata-isolated extended-name successor preregistration
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has been performed
+- Question: for every defined CP1252 byte above `0x7E`, what exact bounded
+  catalog ParentId/Name key contributions does DAO emit in the unchanged
+  singleton, repeated, and neighboring-pair arms when Unicode boundary controls
+  are validated only at the BSTR and post-close DAO metadata boundary?
+- Prior evidence and correction boundary: `EXP-0097` records that the
+  `EXP-0096` run completed all 2,358 DAO name attempts and exact metadata reads,
+  but returned `no_outcome` because its analyzer passed the final controls arm
+  to a physical catalog-key decoder. The all-or-`no_outcome` decision forbids
+  promotion of the 41 defined arms from that run. This successor leaves every
+  one of those defined-byte names and batches unchanged and changes only the
+  scientific treatment of the separate controls arm. `EXP-0097` also records
+  Unicode mojibake in the outer transport copy; commit `44362ea` changed the
+  shared JSON readers to explicit UTF-8 before this successor was pinned.
+- Defined arms: regenerate all 123 strict Python CP1252 values in `0x80`-`0xFF`
+  except `0x81`, `0x8D`, `0x8F`, `0x90`, and `0x9D`; retain 41 ordered batches
+  of three. Each fresh-empty copy attempts one ASCII canary and the unchanged
+  six forms per byte: three singleton positions, a repeat, and both orders with
+  the next defined byte. Each arm therefore attempts exactly 19 one-Long-field
+  tables.
+- Metadata-only controls: the final checkpoint is renamed `controls` and
+  attempts one ASCII canary plus U+007F, U+0081, U+008D, U+008F, U+0090, and
+  U+009D. The analyzer regenerates and requires each exact UTF-16LE name,
+  validates its `CreateTableDef`/`TableDefs.Append` outcome and exact post-close
+  TableDefs name/schema inventory, and identity-checks the retained MDB. It
+  never invokes the catalog decoder for this checkpoint. An `accepted` control
+  means only that the exact Unicode BSTR append succeeded and the exact name
+  appeared in metadata; it establishes no CP1252-byte mapping, physical key, or
+  collation behavior.
+- Capture and bounds: each of three replicas retains `empty`, `b00` through
+  `b40`, and `controls` in exact order: 43 checkpoints per replica and 129 MDBs
+  for a passing run. Every arm begins byte-identical to its retained empty
+  image; every completed image must remain unchanged through bounded read-only
+  metadata access. Limits remain 128 pages per MDB, 32 TableDefs, 32 fields and
+  16 indexes per TableDef, 8 MiB for the child job result, and at most one
+  active-next-checkpoint recovery MDB per failed replica.
+- Decode and replication: only `b00` through `b40` enter the recorded
+  single-leaf catalog decoder. The report preserves complete keys, primary
+  sections, secondary nibbles, object IDs, and row locators for each replica.
+  Exact replica equality covers the complete intended attempts, created or
+  rejected state, normalized name-bearing operation, isolated primary bytes,
+  secondary nibbles, pair conclusions, and controls metadata outcomes. Object
+  IDs and row locators remain visible but do not define equality because they
+  are incidental to the collation questions.
+- Transport contract: every replica carries one exact text/UTF-16LE sentinel
+  containing all 123 defined experiment characters in byte order followed by
+  U+007F, U+0081, U+008D, U+008F, U+0090, and U+009D.
+  The child-result analyzer requires its exact code points. Static tests require
+  the producer, dispatcher, and top-level runner to use BOMless UTF-8 writes,
+  explicit UTF-8 reads, and unchanged `extended_names_replicas` pass-through.
+  Linux has no Windows PowerShell runtime, so pre-merge tests cannot execute the
+  two actual PowerShell serialization hops; the eventual preregistered run is
+  the first dynamic verification of that transport path.
+- Decision rule: `accepted` requires all final pins, complete ordered attempts
+  and artifacts, unchanged images, exact DAO inventories, complete decoded
+  defined-arm correlations, the exact sentinel, and three-replica equality of
+  every question-bearing value. Stable rejection, expansion, position
+  dependence, non-additivity, contrary pair order, or differing incidental
+  locators is an answer. Any post-mutation producer failure, changed metadata
+  identity, defined-arm decode/correlation failure, transport-sentinel mismatch,
+  incomplete inventory, or question-bearing replica disagreement is
+  `no_outcome`. A pre-mutation or result-contract defect is rejected. There is
+  no automatic retry after mutation.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/extended-names.plan.json`, SHA-256
+  `ee12b4c5ca9705907276d6a9cccc9de190b6c737b80e917f7f24f3078bf28254`;
+  producer `oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1`, SHA-256
+  `1d18a79590d2535185e2526abedad043239d2d5d5ce8be47a19ac2e4de04f160`;
+  analyzer `oracle/windows-dao/scripts/extended_names.py`, SHA-256
+  `5f8303e94139ea0eaa3ee425701433ceabefca6658ce6972c4f95b1e448397bc`.
+  The plan pins all nine staged inputs.
+- Authorization: the `EXP-0097` acquisition consumed the prior decision. This
+  preregistration does not authorize acquisition. One run requires merge plus a
+  renewed explicit human decision.
+- Interpretation: a later accepted report may establish only the exact bounded
+  defined-byte observations and exact metadata-control outcomes above. It
+  cannot establish a mapping or physical key for the controls, arbitrary names,
+  general collation, writer correctness, compatibility, or support movement.
+- Usage: issue `#152`; `EXP-0087`; `EXP-0096`; `EXP-0097`;
+  `file:oracle/windows-dao/acquisition/extended-names.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/extended_names.py`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: focused producer, analyzer, transport, state-machine, and artifact
+  contract tests passed; no acquisition
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
