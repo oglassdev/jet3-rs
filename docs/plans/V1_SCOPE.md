@@ -68,11 +68,12 @@ one-index order, which places the first root before `LvProp`.
 Two remaining format gaps each need their own preregistered DAO validation
 before the planner can widen: where a definition continuation page lands
 (#151), then catalog name keys for bytes above `0x7E` (#152). `EXP-0094`
-contains the SHA-256-pinned #151 preregistration: three replicas cross the recorded
-definition capacities with exact 2,046-, 2,075-, and 4,105-byte first-create
-controls requiring zero, one, and two continuation pages. Acquisition remains
-forbidden until the exact preregistration is merged and the standing human
-authorization remains in effect. #150 is
+contains the SHA-256-pinned #151 preregistration. `EXP-0095` records its
+canonical `no_outcome`: every replica reached capture of the 69-field arm, but
+that arm failed the combined 2-KiB geometry/64-page bound and could not be
+retained. No continuation placement was observed, and the 70- and 140-field
+DAO table appends were not attempted. A separately pinned successor with a revised capture
+bound and a new explicit run decision is required. #150 is
 evidence-complete. Its bounded implementation slice is unblocked but must
 correct the existing one-index page order while adding multiple physical and
 logical records, name-sorted logical order, and the observed primary, unique,
