@@ -43,14 +43,19 @@ delivered in this order:
 
 ## Current next step
 
-Continue #100 toward a typed schema planner for arbitrary tables, columns, and
-indexes. `EXP-0085` accepted bounded DAO consumption of the two fixed composer
-candidates, but the composer still carries fixed bytes rather than rules: the
-catalog name keys, the per-table catalog and access-control rows, the page-zero
-transition, and the `LvProp` payload are all recorded values for one exact
-table. The next step is the preregistered `schema-generalization` experiment,
-which resolves the name-key encoding, the per-create row and page assignment,
-and the property chunk framing. The planner, a public creation API, initial
-rows, relationships, and safe filesystem publication follow as separate
-reviewable slices. #102 remains the separate hosted write differential after
-database creation is complete.
+Finish #100. `EXP-0087` accepted the `schema-generalization` experiment, which
+established the catalog name-key encoding and its ASCII collation map, the
+per-create catalog and access-control rows, the page-zero counter step, and the
+appended-page assignment. The key encoder and the typed table planner now
+derive what the composer used to carry as recorded bytes.
+
+What is still fixed rather than ruled: the composer's page-zero opaque region,
+the `LvProp` payloads, and the per-create catalog/ACE row writing. Wiring the
+composer to emit planned tables is the next slice, followed by a public
+creation API, initial rows, relationships, and safe filesystem publication.
+
+Two gaps need their own focused DAO validation before the planner can widen:
+table names containing bytes above `0x7E`, whose secondary weights and
+expansions `EXP-0087` deliberately left uninterpreted, and tables carrying more
+than one index, which no observed create had. #102 remains the separate hosted
+write differential after database creation is complete.
