@@ -1,6 +1,9 @@
 use super::{
-    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, compose_alpha_database, compose_empty_database,
+    ALPHA_LVPROP_PAYLOAD, ALPHA_MAP_PAGE, ALPHA_ROOT, BootstrapComposeError,
+    compose_alpha_database, compose_empty_database,
 };
+use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
+use crate::table_schema_plan::{PlannedColumn, TableSchemaSpec, plan_table_schema};
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, DatabaseReader, JET3_PAGE_SIZE, LongValue,
     LongValueChunkValue, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,
@@ -580,5 +583,33 @@ fn candidate_export_refuses_nonempty_directory() -> TestResult {
     assert!(!root.join("bootstrap-composer-alpha.mdb").exists());
     fs::remove_file(sentinel)?;
     fs::remove_dir(root)?;
+    Ok(())
+}
+
+#[test]
+fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
+    // The Alpha image DAO accepted in EXP-0085 is the fixed case the general
+    // EXP-0087 assignment has to agree with.
+    let columns = [PlannedColumn {
+        name: b"Id",
+        physical_type: crate::ColumnPhysicalType::Long,
+        storage: crate::ColumnStorageKind::Fixed,
+        size: 4,
+    }];
+    let plan = plan_table_schema(
+        &TableSchemaSpec {
+            name: b"Alpha",
+            columns: &columns,
+            indexes: &[],
+        },
+        EMPTY_DATABASE_PAGE_COUNT,
+    )?;
+    assert_eq!(plan.object_id(), ALPHA_ROOT as i32);
+    assert_eq!(plan.definition_root(), PageNumber::new(ALPHA_ROOT));
+    assert_eq!(plan.map_page(), PageNumber::new(ALPHA_MAP_PAGE));
+    // The planner deliberately plans no long-value page: EXP-0087 observed one
+    // only for a database's first create, and establishes no property grammar.
+    assert_eq!(plan.index_root(), None);
+    assert_eq!(plan.appended_page_count(), 2);
     Ok(())
 }

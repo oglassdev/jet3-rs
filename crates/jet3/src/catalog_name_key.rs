@@ -99,6 +99,22 @@ pub(crate) const fn catalog_name_key_len(name: &[u8]) -> Option<usize> {
     }
 }
 
+/// Checks that `name` can be encoded into a catalog index key.
+///
+/// This is the same acceptance [`encode_catalog_name_key`] applies, without a
+/// buffer, so a caller can reject a name before planning anything around it.
+pub(crate) fn validate_catalog_name(name: &[u8]) -> Result<(), CatalogNameKeyError> {
+    if name.is_empty() {
+        return Err(CatalogNameKeyError::EmptyName);
+    }
+    for (position, &byte) in name.iter().enumerate() {
+        if primary_weight(byte).is_none() {
+            return Err(CatalogNameKeyError::UnmappedNameByte { position, byte });
+        }
+    }
+    Ok(())
+}
+
 /// Encodes the `ParentId`/`Name` key for one catalog row into `output`.
 ///
 /// Returns the number of bytes written. The key is the `EXP-0062` non-null Long
@@ -117,11 +133,7 @@ pub(crate) fn encode_catalog_name_key(
         return Err(CatalogNameKeyError::KeyTooLong { needed, available });
     }
     // Resolve every weight before writing so a refused name leaves no partial key.
-    for (position, &byte) in name.iter().enumerate() {
-        if primary_weight(byte).is_none() {
-            return Err(CatalogNameKeyError::UnmappedNameByte { position, byte });
-        }
-    }
+    validate_catalog_name(name)?;
     output[0] = COMPONENT_MARKER;
     output[1..LONG_COMPONENT_LEN].copy_from_slice(&long_component(parent));
     output[LONG_COMPONENT_LEN] = COMPONENT_MARKER;
