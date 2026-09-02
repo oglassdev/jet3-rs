@@ -324,6 +324,68 @@ class ProbeInventoryTests(unittest.TestCase):
         self.assertFalse(ANALYZER.read_probe_attempts(attempts, 1)[5]["created"])
 
 
+class AppendedPageAttributionTests(unittest.TestCase):
+    def analysis(self, pages: list[tuple[int, str]]) -> dict[str, object]:
+        return {
+            "pages": [
+                {"owners": ["table 20 Alpha"], "page": page, "role": role}
+                for page, role in pages
+            ],
+            "system_rows": {},
+            "tables": {},
+        }
+
+    def transition(self, role: str) -> dict[str, object]:
+        before = bytes(2 * PAGE)
+        after = bytes(3 * PAGE)
+        return ANALYZER.analyze_schema_transition(
+            before,
+            after,
+            self.analysis([(0, "header"), (1, "global_map")]),
+            self.analysis([(0, "header"), (1, "global_map"), (2, role)]),
+        )
+
+    def test_an_unattributed_appended_page_fails_the_hypothesis(self) -> None:
+        with self.assertRaisesRegex(ANALYZER.DecodeError, "not attributed"):
+            self.transition(ANALYZER.UNASSIGNED_ROLE)
+
+    def test_an_attributed_appended_page_passes_the_attribution_check(self) -> None:
+        # The transition still fails later, on the absent system tables, so
+        # this asserts only that attribution is not what rejected it.
+        with self.assertRaises(ANALYZER.DecodeError) as raised:
+            self.transition("definition_root")
+
+        self.assertNotIn("not attributed", str(raised.exception))
+
+
+class ProbeCorrelationTests(unittest.TestCase):
+    def attempt(self, name: str, created: bool) -> dict[str, object]:
+        return {
+            "code_points": [0x61],
+            "created": created,
+            "error": None if created else "rejected",
+            "name": name,
+        }
+
+    def test_agreeing_outcomes_correlate(self) -> None:
+        ANALYZER.correlate_probe_attempts(
+            [self.attempt("P01Q", True), self.attempt("P02Q", False)],
+            [{"name": "P01Q"}, {"name": "Tables"}],
+        )
+
+    def test_a_created_name_absent_from_the_catalog_is_a_decode_error(self) -> None:
+        with self.assertRaisesRegex(ANALYZER.DecodeError, "absent from the catalog"):
+            ANALYZER.correlate_probe_attempts(
+                [self.attempt("P01Q", True)], [{"name": "Tables"}]
+            )
+
+    def test_a_rejected_name_present_in_the_catalog_is_a_decode_error(self) -> None:
+        with self.assertRaisesRegex(ANALYZER.DecodeError, "present in the catalog"):
+            ANALYZER.correlate_probe_attempts(
+                [self.attempt("P01Q", False)], [{"name": "P01Q"}]
+            )
+
+
 class KeyFramingQuestionTests(unittest.TestCase):
     def key(self, name: str) -> dict[str, object]:
         return {"name": name, "name_hex": name.encode("cp1252").hex()}

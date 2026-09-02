@@ -32,6 +32,7 @@ SCHEMA_CHECKPOINTS = ("empty", "alpha", "beta", "gamma", "delta")
 CHECKPOINTS = (*SCHEMA_CHECKPOINTS, "names")
 CREATED_TABLES = {"alpha": "Alpha", "beta": "Beta", "gamma": "Gamma", "delta": "Delta"}
 PAGE0_COUNTER = 1538
+UNASSIGNED_ROLE = "unassigned"
 LONG_KEY_MARKER = 0x7F
 TEXT_KEY_MARKER = 0x7F
 TEXT_KEY_TERMINATOR = 0x00
@@ -556,8 +557,10 @@ def analyze_schema_transition(
     appended = []
     for page in range(before_pages, after_pages):
         entry = roles.get(page)
-        if entry is None:
-            raise DecodeError(f"appended page {page} has no decoded role")
+        # The role decoder emits an entry for every page and falls back to
+        # "unassigned", so an unattributed appended page must fail H5 here.
+        if entry is None or entry["role"] == UNASSIGNED_ROLE:
+            raise DecodeError(f"appended page {page} is not attributed to a decoded structure")
         appended.append({"owners": entry["owners"], "page": page, "role": entry["role"]})
     changed = [
         offset
@@ -605,7 +608,29 @@ def analyze_long_values(data: bytes, analysis: dict[str, Any]) -> dict[str, Any]
     return observed
 
 
-def analyze_replica(images: dict[str, bytes]) -> dict[str, Any]:
+def correlate_probe_attempts(
+    attempts: list[dict[str, Any]], name_keys: list[dict[str, Any]]
+) -> None:
+    """Require each probe outcome to agree with the catalog that run captured.
+
+    DAO can raise after partially completing a mutation, so a name reported as
+    created must be present and a name reported as rejected must be absent.
+    """
+    present = {observation["name"] for observation in name_keys}
+    for attempt in attempts:
+        if attempt["created"] and attempt["name"] not in present:
+            raise DecodeError(
+                f"probed name {attempt['name']!r} was created but is absent from the catalog"
+            )
+        if not attempt["created"] and attempt["name"] in present:
+            raise DecodeError(
+                f"probed name {attempt['name']!r} was rejected but is present in the catalog"
+            )
+
+
+def analyze_replica(
+    images: dict[str, bytes], attempts: list[dict[str, Any]]
+) -> dict[str, Any]:
     analyses = {
         name: catalog.analyze_checkpoint(images[name]) for name in SCHEMA_CHECKPOINTS
     }
@@ -615,9 +640,11 @@ def analyze_replica(images: dict[str, bytes]) -> dict[str, Any]:
         transitions[name] = analyze_schema_transition(
             images[previous], images[name], analyses[previous], analyses[name]
         )
+    name_keys = catalog_name_keys(images["names"])
+    correlate_probe_attempts(attempts, name_keys)
     return {
         "long_values": analyze_long_values(images["delta"], analyses["delta"]),
-        "name_keys": catalog_name_keys(images["names"]),
+        "name_keys": name_keys,
         "schema_keys": catalog_name_keys(images["delta"]),
         "transitions": transitions,
     }
@@ -901,7 +928,9 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 entry["metadata_repaired"] = repaired
             else:
                 try:
-                    entry["observation"] = analyze_replica(images)
+                    entry["observation"] = analyze_replica(
+                        images, entry["probe_attempts"]
+                    )
                 except (catalog.DecodeError, DecodeError) as error:
                     entry["decode_error"] = str(error)
         elif item["error"] is None:

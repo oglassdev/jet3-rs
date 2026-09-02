@@ -24,7 +24,7 @@
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "142367c4832759e48bb97aa3df8febabcf2b42ee9a0fb6b4b6a6b0a0cb7d9dc1",
     "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "9620490445191234a0b5b97da2a0356e95806131d438c27c78a5ae694034a822",
     "oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1": "188340bf1fed58d3ef7ed6b7180fe4fdafd0f4cf14cbfbfcb0c9433d8f1fd5c1",
-    "oracle/windows-dao/scripts/schema_generalization.py": "63e565bcd70df89f67ecb310db6b1b3fc9d962c7eb6d84500679c398d0a3e2e9",
+    "oracle/windows-dao/scripts/schema_generalization.py": "2f920050dd733d8eb182869bf804173970e9f28ea1842e434dc81ca982ea4c1b",
     "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
   },
   "execution": {
@@ -52,7 +52,7 @@
       "construction": "Each name is the literal P, the two-digit decimal group index, then one group of at most 16 probed bytes constructed from their code points so this script file's own encoding cannot affect the observation, then the literal Q for the forward ordering or R for the reversed ordering. The group index keeps names distinct under the provider's case- and accent-folding name comparison.",
       "purpose": "Each probed byte occurs at two different interior positions, so a context-free byte map can be distinguished from a position-dependent one.",
       "failure_handling": "A name DAO rejects is recorded once as a bounded per-name observation and the job continues. It is never retried and never aborts the replica.",
-      "inventory_check": "The analyzer rebuilds this inventory independently from the alphabet, exclusion, grouping, and ordering rules above and requires the producer to have attempted exactly those 24 names, in order, with exactly those code points. A missing, reordered, or differently constructed probe set is an inventory violation that rejects without a scientific outcome; a name the provider rejects remains a recorded observation."
+      "inventory_check": "The analyzer rebuilds this inventory independently from the alphabet, exclusion, grouping, and ordering rules above and requires the producer to have attempted exactly those 24 names, in order, with exactly those code points. A missing, reordered, or differently constructed probe set is an inventory violation that rejects without a scientific outcome; a name the provider rejects remains a recorded observation. Each probe outcome must also agree with the catalog the same run captured: a name reported as created must be present and a name reported as rejected must be absent, so a mutation the provider abandoned part way through is an honest no_outcome instead of a silent gap."
     },
     "capture": "Close and release every DAO object before each MDB copy or hash. Reopen the closed checkpoint only for the bounded DAO TableDefs snapshot, verify that metadata access leaves its digest unchanged, and retain all eighteen MDB checkpoints externally with sizes and SHA-256 digests; commit none.",
     "bounds": {
@@ -74,7 +74,7 @@
     "H2_ascii_name_collation": "For every observed name whose CP1252 bytes are all at most 0x7E, the primary section holds exactly one weight per name byte and the secondary section is empty, so one context-free byte-to-weight map explains every position of every such name in both orderings and in all three replicas. Conflicts, length mismatches, names carrying secondary weights, DAO-rejected names, and unmapped probed bytes are recorded rather than hidden.",
     "H3_extended_name_keys": "For every observed name containing a CP1252 byte above 0x7E, the complete key, primary section, and secondary nibble stream are recorded losslessly and are identical across all three replicas. No map, expansion rule, or secondary assignment is inferred, because a name of several such bytes does not by itself align weights to source bytes.",
     "H4_object_and_ace_rows": "Each of the four creates adds a fixed set of MSysObjects and MSysACEs rows, with date columns masked. The added and removed sets are identical across all three replicas.",
-    "H5_page_zero_and_page_assignment": "Each of the four creates changes a fixed set of page-zero offsets, drives page-zero byte 1538 through fixed values, and appends a fixed number of pages, each of which the EXP-0073 role decoder attributes to a decoded structure. The complete observation is identical across all three replicas.",
+    "H5_page_zero_and_page_assignment": "Each of the four creates changes a fixed set of page-zero offsets, drives page-zero byte 1538 through fixed values, and appends a fixed number of pages, each of which the EXP-0073 role decoder attributes to a decoded structure rather than leaving unassigned. The complete observation is identical across all three replicas.",
     "H6_long_value_property_framing": "Every non-null catalog LvProp value is one EXP-0061 single-page external header naming one in-bounds unflagged LVAL row. Its payload begins with the four bytes 4b 4b 44 00 and is exactly covered by chunks of a four-byte little-endian inclusive length and a two-byte little-endian kind, where kind 0x0080 chunk bodies are exactly covered by two-byte length-prefixed name entries. All other chunk bytes stay lossless and uninterpreted. The complete observation is identical across all three replicas."
   },
   "questions": {
@@ -86,7 +86,7 @@
     "long_value_property_framing": "What exact external headers and chunk decompositions do the catalog LvProp payloads use after the four creates, and are they identical across replicas?"
   },
   "decision_rule": {
-    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three replicas complete all six checkpoints once; files, digests, bounds, and inventories validate; and the analyzer emits one deterministic report in which all five questions are answered.",
+    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three replicas complete all six checkpoints once; files, digests, bounds, and inventories validate; and the analyzer emits one deterministic report in which all six questions are answered.",
     "answered": "A question is answered only when every structural decode and correlation required by its hypothesis succeeds and its complete observation is identical across all three fresh replicas.",
     "no_outcome": "A producer or partial failure after the first DAO mutation, replica disagreement, pinned-hypothesis decode failure, branched index root, absent or ambiguous catalog correlation, malformed or out-of-bounds external reference, changed digest after DAO metadata access, or incomplete observation is recorded as no_outcome.",
     "rejected": "A pre-mutation plan, input, provider, or infrastructure failure; a plan or input digest mismatch; a malformed result; a missing or unexpected checkpoint; a file digest mismatch; a bound or inventory violation; or a result-shape defect rejects or aborts validation without a scientific outcome.",
