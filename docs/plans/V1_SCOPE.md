@@ -43,12 +43,14 @@ delivered in this order:
 
 ## Current next step
 
-Continue #100 with the crate-private bootstrap composer. The reader now
-accepts the EXP-0073 system definitions and decodes and validates the
-per-column long-value maps accepted by EXP-0077, including the map that
-assigns empty-image page 7. The composer is the next writer step: generate
-the empty image and create transition from those accepted semantics, adding
-typed system-marker and suffix encoding where the composition needs it.
-Validate the resulting writer behavior later through DAO endpoints under a
-fresh preregistration. #102 remains the separate hosted write differential
-after database creation is complete.
+Continue #100 toward a typed schema planner for arbitrary tables, columns, and
+indexes. `EXP-0085` accepted bounded DAO consumption of the two fixed composer
+candidates, but the composer still carries fixed bytes rather than rules: the
+catalog name keys, the per-table catalog and access-control rows, the page-zero
+transition, and the `LvProp` payload are all recorded values for one exact
+table. The next step is the preregistered `schema-generalization` experiment,
+which resolves the name-key encoding, the per-create row and page assignment,
+and the property chunk framing. The planner, a public creation API, initial
+rows, relationships, and safe filesystem publication follow as separate
+reviewable slices. #102 remains the separate hosted write differential after
+database creation is complete.

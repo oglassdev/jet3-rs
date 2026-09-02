@@ -1,0 +1,114 @@
+{
+  "document_type": "dao_schema_generalization_plan",
+  "experiment_id": "schema-generalization",
+  "issue": 100,
+  "development_only": true,
+  "purpose": "Resolve the exact catalog-name key encoding, per-create catalog and access-control rows, per-create page-zero and appended-page assignment, and the long-value property framing that a typed schema planner for arbitrary tables, columns, and indexes would otherwise have to guess.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_result": "EXP-0085",
+    "authorization": "Committing this plan does not authorize acquisition. After the exact plan and pinned inputs are independently reviewed and committed, one explicit human authorization permits one local-VM acquisition.",
+    "amendment_rule": "This is a distinct experiment. After its first DAO mutation, any failure or no_outcome is recorded once and it is not redispatched without another human decision.",
+    "producer_smoke_test": "Before this plan was pinned, the producer and analyzer were exercised end to end against throwaway databases on the same VM through the ad-hoc development-only helper, outside this plan's harness path. That exercise corrected two producer defects and the key-framing hypothesis. Its observations are design input only: they are not admitted evidence, no value from them appears in any answer, and the canonical result comes solely from the single authorized run of this plan."
+  },
+  "evidence_boundary": {
+    "admitted_prior_results": "EXP-0058 (bounded catalog-root and catalog-row fields), EXP-0060 (data-page row directory and row layout), EXP-0061 (single-page external long-value header and LVAL owner), EXP-0062 (leaf-index entry reconstruction, single-field key shapes, and catalog row locators), EXP-0073 (the four system definitions and bounded empty-to-Alpha system semantics), EXP-0077 (long-value column-map groups), EXP-0079 (the fixed empty-to-Alpha keys, LvProp value, and page-zero transition), and EXP-0085 (bounded DAO consumption of the two fixed composer candidates).",
+    "excluded_diagnostics": "Retained MDBs and post-hoc observations from earlier experiments may be used to design and test the analyzer, but no key byte, collation mapping, catalog or access-control row, page assignment, or property payload from those artifacts is admitted as evidence for this experiment.",
+    "dao_limits": "The local provider has no workgroup information file. DAO system-table reads and permission operations are excluded; correlation is limited to the fresh DAO mutations, the bounded TableDefs metadata this job records, and the admitted byte grammars.",
+    "claims": "A successful result establishes only what the four fresh scenarios and the probed name alphabet observedly produced. It cannot establish a general property grammar, a general page-allocation policy, correctness of any Rust writer, DAO compatibility, support, or support-matrix movement."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "86fc0c07ba048435e68089a33023a7c94d2f3f85e1fe92b3b74415df55eafcfe",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "f9b2ac07b0cf848a11296b946b9db13f17784504acf758072e419681c88e2be6",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "142367c4832759e48bb97aa3df8febabcf2b42ee9a0fb6b4b6a6b0a0cb7d9dc1",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "9620490445191234a0b5b97da2a0356e95806131d438c27c78a5ae694034a822",
+    "oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1": "188340bf1fed58d3ef7ed6b7180fe4fdafd0f4cf14cbfbfcb0c9433d8f1fd5c1",
+    "oracle/windows-dao/scripts/schema_generalization.py": "81fdd179f401fa1a14c97c260ce0ba50746e7e957d310ec7db8f91333c0409f0",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "scenario": [
+      "Create one fresh dbVersion30 CP1252 database and capture it closed as empty.",
+      "Add table Alpha with one Long field Id and capture it closed as alpha.",
+      "Add table Beta with Long Id, Text(50) Name, and Memo Note fields and capture it closed as beta.",
+      "Add table Gamma with one Long field Id and a primary unique index PrimaryKey on Id, and capture it closed as gamma.",
+      "Add table Delta with one Text(30) field Label and a non-primary index ByLabel on Label, and capture it closed as delta.",
+      "Create a second fresh dbVersion30 CP1252 database, attempt each preregistered probed table name once, and capture it closed as names."
+    ],
+    "checkpoints": [
+      "empty",
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "names"
+    ],
+    "probed_names": {
+      "alphabet": "CP1252 byte values 0x20 through 0x7E and 0xA0 through 0xFF, excluding 0x21, 0x2E, 0x5B, 0x5D, and 0x60, which Access rejects in object names.",
+      "construction": "Each name is the literal P, the two-digit decimal group index, then one group of at most 16 probed bytes constructed from their code points so this script file's own encoding cannot affect the observation, then the literal Q for the forward ordering or R for the reversed ordering. The group index keeps names distinct under the provider's case- and accent-folding name comparison.",
+      "purpose": "Each probed byte occurs at two different interior positions, so a context-free byte map can be distinguished from a position-dependent one.",
+      "failure_handling": "A name DAO rejects is recorded once as a bounded per-name observation and the job continues. It is never retried and never aborts the replica."
+    },
+    "capture": "Close and release every DAO object before each MDB copy or hash. Reopen the closed checkpoint only for the bounded DAO TableDefs snapshot, verify that metadata access leaves its digest unchanged, and retain all eighteen MDB checkpoints externally with sizes and SHA-256 digests; commit none.",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_checkpoints": 6,
+      "maximum_published_databases": 18,
+      "maximum_pages_per_database": 512,
+      "maximum_tables": 64,
+      "maximum_probe_tables": 24,
+      "maximum_fields_per_table": 16,
+      "maximum_indexes_per_table": 8,
+      "maximum_rows_per_page": 64,
+      "maximum_detail_characters": 512,
+      "maximum_json_bytes": 8388608
+    }
+  },
+  "hypotheses": {
+    "H1_name_key_framing": "Under the EXP-0062 leaf-entry boundary, prefix-compression, and four-byte catalog-locator grammar, the ParentId/Name index root is a single leaf holding exactly one losslessly reconstructed key per decoded catalog row. Each key is the EXP-0062 non-null Long encoding of the row's ParentId, then marker 0x7f, then a run of primary weight bytes none of which has a zero high nibble, then a nibble stream of one leading zero nibble, zero or more secondary nibbles, one terminating zero nibble, and zero padding to the byte boundary. Every locator correlates to exactly one row, and every key is identical across all three replicas.",
+    "H2_ascii_name_collation": "For every observed name whose CP1252 bytes are all at most 0x7E, the primary section holds exactly one weight per name byte and the secondary section is empty, so one context-free byte-to-weight map explains every position of every such name in both orderings and in all three replicas. Conflicts, length mismatches, names carrying secondary weights, DAO-rejected names, and unmapped probed bytes are recorded rather than hidden.",
+    "H3_extended_name_keys": "For every observed name containing a CP1252 byte above 0x7E, the complete key, primary section, and secondary nibble stream are recorded losslessly and are identical across all three replicas. No map, expansion rule, or secondary assignment is inferred, because a name of several such bytes does not by itself align weights to source bytes.",
+    "H4_object_and_ace_rows": "Each of the four creates adds a fixed set of MSysObjects and MSysACEs rows, with date columns masked. The added and removed sets are identical across all three replicas.",
+    "H5_page_zero_and_page_assignment": "Each of the four creates changes a fixed set of page-zero offsets, drives page-zero byte 1538 through fixed values, and appends a fixed number of pages, each of which the EXP-0073 role decoder attributes to a decoded structure. The complete observation is identical across all three replicas.",
+    "H6_long_value_property_framing": "Every non-null catalog LvProp value is one EXP-0061 single-page external header naming one in-bounds unflagged LVAL row. Its payload begins with the four bytes 4b 4b 44 00 and is exactly covered by chunks of a four-byte little-endian inclusive length and a two-byte little-endian kind, where kind 0x0080 chunk bodies are exactly covered by two-byte length-prefixed name entries. All other chunk bytes stay lossless and uninterpreted. The complete observation is identical across all three replicas."
+  },
+  "questions": {
+    "name_key_framing": "What are the exact lossless ParentId/Name keys, their primary and secondary sections, and their correlated catalog rows for the probed-name and four-table images, and are they identical across replicas?",
+    "ascii_name_collation": "Does one context-free CP1252 byte-to-primary-weight map explain every observed name whose bytes are all at most 0x7E, what is that map, which probed names did DAO reject, and which ASCII probed bytes remain unmapped?",
+    "extended_name_keys": "What exact keys, primary sections, and secondary nibble streams do the names containing bytes above 0x7E produce, and are they identical across replicas?",
+    "object_and_ace_rows": "Which MSysObjects and MSysACEs rows does each of the four creates add or remove, and is that identical across replicas?",
+    "page_zero_and_page_assignment": "Which page-zero offsets change, what values does byte 1538 take, and which decoded role does each appended page carry for each of the four creates?",
+    "long_value_property_framing": "What exact external headers and chunk decompositions do the catalog LvProp payloads use after the four creates, and are they identical across replicas?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and every staged input match their SHA-256 pins; the provider is ready; all three replicas complete all six checkpoints once; files, digests, bounds, and inventories validate; and the analyzer emits one deterministic report in which all five questions are answered.",
+    "answered": "A question is answered only when every structural decode and correlation required by its hypothesis succeeds and its complete observation is identical across all three fresh replicas.",
+    "no_outcome": "A producer or partial failure after the first DAO mutation, replica disagreement, pinned-hypothesis decode failure, branched index root, absent or ambiguous catalog correlation, malformed or out-of-bounds external reference, changed digest after DAO metadata access, or incomplete observation is recorded as no_outcome.",
+    "rejected": "A pre-mutation plan, input, provider, or infrastructure failure; a plan or input digest mismatch; a malformed result; a missing or unexpected checkpoint; a file digest mismatch; a bound or inventory violation; or a result-shape defect rejects or aborts validation without a scientific outcome.",
+    "retry": "One later explicit human authorization permits one acquisition only; there is no automatic retry after the first DAO mutation."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "any property-blob semantics beyond the pinned chunk framing",
+    "general page-allocation or free-page reuse policy",
+    "any collation map, expansion rule, or secondary weight assignment for name bytes above 0x7E",
+    "extended usage maps and branched index roots",
+    "initial rows, row insertion, and long-value writing",
+    "relationships and saved queries",
+    "Rust writer validation",
+    "public database-creation API",
+    "filesystem publication or destination replacement",
+    "hosted write differential #102",
+    "compatibility or support claims"
+  ]
+}

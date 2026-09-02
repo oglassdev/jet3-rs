@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -254,6 +254,39 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Bootstrap-composer-semantics MDB inventory differs from its result."
+        }
+    }
+    "schema-generalization" {
+        [void]$names.Add("schema-generalization-job-result.json")
+        $jobResultPath = Join-Path $Source "schema-generalization-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Schema-generalization result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($checkpoint in @($replica.checkpoints)) {
+                [void]$referenced.Add([string]$checkpoint.database)
+            }
+        }
+        if ($referenced.Count -gt 18) {
+            throw "Schema-generalization output exceeds the 18-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Schema-generalization result contains duplicate database names."
+        }
+        foreach ($name in $referenced) {
+            if ($name -cnotmatch '^schema-generalization-r[1-3]-(empty|alpha|beta|gamma|delta|names)\.mdb$') {
+                throw "Schema-generalization output contains an unexpected database name."
+            }
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File |
+            Where-Object { $_.Name -clike "schema-generalization-*.mdb" } |
+            ForEach-Object { $_.Name } | Sort-Object)
+        $expected = @($referenced | Sort-Object)
+        if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "Schema-generalization MDB inventory differs from its result."
         }
     }
     "bootstrap-composer-validation" {

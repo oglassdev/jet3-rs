@@ -40,6 +40,7 @@ just windows-dev-index
 just windows-dev-bootstrap-layout
 just windows-dev-system-catalog
 just windows-dev-bootstrap-composer-semantics
+just windows-dev-schema-generalization
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -118,6 +119,16 @@ while correlating their row locators, follows Alpha's external `LvProp` header
 to one bounded opaque LVAL row, and records the fixed page-0 transition. It
 does not infer a general key encoding, property format, page-0 counter, writer
 correctness, compatibility, or support.
+
+`schema-generalization` is the SHA-256-pinned, development-only successor that
+the typed schema planner in #100 depends on. Three replicas each capture one
+fresh database after adding `Alpha`, `Beta`, `Gamma`, and `Delta`, then a
+second fresh database holding the probed table names. Its analyzer records the
+lossless catalog name keys, derives the ASCII collation weight map, diffs the
+catalog and access-control rows and appended page roles per create, and
+decomposes the long-value property payloads under one pinned chunk framing. It
+infers no property semantics, allocation policy, writer correctness,
+compatibility, or support.
 
 ## Interactive discovery loop
 

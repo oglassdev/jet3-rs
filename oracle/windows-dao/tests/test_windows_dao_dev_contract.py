@@ -74,6 +74,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "long-value-maps-followup",
                 "bootstrap-composer-semantics",
                 "bootstrap-composer-validation",
+                "schema-generalization",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -119,6 +120,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                     CLIENT.BOOTSTRAP_LAYOUT_JOB.name,
                     CLIENT.SYSTEM_CATALOG_JOB.name,
                     CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
+                    CLIENT.SCHEMA_GENERALIZATION_JOB.name,
                 },
             )
 
@@ -183,7 +185,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             identity = root / "identity"
             identity.write_text("private", encoding="utf-8")
             args = self.args(root, identity)
-            args.job = "bootstrap-composer-validation"
+            args.job = "schema-generalization"
             args.remote_shared_root = "\\\\" + "h" * 118 + "\\" + "D" * 119
             self.assertEqual(len(args.remote_shared_root), 240)
             CLIENT.validate_args(args)
@@ -239,10 +241,12 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 CLIENT.ntpath.join(remote_input, "bootstrap-composer-empty.mdb"),
                 "-BootstrapComposerAlphaPath",
                 CLIENT.ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
+                "-SchemaGeneralizationJobPath",
+                staged(CLIENT.SCHEMA_GENERALIZATION_JOB),
                 "-PlanSha256",
                 args.plan_sha256,
                 "-PlanPath",
-                staged(CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_PLAN),
+                staged(CLIENT.SCHEMA_GENERALIZATION_PLAN),
             ]
             self.assertEqual(command, expected)
             serialized = " ".join(command)
@@ -253,7 +257,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             expected_non_plan[expected_non_plan.index("-Job") + 1] = args.job
             self.assertEqual(CLIENT.remote_job_command(args), expected_non_plan)
 
-            args.job = "bootstrap-composer-validation"
+            args.job = "schema-generalization"
             args.remote_shared_root = "\\\\" + "h" * 1000 + "\\D"
             with self.assertRaisesRegex(CLIENT.DevClientError, "8,000-unit bound"):
                 CLIENT.remote_job_command(args)
@@ -348,6 +352,9 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             "bootstrap-composer-semantics", "BOOTSTRAP_COMPOSER_SEMANTICS_PLAN"
         )
 
+    def test_schema_generalization_binds_and_verifies_a_pinned_plan(self) -> None:
+        self.assert_plan_bound_job("schema-generalization", "SCHEMA_GENERALIZATION_PLAN")
+
     def test_bootstrap_composer_validation_binds_and_generates_exact_candidates(self) -> None:
         self.assert_plan_bound_job(
             "bootstrap-composer-validation", "BOOTSTRAP_COMPOSER_VALIDATION_PLAN"
@@ -356,10 +363,15 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             root = Path(temporary)
             identity = root / "identity"
             identity.write_text("private", encoding="utf-8")
-            args = self.args(root, identity)
-            args.job = "bootstrap-composer-validation"
-            CLIENT.validate_args(args)
-            staged = CLIENT.stage_job(args)
+            binding = CLIENT.plan_binding("bootstrap-composer-validation")
+            pinned = self.pinned_plan_copy(root, binding, "pinned.plan.json")
+            with mock.patch.object(
+                CLIENT, "BOOTSTRAP_COMPOSER_VALIDATION_PLAN", pinned
+            ):
+                args = self.args(root, identity)
+                args.job = "bootstrap-composer-validation"
+                CLIENT.validate_args(args)
+                staged = CLIENT.stage_job(args)
             plan = json.loads(
                 CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_PLAN.read_text(encoding="utf-8")
             )
@@ -369,6 +381,16 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 self.assertEqual(
                     hashlib.sha256(candidate.read_bytes()).hexdigest(), pin["sha256"]
                 )
+
+    def test_consumed_bootstrap_composer_validation_plan_refuses_to_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            args = self.args(root, identity)
+            args.job = "bootstrap-composer-validation"
+            with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+                CLIENT.validate_args(args)
 
     def test_bootstrap_composer_analysis_rechecks_staged_dependency(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -413,7 +435,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -508,8 +530,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -529,8 +551,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -541,8 +563,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -724,6 +746,43 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(plan["execution"]["bounds"]["maximum_replicas"], 3)
         self.assertEqual(plan["execution"]["bounds"]["maximum_checkpoints"], 2)
 
+    def test_schema_generalization_is_bounded_and_exactly_routed(self) -> None:
+        job = CLIENT.SCHEMA_GENERALIZATION_JOB.read_text(encoding="utf-8")
+        plan = json.loads(
+            CLIENT.SCHEMA_GENERALIZATION_PLAN.read_text(encoding="utf-8")
+        )
+        self.assertIn(
+            '"schema-generalization" = "oracle/windows-dao/scripts/dev/SchemaGeneralization.DevJob.ps1"',
+            self.remote,
+        )
+        self.assertIn(
+            '"schema-generalization" { $SchemaGeneralizationJobPath }',
+            self.dispatch,
+        )
+        self.assertIn(
+            '"schema-generalization" { "schema-generalization-job-result.json" }',
+            self.dispatch,
+        )
+        self.assertIn('"schema-generalization" {', self.publication)
+        self.assertIn("$referenced.Count -gt 18", self.publication)
+        self.assertIn(
+            "^schema-generalization-r[1-3]-(empty|alpha|beta|gamma|delta|names)\\.mdb$",
+            self.publication,
+        )
+        self.assertEqual(job.count("foreach ($replica in 1..3)"), 1)
+        self.assertNotIn("Compact", job)
+        self.assertEqual(plan["document_type"], "dao_schema_generalization_plan")
+        self.assertEqual(
+            plan["execution"]["checkpoints"],
+            ["empty", "alpha", "beta", "gamma", "delta", "names"],
+        )
+        self.assertEqual(plan["execution"]["replicas"], 3)
+        self.assertEqual(plan["execution"]["attempts_per_replica"], 1)
+        self.assertEqual(plan["preregistration"]["acquisition_started"], False)
+        self.assertFalse(plan["publication"]["compatibility_claim"])
+        self.assertFalse(plan["publication"]["support_matrix_movement"])
+        self.assertFalse(plan["publication"]["mdb_bytes_committed"])
+
     def test_bootstrap_composer_validation_is_bounded_and_exactly_routed(self) -> None:
         job = CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_JOB.read_text(encoding="utf-8")
         plan = json.loads(
@@ -767,12 +826,10 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            CLIENT.verified_plan_sha256(
-                CLIENT.plan_binding("bootstrap-composer-validation")
-            ),
             hashlib.sha256(
                 CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_PLAN.read_bytes()
             ).hexdigest(),
+            "11fd306504782f6403f6fa44d6ec805bb1385b5725f1dad2dfc841c3863634ec",
         )
 
     def test_bootstrap_detail_normalization_covers_failure_and_repair_surfaces(self) -> None:

@@ -84,6 +84,10 @@ windows-dev-long-value-maps-followup:
 windows-dev-bootstrap-composer-semantics:
     "{{PYTHON}}" scripts/windows-dao-dev.py bootstrap-composer-semantics --timeout 900
 
+# Run the preregistered schema-generalization experiment in the local VM.
+windows-dev-schema-generalization:
+    "{{PYTHON}}" scripts/windows-dao-dev.py schema-generalization --timeout 900
+
 # Run one ad-hoc PowerShell script under x86 DAO in the local VM (discovery only).
 windows-dev-ps script *args:
     "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}

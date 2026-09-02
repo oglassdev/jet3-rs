@@ -42,6 +42,17 @@ The retained tooling has three purposes:
   `LvProp` external value, and page-0 transition required by the crate-private
   composer.
 
+- `acquisition/schema-generalization.plan.json`,
+  `scripts/dev/SchemaGeneralization.DevJob.ps1`, and
+  `scripts/schema_generalization.py` define the six-checkpoint successor that
+  resolves the catalog name-key encoding, the per-create catalog and
+  access-control rows, the per-create page-zero and appended-page assignment,
+  and the long-value property chunk framing that a typed schema planner would
+  otherwise guess.
+- `acquisition/bootstrap-composer-validation.plan.json` is the immutable
+  consumed plan for the accepted `EXP-0085` run. Its pins bind the harness at
+  that revision, so the client refuses to dispatch it again.
+
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
 
@@ -60,6 +71,7 @@ python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py synthetic-dry-run \
   /tmp/jet3-dao-a9-dry-run.json
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_layout.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_composer_semantics.py -v
+python3 -B -m unittest oracle/windows-dao/tests/test_schema_generalization.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 
