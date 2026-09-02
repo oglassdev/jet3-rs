@@ -141,6 +141,20 @@ SCHEMA_GENERALIZATION_PLAN = (
 SCHEMA_GENERALIZATION_ANALYZER = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "schema_generalization.py"
 )
+MULTIPLE_INDEXES_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "MultipleIndexes.DevJob.ps1"
+)
+MULTIPLE_INDEXES_PLAN = (
+    ROOT / "oracle" / "windows-dao" / "acquisition" / "multiple-indexes.plan.json"
+)
+MULTIPLE_INDEXES_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "multiple_indexes.py"
+)
 LVPROP_NULL_JOB = (
     ROOT
     / "oracle"
@@ -179,6 +193,7 @@ ALLOWED_JOBS = (
     "bootstrap-composer-semantics",
     "bootstrap-composer-validation",
     "schema-generalization",
+    "multiple-indexes",
     "lvprop-null",
 )
 
@@ -284,6 +299,14 @@ def plan_binding(job: str) -> PlanBinding | None:
             SCHEMA_GENERALIZATION_ANALYZER,
             "dao_schema_generalization_plan",
             100,
+        )
+    if job == "multiple-indexes":
+        return PlanBinding(
+            job,
+            MULTIPLE_INDEXES_PLAN,
+            MULTIPLE_INDEXES_ANALYZER,
+            "dao_multiple_indexes_plan",
+            150,
         )
     if job == "lvprop-null":
         return PlanBinding(
@@ -587,6 +610,7 @@ def stage_job(args: argparse.Namespace) -> Path:
             staging / BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
         )
         shutil.copyfile(SCHEMA_GENERALIZATION_JOB, staging / SCHEMA_GENERALIZATION_JOB.name)
+        shutil.copyfile(MULTIPLE_INDEXES_JOB, staging / MULTIPLE_INDEXES_JOB.name)
         shutil.copyfile(LVPROP_NULL_JOB, staging / LVPROP_NULL_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:
@@ -662,6 +686,8 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
         ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
         "-SchemaGeneralizationJobPath",
         ntpath.join(remote_input, SCHEMA_GENERALIZATION_JOB.name),
+        "-MultipleIndexesJobPath",
+        ntpath.join(remote_input, MULTIPLE_INDEXES_JOB.name),
         "-LvPropNullJobPath",
         ntpath.join(remote_input, LVPROP_NULL_JOB.name),
         "-LvPropFixedAlphaPath",

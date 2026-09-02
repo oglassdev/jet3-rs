@@ -59,11 +59,16 @@ same result for arbitrary schemas or permit omitting the retained page. The
 remaining experiments and implementation slices proceed in small independently
 reviewed changes: multiple indexes, definition continuation placement,
 extended names, public creation, initial rows, relationships, and safe
-filesystem publication.
+filesystem publication. `EXP-0092` preregisters the multiple-index experiment
+as four first-create arms copied from one fresh empty base per replica. Its
+acquisition remains forbidden until the exact plan, producer, and analyzer
+hashes are filled, independently reviewed, and merged.
 
 Three remaining format gaps each need their own preregistered DAO validation
-before the planner can widen, roughly in priority order: the page assignment
-for more than one index (#150), which also covers the composite and descending
-shapes; where a definition continuation page lands (#151); and catalog name
-keys for bytes above `0x7E` (#152). #102 remains the separate hosted write
-differential after database creation is complete.
+before the planner can widen, roughly in priority order: the multiple-index
+page and map layout, physical/logical ordering, and richer primary, unique, and
+ordinary flag model covered by #150/`EXP-0092`; where a definition continuation
+page lands (#151); and catalog name keys for bytes above `0x7E` (#152). If
+`EXP-0092` is accepted, its implementation slice must address all three index
+concerns rather than only assigning additional roots. #102 remains the separate
+hosted write differential after database creation is complete.

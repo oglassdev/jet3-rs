@@ -1,0 +1,87 @@
+{
+  "document_type": "dao_multiple_indexes_plan",
+  "experiment_id": "multiple-indexes",
+  "issue": 150,
+  "development_only": true,
+  "purpose": "Observe the first-create page assignment, map-row placement, and logical-to-physical ordering of one, two, three, and composite Jet 3 indexes without guessing beyond the admitted table-definition and page-role grammars.",
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "The bounded index-definition grammar recorded by EXP-0059 supplies physical and logical records, key directions, flags, map locators, roots, and logical-to-physical ordinals; EXP-0061 supplies the single-page external long-value header; EXP-0062 supplies the empty leaf-root grammar; and EXP-0073 supplies the bounded system-catalog and page-role decoder. Their retained artifacts and any post-hoc placement observations are design input only, not admitted create-time page-assignment evidence. EXP-0087 observes the first create without an index and later creates with zero or one index, but no first create with an index and no create with multiple indexes.",
+    "authorization": "On 2026-09-02 the user explicitly said 'Go for it' after issue #150 was identified as next. That authorizes exactly one local-VM acquisition only after this exact plan and all pinned inputs are independently reviewed, committed, and merged. It does not authorize a retry after any post-mutation failure.",
+    "attempt_policy": "Dispatch exactly one three-replica run after authorization. Once the first DAO CreateDatabase mutation begins, any failure is a scientific result and must not be retried without another explicit human decision."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "a3c2eef62343f5282115257ed8d04eb40d59a46094f7ffb7436524e6196b2e05",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "9ce2565a1addb68269e111d6fbe48f02b900d5864a66f7a53aa1851d06101edf",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "e3e1b6881e55f75561f01f2d196f91982457159bf9adc4c6ce919d5d675df442",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "c365f5a3206a6b9286546be16059bf42f268b104c2303d50ee585ec5711fdd02",
+    "oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1": "a90f794521e514fb8ebd0b6a25f5e78db1eb54c6be12e10d1d2f2ee5017f21df",
+    "oracle/windows-dao/scripts/multiple_indexes.py": "13e1ffc001c365c2fd4b053d0c0b26eb4a4a0211a65091aa198e2dec5eee14e4",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
+    "replicas": 3,
+    "attempts_per_replica": 1,
+    "independence": "Each replica creates and closes one fresh dbVersion30 CP1252 database, retains it as empty, then copies and identity-checks it into four arm working files before any TableDefs mutation. Each arm receives exactly one table create and is closed before metadata capture. No rows are inserted.",
+    "checkpoints": [
+      "empty",
+      "one",
+      "two",
+      "three",
+      "composite"
+    ],
+    "scenarios": {
+      "one": "IdxOne has Long fields Id, Code, Sequence and ZPrimary(Id ascending primary unique required).",
+      "two": "IdxTwo has the same fields and appends ZPrimary before ASecondx(Code ascending ordinary).",
+      "three": "IdxTri has the same fields and appends ZPrimary, then MUniqueX(Code descending unique non-primary), then ASecondx(Sequence ascending ordinary).",
+      "composite": "IdxMix has the same fields and appends ZComposi(Code descending, Sequence ascending, unique non-primary), then ASecondx(Id descending ordinary). All table and index names are fixed-width within their classes and append order deliberately differs from lexical order."
+    },
+    "capture": "Record and validate each arm's pre-mutation size and digest against the retained empty image. A passing run retains all fifteen expected-name MDB checkpoints with exact sizes and SHA-256 digests both before and after bounded DAO TableDefs metadata access. Capture DAO index Required and every index-field descending flag. Record whether the experiment reached its first DAO mutation and the exact bounded producer phase. Any retained post-mutation recovery image remains an unobserved artifact and cannot turn a failed replica into a pass.",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_checkpoints_per_replica": 5,
+      "maximum_published_databases": 15,
+      "maximum_pages_per_database": 64,
+      "maximum_table_definitions": 16,
+      "maximum_fields_per_table": 8,
+      "maximum_indexes_per_table": 4,
+      "maximum_index_fields": 4,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 4194304
+    }
+  },
+  "questions": {
+    "page_assignment": "For each first-create scenario, which pages are appended, what are their offsets from the empty boundary and definition root, and which decoded definition, map-row, long-value, or index-root role and owner does each appended page have? Which appended LVAL page and row does the created catalog row's EXP-0061 LvProp header reference?",
+    "index_layout": "For every created table, what are its definition root and table maps, the pages named by each map, each physical index ordinal's keys, directions, flags, map locator, mapped pages, and root, each logical index record's name and physical ordinal, the logical definition order, the logical name-sorted order, and the physical creation order?",
+    "map_placement": "Do the second and third indexes use rows on the first map page or cause another map page to be appended, and where does each root land relative to the definition root?",
+    "replication": "Are the complete decoded observations byte-for-byte identical across all three replicas?"
+  },
+  "decision_rule": {
+    "accepted": "The plan and all staged inputs match their SHA-256 pins; all three replicas complete the exact five-checkpoint inventory once; every arm's recorded pre-mutation identity equals its retained empty image; every artifact and DAO schema validates; every appended page is attributed; all logical indexes resolve to distinct in-range physical records with the preregistered keys and directions; and the complete observations agree across replicas. Any fully decoded page or ordering layout is an answered observation even when it differs from an anticipated contiguous layout.",
+    "no_outcome": "A producer failure after the first DAO mutation, metadata size or digest change, replica disagreement, schema mismatch, decode failure, invalid empty-leaf root or LvProp-to-LVAL correlation, ambiguous logical-to-physical correlation, unattributed appended page, or incomplete scientific observation is recorded as no_outcome.",
+    "rejected": "A pre-mutation plan, input, provider, or infrastructure failure; digest mismatch; malformed result; unexpected, reordered, duplicate, missing referenced, symlinked, oversized, or extra artifact; bound violation; or result-shape defect rejects validation without a scientific outcome.",
+    "retry": "There is no automatic retry after the first DAO mutation."
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, up to fifteen exact expected-name MDBs including explicitly identified unobserved recovery artifacts (exactly fifteen for a passing job), and the deterministic analyzer report.",
+    "repository": "Never commit MDB bytes or provider binaries. Record the validated report identity and conclusion once as an additive EXP outcome."
+  },
+  "publication": {
+    "canonical_result": "One validated deterministic JSON report and one additive EXP outcome.",
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "compatibility_claim": false,
+    "support_matrix_movement": false
+  },
+  "exclusions": [
+    "populated index trees, index key bytes, uniqueness enforcement, and row insertion",
+    "definition continuation pages and names outside the admitted range",
+    "general page-allocation or free-page reuse policy",
+    "long-value property payload grammar",
+    "more than three indexes, more than two fields in a composite index, and other index flags",
+    "relationships, saved queries, public creation API, and filesystem publication",
+    "Rust writer validation, hosted write differential #102, compatibility claims, and support-matrix movement"
+  ]
+}

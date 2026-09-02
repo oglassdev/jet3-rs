@@ -8130,6 +8130,129 @@ Use `not applicable` explicitly rather than omitting a field.
   decision-rule, evidence-boundary, and false-claim review
 
 
+### EXP-0092 — Preregistered multiple-index page-assignment experiment
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition has occurred under this plan
+- Question: across three replicas beginning from identity-checked copies of one
+  fresh empty Jet 3 database apiece, what page, usage-map-row, physical-index,
+  and logical-index assignments does DAO 3.6 produce when the database's first
+  user table carries one index, two simple indexes, three mixed indexes, or one
+  mixed-direction composite index plus a secondary index?
+- Origin: project-authored clean-room experiment for issue `#150`, using the
+  bounded grammars recorded by `EXP-0059`, `EXP-0061`, `EXP-0062`, and
+  `EXP-0073`, and the create-time evidence in `EXP-0087` and `EXP-0091`.
+  Retained earlier artifacts and post-hoc page-placement observations are design
+  input only. `EXP-0087` observed user
+  creates with zero or one index: definition root, map-rows page, then one index
+  root. It did not observe a first create with an index or any one-shot user
+  create with multiple indexes. `EXP-0073` observed three system indexes share
+  one map page and use consecutive map rows and roots. Neither observation
+  establishes the corresponding first-create user-table rule.
+- Motivation: the planner currently refuses more than one index, and the
+  composer places a first create's `LvProp` page after an index root by
+  deduction rather than observation. Multiple indexes also expose two matters
+  beyond page counting: DAO may order logical records and names differently
+  from physical records, and the planner's primary-versus-ordinary kind cannot
+  express the low-level writer's established unique non-primary flag class.
+  The experiment therefore measures page placement, map-row placement,
+  physical/logical ordering, and flags together rather than claiming that only
+  page assignment is open.
+- Controlled design: each arm creates the same empty table shape with the same
+  three fixed Long fields. Table, field, and index names use established ASCII
+  bytes at or below `0x7E`; corresponding names have equal encoded lengths
+  across arms. Index append order and equal-length names deliberately separate
+  physical creation order from logical/name order. Definitions remain within
+  one root page. No arm inserts a row, declares a long-value column or
+  relationship, uses an extended name byte, or needs a definition continuation.
+- Arms: create one fresh empty `dbVersion30` database per replica, close it,
+  retain it as `empty`, and copy and identity-check it before mutation into four
+  independent first-create arms. The `one_index` arm uses one ascending index
+  as the within-run count control and directly tests the previously deduced
+  first-create index-root/`LvProp` order. The `two_simple` arm uses a primary
+  index and an ordinary secondary. The `three_mixed` arm uses primary, unique
+  non-primary, and non-unique indexes with distinguishing append/name orders
+  and directions. The `composite_secondary` arm uses one unique non-primary
+  mixed-direction composite index and one descending ordinary secondary. A
+  passing run retains five MDBs per replica, exactly fifteen total.
+- Protocol: after each arm's one `TableDefs.Append`, close DAO before copying or
+  decoding the database. Hash and size every completed checkpoint before and
+  after the bounded read-only DAO metadata pass; an identified recovery image
+  is retained without metadata access and cannot contribute an observation.
+  Capture the exact table, field, and index inventory; for every index capture
+  name, `Primary`, `Unique`, `Required`, ordered fields, and descending
+  attributes. Independently decode the catalog row, complete single-page table
+  definition, table and index usage-map
+  locators and rows, every empty index root and its owner, the first-create
+  `LvProp` reference and `LVAL` page, and the role of every appended page using
+  the `EXP-0073`/`EXP-0087` correlation method.
+- Questions:
+  - Page assignment: for each index count, which relative pages are the
+    definition root, map-rows page or pages, index roots, and first-create
+    `LVAL` page, and is the object identifier equal to the definition root?
+  - Map assignment: do all indexes share the table's map page, which rows do
+    their physical records name, and does each map row contain exactly its
+    corresponding root?
+  - Ordering and flags: how do index append order, physical ordinal, logical
+    record/name order, primary class, unique/required flags, field order, and
+    direction correlate?
+  - Shape discriminator: does the equal-count `composite_secondary` arm use the
+    same relative page and map assignment as `two_simple`, or does key arity,
+    uniqueness, or direction change it?
+- Preregistration artifacts:
+  `oracle/windows-dao/acquisition/multiple-indexes.plan.json`, SHA-256
+  `4832f4fe018af2ac951f9952eaa1a87766f3a3e274d7b083795c19620ae60329`;
+  producer
+  `oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1`, SHA-256
+  `a90f794521e514fb8ebd0b6a25f5e78db1eb54c6be12e10d1d2f2ee5017f21df`;
+  analyzer
+  `oracle/windows-dao/scripts/multiple_indexes.py`, SHA-256
+  `13e1ffc001c365c2fd4b053d0c0b26eb4a4a0211a65091aa198e2dec5eee14e4`.
+  The plan pins these and every host, guest, routing, publisher, and
+  analyzer-dependency input.
+- Observation: `preregistration.acquisition_started` is `false`. On 2026-09-02
+  the user said “Go for it,” authorizing exactly one acquisition only after the
+  exact pins replace the placeholders, are independently reviewed, and reach
+  `main`. The checked client must verify those merged bytes before dispatch.
+  Once the first DAO mutation begins, a failure is a scientific event and no
+  retry is permitted without renewed explicit human authorization.
+- Decision rule: each question is `answered` only when all four arms produce
+  their exact declared empty schemas, all retained bytes remain unchanged,
+  every reference correlates uniquely, every appended page has a decoded role,
+  and the complete bounded relative observation agrees across all three
+  replicas. A fully decoded, internally consistent, replicated placement that
+  contradicts the motivating consecutive-page or shared-map hypothesis is an
+  answered result, not `no_outcome`. Post-mutation producer failure, schema or
+  metadata disagreement, changed bytes, incomplete decoding or attribution,
+  ambiguous correlation, or replica disagreement is an honest `no_outcome`.
+  Pre-mutation pin, input, inventory, bound, or result-integrity defects reject
+  or abort without a scientific answer.
+- Interpretation: this entry fixes only an acquisition and analysis contract.
+  A later accepted result may establish assignments and index-definition
+  ordering only for these exact empty first-create arms and at most three
+  indexes. It cannot establish populated composite-key encoding, index-tree or
+  row maintenance, behavior above three indexes, behavior when map rows spill
+  or a map page fills, continuation-page placement, extended-name encoding,
+  initial rows, arbitrary schemas, Rust writer or publication correctness,
+  general Jet 3 or DAO compatibility, a hosted differential or support result,
+  or support-matrix movement.
+- Usage: future result for issue `#150`; `EXP-0059`; `EXP-0062`; `EXP-0073`;
+  `EXP-0087`; `EXP-0091`;
+  `file:oracle/windows-dao/acquisition/multiple-indexes.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/multiple_indexes.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: three independent protocol, producer, publisher, analyzer,
+  page-role-correlation, ordering, failure-recovery, decision-rule,
+  evidence-boundary, and false-claim review rounds completed on 2026-09-02.
+  Findings covering mutation classification, retained-artifact recovery,
+  metadata identity, `LvProp` correlation, empty-root validation, failed-phase
+  consistency, and continuation-page scope were fixed; the final exact-head
+  reviews reported no remaining acquisition blocker.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

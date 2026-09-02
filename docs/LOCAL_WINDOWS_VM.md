@@ -41,6 +41,7 @@ just windows-dev-bootstrap-layout
 just windows-dev-system-catalog
 just windows-dev-bootstrap-composer-semantics
 just windows-dev-schema-generalization
+just windows-dev-multiple-indexes
 just windows-dev-lvprop-null
 ```
 
@@ -130,6 +131,16 @@ catalog and access-control rows and appended page roles per create, and
 decomposes the long-value property payloads under one pinned chunk framing. It
 infers no property semantics, allocation policy, writer correctness,
 compatibility, or support.
+
+`multiple-indexes` is the SHA-256-pinned, development-only experiment for issue
+#150. Three replicas each create one fresh empty database, identity-check four
+pre-mutation copies, and retain closed checkpoints for the empty database plus
+one-index, two-index, three-index, and composite-index arms. Publication accepts
+exactly those 15 MDBs on success and only an ordered per-replica prefix plus at
+most the next checkpoint's identified recovery image after a post-mutation
+failure. The experiment tests this bounded page-assignment matrix;
+it does not establish arbitrary index shapes, writer correctness, compatibility,
+or support.
 
 `lvprop-null` is the SHA-256-pinned, development-only acceptance experiment for
 issue #149. Three replicas each compare the fixed accepted Alpha composer image,

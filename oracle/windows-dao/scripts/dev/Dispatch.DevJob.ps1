@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -29,6 +29,8 @@ param(
     [string]$BootstrapComposerAlphaPath,
     [Parameter(Mandatory = $true)]
     [string]$SchemaGeneralizationJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$MultipleIndexesJobPath,
     [Parameter(Mandatory = $true)]
     [string]$LvPropNullJobPath,
     [Parameter(Mandatory = $true)]
@@ -66,6 +68,7 @@ $scriptPath = switch ($Job) {
     "bootstrap-composer-semantics" { $SystemCatalogJobPath }
     "bootstrap-composer-validation" { $BootstrapComposerValidationJobPath }
     "schema-generalization" { $SchemaGeneralizationJobPath }
+    "multiple-indexes" { $MultipleIndexesJobPath }
     "lvprop-null" { $LvPropNullJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
@@ -91,7 +94,7 @@ elseif ($Job -ceq "bootstrap-layout") {
 elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId, "-Experiment", $Job)
 }
-elseif ($Job -ceq "schema-generalization") {
+elseif ($Job -in @("schema-generalization", "multiple-indexes")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId)
 }
 elseif ($Job -ceq "lvprop-null") {
@@ -125,6 +128,7 @@ $resultName = switch ($Job) {
     "bootstrap-composer-semantics" { "bootstrap-composer-semantics-job-result.json" }
     "bootstrap-composer-validation" { "bootstrap-composer-validation-job-result.json" }
     "schema-generalization" { "schema-generalization-job-result.json" }
+    "multiple-indexes" { "multiple-indexes-job-result.json" }
     "lvprop-null" { "lvprop-null-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
@@ -143,6 +147,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         bootstrap_layout_replicas = @()
         system_catalog_replicas = @()
         schema_generalization_replicas = @()
+        multiple_indexes_replicas = @()
         lvprop_null_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
@@ -159,6 +164,7 @@ $indexScenarios = @()
 $bootstrapLayoutReplicas = @()
 $systemCatalogReplicas = @()
 $schemaGeneralizationReplicas = @()
+$multipleIndexesReplicas = @()
 $lvpropNullReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
 $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
@@ -175,6 +181,14 @@ elseif ($Job -ceq "schema-generalization") {
     }
     else {
         "At least one schema-generalization replica failed; per-replica error records the message."
+    }
+}
+elseif ($Job -ceq "multiple-indexes") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three multiple-indexes replicas once without retry."
+    }
+    else {
+        "At least one multiple-indexes replica failed; per-replica error records the message."
     }
 }
 elseif ($Job -ceq "lvprop-null") {
@@ -214,6 +228,9 @@ elseif ($Job -ceq "bootstrap-composer-validation") {
 elseif ($Job -ceq "schema-generalization") {
     $schemaGeneralizationReplicas = @($jobResult.replicas)
 }
+elseif ($Job -ceq "multiple-indexes") {
+    $multipleIndexesReplicas = @($jobResult.replicas)
+}
 elseif ($Job -ceq "lvprop-null") {
     $lvpropNullReplicas = @($jobResult.replicas)
 }
@@ -231,6 +248,7 @@ $result = [ordered]@{
     bootstrap_layout_replicas = @($bootstrapLayoutReplicas)
     system_catalog_replicas = @($systemCatalogReplicas)
     schema_generalization_replicas = @($schemaGeneralizationReplicas)
+    multiple_indexes_replicas = @($multipleIndexesReplicas)
     lvprop_null_replicas = @($lvpropNullReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result

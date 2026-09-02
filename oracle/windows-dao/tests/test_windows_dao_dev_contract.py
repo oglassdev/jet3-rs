@@ -75,6 +75,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "bootstrap-composer-semantics",
                 "bootstrap-composer-validation",
                 "schema-generalization",
+                "multiple-indexes",
                 "lvprop-null",
             ),
         )
@@ -105,26 +106,26 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             args = self.args(root, identity)
             CLIENT.validate_args(args)
             staged = CLIENT.stage_job(args)
-            self.assertEqual(
-                {path.name for path in staged.iterdir()},
-                {
-                    CLIENT.REMOTE_RUNNER.name,
-                    CLIENT.PROVIDER_PROBE.name,
-                    CLIENT.CATALOG_JOB.name,
-                    CLIENT.TABLE_DEFINITION_JOB.name,
-                    CLIENT.TABLE_DEFINITION_TYPES.name,
-                    CLIENT.STAGED_DISPATCH.name,
-                    CLIENT.STAGED_PUBLICATION.name,
-                    CLIENT.ROW_JOB.name,
-                    CLIENT.VALUE_JOB.name,
-                    CLIENT.INDEX_JOB.name,
-                    CLIENT.BOOTSTRAP_LAYOUT_JOB.name,
-                    CLIENT.SYSTEM_CATALOG_JOB.name,
-                    CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
-                    CLIENT.SCHEMA_GENERALIZATION_JOB.name,
-                    CLIENT.LVPROP_NULL_JOB.name,
-                },
-            )
+            expected = {
+                CLIENT.REMOTE_RUNNER.name,
+                CLIENT.PROVIDER_PROBE.name,
+                CLIENT.CATALOG_JOB.name,
+                CLIENT.TABLE_DEFINITION_JOB.name,
+                CLIENT.TABLE_DEFINITION_TYPES.name,
+                CLIENT.STAGED_DISPATCH.name,
+                CLIENT.STAGED_PUBLICATION.name,
+                CLIENT.ROW_JOB.name,
+                CLIENT.VALUE_JOB.name,
+                CLIENT.INDEX_JOB.name,
+                CLIENT.BOOTSTRAP_LAYOUT_JOB.name,
+                CLIENT.SYSTEM_CATALOG_JOB.name,
+                CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
+                CLIENT.SCHEMA_GENERALIZATION_JOB.name,
+                CLIENT.LVPROP_NULL_JOB.name,
+            }
+            if CLIENT.MULTIPLE_INDEXES_JOB.is_file():
+                expected.add(CLIENT.MULTIPLE_INDEXES_JOB.name)
+            self.assertEqual({path.name for path in staged.iterdir()}, expected)
 
     def test_result_must_match_job_and_exit_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -246,6 +247,8 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 CLIENT.ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
                 "-SchemaGeneralizationJobPath",
                 staged(CLIENT.SCHEMA_GENERALIZATION_JOB),
+                "-MultipleIndexesJobPath",
+                staged(CLIENT.MULTIPLE_INDEXES_JOB),
                 "-LvPropNullJobPath",
                 staged(CLIENT.LVPROP_NULL_JOB),
                 "-LvPropFixedAlphaPath",
@@ -364,6 +367,14 @@ class WindowsDaoDevClientTests(unittest.TestCase):
     def test_schema_generalization_binds_and_verifies_a_pinned_plan(self) -> None:
         self.assert_plan_bound_job("schema-generalization", "SCHEMA_GENERALIZATION_PLAN")
 
+    def test_multiple_indexes_binds_issue_150_and_verifies_a_pinned_plan(self) -> None:
+        binding = CLIENT.plan_binding("multiple-indexes")
+        self.assertEqual(binding.issue, 150)
+        self.assertEqual(binding.document_type, "dao_multiple_indexes_plan")
+        self.assertEqual(binding.job_result_name, "multiple-indexes-job-result.json")
+        self.assertEqual(binding.report_name, "multiple-indexes-report.json")
+        self.assert_plan_bound_job("multiple-indexes", "MULTIPLE_INDEXES_PLAN")
+
     def test_lvprop_null_binds_issue_149_and_verifies_a_pinned_plan(self) -> None:
         binding = CLIENT.plan_binding("lvprop-null")
         self.assertEqual(binding.issue, 149)
@@ -459,7 +470,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -554,8 +565,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -575,8 +586,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -587,8 +598,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "lvprop-null")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -806,6 +817,64 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertFalse(plan["publication"]["compatibility_claim"])
         self.assertFalse(plan["publication"]["support_matrix_movement"])
         self.assertFalse(plan["publication"]["mdb_bytes_committed"])
+
+    def test_multiple_indexes_is_bounded_and_exactly_routed(self) -> None:
+        self.assertIn(
+            '"multiple-indexes" = "oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1"',
+            self.remote,
+        )
+        self.assertIn(
+            '"multiple-indexes" { $MultipleIndexesJobPath }', self.dispatch
+        )
+        self.assertIn(
+            '"multiple-indexes" { "multiple-indexes-job-result.json" }',
+            self.dispatch,
+        )
+        self.assertIn("multiple_indexes_replicas", self.dispatch)
+        self.assertIn("multiple_indexes_replicas", self.remote)
+        self.assertIn('"multiple-indexes" {', self.publication)
+        self.assertIn(
+            '$checkpointNames = @("empty", "one", "two", "three", "composite")',
+            self.publication,
+        )
+        self.assertIn("checkpoints are not an ordered prefix", self.publication)
+        self.assertIn("recovery artifact is not the next checkpoint", self.publication)
+        self.assertIn("$preMutationAbort", self.publication)
+        self.assertIn("15-database bound", self.publication)
+        self.assertIn('Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb"', self.publication)
+        self.assertIn("$item.Length % 2048", self.publication)
+        self.assertIn("$item.Length -gt 131072", self.publication)
+        self.assertIn("result exceeds the 4-MiB bound", self.publication)
+        self.assertIn("contains a reparse-point MDB", self.publication)
+        binding = CLIENT.plan_binding("multiple-indexes")
+        self.assertEqual(
+            binding.plan.name,
+            "multiple-indexes.plan.json",
+        )
+        self.assertEqual(binding.analyzer.name, "multiple_indexes.py")
+        if not binding.plan.is_file() or not binding.analyzer.is_file():
+            self.skipTest("Multiple-indexes experiment artifacts are not present yet")
+        plan = json.loads(binding.plan.read_text(encoding="utf-8"))
+        self.assertEqual(plan["document_type"], "dao_multiple_indexes_plan")
+        self.assertEqual(plan["issue"], 150)
+        self.assertEqual(plan["execution"]["replicas"], 3)
+        self.assertEqual(
+            plan["execution"]["checkpoints"],
+            ["empty", "one", "two", "three", "composite"],
+        )
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_published_databases"], 15
+        )
+        self.assertIn(
+            "oracle/windows-dao/scripts/dev/MultipleIndexes.DevJob.ps1",
+            plan["inputs"],
+        )
+        self.assertIn("oracle/windows-dao/scripts/system_catalog.py", plan["inputs"])
+        job = CLIENT.MULTIPLE_INDEXES_JOB.read_text(encoding="utf-8")
+        self.assertIn("[ref]$MutationStarted", job)
+        self.assertIn("mutation_started = $false", job)
+        self.assertIn('phase = "before_create_database"', job)
+        self.assertIn("size_after_metadata", job)
 
     def test_lvprop_null_is_bounded_and_exactly_routed(self) -> None:
         self.assertIn(

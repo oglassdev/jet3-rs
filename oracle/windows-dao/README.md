@@ -49,6 +49,13 @@ The retained tooling has three purposes:
   access-control rows, the per-create page-zero and appended-page assignment,
   and the long-value property chunk framing that a typed schema planner would
   otherwise guess.
+- `acquisition/multiple-indexes.plan.json`,
+  `scripts/dev/MultipleIndexes.DevJob.ps1`, and `scripts/multiple_indexes.py`
+  define the issue #150 experiment that compares closed empty, one-index,
+  two-index, three-index, and composite-index checkpoints across three replicas.
+  The analyzer uses `scripts/system_catalog.py` for the pinned catalog decoding;
+  the experiment is limited to its exact page-assignment matrix and makes no
+  arbitrary-index, writer, compatibility, or support claim.
 - `acquisition/bootstrap-composer-validation.plan.json` is the immutable
   consumed plan for the accepted `EXP-0085` run. Its pins bind the harness at
   that revision, so the client refuses to dispatch it again.
@@ -79,6 +86,7 @@ python3 -B oracle/windows-dao/scripts/dao_allocation_a9.py synthetic-dry-run \
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_layout.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_composer_semantics.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_schema_generalization.py -v
+python3 -B -m unittest oracle/windows-dao/tests/test_multiple_indexes.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_lvprop_null.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
