@@ -130,9 +130,6 @@ def property_shape(value: Any, location: str) -> list[dict[str, Any]]:
         if type(item["type"]) is not int or not -(1 << 31) <= item["type"] < (1 << 31):
             raise AnalysisError(f"{location}[{index}].type is invalid")
         names.add(name)
-    ordered_names = [item["name"] for item in value]
-    if ordered_names != sorted(ordered_names, key=str.casefold):
-        raise AnalysisError(f"{location} properties are not sorted by name")
     return value
 
 
