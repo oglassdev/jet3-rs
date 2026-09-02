@@ -155,6 +155,24 @@ MULTIPLE_INDEXES_PLAN = (
 MULTIPLE_INDEXES_ANALYZER = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "multiple_indexes.py"
 )
+DEFINITION_CONTINUATION_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "DefinitionContinuation.DevJob.ps1"
+)
+DEFINITION_CONTINUATION_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "definition-continuation.plan.json"
+)
+DEFINITION_CONTINUATION_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "definition_continuation.py"
+)
 LVPROP_NULL_JOB = (
     ROOT
     / "oracle"
@@ -194,6 +212,7 @@ ALLOWED_JOBS = (
     "bootstrap-composer-validation",
     "schema-generalization",
     "multiple-indexes",
+    "definition-continuation",
     "lvprop-null",
 )
 
@@ -307,6 +326,14 @@ def plan_binding(job: str) -> PlanBinding | None:
             MULTIPLE_INDEXES_ANALYZER,
             "dao_multiple_indexes_plan",
             150,
+        )
+    if job == "definition-continuation":
+        return PlanBinding(
+            job,
+            DEFINITION_CONTINUATION_PLAN,
+            DEFINITION_CONTINUATION_ANALYZER,
+            "dao_definition_continuation_plan",
+            151,
         )
     if job == "lvprop-null":
         return PlanBinding(
@@ -611,6 +638,10 @@ def stage_job(args: argparse.Namespace) -> Path:
         )
         shutil.copyfile(SCHEMA_GENERALIZATION_JOB, staging / SCHEMA_GENERALIZATION_JOB.name)
         shutil.copyfile(MULTIPLE_INDEXES_JOB, staging / MULTIPLE_INDEXES_JOB.name)
+        shutil.copyfile(
+            DEFINITION_CONTINUATION_JOB,
+            staging / DEFINITION_CONTINUATION_JOB.name,
+        )
         shutil.copyfile(LVPROP_NULL_JOB, staging / LVPROP_NULL_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:
@@ -688,6 +719,8 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
         ntpath.join(remote_input, SCHEMA_GENERALIZATION_JOB.name),
         "-MultipleIndexesJobPath",
         ntpath.join(remote_input, MULTIPLE_INDEXES_JOB.name),
+        "-DefinitionContinuationJobPath",
+        ntpath.join(remote_input, DEFINITION_CONTINUATION_JOB.name),
         "-LvPropNullJobPath",
         ntpath.join(remote_input, LVPROP_NULL_JOB.name),
         "-LvPropFixedAlphaPath",
