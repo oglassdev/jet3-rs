@@ -166,5 +166,10 @@ catalog-key observation, not a general collation or compatibility claim.
 `EXP-0087`'s 24-name checkpoint occupied 70 pages; this prospective job
 therefore permits 128 pages while keeping each batch at 27 catalog rows (eight
 base plus 19 created tables), below the observed 32-row single leaf. Its exact
-inputs are pinned; acquisition remains forbidden until the preregistration
-commit merges.
+inputs are pinned. `EXP-0097` records the one run as a canonical `no_outcome`:
+all DAO attempts reported creation and their bounded metadata agreed, but every
+replica's rejection checkpoint failed catalog-key decoding with a malformed
+identity field. The preregistered all-or-`no_outcome` rule prevents promoting
+the defined batches after that failure. #152 remains open and evidence-blocked;
+a new run requires a separately pinned successor and renewed explicit human
+authorization.
