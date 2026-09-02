@@ -72,6 +72,14 @@ BOOTSTRAP_LAYOUT_ANALYZER = (
 SYSTEM_CATALOG_JOB = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "dev" / "SystemCatalog.DevJob.ps1"
 )
+BOOTSTRAP_COMPOSER_VALIDATION_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "BootstrapComposerValidation.DevJob.ps1"
+)
 SYSTEM_CATALOG_PLAN = (
     ROOT / "oracle" / "windows-dao" / "acquisition" / "system-catalog.plan.json"
 )
@@ -102,6 +110,20 @@ BOOTSTRAP_COMPOSER_SEMANTICS_ANALYZER = (
     / "scripts"
     / "bootstrap_composer_semantics.py"
 )
+BOOTSTRAP_COMPOSER_VALIDATION_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "bootstrap-composer-validation.plan.json"
+)
+BOOTSTRAP_COMPOSER_VALIDATION_ANALYZER = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "bootstrap_composer_validation.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -120,11 +142,31 @@ ALLOWED_JOBS = (
     "long-value-maps",
     "long-value-maps-followup",
     "bootstrap-composer-semantics",
+    "bootstrap-composer-validation",
 )
 
 
 class DevClientError(RuntimeError):
     """A local request or returned development result is invalid."""
+
+
+def reject_duplicate_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise DevClientError(f"JSON object contains duplicate field {key!r}")
+        result[key] = value
+    return result
+
+
+def load_unique_json(raw: bytes, what: str) -> dict[str, object]:
+    try:
+        value = json.loads(raw, object_pairs_hook=reject_duplicate_json_object)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise DevClientError(f"{what} is unreadable") from error
+    if not isinstance(value, dict):
+        raise DevClientError(f"{what} is malformed")
+    return value
 
 
 class PlanBinding(NamedTuple):
@@ -178,6 +220,13 @@ def plan_binding(job: str) -> PlanBinding | None:
             BOOTSTRAP_COMPOSER_SEMANTICS_ANALYZER,
             "dao_bootstrap_composer_semantics_plan",
         )
+    if job == "bootstrap-composer-validation":
+        return PlanBinding(
+            job,
+            BOOTSTRAP_COMPOSER_VALIDATION_PLAN,
+            BOOTSTRAP_COMPOSER_VALIDATION_ANALYZER,
+            "dao_bootstrap_composer_validation_plan",
+        )
     return None
 
 
@@ -185,8 +234,8 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
     job = binding.job
     try:
         plan_bytes = binding.plan.read_bytes()
-        plan = json.loads(plan_bytes)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        plan = load_unique_json(plan_bytes, f"{job} plan")
+    except OSError as error:
         raise DevClientError(f"{job} plan is unreadable") from error
     if (
         not isinstance(plan, dict)
@@ -210,7 +259,118 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
             raise DevClientError(f"{job} input is missing or outside the repository")
         if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
             raise DevClientError(f"{job} input differs from its plan: {relative}")
+    manifest_pin = plan.get("candidate_source_manifest")
+    if manifest_pin is None:
+        if job == "bootstrap-composer-validation":
+            raise DevClientError(f"{job} candidate source manifest is missing")
+        return hashlib.sha256(plan_bytes).hexdigest()
+    if not isinstance(manifest_pin, dict) or set(manifest_pin) != {"path", "sha256"}:
+        raise DevClientError(f"{job} candidate source manifest pin is malformed")
+    manifest_relative = manifest_pin["path"]
+    manifest_digest = manifest_pin["sha256"]
+    if (
+        not isinstance(manifest_relative, str)
+        or not isinstance(manifest_digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", manifest_digest)
+    ):
+        raise DevClientError(f"{job} candidate source manifest pin is malformed")
+    manifest_path = (ROOT / manifest_relative).resolve()
+    if not manifest_path.is_relative_to(ROOT) or not manifest_path.is_file():
+        raise DevClientError(f"{job} candidate source manifest is missing")
+    manifest_bytes = manifest_path.read_bytes()
+    if hashlib.sha256(manifest_bytes).hexdigest() != manifest_digest:
+        raise DevClientError(f"{job} candidate source manifest differs from its plan")
+    manifest = load_unique_json(manifest_bytes, f"{job} candidate source manifest")
+    if set(manifest) != {"document_type", "files"} or manifest.get("document_type") != "bootstrap_composer_candidate_sources":
+        raise DevClientError(f"{job} candidate source manifest is malformed")
+    candidate_sources = manifest.get("files")
+    required = {
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/jet3/Cargo.toml",
+        "rust-toolchain.toml",
+        *(path.relative_to(ROOT).as_posix() for path in (ROOT / "crates/jet3/src").glob("*.rs")),
+    }
+    if not isinstance(candidate_sources, dict) or set(candidate_sources) != required:
+        raise DevClientError(f"{job} candidate source inventory is incomplete")
+    for relative, expected in candidate_sources.items():
+        if (
+            not isinstance(relative, str)
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+        ):
+            raise DevClientError(f"{job} candidate source pin is malformed")
+        path = (ROOT / relative).resolve()
+        if not path.is_relative_to(ROOT) or not path.is_file():
+            raise DevClientError(f"{job} candidate source is missing")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise DevClientError(
+                f"{job} candidate source differs from its plan: {relative}"
+            )
     return hashlib.sha256(plan_bytes).hexdigest()
+
+
+def generate_bootstrap_candidates(staging: Path, plan: dict[str, object]) -> None:
+    candidate_root = staging / ".bootstrap-candidates"
+    candidate_root.mkdir()
+    environment = os.environ.copy()
+    environment["JET3_BOOTSTRAP_CANDIDATE_DIR"] = str(candidate_root)
+    completed = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "jet3",
+            "--lib",
+            "bootstrap_composer::tests::export_dao_validation_candidates",
+            "--",
+            "--ignored",
+            "--exact",
+        ],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise DevClientError("bootstrap candidate exporter failed")
+    candidates = plan.get("candidates")
+    if not isinstance(candidates, dict) or set(candidates) != {"empty", "alpha"}:
+        raise DevClientError("bootstrap candidate pins are malformed")
+    names: set[str] = set()
+    for role, raw in candidates.items():
+        if not isinstance(raw, dict) or set(raw) != {"filename", "size", "sha256"}:
+            raise DevClientError(f"bootstrap {role} candidate pin is malformed")
+        filename = raw["filename"]
+        size = raw["size"]
+        expected = raw["sha256"]
+        if (
+            not isinstance(filename, str)
+            or Path(filename).name != filename
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+        ):
+            raise DevClientError(f"bootstrap {role} candidate pin is malformed")
+        names.add(filename)
+        source = candidate_root / filename
+        if (
+            not source.is_file()
+            or source.is_symlink()
+            or source.stat().st_size != size
+            or hashlib.sha256(source.read_bytes()).hexdigest() != expected
+        ):
+            raise DevClientError(
+                f"generated bootstrap {role} candidate differs from its plan"
+            )
+        source.rename(staging / filename)
+    if any(candidate_root.iterdir()) or names != {
+        "bootstrap-composer-empty.mdb",
+        "bootstrap-composer-alpha.mdb",
+    }:
+        raise DevClientError("bootstrap candidate inventory is invalid")
+    candidate_root.rmdir()
 
 
 def powershell_encoded(script: str) -> str:
@@ -286,6 +446,10 @@ def stage_job(args: argparse.Namespace) -> Path:
         shutil.copyfile(INDEX_JOB, staging / INDEX_JOB.name)
         shutil.copyfile(BOOTSTRAP_LAYOUT_JOB, staging / BOOTSTRAP_LAYOUT_JOB.name)
         shutil.copyfile(SYSTEM_CATALOG_JOB, staging / SYSTEM_CATALOG_JOB.name)
+        shutil.copyfile(
+            BOOTSTRAP_COMPOSER_VALIDATION_JOB,
+            staging / BOOTSTRAP_COMPOSER_VALIDATION_JOB.name,
+        )
         binding = plan_binding(args.job)
         if binding is not None:
             shutil.copyfile(binding.analyzer, staging / binding.analyzer.name)
@@ -302,6 +466,8 @@ def stage_job(args: argparse.Namespace) -> Path:
                     raise DevClientError(
                         f"staged {args.job} input differs from its plan: {relative}"
                     )
+            if args.job == "bootstrap-composer-validation":
+                generate_bootstrap_candidates(staging, plan)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -327,6 +493,15 @@ def invocation_script(args: argparse.Namespace) -> str:
         "index_job": ntpath.join(remote_input, INDEX_JOB.name),
         "bootstrap_layout_job": ntpath.join(remote_input, BOOTSTRAP_LAYOUT_JOB.name),
         "system_catalog_job": ntpath.join(remote_input, SYSTEM_CATALOG_JOB.name),
+        "bootstrap_composer_validation_job": ntpath.join(
+            remote_input, BOOTSTRAP_COMPOSER_VALIDATION_JOB.name
+        ),
+        "bootstrap_composer_empty": ntpath.join(
+            remote_input, "bootstrap-composer-empty.mdb"
+        ),
+        "bootstrap_composer_alpha": ntpath.join(
+            remote_input, "bootstrap-composer-alpha.mdb"
+        ),
         "plan_sha256": args.plan_sha256,
         "plan": (
             ntpath.join(remote_input, binding.plan.name) if binding is not None else ""
@@ -356,6 +531,9 @@ def invocation_script(args: argparse.Namespace) -> str:
         "-IndexJobPath ([string]$c.index_job) "
         "-BootstrapLayoutJobPath ([string]$c.bootstrap_layout_job) "
         "-SystemCatalogJobPath ([string]$c.system_catalog_job) "
+        "-BootstrapComposerValidationJobPath ([string]$c.bootstrap_composer_validation_job) "
+        "-BootstrapComposerEmptyPath ([string]$c.bootstrap_composer_empty) "
+        "-BootstrapComposerAlphaPath ([string]$c.bootstrap_composer_alpha) "
         "-PlanSha256 ([string]$c.plan_sha256) -PlanPath ([string]$c.plan);"
         "exit $LASTEXITCODE"
     )
@@ -419,6 +597,19 @@ def analyze_plan_bound_output(args: argparse.Namespace, binding: PlanBinding) ->
             raise DevClientError(
                 f"staged {job} input differs before analysis: {relative}"
             )
+    if job == "bootstrap-composer-validation":
+        for raw in plan["candidates"].values():
+            staged_candidate = staged_root / raw["filename"]
+            if (
+                not staged_candidate.is_file()
+                or staged_candidate.is_symlink()
+                or staged_candidate.stat().st_size != raw["size"]
+                or hashlib.sha256(staged_candidate.read_bytes()).hexdigest()
+                != raw["sha256"]
+            ):
+                raise DevClientError(
+                    "staged bootstrap candidate differs before analysis"
+                )
     output = args.shared_root / "outbox" / args.run_id
     job_result = output / binding.job_result_name
     report = output / binding.report_name

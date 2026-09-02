@@ -7181,6 +7181,77 @@ Use `not applicable` explicitly rather than omitting a field.
   fixed-value transcription, reader-structure, evidence-boundary,
   environment-identity, and false-claim reviews completed
 
+### EXP-0080 — Preregistered bootstrap-composer DAO validation
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no provider
+  acquisition or composer-validation observation has occurred under this plan
+- Question: Do three deterministic copies of the crate-private 20-page empty
+  image and 23-page `Alpha(Id Long)` image pass the exact bounded read-only DAO
+  endpoints fixed by the plan without changing, while three fresh DAO-created
+  Alpha controls pass the same Alpha endpoints without changing?
+- Origin: project-authored clean-room validation successor using `EXP-0079`'s
+  accepted fixed values and the crate-private composer as inputs. The candidate
+  producer remains an ignored unit-test exporter; no public creation or
+  filesystem-publication API is introduced.
+- Protocol: locally verify a complete SHA-256 manifest covering Cargo.lock, the
+  workspace and crate manifests, `rust-toolchain.toml`, and every
+  `crates/jet3/src/*.rs`; run the exact library-only ignored exporter and require
+  candidate identities 40,960 bytes / SHA-256
+  `f762dbc12d80eb3fb5dae53fb58696219d48b7fa1a15d5deb5c1f9333d8862d6`
+  and 47,104 bytes / SHA-256
+  `8552db1c7d0083429fcbbcf4dd59a5f1d8f36383c8bdef4d9decc06247cf77ca`.
+  Dispatch exactly three replicas once. Each replica copies and opens both
+  candidates read-only, creates one fresh DAO Alpha control, executes the
+  ordered endpoint frontiers, closes and releases all COM objects, and records
+  sizes and hashes before and after access. Publish at most nine MDBs and retain
+  them only outside the repository.
+- Endpoints: the empty candidate must open as version 3.0 with exactly the four
+  system TableDefs and four matching `Tables` documents. Alpha candidates and
+  controls must additionally resolve `TableDefs.Item("Alpha")`, resolve exactly
+  one Long field `Fields.Item("Id")`, enumerate bounded TableDef and Field
+  properties with `Id.Required` false, open an empty snapshot, and resolve the
+  Alpha table document.
+- Preregistration artifacts:
+  `oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`,
+  SHA-256
+  `2b2d9b3071bc9406e341b7ca9409107f5eb0527727e54e8de1deabc3d429def7`;
+  candidate-source manifest
+  `oracle/windows-dao/acquisition/bootstrap-composer-validation.sources.json`,
+  SHA-256
+  `459e8e3dbeae9114d0241ce18e609b67ba2ec43ce475c837fe1f24213179a7a5`.
+  The plan pins the host client, provider probe, guest runner, dispatcher,
+  publisher, dedicated producer, standalone analyzer, source manifest, and
+  exact candidate identities. Host and guest reject applicable pin mismatches
+  before DAO work; the host rechecks staged analysis inputs before evaluation.
+- Observation: `preregistration.acquisition_started` is `false`. The user has
+  explicitly authorized this and future local Windows VM usage for the current
+  session. That authorization permits this single acquisition only after the
+  exact reviewed plan and inputs are committed. After the first DAO control
+  mutation, no automatic retry is permitted; any failure is a scientific
+  result pending a new human decision.
+- Decision rule: with all three unchanged controls passing, identical complete
+  candidate frontiers are `observed_accepted`, while identical partial
+  candidate frontiers are a valid negative `not_observed_accepted`. Candidate
+  change, control failure or change, replica disagreement, or an incomplete
+  scientific job is `no_outcome`. Pin, inventory, bound, malformed-shape, or
+  result-integrity defects reject validation without a canonical report.
+- Interpretation: this entry fixes only a validation of two deterministic
+  images at the named endpoints. It establishes no general Jet 3 or DAO
+  compatibility, public creation API, safe destination publication, arbitrary
+  schema/index/relationship/row support, support result, or support-matrix
+  movement.
+- Usage: future successor result; issue `#100`;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/bootstrap_composer_validation.py`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: two isolated review passes completed across Rust/source binding,
+  Windows/DAO execution and publication, and plan/analyzer/result integrity;
+  all first-pass findings were fixed and every second-pass review reported no
+  remaining findings
+
 
 ## Fixtures and black-box results
 

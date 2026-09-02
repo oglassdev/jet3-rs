@@ -1,0 +1,108 @@
+{
+  "document_type": "dao_bootstrap_composer_validation_plan",
+  "experiment_id": "bootstrap-composer-validation",
+  "issue": 100,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0079 fixed the observed empty-to-Alpha constants before this validation was designed.",
+    "authorization": "The user explicitly authorized this and future local Windows VM usage for the current session. Acquisition remains forbidden until this plan and its exact pins are reviewed and committed.",
+    "attempt_policy": "Dispatch exactly one three-replica run. Once the first DAO control mutation begins, any failure is a scientific result and must not be retried without a new human decision."
+  },
+  "evidence_boundary": {
+    "purpose": "Test whether DAO 3.6 can structurally consume the deterministic crate-private empty and first-create composer images at the preregistered bounded endpoints.",
+    "not_claimed": [
+      "general Jet 3 or DAO compatibility",
+      "a public database-creation API",
+      "filesystem publication safety",
+      "arbitrary schemas, relationships, indexes, or initial rows",
+      "support-matrix movement"
+    ]
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "2c06969464354f17ef5005230c12fe14e536c840393b3c802989cc35b3c2e0e9",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "74272fb2f393b7be49df07e2439c11a5e36dab6d62bc47d2f9cda4baf702ed27",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "09e1b4060ae17e05b3d6f347344910c31d732922828dc34d2dada46e1dc51ea0",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "a3e27f03603d59952ae1b7713254e781b2110b8ff875ed922827a4463c6575df",
+    "oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1": "21eb77e5cc237f9f897ed0df74c2f91bf6c9162207f951cdb5e786a396917127",
+    "oracle/windows-dao/scripts/bootstrap_composer_validation.py": "a57a94728c88edf14247af4ec7426c0f4b79fbc3311643f944aa8015ca0429fc"
+  },
+  "candidate_source_manifest": {
+    "path": "oracle/windows-dao/acquisition/bootstrap-composer-validation.sources.json",
+    "sha256": "459e8e3dbeae9114d0241ce18e609b67ba2ec43ce475c837fe1f24213179a7a5"
+  },
+  "candidates": {
+    "empty": {
+      "filename": "bootstrap-composer-empty.mdb",
+      "size": 40960,
+      "sha256": "f762dbc12d80eb3fb5dae53fb58696219d48b7fa1a15d5deb5c1f9333d8862d6"
+    },
+    "alpha": {
+      "filename": "bootstrap-composer-alpha.mdb",
+      "size": 47104,
+      "sha256": "8552db1c7d0083429fcbbcf4dd59a5f1d8f36383c8bdef4d9decc06247cf77ca"
+    }
+  },
+  "execution": {
+    "replicas": 3,
+    "attempts": 1,
+    "per_replica": [
+      "copy and read only the pinned 20-page empty candidate",
+      "copy and read only the pinned 23-page Alpha candidate",
+      "create one fresh DAO Jet 3 Alpha control, then read it through the same Alpha endpoints"
+    ],
+    "candidate_open_mode": "DAO OpenDatabase with read-only true; hash and size immediately before and after all endpoint reads",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_published_databases": 9,
+      "maximum_pages_per_database": 64,
+      "expected_candidate_pages": {
+        "empty": 20,
+        "alpha": 23
+      },
+      "expected_control_pages": 23,
+      "maximum_table_definitions": 16,
+      "maximum_properties_per_collection": 64,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 4194304
+    }
+  },
+  "endpoints": {
+    "empty_candidate": [
+      "OpenDatabase succeeds read-only",
+      "Database.Version is exactly 3.0",
+      "TableDefs is exactly MSysACEs, MSysObjects, MSysQueries, and MSysRelationships",
+      "Containers(Tables).Documents has exactly the same four names"
+    ],
+    "alpha_candidate_and_control": [
+      "OpenDatabase succeeds read-only",
+      "Database.Version is exactly 3.0",
+      "TableDefs is exactly Alpha plus the four system definitions",
+      "TableDefs.Item(Alpha) resolves by name",
+      "Fields.Item(Id) resolves exactly one Long field",
+      "the TableDef and Field property collections enumerate within bounds and Field.Required is false",
+      "OpenRecordset(Alpha, snapshot) succeeds and is empty",
+      "Containers(Tables).Documents.Item(Alpha) resolves and the document inventory is exact"
+    ]
+  },
+  "questions": {
+    "empty_candidate": "Do all three copies of the pinned empty image pass every empty endpoint without a byte change?",
+    "alpha_candidate": "Do all three copies of the pinned Alpha image pass every Alpha endpoint without a byte change?"
+  },
+  "decision_rule": {
+    "observed_accepted": "All three controls pass unchanged, and all three candidate replicas pass the complete endpoint list unchanged with identical observations.",
+    "not_observed_accepted": "All three controls pass unchanged, and all three candidate replicas stop at the same endpoint with identical bounded observations and no candidate byte change.",
+    "no_outcome": "Use when a control fails or changes, a candidate changes, replicas disagree, or the scientific job is incomplete.",
+    "validation_rejection": "Reject without a canonical report when any pin, inventory, bound, or result-integrity check fails.",
+    "report_status": "accepted only when both questions are either observed_accepted or not_observed_accepted; otherwise no_outcome",
+    "claims": {
+      "compatibility_claim": false,
+      "support_movement": false
+    }
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, exactly the referenced MDB inventory, and the deterministic analyzer report",
+    "repository": "Never commit MDB bytes or provider binaries. Record the accepted report identity and bounded conclusion once as an additive provenance entry."
+  }
+}

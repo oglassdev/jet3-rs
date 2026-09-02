@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -30,6 +30,12 @@ param(
     [string]$BootstrapLayoutJobPath,
     [Parameter(Mandatory = $true)]
     [string]$SystemCatalogJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapComposerValidationJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapComposerEmptyPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapComposerAlphaPath,
     [string]$PlanSha256 = "",
     [string]$PlanPath = "",
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
@@ -373,7 +379,7 @@ if ($Job -ceq "table-definition" -and
 }
 foreach ($requiredHelper in @(
     $DispatchPath, $PublicationPath, $RowJobPath, $ValueJobPath, $IndexJobPath,
-    $BootstrapLayoutJobPath, $SystemCatalogJobPath
+    $BootstrapLayoutJobPath, $SystemCatalogJobPath, $BootstrapComposerValidationJobPath
 )) {
     if (-not (Test-Path -LiteralPath $requiredHelper -PathType Leaf)) {
         [Console]::Error.WriteLine("INVALID: staged development helper does not exist.")
@@ -388,6 +394,7 @@ $planBoundJobs = @{
     "long-value-maps" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "long-value-maps-followup" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
     "bootstrap-composer-semantics" = "oracle/windows-dao/scripts/dev/SystemCatalog.DevJob.ps1"
+    "bootstrap-composer-validation" = "oracle/windows-dao/scripts/dev/BootstrapComposerValidation.DevJob.ps1"
 }
 if ($planBoundJobs.ContainsKey($Job)) {
     if ($PlanSha256 -cnotmatch "^[0-9a-f]{64}$") {
@@ -404,7 +411,15 @@ if ($planBoundJobs.ContainsKey($Job)) {
         exit 2
     }
     $plan = Get-Content -LiteralPath $PlanPath -Raw | ConvertFrom-Json
-    $jobPath = if ($Job -ceq "bootstrap-layout") { $BootstrapLayoutJobPath } else { $SystemCatalogJobPath }
+    $jobPath = if ($Job -ceq "bootstrap-layout") {
+        $BootstrapLayoutJobPath
+    }
+    elseif ($Job -ceq "bootstrap-composer-validation") {
+        $BootstrapComposerValidationJobPath
+    }
+    else {
+        $SystemCatalogJobPath
+    }
     $guestInputs = [ordered]@{
         "oracle/windows-dao/scripts/probe-provider.ps1" = $ProviderProbePath
         "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1" = $PSCommandPath
@@ -422,6 +437,26 @@ if ($planBoundJobs.ContainsKey($Job)) {
         if ($actual -cne [string]$pin.Value) {
             [Console]::Error.WriteLine("INVALID: $Job staged input differs from its plan.")
             exit 2
+        }
+    }
+    if ($Job -ceq "bootstrap-composer-validation") {
+        foreach ($candidate in @(
+            [pscustomobject]@{ role = "empty"; path = $BootstrapComposerEmptyPath },
+            [pscustomobject]@{ role = "alpha"; path = $BootstrapComposerAlphaPath }
+        )) {
+            $expected = $plan.candidates.PSObject.Properties[[string]$candidate.role]
+            if ($null -eq $expected -or
+                -not (Test-Path -LiteralPath $candidate.path -PathType Leaf)) {
+                [Console]::Error.WriteLine("INVALID: bootstrap candidate is missing or unpinned.")
+                exit 2
+            }
+            $size = (Get-Item -LiteralPath $candidate.path).Length
+            $digest = (Get-FileHash -LiteralPath $candidate.path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($size -ne [long]$expected.Value.size -or
+                $digest -cne [string]$expected.Value.sha256) {
+                [Console]::Error.WriteLine("INVALID: bootstrap candidate differs from its plan.")
+                exit 2
+            }
         }
     }
 }
@@ -682,7 +717,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -694,7 +729,11 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             -TableDefinitionTypeInputPath $TableDefinitionTypeInputPath -RowJobPath $RowJobPath `
             -ValueJobPath $ValueJobPath -IndexJobPath $IndexJobPath `
             -BootstrapLayoutJobPath $BootstrapLayoutJobPath `
-            -SystemCatalogJobPath $SystemCatalogJobPath -PlanSha256 $PlanSha256 -RunId $RunId
+            -SystemCatalogJobPath $SystemCatalogJobPath `
+            -BootstrapComposerValidationJobPath $BootstrapComposerValidationJobPath `
+            -BootstrapComposerEmptyPath $BootstrapComposerEmptyPath `
+            -BootstrapComposerAlphaPath $BootstrapComposerAlphaPath `
+            -PlanSha256 $PlanSha256 -RunId $RunId
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
         if (-not (Test-Path -LiteralPath $dispatchResultPath -PathType Leaf)) {

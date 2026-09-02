@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -21,6 +21,12 @@ param(
     [string]$BootstrapLayoutJobPath,
     [Parameter(Mandatory = $true)]
     [string]$SystemCatalogJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapComposerValidationJobPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapComposerEmptyPath,
+    [Parameter(Mandatory = $true)]
+    [string]$BootstrapComposerAlphaPath,
     [string]$PlanSha256 = "",
     [string]$RunId = ""
 )
@@ -50,6 +56,7 @@ $scriptPath = switch ($Job) {
     "long-value-maps" { $SystemCatalogJobPath }
     "long-value-maps-followup" { $SystemCatalogJobPath }
     "bootstrap-composer-semantics" { $SystemCatalogJobPath }
+    "bootstrap-composer-validation" { $BootstrapComposerValidationJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -74,6 +81,14 @@ elseif ($Job -ceq "bootstrap-layout") {
 elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     $arguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId, "-Experiment", $Job)
 }
+elseif ($Job -ceq "bootstrap-composer-validation") {
+    $arguments += @(
+        "-PlanSha256", $PlanSha256,
+        "-RunId", $RunId,
+        "-EmptyCandidatePath", $BootstrapComposerEmptyPath,
+        "-AlphaCandidatePath", $BootstrapComposerAlphaPath
+    )
+}
 & (Join-Path $PSHOME "powershell.exe") @arguments
 $jobExitCode = [int]$LASTEXITCODE
 $resultName = switch ($Job) {
@@ -87,6 +102,7 @@ $resultName = switch ($Job) {
     "long-value-maps" { "long-value-maps-job-result.json" }
     "long-value-maps-followup" { "long-value-maps-followup-job-result.json" }
     "bootstrap-composer-semantics" { "bootstrap-composer-semantics-job-result.json" }
+    "bootstrap-composer-validation" { "bootstrap-composer-validation-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -126,6 +142,14 @@ $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-f
         "At least one system-catalog replica failed; per-replica error records the message."
     }
 }
+elseif ($Job -ceq "bootstrap-composer-validation") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three bootstrap-composer validation replicas once without retry."
+    }
+    else {
+        "At least one bootstrap-composer validation replica failed; per-replica error records the message."
+    }
+}
 else { [string]$jobResult.detail }
 if ($Job -ceq "catalog") { $catalogCheckpoints = @($jobResult.checkpoints) }
 elseif ($Job -ceq "table-definition") {
@@ -139,6 +163,9 @@ elseif ($Job -ceq "bootstrap-layout") {
     $bootstrapLayoutReplicas = @($jobResult.replicas)
 }
 elseif ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
+    $systemCatalogReplicas = @($jobResult.replicas)
+}
+elseif ($Job -ceq "bootstrap-composer-validation") {
     $systemCatalogReplicas = @($jobResult.replicas)
 }
 $result = [ordered]@{

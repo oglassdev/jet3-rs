@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -254,6 +254,49 @@ switch ($Job) {
         $expected = @($referenced | Sort-Object)
         if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Bootstrap-composer-semantics MDB inventory differs from its result."
+        }
+    }
+    "bootstrap-composer-validation" {
+        [void]$names.Add("bootstrap-composer-validation-job-result.json")
+        $jobResultPath = Join-Path $Source "bootstrap-composer-validation-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Bootstrap-composer validation result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($image in @($replica.images)) {
+                [void]$referenced.Add([string]$image.database)
+            }
+        }
+        if ($referenced.Count -gt 9) {
+            throw "Bootstrap-composer validation output exceeds the 9-database bound."
+        }
+        if (@($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Bootstrap-composer validation result contains duplicate database names."
+        }
+        $allowed = New-Object Collections.ArrayList
+        foreach ($replica in 1..3) {
+            [void]$allowed.Add("candidate-r$replica-empty.mdb")
+            [void]$allowed.Add("candidate-r$replica-alpha.mdb")
+            [void]$allowed.Add("control-r$replica-alpha.mdb")
+        }
+        $actualReferenced = @($referenced | Sort-Object)
+        $allowedReferenced = @($allowed | Sort-Object)
+        if (@($referenced | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
+            throw "Bootstrap-composer validation result has an unexpected database inventory."
+        }
+        if ([string]$jobResult.status -ceq "pass" -and
+            ($actualReferenced -join "`n") -cne ($allowedReferenced -join "`n")) {
+            throw "Passing bootstrap-composer validation result omits a database."
+        }
+        foreach ($name in $referenced) {
+            [void]$names.Add($name)
+        }
+        $actual = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb" |
+            ForEach-Object { $_.Name } | Sort-Object)
+        if (($actual -join "`n") -cne ($actualReferenced -join "`n")) {
+            throw "Bootstrap-composer validation MDB inventory differs from its result."
         }
     }
 }

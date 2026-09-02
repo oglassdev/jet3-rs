@@ -441,3 +441,64 @@ fn composition_is_deterministic_and_resource_rejection_is_structured() -> TestRe
     ));
     Ok(())
 }
+
+#[test]
+#[ignore = "writes private deterministic candidates for preregistered DAO validation"]
+fn export_dao_validation_candidates() -> TestResult {
+    use std::path::PathBuf;
+
+    let root = PathBuf::from(
+        std::env::var_os("JET3_BOOTSTRAP_CANDIDATE_DIR")
+            .ok_or("JET3_BOOTSTRAP_CANDIDATE_DIR is required")?,
+    );
+    export_candidates(&root)
+}
+
+fn export_candidates(root: &std::path::Path) -> TestResult {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    if !root.is_dir() {
+        return Err("candidate output directory must already exist".into());
+    }
+    if root.read_dir()?.next().is_some() {
+        return Err("candidate output directory must be empty".into());
+    }
+    for (name, candidate) in [
+        ("bootstrap-composer-empty.mdb", bytes(false)?),
+        ("bootstrap-composer-alpha.mdb", bytes(true)?),
+    ] {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(root.join(name))?;
+        file.write_all(&candidate)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn candidate_export_refuses_nonempty_directory() -> TestResult {
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let root = std::env::temp_dir().join(format!(
+        "jet3-bootstrap-export-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir(&root)?;
+    let sentinel = root.join("sentinel");
+    fs::write(&sentinel, b"preserve")?;
+
+    let result = export_candidates(&root);
+
+    assert!(result.is_err());
+    assert_eq!(fs::read(&sentinel)?, b"preserve");
+    assert!(!root.join("bootstrap-composer-empty.mdb").exists());
+    assert!(!root.join("bootstrap-composer-alpha.mdb").exists());
+    fs::remove_file(sentinel)?;
+    fs::remove_dir(root)?;
+    Ok(())
+}
