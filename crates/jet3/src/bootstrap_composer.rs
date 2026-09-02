@@ -16,6 +16,7 @@
 
 use std::fmt;
 
+use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
 use crate::{
@@ -79,20 +80,6 @@ const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
 const ALPHA_LVPROP_PAYLOAD: &[u8] =
     b"KKD\x00\x10\x00\x00\x00\x80\x00\x08\x00Required\x17\x00\x00\x00\x01\x00\x08\x00\x00\x00\x02\x00Id\x09\x00\x01\x01\x00\x00\x01\x00\x00";
 
-// EXP-0079 records complete lossless keys for only the fixed bootstrap rows.
-// Their component and text encodings remain uninterpreted.
-const PARENT_NAME_KEYS: [&[u8]; 9] = [
-    b"\x7f\x8f\x00\x00\x00\x7f\x77\x60\x61\x6d\x66\x76\x00",
-    b"\x7f\x8f\x00\x00\x00\x7f\x64\x60\x77\x60\x61\x60\x76\x66\x76\x00",
-    b"\x7f\x8f\x00\x00\x00\x7f\x75\x66\x6d\x60\x77\x6a\x72\x70\x76\x69\x6a\x73\x76\x00",
-    b"\x7f\x8f\x00\x00\x02\x7f\x6f\x76\x7d\x76\x64\x61\x00",
-    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x72\x61\x6b\x66\x62\x77\x76\x00",
-    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x60\x62\x66\x76\x00",
-    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x74\x78\x66\x75\x6a\x66\x76\x00",
-    b"\x7f\x8f\x00\x00\x01\x7f\x6f\x76\x7d\x76\x75\x66\x6d\x60\x77\x6a\x72\x70\x76\x69\x6a\x73\x76\x00",
-    b"\x7f\x8f\x00\x00\x01\x7f\x60\x6d\x73\x69\x60\x00",
-];
-
 const TABLES_ID: i32 = 0x0f00_0001;
 const DATABASES_ID: i32 = 0x0f00_0002;
 const RELATIONSHIPS_ID: i32 = 0x0f00_0003;
@@ -109,7 +96,7 @@ pub(crate) enum BootstrapComposeError {
     WholeFile(WholeFilePlanError),
     Encoding(Error),
     IndexPageFull { needed: usize, available: usize },
-    IndexKeyTooLong { needed: usize, available: usize },
+    NameKey(CatalogNameKeyError),
 }
 
 impl fmt::Display for BootstrapComposeError {
@@ -127,7 +114,8 @@ impl std::error::Error for BootstrapComposeError {
             Self::Row(source) => Some(source),
             Self::WholeFile(source) => Some(source),
             Self::Encoding(source) => Some(source),
-            Self::IndexPageFull { .. } | Self::IndexKeyTooLong { .. } => None,
+            Self::NameKey(source) => Some(source),
+            Self::IndexPageFull { .. } => None,
         }
     }
 }
@@ -160,6 +148,11 @@ impl From<WholeFilePlanError> for BootstrapComposeError {
 impl From<Error> for BootstrapComposeError {
     fn from(source: Error) -> Self {
         Self::Encoding(source)
+    }
+}
+impl From<CatalogNameKeyError> for BootstrapComposeError {
+    fn from(source: CatalogNameKeyError) -> Self {
+        Self::NameKey(source)
     }
 }
 
@@ -461,29 +454,28 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
     },
 ];
 
+const ALPHA_SEED: CatalogSeed = CatalogSeed {
+    id: ALPHA_ROOT as i32,
+    parent: TABLES_ID,
+    name: b"Alpha",
+    kind: 1,
+    owner: CATALOG_OWNER_0301,
+};
+
+/// Returns the catalog rows the composed image holds, in stored row order.
+fn catalog_seeds(alpha: bool) -> impl Iterator<Item = CatalogSeed> {
+    CATALOG_SEEDS.into_iter().chain(alpha.then_some(ALPHA_SEED))
+}
+
 fn objects_data_page(
     alpha: bool,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
-    for seed in CATALOG_SEEDS {
-        let length = encode_catalog_row(seed, None, &mut row, budget)?;
-        builder.append_row(&row[..length], budget)?;
-    }
-    if alpha {
-        let length = encode_catalog_row(
-            CatalogSeed {
-                id: ALPHA_ROOT as i32,
-                parent: TABLES_ID,
-                name: b"Alpha",
-                kind: 1,
-                owner: CATALOG_OWNER_0301,
-            },
-            Some(alpha_long_value_header()),
-            &mut row,
-            budget,
-        )?;
+    for seed in catalog_seeds(alpha) {
+        let lvprop = (seed.id == ALPHA_ROOT as i32).then(alpha_long_value_header);
+        let length = encode_catalog_row(seed, lvprop, &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
     finish_data_builder(builder, budget)
@@ -632,17 +624,9 @@ impl OwnedIndexEntry {
         entry.row = row;
         entry
     }
-    fn raw(key: &[u8], row: u8) -> Result<Self, BootstrapComposeError> {
-        let needed = key.len();
-        if needed > INDEX_KEY_CAPACITY {
-            return Err(BootstrapComposeError::IndexKeyTooLong {
-                needed,
-                available: INDEX_KEY_CAPACITY,
-            });
-        }
+    fn name(parent: i32, name: &[u8], row: u8) -> Result<Self, BootstrapComposeError> {
         let mut entry = Self::EMPTY;
-        entry.key[..needed].copy_from_slice(key);
-        entry.len = needed;
+        entry.len = encode_catalog_name_key(parent, name, &mut entry.key)?;
         entry.row = row;
         Ok(entry)
     }
@@ -653,10 +637,10 @@ fn objects_parent_name_index(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    for (row, key) in PARENT_NAME_KEYS.iter().enumerate() {
-        entries[row] = OwnedIndexEntry::raw(key, row as u8)?;
-    }
     let count = if alpha { 9 } else { 8 };
+    for (row, seed) in catalog_seeds(alpha).enumerate() {
+        entries[row] = OwnedIndexEntry::name(seed.parent, seed.name, row as u8)?;
+    }
     sort_index_entries(&mut entries[..count]);
     index_page(
         MSYS_OBJECTS_ROOT,
@@ -670,11 +654,10 @@ fn objects_id_index(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    for (row, seed) in CATALOG_SEEDS.iter().enumerate() {
+    let count = if alpha { 9 } else { 8 };
+    for (row, seed) in catalog_seeds(alpha).enumerate() {
         entries[row] = OwnedIndexEntry::long(seed.id, row as u8);
     }
-    entries[8] = OwnedIndexEntry::long(ALPHA_ROOT as i32, 8);
-    let count = if alpha { 9 } else { 8 };
     sort_index_entries(&mut entries[..count]);
     index_page(
         MSYS_OBJECTS_ROOT,
