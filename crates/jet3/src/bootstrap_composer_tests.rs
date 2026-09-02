@@ -1,8 +1,11 @@
 use super::{
-    ALPHA_LVPROP_PAYLOAD, ALPHA_MAP_PAGE, ALPHA_ROOT, BootstrapComposeError,
-    compose_alpha_database, compose_empty_database,
+    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, compose_alpha_database, compose_empty_database,
 };
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
+
+// EXP-0073/EXP-0085: the accepted Alpha image's appended page numbers.
+const ALPHA_ROOT: u64 = 20;
+const ALPHA_MAP_PAGE: u64 = 21;
 use crate::table_schema_plan::{TableSchemaSpec, plan_table_schema};
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, ColumnSpec,
@@ -14,11 +17,11 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn compose_budget() -> ResourceBudget {
+pub(super) fn compose_budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
 }
 
-fn read_budget(byte_len: usize) -> ResourceBudget {
+pub(super) fn read_budget(byte_len: usize) -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::new(
         ByteCount::new(byte_len as u64),
         JET3_PAGE_SIZE,
@@ -67,7 +70,7 @@ fn expected_parent_entries(count: usize) -> Vec<(&'static [u8], PageNumber, u8)>
     entries
 }
 
-fn inline_map_bit(
+pub(super) fn inline_map_bit(
     bytes: &[u8],
     map_page: u64,
     map_row: u8,

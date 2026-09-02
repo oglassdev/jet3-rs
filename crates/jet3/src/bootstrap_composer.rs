@@ -17,19 +17,18 @@
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
-use crate::long_value_writer::{
-    LongValueWriteError, external_long_value_header, validate_single_page_row,
-};
+use crate::long_value_writer::LongValueWriteError;
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
+use crate::table_schema_plan::{TableSchemaPlanError, TableSchemaSpec};
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
-    DataPageBuilder, Error, ExternalLongValueStorage, IndexDirection, IndexFieldSpec,
-    InlineUsageMapEncoder, LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator,
-    PAGE_BYTES, PageImage, PageImageError, PageKind, PageNumber, PageOffset,
-    PhysicalIndexFlagsSpec, PhysicalIndexSpec, ResourceBudget, RowColumnLayout, RowLocator,
-    RowValue, RowWriteError, SystemColumnClassSpec, TableDefinitionKind, TableDefinitionSpec,
-    TableDefinitionWriteError, UsageMapWriteError, encode_row, encode_table_definition,
+    DataPageBuilder, Error, IndexDirection, IndexFieldSpec, InlineUsageMapEncoder,
+    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageImage,
+    PageImageError, PageKind, PageNumber, PageOffset, PhysicalIndexFlagsSpec, PhysicalIndexSpec,
+    ResourceBudget, RowColumnLayout, RowValue, RowWriteError, SystemColumnClassSpec,
+    TableDefinitionKind, TableDefinitionSpec, TableDefinitionWriteError, UsageMapWriteError,
+    encode_row, encode_table_definition,
 };
 
 const HEADER_PAGE: u64 = 0;
@@ -52,9 +51,6 @@ const RELATIONSHIPS_OBJECT_ROOT: u64 = 16;
 const RELATIONSHIPS_REFERENCED_ROOT: u64 = 17;
 const MSYS_OBJECTS_DATA_PAGE: u64 = 18;
 const MSYS_ACES_DATA_PAGE: u64 = 19;
-const ALPHA_ROOT: u64 = 20;
-const ALPHA_MAP_PAGE: u64 = 21;
-const ALPHA_LVPROP_PAGE: u64 = 22;
 
 const GLOBAL_BITMAP_BYTES: u64 = 128;
 const MAP_BITMAP_BYTES: u64 = 128;
@@ -89,141 +85,88 @@ const RELATIONSHIPS_ID: i32 = 0x0f00_0003;
 const ROOT_CONTAINER_ID: i32 = 0x0f00_0000;
 const MSYS_DB_ID: i32 = 0x1000_0000;
 
-/// Structured failure while composing a fixed bootstrap image.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BootstrapComposeError {
-    Definition(TableDefinitionWriteError),
-    UsageMap(UsageMapWriteError),
-    Page(PageImageError),
-    Row(RowWriteError),
-    WholeFile(WholeFilePlanError),
-    Encoding(Error),
-    IndexPageFull {
-        needed: usize,
-        available: usize,
-    },
-    NameKey(CatalogNameKeyError),
-    /// Long-value encoding failed.
-    LongValue(LongValueWriteError),
-}
-
-impl fmt::Display for BootstrapComposeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Jet 3 bootstrap composition failed: {self:?}")
-    }
-}
-
-impl std::error::Error for BootstrapComposeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Definition(source) => Some(source),
-            Self::UsageMap(source) => Some(source),
-            Self::Page(source) => Some(source),
-            Self::Row(source) => Some(source),
-            Self::WholeFile(source) => Some(source),
-            Self::Encoding(source) => Some(source),
-            Self::NameKey(source) => Some(source),
-            Self::LongValue(source) => Some(source),
-            Self::IndexPageFull { .. } => None,
-        }
-    }
-}
-
-impl From<TableDefinitionWriteError> for BootstrapComposeError {
-    fn from(source: TableDefinitionWriteError) -> Self {
-        Self::Definition(source)
-    }
-}
-impl From<UsageMapWriteError> for BootstrapComposeError {
-    fn from(source: UsageMapWriteError) -> Self {
-        Self::UsageMap(source)
-    }
-}
-impl From<PageImageError> for BootstrapComposeError {
-    fn from(source: PageImageError) -> Self {
-        Self::Page(source)
-    }
-}
-impl From<RowWriteError> for BootstrapComposeError {
-    fn from(source: RowWriteError) -> Self {
-        Self::Row(source)
-    }
-}
-impl From<WholeFilePlanError> for BootstrapComposeError {
-    fn from(source: WholeFilePlanError) -> Self {
-        Self::WholeFile(source)
-    }
-}
-impl From<Error> for BootstrapComposeError {
-    fn from(source: Error) -> Self {
-        Self::Encoding(source)
-    }
-}
-impl From<CatalogNameKeyError> for BootstrapComposeError {
-    fn from(source: CatalogNameKeyError) -> Self {
-        Self::NameKey(source)
-    }
-}
-
-impl From<LongValueWriteError> for BootstrapComposeError {
-    fn from(source: LongValueWriteError) -> Self {
-        Self::LongValue(source)
-    }
-}
+#[path = "bootstrap_compose_error.rs"]
+mod error;
+pub(crate) use error::BootstrapComposeError;
 
 /// Composes the deterministic 20-page empty image established by `EXP-0073`.
 pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    let images = compose_existing_pages(false, budget)?;
+    let images = compose_existing_pages(None, budget)?;
     WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
 }
 
-/// Composes the fixed empty-to-`Alpha(Id Long)` transition from `EXP-0073`.
+/// Composes the fixed empty-to-`Alpha(Id Long)` transition from `EXP-0073`,
+/// carrying the `LvProp` payload `EXP-0079` recorded for it.
 pub(crate) fn compose_alpha_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    let images = compose_existing_pages(true, budget)?;
+    const COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
+        b"Id",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    compose_table_database(
+        TableCreate {
+            spec: &TableSchemaSpec {
+                name: b"Alpha",
+                columns: &COLUMNS,
+                indexes: &[],
+            },
+            properties: ALPHA_LVPROP_PAYLOAD,
+        },
+        budget,
+    )
+}
+
+/// Composes the empty database plus one created user table, following the
+/// `EXP-0087` create observations.
+pub(crate) fn compose_table_database(
+    create: TableCreate<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, BootstrapComposeError> {
+    let planned = PlannedCreate::new(create)?;
+    let images = compose_existing_pages(Some(&planned), budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
-    let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
-    plan.append(alpha_definition_page(budget)?, &mut append_map, budget)?;
-    plan.append(alpha_map_page(budget)?, &mut append_map, budget)?;
-    plan.append(alpha_long_value_page(budget)?, &mut append_map, budget)?;
+    planned.append_pages(&mut plan, budget)?;
     Ok(plan)
 }
 
 fn compose_existing_pages(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], BootstrapComposeError> {
-    let object_count = if alpha { 9 } else { 8 };
-    let ace_count = if alpha { 18 } else { 16 };
+    let object_count = if create.is_some() { 9 } else { 8 };
+    let ace_count = if create.is_some() { 18 } else { 16 };
+    let page_count = create.map_or(EMPTY_DATABASE_PAGE_COUNT, PlannedCreate::page_count);
     Ok([
-        header_page(alpha, budget)?,
-        global_map_page(if alpha { 23 } else { 20 }, budget)?,
+        header_page(create.is_some(), budget)?,
+        global_map_page(page_count, budget)?,
         msys_objects_definition(object_count, budget)?,
         msys_aces_definition(ace_count, object_count, budget)?,
         msys_queries_definition(budget)?,
         msys_relationships_definition(budget)?,
-        objects_map_page(alpha, budget)?,
+        objects_map_page(create, budget)?,
         single_map_page(&[], budget)?,
         single_map_page(&[OBJECTS_PARENT_NAME_ROOT], budget)?,
-        objects_parent_name_index(alpha, budget)?,
+        objects_parent_name_index(create, budget)?,
         single_map_page(&[OBJECTS_ID_ROOT], budget)?,
-        objects_id_index(alpha, budget)?,
+        objects_id_index(create, budget)?,
         shared_map_page(budget)?,
-        aces_index(alpha, budget)?,
+        aces_index(create, budget)?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
-        objects_data_page(alpha, budget)?,
-        aces_data_page(alpha, budget)?,
+        objects_data_page(create, budget)?,
+        aces_data_page(create, budget)?,
     ])
 }
 
 fn header_page(
-    alpha: bool,
+    created: bool,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut image = PageImage::new(PageKind::DatabaseDefinition);
@@ -235,8 +178,8 @@ fn header_page(
     for offset in (1..commit_state.len()).step_by(2) {
         commit_state[offset] = 1;
     }
-    // EXP-0069/0071: fixed empty/first-create values 0/2; no general counter rule.
-    commit_state[2] = if alpha { 2 } else { 0 };
+    // EXP-0087: byte 1538 advanced by 2 per create from 0; no rule beyond that.
+    commit_state[2] = if created { 2 } else { 0 };
     image.write_at(PageOffset::new(1536), &commit_state, budget)?;
     Ok(image)
 }
@@ -289,13 +232,14 @@ fn single_map_page(
 }
 
 fn objects_map_page(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let owned = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let available = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let empty = inline_map_row(&[], budget)?;
-    let lvprop = inline_map_row(if alpha { &[ALPHA_LVPROP_PAGE] } else { &[] }, budget)?;
+    let long_value_pages = create.map(PlannedCreate::long_value_page);
+    let lvprop = inline_map_row(long_value_pages.as_slice(), budget)?;
     let rows: [&[u8]; 15] = [
         &owned, &available, &empty, &empty, &empty, &empty, &empty, &empty, &empty, &empty,
         &lvprop, &lvprop, &empty, &empty, &empty,
@@ -330,11 +274,6 @@ fn shared_map_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapCo
     data_page(HEADER_PAGE, &rows, budget)
 }
 
-fn alpha_map_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
-    let empty = inline_map_row(&[], budget)?;
-    data_page(HEADER_PAGE, &[&empty, &empty], budget)
-}
-
 fn data_page(
     owner: u64,
     rows: &[&[u8]],
@@ -366,9 +305,14 @@ fn definition_page(
 #[path = "bootstrap_system_definitions.rs"]
 mod definitions;
 use definitions::{
-    alpha_definition_page, msys_aces_definition, msys_objects_definition, msys_queries_definition,
+    msys_aces_definition, msys_objects_definition, msys_queries_definition,
     msys_relationships_definition,
 };
+
+#[path = "bootstrap_table_create.rs"]
+mod table_create;
+use table_create::PlannedCreate;
+pub(crate) use table_create::TableCreate;
 
 const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
     fixed(ColumnPhysicalType::Long, 0, 4),
@@ -403,20 +347,24 @@ const fn variable(kind: ColumnPhysicalType, index: u16, size: u16) -> RowColumnL
 }
 
 #[derive(Clone, Copy)]
-struct CatalogSeed {
+struct CatalogSeed<'a> {
     id: i32,
     parent: i32,
-    name: &'static [u8],
+    name: &'a [u8],
     kind: i16,
     owner: &'static [u8],
+    flags: i32,
 }
-const CATALOG_SEEDS: [CatalogSeed; 8] = [
+// EXP-0058: system objects carry flags `0x80000000`.
+const SYSTEM_FLAGS: i32 = i32::MIN;
+const CATALOG_SEEDS: [CatalogSeed<'static>; 8] = [
     CatalogSeed {
         id: TABLES_ID,
         parent: ROOT_CONTAINER_ID,
         name: b"Tables",
         kind: 3,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: DATABASES_ID,
@@ -424,6 +372,7 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"Databases",
         kind: 3,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: RELATIONSHIPS_ID,
@@ -431,6 +380,7 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"Relationships",
         kind: 3,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: MSYS_DB_ID,
@@ -438,6 +388,7 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"MSysDb",
         kind: 2,
         owner: CATALOG_OWNER_0301,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: MSYS_OBJECTS_ROOT as i32,
@@ -445,6 +396,7 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"MSysObjects",
         kind: 1,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: MSYS_ACES_ROOT as i32,
@@ -452,6 +404,7 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"MSysACEs",
         kind: 1,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: MSYS_QUERIES_ROOT as i32,
@@ -459,6 +412,7 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"MSysQueries",
         kind: 1,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
     CatalogSeed {
         id: MSYS_RELATIONSHIPS_ROOT as i32,
@@ -466,32 +420,29 @@ const CATALOG_SEEDS: [CatalogSeed; 8] = [
         name: b"MSysRelationships",
         kind: 1,
         owner: CATALOG_OWNER_0203,
+        flags: SYSTEM_FLAGS,
     },
 ];
 
-const ALPHA_SEED: CatalogSeed = CatalogSeed {
-    id: ALPHA_ROOT as i32,
-    parent: TABLES_ID,
-    name: b"Alpha",
-    kind: 1,
-    owner: CATALOG_OWNER_0301,
-};
-
 /// Returns the catalog rows the composed image holds, in stored row order.
-fn catalog_seeds(alpha: bool) -> impl Iterator<Item = CatalogSeed> {
-    CATALOG_SEEDS.into_iter().chain(alpha.then_some(ALPHA_SEED))
+fn catalog_seeds<'a>(create: Option<&PlannedCreate<'a>>) -> impl Iterator<Item = CatalogSeed<'a>> {
+    CATALOG_SEEDS
+        .into_iter()
+        .chain(create.map(PlannedCreate::catalog_seed))
 }
 
 fn objects_data_page(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
-    for seed in catalog_seeds(alpha) {
-        let lvprop = (seed.id == ALPHA_ROOT as i32)
-            .then(alpha_long_value_header)
-            .transpose()?;
+    let created_id = create.map(PlannedCreate::object_id);
+    for seed in catalog_seeds(create) {
+        let lvprop = match create {
+            Some(planned) if Some(seed.id) == created_id => Some(planned.long_value_header()?),
+            _ => None,
+        };
         let length = encode_catalog_row(seed, lvprop, &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
@@ -499,7 +450,7 @@ fn objects_data_page(
 }
 
 fn encode_catalog_row(
-    seed: CatalogSeed,
+    seed: CatalogSeed<'_>,
     lvprop: Option<[u8; 12]>,
     output: &mut [u8],
     budget: &mut ResourceBudget,
@@ -507,11 +458,6 @@ fn encode_catalog_row(
     let lvprop_value = lvprop
         .as_ref()
         .map_or(RowValue::Null, |bytes| RowValue::LongValue(bytes));
-    let system_flags = if seed.id == ALPHA_ROOT as i32 {
-        0
-    } else {
-        i32::MIN
-    };
     let values = [
         RowValue::Long(seed.id),
         RowValue::Long(seed.parent),
@@ -520,7 +466,7 @@ fn encode_catalog_row(
         RowValue::DateTime { days: 0.0 },
         RowValue::DateTime { days: 0.0 },
         RowValue::Binary(seed.owner),
-        RowValue::Long(system_flags),
+        RowValue::Long(seed.flags),
         RowValue::Null,
         RowValue::Null,
         RowValue::Null,
@@ -568,17 +514,20 @@ const fn ace(object: i32, sid: &'static [u8], acm: i32, inheritable: bool) -> Ac
     }
 }
 
+/// Returns the access-control rows the composed image holds, in stored order.
+fn ace_seeds(create: Option<&PlannedCreate<'_>>) -> impl Iterator<Item = AceSeed> {
+    ACE_SEEDS
+        .into_iter()
+        .chain(create.map(PlannedCreate::ace_seeds).into_iter().flatten())
+}
+
 fn aces_data_page(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_ACES_ROOT), budget)?;
     let mut row = [0_u8; 64];
-    for seed in ACE_SEEDS
-        .into_iter()
-        .chain(alpha.then_some(ace(ALPHA_ROOT as i32, b"\x03\x01", 983294, false)))
-        .chain(alpha.then_some(ace(ALPHA_ROOT as i32, b"\x02\x01", 1048319, false)))
-    {
+    for seed in ace_seeds(create) {
         let values = [
             RowValue::Long(seed.object),
             RowValue::Binary(seed.sid),
@@ -603,21 +552,6 @@ fn finish_data_builder(
     let [low, high] = free.to_le_bytes();
     image.write_at(PageOffset::new(1), &[1, low, high], budget)?;
     Ok(image)
-}
-
-fn alpha_long_value_header() -> Result<[u8; 12], BootstrapComposeError> {
-    Ok(external_long_value_header(
-        ALPHA_LVPROP_PAYLOAD.len(),
-        ExternalLongValueStorage::SinglePage,
-        RowLocator::new(PageNumber::new(ALPHA_LVPROP_PAGE), 0),
-    )?)
-}
-
-fn alpha_long_value_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
-    validate_single_page_row(ALPHA_LVPROP_PAYLOAD)?;
-    let mut builder = DataPageBuilder::new_long_value(budget)?;
-    builder.append_row(ALPHA_LVPROP_PAYLOAD, budget)?;
-    finish_data_builder(builder, budget)
 }
 
 #[derive(Clone, Copy)]
@@ -651,12 +585,12 @@ impl OwnedIndexEntry {
 }
 
 fn objects_parent_name_index(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    let count = if alpha { 9 } else { 8 };
-    for (row, seed) in catalog_seeds(alpha).enumerate() {
+    let count = if create.is_some() { 9 } else { 8 };
+    for (row, seed) in catalog_seeds(create).enumerate() {
         entries[row] = OwnedIndexEntry::name(seed.parent, seed.name, row as u8)?;
     }
     sort_index_entries(&mut entries[..count]);
@@ -668,12 +602,12 @@ fn objects_parent_name_index(
     )
 }
 fn objects_id_index(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    let count = if alpha { 9 } else { 8 };
-    for (row, seed) in catalog_seeds(alpha).enumerate() {
+    let count = if create.is_some() { 9 } else { 8 };
+    for (row, seed) in catalog_seeds(create).enumerate() {
         entries[row] = OwnedIndexEntry::long(seed.id, row as u8);
     }
     sort_index_entries(&mut entries[..count]);
@@ -685,16 +619,15 @@ fn objects_id_index(
     )
 }
 fn aces_index(
-    alpha: bool,
+    create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 18];
-    for (row, seed) in ACE_SEEDS.iter().enumerate() {
+    let mut count = 0;
+    for (row, seed) in ace_seeds(create).enumerate() {
         entries[row] = OwnedIndexEntry::long(seed.object, row as u8);
+        count = row + 1;
     }
-    entries[16] = OwnedIndexEntry::long(ALPHA_ROOT as i32, 16);
-    entries[17] = OwnedIndexEntry::long(ALPHA_ROOT as i32, 17);
-    let count = if alpha { 18 } else { 16 };
     sort_index_entries(&mut entries[..count]);
     index_page(
         MSYS_ACES_ROOT,
