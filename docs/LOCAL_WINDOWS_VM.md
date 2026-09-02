@@ -160,15 +160,19 @@ placement nor a single-page `LvProp`, and establishes no broader allocation,
 writer, compatibility, or support claim.
 
 `extended-names` is the SHA-256-pinned issue #152 experiment for every defined
-CP1252 byte above `0x7E`. Review and pinning are complete; the preregistration
-commit must merge before the standing authorization permits one acquisition.
-Three replicas each retain an empty checkpoint, 41
+CP1252 byte above `0x7E`. Three replicas each retain an empty checkpoint, 41
 identity-isolated three-byte batch checkpoints, and one explicit rejection-arm
 checkpoint. The analyzer accepts contrary but fully decoded collation behavior
 as an answer and treats incomplete decoding, mutation failure, or replica
 disagreement as `no_outcome`. The 128-page prospective bound accommodates the
 earlier observed 70-page, 24-name image; each new batch remains at 27 catalog
 rows, below the observed 32-row single-leaf count.
+`EXP-0097` records the only dispatch as `no_outcome`: all DAO attempts reported
+creation and bounded metadata agreed, but each replica's rejection checkpoint
+failed catalog-key decoding with a malformed identity field. The defined arms
+cannot be promoted outside the preregistered all-or-`no_outcome` decision rule.
+#152 remains open and evidence-blocked. A separately pinned successor and
+renewed explicit human authorization are required before another dispatch.
 
 `lvprop-null` is the SHA-256-pinned, development-only acceptance experiment for
 issue #149. Three replicas each compare the fixed accepted Alpha composer image,

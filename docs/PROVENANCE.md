@@ -8696,6 +8696,102 @@ Use `not applicable` explicitly rather than omitting a field.
   acquisition was performed.
 
 
+### EXP-0097 — No-outcome CP1252 extended catalog-name DAO result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO `no_outcome`
+  derived from a canonical analyzer report
+- Question: for the exact isolated arms preregistered by `EXP-0096`, what
+  catalog ParentId/Name key contributions does DAO emit for every defined
+  CP1252 byte above `0x7E` in the bounded singleton, repeat, and neighboring
+  pair contexts, and what happens for the U+007F and five undefined-slot
+  Unicode controls?
+- Origin: project-authored clean-room experiment using the exact `EXP-0096`
+  bytes merged as commit `9987d606dbd1c36608cff6a8c1160e26073548cd`
+  (PR `#164`) and plan SHA-256
+  `201e880ff1e7d08d5151df2fc53388ef296dfbd4158fc84a530510fffbc32236`.
+  The user had explicitly authorized local experiments. An initial local
+  client invocation stopped before opening SSH because required configuration
+  was absent; it staged, dispatched, and acquired nothing and is not a run.
+  Run ID `20260902T210813Z-dev-dao` was then the one and only DAO dispatch and
+  was not retried. The dispatch count and pre-SSH failure are operator-history
+  observations, not facts inferred from the retained artifacts.
+- Input identity: the retained staged plan matched the exact plan digest above,
+  and each of its nine staged inputs matched its embedded SHA-256 pin and the
+  corresponding bytes on merged `main`. The staged and merged producer bytes
+  were identical at
+  `oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1` at SHA-256
+  `a177a80638d22605a2f7836005e9cd6b7b296fdcd7a264f49e6a325c5fa39356`
+  and the staged and merged analyzer bytes were identical at
+  `oracle/windows-dao/scripts/extended_names.py` at SHA-256
+  `732e8ca5edd597bf54dc73764031e4663d361f9f1c4f21747baab6dbdf352369`.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Guest embedded UTC timestamps were seven hours ahead of the host run/report
+  clock while reporting Pacific UTC-07:00; they are retained as reported but
+  are not used as wall-clock or dispatch-order evidence.
+- Producer result: all three replicas reached phase `complete` with status
+  `pass`, `mutation_started: true`, 43 checkpoints, and no recovery artifact.
+  All 2,337 defined-arm attempts and all 21 rejection-arm attempts reported
+  `created` with no failure operation or error. The rejection arms comprised
+  seven attempts per replica: one ASCII canary, U+007F, and five Unicode BSTR
+  controls corresponding to undefined CP1252 slots. The producer's bounded DAO
+  operation path returned successfully through `TableDefs.Append` and close for
+  each exact control, and post-close bounded DAO metadata listed every exact
+  name. All 129 retained images kept identical size and SHA-256 through the
+  metadata pass.
+- Analyzer result: the pinned analyzer validated the complete result and
+  artifact contract and wrote a deterministic canonical report with top-level
+  status `no_outcome`, `compatibility_claim: false`, and
+  `support_movement: false`. Both the staged and merged analyzers reproduced
+  that report byte-for-byte. Each replica has the exact decode error
+  `checkpoint reject: a catalog row has malformed identity fields`. All five
+  questions—coverage, singleton positions, pair composition, secondary order,
+  and replication—have status `no_outcome` for the reason `at least one
+  retained checkpoint failed a recorded grammar or control`.
+- JSON artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `1a7440a0e1610d5efe9e1b0d9c64f67ab64240c91ddda96688540f70a59f201b`;
+  external `extended-names-job-result.json`, 6,429,106 bytes, SHA-256
+  `0d629b009acee1e7e82915c79b4a60a7ab0b64288dcbba30d0037929a62d4166`;
+  external `result.json`, 7,478,632 bytes, SHA-256
+  `0de5e47df7b95401c7f037fb8b02a4c1ec9daf25664e11befaf12484ebc55501`;
+  external canonical `extended-names-report.json`, 824,988 bytes, SHA-256
+  `3c08b7499b23f02e31bf3b13d5ee18f54644be4e07d3acc92804b3db7fbf4a32`.
+  The outer `result.json` is transport and status evidence only: its duplicated
+  Unicode-bearing replica values contain 4,458 scalar differences from the
+  byte-preserved job result because the dispatcher read UTF-8 using the Windows
+  PowerShell default encoding. Exact name evidence comes only from the direct
+  job result consumed by the pinned analyzer, not that duplicated outer copy.
+- Retained MDB identities: exactly 129 files totaling 15,200,256 bytes: three
+  40,960-byte empty images, 123 120,832-byte batch images, and three
+  71,680-byte rejection-arm images. The SHA-256 of the filename-sorted JSON
+  array of `name`/`size`/`sha256` objects, serialized as UTF-8 with indent 2,
+  keys sorted, and one trailing LF, is
+  `e409731b49974150b99ea54b3cc8b3d62a3d8fccb9830631c0cc5101b834e3cf`.
+- Interpretation: the validated producer metadata agrees with the exact
+  attempt-acceptance records, but this is not a general DAO name-acceptance
+  claim. The preregistered decision was all-or-`no_outcome`; therefore the
+  defined-arm bytes cannot be promoted post hoc after the rejection checkpoint
+  failed catalog-key decoding. This result establishes no catalog-key mapping,
+  primary weight, expansion, secondary-nibble ordering, undefined-byte
+  mapping, general collation, writer correctness, compatibility, hosted
+  differential result, or support movement. Issue `#152` remains open and
+  evidence-blocked. Any new acquisition requires a separately pinned successor
+  and renewed explicit human authorization.
+- Usage: issue `#152`; `EXP-0087`; `EXP-0096`; future separately
+  preregistered successor
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: direct artifact-identity, producer-state, inventory, and canonical
+  classification checks completed on 2026-09-02; independent outcome-entry
+  review is pending
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
