@@ -58,7 +58,7 @@ pub(crate) enum PlannedIndexKind {
 
 impl PlannedIndexKind {
     /// Returns the physical flag class this index kind encodes to.
-    const fn flags(self) -> PhysicalIndexFlagsSpec {
+    pub(crate) const fn flags(self) -> PhysicalIndexFlagsSpec {
         match self {
             Self::Primary => PhysicalIndexFlagsSpec::UniqueRequired,
             Self::Ordinary => PhysicalIndexFlagsSpec::Ordinary,

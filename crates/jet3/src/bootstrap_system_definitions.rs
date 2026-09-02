@@ -377,31 +377,6 @@ pub(super) fn msys_relationships_definition(
     )
 }
 
-pub(super) fn alpha_definition_page(
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
-    const COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
-    definition_page(
-        &TableDefinitionSpec {
-            kind: TableDefinitionKind::User,
-            columns: &COLUMNS,
-            system_column_classes: &[],
-            physical_indexes: &[],
-            indexes: &[],
-            owned_map: locator(ALPHA_MAP_PAGE, 0),
-            available_map: locator(ALPHA_MAP_PAGE, 1),
-            row_count: 0,
-            long_value_maps: &[],
-        },
-        budget,
-    )
-}
-
 const fn field(column: u16) -> IndexFieldSpec {
     IndexFieldSpec {
         column,
