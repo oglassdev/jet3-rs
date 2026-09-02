@@ -240,7 +240,13 @@ def job_document(root: Path, *, repaired: bool = False) -> dict[str, object]:
                 ],
                 "error": None,
                 "probe_attempts": [
-                    {"code_points": [0x61], "created": True, "error": None, "name": "PaQ"}
+                    {
+                        "code_points": entry["code_points"],
+                        "created": True,
+                        "error": None,
+                        "name": entry["name"],
+                    }
+                    for entry in ANALYZER.expected_probe_inventory()
                 ],
                 "replica": replica,
                 "status": "pass",
@@ -250,6 +256,102 @@ def job_document(root: Path, *, repaired: bool = False) -> dict[str, object]:
         "run_id": "20260902T120000Z-schema-generalization",
         "status": "pass",
     }
+
+
+class ProbeInventoryTests(unittest.TestCase):
+    def test_pinned_inventory_covers_every_probed_byte_in_two_orderings(self) -> None:
+        inventory = ANALYZER.expected_probe_inventory()
+        covered: dict[int, int] = {}
+        for entry in inventory:
+            for point in entry["code_points"]:
+                covered[point] = covered.get(point, 0) + 1
+
+        self.assertEqual(len(inventory), ANALYZER.MAX_PROBE_TABLES)
+        self.assertEqual(sorted(set(covered.values())), [2])
+        self.assertEqual(
+            sorted(covered),
+            [
+                value
+                for first, last in ANALYZER.PROBE_RANGES
+                for value in range(first, last + 1)
+                if value not in ANALYZER.EXCLUDED_PROBE_BYTES
+            ],
+        )
+        for entry in inventory:
+            with self.subTest(name=entry["name"]):
+                # No probed name may mix the two ranges, or its ASCII bytes
+                # would be excluded from the ASCII collation map.
+                ranges = {
+                    (first, last)
+                    for first, last in ANALYZER.PROBE_RANGES
+                    for point in entry["code_points"]
+                    if first <= point <= last
+                }
+                self.assertEqual(len(ranges), 1)
+
+    def test_incomplete_or_altered_inventory_is_an_inventory_violation(self) -> None:
+        expected = ANALYZER.expected_probe_inventory()
+        attempts = [
+            {"code_points": entry["code_points"], "created": True, "error": None, "name": entry["name"]}
+            for entry in expected
+        ]
+
+        self.assertEqual(len(ANALYZER.read_probe_attempts(attempts, 1)), len(expected))
+
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "exactly 24 probed names"):
+            ANALYZER.read_probe_attempts(attempts[:-1], 1)
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "exactly 24 probed names"):
+            ANALYZER.read_probe_attempts([], 1)
+
+        renamed = [dict(entry) for entry in attempts]
+        renamed[3]["name"] = "PxxQ"
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "preregistered inventory"):
+            ANALYZER.read_probe_attempts(renamed, 1)
+
+        repointed = [dict(entry) for entry in attempts]
+        repointed[3] = dict(repointed[3], code_points=repointed[3]["code_points"][:-1])
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "preregistered inventory"):
+            ANALYZER.read_probe_attempts(repointed, 1)
+
+    def test_a_rejected_name_stays_a_recordable_observation(self) -> None:
+        expected = ANALYZER.expected_probe_inventory()
+        attempts = [
+            {"code_points": entry["code_points"], "created": True, "error": None, "name": entry["name"]}
+            for entry in expected
+        ]
+        attempts[5] = dict(attempts[5], created=False, error="rejected by the provider")
+
+        self.assertFalse(ANALYZER.read_probe_attempts(attempts, 1)[5]["created"])
+
+
+class KeyFramingQuestionTests(unittest.TestCase):
+    def key(self, name: str) -> dict[str, object]:
+        return {"name": name, "name_hex": name.encode("cp1252").hex()}
+
+    def test_both_images_are_reported_and_compared(self) -> None:
+        names = [[self.key("P01Q")] for _ in range(3)]
+        schema = [[self.key("Alpha")] for _ in range(3)]
+
+        answered = ANALYZER.question_name_key_framing(names, schema)
+
+        self.assertEqual(answered["status"], "answered")
+        self.assertEqual(answered["names"], names[0])
+        self.assertEqual(answered["schema"], schema[0])
+
+    def test_disagreement_in_either_image_is_a_no_outcome(self) -> None:
+        names = [[self.key("P01Q")] for _ in range(3)]
+        schema = [[self.key("Alpha")] for _ in range(3)]
+        divergent_schema = [schema[0], [self.key("Beta")], schema[2]]
+        divergent_names = [names[0], [self.key("P02Q")], names[2]]
+
+        self.assertEqual(
+            ANALYZER.question_name_key_framing(names, divergent_schema)["status"],
+            "no_outcome",
+        )
+        self.assertEqual(
+            ANALYZER.question_name_key_framing(divergent_names, schema)["status"],
+            "no_outcome",
+        )
 
 
 class EvaluationTests(unittest.TestCase):

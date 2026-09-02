@@ -7635,15 +7635,17 @@ Use `not applicable` explicitly rather than omitting a field.
   authorized run of this plan.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/schema-generalization.plan.json`, SHA-256
-  `8ba5be17bd8913b2488e318b94980c3a76207e9e54dd5316256036aab85a0b3d`.
+  `09fdd8a3368111c60b66e9deb8b5b9e55299774632f75238e389a7ce35626ddb`.
   It pins the host client, provider probe, guest runner, dispatcher, publisher,
   producer SHA-256
   `188340bf1fed58d3ef7ed6b7180fe4fdafd0f4cf14cbfbfcb0c9433d8f1fd5c1`,
   analyzer SHA-256
-  `81fdd179f401fa1a14c97c260ce0ba50746e7e957d310ec7db8f91333c0409f0`,
+  `63e565bcd70df89f67ecb310db6b1b3fc9d962c7eb6d84500679c398d0a3e2e9`,
   and the analyzer dependency. Host and guest reject pinned producer mismatches
   before mutation; the host rechecks every staged analysis input immediately
-  before evaluating the result.
+  before evaluating the result. The analyzer independently rebuilds the probed
+  name inventory from the pinned rules and rejects any run that did not attempt
+  exactly those names.
 - Observation: `preregistration.acquisition_started` is `false`. Committing
   this plan does not authorize acquisition. After the exact reviewed plan and
   inputs are committed, one explicit human authorization permits one local-VM

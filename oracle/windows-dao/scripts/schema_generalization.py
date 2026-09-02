@@ -20,6 +20,9 @@ ENTRY_AREA_LENGTH = PAGE_BYTES - ENTRY_AREA_OFFSET
 MAX_JSON_BYTES = 8 * 1024 * 1024
 MAX_PAGES = 512
 MAX_PROBE_TABLES = 24
+PROBE_RANGES = ((0x20, 0x7E), (0xA0, 0xFF))
+EXCLUDED_PROBE_BYTES = frozenset({0x21, 0x2E, 0x5B, 0x5D, 0x60})
+PROBE_GROUP_SIZE = 16
 MAX_FIELDS = 16
 MAX_INDEXES = 8
 MAX_TEXT = 512
@@ -207,9 +210,38 @@ def read_checkpoint(root: Path, value: Any, replica: int, name: str) -> tuple[by
     return raw, repaired
 
 
+def expected_probe_inventory() -> list[dict[str, Any]]:
+    """Rebuild the preregistered probed-name inventory from the pinned rules.
+
+    The analyzer derives this independently of the producer so an incomplete,
+    reordered, or differently constructed probe set is an inventory violation
+    rather than a silently smaller observation.
+    """
+    inventory: list[dict[str, Any]] = []
+    group = 0
+    for first, last in PROBE_RANGES:
+        probed = [
+            value
+            for value in range(first, last + 1)
+            if value not in EXCLUDED_PROBE_BYTES
+        ]
+        for start in range(0, len(probed), PROBE_GROUP_SIZE):
+            chunk = probed[start : start + PROBE_GROUP_SIZE]
+            group += 1
+            for suffix, points in (("Q", chunk), ("R", list(reversed(chunk)))):
+                name = "P" + f"{group:02d}" + "".join(chr(point) for point in points) + suffix
+                inventory.append({"code_points": points, "name": name})
+    return inventory
+
+
 def read_probe_attempts(value: Any, replica: int) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or len(value) > MAX_PROBE_TABLES:
-        raise AnalysisError(f"replica {replica} probe attempts exceed the bound")
+    expected = expected_probe_inventory()
+    if len(expected) != MAX_PROBE_TABLES:
+        raise AnalysisError("the pinned probe inventory does not hold 24 names")
+    if not isinstance(value, list) or len(value) != len(expected):
+        raise AnalysisError(
+            f"replica {replica} did not attempt exactly {len(expected)} probed names"
+        )
     attempts = []
     for index, raw in enumerate(value):
         item = exact_object(
@@ -227,6 +259,10 @@ def read_probe_attempts(value: Any, replica: int) -> list[dict[str, Any]]:
             bounded_text(item["error"], f"replica {replica} probe {index} error")
         if item["created"] == (item["error"] is not None):
             raise AnalysisError(f"replica {replica} probe {index} mixes creation and failure")
+        if item["name"] != expected[index]["name"] or points != expected[index]["code_points"]:
+            raise AnalysisError(
+                f"replica {replica} probe {index} differs from the preregistered inventory"
+            )
         attempts.append(
             {
                 "code_points": points,
@@ -642,12 +678,17 @@ def collation_map(observations: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def question_name_key_framing(observations: list[dict[str, Any]]) -> dict[str, Any]:
-    reference = observations[0]
-    for other in observations[1:]:
-        if other != reference:
-            return {"reason": "replicas disagree on the lossless catalog keys", "status": "no_outcome"}
-    return {"keys": reference, "status": "answered"}
+def question_name_key_framing(
+    name_keys: list[list[dict[str, Any]]], schema_keys: list[list[dict[str, Any]]]
+) -> dict[str, Any]:
+    """Report the lossless keys of both the probed-name and four-table images."""
+    for keys in (name_keys, schema_keys):
+        if any(entry != keys[0] for entry in keys[1:]):
+            return {
+                "reason": "replicas disagree on the lossless catalog keys",
+                "status": "no_outcome",
+            }
+    return {"names": name_keys[0], "schema": schema_keys[0], "status": "answered"}
 
 
 def question_ascii_name_collation(
@@ -768,7 +809,8 @@ def build_report(
         observations = [replica["observation"] for replica in complete]
         questions = {
             "name_key_framing": question_name_key_framing(
-                [observation["name_keys"] for observation in observations]
+                [observation["name_keys"] for observation in observations],
+                [observation["schema_keys"] for observation in observations],
             ),
             "ascii_name_collation": question_ascii_name_collation(
                 [observation["name_keys"] for observation in observations],
