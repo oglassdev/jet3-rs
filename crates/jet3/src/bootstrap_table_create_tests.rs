@@ -286,6 +286,30 @@ fn a_property_payload_outside_the_pinned_framing_is_refused() {
         compose(b"KKD\x00\x06\x00\x00\x00\x01\x00", &mut budget),
         Err(BootstrapComposeError::PropertyFraming { offset: 4 })
     ));
+    // A names chunk body not exactly covered by length-prefixed entries: a
+    // one-byte body, then an entry whose length runs past the body.
+    assert!(matches!(
+        compose(
+            b"KKD\x00\x07\x00\x00\x00\x80\x00\x00\x06\x00\x00\x00\x01\x00",
+            &mut budget
+        ),
+        Err(BootstrapComposeError::PropertyFraming { offset: 10 })
+    ));
+    assert!(matches!(
+        compose(
+            b"KKD\x00\x09\x00\x00\x00\x80\x00\x02\x00\x41\x06\x00\x00\x00\x01\x00",
+            &mut budget
+        ),
+        Err(BootstrapComposeError::PropertyFraming { offset: 10 })
+    ));
+    // A names chunk with two exactly-covering entries passes.
+    assert!(
+        compose(
+            b"KKD\x00\x0d\x00\x00\x00\x80\x00\x02\x00\x41\x42\x01\x00\x43\x06\x00\x00\x00\x01\x00",
+            &mut budget
+        )
+        .is_ok()
+    );
     // Chunk count not matching one names chunk plus one per column.
     assert!(matches!(
         compose(&framed_properties(2), &mut budget),

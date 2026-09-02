@@ -268,8 +268,9 @@ fn long_value_columns<'s>(spec: &'s TableSchemaSpec<'_>) -> impl Iterator<Item =
 }
 
 /// Checks `payload` against the `EXP-0087` framing: the magic, exact
-/// coverage by length-prefixed chunks, one leading names chunk, then one
-/// chunk per column. Chunk bodies stay uninterpreted.
+/// coverage by length-prefixed chunks, one leading names chunk exactly
+/// covered by length-prefixed name entries, then one chunk per column. The
+/// column chunk bodies stay uninterpreted.
 fn validate_property_framing(
     payload: &[u8],
     column_count: usize,
@@ -290,8 +291,11 @@ fn validate_property_framing(
             .ok()
             .filter(|length| *length >= PROPERTY_CHUNK_HEADER_LEN && *length <= rest.len())
             .ok_or(malformed(offset))?;
-        if chunks == 0 && kind != PROPERTY_NAMES_CHUNK_KIND {
-            return Err(malformed(offset));
+        if chunks == 0 {
+            if kind != PROPERTY_NAMES_CHUNK_KIND {
+                return Err(malformed(offset));
+            }
+            validate_name_entries(&rest[PROPERTY_CHUNK_HEADER_LEN..length], offset)?;
         }
         rest = &rest[length..];
         offset += length;
@@ -302,6 +306,26 @@ fn validate_property_framing(
             chunks,
             expected: column_count + 1,
         });
+    }
+    Ok(())
+}
+
+/// Checks that the names chunk body is exactly covered by two-byte
+/// length-prefixed entries (`EXP-0087`). `chunk_offset` is the chunk's
+/// position in the payload, for error reporting.
+fn validate_name_entries(
+    mut body: &[u8],
+    chunk_offset: usize,
+) -> Result<(), BootstrapComposeError> {
+    let mut offset = chunk_offset + PROPERTY_CHUNK_HEADER_LEN;
+    while !body.is_empty() {
+        let entry_len = body
+            .split_at_checked(2)
+            .map(|(prefix, _)| usize::from(u16::from_le_bytes([prefix[0], prefix[1]])))
+            .filter(|entry_len| entry_len + 2 <= body.len())
+            .ok_or(BootstrapComposeError::PropertyFraming { offset })?;
+        body = &body[2 + entry_len..];
+        offset += 2 + entry_len;
     }
     Ok(())
 }
