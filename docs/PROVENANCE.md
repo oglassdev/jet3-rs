@@ -9067,6 +9067,243 @@ Use `not applicable` explicitly rather than omitting a field.
   exact-head verification found no remaining findings.
 
 
+### EXP-0101 — Accepted extended catalog-name successor result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from a canonical analyzer report
+- Question: for every defined CP1252 byte above `0x7E`, what exact bounded
+  catalog ParentId/Name primary and secondary contributions occur in the six
+  `EXP-0099` forms; and what exact BSTR/metadata outcome occurs for the separate
+  Unicode controls?
+- Origin: project-authored clean-room experiment using the exact `EXP-0099`
+  bytes merged as commit `e74348d474d72049378b703e69739445a40bf461`
+  (PR `#168`) and plan SHA-256
+  `ee12b4c5ca9705907276d6a9cccc9de190b6c737b80e917f7f24f3078bf28254`.
+  The user explicitly authorized exactly one successor acquisition. Run ID
+  `20260902T231606Z-dev-dao` was dispatched exactly once; no retry occurred.
+  That dispatch count is the observed operator action, not a fact derived from
+  the retained artifacts.
+- Input identity: the retained staged plan matched the plan SHA-256 above and
+  the merged preregistration. All nine staged inputs matched both their exact
+  lowercase plan pins and the merged files:
+  - `scripts/windows-dao-dev.py`:
+    `80a7b7e8d95c9f81675e0968ef143bc0460753f9e98983993469216b93444de8`
+  - `oracle/windows-dao/scripts/probe-provider.ps1`:
+    `695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd`
+  - `oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`:
+    `eb1bf3290461b52d25c274ad72a053d487e5107cc902f5bd0c10dce2773f98b6`
+  - `oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1`:
+    `caaa8a956cbfb29d69af10d7e88ab19547f5f71a899ee9c023e19e25f721f4e8`
+  - `oracle/windows-dao/scripts/dev/Publish.DevJob.ps1`:
+    `c48d987bbaafd3b490510ec6ea75f3259b2fce148958f66f7b2ecf36048cdd04`
+  - `oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1`:
+    `1d18a79590d2535185e2526abedad043239d2d5d5ce8be47a19ac2e4de04f160`
+  - `oracle/windows-dao/scripts/extended_names.py`:
+    `5f8303e94139ea0eaa3ee425701433ceabefca6658ce6972c4f95b1e448397bc`
+  - `oracle/windows-dao/scripts/schema_generalization.py`:
+    `add7667b20d47537d6255df22be42f27d8100b6f43b80bb0b2fb71d049249af7`
+  - `oracle/windows-dao/scripts/system_catalog.py`:
+    `3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9`
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Guest embedded UTC timestamps were seven hours ahead of the host run/report
+  clock while reporting Pacific UTC-07:00; they are retained as reported but
+  are not used as ordering or identity evidence.
+- Producer and artifact result: all three replicas reported `pass`, phase
+  `complete`, and `mutation_started=true`. Each retained the exact ordered
+  `empty`, `b00` through `b40`, and `controls` checkpoints, 43 per replica and
+  129 total, with no recovery. Each replica made 779 attempts in defined arms:
+  41 ASCII canaries plus six forms for each of all 123 defined bytes. It also
+  made seven metadata-control attempts, for 786 per replica and 2,358 total.
+  Every attempt succeeded. All 129 images retained the exact intended DAO
+  schema and were byte-unchanged through bounded post-close metadata access.
+- Transport result: the exact sentinel is `T`, then the Unicode characters
+  obtained by strict CP1252 decoding of all 123 defined bytes in ascending byte
+  order, then U+007F, U+0081, U+008D, U+008F, U+0090, U+009D, and `Z`. Its 131
+  characters and exact 262-byte UTF-16LE encoding agreed in all three child
+  replicas, the explicit-UTF-8 outer transport copies, and the canonical
+  report.
+- Analyzer result: the pinned analyzer produced 41 completely decoded physical
+  catalog-key observations per replica and accepted the result. Coverage,
+  singleton positions, pair composition, secondary order, and replication all
+  have status `answered`; all question-bearing attempt, primary, secondary,
+  composition, and control values agree across the three replicas. Incidental
+  object IDs and row locators were preserved per replica but excluded from the
+  equality decision. The report has `compatibility_claim=false` and
+  `support_movement=false`. Rerunning both the staged and merged analyzers
+  reproduced the canonical report byte-for-byte.
+- Primary contributions: the following is the complete accepted map for all
+  123 defined source bytes. Byte sets and inclusive ranges are hexadecimal;
+  the right side is the exact isolated primary byte sequence. A sequence
+  contains one or two bytes, and the non-injective map has no claimed inverse.
+
+        80,8E,9E=10
+        82,8B,91-92,9B=18
+        83=32
+        84,93-94,AB,BB=13
+        85=33
+        86=34
+        87=35
+        88=36
+        89=37
+        8A,9A=76
+        8C,9C=7266
+        95=38
+        96-97,AD=1e
+        98=39
+        99=3a
+        9F,DD,FD,FF=7d
+        A0=11
+        A1=3b
+        A2=3c
+        A3=3d
+        A4=3e
+        A5=3f
+        A6=40
+        A7=41
+        A8=42
+        A9=43
+        AA=44
+        AC=45
+        AE=46
+        AF=47
+        B0=48
+        B1=49
+        B2=58
+        B3=59
+        B4=4a
+        B5=4b
+        B6=4c
+        B7=4d
+        B8=4e
+        B9=57
+        BA=4f
+        BC=50
+        BD=51
+        BE=52
+        BF=53
+        C0-C5,E0-E5=60
+        C6,E6=6066
+        C7,E7=62
+        C8-CB,E8-EB=66
+        CC-CF,EC-EF=6a
+        D0,F0=65
+        D1,F1=70
+        D2-D6,F2-F6=72
+        D7=54
+        D8,F8=81
+        D9-DC,F9-FC=78
+        DE,FE=7f
+        DF=7676
+        F7=55
+
+  The isolated primary sequence was position-independent for every defined
+  byte. For every byte, the repeated form was two singleton primary sequences,
+  and the forward and reverse forms were the corresponding ordered singleton
+  sequences, including the two-byte expansions.
+- Secondary observations: each line below records the exact complete secondary
+  nibble sequences for `single_left`, `single_middle`, `single_right`,
+  `repeat`, `forward`, and `reverse`, in that order and keyed by the tagged
+  byte. A hyphen is an empty sequence; a range is inclusive. Forward is the
+  keyed byte followed by its next defined neighbor, wrapping `FF` to `80`;
+  reverse swaps that order.
+
+        80,82-88,8B-8C,8E,91-98,9B-9C,A0-BE,D7,DE,F7=-/-/-/-/-/-
+        89,99=-/-/-/-/22a/22a
+        8A,9A=22a/222a/222a/222aa/222a/222a
+        9E,FE=-/-/-/-/2226/2226
+        9F,D6,F6,FF=26/226/226/2266/226/226
+        BF,D8,F8=-/-/-/-/223/223
+        C0,C8,E0,E8=223/2223/2223/22233/22234/22243
+        C1,C9,CD,DA,E1,E9,ED,FA=224/2224/2224/22244/22245/22254
+        C2,E2=225/2225/2225/22255/22257/22275
+        C3,E3=227/2227/2227/22277/22276/22267
+        C4,E4=226/2226/2226/22266/22268/22286
+        C5,E5=228/2228/2228/22288/2228/222228
+        C6,E6=-/-/-/-/222229/2229
+        C7,E7=229/2229/2229/22299/22293/22239
+        CA,CE,EA,EE=2225/22225/22225/222255/222256/222265
+        CB,EB=226/2226/2226/22266/22263/22236
+        CC,EC=2223/22223/22223/222233/222234/222243
+        CF,EF=226/2226/2226/22266/2226/2226
+        D0,F0=-/-/-/-/227/227
+        D1,F1=27/227/227/2277/2273/2237
+        D2,D9,F2,F9=23/223/223/2233/2234/2243
+        D3,F3=24/224/224/2244/2245/2254
+        D4,F4=25/225/225/2255/2257/2275
+        D5,F5=27/227/227/2277/2276/2267
+        DB,FB=25/225/225/2255/2256/2265
+        DC,FC=226/2226/2226/22266/22264/22246
+        DD,FD=24/224/224/2244/224/224
+        DF=-/-/-/-/22223/223
+
+  Singleton secondary observations were position-dependent, and repeat
+  secondary observations were not two singleton sequences, for exactly:
+  `8A,9A,9F,C0-C5,C7-CF,D1-D6,D9-DD,E0-E5,E7-EF,F1-F6,F9-FD,FF`.
+  Forward secondary composition was false for exactly
+  `89,99,9E,BF-C4,C6-CE,D1-D5,D9-DC,DF-E4,E6-EE,F1-F5,F9-FC,FE`;
+  reverse composition was false for exactly
+  `89,99,9E,BF-C5,C7-CE,D1-D5,D9-DC,DF-E5,E7-EE,F1-F5,F9-FC,FE`.
+  Each predicate was true for every other defined byte. These are exact results
+  for the six fixed contexts, not a claim about untested names or a general
+  collation algorithm.
+- Metadata-only controls: DAO accepted all seven exact Unicode BSTR names and
+  the post-close `TableDefs` metadata contained each exact name with the
+  intended one-Long-field schema: ASCII `CREJECTB`; `R7FA` + U+007F + `Z`;
+  `R81A` + U+0081 + `Z`; `R8DA` + U+008D + `Z`; `R8FA` + U+008F + `Z`;
+  `R90A` + U+0090 + `Z`; and `R9DA` + U+009D + `Z`. No name-bearing operation
+  failed. Because COM received Unicode BSTRs and the controls checkpoint was
+  never physically decoded, this establishes no CP1252-byte mapping, physical
+  catalog key, or collation fact for any control.
+- JSON artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `b688b5c5cac8690ebf7cab8d3cb2bc086308a4f99dd1f79b5663ed64d3ad6940`;
+  external `extended-names-job-result.json`, 6,432,244 bytes, SHA-256
+  `9bda75463f7a41f43ca30c5ec47509d5895065d3ff3b521d9d9d5a84525c042e`;
+  external `result.json`, 7,429,630 bytes, SHA-256
+  `eae5b98addc812a73185b7e7878369146dac0adefd0943d9cb5cf6519d7f0c60`;
+  external canonical `extended-names-report.json`, 3,190,664 bytes, SHA-256
+  `a17190e2f2ee3178f29243b8495ce57a4e61e458137a2ec147073ce3a55a5871`.
+- Retained MDB inventory: 129 external MDBs totaling 15,200,256 bytes: three
+  40,960-byte empty images, 123 120,832-byte defined-batch images, and three
+  71,680-byte controls images. The canonical filename-sorted JSON array of
+  `{name,size,sha256}` objects, serialized with two-space indentation, sorted
+  keys, and one trailing LF, is 19,497 bytes with SHA-256
+  `3ee05466388a0f05a0cbb41fff2776b13c26af924e4021cd65a613105b825bae`.
+  The MDBs and inventory serialization remain outside the repository.
+- Interpretation: this result resolves issue `#152`'s bounded six-form evidence
+  question for all defined CP1252 bytes above `0x7E`. It tested only three
+  singleton positions, a repeat, and both orders with each byte's registered
+  adjacent defined neighbor; it also observed noncompositional secondary
+  behavior. It therefore does not justify accepting arbitrary names, more than
+  two non-ASCII bytes, or untested byte pairs or contexts. An implementation
+  derived now must retain the current blanket rejection or fail closed outside
+  the exact evidenced contexts and contexts that follow solely from a
+  positively observed composition predicate. General planner widening needs
+  more evidence. The result also does not establish locale or code-page
+  variants, general collation semantics, an inverse mapping, physical keys for
+  the Unicode controls, rows, indexes, writer correctness, public creation,
+  general Jet 3 or DAO compatibility, hosted differential `#102`, or
+  support-matrix movement.
+- Usage: issue `#152`; `EXP-0087`; `EXP-0096`; `EXP-0097`; `EXP-0099`;
+  `file:oracle/windows-dao/acquisition/extended-names.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/extended_names.py`
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: three independent review/fix passes completed on 2026-09-02 over
+  artifact identity, producer state, inventory, transport, canonical
+  reproduction, mapping-table transcription, result classification, evidence
+  boundaries, and cross-document claims. Mapping transcription and
+  implementation-scope findings were corrected; final exact-head verification
+  found no remaining findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

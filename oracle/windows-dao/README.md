@@ -58,8 +58,8 @@ The retained tooling has three purposes:
   arbitrary-index, writer, compatibility, or support claim.
 - `acquisition/extended-names.plan.json`,
   `scripts/dev/ExtendedNames.DevJob.ps1`, and `scripts/extended_names.py`
-  define the SHA-256-pinned issue #152 preregistration over all defined CP1252
-  bytes above `0x7E`; acquisition still requires the pinned commit to merge.
+  define the SHA-256-pinned issue #152 experiment over all defined CP1252 bytes
+  above `0x7E`; `EXP-0101` records its accepted bounded result.
 - `acquisition/bootstrap-composer-validation.plan.json` is the immutable
   consumed plan for the accepted `EXP-0085` run. Its pins bind the harness at
   that revision, so the client refuses to dispatch it again.
@@ -187,4 +187,16 @@ former `reject` checkpoint as a physical catalog-key observation. `EXP-0099`
 renames that checkpoint `controls` and is the SHA-256-pinned successor with the
 41 defined arms unchanged, metadata-only controls, question-bearing replica
 equality that excludes incidental locators, and an exact non-ASCII transport
-sentinel. Acquisition still requires renewed explicit human authorization.
+sentinel. `EXP-0101` records the one authorized successor run as `accepted`.
+All 123 defined bytes in six exact forms decoded, every attempt and metadata
+check succeeded, the sentinel survived both UTF-8 transport hops, and all five
+questions agreed across three replicas. U+007F and the five undefined-slot
+controls establish only exact Unicode BSTR append and post-close metadata
+acceptance. This resolves the bounded #152 experiment question without a
+general planner widening. Only the three singleton positions, repeat, and each
+byte's registered adjacent defined neighbor were tested, and secondary behavior
+was sometimes noncompositional. An implementation must retain the blanket
+rejection or fail closed to evidenced or positively composable tested contexts;
+more than two non-ASCII bytes, arbitrary names, and untested pairs need more
+evidence. The result makes no general collation, writer, compatibility,
+public-support, or support-matrix claim.
