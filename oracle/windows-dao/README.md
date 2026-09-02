@@ -142,7 +142,7 @@ Record the validated outcome once as an additive `EXP-` entry. A failure after
 the first DAO mutation is a scientific result and must not be retried without
 a human decision.
 
-The issue #151 `definition-continuation` draft local job uses one fresh empty
+The issue #151 `definition-continuation` SHA-256-pinned local job uses one fresh empty
 base per replica and exact 69-, 70-, and 140-field first-create arms to bracket
 the 2,048-byte root capacity and cross the root-plus-continuation capacity by
 17 bytes. Its

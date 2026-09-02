@@ -6,19 +6,19 @@
   "purpose": "Observe the placement and chaining of exactly zero, one, and two Jet 3 table-definition continuation pages under bounded empty first-create controls.",
   "preregistration": {
     "acquisition_started": false,
-    "prior_evidence": "EXP-0059 records the bounded 18-byte physical-column record, one-byte CP1252 column-name length and bytes, definition logical-length field, 2,048-byte root capacity, and 2,040-byte continuation contribution. EXP-0073 records the bounded catalog, page-role, usage-map, and continuation-chain decoder. EXP-0087 and EXP-0093 record empty first-create framing and page roles for definitions that fit one page. The exact earlier boundary placement is design input only and does not establish where DAO places continuation pages in these controls.",
-    "authorization": "This SHA-placeholder draft does not authorize acquisition. After every placeholder is replaced by the exact merged input identity and the complete plan is independently reviewed and merged, one local-VM run requires explicit human authorization.",
+    "prior_evidence": "EXP-0059 records the bounded 18-byte physical-column record, one-byte CP1252 column-name length and bytes, definition logical-length field, 2,048-byte root capacity, and 2,040-byte continuation contribution. EXP-0061 records the bounded inline, single-page, and chained long-value framing used only to account for a created catalog LvProp value; EXP-0091 records null as a bounded consumable LvProp form. EXP-0073 records the bounded catalog, page-role, usage-map, and continuation-chain decoder. EXP-0087 and EXP-0093 record empty first-create framing and page roles for definitions that fit one page. The exact earlier boundary placement is design input only and does not establish where DAO places continuation pages in these controls.",
+    "authorization": "This SHA-256-pinned plan does not itself authorize acquisition. One local-VM run is allowed only after the exact preregistration is independently reviewed, committed, and merged and the user's explicit standing authorization to run experiments remains in effect.",
     "attempt_policy": "Dispatch at most one three-replica run after explicit authorization. Once the first DAO CreateDatabase mutation begins, any failure is a scientific result and must not be retried without another explicit human decision. A replica stops immediately after its first post-mutation failure."
   },
   "inputs": {
-    "scripts/windows-dao-dev.py": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/probe-provider.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/definition_continuation.py": "0000000000000000000000000000000000000000000000000000000000000000",
-    "oracle/windows-dao/scripts/system_catalog.py": "0000000000000000000000000000000000000000000000000000000000000000"
+    "scripts/windows-dao-dev.py": "c81b558f0c8f2b3aa9b18c07b9a7db687b7ab0ef42bfc0e4d03ff539dc4e3566",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "4aa8cae8ab11cd622ca6cab0320188f6bdcb4791c88138fd4ab38db946429d32",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "9c57d56428ac62d611b317e1c0572d8171623d846e49b9ac39769fe1ff5e45f6",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "87676d1fa18c7e74ae84cc31103500d5942f018df51f237b1ebb7d6e8d03b0a7",
+    "oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1": "7e812dec1b76c801d6e307e503f43a6d11c34e2e71195aad7ba8386f5223ed5e",
+    "oracle/windows-dao/scripts/definition_continuation.py": "240259fe0d8d93087d0f36255e7ef8d47fc3940a70ea03bdb178ce9311a72fd6",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
   },
   "execution": {
     "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and a ready DAO.DBEngine.36 provider.",
@@ -36,7 +36,7 @@
       "one": "ContOneX has 70 otherwise identical fields F000AAAAAA through F069AAAAAA. The recorded grammar gives a 2,075-byte logical definition, requiring one continuation contribution.",
       "two": "ContTwoX has 140 otherwise identical fields F000AAAAAA through F139AAAAAA. The recorded grammar gives a 4,105-byte logical definition, exceeding the root plus one 2,040-byte continuation contribution by 17 bytes and requiring a second continuation contribution."
     },
-    "capture": "Record and validate every arm's pre-mutation size and SHA-256 against its replica's retained empty image. A passing producer retains exactly twelve closed MDB checkpoints with sizes and SHA-256 values before and after bounded read-only DAO TableDefs metadata access. Capture the exact DAO table and field inventory, mutation_started, the bounded producer phase, and at most the active arm's recovery image on failure. Recovery bytes receive no DAO metadata access and remain unobserved unless the analyzer can fully decode and attribute them under the recorded grammars.",
+    "capture": "Record and validate every arm's pre-mutation size and SHA-256 against its replica's retained empty image. A passing producer retains exactly twelve closed MDB checkpoints with sizes and SHA-256 values before and after bounded read-only DAO TableDefs metadata access. Capture the exact DAO table and field inventory, mutation_started, the bounded producer phase, and at most the active arm's recovery image on failure. Recovery bytes receive no DAO metadata access and are not interpreted. For each completed arm, preserve all attributed appended LVAL pages and distinguish those referenced by the catalog LvProp from attributed but unreferenced nuisance allocation.",
     "bounds": {
       "maximum_replicas": 3,
       "maximum_checkpoints_per_replica": 4,
@@ -54,12 +54,12 @@
     "continuation_counts": "Do the 2,046-, 2,075-, and 4,105-byte definitions decode to exactly zero, one, and two continuation pages, respectively?",
     "placement": "For each arm, where do the definition root and continuation pages land relative to the empty boundary; how does each chain pointer order them; what logical interval and used byte count does each page carry; and what recorded role and owner accounts for every appended page? No consecutive or relative page order is presumed.",
     "counters": "What are the bounded page-0 counter values before and after each create, and how do their deltas correlate with the appended page count and catalog object identifier without assigning an unrecorded semantic?",
-    "producer_outcome": "Did each exact arm complete, or did all three replicas produce the same fully correlated DAO rejection at the active append?",
+    "producer_outcome": "Did all three replicas complete every exact arm?",
     "replication": "Do the complete decoded relative observations agree across all three replicas?"
   },
   "decision_rule": {
-    "accepted": "The plan and all executed inputs match their final SHA-256 pins; all three replicas complete the exact four-checkpoint inventory once; every arm begins byte-identical to its retained empty image; DAO metadata matches the exact declared schema; all retained bytes remain unchanged by metadata access; each definition and chain decodes completely with the required zero, one, or two continuation pages; every appended page is attributed; counter and catalog-root observations are present; and complete relative observations agree across replicas. A fully decoded nonconsecutive placement is an answered result. A stable DAO refusal of an exact arm may be reported as a bounded answered rejection only if all three replicas stop at the same arm and the retained active-arm bytes and prior checkpoints fully correlate; it does not answer any later unattempted arm.",
-    "no_outcome": "A post-mutation producer failure that is not the fully correlated stable rejection above, changed metadata identity, schema disagreement, decode or chain failure, unexpected continuation count, unattributed page, ambiguous counter/catalog correlation, incomplete later arm, or replica disagreement is recorded as no_outcome.",
+    "accepted": "The plan and all executed inputs match their final SHA-256 pins; all three replicas complete the exact four-checkpoint inventory once; every arm begins byte-identical to its retained empty image; DAO metadata matches the exact declared schema; all retained bytes remain unchanged by metadata access; each definition has its exact preregistered logical length and decodes completely with the required zero, one, or two continuation pages; every appended page is attributed; the complete page-0 changed-offset set, counter, and catalog-root observations are present; and complete relative observations agree across replicas. A fully decoded nonconsecutive placement is an answered result.",
+    "no_outcome": "Any post-mutation producer failure, changed metadata identity, schema disagreement, decode or chain failure, unexpected logical length or continuation count, unattributed page, ambiguous counter/catalog correlation, incomplete later arm, or replica disagreement is recorded as no_outcome.",
     "rejected": "A pre-mutation plan, input, provider, or infrastructure failure; pin mismatch; malformed result; inconsistent mutation/phase/checkpoint/recovery state; unexpected, reordered, duplicate, missing, symlinked, oversized, or extra artifact; bound violation; or analyzer contract defect rejects validation without a scientific outcome.",
     "retry": "There is no automatic retry after the first DAO mutation."
   },
@@ -78,7 +78,7 @@
     "definition chains longer than two continuation pages or tables above 140 columns",
     "variable, Boolean, long-value, indexed, relationship, saved-query, or populated table definitions",
     "general allocation policy, free-page reuse, or a presumption that continuation pages are consecutive",
-    "catalog LvProp payload grammar or a presumption that its storage remains single-page; only its raw header/reference and attributed LVAL roles may be preserved",
+    "catalog LvProp payload grammar, a presumption that its storage remains single-page, or a claim that every attributed appended LVAL page must be referenced; only its raw header/reference and referenced versus unreferenced LVAL inventory may be preserved",
     "names above ASCII 0x7E, names of other lengths, and locale or collation behavior",
     "public creation API, initial rows, filesystem publication, writer correctness, hosted differential #102, compatibility claims, and support-matrix movement"
   ]

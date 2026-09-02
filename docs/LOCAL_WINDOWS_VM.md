@@ -143,17 +143,18 @@ failure. The experiment tests this bounded page-assignment matrix;
 it does not establish arbitrary index shapes, writer correctness, compatibility,
 or support.
 
-`definition-continuation` is the SHA-placeholder development-only experiment
-draft for issue #151. It cannot run until final input pins are reviewed and
-merged. Three replicas each create one fresh empty database,
+`definition-continuation` is the SHA-256-pinned development-only experiment for
+issue #151. It cannot run until the exact preregistration is merged and the
+standing human authorization remains in effect. Three replicas each create one fresh empty database,
 identity-check three pre-mutation copies, and retain closed checkpoints for the
 empty database plus exact 2,046-, 2,075-, and 4,105-byte table definitions. The
 controls require zero, one, and two continuation pages under the recorded
 grammar. Publication accepts exactly those 12 MDBs on success and only an
 ordered per-replica prefix plus the active checkpoint's one bounded recovery
 image after failure. The analyzer records chain pointers, logical chunks,
-appended-page roles, map locators, raw `LvProp` framing and its bounded external
-locator chain when present, and page-0 counters. It presumes neither consecutive
+appended-page roles, map locators, raw `LvProp` framing, its bounded external
+locator chain when present, referenced versus unreferenced appended LVAL pages,
+and the complete page-0 changed-offset set plus counter values. It presumes neither consecutive
 placement nor a single-page `LvProp`, and establishes no broader allocation,
 writer, compatibility, or support claim.
 

@@ -25,6 +25,7 @@ REPORT_TYPE = "definition_continuation_report"
 CHECKPOINTS = ("empty", "zero", "one", "two")
 SCENARIOS = CHECKPOINTS[1:]
 EXPECTED_CONTINUATIONS = {"zero": 0, "one": 1, "two": 2}
+EXPECTED_LOGICAL_LENGTHS = {"zero": 2046, "one": 2075, "two": 4105}
 FIELD_COUNTS = {"zero": 69, "one": 70, "two": 140}
 TABLE_NAMES = {"zero": "ContZero", "one": "ContOneX", "two": "ContTwoX"}
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -219,10 +220,29 @@ def created_lvprop(
     lvprop_ordinal = catalog._ordinal(definition, "LvProp")
     if name_ordinal is None or lvprop_ordinal is None:
         raise DecodeError("catalog lacks a Name or LvProp column")
-    matches = [row for row in rows if row["values"][name_ordinal] == table_name]
+    required = max(name_ordinal, lvprop_ordinal)
+    matches = [
+        row
+        for row in rows
+        if len(row.get("values", [])) > required
+        and row["values"][name_ordinal] == table_name
+    ]
     if len(matches) != 1:
         raise DecodeError(f"catalog contains {len(matches)} rows for {table_name}")
     value = matches[0]["values"][lvprop_ordinal]
+    roles = {entry["page"]: entry for entry in analysis["pages"]}
+    appended_lval = {
+        page
+        for page, role in roles.items()
+        if page >= before_pages and role["role"] == "long_value"
+    }
+    lval_inventory = {
+        "appended_lval_pages": sorted(appended_lval),
+        "referenced_appended_lval_pages": [],
+        "unreferenced_appended_lval_pages": sorted(appended_lval),
+    }
+    if value is None:
+        return {"storage": "null", **lval_inventory}
     if not isinstance(value, dict) or set(value) != {
         "inline_length",
         "long_value_header_hex",
@@ -245,14 +265,20 @@ def created_lvprop(
         "inline_length": value["inline_length"],
         "storage": storage,
     }
+    if observation["declared_length"] == 0:
+        raise DecodeError(f"{table_name}.LvProp has an empty non-null payload")
     if storage == "inline":
         if header[4:12] != bytes(8):
             raise DecodeError(f"{table_name}.LvProp inline header has nonzero reserved bytes")
+        if value["inline_length"] != 12 + observation["declared_length"]:
+            raise DecodeError(f"{table_name}.LvProp inline framing is inconsistent")
         observation["first_locator"] = None
+        observation.update(lval_inventory)
         return observation
+    if value["inline_length"] != 12:
+        raise DecodeError(f"{table_name}.LvProp external framing is not 12 bytes")
     if header[8:12] != bytes(4):
         raise DecodeError(f"{table_name}.LvProp external header has nonzero reserved bytes")
-    roles = {entry["page"]: entry for entry in analysis["pages"]}
     locator = {"row": header[4], "page": int.from_bytes(header[5:8], "little")}
     seen: set[tuple[int, int]] = set()
     locators = []
@@ -296,16 +322,19 @@ def created_lvprop(
         locator = {"row": following[0], "page": int.from_bytes(following[1:4], "little")}
     if len(payload) != observation["declared_length"]:
         raise DecodeError(f"{table_name}.LvProp chain length differs from its header")
-    appended_lval = {
-        page
-        for page, role in roles.items()
-        if page >= before_pages and role["role"] == "long_value"
+    referenced_appended = {
+        entry["page"] for entry in locators if entry["appended"]
     }
-    if appended_lval != {entry["page"] for entry in locators if entry["appended"]}:
-        raise DecodeError(f"{table_name}.LvProp does not account for every appended LVAL page")
     observation["first_locator"] = locators[0]
     observation["locators"] = locators
     observation["payload_sha256"] = hashlib.sha256(payload).hexdigest()
+    observation.update(
+        {
+            "appended_lval_pages": sorted(appended_lval),
+            "referenced_appended_lval_pages": sorted(referenced_appended),
+            "unreferenced_appended_lval_pages": sorted(appended_lval - referenced_appended),
+        }
+    )
     return observation
 
 
@@ -347,6 +376,10 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
         raise DecodeError(f"{scenario} empty baseline decodes a user table")
     table = decoded_user_table(after_analysis, scenario)
     definition = table["definition"]
+    if definition["logical_length"] != EXPECTED_LOGICAL_LENGTHS[scenario]:
+        raise DecodeError(
+            f"{scenario} logical definition length differs from the boundary control"
+        )
     expected_names = [field_name(value) for value in range(FIELD_COUNTS[scenario])]
     columns = definition["columns"]
     if (
@@ -415,52 +448,18 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
         "definition_root": definition["root"],
         "logical_length": definition["logical_length"],
         "lvprop": lvprop,
-        "page0_counter": {
+        "page_zero": {
             "after": after[catalog.PAGE0_COUNTER],
             "before": before[catalog.PAGE0_COUNTER],
+            "changed_offsets": [
+                offset
+                for offset in range(PAGE_BYTES)
+                if before[offset] != after[offset]
+            ],
             "delta": after[catalog.PAGE0_COUNTER] - before[catalog.PAGE0_COUNTER],
         },
         "page_count": {"after": after_pages, "before": before_pages},
         "table_maps": table_maps,
-    }
-
-
-def analyze_rejected_arm(before: bytes, after: bytes, scenario: str) -> dict[str, Any]:
-    before_analysis = catalog.analyze_checkpoint(before)
-    after_analysis = catalog.analyze_checkpoint(after)
-    if any(
-        not entry["flags"] & catalog.SYSTEM_FLAG
-        for entry in before_analysis["tables"].values()
-    ):
-        raise DecodeError("rejection baseline contains a user table")
-    users = [
-        entry
-        for entry in after_analysis["tables"].values()
-        if not entry["flags"] & catalog.SYSTEM_FLAG
-    ]
-    if users:
-        raise DecodeError("active-arm recovery contains a persisted user table")
-    before_pages = len(before) // PAGE_BYTES
-    after_pages = len(after) // PAGE_BYTES
-    roles = {entry["page"]: entry for entry in after_analysis["pages"]}
-    appended = []
-    for page in range(before_pages, after_pages):
-        role = roles.get(page)
-        if role is None or role["role"] == "unassigned":
-            raise DecodeError("rejected active arm has an unattributed appended page")
-        appended.append(
-            {"owners": role["owners"], "page": page, "role": role["role"]}
-        )
-    return {
-        "appended_pages": appended,
-        "page0_counter": {
-            "after": after[catalog.PAGE0_COUNTER],
-            "before": before[catalog.PAGE0_COUNTER],
-            "delta": after[catalog.PAGE0_COUNTER] - before[catalog.PAGE0_COUNTER],
-        },
-        "page_count": {"after": after_pages, "before": before_pages},
-        "scenario": scenario,
-        "user_table_persisted": False,
     }
 
 
@@ -480,22 +479,6 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
         elif any(entry.get("decode_error") for entry in replicas):
             reason = "at least one complete checkpoint failed a recorded grammar or control"
         questions = {name: {"reason": reason, "status": "no_outcome"} for name in question_names}
-        rejected = [entry.get("bounded_rejection") for entry in replicas]
-        phases = {entry["phase"] for entry in replicas}
-        errors = {entry["error"] for entry in replicas}
-        if (
-            len(replicas) == 3
-            and len(phases) == 1
-            and len(errors) == 1
-            and next(iter(phases)).startswith("append_")
-            and all(value is not None and value == rejected[0] for value in rejected)
-        ):
-            questions["producer_outcome"] = {
-                "kind": "bounded_dao_rejection",
-                "observation": rejected[0],
-                "replicas": 3,
-                "status": "answered",
-            }
     else:
         observations = [entry["observations"] for entry in complete]
         if any(value != observations[0] for value in observations[1:]):
@@ -537,7 +520,7 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
                 },
                 "counters": {
                     "scenarios": {
-                        name: value[name]["page0_counter"] for name in SCENARIOS
+                        name: value[name]["page_zero"] for name in SCENARIOS
                     },
                     "status": "answered",
                 },
@@ -554,7 +537,7 @@ def build_report(document: dict[str, Any], replicas: list[dict[str, Any]]) -> di
             {
                 key: value
                 for key, value in entry.items()
-                if key not in {"observations", "bounded_rejection"}
+                if key != "observations"
             }
             for entry in replicas
         ],
@@ -651,7 +634,6 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
         if not isinstance(recovery, list) or len(recovery) > 1:
             raise AnalysisError("replica recovery inventory violates the bound")
         checkpoint_names = set(images)
-        recovery_bytes = None
         for raw_recovery in recovery:
             value = exact(
                 raw_recovery,
@@ -683,7 +665,6 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 value["sha256"], "recovery digest"
             ):
                 raise AnalysisError("recovery artifact bytes differ from metadata")
-            recovery_bytes = raw
             referenced.append(filename)
         files = [
             {
@@ -769,17 +750,6 @@ def evaluate(job_result: Path, expected_plan_sha256: str, output: Path) -> dict[
                 raise AnalysisError("failed replica phase requires a started DAO mutation")
             if not item["mutation_started"] and recovery:
                 raise AnalysisError("pre-mutation failure cannot retain a recovery artifact")
-            if (
-                phase.startswith("append_")
-                and recovery_bytes is not None
-                and "empty" in images
-            ):
-                try:
-                    entry["bounded_rejection"] = analyze_rejected_arm(
-                        images["empty"], recovery_bytes, phase.removeprefix("append_")
-                    )
-                except (catalog.DecodeError, DecodeError) as error:
-                    entry["recovery_decode_error"] = str(error)
         replicas.append(entry)
     if not any(entry["mutation_started"] for entry in replicas):
         raise AnalysisError("acquisition did not reach the first DAO mutation")

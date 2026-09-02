@@ -57,7 +57,13 @@ def scenario_image(scenario: str) -> bytes:
     return bytes(data)
 
 
-def fake_analysis(data: bytes, *, bad_count: bool = False, unattributed: bool = False) -> dict:
+def fake_analysis(
+    data: bytes,
+    *,
+    bad_count: bool = False,
+    bad_length: bool = False,
+    unattributed: bool = False,
+) -> dict:
     marker = data[1]
     count = len(data) // continuation.PAGE_BYTES
     if marker == 0:
@@ -77,6 +83,8 @@ def fake_analysis(data: bytes, *, bad_count: bool = False, unattributed: bool = 
     if bad_count and scenario == "one":
         pages = [20]
     logical_length = {"zero": 2046, "one": 2075, "two": 4105}[scenario]
+    if bad_length and scenario == "one":
+        logical_length += 1
     fields = continuation.expected_fields(scenario)
     definition = {
         "columns": [
@@ -217,6 +225,8 @@ class DefinitionContinuationTests(unittest.TestCase):
             self.assertEqual(counts["two"]["definition_pages"], [20, 25, 23])
             chunks = report["questions"]["placement"]["scenarios"]["two"]["definition_chunks"]
             self.assertEqual([chunk["used"] for chunk in chunks], [2048, 2040, 17])
+            counters = report["questions"]["counters"]["scenarios"]
+            self.assertEqual(counters["zero"]["changed_offsets"], [1])
 
     def test_wrong_continuation_count_is_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -278,7 +288,7 @@ class DefinitionContinuationTests(unittest.TestCase):
             with self.assertRaisesRegex(continuation.AnalysisError, "checkpoint prefix"):
                 self.evaluate(fixture)
 
-    def test_stable_final_arm_dao_rejection_is_preserved_as_answered_partial(self) -> None:
+    def test_repeatable_final_arm_failure_remains_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = Fixture(Path(directory))
             empty = bytes(20 * continuation.PAGE_BYTES)
@@ -301,9 +311,15 @@ class DefinitionContinuationTests(unittest.TestCase):
             fixture.document["status"] = "fail"
             report = self.evaluate(fixture)
             self.assertEqual(report["status"], "no_outcome")
-            outcome = report["questions"]["producer_outcome"]
-            self.assertEqual(outcome["status"], "answered")
-            self.assertEqual(outcome["kind"], "bounded_dao_rejection")
+            self.assertEqual(report["questions"]["producer_outcome"]["status"], "no_outcome")
+
+    def test_wrong_logical_length_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.evaluate(
+                Fixture(Path(directory)), lambda data: fake_analysis(data, bad_length=True)
+            )
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertIn("logical definition length", report["replicas"][0]["decode_error"])
 
     def test_definition_chunks_rejects_pointer_corruption(self) -> None:
         data = bytearray(3 * continuation.PAGE_BYTES)
@@ -335,13 +351,77 @@ class DefinitionContinuationTests(unittest.TestCase):
             ),
         ):
             value = continuation.created_lvprop(
-                bytes(3 * continuation.PAGE_BYTES),
-                {"pages": [{"page": 2, "role": "long_value"}]},
+                bytes(4 * continuation.PAGE_BYTES),
+                {
+                    "pages": [
+                        {"page": 2, "role": "long_value"},
+                        {"page": 3, "role": "long_value"},
+                    ]
+                },
                 "ContTwoX",
-                20,
+                2,
             )
         self.assertEqual(value["storage"], "chained")
-        self.assertEqual(value["first_locator"], {"row": 0, "page": 2, "appended": False, "row_length": 20})
+        self.assertEqual(value["first_locator"], {"row": 0, "page": 2, "appended": True, "row_length": 20})
+        self.assertEqual(value["appended_lval_pages"], [2, 3])
+        self.assertEqual(value["referenced_appended_lval_pages"], [2])
+        self.assertEqual(value["unreferenced_appended_lval_pages"], [3])
+
+    def test_lvprop_allows_null_with_unreferenced_appended_lval_page(self) -> None:
+        with (
+            mock.patch.object(
+                continuation.catalog,
+                "_discover_catalog",
+                return_value=({}, [], [{"values": ["ContZero", None]}]),
+            ),
+            mock.patch.object(
+                continuation.catalog,
+                "_ordinal",
+                side_effect=lambda _definition, name: {"Name": 0, "LvProp": 1}[name],
+            ),
+        ):
+            value = continuation.created_lvprop(
+                bytes(21 * continuation.PAGE_BYTES),
+                {
+                    "pages": [
+                        {"page": page, "role": "long_value" if page == 20 else "base"}
+                        for page in range(21)
+                    ]
+                },
+                "ContZero",
+                20,
+            )
+        self.assertEqual(
+            value,
+            {
+                "appended_lval_pages": [20],
+                "referenced_appended_lval_pages": [],
+                "storage": "null",
+                "unreferenced_appended_lval_pages": [20],
+            },
+        )
+
+    def test_lvprop_rejects_malformed_external_inline_length(self) -> None:
+        header = (0x40000001).to_bytes(4, "little") + bytes([0]) + (2).to_bytes(3, "little") + bytes(4)
+        with (
+            mock.patch.object(
+                continuation.catalog,
+                "_discover_catalog",
+                return_value=({}, [], [{"values": ["ContOneX", {"inline_length": 13, "long_value_header_hex": header.hex()}]}]),
+            ),
+            mock.patch.object(
+                continuation.catalog,
+                "_ordinal",
+                side_effect=lambda _definition, name: {"Name": 0, "LvProp": 1}[name],
+            ),
+        ):
+            with self.assertRaisesRegex(continuation.DecodeError, "external framing"):
+                continuation.created_lvprop(
+                    bytes(3 * continuation.PAGE_BYTES),
+                    {"pages": [{"page": 2, "role": "long_value"}]},
+                    "ContOneX",
+                    2,
+                )
 
 
 if __name__ == "__main__":
