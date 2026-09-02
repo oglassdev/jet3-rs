@@ -7909,6 +7909,77 @@ Use `not applicable` explicitly rather than omitting a field.
   ordering, and claim scope were resolved before authorization
 
 
+### EXP-0089 — Validation-rejected null-LvProp DAO result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validation-rejected SHA-256-pinned, development-only local DAO result;
+  no canonical analyzer report or accepted scientific answer exists
+- Question: for the fixed and null-`LvProp` candidates preregistered by
+  `EXP-0088`, do all three replicas pass the fixed read-only DAO endpoint
+  frontier unchanged while fresh DAO Alpha controls validate the method?
+- Origin: project-authored clean-room experiment using the exact `EXP-0088`
+  bytes merged as commit `bb5abdc493d80df77d77e43c3fa2797900fed19e`
+  (PR `#156`) and plan SHA-256
+  `36c2b86a317297f408f606131fa0f58d7ea305ad7daedd0ec7a31eb17cd513e3`.
+  The user authorized local experiments. Run ID
+  `20260902T172334Z-dev-dao` was dispatched exactly once; no retry occurred.
+- Environment: private local Windows development VM; Windows NT 10.0.20348.0
+  build 20348 on AMD64; x86 Windows PowerShell Desktop 5.1.20348.558; .NET
+  4.0.30319.42000; culture/UI culture `en-US`; ANSI code page 1252; OEM code
+  page 437; `Pacific Standard Time` at UTC-07:00. The provider probe reported
+  `ready` for x86 `DAO.DBEngine.36` provider 3.6 from `dao360.dll` file version
+  03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Protocol result: the guest producer and wrapper returned `pass`. All three
+  replicas completed the fixed candidate, null candidate, and fresh DAO Alpha
+  control with no replica error, and exactly nine 47,104-byte MDBs were
+  published. Every raw image reported all eight endpoints complete and
+  retained the same size and SHA-256 before and after access. All nine raw
+  snapshots were byte-for-byte equal. These are retained producer observations,
+  not an accepted analyzer answer.
+- Raw artifact identities: each fixed candidate retained SHA-256
+  `b798de9209637361245703b0132f59c06dd7cb3d051d214415d6ed6a76768df2`,
+  and each null candidate retained SHA-256
+  `c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21`.
+  Fresh controls for replicas 1--3 retained SHA-256 respectively
+  `61f0d87c5a4014d3cc3153620fb01fb2d119475afb159de6f1f915d93a18fa96`,
+  `d2c603884a96f7b0be965261f1a84964efc3a58f81b9f76446f6e0deb7d6e0db`,
+  and `39b058ced606e80b6d63c1e5eb3a14a63ee7b3e59ffbabc85dc3f6a3b0106eb9`.
+- Validation rejection: the plan explicitly required sorted bounded table and
+  field property collections. The producer attempted `Sort-Object -Property
+  name`, but its ordered dictionaries serialized all eighteen collections in
+  an unsorted order while marking the property endpoint complete. The pinned
+  analyzer correctly rejected the first sequence with
+  `replicas[0].images[0].endpoints.snapshot.table_properties properties are not
+  sorted by name`. No `lvprop-null-report.json` was written. A successor may
+  prospectively admit bounded producer order while preserving uniqueness and
+  complete cross-image equality; this result must not be retroactively
+  reanalyzed as accepted.
+- JSON artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `2a4850ed55e624d35aeb896c65c2cde1912505a496827c991fe1da4cc24a04e0`;
+  external `lvprop-null-job-result.json`, 176,260 bytes, SHA-256
+  `11a4153478c7d1f899e0c445f826a1b3ea3ceeca147ff12a1cf739852f7cf3a2`;
+  external `result.json`, 196,569 bytes, SHA-256
+  `0cf85926816c6518a265a1e1fac8811a6dd11a4505d3f71ba73f8558c6cf7e60`.
+- Interpretation: status is `validation_rejected`. The raw producer result
+  motivates a corrected successor but establishes neither candidate as
+  `observed_accepted`. It establishes no null-`LvProp` construction fact,
+  property ordering or grammar, permission to omit page 22 or its map
+  references, arbitrary schema acceptance, writer correctness, compatibility,
+  public API or publication correctness, hosted differential result, or
+  support-matrix movement. Because DAO mutation occurred, any redispatch
+  requires a separately preregistered successor and a renewed explicit human
+  decision.
+- Usage: issue `#149`; `EXP-0088`; future separately preregistered successor;
+  `file:oracle/windows-dao/acquisition/lvprop-null.plan.json`;
+  `file:oracle/windows-dao/scripts/lvprop_null.py`
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: independent artifact-identity, protocol-result, sole-rejection,
+  evidence-boundary, and non-reinterpretation review completed with no
+  remaining findings
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
