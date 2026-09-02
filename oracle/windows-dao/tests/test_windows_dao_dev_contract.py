@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import importlib.util
 import json
@@ -87,9 +86,12 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             args = self.args(root, identity)
             CLIENT.validate_args(args)
             command = CLIENT.ssh_command(args)
-            decoded = base64.b64decode(command[-1]).decode("utf-16-le")
-            self.assertIn("SysWOW64", decoded)
-            self.assertIn("-Job ([string]$c.job)", decoded)
+            remote = CLIENT.remote_job_command(args)
+            self.assertIn("SysWOW64", remote[0])
+            self.assertIn("-Job", remote)
+            self.assertIn(args.job, remote)
+            serialized = " ".join(remote)
+            self.assertLessEqual(len(serialized.encode("utf-16-le")) // 2, 8000)
             self.assertIn("StrictHostKeyChecking=yes", command)
             self.assertIn("BatchMode=yes", command)
 
@@ -150,6 +152,112 @@ class WindowsDaoDevClientTests(unittest.TestCase):
             with self.assertRaises(CLIENT.DevClientError):
                 CLIENT.validate_args(args)
 
+    def test_validation_rejects_remote_shell_unsafe_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            for remote_root in (
+                r"Z:\safe root",
+                r"Z:\safe&whoami",
+                r"Z:\safe|whoami",
+                'Z:\\safe"quoted',
+                r"Z:\safe$variable",
+            ):
+                args = self.args(root, identity)
+                args.remote_shared_root = remote_root
+                with self.subTest(remote_root=remote_root):
+                    with self.assertRaisesRegex(
+                        CLIENT.DevClientError, "remote-shell-unsafe"
+                    ):
+                        CLIENT.validate_args(args)
+
+            args = self.args(root, identity)
+            args.remote_shared_root = r"Z:\safe_root\safe-child.1"
+            CLIENT.validate_args(args)
+            self.assertEqual(args.remote_shared_root, r"Z:\safe_root\safe-child.1")
+
+    def test_maximum_plan_bound_remote_command_is_ordered_and_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identity = root / "identity"
+            identity.write_text("private", encoding="utf-8")
+            args = self.args(root, identity)
+            args.job = "bootstrap-composer-validation"
+            args.remote_shared_root = "\\\\" + "h" * 118 + "\\" + "D" * 119
+            self.assertEqual(len(args.remote_shared_root), 240)
+            CLIENT.validate_args(args)
+            command = CLIENT.remote_job_command(args)
+
+            self.assertEqual(
+                command[0],
+                r"%WINDIR%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe",
+            )
+            remote_input = CLIENT.ntpath.join(
+                args.remote_shared_root, "inbox", args.run_id
+            )
+            staged = lambda path: CLIENT.ntpath.join(remote_input, path.name)
+            expected = [
+                r"%WINDIR%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                staged(CLIENT.REMOTE_RUNNER),
+                "-Job",
+                args.job,
+                "-RunId",
+                args.run_id,
+                "-ProviderProbePath",
+                staged(CLIENT.PROVIDER_PROBE),
+                "-SharedOutputPath",
+                CLIENT.ntpath.join(args.remote_shared_root, "outbox", args.run_id),
+                "-CatalogJobPath",
+                staged(CLIENT.CATALOG_JOB),
+                "-TableDefinitionJobPath",
+                staged(CLIENT.TABLE_DEFINITION_JOB),
+                "-TableDefinitionTypeInputPath",
+                staged(CLIENT.TABLE_DEFINITION_TYPES),
+                "-DispatchPath",
+                staged(CLIENT.STAGED_DISPATCH),
+                "-PublicationPath",
+                staged(CLIENT.STAGED_PUBLICATION),
+                "-RowJobPath",
+                staged(CLIENT.ROW_JOB),
+                "-ValueJobPath",
+                staged(CLIENT.VALUE_JOB),
+                "-IndexJobPath",
+                staged(CLIENT.INDEX_JOB),
+                "-BootstrapLayoutJobPath",
+                staged(CLIENT.BOOTSTRAP_LAYOUT_JOB),
+                "-SystemCatalogJobPath",
+                staged(CLIENT.SYSTEM_CATALOG_JOB),
+                "-BootstrapComposerValidationJobPath",
+                staged(CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_JOB),
+                "-BootstrapComposerEmptyPath",
+                CLIENT.ntpath.join(remote_input, "bootstrap-composer-empty.mdb"),
+                "-BootstrapComposerAlphaPath",
+                CLIENT.ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
+                "-PlanSha256",
+                args.plan_sha256,
+                "-PlanPath",
+                staged(CLIENT.BOOTSTRAP_COMPOSER_VALIDATION_PLAN),
+            ]
+            self.assertEqual(command, expected)
+            serialized = " ".join(command)
+            self.assertLessEqual(len(serialized.encode("utf-16-le")) // 2, 8000)
+
+            args.job = "provider-probe"
+            expected_non_plan = expected[:-4]
+            expected_non_plan[expected_non_plan.index("-Job") + 1] = args.job
+            self.assertEqual(CLIENT.remote_job_command(args), expected_non_plan)
+
+            args.job = "bootstrap-composer-validation"
+            args.remote_shared_root = "\\\\" + "h" * 1000 + "\\D"
+            with self.assertRaisesRegex(CLIENT.DevClientError, "8,000-unit bound"):
+                CLIENT.remote_job_command(args)
+
     def test_consumed_bootstrap_plan_remains_immutable(self) -> None:
         expected_inputs = {
             "scripts/windows-dao-dev.py": "029c871b9fbeef228f015e5561f7b8a9980645f605c398157cc75bf35c623715",
@@ -206,10 +314,10 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 self.assertEqual(
                     args.plan_sha256, hashlib.sha256(pinned.read_bytes()).hexdigest()
                 )
-                invocation = CLIENT.invocation_script(args)
-                self.assertIn("-PlanSha256 ([string]$c.plan_sha256)", invocation)
-                self.assertIn("-PlanPath ([string]$c.plan)", invocation)
-                self.assertIn("-SystemCatalogJobPath ([string]$c.system_catalog_job)", invocation)
+                invocation = CLIENT.remote_job_command(args)
+                self.assertIn("-PlanSha256", invocation)
+                self.assertIn("-PlanPath", invocation)
+                self.assertIn("-SystemCatalogJobPath", invocation)
                 staged = CLIENT.stage_job(args)
                 self.assertTrue((staged / pinned.name).is_file())
                 self.assertTrue((staged / binding.analyzer.name).is_file())

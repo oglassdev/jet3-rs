@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import ntpath
@@ -127,6 +126,10 @@ BOOTSTRAP_COMPOSER_VALIDATION_ANALYZER = (
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
+SAFE_WINDOWS_COMMAND_PATH = re.compile(
+    r"^(?:[A-Za-z]:\\(?:[A-Za-z0-9._-]+(?:\\[A-Za-z0-9._-]+)*)?"
+    r"|\\\\[A-Za-z0-9._-]+\\[A-Za-z0-9._-]+(?:\\[A-Za-z0-9._-]+)*)$"
+)
 ALLOWED_JOBS = (
     "provider-probe",
     "create-empty",
@@ -373,10 +376,6 @@ def generate_bootstrap_candidates(staging: Path, plan: dict[str, object]) -> Non
     candidate_root.rmdir()
 
 
-def powershell_encoded(script: str) -> str:
-    return base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-
-
 def canonical_windows_path(value: str, *, label: str) -> str:
     if len(value) > 240 or any(ord(character) < 32 for character in value):
         raise DevClientError(f"{label} is malformed")
@@ -394,6 +393,8 @@ def canonical_windows_path(value: str, *, label: str) -> str:
         raise DevClientError(f"{label} must be an absolute drive or UNC path")
     if ".." in [part for part in re.split(r"[\\/]", value) if part]:
         raise DevClientError(f"{label} cannot contain parent traversal")
+    if not SAFE_WINDOWS_COMMAND_PATH.fullmatch(normalized):
+        raise DevClientError(f"{label} contains a remote-shell-unsafe character")
     return normalized
 
 
@@ -475,68 +476,65 @@ def stage_job(args: argparse.Namespace) -> Path:
     return final
 
 
-def invocation_script(args: argparse.Namespace) -> str:
+def remote_job_command(args: argparse.Namespace) -> list[str]:
     remote_input = ntpath.join(args.remote_shared_root, "inbox", args.run_id)
     binding = plan_binding(args.job)
-    config = {
-        "job": args.job,
-        "run_id": args.run_id,
-        "runner": ntpath.join(remote_input, REMOTE_RUNNER.name),
-        "probe": ntpath.join(remote_input, PROVIDER_PROBE.name),
-        "catalog_job": ntpath.join(remote_input, CATALOG_JOB.name),
-        "table_definition_job": ntpath.join(remote_input, TABLE_DEFINITION_JOB.name),
-        "table_definition_types": ntpath.join(remote_input, TABLE_DEFINITION_TYPES.name),
-        "dispatch": ntpath.join(remote_input, STAGED_DISPATCH.name),
-        "publication": ntpath.join(remote_input, STAGED_PUBLICATION.name),
-        "row_job": ntpath.join(remote_input, ROW_JOB.name),
-        "value_job": ntpath.join(remote_input, VALUE_JOB.name),
-        "index_job": ntpath.join(remote_input, INDEX_JOB.name),
-        "bootstrap_layout_job": ntpath.join(remote_input, BOOTSTRAP_LAYOUT_JOB.name),
-        "system_catalog_job": ntpath.join(remote_input, SYSTEM_CATALOG_JOB.name),
-        "bootstrap_composer_validation_job": ntpath.join(
-            remote_input, BOOTSTRAP_COMPOSER_VALIDATION_JOB.name
-        ),
-        "bootstrap_composer_empty": ntpath.join(
-            remote_input, "bootstrap-composer-empty.mdb"
-        ),
-        "bootstrap_composer_alpha": ntpath.join(
-            remote_input, "bootstrap-composer-alpha.mdb"
-        ),
-        "plan_sha256": args.plan_sha256,
-        "plan": (
-            ntpath.join(remote_input, binding.plan.name) if binding is not None else ""
-        ),
-        "output": ntpath.join(args.remote_shared_root, "outbox", args.run_id),
-    }
-    encoded = base64.b64encode(
-        json.dumps(config, separators=(",", ":")).encode("utf-8")
-    ).decode("ascii")
-    return (
-        "$ErrorActionPreference='Stop';"
-        f"$c=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded}'))"
-        "|ConvertFrom-Json;"
-        "$winps=Join-Path $env:WINDIR "
-        "'SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe';"
-        "& $winps -NoProfile -NonInteractive -ExecutionPolicy Bypass "
-        "-File ([string]$c.runner) -Job ([string]$c.job) "
-        "-RunId ([string]$c.run_id) -ProviderProbePath ([string]$c.probe) "
-        "-SharedOutputPath ([string]$c.output) "
-        "-CatalogJobPath ([string]$c.catalog_job) "
-        "-TableDefinitionJobPath ([string]$c.table_definition_job) "
-        "-TableDefinitionTypeInputPath ([string]$c.table_definition_types) "
-        "-DispatchPath ([string]$c.dispatch) "
-        "-PublicationPath ([string]$c.publication) "
-        "-RowJobPath ([string]$c.row_job) "
-        "-ValueJobPath ([string]$c.value_job) "
-        "-IndexJobPath ([string]$c.index_job) "
-        "-BootstrapLayoutJobPath ([string]$c.bootstrap_layout_job) "
-        "-SystemCatalogJobPath ([string]$c.system_catalog_job) "
-        "-BootstrapComposerValidationJobPath ([string]$c.bootstrap_composer_validation_job) "
-        "-BootstrapComposerEmptyPath ([string]$c.bootstrap_composer_empty) "
-        "-BootstrapComposerAlphaPath ([string]$c.bootstrap_composer_alpha) "
-        "-PlanSha256 ([string]$c.plan_sha256) -PlanPath ([string]$c.plan);"
-        "exit $LASTEXITCODE"
-    )
+    command = [
+        r"%WINDIR%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ntpath.join(remote_input, REMOTE_RUNNER.name),
+        "-Job",
+        args.job,
+        "-RunId",
+        args.run_id,
+        "-ProviderProbePath",
+        ntpath.join(remote_input, PROVIDER_PROBE.name),
+        "-SharedOutputPath",
+        ntpath.join(args.remote_shared_root, "outbox", args.run_id),
+        "-CatalogJobPath",
+        ntpath.join(remote_input, CATALOG_JOB.name),
+        "-TableDefinitionJobPath",
+        ntpath.join(remote_input, TABLE_DEFINITION_JOB.name),
+        "-TableDefinitionTypeInputPath",
+        ntpath.join(remote_input, TABLE_DEFINITION_TYPES.name),
+        "-DispatchPath",
+        ntpath.join(remote_input, STAGED_DISPATCH.name),
+        "-PublicationPath",
+        ntpath.join(remote_input, STAGED_PUBLICATION.name),
+        "-RowJobPath",
+        ntpath.join(remote_input, ROW_JOB.name),
+        "-ValueJobPath",
+        ntpath.join(remote_input, VALUE_JOB.name),
+        "-IndexJobPath",
+        ntpath.join(remote_input, INDEX_JOB.name),
+        "-BootstrapLayoutJobPath",
+        ntpath.join(remote_input, BOOTSTRAP_LAYOUT_JOB.name),
+        "-SystemCatalogJobPath",
+        ntpath.join(remote_input, SYSTEM_CATALOG_JOB.name),
+        "-BootstrapComposerValidationJobPath",
+        ntpath.join(remote_input, BOOTSTRAP_COMPOSER_VALIDATION_JOB.name),
+        "-BootstrapComposerEmptyPath",
+        ntpath.join(remote_input, "bootstrap-composer-empty.mdb"),
+        "-BootstrapComposerAlphaPath",
+        ntpath.join(remote_input, "bootstrap-composer-alpha.mdb"),
+    ]
+    if binding is not None:
+        command.extend(
+            [
+                "-PlanSha256",
+                args.plan_sha256,
+                "-PlanPath",
+                ntpath.join(remote_input, binding.plan.name),
+            ]
+        )
+    serialized_units = len(" ".join(command).encode("utf-16-le")) // 2
+    if serialized_units > 8000:
+        raise DevClientError("remote Windows command exceeds the 8,000-unit bound")
+    return command
 
 
 def ssh_command(args: argparse.Namespace) -> list[str]:
@@ -559,11 +557,7 @@ def ssh_command(args: argparse.Namespace) -> list[str]:
         "-i",
         str(args.identity),
         f"{args.user}@{args.host}",
-        "powershell.exe",
-        "-NoProfile",
-        "-NonInteractive",
-        "-EncodedCommand",
-        powershell_encoded(invocation_script(args)),
+        *remote_job_command(args),
     ]
 
 

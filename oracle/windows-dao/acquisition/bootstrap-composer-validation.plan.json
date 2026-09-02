@@ -6,6 +6,7 @@
   "preregistration": {
     "acquisition_started": false,
     "prior_evidence": "EXP-0079 fixed the observed empty-to-Alpha constants before this validation was designed.",
+    "prior_transport_abort": "The first committed plan was never acquired: Windows rejected the outer encoded PowerShell command line before the staged runner, provider probe, or DAO executed, and no outbox was created. This successor replaces that transport with one bounded, shell-safe direct x86 PowerShell command.",
     "authorization": "The user explicitly authorized this and future local Windows VM usage for the current session. Acquisition remains forbidden until this plan and its exact pins are reviewed and committed.",
     "attempt_policy": "Dispatch exactly one three-replica run. Once the first DAO control mutation begins, any failure is a scientific result and must not be retried without a new human decision."
   },
@@ -20,7 +21,7 @@
     ]
   },
   "inputs": {
-    "scripts/windows-dao-dev.py": "2c06969464354f17ef5005230c12fe14e536c840393b3c802989cc35b3c2e0e9",
+    "scripts/windows-dao-dev.py": "15f85181899e511bd1bf993203fb37e9d21e12470cecf2a0640c9cc23cceffc8",
     "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
     "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "74272fb2f393b7be49df07e2439c11a5e36dab6d62bc47d2f9cda4baf702ed27",
     "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "09e1b4060ae17e05b3d6f347344910c31d732922828dc34d2dada46e1dc51ea0",

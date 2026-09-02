@@ -7252,6 +7252,58 @@ Use `not applicable` explicitly rather than omitting a field.
   all first-pass findings were fixed and every second-pass review reported no
   remaining findings
 
+### EXP-0081 — Preregistered direct-launch bootstrap-composer validation
+
+- Recorded: 2026-09-01, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration successor;
+  no provider acquisition or composer-validation observation has occurred under
+  this successor plan
+- Question: the question, candidate identities, endpoint frontiers, bounds,
+  decision rules, evidence boundary, and one-scientific-attempt policy are
+  exactly those fixed by `EXP-0080`.
+- Origin: `EXP-0080` was committed at
+  `d8b3dd3cf3d21ab7b67f46b1deef750610211eab` with plan SHA-256
+  `2b2d9b3071bc9406e341b7ca9409107f5eb0527727e54e8de1deabc3d429def7`.
+  Its first dispatch never reached the staged runner: Windows rejected the
+  9,432-character outer encoded PowerShell command line as too long. No outbox
+  was created, and the provider probe and DAO did not execute, so this was a
+  pre-mutation transport abort rather than a scientific attempt.
+- Protocol change: replace only the nested encoded launcher with one bounded,
+  shell-safe direct command to the x86 Windows PowerShell executable resolved
+  through `%WINDIR%`. The client restricts the remote root to an ASCII
+  shell-safe path grammar and rejects a serialized command over 8,000 UTF-16
+  code units. A read-only SSH preflight executed that environment-resolved x86
+  executable successfully. The staged pinned runner still receives the same
+  validated paths and arguments; every scientific operation and bound remains
+  unchanged.
+- Preregistration artifact: the existing
+  `oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json` is
+  replaced, not stacked with a revision file, and now has SHA-256
+  `7b2b5aa51477495ed1109279e4988fb6428d9712a999ea7aeb3462d2f46dd7ac`.
+  It pins the direct-launch host client at SHA-256
+  `15f85181899e511bd1bf993203fb37e9d21e12470cecf2a0640c9cc23cceffc8`;
+  all other producer, analyzer, source-manifest, and candidate pins are
+  unchanged from `EXP-0080`.
+- Observation: `preregistration.acquisition_started` remains `false` for this
+  successor. The user's explicit authorization for this and future local VM
+  usage in the current session remains applicable after review and commit. No
+  retry is permitted after the first DAO control mutation.
+- Decision rule: unchanged from `EXP-0080`. Transport, pin, inventory, bound,
+  malformed-shape, or result-integrity defects reject without a canonical
+  report; well-formed scientific control/candidate failures follow the fixed
+  accepted-negative or `no_outcome` rules.
+- Interpretation: this successor changes transport only and establishes none
+  of the compatibility, public API, safe publication, arbitrary-schema, or
+  support claims excluded by `EXP-0080`.
+- Usage: future successor result; issue `#100`; `EXP-0080`;
+  `file:oracle/windows-dao/acquisition/bootstrap-composer-validation.plan.json`;
+  `file:scripts/windows-dao-dev.py`
+- Rights: future project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: isolated protocol review and two transport/client-contract review
+  passes completed; shell-safety, UTF-16 command bounds, exact option ordering,
+  plan/client pins, and pre-mutation classification have no remaining findings
+
 
 ## Fixtures and black-box results
 
