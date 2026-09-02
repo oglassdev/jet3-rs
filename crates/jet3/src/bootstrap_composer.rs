@@ -1,0 +1,729 @@
+//! Crate-private composition of the observed fresh Jet 3 bootstrap images.
+//!
+//! This connects the checked definition, row, usage-map, page, append, and
+//! whole-file primitives. It deliberately exposes no creation or I/O API and
+//! makes no DAO-compatibility claim. Page roles and the empty-to-`Alpha`
+//! transition come from `EXP-0073`; the fixed page-zero transition byte comes
+//! from `EXP-0069` and `EXP-0071`; long-value map groups come from `EXP-0077`.
+
+#![allow(
+    dead_code,
+    reason = "crate-private writer slice awaiting DAO validation"
+)]
+
+use std::fmt;
+
+use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
+use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
+use crate::{
+    ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
+    DataPageBuilder, Error, IndexDirection, IndexFieldSpec, InlineUsageMapEncoder,
+    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageImage,
+    PageImageError, PageKind, PageNumber, PageOffset, PhysicalIndexFlagsSpec, PhysicalIndexSpec,
+    ResourceBudget, RowColumnLayout, RowValue, RowWriteError, SystemColumnClassSpec,
+    TableDefinitionKind, TableDefinitionSpec, TableDefinitionWriteError, UsageMapWriteError,
+    encode_row, encode_table_definition,
+};
+
+const HEADER_PAGE: u64 = 0;
+const MSYS_OBJECTS_ROOT: u64 = 2;
+const MSYS_ACES_ROOT: u64 = 3;
+const MSYS_QUERIES_ROOT: u64 = 4;
+const MSYS_RELATIONSHIPS_ROOT: u64 = 5;
+const MSYS_OBJECTS_MAP_PAGE: u64 = 6;
+const LV_EXTRA_MAP_PAGE: u64 = 7;
+const OBJECTS_PARENT_NAME_MAP_PAGE: u64 = 8;
+const OBJECTS_PARENT_NAME_ROOT: u64 = 9;
+const OBJECTS_ID_MAP_PAGE: u64 = 10;
+const OBJECTS_ID_ROOT: u64 = 11;
+const SHARED_MAP_PAGE: u64 = 12;
+const ACES_OBJECT_ID_ROOT: u64 = 13;
+const QUERIES_INDEX_ROOT: u64 = 14;
+const RELATIONSHIPS_NAME_ROOT: u64 = 15;
+const RELATIONSHIPS_OBJECT_ROOT: u64 = 16;
+const RELATIONSHIPS_REFERENCED_ROOT: u64 = 17;
+const MSYS_OBJECTS_DATA_PAGE: u64 = 18;
+const MSYS_ACES_DATA_PAGE: u64 = 19;
+const ALPHA_ROOT: u64 = 20;
+const ALPHA_MAP_PAGE: u64 = 21;
+const ALPHA_LVPROP_PAGE: u64 = 22;
+
+const GLOBAL_BITMAP_BYTES: u64 = 128;
+const MAP_BITMAP_BYTES: u64 = 128;
+const INDEX_ENTRY_AREA_OFFSET: usize = 248;
+const INDEX_ENTRY_AREA_LEN: usize = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET;
+const INDEX_BOUNDARY_BITMAP_OFFSET: usize = 22;
+const INDEX_KEY_CAPACITY: usize = 64;
+const CATALOG_OWNER: &[u8] = &[0];
+// EXP-0073 establishes this allocation and reference, but intentionally leaves
+// the property payload uninterpreted. Keep it deterministic and opaque here.
+const ALPHA_LVPROP_PAYLOAD: &[u8] = &[0];
+
+const TABLES_ID: i32 = 0x0f00_0001;
+const DATABASES_ID: i32 = 0x0f00_0002;
+const RELATIONSHIPS_ID: i32 = 0x0f00_0003;
+const ROOT_CONTAINER_ID: i32 = 0x0f00_0000;
+const MSYS_DB_ID: i32 = 0x1000_0000;
+
+/// Structured failure while composing a fixed bootstrap image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum BootstrapComposeError {
+    Definition(TableDefinitionWriteError),
+    UsageMap(UsageMapWriteError),
+    Page(PageImageError),
+    Row(RowWriteError),
+    WholeFile(WholeFilePlanError),
+    Encoding(Error),
+    IndexPageFull { needed: usize, available: usize },
+    IndexKeyTooLong { needed: usize, available: usize },
+}
+
+impl fmt::Display for BootstrapComposeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "Jet 3 bootstrap composition failed: {self:?}")
+    }
+}
+
+impl std::error::Error for BootstrapComposeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Definition(source) => Some(source),
+            Self::UsageMap(source) => Some(source),
+            Self::Page(source) => Some(source),
+            Self::Row(source) => Some(source),
+            Self::WholeFile(source) => Some(source),
+            Self::Encoding(source) => Some(source),
+            Self::IndexPageFull { .. } | Self::IndexKeyTooLong { .. } => None,
+        }
+    }
+}
+
+impl From<TableDefinitionWriteError> for BootstrapComposeError {
+    fn from(source: TableDefinitionWriteError) -> Self {
+        Self::Definition(source)
+    }
+}
+impl From<UsageMapWriteError> for BootstrapComposeError {
+    fn from(source: UsageMapWriteError) -> Self {
+        Self::UsageMap(source)
+    }
+}
+impl From<PageImageError> for BootstrapComposeError {
+    fn from(source: PageImageError) -> Self {
+        Self::Page(source)
+    }
+}
+impl From<RowWriteError> for BootstrapComposeError {
+    fn from(source: RowWriteError) -> Self {
+        Self::Row(source)
+    }
+}
+impl From<WholeFilePlanError> for BootstrapComposeError {
+    fn from(source: WholeFilePlanError) -> Self {
+        Self::WholeFile(source)
+    }
+}
+impl From<Error> for BootstrapComposeError {
+    fn from(source: Error) -> Self {
+        Self::Encoding(source)
+    }
+}
+
+/// Composes the deterministic 20-page empty image established by `EXP-0073`.
+pub(crate) fn compose_empty_database(
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, BootstrapComposeError> {
+    let images = compose_existing_pages(false, budget)?;
+    WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
+}
+
+/// Composes the fixed empty-to-`Alpha(Id Long)` transition from `EXP-0073`.
+pub(crate) fn compose_alpha_database(
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, BootstrapComposeError> {
+    let images = compose_existing_pages(true, budget)?;
+    let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
+    let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
+    plan.append(alpha_definition_page(budget)?, &mut append_map, budget)?;
+    plan.append(alpha_map_page(budget)?, &mut append_map, budget)?;
+    plan.append(alpha_long_value_page(budget)?, &mut append_map, budget)?;
+    Ok(plan)
+}
+
+fn compose_existing_pages(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], BootstrapComposeError> {
+    let object_count = if alpha { 9 } else { 8 };
+    let ace_count = if alpha { 18 } else { 16 };
+    Ok([
+        header_page(alpha, budget)?,
+        global_map_page(if alpha { 23 } else { 20 }, budget)?,
+        msys_objects_definition(object_count, budget)?,
+        msys_aces_definition(ace_count, object_count, budget)?,
+        msys_queries_definition(budget)?,
+        msys_relationships_definition(budget)?,
+        objects_map_page(alpha, budget)?,
+        single_map_page(&[], budget)?,
+        single_map_page(&[OBJECTS_PARENT_NAME_ROOT], budget)?,
+        objects_parent_name_index(alpha, budget)?,
+        single_map_page(&[OBJECTS_ID_ROOT], budget)?,
+        objects_id_index(alpha, budget)?,
+        shared_map_page(budget)?,
+        aces_index(alpha, budget)?,
+        empty_index_page(MSYS_QUERIES_ROOT, budget)?,
+        empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
+        empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
+        empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
+        objects_data_page(alpha, budget)?,
+        aces_data_page(alpha, budget)?,
+    ])
+}
+
+fn header_page(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut image = PageImage::new(PageKind::DatabaseDefinition);
+    image.write_at(PageOffset::new(4), b"Standard Jet DB", budget)?;
+    image.write_at(PageOffset::new(0x41), &[0x4e], budget)?;
+    image.write_at(
+        PageOffset::new(0x42),
+        &[
+            0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
+        ],
+        budget,
+    )?;
+    // EXP-0069/0071: fixed empty/first-create values 0/2; no general counter rule.
+    image.write_at(PageOffset::new(1538), &[if alpha { 2 } else { 0 }], budget)?;
+    Ok(image)
+}
+
+fn global_map(
+    used_pages: u64,
+    budget: &mut ResourceBudget,
+) -> Result<InlineUsageMapEncoder, BootstrapComposeError> {
+    let mut map = InlineUsageMapEncoder::new(
+        PageNumber::new(0),
+        ByteCount::new(GLOBAL_BITMAP_BYTES),
+        budget,
+    )?;
+    for page in used_pages..map.page_count() {
+        map.set_page(PageNumber::new(page))?;
+    }
+    Ok(map)
+}
+
+fn global_map_page(
+    used_pages: u64,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let map = global_map(used_pages, budget)?;
+    let mut row = [0_u8; 133];
+    map.encode_into(&mut row, budget)?;
+    data_page(HEADER_PAGE, &[&row, &[0; 133]], budget)
+}
+
+fn inline_map_row(
+    pages: &[u64],
+    budget: &mut ResourceBudget,
+) -> Result<[u8; 133], BootstrapComposeError> {
+    let mut map =
+        InlineUsageMapEncoder::new(PageNumber::new(0), ByteCount::new(MAP_BITMAP_BYTES), budget)?;
+    for &page in pages {
+        map.set_page(PageNumber::new(page))?;
+    }
+    let mut row = [0_u8; 133];
+    map.encode_into(&mut row, budget)?;
+    Ok(row)
+}
+
+fn single_map_page(
+    pages: &[u64],
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let row = inline_map_row(pages, budget)?;
+    data_page(HEADER_PAGE, &[&row], budget)
+}
+
+fn objects_map_page(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let owned = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
+    let available = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
+    let empty = inline_map_row(&[], budget)?;
+    let lvprop = inline_map_row(if alpha { &[ALPHA_LVPROP_PAGE] } else { &[] }, budget)?;
+    let rows: [&[u8]; 15] = [
+        &owned, &available, &empty, &empty, &empty, &empty, &empty, &empty, &empty, &empty,
+        &lvprop, &lvprop, &empty, &empty, &empty,
+    ];
+    data_page(HEADER_PAGE, &rows, budget)
+}
+
+fn shared_map_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
+    let ace_owned = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
+    let ace_available = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
+    let ace_index = inline_map_row(&[ACES_OBJECT_ID_ROOT], budget)?;
+    let empty = inline_map_row(&[], budget)?;
+    let query_index = inline_map_row(&[QUERIES_INDEX_ROOT], budget)?;
+    let relation_name = inline_map_row(&[RELATIONSHIPS_NAME_ROOT], budget)?;
+    let relation_object = inline_map_row(&[RELATIONSHIPS_OBJECT_ROOT], budget)?;
+    let relation_referenced = inline_map_row(&[RELATIONSHIPS_REFERENCED_ROOT], budget)?;
+    let rows: [&[u8]; 13] = [
+        &ace_owned,
+        &ace_available,
+        &ace_index,
+        &empty,
+        &empty,
+        &empty,
+        &empty,
+        &query_index,
+        &empty,
+        &empty,
+        &relation_name,
+        &relation_object,
+        &relation_referenced,
+    ];
+    data_page(HEADER_PAGE, &rows, budget)
+}
+
+fn alpha_map_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
+    let empty = inline_map_row(&[], budget)?;
+    data_page(HEADER_PAGE, &[&empty, &empty], budget)
+}
+
+fn data_page(
+    owner: u64,
+    rows: &[&[u8]],
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut builder = DataPageBuilder::new(PageNumber::new(owner), budget)?;
+    for row in rows {
+        builder.append_row(row, budget)?;
+    }
+    let free = u16::try_from(builder.free_bytes().get()).map_err(|_| Error::IntegerConversion {
+        value: u128::from(builder.free_bytes().get()),
+        target: "u16",
+    })?;
+    let mut image = builder.finish();
+    let [low, high] = free.to_le_bytes();
+    image.write_at(PageOffset::new(1), &[1, low, high], budget)?;
+    Ok(image)
+}
+
+fn definition_page(
+    spec: &TableDefinitionSpec<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut bytes = [0_u8; PAGE_BYTES];
+    encode_table_definition(spec, &mut bytes, budget)?;
+    Ok(PageImage::from_bytes(bytes))
+}
+
+#[path = "bootstrap_system_definitions.rs"]
+mod definitions;
+use definitions::{
+    alpha_definition_page, msys_aces_definition, msys_objects_definition, msys_queries_definition,
+    msys_relationships_definition,
+};
+
+const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
+    fixed(ColumnPhysicalType::Long, 0, 4),
+    fixed(ColumnPhysicalType::Long, 4, 4),
+    variable(ColumnPhysicalType::Text, 0, 255),
+    fixed(ColumnPhysicalType::Integer, 8, 2),
+    fixed(ColumnPhysicalType::DateTime, 10, 8),
+    fixed(ColumnPhysicalType::DateTime, 18, 8),
+    variable(ColumnPhysicalType::Binary, 1, 255),
+    fixed(ColumnPhysicalType::Long, 26, 4),
+    variable(ColumnPhysicalType::Memo, 2, 0),
+    variable(ColumnPhysicalType::Memo, 3, 0),
+    variable(ColumnPhysicalType::Text, 4, 255),
+    variable(ColumnPhysicalType::Binary, 5, 255),
+    variable(ColumnPhysicalType::LongBinary, 6, 0),
+    variable(ColumnPhysicalType::LongBinary, 7, 0),
+    variable(ColumnPhysicalType::LongBinary, 8, 0),
+    variable(ColumnPhysicalType::LongBinary, 9, 0),
+    variable(ColumnPhysicalType::LongBinary, 10, 0),
+];
+const ACE_LAYOUT: [RowColumnLayout; 4] = [
+    fixed(ColumnPhysicalType::Long, 0, 4),
+    variable(ColumnPhysicalType::Binary, 0, 255),
+    fixed(ColumnPhysicalType::Long, 4, 4),
+    fixed(ColumnPhysicalType::Boolean, 8, 1),
+];
+const fn fixed(kind: ColumnPhysicalType, offset: u16, size: u16) -> RowColumnLayout {
+    RowColumnLayout::new(kind, ColumnStorageClass::Fixed { offset }, size)
+}
+const fn variable(kind: ColumnPhysicalType, index: u16, size: u16) -> RowColumnLayout {
+    RowColumnLayout::new(kind, ColumnStorageClass::Variable { index }, size)
+}
+
+#[derive(Clone, Copy)]
+struct CatalogSeed {
+    id: i32,
+    parent: i32,
+    name: &'static [u8],
+    kind: i16,
+}
+const CATALOG_SEEDS: [CatalogSeed; 8] = [
+    CatalogSeed {
+        id: TABLES_ID,
+        parent: ROOT_CONTAINER_ID,
+        name: b"Tables",
+        kind: 3,
+    },
+    CatalogSeed {
+        id: DATABASES_ID,
+        parent: ROOT_CONTAINER_ID,
+        name: b"Databases",
+        kind: 3,
+    },
+    CatalogSeed {
+        id: RELATIONSHIPS_ID,
+        parent: ROOT_CONTAINER_ID,
+        name: b"Relationships",
+        kind: 3,
+    },
+    CatalogSeed {
+        id: MSYS_DB_ID,
+        parent: DATABASES_ID,
+        name: b"MSysDb",
+        kind: 2,
+    },
+    CatalogSeed {
+        id: MSYS_OBJECTS_ROOT as i32,
+        parent: TABLES_ID,
+        name: b"MSysObjects",
+        kind: 1,
+    },
+    CatalogSeed {
+        id: MSYS_ACES_ROOT as i32,
+        parent: TABLES_ID,
+        name: b"MSysACEs",
+        kind: 1,
+    },
+    CatalogSeed {
+        id: MSYS_QUERIES_ROOT as i32,
+        parent: TABLES_ID,
+        name: b"MSysQueries",
+        kind: 1,
+    },
+    CatalogSeed {
+        id: MSYS_RELATIONSHIPS_ROOT as i32,
+        parent: TABLES_ID,
+        name: b"MSysRelationships",
+        kind: 1,
+    },
+];
+
+fn objects_data_page(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
+    let mut row = [0_u8; PAGE_BYTES];
+    for seed in CATALOG_SEEDS {
+        let length = encode_catalog_row(seed, None, &mut row, budget)?;
+        builder.append_row(&row[..length], budget)?;
+    }
+    if alpha {
+        let length = encode_catalog_row(
+            CatalogSeed {
+                id: ALPHA_ROOT as i32,
+                parent: TABLES_ID,
+                name: b"Alpha",
+                kind: 1,
+            },
+            Some(alpha_long_value_header()),
+            &mut row,
+            budget,
+        )?;
+        builder.append_row(&row[..length], budget)?;
+    }
+    finish_data_builder(builder, budget)
+}
+
+fn encode_catalog_row(
+    seed: CatalogSeed,
+    lvprop: Option<[u8; 12]>,
+    output: &mut [u8],
+    budget: &mut ResourceBudget,
+) -> Result<usize, BootstrapComposeError> {
+    let lvprop_value = lvprop
+        .as_ref()
+        .map_or(RowValue::Null, |bytes| RowValue::LongValue(bytes));
+    let system_flags = if seed.id == ALPHA_ROOT as i32 {
+        0
+    } else {
+        i32::MIN
+    };
+    let values = [
+        RowValue::Long(seed.id),
+        RowValue::Long(seed.parent),
+        RowValue::Text(seed.name),
+        RowValue::Integer(seed.kind),
+        RowValue::DateTime { days: 0.0 },
+        RowValue::DateTime { days: 0.0 },
+        RowValue::Binary(CATALOG_OWNER),
+        RowValue::Long(system_flags),
+        RowValue::Null,
+        RowValue::Null,
+        RowValue::Null,
+        RowValue::Null,
+        RowValue::Null,
+        RowValue::Null,
+        lvprop_value,
+        RowValue::Null,
+        RowValue::Null,
+    ];
+    Ok(encode_row(&OBJECT_LAYOUT, &values, output, budget)?.get() as usize)
+}
+
+#[derive(Clone, Copy)]
+struct AceSeed {
+    object: i32,
+    sid: &'static [u8],
+    acm: i32,
+    inheritable: bool,
+}
+const ACE_SEEDS: [AceSeed; 16] = [
+    ace(2, b"\x03\x01", 393216, false),
+    ace(3, b"\x03\x01", 393216, false),
+    ace(4, b"\x03\x01", 393216, false),
+    ace(5, b"\x03\x01", 917504, false),
+    ace(TABLES_ID, b"\x02\x04", 983294, true),
+    ace(TABLES_ID, b"\x03\x01", 393217, false),
+    ace(RELATIONSHIPS_ID, b"\x02\x04", 983294, true),
+    ace(RELATIONSHIPS_ID, b"\x03\x01", 393217, false),
+    ace(DATABASES_ID, b"\x03\x01", 393216, false),
+    ace(MSYS_DB_ID, b"\x03\x01", 393230, false),
+    ace(MSYS_DB_ID, b"\x02\x01", 14, false),
+    ace(4, b"\x02\x01", 20, false),
+    ace(5, b"\x02\x01", 20, false),
+    ace(2, b"\x02\x01", 20, false),
+    ace(TABLES_ID, b"\x02\x01", 1048319, true),
+    ace(RELATIONSHIPS_ID, b"\x02\x01", 1048575, true),
+];
+const fn ace(object: i32, sid: &'static [u8], acm: i32, inheritable: bool) -> AceSeed {
+    AceSeed {
+        object,
+        sid,
+        acm,
+        inheritable,
+    }
+}
+
+fn aces_data_page(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_ACES_ROOT), budget)?;
+    let mut row = [0_u8; 64];
+    for seed in ACE_SEEDS
+        .into_iter()
+        .chain(alpha.then_some(ace(ALPHA_ROOT as i32, b"\x03\x01", 983294, false)))
+        .chain(alpha.then_some(ace(ALPHA_ROOT as i32, b"\x02\x01", 1048319, false)))
+    {
+        let values = [
+            RowValue::Long(seed.object),
+            RowValue::Binary(seed.sid),
+            RowValue::Long(seed.acm),
+            RowValue::Boolean(seed.inheritable),
+        ];
+        let length = encode_row(&ACE_LAYOUT, &values, &mut row, budget)?.get() as usize;
+        builder.append_row(&row[..length], budget)?;
+    }
+    finish_data_builder(builder, budget)
+}
+
+fn finish_data_builder(
+    builder: DataPageBuilder,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let free = u16::try_from(builder.free_bytes().get()).map_err(|_| Error::IntegerConversion {
+        value: u128::from(builder.free_bytes().get()),
+        target: "u16",
+    })?;
+    let mut image = builder.finish();
+    let [low, high] = free.to_le_bytes();
+    image.write_at(PageOffset::new(1), &[1, low, high], budget)?;
+    Ok(image)
+}
+
+fn alpha_long_value_header() -> [u8; 12] {
+    let control = 0x4000_0000_u32 | ALPHA_LVPROP_PAYLOAD.len() as u32;
+    let mut header = [0_u8; 12];
+    header[..4].copy_from_slice(&control.to_le_bytes());
+    header[5..8].copy_from_slice(&(ALPHA_LVPROP_PAGE as u32).to_le_bytes()[..3]);
+    header
+}
+
+fn alpha_long_value_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
+    let mut image = data_page(HEADER_PAGE, &[ALPHA_LVPROP_PAYLOAD], budget)?;
+    image.write_at(PageOffset::new(4), b"LVAL", budget)?;
+    Ok(image)
+}
+
+#[derive(Clone, Copy)]
+struct OwnedIndexEntry {
+    key: [u8; INDEX_KEY_CAPACITY],
+    len: usize,
+    row: u8,
+}
+impl OwnedIndexEntry {
+    const EMPTY: Self = Self {
+        key: [0; INDEX_KEY_CAPACITY],
+        len: 0,
+        row: 0,
+    };
+    fn long(value: i32, row: u8) -> Self {
+        let mut entry = Self::EMPTY;
+        entry.key[0] = 0x7f;
+        let mut raw = value.to_be_bytes();
+        raw[0] ^= 0x80;
+        entry.key[1..5].copy_from_slice(&raw);
+        entry.len = 5;
+        entry.row = row;
+        entry
+    }
+    // EXP-0062 leaves composite component boundaries uninterpreted. This
+    // fixed bootstrap hypothesis is deliberately not exposed as a reusable
+    // composite or text-key encoder and still requires DAO validation.
+    fn parent_name(parent: i32, name: &[u8], row: u8) -> Result<Self, BootstrapComposeError> {
+        let mut entry = Self::long(parent, row);
+        let start = entry.len;
+        let needed = start
+            .checked_add(name.len())
+            .and_then(|length| length.checked_add(2))
+            .ok_or(Error::Arithmetic {
+                operation: "size fixed bootstrap composite index key",
+            })?;
+        if needed > INDEX_KEY_CAPACITY {
+            return Err(BootstrapComposeError::IndexKeyTooLong {
+                needed,
+                available: INDEX_KEY_CAPACITY,
+            });
+        }
+        entry.key[start] = 0x7f;
+        entry.key[start + 1..start + 1 + name.len()].copy_from_slice(name);
+        entry.key[start + 1 + name.len()] = 0;
+        entry.len = needed;
+        Ok(entry)
+    }
+}
+
+fn objects_parent_name_index(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut entries = [OwnedIndexEntry::EMPTY; 9];
+    for (row, seed) in CATALOG_SEEDS.iter().enumerate() {
+        entries[row] = OwnedIndexEntry::parent_name(seed.parent, seed.name, row as u8)?;
+    }
+    entries[8] = OwnedIndexEntry::parent_name(TABLES_ID, b"Alpha", 8)?;
+    let count = if alpha { 9 } else { 8 };
+    sort_index_entries(&mut entries[..count]);
+    index_page(
+        MSYS_OBJECTS_ROOT,
+        MSYS_OBJECTS_DATA_PAGE,
+        &entries[..count],
+        budget,
+    )
+}
+fn objects_id_index(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut entries = [OwnedIndexEntry::EMPTY; 9];
+    for (row, seed) in CATALOG_SEEDS.iter().enumerate() {
+        entries[row] = OwnedIndexEntry::long(seed.id, row as u8);
+    }
+    entries[8] = OwnedIndexEntry::long(ALPHA_ROOT as i32, 8);
+    let count = if alpha { 9 } else { 8 };
+    sort_index_entries(&mut entries[..count]);
+    index_page(
+        MSYS_OBJECTS_ROOT,
+        MSYS_OBJECTS_DATA_PAGE,
+        &entries[..count],
+        budget,
+    )
+}
+fn aces_index(
+    alpha: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let mut entries = [OwnedIndexEntry::EMPTY; 18];
+    for (row, seed) in ACE_SEEDS.iter().enumerate() {
+        entries[row] = OwnedIndexEntry::long(seed.object, row as u8);
+    }
+    entries[16] = OwnedIndexEntry::long(ALPHA_ROOT as i32, 16);
+    entries[17] = OwnedIndexEntry::long(ALPHA_ROOT as i32, 17);
+    let count = if alpha { 18 } else { 16 };
+    sort_index_entries(&mut entries[..count]);
+    index_page(
+        MSYS_ACES_ROOT,
+        MSYS_ACES_DATA_PAGE,
+        &entries[..count],
+        budget,
+    )
+}
+
+fn sort_index_entries(entries: &mut [OwnedIndexEntry]) {
+    entries.sort_unstable_by(|left, right| {
+        left.key[..left.len]
+            .cmp(&right.key[..right.len])
+            .then(left.row.cmp(&right.row))
+    });
+}
+
+fn empty_index_page(
+    owner: u64,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    index_page(owner, 0, &[], budget)
+}
+
+fn index_page(
+    owner: u64,
+    row_page: u64,
+    entries: &[OwnedIndexEntry],
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, BootstrapComposeError> {
+    let needed = entries
+        .iter()
+        .try_fold(0_usize, |total, entry| total.checked_add(entry.len + 4))
+        .ok_or(Error::Arithmetic {
+            operation: "size bootstrap index entries",
+        })?;
+    if needed > INDEX_ENTRY_AREA_LEN {
+        return Err(BootstrapComposeError::IndexPageFull {
+            needed,
+            available: INDEX_ENTRY_AREA_LEN,
+        });
+    }
+    let mut bytes = [0_u8; PAGE_BYTES];
+    bytes[0] = 4;
+    bytes[1] = 1;
+    bytes[2..4].copy_from_slice(&(INDEX_ENTRY_AREA_LEN as u16 - needed as u16).to_le_bytes());
+    bytes[4..8].copy_from_slice(&(owner as u32).to_le_bytes());
+    let mut end = 0_usize;
+    for entry in entries {
+        let start = INDEX_ENTRY_AREA_OFFSET + end;
+        bytes[start..start + entry.len].copy_from_slice(&entry.key[..entry.len]);
+        let trailer = start + entry.len;
+        let page = row_page as u32;
+        bytes[trailer..trailer + 3].copy_from_slice(&page.to_be_bytes()[1..]);
+        bytes[trailer + 3] = entry.row;
+        end += entry.len + 4;
+        bytes[INDEX_BOUNDARY_BITMAP_OFFSET + end / 8] |= 1 << (end % 8);
+    }
+    let mut image = PageImage::new(PageKind::LeafIndex);
+    image.write_at(PageOffset::new(0), &bytes, budget)?;
+    Ok(image)
+}
+
+#[cfg(test)]
+#[path = "bootstrap_composer_tests.rs"]
+mod tests;

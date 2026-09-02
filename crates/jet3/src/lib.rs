@@ -6,6 +6,7 @@ pub mod allocation_traverse;
 pub mod atomic;
 pub mod binary;
 pub mod binary_writer;
+mod bootstrap_composer;
 pub mod candidate;
 pub mod catalog;
 pub mod catalog_record;
@@ -75,7 +76,7 @@ pub use column_definition::{
 };
 pub use column_definition_writer::{
     ColumnSpec, ColumnStorageKind, IndexFieldSpec, LogicalIndexKindSpec, LogicalIndexSpec,
-    PhysicalIndexSpec,
+    PhysicalIndexSpec, SystemColumnClassSpec,
 };
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
@@ -120,7 +121,8 @@ pub use row_writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
 pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError, TableDefinitionKind};
 pub use table_definition_writer::{
-    TableDefinitionSpec, TableDefinitionWriteError, encode_table_definition, table_definition_len,
+    LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
+    encode_table_definition, table_definition_len,
 };
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};

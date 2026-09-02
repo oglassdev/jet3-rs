@@ -4,9 +4,10 @@ use super::{
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
     DatabaseReader, Error, IndexDefinitionKind, IndexDirection, IndexFieldSpec, JET3_PAGE_SIZE,
-    LogicalIndexKindSpec, LogicalIndexSpec, MapRowLocator, PageNumber, PhysicalIndexSpec,
-    ReadLimits, RelationshipSide, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
-    TableDefinition,
+    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PageNumber,
+    PhysicalIndexFlagsSpec, PhysicalIndexSpec, ReadLimits, RelationshipSide, ResourceBudget,
+    ResourceLimitKind, ResourceLimits, SliceSource, SystemColumnClassSpec, TableDefinition,
+    TableDefinitionKind,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -14,6 +15,12 @@ const ROOT: u64 = 1;
 const MAP_PAGE: u64 = 2;
 const INDEX_ROOT: u64 = 3;
 const RELATED_ROOT: u64 = 5;
+
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+fn budget() -> ResourceBudget {
+    ResourceBudget::new(ResourceLimits::default())
+}
 
 fn all_type_columns() -> Vec<ColumnSpec<'static>> {
     use ColumnPhysicalType as T;
@@ -42,8 +49,13 @@ fn physical(fields: &[IndexFieldSpec], unique: bool, required: bool) -> Physical
         usage_map_page: PageNumber::new(MAP_PAGE),
         usage_map_row: 2,
         root: PageNumber::new(INDEX_ROOT),
-        unique,
-        required,
+        flags: match (unique, required) {
+            (false, false) => PhysicalIndexFlagsSpec::Ordinary,
+            (true, false) => PhysicalIndexFlagsSpec::Unique,
+            (false, true) => PhysicalIndexFlagsSpec::Required,
+            (true, true) => PhysicalIndexFlagsSpec::UniqueRequired,
+        },
+        entry_count: 0,
     }
 }
 
@@ -52,23 +64,26 @@ fn spec<'a>(
     physical_indexes: &'a [PhysicalIndexSpec<'a>],
     indexes: &'a [LogicalIndexSpec<'a>],
 ) -> TableDefinitionSpec<'a> {
-    let raw_suffix = if columns.iter().any(|column| {
+    let long_value_maps = if columns.iter().any(|column| {
         matches!(
             column.physical_type(),
             ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
         )
     }) {
-        &LONG_VALUE_SUFFIX[..]
+        &LONG_VALUE_MAPS[..]
     } else {
         &[]
     };
     TableDefinitionSpec {
+        kind: TableDefinitionKind::User,
         columns,
+        system_column_classes: &[],
         physical_indexes,
         indexes,
         owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
         available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
-        raw_suffix,
+        row_count: 0,
+        long_value_maps,
     }
 }
 
@@ -94,6 +109,19 @@ const LONG_VALUE_SUFFIX: [u8; 20] = [
     MAP_PAGE as u8,
     0,
     0,
+];
+
+const LONG_VALUE_MAPS: [LongValueMapSpec; 2] = [
+    LongValueMapSpec {
+        column: 11,
+        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 2),
+        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 3),
+    },
+    LongValueMapSpec {
+        column: 12,
+        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 2),
+        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 3),
+    },
 ];
 
 fn decode(logical: &[u8]) -> Result<TableDefinition, Box<dyn std::error::Error>> {
@@ -235,6 +263,164 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
     assert!(relation.cascade_updates());
     assert!(!relation.cascade_deletes());
     Ok(())
+}
+
+#[test]
+fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult {
+    let columns = [
+        ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
+        ColumnSpec::new(
+            b"Payload",
+            ColumnPhysicalType::LongBinary,
+            ColumnStorageKind::Variable,
+            0,
+        ),
+    ];
+    let fields = [IndexFieldSpec {
+        column: 0,
+        direction: IndexDirection::Ascending,
+    }];
+    let physical = [PhysicalIndexSpec {
+        fields: &fields,
+        usage_map_page: PageNumber::new(MAP_PAGE),
+        usage_map_row: 2,
+        root: PageNumber::new(INDEX_ROOT),
+        flags: PhysicalIndexFlagsSpec::Unique,
+        entry_count: 7,
+    }];
+    let logical = [LogicalIndexSpec {
+        name: b"Id",
+        physical_index: 0,
+        kind: LogicalIndexKindSpec::Primary,
+    }];
+    let maps = [LongValueMapSpec {
+        column: 1,
+        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 2),
+        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 3),
+    }];
+    let system = TableDefinitionSpec {
+        kind: TableDefinitionKind::System,
+        columns: &columns,
+        system_column_classes: &[
+            SystemColumnClassSpec::Fixed,
+            SystemColumnClassSpec::Variable,
+        ],
+        physical_indexes: &physical,
+        indexes: &logical,
+        owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
+        available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
+        row_count: 9,
+        long_value_maps: &maps,
+    };
+    let mut output = [0_u8; PAGE_BYTES];
+    let length = encode_table_definition(&system, &mut output, &mut budget())?;
+    assert_eq!(output[12..16], 9_u32.to_le_bytes());
+    assert_eq!(output[20], 0x53);
+    assert_eq!(output[47..51], 7_u32.to_le_bytes());
+
+    let decoded = decode(&output[..length.get() as usize])?;
+    assert_eq!(decoded.kind(), TableDefinitionKind::System);
+    assert_eq!(decoded.columns()[0].raw_class_flags(), 0x13);
+    assert_eq!(decoded.columns()[1].raw_class_flags(), 0x12);
+    assert_eq!(decoded.columns()[1].raw_record()[5..9], [0, 0, 0, 0]);
+    assert_eq!(decoded.physical_indexes()[0].raw_flags(), 0x01);
+    assert_eq!(
+        decoded.physical_indexes()[0].sourced_prefix()[4..8],
+        7_u32.to_le_bytes()
+    );
+    assert_eq!(decoded.long_value_maps()[0].column().get(), 1);
+
+    let missing = TableDefinitionSpec {
+        system_column_classes: &[],
+        ..system
+    };
+    assert!(matches!(
+        encode_table_definition(&missing, &mut [0; PAGE_BYTES], &mut budget()),
+        Err(TableDefinitionWriteError::InvalidSystemColumnClassCount { .. })
+    ));
+    let invalid = TableDefinitionSpec {
+        system_column_classes: &[SystemColumnClassSpec::Fixed, SystemColumnClassSpec::Binary],
+        ..system
+    };
+    assert!(matches!(
+        encode_table_definition(&invalid, &mut [0; PAGE_BYTES], &mut budget()),
+        Err(TableDefinitionWriteError::InvalidSystemColumnClass { .. })
+    ));
+    Ok(())
+}
+
+#[test]
+fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
+    let columns = [ColumnSpec::new(
+        b"Payload",
+        ColumnPhysicalType::LongBinary,
+        ColumnStorageKind::Variable,
+        0,
+    )];
+    let mut missing = spec(&columns, &[], &[]);
+    missing.long_value_maps = &[];
+    assert_eq!(
+        table_definition_len(&missing).and_then(|length| {
+            encode_table_definition(&missing, &mut vec![0; length], &mut budget()).map(|_| length)
+        }),
+        Err(TableDefinitionWriteError::MissingLongValueMap { column: 0 })
+    );
+    let duplicate_maps = [LongValueMapSpec {
+        column: 0,
+        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
+        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
+    }; 2];
+    missing.long_value_maps = &duplicate_maps;
+    assert!(matches!(
+        encode_table_definition(&missing, &mut [0; PAGE_BYTES], &mut budget()),
+        Err(TableDefinitionWriteError::TooManyLongValueMaps {
+            count: 2,
+            maximum: 1,
+        })
+    ));
+
+    let scalar_columns = [ColumnSpec::new(
+        b"Id",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    let fields = [IndexFieldSpec {
+        column: 0,
+        direction: IndexDirection::Ascending,
+    }];
+    let physical = [PhysicalIndexSpec {
+        fields: &fields,
+        usage_map_page: PageNumber::new(MAP_PAGE),
+        usage_map_row: 0,
+        root: PageNumber::new(INDEX_ROOT),
+        flags: PhysicalIndexFlagsSpec::SystemUninterpreted,
+        entry_count: 0,
+    }];
+    let logical = [LogicalIndexSpec {
+        name: b"Id",
+        physical_index: 0,
+        kind: LogicalIndexKindSpec::Ordinary,
+    }];
+    let user = TableDefinitionSpec {
+        kind: TableDefinitionKind::User,
+        columns: &scalar_columns,
+        system_column_classes: &[],
+        physical_indexes: &physical,
+        indexes: &logical,
+        owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
+        available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
+        row_count: 0,
+        long_value_maps: &[],
+    };
+    assert!(matches!(
+        encode_table_definition(&user, &mut [0; PAGE_BYTES], &mut budget()),
+        Err(TableDefinitionWriteError::InvalidPhysicalFlags {
+            physical_index: 0,
+            kind: TableDefinitionKind::User,
+            flags: PhysicalIndexFlagsSpec::SystemUninterpreted,
+        })
+    ));
 }
 
 #[test]

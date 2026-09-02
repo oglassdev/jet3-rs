@@ -2,13 +2,14 @@
 //! table definition: the inverse of `column_definition.rs`,
 //! `physical_index_definition.rs`, and `index_definition.rs`.
 //!
-//! Record layouts come from `EXP-0059`; relationship cascade bytes from
-//! `EXP-0062`. Names are raw database-code-page bytes (`EXP-0059`).
+//! User record layouts come from `EXP-0059`, system distinctions from
+//! `EXP-0073`, and relationship cascade bytes from `EXP-0062`. Names are raw
+//! database-code-page bytes (`EXP-0059`).
 
-use crate::table_definition_writer::TableDefinitionWriteError;
+use crate::table_definition_writer::{PhysicalIndexFlagsSpec, TableDefinitionWriteError};
 use crate::{
     BinaryWriter, ColumnPhysicalType, ColumnStorageClass, Error, IndexDirection, PageNumber,
-    RelationshipSide,
+    RelationshipSide, TableDefinitionKind,
 };
 
 /// `EXP-0059`: one 18-byte physical record per column.
@@ -28,8 +29,14 @@ pub const MAX_NAME_LEN: usize = u8::MAX as usize;
 const VARIABLE_CLASS: u8 = 2;
 const FIXED_CLASS: u8 = 3;
 const AUTO_INCREMENT_CLASS: u8 = 7;
+/// `EXP-0073`: system variable/fixed classes and the distinct Binary class.
+const SYSTEM_VARIABLE_CLASS: u8 = 0x12;
+const SYSTEM_FIXED_CLASS: u8 = 0x13;
+const SYSTEM_BINARY_CLASS: u8 = 0x32;
 /// `EXP-0059`: sourced value 1 at column record bytes `[7,9)`.
-const SOURCED_CONSTANT: u16 = 1;
+const USER_SOURCED_CONSTANT: u16 = 1;
+/// `EXP-0073`: system column records store zero in the constant field.
+const SYSTEM_SOURCED_CONSTANT: u16 = 0;
 /// `EXP-0059`: raw locale context bytes at column record bytes `[9,13)`.
 const ENCODING_CONTEXT: [u8; 4] = [0x09, 0x04, 0xe4, 0x04];
 /// `EXP-0059`: unused key slots hold ordinal `0xffff`.
@@ -55,6 +62,17 @@ pub enum ColumnStorageKind {
     Fixed,
     /// Variable storage; the index is derived from preceding columns.
     Variable,
+}
+
+/// Exact system column-record classes observed by `EXP-0073`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SystemColumnClassSpec {
+    /// Class `0x12`, including the observed ordinary Binary columns.
+    Variable,
+    /// Class `0x13`.
+    Fixed,
+    /// Class `0x32`, used only by the observed special Binary columns.
+    Binary,
 }
 
 /// One column to encode.
@@ -137,10 +155,10 @@ pub struct PhysicalIndexSpec<'a> {
     pub usage_map_row: u8,
     /// Index-tree root page.
     pub root: PageNumber,
-    /// Whether keys must be unique (`EXP-0059` flag `0x01`).
-    pub unique: bool,
-    /// Whether keys must be non-null (`EXP-0059` flag `0x08`).
-    pub required: bool,
+    /// Exact admitted physical-index flag class.
+    pub flags: PhysicalIndexFlagsSpec,
+    /// Number of distinct keys represented by this physical index.
+    pub entry_count: u32,
 }
 
 /// Interpreted class of one logical index to encode.
@@ -148,7 +166,7 @@ pub struct PhysicalIndexSpec<'a> {
 pub enum LogicalIndexKindSpec {
     /// Ordinary logical index.
     Ordinary,
-    /// Primary logical index; its physical index must be unique and required.
+    /// Primary logical index using the definition-kind-specific primary flags.
     Primary,
     /// Minimum relationship record (`EXP-0059`, `EXP-0062`).
     Relationship {
@@ -190,6 +208,8 @@ pub(crate) struct ResolvedColumn {
 pub(crate) fn resolve_column(
     ordinal: u16,
     column: &ColumnSpec<'_>,
+    definition_kind: TableDefinitionKind,
+    system_class: Option<SystemColumnClassSpec>,
     next_fixed_offset: &mut u16,
     variables_seen: &mut u16,
 ) -> Result<ResolvedColumn, TableDefinitionWriteError> {
@@ -205,6 +225,9 @@ pub(crate) fn resolve_column(
         storage: column.storage,
     };
     let variable_counter = *variables_seen;
+    if definition_kind == TableDefinitionKind::System && column.auto_increment {
+        return Err(class_error);
+    }
     match column.storage {
         ColumnStorageKind::Variable => {
             if !(long_or_binary || physical_type == ColumnPhysicalType::Text)
@@ -221,7 +244,26 @@ pub(crate) fn resolve_column(
             Ok(ResolvedColumn {
                 storage: ColumnStorageClass::Variable { index },
                 variable_counter,
-                class: VARIABLE_CLASS,
+                class: match definition_kind {
+                    TableDefinitionKind::User => VARIABLE_CLASS,
+                    TableDefinitionKind::System => match system_class {
+                        Some(SystemColumnClassSpec::Variable) => SYSTEM_VARIABLE_CLASS,
+                        Some(SystemColumnClassSpec::Binary)
+                            if physical_type == ColumnPhysicalType::Binary =>
+                        {
+                            SYSTEM_BINARY_CLASS
+                        }
+                        Some(SystemColumnClassSpec::Fixed | SystemColumnClassSpec::Binary)
+                        | None => {
+                            return Err(TableDefinitionWriteError::InvalidSystemColumnClass {
+                                ordinal,
+                                class: system_class,
+                                physical_type,
+                                storage: column.storage,
+                            });
+                        }
+                    },
+                },
             })
         }
         ColumnStorageKind::Fixed => {
@@ -230,7 +272,14 @@ pub(crate) fn resolve_column(
             {
                 return Err(class_error);
             }
-            let offset = *next_fixed_offset;
+            let offset = if definition_kind == TableDefinitionKind::System
+                && physical_type == ColumnPhysicalType::Boolean
+            {
+                // EXP-0073: MSysACEs.FInheritable carries offset zero.
+                0
+            } else {
+                *next_fixed_offset
+            };
             if physical_type != ColumnPhysicalType::Boolean {
                 *next_fixed_offset = offset
                     .checked_add(column.size)
@@ -239,10 +288,22 @@ pub(crate) fn resolve_column(
             Ok(ResolvedColumn {
                 storage: ColumnStorageClass::Fixed { offset },
                 variable_counter,
-                class: if column.auto_increment {
-                    AUTO_INCREMENT_CLASS
-                } else {
-                    FIXED_CLASS
+                class: match definition_kind {
+                    TableDefinitionKind::System
+                        if system_class == Some(SystemColumnClassSpec::Fixed) =>
+                    {
+                        SYSTEM_FIXED_CLASS
+                    }
+                    TableDefinitionKind::System => {
+                        return Err(TableDefinitionWriteError::InvalidSystemColumnClass {
+                            ordinal,
+                            class: system_class,
+                            physical_type,
+                            storage: column.storage,
+                        });
+                    }
+                    TableDefinitionKind::User if column.auto_increment => AUTO_INCREMENT_CLASS,
+                    TableDefinitionKind::User => FIXED_CLASS,
                 },
             })
         }
@@ -283,12 +344,19 @@ pub(crate) fn write_column_record(
     ordinal: u16,
     column: &ColumnSpec<'_>,
     resolved: ResolvedColumn,
+    definition_kind: TableDefinitionKind,
 ) -> Result<(), Error> {
     writer.write_u8(column.physical_type.raw())?;
     writer.write_u16_le(ordinal)?;
     writer.write_u16_le(resolved.variable_counter)?;
-    writer.write_u16_le(ordinal)?;
-    writer.write_u16_le(SOURCED_CONSTANT)?;
+    writer.write_u16_le(match definition_kind {
+        TableDefinitionKind::User => ordinal,
+        TableDefinitionKind::System => 0,
+    })?;
+    writer.write_u16_le(match definition_kind {
+        TableDefinitionKind::User => USER_SOURCED_CONSTANT,
+        TableDefinitionKind::System => SYSTEM_SOURCED_CONSTANT,
+    })?;
     writer.write_exact(&ENCODING_CONTEXT)?;
     writer.write_u8(resolved.class)?;
     // EXP-0059: bytes [14,16) of variable records have no assigned meaning.
@@ -384,14 +452,13 @@ pub(crate) fn validate_physical_index(
 
 /// Returns the `EXP-0059` flag byte for one physical index.
 pub(crate) const fn physical_flags(index: &PhysicalIndexSpec<'_>) -> u8 {
-    let mut flags = 0;
-    if index.unique {
-        flags |= UNIQUE_FLAG;
+    match index.flags {
+        PhysicalIndexFlagsSpec::Ordinary => 0,
+        PhysicalIndexFlagsSpec::Unique => UNIQUE_FLAG,
+        PhysicalIndexFlagsSpec::SystemUninterpreted => 0x02,
+        PhysicalIndexFlagsSpec::Required => REQUIRED_FLAG,
+        PhysicalIndexFlagsSpec::UniqueRequired => UNIQUE_FLAG | REQUIRED_FLAG,
     }
-    if index.required {
-        flags |= REQUIRED_FLAG;
-    }
-    flags
 }
 
 /// Writes one validated 39-byte physical-index record.
