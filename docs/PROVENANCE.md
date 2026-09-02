@@ -7635,7 +7635,7 @@ Use `not applicable` explicitly rather than omitting a field.
   authorized run of this plan.
 - Preregistration artifact:
   `oracle/windows-dao/acquisition/schema-generalization.plan.json`, SHA-256
-  `ee6af71a7a3835ee5f5ab0150ca09a311bd661467c009605151195eba6505ed0`.
+  `75742ec80e011791c1961c08889fc00f75ae36fd3f3b2a60402694e42d2a5bb9`.
   It pins the host client, provider probe, guest runner, dispatcher, publisher,
   producer SHA-256
   `188340bf1fed58d3ef7ed6b7180fe4fdafd0f4cf14cbfbfcb0c9433d8f1fd5c1`,
@@ -7675,7 +7675,11 @@ Use `not applicable` explicitly rather than omitting a field.
   `file:oracle/windows-dao/scripts/schema_generalization.py`
 - Rights: future project-generated MDBs and provider outputs remain outside
   the repository and are neither committed nor redistributed
-- Review: pending independent protocol, VM wiring, and analyzer review
+- Review: 2026-09-01 protocol, VM wiring, and analyzer review over three
+  rounds; findings on probe-inventory enforcement, both key images,
+  appended-page attribution, probe/catalog correlation, post-mutation partial
+  failure handling, and fixed-create outcome correlation were resolved before
+  authorization
 
 
 ## Fixtures and black-box results
