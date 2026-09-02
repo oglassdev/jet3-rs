@@ -57,18 +57,20 @@ catalog `LvProp` and an empty retained property page. That admits the bounded
 construction as the next implementation hypothesis; it does not establish the
 same result for arbitrary schemas or permit omitting the retained page. The
 remaining experiments and implementation slices proceed in small independently
-reviewed changes: multiple indexes, definition continuation placement,
-extended names, public creation, initial rows, relationships, and safe
-filesystem publication. `EXP-0092` preregisters the multiple-index experiment
-as four first-create arms copied from one fresh empty base per replica. Its
-acquisition remains forbidden until the exact plan, producer, and analyzer
-hashes are filled, independently reviewed, and merged.
+reviewed changes: multiple-index implementation, definition continuation
+placement, extended names, public creation, initial rows, relationships, and
+safe filesystem publication. `EXP-0093` records an accepted three-replica
+multiple-index result for the four exact first-create arms. It observes one map
+page at `root+1`, the catalog `LvProp` page at `root+2`, and one index root per
+physical ordinal at `root+3+i`. That overturns the composer's current deduced
+one-index order, which places the first root before `LvProp`.
 
-Three remaining format gaps each need their own preregistered DAO validation
-before the planner can widen, roughly in priority order: the multiple-index
-page and map layout, physical/logical ordering, and richer primary, unique, and
-ordinary flag model covered by #150/`EXP-0092`; where a definition continuation
-page lands (#151); and catalog name keys for bytes above `0x7E` (#152). If
-`EXP-0092` is accepted, its implementation slice must address all three index
-concerns rather than only assigning additional roots. #102 remains the separate
-hosted write differential after database creation is complete.
+Two remaining format gaps each need their own preregistered DAO validation
+before the planner can widen: where a definition continuation page lands
+(#151), then catalog name keys for bytes above `0x7E` (#152). #150 is
+evidence-complete. Its bounded implementation slice is unblocked but must
+correct the existing one-index page order while adding multiple physical and
+logical records, name-sorted logical order, and the observed primary, unique,
+ordinary, ascending, and descending forms. It cannot infer arbitrary schemas
+or behavior above three indexes. #102 remains the separate hosted write
+differential after database creation is complete.
