@@ -54,7 +54,7 @@ pub(crate) enum LongValueWriteError {
         /// Largest length the class accepts.
         maximum: usize,
     },
-    /// An external row would hold no payload bytes.
+    /// An external header or row would carry no payload bytes.
     EmptyRow,
     /// A chained fragment exceeds one row.
     FragmentTooLong {
@@ -119,8 +119,13 @@ pub(crate) fn external_long_value_header(
         ExternalLongValueStorage::SinglePage => (SINGLE_PAGE_FLAG, MAX_SINGLE_PAGE_PAYLOAD),
         ExternalLongValueStorage::Chained => (CHAINED_FLAG, MAX_DECLARED_LENGTH),
     };
+    // Every external row holds at least one byte, so no row can back a
+    // zero-length header and the reader would reject the pair.
+    if length == 0 {
+        return Err(LongValueWriteError::EmptyRow);
+    }
     let control = control_word(length, flag, maximum)?;
-    if target.page().get() == 0 && target.slot() == 0 {
+    if is_null(target) {
         return Err(LongValueWriteError::NullTarget);
     }
     let mut header = [0_u8; HEADER_LEN];
@@ -171,6 +176,9 @@ pub(crate) fn encode_chained_row(
         });
     }
     let pointer = match next {
+        // The null locator is the end-of-chain marker, so naming it as a
+        // following row would silently truncate the chain.
+        Some(locator) if is_null(locator) => return Err(LongValueWriteError::NullTarget),
         Some(locator) => encode_locator(locator)?,
         None => [0; CHAIN_POINTER_LEN],
     };
@@ -208,6 +216,10 @@ fn encode_locator(locator: RowLocator) -> Result<[u8; CHAIN_POINTER_LEN], LongVa
 /// Returns the null-locator sentinel the reader treats as end of chain.
 pub(crate) const fn null_locator() -> RowLocator {
     RowLocator::new(PageNumber::new(0), 0)
+}
+
+fn is_null(locator: RowLocator) -> bool {
+    locator.page().get() == 0 && locator.slot() == 0
 }
 
 #[cfg(test)]

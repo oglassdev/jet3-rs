@@ -96,6 +96,32 @@ fn the_null_target_is_refused_because_the_reader_rejects_it() {
 }
 
 #[test]
+fn a_zero_length_external_header_is_refused() {
+    // No external row can be empty, so nothing could back such a header.
+    for storage in [
+        ExternalLongValueStorage::SinglePage,
+        ExternalLongValueStorage::Chained,
+    ] {
+        assert_eq!(
+            external_long_value_header(0, storage, locator(30, 0)),
+            Err(LongValueWriteError::EmptyRow)
+        );
+    }
+}
+
+#[test]
+fn a_chained_row_refuses_the_null_locator_as_its_next_row() {
+    // The null locator is the end-of-chain marker; naming it as a following
+    // row would encode a terminal row while claiming the chain continues.
+    let mut output = [0xaa_u8; 8];
+    assert_eq!(
+        encode_chained_row(b"abc", Some(null_locator()), &mut output),
+        Err(LongValueWriteError::NullTarget)
+    );
+    assert!(output.iter().all(|byte| *byte == 0xaa));
+}
+
+#[test]
 fn a_locator_page_above_the_three_byte_range_is_refused() {
     let too_high = locator(MAX_LOCATOR_PAGE + 1, 0);
     assert_eq!(
