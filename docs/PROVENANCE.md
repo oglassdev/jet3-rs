@@ -7980,6 +7980,77 @@ Use `not applicable` explicitly rather than omitting a field.
   remaining findings
 
 
+### EXP-0090 — Preregistered producer-order null-LvProp validation
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration successor;
+  no provider acquisition has occurred under this successor plan
+- Question: the exact candidates, three-replica control structure, eight
+  read-only endpoint frontiers, bounds, decision rules, and excluded claims are
+  those fixed by `EXP-0088`.
+- Origin: `EXP-0089` completed its producer once but was validation-rejected
+  without a canonical report. The producer attempted to sort bounded DAO
+  property collections but serialized them in producer order. The plan
+  required sorted collections, and the analyzer enforced Python case-folded
+  order. The raw observations from that rejected run are method-design input
+  only and are not reanalyzed or admitted as an answer.
+- Protocol correction: property sequences are accepted in their bounded
+  producer order while still requiring at most 64 entries, exact `name` and
+  `type` fields, nonempty unique names of at most 256 characters, signed
+  32-bit integer types, the `Required` property, and `Field.Required` false.
+  Snapshot equality remains exact and order-sensitive. Replica disagreement,
+  including disagreement among fresh controls, yields `no_outcome`; one stable
+  null-candidate/control order difference is a semantic mismatch under the
+  existing accepted-negative rule. The analyzer neither sorts nor normalizes
+  an acquired sequence. Every other producer, analyzer, control, candidate,
+  endpoint, bound, retention, and decision predicate is unchanged.
+- Design diagnostic: removing only the rejected ordering predicate in memory
+  allowed every other validator to consume the retained `EXP-0089` job result.
+  This confirms the successor's correction is minimal but is not a canonical
+  report, does not answer either question, and contributes no format fact.
+- Preregistration artifact: the existing
+  `oracle/windows-dao/acquisition/lvprop-null.plan.json` is replaced, not
+  stacked with a revision file, and now has SHA-256
+  `a7a466c9f7f3dbc27869342f5de36ac13420818b47980c12f18104335306d0a5`.
+  It pins the corrected analyzer at SHA-256
+  `5aa0de8e59250adc860477e7763fa6db911ad1edadbdcd952d2ce4f9b4d2f1d2`.
+  The 98-file source manifest SHA-256
+  `3493b9937a53daa5c38d409c7af9ebe4694ba609b26b66259f7dac7214b67d76`,
+  producer SHA-256
+  `952066d689df5daa87723826912c95707357910f4a6cca450471648ac3755236`,
+  all other input pins, and both 47,104-byte candidate identities remain
+  unchanged from `EXP-0088`.
+- Observation: `preregistration.acquisition_started` remains `false` for this
+  successor. Because `EXP-0089` crossed the first DAO mutation, the earlier
+  general authorization does not permit redispatch. One new three-replica run
+  is allowed only after these exact reviewed bytes reach `main` and a human
+  explicitly authorizes the successor; the checked client must then verify
+  every merged pin. No later post-mutation failure may be retried without
+  another new human decision.
+- Decision rule: unchanged from `EXP-0088`. The fixed candidate must be
+  `observed_accepted`; the null candidate may be a consistent
+  `observed_accepted` or accepted negative observation. Control failure,
+  mutation, disagreement including property-sequence order, incomplete work,
+  or an unclassifiable observation is an honest `no_outcome`; pin, inventory,
+  bound, candidate-identity, or result-integrity defects reject without a
+  canonical report.
+- Interpretation: this successor changes only property-sequence validation.
+  It establishes no property ordering semantics or grammar, null-`LvProp`
+  construction fact, permission to omit page 22 or its map references,
+  arbitrary schema acceptance, writer or publication correctness,
+  compatibility, hosted differential result, or support-matrix movement.
+- Usage: future successor result; issue `#149`; `EXP-0088`; `EXP-0089`;
+  `file:oracle/windows-dao/acquisition/lvprop-null.plan.json`;
+  `file:oracle/windows-dao/scripts/lvprop_null.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: three independent protocol-correction, exact-pin, analyzer,
+  decision-rule, evidence-boundary, and non-reinterpretation review rounds;
+  findings on stable order-mismatch classification, target-only replica
+  disagreement, sorted-versus-casefold wording, and normalization ambiguity
+  were resolved, and final audits reported no remaining findings
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

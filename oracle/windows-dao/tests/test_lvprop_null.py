@@ -27,9 +27,13 @@ def endpoint_observation(
             "detail": "rejected",
             "snapshot": {},
         }
-    table_properties = [{"name": "Name", "type": 10}]
+    table_properties = [
+        {"name": "ValidationRule", "type": 10},
+        {"name": "RecordCount", "type": 4},
+        {"name": "Name", "type": 10},
+    ]
     if semantic_mismatch:
-        table_properties = [{"name": "Name", "type": 12}]
+        table_properties[-1] = {"name": "Name", "type": 12}
     return {
         "status": "pass",
         "completed": ANALYZER.ALPHA_ENDPOINTS,
@@ -39,7 +43,10 @@ def endpoint_observation(
             "table_documents": ANALYZER.ALPHA_TABLES,
             "field": {"name": "Id", "type": 4},
             "table_properties": table_properties,
-            "field_properties": [{"name": "Required", "type": 1}],
+            "field_properties": [
+                {"name": "ValidationRule", "type": 10},
+                {"name": "Required", "type": 1},
+            ],
             "field_required": False,
         },
     }
@@ -337,18 +344,60 @@ class LvPropNullTests(unittest.TestCase):
             with self.assertRaisesRegex(ANALYZER.AnalysisError, "retained identity"):
                 self.evaluate(root, document, pins)
 
-    def test_property_shape_accepts_sorted_values_but_rejects_duplicates(self) -> None:
+    def test_property_shape_accepts_bounded_producer_order(self) -> None:
         properties = [
+            {"name": "ValidationRule", "type": 10},
             {"name": "Name", "type": 10},
             {"name": "RecordCount", "type": 4},
-            {"name": "ValidationRule", "type": 10},
         ]
         self.assertEqual(ANALYZER.property_shape(properties, "properties"), properties)
-        with self.assertRaisesRegex(ANALYZER.AnalysisError, "not sorted"):
-            ANALYZER.property_shape(list(reversed(properties)), "properties")
         properties.append({"name": "Name", "type": 10})
         with self.assertRaisesRegex(ANALYZER.AnalysisError, "nonempty and unique"):
             ANALYZER.property_shape(properties, "properties")
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "nonempty and unique"):
+            ANALYZER.property_shape([{"name": "", "type": 4}], "properties")
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "type is invalid"):
+            ANALYZER.property_shape([{"name": "Name", "type": True}], "properties")
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "at most 64"):
+            ANALYZER.property_shape(
+                [{"name": f"P{index}", "type": 4} for index in range(65)],
+                "properties",
+            )
+
+    def test_differing_producer_orders_across_replicas_are_a_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document, pins = job_document(root)
+            document["replicas"][1]["images"][1]["endpoints"]["snapshot"][
+                "table_properties"
+            ].reverse()
+            report = self.evaluate(root, document, pins)
+
+        self.assertEqual(report["status"], "no_outcome")
+        self.assertEqual(
+            report["questions"]["fixed_candidate"]["status"],
+            "observed_accepted",
+        )
+        self.assertEqual(
+            report["questions"]["null_candidate"]["status"],
+            "no_outcome",
+        )
+
+    def test_stable_candidate_order_mismatch_is_an_accepted_negative(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document, pins = job_document(root)
+            for replica in document["replicas"]:
+                replica["images"][1]["endpoints"]["snapshot"][
+                    "table_properties"
+                ].reverse()
+            report = self.evaluate(root, document, pins)
+
+        self.assertEqual(report["status"], "accepted")
+        self.assertEqual(
+            report["questions"]["null_candidate"]["status"],
+            "not_observed_accepted",
+        )
 
     def test_order_status_unique_json_and_inventory_are_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
