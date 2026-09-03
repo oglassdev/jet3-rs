@@ -1,9 +1,13 @@
+use std::error::Error as StdError;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{PrivateCopy, PublishStage, atomic_update, atomic_update_with_hook};
+use super::{
+    PrivateCopy, PublishStage, atomic_create, atomic_create_with_hook, atomic_update,
+    atomic_update_with_hook,
+};
 use crate::{ReadLimits, ResourceBudget, ResourceLimits};
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -301,5 +305,118 @@ fn identity_capture_failure_removes_exclusively_created_private_file() -> TestRe
     assert_eq!(error.to_string(), "injected identity capture failure");
     assert_eq!(directory.private_entries()?, 0);
     assert_eq!(fs::read(&target)?, b"original");
+    Ok(())
+}
+
+fn write_fresh(file: &mut std::fs::File) -> Result<(), std::io::Error> {
+    file.write_all(b"fresh")
+}
+
+fn validate_fresh(path: &Path) -> Result<(), TestFailure> {
+    if fs::read(path).map_err(|_| TestFailure("validation read failed"))? == b"fresh" {
+        Ok(())
+    } else {
+        Err(TestFailure("fresh file did not validate"))
+    }
+}
+
+#[test]
+fn successful_create_publishes_the_validated_file() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    atomic_create(&target, write_fresh, validate_fresh)?;
+    assert_eq!(fs::read(&target)?, b"fresh");
+    assert_eq!(directory.private_entries()?, 0);
+    Ok(())
+}
+
+#[test]
+fn create_directory_sync_fault_reports_the_published_target() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |stage| {
+        if stage == PublishStage::DirectorySync {
+            Err(TestFailure("injected directory-sync failure"))
+        } else {
+            Ok(())
+        }
+    })
+    .err()
+    .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
+    assert_eq!(error.stage(), PublishStage::DirectorySync);
+    assert_eq!(fs::read(&target)?, b"fresh");
+    assert_eq!(directory.private_entries()?, 1);
+    Ok(())
+}
+
+#[test]
+fn create_refuses_an_existing_target_and_leaves_it_untouched() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    fs::write(&target, b"original")?;
+    let error = atomic_create(&target, write_fresh, validate_fresh)
+        .err()
+        .ok_or(TestFailure("create over an existing target succeeded"))?;
+    assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
+    let io_error = StdError::source(&error)
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .ok_or(TestFailure("missing I/O source"))?;
+    assert_eq!(io_error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(fs::read(&target)?, b"original");
+    assert_eq!(directory.private_entries()?, 0);
+    Ok(())
+}
+
+#[test]
+fn create_failures_before_publication_leave_the_target_absent() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    for stage in [
+        PublishStage::Mutation,
+        PublishStage::Validation,
+        PublishStage::FileSync,
+        PublishStage::PrePublish,
+        PublishStage::Publish,
+    ] {
+        let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |visited| {
+            if visited == stage {
+                Err(TestFailure("injected"))
+            } else {
+                Ok(())
+            }
+        })
+        .err()
+        .ok_or(TestFailure("injected failure did not fail the create"))?;
+        assert_eq!(error.stage(), stage);
+        assert!(error.cleanup_error().is_none());
+        assert!(!target.exists(), "target exists after {stage} failure");
+        assert_eq!(directory.private_entries()?, 0);
+    }
+    let error = atomic_create(&target, write_fresh, |_: &Path| {
+        Err::<(), _>(TestFailure("rejected"))
+    })
+    .err()
+    .ok_or(TestFailure("rejected validation did not fail the create"))?;
+    assert_eq!(error.stage(), PublishStage::Validation);
+    assert!(!target.exists());
+    assert_eq!(directory.private_entries()?, 0);
+    Ok(())
+}
+
+#[test]
+fn create_does_not_replace_a_target_that_appears_before_publication() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |visited| {
+        if visited == PublishStage::Publish {
+            fs::write(&target, b"raced")?;
+        }
+        Ok::<(), std::io::Error>(())
+    })
+    .err()
+    .ok_or(TestFailure("publication over a raced target succeeded"))?;
+    assert_eq!(error.stage(), PublishStage::Publish);
+    assert_eq!(fs::read(&target)?, b"raced");
+    assert_eq!(directory.private_entries()?, 0);
     Ok(())
 }

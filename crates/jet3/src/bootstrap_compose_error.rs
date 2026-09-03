@@ -2,19 +2,29 @@
 
 use super::*;
 
-/// Structured failure while composing a fixed bootstrap image.
+/// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BootstrapComposeError {
+pub enum BootstrapComposeError {
+    /// A table definition could not be encoded.
     Definition(TableDefinitionWriteError),
+    /// A usage map could not be encoded.
     UsageMap(UsageMapWriteError),
+    /// A page image could not be written.
     Page(PageImageError),
+    /// A data row could not be encoded.
     Row(RowWriteError),
+    /// The whole-file page plan could not be extended.
     WholeFile(WholeFilePlanError),
+    /// A low-level encoding or resource limit failed.
     Encoding(Error),
+    /// A bootstrap index page cannot hold its entries.
     IndexPageFull {
+        /// Bytes the entries need.
         needed: usize,
+        /// Bytes the entry area holds.
         available: usize,
     },
+    /// A catalog name could not be encoded into an index key.
     NameKey(CatalogNameKeyError),
     /// The table could not be planned.
     Schema(TableSchemaPlanError),

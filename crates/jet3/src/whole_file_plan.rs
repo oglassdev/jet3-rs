@@ -21,7 +21,7 @@ const EXISTING_PAGE_COUNT: usize = EMPTY_DATABASE_PAGE_COUNT as usize;
 
 /// Structured failure while aggregating a whole-file page plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum WholeFilePlanError {
+pub enum WholeFilePlanError {
     /// Resource accounting or allocation failed while retaining page plans.
     Resource(Error),
     /// A fresh image could not be appended.

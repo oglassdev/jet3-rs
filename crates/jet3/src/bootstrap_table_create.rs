@@ -29,7 +29,7 @@
 
 use super::*;
 use crate::table_schema_plan::{
-    AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSchemaSpec,
+    AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
     logical_index_order, plan_table_schema,
 };
 
@@ -41,7 +41,7 @@ const MAX_OBSERVED_LONG_VALUE_COLUMNS: usize = 1;
 /// A create with its pages assigned and its map-page rows laid out.
 #[derive(Debug, Clone)]
 pub(super) struct PlannedCreate<'a> {
-    spec: &'a TableSchemaSpec<'a>,
+    spec: &'a TableSpec<'a>,
     plan: TableSchemaPlan,
     /// The long-value column's ordinal; its owned map takes the first free
     /// map-page row and its available map the next.
@@ -50,7 +50,7 @@ pub(super) struct PlannedCreate<'a> {
 
 impl<'a> PlannedCreate<'a> {
     /// Plans `spec` as the first create in the empty database.
-    pub(super) fn new(spec: &'a TableSchemaSpec<'a>) -> Result<Self, BootstrapComposeError> {
+    pub(super) fn new(spec: &'a TableSpec<'a>) -> Result<Self, BootstrapComposeError> {
         let plan = plan_table_schema(spec, EMPTY_DATABASE_PAGE_COUNT)?;
         let mut long_value_columns = long_value_columns(spec);
         let long_value = long_value_columns.next();
@@ -67,10 +67,6 @@ impl<'a> PlannedCreate<'a> {
             plan,
             long_value,
         })
-    }
-
-    pub(super) const fn object_id(&self) -> i32 {
-        self.plan.object_id()
     }
 
     /// Returns the page holding the catalog row's `LvProp` long value.
@@ -201,7 +197,7 @@ impl<'a> PlannedCreate<'a> {
 }
 
 /// Returns the ordinals of the columns that own long-value map groups.
-fn long_value_columns<'s>(spec: &'s TableSchemaSpec<'_>) -> impl Iterator<Item = u16> + 's {
+fn long_value_columns<'s>(spec: &'s TableSpec<'_>) -> impl Iterator<Item = u16> + 's {
     spec.columns
         .iter()
         .enumerate()

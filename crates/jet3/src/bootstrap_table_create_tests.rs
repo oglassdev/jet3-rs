@@ -3,9 +3,7 @@
 
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
 use super::super::{BootstrapComposeError, compose_table_database};
-use crate::table_schema_plan::{
-    PlannedIndex, PlannedIndexKind, TableSchemaPlanError, TableSchemaSpec,
-};
+use crate::table_schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
 use crate::{
     ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, DatabaseReader,
     IndexDirection, IndexFieldSpec, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource,
@@ -14,7 +12,7 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn create_bytes(spec: &TableSchemaSpec<'_>) -> Result<Vec<u8>, BootstrapComposeError> {
+fn create_bytes(spec: &TableSpec<'_>) -> Result<Vec<u8>, BootstrapComposeError> {
     let mut budget = compose_budget();
     let plan = compose_table_database(spec, &mut budget)?;
     let mut bytes = Vec::with_capacity(plan.pages().len() * PAGE_BYTES);
@@ -79,7 +77,7 @@ fn a_created_memo_table_carries_its_long_value_map_groups_on_its_map_page() -> T
     // EXP-0087's Beta shape as a first create: root, map page, empty LvProp
     // page, and one EXP-0077 map group for the Memo column.
     let columns = [ID, NAME, NOTE];
-    let bytes = create_bytes(&TableSchemaSpec {
+    let bytes = create_bytes(&TableSpec {
         name: b"Beta",
         columns: &columns,
         indexes: &[],
@@ -128,26 +126,26 @@ fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> Te
     // appended in that order, the last one composite with a descending field.
     let columns = [ID, CODE, SEQUENCE];
     let indexes = [
-        PlannedIndex {
+        IndexSpec {
             name: b"ZPrimary",
             fields: &[field(0, IndexDirection::Ascending)],
-            kind: PlannedIndexKind::Primary,
+            kind: IndexKind::Primary,
         },
-        PlannedIndex {
+        IndexSpec {
             name: b"MUniqueX",
             fields: &[field(1, IndexDirection::Ascending)],
-            kind: PlannedIndexKind::Unique,
+            kind: IndexKind::Unique,
         },
-        PlannedIndex {
+        IndexSpec {
             name: b"ASecondx",
             fields: &[
                 field(1, IndexDirection::Descending),
                 field(2, IndexDirection::Ascending),
             ],
-            kind: PlannedIndexKind::Ordinary,
+            kind: IndexKind::Ordinary,
         },
     ];
-    let bytes = create_bytes(&TableSchemaSpec {
+    let bytes = create_bytes(&TableSpec {
         name: b"Three",
         columns: &columns,
         indexes: &indexes,
@@ -227,7 +225,7 @@ fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            &TableSchemaSpec {
+            &TableSpec {
                 name: b"Wide",
                 columns: &columns,
                 indexes: &[],
@@ -247,15 +245,15 @@ fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
 fn a_table_with_both_an_index_and_a_long_value_column_is_refused() {
     // No observed create carried both, so their map-page row order is unobserved.
     let columns = [ID, NOTE];
-    let indexes = [PlannedIndex {
+    let indexes = [IndexSpec {
         name: b"ById",
         fields: &[field(0, IndexDirection::Ascending)],
-        kind: PlannedIndexKind::Ordinary,
+        kind: IndexKind::Ordinary,
     }];
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            &TableSchemaSpec {
+            &TableSpec {
                 name: b"Mixed",
                 columns: &columns,
                 indexes: &indexes,
@@ -272,7 +270,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            &TableSchemaSpec {
+            &TableSpec {
                 name: b"",
                 columns: &columns,
                 indexes: &[],
@@ -300,7 +298,7 @@ fn a_second_long_value_column_is_refused() {
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            &TableSchemaSpec {
+            &TableSpec {
                 name: b"Wide",
                 columns: &columns,
                 indexes: &[],

@@ -1,5 +1,5 @@
-//! Crate-private typed planning of one new user table as a database's first
-//! create.
+//! Typed description and crate-private planning of one new user table as a
+//! database's first create.
 //!
 //! This validates a caller-described table and assigns its appended pages. It
 //! builds no page bytes and performs no I/O.
@@ -25,11 +25,6 @@
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.
-
-#![allow(
-    dead_code,
-    reason = "crate-private writer slice awaiting DAO validation"
-)]
 
 use std::fmt;
 
@@ -62,9 +57,9 @@ pub(crate) const CONTINUATION_CAPACITY: usize = PAGE_BYTES - 8;
 /// `EXP-0101` is bounded and does not widen this.
 const LAST_ESTABLISHED_NAME_BYTE: u8 = 0x7e;
 
-/// The uniqueness class of a planned index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlannedIndexKind {
+/// The uniqueness class of an index in a [`TableSpec`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IndexKind {
     /// The table's primary index; `EXP-0093` observed physical flags `0x09`.
     Primary,
     /// A unique non-primary index; `EXP-0093` observed physical flags `0x01`.
@@ -73,7 +68,7 @@ pub(crate) enum PlannedIndexKind {
     Ordinary,
 }
 
-impl PlannedIndexKind {
+impl IndexKind {
     /// Returns the physical flag class this index kind encodes to.
     pub(crate) const fn flags(self) -> PhysicalIndexFlagsSpec {
         match self {
@@ -92,31 +87,31 @@ impl PlannedIndexKind {
     }
 }
 
-/// One index of a table being planned.
+/// One index of a [`TableSpec`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PlannedIndex<'a> {
-    /// Index name in the database's configured code page.
-    pub(crate) name: &'a [u8],
-    /// Ordered key fields.
-    pub(crate) fields: &'a [IndexFieldSpec],
+pub struct IndexSpec<'a> {
+    /// Index name; bytes must be at most `0x7E`.
+    pub name: &'a [u8],
+    /// Ordered key fields naming table column ordinals.
+    pub fields: &'a [IndexFieldSpec],
     /// The index's uniqueness class.
-    pub(crate) kind: PlannedIndexKind,
+    pub kind: IndexKind,
 }
 
-/// A caller-described user table awaiting validation and page assignment.
+/// One user table to create.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TableSchemaSpec<'a> {
-    /// Table name in the database's configured code page.
-    pub(crate) name: &'a [u8],
+pub struct TableSpec<'a> {
+    /// Table name; bytes must be at most `0x7E`.
+    pub name: &'a [u8],
     /// The table's columns in ordinal order.
-    pub(crate) columns: &'a [ColumnSpec<'a>],
-    /// The table's indexes in physical (append) order.
-    pub(crate) indexes: &'a [PlannedIndex<'a>],
+    pub columns: &'a [ColumnSpec<'a>],
+    /// The table's indexes in physical (append) order; at most three.
+    pub indexes: &'a [IndexSpec<'a>],
 }
 
 /// Structured failure while planning one new user table.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TableSchemaPlanError {
+pub enum TableSchemaPlanError {
     /// The table name cannot be encoded into a catalog index key.
     TableNameKey(CatalogNameKeyError),
     /// The table name cannot be encoded into an `MSysObjects` row.
@@ -208,7 +203,6 @@ impl std::error::Error for TableSchemaPlanError {
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
     definition_root: PageNumber,
-    definition_len: usize,
     index_count: usize,
 }
 
@@ -221,11 +215,6 @@ impl TableSchemaPlan {
     /// Returns the page holding the table's definition.
     pub(crate) const fn definition_root(&self) -> PageNumber {
         self.definition_root
-    }
-
-    /// Returns the exact logical length of the encoded definition.
-    pub(crate) const fn definition_len(&self) -> usize {
-        self.definition_len
     }
 
     /// Returns the page holding the table's usage-map rows.
@@ -260,7 +249,7 @@ impl TableSchemaPlan {
 /// Validates `spec` as a first create and assigns its appended pages starting
 /// at `first_page`, the database's current page count.
 pub(crate) fn plan_table_schema(
-    spec: &TableSchemaSpec<'_>,
+    spec: &TableSpec<'_>,
     first_page: u64,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     validate_table_name(spec.name)?;
@@ -278,15 +267,15 @@ pub(crate) fn plan_table_schema(
             observed: MAX_OBSERVED_INDEXES,
         });
     }
-    let definition_len = measure_definition(spec)?;
-    let continuations = continuation_count(definition_len);
+    let length = measure_definition(spec)?;
+    let continuations = continuation_count(length);
     if continuations > 0 {
         return Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
-            length: definition_len,
+            length,
             continuations,
         });
     }
-    let plan = assign_pages(spec, first_page, definition_len)?;
+    let plan = assign_pages(spec, first_page)?;
     validate_indexes(spec, &plan)?;
     Ok(plan)
 }
@@ -319,7 +308,7 @@ fn validate_name_bytes(
 }
 
 /// Returns the exact logical length of the definition `spec` encodes to.
-fn measure_definition(spec: &TableSchemaSpec<'_>) -> Result<usize, TableSchemaPlanError> {
+fn measure_definition(spec: &TableSpec<'_>) -> Result<usize, TableSchemaPlanError> {
     // The writer requires one long-value map group per Memo or LongBinary
     // column, so the group count follows from the columns.
     let long_value_maps = spec
@@ -351,9 +340,8 @@ pub(crate) const fn continuation_count(length: usize) -> usize {
 
 /// Assigns the appended page run, refusing numbers the encoders cannot name.
 fn assign_pages(
-    spec: &TableSchemaSpec<'_>,
+    spec: &TableSpec<'_>,
     first_page: u64,
-    definition_len: usize,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     let needed = 3 + spec.indexes.len() as u64;
     // `EXP-0093` numbers the object equal to its definition root, and
@@ -375,7 +363,6 @@ fn assign_pages(
     Ok(TableSchemaPlan {
         object_id,
         definition_root: PageNumber::new(first_page),
-        definition_len,
         index_count: spec.indexes.len(),
     })
 }
@@ -383,7 +370,7 @@ fn assign_pages(
 /// Checks each index against the physical-index encoder, the primary count,
 /// and the name-order rule the logical records will follow.
 fn validate_indexes(
-    spec: &TableSchemaSpec<'_>,
+    spec: &TableSpec<'_>,
     plan: &TableSchemaPlan,
 ) -> Result<(), TableSchemaPlanError> {
     let mut primary: Option<usize> = None;
@@ -413,7 +400,7 @@ fn validate_indexes(
         };
         validate_physical_index(ordinal, &physical, spec.columns)
             .map_err(TableSchemaPlanError::Definition)?;
-        if planned.kind == PlannedIndexKind::Primary
+        if planned.kind == IndexKind::Primary
             && let Some(first) = primary.replace(position)
         {
             return Err(TableSchemaPlanError::MultiplePrimaryIndexes {
@@ -440,7 +427,7 @@ fn validate_indexes(
 ///
 /// Names are compared by byte value; the planner has already refused pairs
 /// whose byte order and ASCII case-folded order disagree.
-pub(crate) fn logical_index_order(indexes: &[PlannedIndex<'_>]) -> Vec<usize> {
+pub(crate) fn logical_index_order(indexes: &[IndexSpec<'_>]) -> Vec<usize> {
     let mut order: Vec<usize> = (0..indexes.len()).collect();
     order.sort_by(|left, right| indexes[*left].name.cmp(indexes[*right].name));
     order

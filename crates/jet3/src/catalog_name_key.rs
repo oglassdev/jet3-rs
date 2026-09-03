@@ -50,7 +50,7 @@ const TEXT_COMPONENT_OVERHEAD: usize = 2;
 
 /// Structured failure while encoding a `ParentId`/`Name` index key.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CatalogNameKeyError {
+pub enum CatalogNameKeyError {
     /// The name is empty, so it has no text component to encode.
     EmptyName,
     /// `EXP-0087` establishes no primary weight for this name byte.
