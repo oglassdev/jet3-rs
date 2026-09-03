@@ -77,6 +77,14 @@ The retained tooling has three purposes:
   indexed and compact-continuation candidates with fresh same-schema controls
   across three replicas. It is limited to those identities and read-only
   endpoints and makes no arbitrary-schema, allocation, or compatibility claim.
+- `acquisition/multi-table-create.plan.json`,
+  `scripts/dev/MultiTableCreate.DevJob.ps1`, and
+  `scripts/multi_table_create.py` define the SHA-256-pinned issue #100
+  multi-table experiment. It compares one library-composed candidate holding
+  the exact `EXP-0087` Alpha, Beta, Gamma, and Delta tables with a fresh
+  same-sequence DAO control across three replicas. It is limited to that
+  identity and read-only endpoints and makes no arbitrary-schema, allocation,
+  or compatibility claim.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
@@ -100,6 +108,7 @@ python3 -B -m unittest oracle/windows-dao/tests/test_schema_generalization.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_multiple_indexes.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_lvprop_null.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_lvprop_null_schemas.py -v
+python3 -B -m unittest oracle/windows-dao/tests/test_multi_table_create.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 

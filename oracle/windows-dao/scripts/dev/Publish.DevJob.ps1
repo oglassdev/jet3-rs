@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas", "multi-table-create")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -644,6 +644,63 @@ switch ($Job) {
         if ([string]$jobResult.status -ceq "pass" -and
             ($actual -join "`n") -cne ($allowedSorted -join "`n")) {
             throw "Passing null-LvProp schema output omits an MDB."
+        }
+        foreach ($name in $actual) { [void]$names.Add($name) }
+    }
+    "multi-table-create" {
+        [void]$names.Add("multi-table-create-job-result.json")
+        $jobResultPath = Join-Path $Source "multi-table-create-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Multi-table create result is missing."
+        }
+        $jobResultItem = Get-Item -LiteralPath $jobResultPath
+        if (($jobResultItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Multi-table create result must not be a reparse point."
+        }
+        if ($jobResultItem.Length -gt 4194304) {
+            throw "Multi-table create result exceeds the 4-MiB bound."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($image in @($replica.images)) {
+                [void]$referenced.Add([string]$image.database)
+            }
+        }
+        if ($referenced.Count -gt 6 -or
+            @($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Multi-table create result exceeds its unique 6-database bound."
+        }
+        $allowed = New-Object Collections.ArrayList
+        foreach ($replica in 1..3) {
+            foreach ($kind in @("candidate", "control")) {
+                [void]$allowed.Add("$kind-r$replica-quad.mdb")
+            }
+        }
+        if (@($referenced | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
+            throw "Multi-table create result references an unexpected database."
+        }
+        $allowedSorted = @($allowed | Sort-Object)
+        if ([string]$jobResult.status -ceq "pass" -and
+            (@($referenced | Sort-Object) -join "`n") -cne ($allowedSorted -join "`n")) {
+            throw "Passing multi-table create result omits a database."
+        }
+        $actualItems = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb")
+        foreach ($item in $actualItems) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or
+                $item.Length -gt 131072) {
+                throw "Multi-table create output MDB violates the 64-page bound."
+            }
+        }
+        $actual = @($actualItems | ForEach-Object { $_.Name } | Sort-Object)
+        if (@($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0 -or
+            @($referenced | Where-Object { $_ -cnotin $actual }).Count -ne 0) {
+            throw "Multi-table create MDB inventory differs from its result."
+        }
+        if ([string]$jobResult.status -ceq "pass" -and
+            ($actual -join "`n") -cne ($allowedSorted -join "`n")) {
+            throw "Passing multi-table create output omits an MDB."
         }
         foreach ($name in $actual) { [void]$names.Add($name) }
     }

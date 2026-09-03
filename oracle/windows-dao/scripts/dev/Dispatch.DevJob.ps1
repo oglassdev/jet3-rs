@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas", "multi-table-create")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -45,6 +45,8 @@ param(
     [string]$LvPropSchemasAlphaPath = "",
     [string]$LvPropSchemasIndexedPath = "",
     [string]$LvPropSchemasWidePath = "",
+    [string]$MultiTableCreateJobPath = "",
+    [string]$MultiTableQuadPath = "",
     [string]$PlanSha256 = "",
     [string]$RunId = ""
 )
@@ -81,6 +83,7 @@ $scriptPath = switch ($Job) {
     "extended-names" { $ExtendedNamesJobPath }
     "lvprop-null" { $LvPropNullJobPath }
     "lvprop-null-schemas" { $LvPropNullSchemasJobPath }
+    "multi-table-create" { $MultiTableCreateJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -125,6 +128,13 @@ elseif ($Job -ceq "lvprop-null-schemas") {
         "-WideCandidatePath", $LvPropSchemasWidePath
     )
 }
+elseif ($Job -ceq "multi-table-create") {
+    $arguments += @(
+        "-PlanSha256", $PlanSha256,
+        "-RunId", $RunId,
+        "-QuadCandidatePath", $MultiTableQuadPath
+    )
+}
 elseif ($Job -ceq "bootstrap-composer-validation") {
     $arguments += @(
         "-PlanSha256", $PlanSha256,
@@ -153,6 +163,7 @@ $resultName = switch ($Job) {
     "extended-names" { "extended-names-job-result.json" }
     "lvprop-null" { "lvprop-null-job-result.json" }
     "lvprop-null-schemas" { "lvprop-null-schemas-job-result.json" }
+    "multi-table-create" { "multi-table-create-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -175,6 +186,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         extended_names_replicas = @()
         lvprop_null_replicas = @()
         lvprop_null_schemas_replicas = @()
+        multi_table_create_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
     exit 1
@@ -195,6 +207,7 @@ $definitionContinuationReplicas = @()
 $extendedNamesReplicas = @()
 $lvpropNullReplicas = @()
 $lvpropNullSchemasReplicas = @()
+$multiTableCreateReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
 $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     if ([string]$jobResult.status -ceq "pass") {
@@ -252,6 +265,14 @@ elseif ($Job -ceq "lvprop-null-schemas") {
         "At least one null-LvProp schema replica failed; per-replica error records the message."
     }
 }
+elseif ($Job -ceq "multi-table-create") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three multi-table create replicas once without retry."
+    }
+    else {
+        "At least one multi-table create replica failed; per-replica error records the message."
+    }
+}
 elseif ($Job -ceq "bootstrap-composer-validation") {
     if ([string]$jobResult.status -ceq "pass") {
         "Completed all three bootstrap-composer validation replicas once without retry."
@@ -296,6 +317,9 @@ elseif ($Job -ceq "lvprop-null") {
 elseif ($Job -ceq "lvprop-null-schemas") {
     $lvpropNullSchemasReplicas = @($jobResult.replicas)
 }
+elseif ($Job -ceq "multi-table-create") {
+    $multiTableCreateReplicas = @($jobResult.replicas)
+}
 $result = [ordered]@{
     development_only = $true
     job = $Job
@@ -315,6 +339,7 @@ $result = [ordered]@{
     extended_names_replicas = @($extendedNamesReplicas)
     lvprop_null_replicas = @($lvpropNullReplicas)
     lvprop_null_schemas_replicas = @($lvpropNullSchemasReplicas)
+    multi_table_create_replicas = @($multiTableCreateReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
 exit $jobExitCode

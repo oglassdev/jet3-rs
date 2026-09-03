@@ -46,6 +46,7 @@ just windows-dev-definition-continuation
 just windows-dev-extended-names
 just windows-dev-lvprop-null
 just windows-dev-lvprop-null-schemas
+just windows-dev-multi-table-create
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -245,6 +246,15 @@ a preregistered compact continuation—with fresh DAO controls of each schema.
 Do not run it until its exact plan is merged and a human explicitly authorizes
 the one attempt. Any failure after the first DAO control mutation is a result,
 not an infrastructure retry.
+
+`multi-table-create` is the SHA-256-pinned issue #100 experiment for the
+library-composed multi-table database. It compares one deterministic candidate
+holding the exact `EXP-0087` Alpha, Beta, Gamma, and Delta tables, composed with
+null catalog `LvProp` values and no later-create `LvProp` pages, with a fresh
+DAO control that creates the same four tables in the same order. Do not run it
+until its exact plan is merged and a human explicitly authorizes the one
+attempt. Any failure after the first DAO control mutation is a result, not an
+infrastructure retry.
 
 ## Interactive discovery loop
 

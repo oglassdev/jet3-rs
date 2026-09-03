@@ -9808,6 +9808,70 @@ Use `not applicable` explicitly rather than omitting a field.
   decision-rule, evidence-boundary, and false-claim review
 
 
+### EXP-0108 — Multi-table create preregistration
+
+- Recorded: 2026-09-03, Claude Fable 5.1
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has occurred
+- Question: does DAO 3.6 read one exact composed database holding the
+  `EXP-0087` Alpha, Beta, Gamma, and Delta tables unchanged, with the same
+  bounded schema semantics as a fresh DAO control that creates the same four
+  tables in the same order?
+- Origin: issue `#100`, following the later-create observations in `EXP-0087`
+  and the exact one-table null-`LvProp` acceptances in `EXP-0091` and
+  `EXP-0107`. The composer plans later creates from `EXP-0087`: each appends
+  its definition root, map page, and index roots after the previous table and
+  carries no `LvProp` page, and every catalog `LvProp` is null. No experiment
+  has observed DAO read a composed image holding more than one user table;
+  this candidate is that tested hypothesis, not an admitted rule.
+- Protocol: generate the single candidate only from the manifest-pinned Rust
+  source; stage and identity-check it; copy and identity-check all three
+  candidate replicas before the first DAO mutation; then, per replica, create
+  one fresh DAO control holding the four tables in create order and run the
+  same eight read-only endpoints over the candidate and the control, each
+  endpoint covering all four user tables. Record size and SHA-256 before and
+  after access. The analyzer requires exact roles, filenames, bounds, retained
+  identities, field types and sizes, index flags, and replicated outcomes.
+- Decision rule: the `quad` question is `observed_accepted` when all three
+  controls and all three candidate replicas pass unchanged with identical
+  semantics, and a stable `not_observed_accepted` when the controls pass while
+  every candidate replica stops identically or completes with the same
+  semantic mismatch; control failure, image mutation, replica disagreement,
+  incomplete work, or an unclassifiable result yields `no_outcome`. Malformed
+  data, pin or inventory failure, or a pre-mutation failure rejects without a
+  report.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/multi-table-create.plan.json`, SHA-256
+  `2a66746a9f897bef9e4583649249c245c955d6fb9b484408f4f90eb4cfebe127`; source manifest
+  `oracle/windows-dao/acquisition/multi-table-create.sources.json`, SHA-256
+  `06f483190ecb9351c698d0304bfc20df6b85a77e7db8fda2e72efd15015f5ba8`; producer
+  `oracle/windows-dao/scripts/dev/MultiTableCreate.DevJob.ps1`, SHA-256
+  `87f46a9d3da3bbf7cae7ecde7c3d797ec9e85b52060ed16df4db925617924c55`; analyzer
+  `oracle/windows-dao/scripts/multi_table_create.py`, SHA-256
+  `8632f1a53aad740f6f8514e8f86bfa813febbe951317f0047365a836b7037037`. The candidate identity is 63,488 bytes at SHA-256
+  `f4bad46de7c24ba92c0c9472d128eed48a2dbf1469594372d1098068940545ee`: Alpha(Id Long); Beta(Id Long, Name Text 50, Note Memo);
+  Gamma(Id Long) with primary index `PrimaryKey`; Delta(Label Text 30) with
+  ordinary index `ByLabel`; roots at pages 20, 23, 25, and 28; one retained
+  empty long-value page at page 22; page-zero byte 1538 at 8.
+- Authorization: acquisition is forbidden until these exact reviewed bytes
+  reach `main` and a human explicitly authorizes one run. Once the first DAO
+  `CreateDatabase` begins, any failure is a scientific result and no retry is
+  permitted without another human decision.
+- Interpretation: a later accepted result may establish only whether DAO reads
+  this exact candidate identity unchanged at the preregistered endpoints. It
+  cannot establish acceptance for other table counts, orders, names, or
+  schemas, a general `LvProp` or allocation rule, five or more tables, writer
+  or publication correctness, compatibility, hosted differential `#102`, or
+  support movement.
+- Usage: future result for issue `#100`; `EXP-0087`; `EXP-0091`; `EXP-0107`;
+  `file:oracle/windows-dao/acquisition/multi-table-create.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/MultiTableCreate.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/multi_table_create.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent review; no acquisition has occurred
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

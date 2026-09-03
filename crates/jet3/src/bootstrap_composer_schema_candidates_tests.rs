@@ -1,5 +1,6 @@
-use super::super::{compose_table_database, global_map_page};
+use super::super::{compose_database, compose_table_database, global_map_page};
 use super::*;
+use crate::column_definition_writer::nz;
 use crate::{ColumnRef, IndexColumnSpec};
 
 const IDX_TRI_COLUMNS: [ColumnSpec<'static>; 3] = [
@@ -286,4 +287,143 @@ fn export_lvprop_schema_candidates() -> TestResult {
             ("lvprop-schemas-wide.mdb", wide_candidate_bytes()?),
         ],
     )
+}
+
+/// The exact `EXP-0087` create sequence: Alpha, Beta, Gamma, then Delta.
+const QUAD_ALPHA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(b"Id", ColumnType::Long)];
+const QUAD_BETA_COLUMNS: [ColumnSpec<'static>; 3] = [
+    ColumnSpec::new(b"Id", ColumnType::Long),
+    ColumnSpec::new(b"Name", ColumnType::Text { max_len: nz(50) }),
+    ColumnSpec::new(b"Note", ColumnType::Memo),
+];
+const QUAD_DELTA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
+    b"Label",
+    ColumnType::Text { max_len: nz(30) },
+)];
+const QUAD_GAMMA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
+    name: b"PrimaryKey",
+    fields: &[IndexColumnSpec {
+        column: ColumnRef::Ordinal(0),
+        direction: IndexDirection::Ascending,
+    }],
+    kind: IndexKind::Primary,
+}];
+const QUAD_DELTA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
+    name: b"ByLabel",
+    fields: &[IndexColumnSpec {
+        column: ColumnRef::Ordinal(0),
+        direction: IndexDirection::Ascending,
+    }],
+    kind: IndexKind::Ordinary,
+}];
+const QUAD_TABLES: [TableSpec<'static>; 4] = [
+    TableSpec {
+        name: b"Alpha",
+        columns: &QUAD_ALPHA_COLUMNS,
+        indexes: &[],
+    },
+    TableSpec {
+        name: b"Beta",
+        columns: &QUAD_BETA_COLUMNS,
+        indexes: &[],
+    },
+    TableSpec {
+        name: b"Gamma",
+        columns: &QUAD_ALPHA_COLUMNS,
+        indexes: &QUAD_GAMMA_INDEXES,
+    },
+    TableSpec {
+        name: b"Delta",
+        columns: &QUAD_DELTA_COLUMNS,
+        indexes: &QUAD_DELTA_INDEXES,
+    },
+];
+
+fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
+    let mut budget = compose_budget();
+    let plan = compose_database(&QUAD_TABLES, &mut budget)?;
+    Ok(plan
+        .pages()
+        .iter()
+        .flat_map(|page| page.image().as_bytes().iter().copied())
+        .collect())
+}
+
+#[test]
+fn the_quad_candidate_decodes_to_its_preregistered_shape() -> TestResult {
+    // EXP-0087: 31 pages after the four creates, page-zero byte 1538 at 8,
+    // and only the first create carrying a long-value page.
+    let quad = quad_candidate_bytes()?;
+    assert_eq!(quad.len(), 31 * crate::PAGE_BYTES);
+    assert_eq!(quad[1538], 8);
+    assert_eq!(
+        &quad[22 * crate::PAGE_BYTES..22 * crate::PAGE_BYTES + 10],
+        b"\x01\x01\xf6\x07LVAL\0\0"
+    );
+    let mut budget = read_budget(quad.len());
+    let source = SliceSource::new(&quad, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let mut user_tables = Vec::new();
+    {
+        let mut catalog = database.catalog(&mut budget)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.class() == CatalogObjectClass::User {
+                user_tables.push((
+                    record.name().raw_bytes().to_vec(),
+                    record.table_definition(),
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        user_tables,
+        [
+            (b"Alpha".to_vec(), Some(PageNumber::new(20))),
+            (b"Beta".to_vec(), Some(PageNumber::new(23))),
+            (b"Gamma".to_vec(), Some(PageNumber::new(25))),
+            (b"Delta".to_vec(), Some(PageNumber::new(28))),
+        ]
+    );
+    let objects = database.table_definition(PageNumber::new(2), &mut budget)?;
+    let mut rows = database.rows(&objects, &mut budget)?;
+    let mut null_properties = 0;
+    while let Some(mut row) = rows.next_row()? {
+        if matches!(
+            row.value(ColumnOrdinal::new(14), TextCodePage::Windows1252)?
+                .ok_or("missing LvProp")?
+                .kind(),
+            ValueKind::Null
+        ) {
+            null_properties += 1;
+        }
+    }
+    assert_eq!(null_properties, 8 + 4);
+    for (root, columns, indexes) in [(20, 1, 0), (23, 3, 0), (25, 1, 1), (28, 1, 1)] {
+        let definition = database.table_definition(PageNumber::new(root), &mut budget)?;
+        assert_eq!(definition.columns().len(), columns, "root {root}");
+        assert_eq!(definition.physical_indexes().len(), indexes, "root {root}");
+        assert!(
+            database
+                .rows(&definition, &mut budget)?
+                .next_row()?
+                .is_none()
+        );
+    }
+    let gamma = database.table_definition(PageNumber::new(25), &mut budget)?;
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(27));
+    let delta = database.table_definition(PageNumber::new(28), &mut budget)?;
+    assert_eq!(delta.physical_indexes()[0].root(), PageNumber::new(30));
+    Ok(())
+}
+
+#[test]
+#[ignore = "writes the private deterministic candidate for the preregistered issue #100 multi-table experiment"]
+fn export_multi_table_candidate() -> TestResult {
+    use std::path::PathBuf;
+
+    let root = PathBuf::from(
+        std::env::var_os("JET3_MULTI_TABLE_CANDIDATE_DIR")
+            .ok_or("JET3_MULTI_TABLE_CANDIDATE_DIR is required")?,
+    );
+    export_candidate_set(&root, [("multi-table-quad.mdb", quad_candidate_bytes()?)])
 }

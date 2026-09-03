@@ -1,0 +1,88 @@
+{
+  "document_type": "dao_multi_table_create_plan",
+  "experiment_id": "multi-table-create",
+  "issue": 100,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0087 observed DAO create Alpha, Beta, Gamma, and Delta in sequence in one fresh database: each create added one MSysObjects row and two MSysACEs rows, appended a definition root numbered equal to its Id then a map page then one index root per index, advanced page-zero byte 1538 by two, and only the first create appended a long-value page. EXP-0091 and EXP-0107 observed DAO read exact one-table composed images whose catalog LvProp is null and whose first-create long-value page is retained empty. No experiment has observed DAO read a composed image holding more than one user table.",
+    "hypothesis_source": "Issue #100 needs create_database to accept several tables. The composer now plans later creates from the EXP-0087 observations, with a null catalog LvProp for every table and no long-value page after the first create. The smallest discriminator is one composed candidate holding the exact EXP-0087 four-table sequence compared with a fresh DAO control that creates the same four tables in the same order.",
+    "authorization": "Acquisition is forbidden until this exact plan, candidate source manifest, and every SHA-256-pinned input are reviewed, committed, and merged. A human must then explicitly authorize the one allowed local-VM dispatch.",
+    "attempt_policy": "Copy and identity-check every candidate replica before the first DAO mutation. Dispatch one three-replica run only. Once the first DAO CreateDatabase begins, any failure is a scientific result and must not be retried without another explicit human decision."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "a794147d34214f9ea43db2ad6b562c6dedfb0fa343d345dffd52f55be6873eda",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "c644c6713702778cb093b797502bbfca363b2171588091cef0eae5703544568e",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "26307f11a20f780c7bd80f6374998742508311cc86e3b2054b9af53db841de3b",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "793839a04be6ad770f7a08da8119a3182c0612c8a1ea71405bbbbae402a9b1f2",
+    "oracle/windows-dao/scripts/dev/MultiTableCreate.DevJob.ps1": "87f46a9d3da3bbf7cae7ecde7c3d797ec9e85b52060ed16df4db925617924c55",
+    "oracle/windows-dao/scripts/multi_table_create.py": "8632f1a53aad740f6f8514e8f86bfa813febbe951317f0047365a836b7037037"
+  },
+  "candidate_source_manifest": {
+    "path": "oracle/windows-dao/acquisition/multi-table-create.sources.json",
+    "sha256": "06f483190ecb9351c698d0304bfc20df6b85a77e7db8fda2e72efd15015f5ba8"
+  },
+  "candidates": {
+    "candidate_quad": {
+      "filename": "multi-table-quad.mdb",
+      "size": 63488,
+      "sha256": "f4bad46de7c24ba92c0c9472d128eed48a2dbf1469594372d1098068940545ee"
+    }
+  },
+  "candidate_invariants": {
+    "quad": "The 31-page candidate holds, in create order, Alpha(Id Long); Beta(Id Long, Name Text 50, Note Memo); Gamma(Id Long) with primary index PrimaryKey on Id; and Delta(Label Text 30) with ordinary index ByLabel on Label. Every catalog LvProp is null. Only Alpha carries the retained empty first-create long-value page at page 22; Beta, Gamma, and Delta append only their definition root, map page, and index roots at pages 23 through 30. Page-zero byte 1538 is 8. The candidate is generated deterministically from the manifest-pinned Rust source through the general composer and checked through the project reader before its identity is admitted."
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and DAO.DBEngine.36.",
+    "replicas": 3,
+    "attempts": 1,
+    "pre_mutation": "Generate the candidate from manifest-pinned Rust source, stage and identity-check it, then copy and identity-check all three candidate replicas before creating the first DAO control.",
+    "per_replica": "Create and close one fresh DAO Jet 3 control holding Alpha, Beta, Gamma, and Delta created in that order; then read the pinned candidate copy and the control through the same bounded endpoint sequence. Candidate opens are read-only. Record size and SHA-256 immediately before and after endpoint reads.",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_published_databases": 6,
+      "maximum_pages_per_database": 64,
+      "maximum_table_definitions": 16,
+      "maximum_fields_per_table": 16,
+      "maximum_indexes_per_table": 4,
+      "maximum_index_fields": 4,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 4194304
+    }
+  },
+  "endpoints": [
+    "OpenDatabase succeeds read-only",
+    "Database.Version is exactly 3.0",
+    "TableDefs is exactly the four expected user tables plus the four expected system tables",
+    "each user TableDef resolves by name",
+    "each table's fields enumerate with exact names, order, DAO types, and sizes",
+    "each table's indexes enumerate with exact names, flags, key names, and directions after name normalization",
+    "OpenRecordset(snapshot) succeeds and is empty for each table",
+    "each table's document resolves by name and the document inventory is exact"
+  ],
+  "questions": {
+    "quad": "Does DAO read the exact composed four-table candidate unchanged with the same bounded schema semantics as a fresh DAO control that creates the same four tables in the same order, in all replicas?"
+  },
+  "decision_rule": {
+    "observed_accepted": "All three controls pass unchanged with exact replicated semantics, and all three candidate replicas pass unchanged with the same semantics.",
+    "not_observed_accepted": "All three controls pass unchanged, while all three candidate replicas either stop at the same endpoint with identical bounded observations or complete unchanged with the same semantic mismatch.",
+    "no_outcome": "Use when a control fails or changes, an image changes, replicas disagree, the scientific job is incomplete, or observations cannot be classified under the two rules above.",
+    "validation_rejection": "Reject without a report for any malformed plan or result, pin or retained-identity mismatch, pre-mutation failure, inventory or bound violation, or unexpected file.",
+    "report_status": "accepted only when the quad question is observed_accepted or not_observed_accepted; otherwise no_outcome."
+  },
+  "evidence_boundary": {
+    "establishes_only": "A replicated read-only DAO observation for the exact candidate identity: whether DAO consumes a composed database holding these four tables, with null catalog LvProp values and no later-create long-value page, without repair.",
+    "not_claimed": [
+      "acceptance for other table counts, orders, names, or schemas",
+      "a general LvProp, allocation, or page-assignment rule",
+      "acceptance of five or more tables",
+      "writer or filesystem-publication correctness",
+      "hosted write-differential evidence, general compatibility, or support-matrix movement"
+    ]
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, up to six exact-name MDBs including bounded post-mutation recovery artifacts, and the deterministic analyzer report.",
+    "repository": "Never commit MDB bytes or provider binaries. Record the validated report identity and conclusions once as one additive EXP outcome."
+  }
+}
