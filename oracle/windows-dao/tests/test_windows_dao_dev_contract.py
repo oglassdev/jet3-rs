@@ -966,7 +966,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(plan["issue"], 151)
         self.assertEqual(
             hashlib.sha256(binding.plan.read_bytes()).hexdigest(),
-            "582f8aff6e7a29fae5594fa2819cf0595e0f61695604245c6df1cf5376e62f5b",
+            "1ffa5af6bea302d89f61384fcb427dc889df9606e9c5f59db807d069da9b5c6f",
         )
         self.assertEqual(plan["execution"]["checkpoints"], ["empty", "zero", "one", "two"])
         self.assertEqual(
@@ -995,7 +995,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         )
         self.assertEqual(
             CLIENT.verified_plan_sha256(binding),
-            "582f8aff6e7a29fae5594fa2819cf0595e0f61695604245c6df1cf5376e62f5b",
+            "1ffa5af6bea302d89f61384fcb427dc889df9606e9c5f59db807d069da9b5c6f",
         )
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
         self.assertIn('$ScenarioFields = @{ zero = 1; one = 70; two = 140 }', job)

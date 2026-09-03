@@ -80,12 +80,18 @@ def fake_analysis(
     *,
     bad_count: bool = False,
     bad_length: bool = False,
-    unattributed: bool = False,
+    definition_free: bool = False,
+    definition_free_unassigned: bool = False,
+    free_attributed: bool = False,
+    in_use_unassigned: bool = False,
+    missing_role: bool = False,
+    unassigned: bool = False,
 ) -> dict:
     marker = data[1]
     count = len(data) // continuation.PAGE_BYTES
     if marker == 0:
         return {
+            "free_pages": [],
             "tables": {},
             "pages": [
                 {"page": page, "role": "base", "owners": [], "tag": 0}
@@ -131,12 +137,28 @@ def fake_analysis(
             role = "long_value"
         else:
             role = "base"
-        if unattributed and scenario == "two" and page == count - 1:
+        if (unassigned or in_use_unassigned) and scenario == "one" and page == 22:
             role = "unassigned"
+        if definition_free_unassigned and scenario == "one" and page == 24:
+            role = "unassigned"
+        if missing_role and scenario == "one" and page == 22:
+            continue
         output_pages.append(
-            {"page": page, "role": role, "owners": [owner], "tag": 2 if page in pages else 1}
+            {
+                "page": page,
+                "role": role,
+                "owners": [] if role == "unassigned" else [owner],
+                "tag": 2 if page in pages else 1,
+            }
         )
     return {
+        "free_pages": (
+            [24]
+            if (definition_free or definition_free_unassigned) and scenario == "one"
+            else [22]
+            if (unassigned or free_attributed) and scenario == "one"
+            else []
+        ),
         "tables": {20: {"definition": definition, "flags": 0, "name": continuation.TABLE_NAMES[scenario]}},
         "pages": output_pages,
     }
@@ -224,8 +246,19 @@ class Fixture:
 
 
 class DefinitionContinuationTests(unittest.TestCase):
-    def evaluate(self, fixture: Fixture, analysis=fake_analysis):
+    def evaluate(self, fixture: Fixture, analysis=fake_analysis, lvprop=None):
         output = fixture.root / "definition-continuation-report.json"
+        if lvprop is None:
+            lvprop = lambda *_args: {
+                "appended_lval_pages": [],
+                "declared_length": 1,
+                "first_locator": None,
+                "header_hex": "0" * 24,
+                "inline_length": 13,
+                "referenced_appended_lval_pages": [],
+                "storage": "inline",
+                "unreferenced_appended_lval_pages": [],
+            }
         with (
             mock.patch.object(continuation.catalog, "analyze_checkpoint", side_effect=analysis),
             mock.patch.object(
@@ -236,13 +269,7 @@ class DefinitionContinuationTests(unittest.TestCase):
             mock.patch.object(
                 continuation,
                 "created_lvprop",
-                side_effect=lambda *_args: {
-                    "declared_length": 1,
-                    "first_locator": None,
-                    "header_hex": "0" * 24,
-                    "inline_length": 13,
-                    "storage": "inline",
-                },
+                side_effect=lvprop,
             ),
         ):
             report = continuation.evaluate(fixture.write(), PLAN, output)
@@ -291,13 +318,133 @@ class DefinitionContinuationTests(unittest.TestCase):
             self.assertEqual(report["status"], "no_outcome")
             self.assertIn("control requires", report["replicas"][0]["decode_error"])
 
-    def test_unattributed_appended_page_is_no_outcome(self) -> None:
+    def test_replica_stable_unassigned_appended_page_is_answered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             report = self.evaluate(
-                Fixture(Path(directory)), lambda data: fake_analysis(data, unattributed=True)
+                Fixture(Path(directory)), lambda data: fake_analysis(data, unassigned=True)
+            )
+            self.assertEqual(report["status"], "accepted")
+            appended = report["questions"]["placement"]["scenarios"]["one"][
+                "appended_pages"
+            ]
+            self.assertEqual(
+                [page for page in appended if page["role"] == "unassigned"],
+                [
+                    {
+                        "delta_from_definition": 2,
+                        "delta_from_empty": 2,
+                        "globally_free": True,
+                        "owners": [],
+                        "page": 22,
+                        "role": "unassigned",
+                        "tag": 1,
+                    }
+                ],
+            )
+
+    def test_globally_free_attributed_page_is_answered_as_bounded_decoder_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            def lvprop(_data, _analysis, table_name, _before_pages):
+                unreferenced = [22] if table_name == "ContOneX" else []
+                return {
+                    "appended_lval_pages": unreferenced,
+                    "declared_length": 1,
+                    "first_locator": None,
+                    "header_hex": "0" * 24,
+                    "inline_length": 13,
+                    "referenced_appended_lval_pages": [],
+                    "storage": "inline",
+                    "unreferenced_appended_lval_pages": unreferenced,
+                }
+
+            report = self.evaluate(
+                Fixture(Path(directory)),
+                lambda data: fake_analysis(data, free_attributed=True),
+                lvprop,
+            )
+            self.assertEqual(report["status"], "accepted")
+            appended = report["questions"]["placement"]["scenarios"]["one"][
+                "appended_pages"
+            ]
+            self.assertEqual(
+                next(page for page in appended if page["page"] == 22),
+                {
+                    "delta_from_definition": 2,
+                    "delta_from_empty": 2,
+                    "globally_free": True,
+                    "owners": ["table 20 ContOneX"],
+                    "page": 22,
+                    "role": "long_value",
+                    "tag": 1,
+                },
+            )
+            self.assertEqual(
+                report["questions"]["continuation_counts"]["scenarios"]["one"][
+                    "lvprop"
+                ]["unreferenced_appended_lval_pages"],
+                [22],
+            )
+
+    def test_globally_free_referenced_lvprop_page_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            def lvprop(_data, _analysis, table_name, _before_pages):
+                referenced = [22] if table_name == "ContOneX" else []
+                return {
+                    "appended_lval_pages": referenced,
+                    "declared_length": 1,
+                    "first_locator": None,
+                    "header_hex": "0" * 24,
+                    "inline_length": 13,
+                    "referenced_appended_lval_pages": referenced,
+                    "storage": "inline",
+                    "unreferenced_appended_lval_pages": [],
+                }
+
+            report = self.evaluate(
+                Fixture(Path(directory)),
+                lambda data: fake_analysis(data, free_attributed=True),
+                lvprop,
             )
             self.assertEqual(report["status"], "no_outcome")
-            self.assertIn("unattributed", report["replicas"][0]["decode_error"])
+            self.assertIn(
+                "LvProp references globally free appended LVAL page 22",
+                report["replicas"][0]["decode_error"],
+            )
+
+    def test_missing_appended_page_role_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.evaluate(
+                Fixture(Path(directory)), lambda data: fake_analysis(data, missing_role=True)
+            )
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertIn("lacks a page-role record", report["replicas"][0]["decode_error"])
+
+    def test_in_use_unassigned_appended_page_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.evaluate(
+                Fixture(Path(directory)),
+                lambda data: fake_analysis(data, in_use_unassigned=True),
+            )
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertIn("is not globally free", report["replicas"][0]["decode_error"])
+
+    def test_globally_free_unassigned_definition_page_is_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.evaluate(
+                Fixture(Path(directory)),
+                lambda data: fake_analysis(data, definition_free_unassigned=True),
+            )
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertIn("wrong role or owner", report["replicas"][0]["decode_error"])
+
+    def test_attributed_definition_page_cannot_be_globally_free(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.evaluate(
+                Fixture(Path(directory)),
+                lambda data: fake_analysis(data, definition_free=True),
+            )
+            self.assertEqual(report["status"], "no_outcome")
+            self.assertIn("definition page 24 is globally free", report["replicas"][0]["decode_error"])
 
     def test_rejects_arm_identity_mismatch_and_extra_database(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

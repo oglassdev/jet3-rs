@@ -84,9 +84,23 @@ control and the unchanged 2,075- and 4,105-byte wide targets. `EXP-0103`
 records its single authorized run as a valid `no_outcome`: all three producers
 completed every checkpoint and baseline without recovery, but every analyzer
 replica reported `one appended page 22 is unattributed`. No continuation count
-or placement diagnostic is promoted. Issue #151 remains evidence-blocked; any
-further acquisition requires a separately pinned successor and a new explicit
-human decision. #150 is evidence-complete. Its bounded implementation slice is
+or placement diagnostic is promoted. `EXP-0104` preregisters a successor with
+the exact same producer, schemas, counts, and bounds. It changes only the
+analysis rule: every appended page must still have a decoded page-role record,
+but a replica-stable explicit `unassigned` record is reported with its raw tag
+and decoded global-map free status instead of forcing `no_outcome` when the
+global map marks it free. An in-use `unassigned` page or globally-free definition
+page remains
+`no_outcome`. Every globally-free page's decoded role and owners describe only
+retained bytes and establish no current owner, purpose, reuse history, or
+semantic role. Every catalog `LvProp` referenced appended LVAL page must be
+globally in use; a decoder-labeled but unreferenced LVAL page may be globally
+free and remains a bounded retained-byte observation. A referenced globally
+free LVAL page is `no_outcome`. Page-zero and catalog-root correlation remains
+observational; the exact user-table/root resolution is already enforced. The `EXP-0103`
+diagnostic is design input only and promotes no page-role fact. One exact merged
+run is prospectively authorized; no post-mutation retry is. #150 is
+evidence-complete. Its bounded implementation slice is
 unblocked but must correct the existing one-index page order while adding
 multiple physical and logical records, name-sorted logical order, and the
 observed primary, unique,
