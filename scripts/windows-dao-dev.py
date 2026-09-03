@@ -214,6 +214,20 @@ LVPROP_NULL_SCHEMAS_PLAN = (
 LVPROP_NULL_SCHEMAS_ANALYZER = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "lvprop_null_schemas.py"
 )
+MULTI_TABLE_CREATE_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "MultiTableCreate.DevJob.ps1"
+)
+MULTI_TABLE_CREATE_PLAN = (
+    ROOT / "oracle" / "windows-dao" / "acquisition" / "multi-table-create.plan.json"
+)
+MULTI_TABLE_CREATE_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "multi_table_create.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -243,6 +257,7 @@ ALLOWED_JOBS = (
     "extended-names",
     "lvprop-null",
     "lvprop-null-schemas",
+    "multi-table-create",
 )
 
 
@@ -388,6 +403,14 @@ def plan_binding(job: str) -> PlanBinding | None:
             "dao_lvprop_null_schemas_plan",
             178,
         )
+    if job == "multi-table-create":
+        return PlanBinding(
+            job,
+            MULTI_TABLE_CREATE_PLAN,
+            MULTI_TABLE_CREATE_ANALYZER,
+            "dao_multi_table_create_plan",
+            100,
+        )
     return None
 
 
@@ -426,6 +449,7 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
             "bootstrap-composer-validation",
             "lvprop-null",
             "lvprop-null-schemas",
+            "multi-table-create",
         ):
             raise DevClientError(f"{job} candidate source manifest is missing")
         return hashlib.sha256(plan_bytes).hexdigest()
@@ -450,6 +474,7 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
         "bootstrap-composer-validation": "bootstrap_composer_candidate_sources",
         "lvprop-null": "lvprop_null_candidate_sources",
         "lvprop-null-schemas": "lvprop_null_schemas_candidate_sources",
+        "multi-table-create": "multi_table_create_candidate_sources",
     }.get(job)
     if (
         expected_manifest_type is None
@@ -679,6 +704,61 @@ def generate_lvprop_null_schema_candidates(
     candidate_root.rmdir()
 
 
+def generate_multi_table_candidate(staging: Path, plan: dict[str, object]) -> None:
+    candidate_root = staging / ".multi-table-candidates"
+    candidate_root.mkdir()
+    environment = os.environ.copy()
+    environment["JET3_MULTI_TABLE_CANDIDATE_DIR"] = str(candidate_root)
+    completed = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "jet3",
+            "--lib",
+            "bootstrap_composer::tests::schema_candidates::export_multi_table_candidate",
+            "--",
+            "--ignored",
+            "--exact",
+        ],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise DevClientError("multi-table candidate exporter failed")
+    candidates = plan.get("candidates")
+    if not isinstance(candidates, dict) or set(candidates) != {"candidate_quad"}:
+        raise DevClientError("multi-table candidate pins are malformed")
+    raw = candidates["candidate_quad"]
+    if not isinstance(raw, dict) or set(raw) != {"filename", "size", "sha256"}:
+        raise DevClientError("multi-table candidate pin is malformed")
+    filename = raw["filename"]
+    size = raw["size"]
+    expected = raw["sha256"]
+    if (
+        filename != "multi-table-quad.mdb"
+        or not isinstance(size, int)
+        or isinstance(size, bool)
+        or not isinstance(expected, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", expected)
+    ):
+        raise DevClientError("multi-table candidate pin is malformed")
+    source = candidate_root / filename
+    if (
+        not source.is_file()
+        or source.is_symlink()
+        or source.stat().st_size != size
+        or hashlib.sha256(source.read_bytes()).hexdigest() != expected
+    ):
+        raise DevClientError("generated multi-table candidate differs from its plan")
+    source.rename(staging / filename)
+    if any(candidate_root.iterdir()):
+        raise DevClientError("multi-table candidate inventory is invalid")
+    candidate_root.rmdir()
+
+
 def canonical_windows_path(value: str, *, label: str) -> str:
     if len(value) > 240 or any(ord(character) < 32 for character in value):
         raise DevClientError(f"{label} is malformed")
@@ -765,6 +845,7 @@ def stage_job(args: argparse.Namespace) -> Path:
         shutil.copyfile(
             LVPROP_NULL_SCHEMAS_JOB, staging / LVPROP_NULL_SCHEMAS_JOB.name
         )
+        shutil.copyfile(MULTI_TABLE_CREATE_JOB, staging / MULTI_TABLE_CREATE_JOB.name)
         binding = plan_binding(args.job)
         if binding is not None:
             shutil.copyfile(binding.analyzer, staging / binding.analyzer.name)
@@ -787,6 +868,8 @@ def stage_job(args: argparse.Namespace) -> Path:
                 generate_lvprop_null_candidates(staging, plan)
             elif args.job == "lvprop-null-schemas":
                 generate_lvprop_null_schema_candidates(staging, plan)
+            elif args.job == "multi-table-create":
+                generate_multi_table_candidate(staging, plan)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -865,6 +948,15 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
                 ntpath.join(remote_input, "lvprop-schemas-indexed.mdb"),
                 "-LvPropSchemasWidePath",
                 ntpath.join(remote_input, "lvprop-schemas-wide.mdb"),
+            ]
+        )
+    if args.job == "multi-table-create":
+        command.extend(
+            [
+                "-MultiTableCreateJobPath",
+                ntpath.join(remote_input, MULTI_TABLE_CREATE_JOB.name),
+                "-MultiTableQuadPath",
+                ntpath.join(remote_input, "multi-table-quad.mdb"),
             ]
         )
     if binding is not None:
@@ -949,7 +1041,7 @@ def analyze_plan_bound_output(args: argparse.Namespace, binding: PlanBinding) ->
                 raise DevClientError(
                     "staged bootstrap candidate differs before analysis"
                 )
-    elif job in ("lvprop-null", "lvprop-null-schemas"):
+    elif job in ("lvprop-null", "lvprop-null-schemas", "multi-table-create"):
         for raw in plan["candidates"].values():
             staged_candidate = staged_root / raw["filename"]
             if (

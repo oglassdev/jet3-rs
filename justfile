@@ -108,6 +108,10 @@ windows-dev-lvprop-null:
 windows-dev-lvprop-null-schemas:
     "{{PYTHON}}" scripts/windows-dao-dev.py lvprop-null-schemas --timeout 900
 
+# Run the preregistered multi-table create experiment in the local VM.
+windows-dev-multi-table-create:
+    "{{PYTHON}}" scripts/windows-dao-dev.py multi-table-create --timeout 900
+
 # Run one ad-hoc PowerShell script under x86 DAO in the local VM (discovery only).
 windows-dev-ps script *args:
     "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}

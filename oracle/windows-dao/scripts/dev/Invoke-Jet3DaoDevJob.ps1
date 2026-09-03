@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas", "multi-table-create")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")]
@@ -54,6 +54,8 @@ param(
     [string]$LvPropSchemasAlphaPath = "",
     [string]$LvPropSchemasIndexedPath = "",
     [string]$LvPropSchemasWidePath = "",
+    [string]$MultiTableCreateJobPath = "",
+    [string]$MultiTableQuadPath = "",
     [string]$PlanSha256 = "",
     [string]$PlanPath = "",
     [string]$GuestOutputRoot = (Join-Path $env:LOCALAPPDATA "jet3-rs-dev")
@@ -411,6 +413,11 @@ if ($Job -ceq "lvprop-null-schemas" -and
     [Console]::Error.WriteLine("INVALID: staged null-LvProp schema job does not exist.")
     exit 2
 }
+if ($Job -ceq "multi-table-create" -and
+    -not (Test-Path -LiteralPath $MultiTableCreateJobPath -PathType Leaf)) {
+    [Console]::Error.WriteLine("INVALID: staged multi-table create job does not exist.")
+    exit 2
+}
 # Plan-bound jobs verify the staged plan and every staged producer input
 # against the plan's SHA-256 pins before any DAO work.
 $planBoundJobs = @{
@@ -426,6 +433,7 @@ $planBoundJobs = @{
     "extended-names" = "oracle/windows-dao/scripts/dev/ExtendedNames.DevJob.ps1"
     "lvprop-null" = "oracle/windows-dao/scripts/dev/LvPropNull.DevJob.ps1"
     "lvprop-null-schemas" = "oracle/windows-dao/scripts/dev/LvPropNullSchemas.DevJob.ps1"
+    "multi-table-create" = "oracle/windows-dao/scripts/dev/MultiTableCreate.DevJob.ps1"
 }
 if ($planBoundJobs.ContainsKey($Job)) {
     if ($PlanSha256 -cnotmatch "^[0-9a-f]{64}$") {
@@ -465,6 +473,9 @@ if ($planBoundJobs.ContainsKey($Job)) {
     }
     elseif ($Job -ceq "lvprop-null-schemas") {
         $LvPropNullSchemasJobPath
+    }
+    elseif ($Job -ceq "multi-table-create") {
+        $MultiTableCreateJobPath
     }
     else {
         $SystemCatalogJobPath
@@ -553,6 +564,25 @@ if ($planBoundJobs.ContainsKey($Job)) {
             }
         }
     }
+    elseif ($Job -ceq "multi-table-create") {
+        $expected = $plan.candidates.PSObject.Properties["candidate_quad"]
+        if ($null -eq $expected -or
+            -not (Test-Path -LiteralPath $MultiTableQuadPath -PathType Leaf)) {
+            [Console]::Error.WriteLine("INVALID: multi-table candidate is missing or unpinned.")
+            exit 2
+        }
+        $item = Get-Item -LiteralPath $MultiTableQuadPath
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            $item.Length -ne [long]$expected.Value.size) {
+            [Console]::Error.WriteLine("INVALID: multi-table candidate differs from its plan.")
+            exit 2
+        }
+        $digest = (Get-FileHash -LiteralPath $MultiTableQuadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($digest -cne [string]$expected.Value.sha256) {
+            [Console]::Error.WriteLine("INVALID: multi-table candidate differs from its plan.")
+            exit 2
+        }
+    }
 }
 
 $runRoot = Join-Path ([IO.Path]::GetFullPath($GuestOutputRoot)) ("runs\" + $RunId)
@@ -592,6 +622,7 @@ $definitionContinuationReplicas = @()
 $extendedNamesReplicas = @()
 $lvpropNullReplicas = @()
 $lvpropNullSchemasReplicas = @()
+$multiTableCreateReplicas = @()
 
 if ($Job -ceq "provider-probe") {
     if ($probeExitCode -eq 0) {
@@ -817,7 +848,7 @@ elseif ($Job -ceq "allocation-map" -and $probeExitCode -eq 0) {
         }
     }
 }
-elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas") -and $probeExitCode -eq 0) {
+elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas", "multi-table-create") -and $probeExitCode -eq 0) {
     $environment = Get-Content -LiteralPath $environmentPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$environment.accepted_provider.prog_id -cne "DAO.DBEngine.36") {
         $detail = "The ready provider is not DAO.DBEngine.36."
@@ -844,6 +875,8 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             -LvPropSchemasAlphaPath $LvPropSchemasAlphaPath `
             -LvPropSchemasIndexedPath $LvPropSchemasIndexedPath `
             -LvPropSchemasWidePath $LvPropSchemasWidePath `
+            -MultiTableCreateJobPath $MultiTableCreateJobPath `
+            -MultiTableQuadPath $MultiTableQuadPath `
             -PlanSha256 $PlanSha256 -RunId $RunId
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
@@ -869,6 +902,7 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
             $extendedNamesReplicas = @($dispatchResult.extended_names_replicas)
             $lvpropNullReplicas = @($dispatchResult.lvprop_null_replicas)
             $lvpropNullSchemasReplicas = @($dispatchResult.lvprop_null_schemas_replicas)
+            $multiTableCreateReplicas = @($dispatchResult.multi_table_create_replicas)
             $status = [string]$dispatchResult.status
             $detail = [string]$dispatchResult.detail
             $exitCode = $dispatchExitCode
@@ -906,6 +940,7 @@ $result = [ordered]@{
     extended_names_replicas = @($extendedNamesReplicas)
     lvprop_null_replicas = @($lvpropNullReplicas)
     lvprop_null_schemas_replicas = @($lvpropNullSchemasReplicas)
+    multi_table_create_replicas = @($multiTableCreateReplicas)
     completed_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
 }
 Write-JsonDocument -Path (Join-Path $runRoot "result.json") -Document $result

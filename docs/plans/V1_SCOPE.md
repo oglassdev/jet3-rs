@@ -116,7 +116,11 @@ read the indexed and compact one-continuation null-`LvProp` candidates unchanged
 with the same bounded schema observations as fresh same-schema controls in all
 three replicas. This establishes only those exact candidate identities. The
 compact page-23 continuation is available to a future bounded implementation,
-but is not a general placement rule. #102 remains the separate hosted write
+but is not a general placement rule. The composer now plans later creates from
+`EXP-0087` and `EXP-0108` preregisters one composed candidate holding the exact
+Alpha, Beta, Gamma, and Delta sequence against a fresh same-sequence DAO
+control. It can answer only that one identity question; the public creation
+API stays single-table until it does. #102 remains the separate hosted write
 differential after database creation is complete.
 
 `EXP-0096` is the first SHA-256-pinned #152 preregistration. `EXP-0097` records
