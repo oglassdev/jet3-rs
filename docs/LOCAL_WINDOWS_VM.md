@@ -176,10 +176,13 @@ writer, compatibility, or support claim.
 `EXP-0100` records that the former 2,046-byte `zero` definition used one
 continuation page, invalidating that run's control. Its diagnostic chains are
 non-promotable under the all-or-`no_outcome` rule and provide no evidence for
-the current wide targets. Acquisition under `EXP-0102` remains forbidden until
-its exact preregistration bytes merge. The user's 2026-09-02 instruction
-prospectively authorizes one three-replica run after merge; any post-mutation
-failure consumes that authorization and cannot be retried automatically.
+the current wide targets. `EXP-0103` records the single authorized `EXP-0102`
+run as a valid `no_outcome`: all three producers completed all checkpoints and
+baselines without recovery, but every analyzer replica reported `one appended
+page 22 is unattributed`. The all-or-`no_outcome` rule promotes no continuation
+count or placement diagnostic. Issue #151 remains evidence-blocked, and any
+further acquisition requires a separately pinned successor plus a new explicit
+human decision.
 
 `extended-names` is the SHA-256-pinned issue #152 successor for every defined
 CP1252 byte above `0x7E`. Three replicas each retained an empty checkpoint, the
