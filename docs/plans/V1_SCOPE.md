@@ -111,10 +111,13 @@ not establish general placement, allocation policy, or chains longer than two
 continuation pages. #150 is evidence-complete. The bounded implementation now
 corrects the one-index page order, supports up to three physical and logical
 indexes, and refuses continuation placement because DAO's allocation policy is
-still underdetermined. Issue #178 preregisters exact indexed and compact
-one-continuation null-`LvProp` candidates against fresh same-schema controls.
-It can answer only those two construction questions. #102 remains the separate
-hosted write differential after database creation is complete.
+still underdetermined. `EXP-0107` records the exact #178 run as accepted: DAO
+read the indexed and compact one-continuation null-`LvProp` candidates unchanged
+with the same bounded schema observations as fresh same-schema controls in all
+three replicas. This establishes only those exact candidate identities. The
+compact page-23 continuation is available to a future bounded implementation,
+but is not a general placement rule. #102 remains the separate hosted write
+differential after database creation is complete.
 
 `EXP-0096` is the first SHA-256-pinned #152 preregistration. `EXP-0097` records
 its canonical `no_outcome`: all 2,358 DAO name attempts reported creation and
