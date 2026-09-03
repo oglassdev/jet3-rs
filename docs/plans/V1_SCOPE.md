@@ -120,10 +120,12 @@ but is not a general placement rule. The composer now plans later creates from
 `EXP-0087`. `EXP-0110` records the exact `EXP-0109` run as accepted: DAO read
 the composed Alpha, Beta, Gamma, and Delta image unchanged with the same
 bounded schema observations as a fresh same-sequence control in all three
-replicas. This establishes only that exact candidate identity and admits a
-bounded public `create_database` over up to four tables; it is not a general
-multi-table rule. #102 remains the separate hosted write differential after
-database creation is complete.
+replicas. This establishes only that exact candidate identity. Like the
+`EXP-0107` continuation result, it makes the observed later-create construction
+available to a separately reviewed bounded implementation, which must keep its
+`EXP-0087` refusals and claim no compatibility; it is not a general multi-table
+rule. #102 remains the separate hosted write differential after database
+creation is complete.
 
 `EXP-0096` is the first SHA-256-pinned #152 preregistration. `EXP-0097` records
 its canonical `no_outcome`: all 2,358 DAO name attempts reported creation and

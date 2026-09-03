@@ -9989,12 +9989,16 @@ Use `not applicable` explicitly rather than omitting a field.
 - Interpretation: DAO 3.6 consumed unchanged the exact composed 31-page image
   holding four user tables created from the `EXP-0087` later-create pattern,
   with a null catalog `LvProp` on every table and a long-value page only for
-  the first create. This permits a separately reviewed bounded implementation
-  to expose that construction for up to four tables. It does not establish
-  acceptance for other table counts, orders, names, or schemas, a general
-  `LvProp` or allocation rule, five or more tables, later creates with more
-  than one index or a continuation, writer or publication correctness,
-  compatibility, hosted differential `#102`, or support-matrix movement.
+  the first create. This answers the `EXP-0108` question for that exact
+  candidate identity and permits a future separately reviewed implementation to
+  target that exact later-create construction, as `EXP-0107` did for the
+  compact continuation. It does not establish acceptance for other table
+  counts, orders, names, or schemas, a general `LvProp` or allocation rule,
+  five or more tables, later creates with more than one index or a
+  continuation, writer or publication correctness, compatibility, hosted
+  differential `#102`, or support-matrix movement. Any implementation built on
+  it must keep refusing layouts outside the observed construction and must not
+  describe its output as DAO-compatible.
 - Usage: issue `#100`; `EXP-0087`; `EXP-0091`; `EXP-0107`; `EXP-0108`;
   `EXP-0109`; future separately reviewed bounded multi-table implementation
 - Rights: all project-generated MDBs and provider outputs remain outside the
