@@ -65,9 +65,9 @@ page at `root+1`, the catalog `LvProp` page at `root+2`, and one index root per
 physical ordinal at `root+3+i`. That overturns the composer's current deduced
 one-index order, which places the first root before `LvProp`.
 
-Of the two format gaps that needed preregistered DAO validation before the
-planner could widen, definition-continuation placement (#151) remains open and
-catalog name keys for bytes above `0x7E` (#152) now have bounded evidence.
+The two format gaps that needed preregistered DAO validation before the planner
+could widen now have bounded evidence: definition-continuation placement
+(#151) and catalog name keys for bytes above `0x7E` (#152).
 `EXP-0094` contains the first SHA-256-pinned #151 preregistration. `EXP-0095` records its
 canonical `no_outcome`: every replica reached capture of the 69-field arm, but
 that arm failed the combined 2-KiB geometry/64-page bound and could not be
@@ -98,9 +98,17 @@ globally in use; a decoder-labeled but unreferenced LVAL page may be globally
 free and remains a bounded retained-byte observation. A referenced globally
 free LVAL page is `no_outcome`. Page-zero and catalog-root correlation remains
 observational; the exact user-table/root resolution is already enforced. The `EXP-0103`
-diagnostic is design input only and promotes no page-role fact. One exact merged
-run is prospectively authorized; no post-mutation retry is. #150 is
-evidence-complete. Its bounded implementation slice is
+diagnostic is design input only and promotes no page-role fact. `EXP-0105`
+records the exact merged successor run as accepted with all five questions
+answered identically across three complete replicas. The exact chains are
+`[20]`, `[20, 68]`, and `[20, 219, 218]`, with logical chunk lengths `[66]`,
+`[2048, 27]`, and `[2048, 2040, 17]`. All definition pages are globally in use.
+The wide arms also retain globally free `unassigned` tag-9 pages and globally
+free decoder-labeled LVAL ranges unreferenced by catalog `LvProp`; those labels
+establish no current owner, purpose, reuse history, or semantic role. Issue
+#151 is evidence-complete for the exact preregistered shapes and close-ready;
+the result does not establish general placement, allocation policy, or chains
+longer than two continuation pages. #150 is evidence-complete. Its bounded implementation slice is
 unblocked but must correct the existing one-index page order while adding
 multiple physical and logical records, name-sorted logical order, and the
 observed primary, unique,

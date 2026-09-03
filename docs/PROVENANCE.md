@@ -9554,6 +9554,112 @@ Use `not applicable` explicitly rather than omitting a field.
   findings.
 
 
+### EXP-0105 — Accepted definition-continuation placement result
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from the canonical analyzer report; descriptive provider observation
+  only, not a writer-correctness, compatibility, or support result
+- Question: when the exact established `Alpha(Id Long)` small-definition
+  control and the exact 70- and 140-field wide-definition targets are each
+  created from an independently copied empty first-create image, do their 66-,
+  2,075-, and 4,105-byte definitions decode to exactly zero, one, and two
+  continuation pages; where do those definition pages land and point; and what
+  bounded decoded page-role record, raw tag, and global-map state does every
+  appended page carry?
+- Origin and binding: project-authored clean-room experiment using the exact
+  `EXP-0104` preregistration merged as commit
+  `cbeb187092edd15b92784ed72b5ebdcbe2e7645f` (PR `#173`) with plan SHA-256
+  `1ffa5af6bea302d89f61384fcb427dc889df9606e9c5f59db807d069da9b5c6f`.
+  Run `20260903T004148Z-dev-dao` produced the validated canonical report.
+- Input identity: all eight staged inputs matched their exact lowercase SHA-256
+  pins in the plan and the corresponding bytes in the merged commit.
+- Authorization and dispatch: the user explicitly authorized one acquisition
+  of the exact merged successor. Run `20260903T004148Z-dev-dao` was dispatched
+  exactly once and was not retried. That dispatch count is the observed operator
+  action, not a fact derived from the retained artifacts.
+- Environment: Windows NT 10.0.20348.0 build 20348 on AMD64; x86 Windows
+  PowerShell Desktop 5.1.20348.558; .NET 4.0.30319.42000; culture and UI culture
+  `en-US`; ANSI code page 1252; OEM code page 437; `Pacific Standard Time` at
+  UTC-07:00. The accepted x86 `DAO.DBEngine.36` provider reported version 3.6
+  from `dao360.dll` file version 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Producer and validation result: all three replicas reported `pass`, phase
+  `complete`, and `mutation_started=true`. Each retained the exact four-file
+  checkpoint inventory and three arm baselines. The canonical report has status
+  `accepted`; continuation counts, placement, counters, producer outcome, and
+  replication are all `answered`. The complete observations are identical
+  across all three replicas. The report makes no compatibility claim and moves
+  no support status.
+- Definition observations: every created table's definition root is page 20,
+  and every definition root and continuation page is globally in use with raw
+  tag 2. The 66-byte `zero` definition has chain `[20]` and zero continuations. The
+  2,075-byte `one` definition has chain `[20, 68]`; its root contributes 2,048
+  logical bytes and page 68 contributes 27. The 4,105-byte `two` definition has
+  chain `[20, 219, 218]`; pages 20, 219, and 218 contribute 2,048, 2,040, and 17
+  logical bytes in chain order. These observations establish that continuation
+  placement need not be numerically consecutive or ascending for these exact
+  shapes.
+- Appended-page observations: the `zero`, `one`, and `two` arms append 3, 49,
+  and 200 pages, respectively. In every arm page 21 is an in-use `map_rows`
+  page with raw tag 1. Every decoder-labeled LVAL page below has raw tag 1. The
+  `zero` arm has catalog-`LvProp`-referenced, globally in-use LVAL page 22. In
+  the `one` arm, pages 22--47 are globally free with decoded role
+  `unassigned` and raw tag 9; pages 48--65 are globally free,
+  decoder-labeled LVAL pages unreferenced by the catalog `LvProp`; and pages 66
+  and 67 are referenced, globally in-use LVAL pages. In the `two` arm, pages
+  22--47 are likewise globally free with decoded role `unassigned` and raw tag
+  9; pages 48--214 are globally free, decoder-labeled LVAL pages unreferenced by
+  the catalog `LvProp`; and pages 215--217 are referenced, globally in-use LVAL
+  pages.
+- Counter observation: page 0 changes at offset 1538, and its bounded counter
+  moves from 0 to 2 in every arm. This is a relative observation for these
+  exact creates, not a general semantic assignment for that byte.
+- Evidence boundary: decoded roles and owners on globally free pages classify
+  retained bytes only. They establish no current owner, allocation purpose,
+  reuse history, or other semantic role. In particular, the decoder-labeled
+  LVAL ranges above are not catalog `LvProp` references and are not evidence
+  that those free pages remain allocated. The result covers only the exact
+  `Alpha`, 70-field, and 140-field shapes. It does not establish placement for
+  arbitrary schemas, general allocation policy, free-page reuse history,
+  chains longer than two continuation pages, catalog `LvProp` grammar, writer
+  correctness, compatibility, public creation, hosted differential `#102`, or
+  support-matrix movement.
+- JSON artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `7154adb958f9a4ff13ea521b94bca7435d6adfe41642ef5f280812b89793cb54`;
+  external `definition-continuation-job-result.json`, 505,531 bytes, SHA-256
+  `ce72a17d8c69661509025a9f5256fda3c3693102ee8578982df789a4f621fded`;
+  external `result.json`, 618,829 bytes, SHA-256
+  `8322a2baa6179025469c5b91770ca26f716e1be0ed0bcc4373ec732d62a82ecc`;
+  external canonical `definition-continuation-report.json`, 48,188 bytes,
+  SHA-256
+  `a5643bc9c07b1770d7e43ef505efc3b08a1690580e3275ffbc3e930f358d3119`.
+- Retained database inventory: exactly twelve external MDBs, four per replica,
+  totaling 2,039,808 bytes. The canonical filename-sorted JSON array of
+  `{name,size,sha256}` objects, serialized with two-space indentation, sorted
+  keys, and one trailing LF, is 1,926 bytes with SHA-256
+  `fa5aafd6613336f00953aa77a24958ed5fff71d43dcc829d5a007589c2b6af7a`.
+  The MDBs and inventory serialization remain outside the repository and were
+  not used directly as evidence for this entry; the facts above come from the
+  validated canonical report.
+- Interpretation: issue `#151` is evidence-complete for its exact
+  preregistered questions and is close-ready. A bounded implementation may use
+  these exact counts, pointer order, placement, and retained page-state
+  observations while preserving the evidence boundary above.
+- Usage: issue `#151`; `EXP-0059`; `EXP-0061`; `EXP-0065`; `EXP-0073`;
+  `EXP-0087`; `EXP-0094`; `EXP-0095`; `EXP-0098`; `EXP-0100`; `EXP-0102`;
+  `EXP-0103`; `EXP-0104`; future separately reviewed definition-continuation
+  implementation
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: the first independent report-identity and provenance review/fix pass
+  added exact staged-input, authorization, one-shot dispatch, environment,
+  provider, and raw-tag bindings while preserving the evidence boundary.
+  A second independent cross-document and roadmap-status review verified the
+  canonical report and artifact identities, additive provenance, issue closure,
+  and exact-shape limitations and found no remaining findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

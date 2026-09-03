@@ -171,8 +171,23 @@ remains `no_outcome`. `EXP-0100` records the one authorized acquisition as a
 valid `no_outcome`: all three replicas completed the exact four-checkpoint
 inventory without recovery, but the 2,046-byte `zero` arm decoded with one
 continuation page where the preregistered control required zero. Diagnostic
-chains for all three arms are non-promotable. Another acquisition requires a
-separately pinned successor and renewed explicit human authorization.
+chains for all three arms are non-promotable. `EXP-0102` replaced that false
+control with the established 66-byte `Alpha(Id Long)` shape; `EXP-0103` records
+its valid `no_outcome` after every replica encountered one appended page whose
+decoded role was `unassigned`. `EXP-0104` preregistered the final analyzer rule:
+an explicit `unassigned` page is reportable only when the decoded global map
+marks it free, definition and catalog-`LvProp`-referenced LVAL pages must remain
+in use, and globally free decoded labels receive no current semantic meaning.
+
+`EXP-0105` records the exact successor run as accepted with all five questions
+answered identically across three complete replicas. The 66-, 2,075-, and
+4,105-byte definitions use chains `[20]`, `[20, 68]`, and `[20, 219, 218]`.
+The wide arms contain globally free `unassigned` tag-9 ranges and globally free,
+decoder-labeled LVAL ranges unreferenced by catalog `LvProp`; those retained-byte
+labels establish no current owner, purpose, reuse history, or semantic role.
+Issue #151 is evidence-complete for the three exact shapes and close-ready, not
+a claim about arbitrary schemas, general allocation, writer correctness,
+compatibility, or support.
 
 The issue #152 `extended-names` job partitions all 123 defined CP1252 bytes in
 `0x80`-`0xFF` into 41 independent three-byte arms per replica. Each defined arm
