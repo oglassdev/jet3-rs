@@ -1,24 +1,31 @@
 //! Composition of arbitrary planned user tables, decoded back through the
-//! reader to check each `EXP-0087` structure lands where the plan says.
+//! reader to check each `EXP-0093` structure lands where the plan says.
 
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
-use super::super::{BootstrapComposeError, TableCreate, compose_table_database};
-use crate::table_schema_plan::{PlannedIndex, PlannedIndexKind, TableSchemaSpec};
+use super::super::{BootstrapComposeError, compose_table_database};
+use crate::table_schema_plan::{
+    PlannedIndex, PlannedIndexKind, TableSchemaPlanError, TableSchemaSpec,
+};
 use crate::{
     ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, DatabaseReader,
-    IndexDirection, IndexFieldSpec, MapRowLocator, PageKind, PageNumber, SliceSource, page_tag,
+    IndexDirection, IndexFieldSpec, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource,
+    page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn create_bytes(create: TableCreate<'_>) -> Result<Vec<u8>, BootstrapComposeError> {
+fn create_bytes(spec: &TableSchemaSpec<'_>) -> Result<Vec<u8>, BootstrapComposeError> {
     let mut budget = compose_budget();
-    let plan = compose_table_database(create, &mut budget)?;
-    let mut bytes = Vec::with_capacity(plan.pages().len() * crate::PAGE_BYTES);
+    let plan = compose_table_database(spec, &mut budget)?;
+    let mut bytes = Vec::with_capacity(plan.pages().len() * PAGE_BYTES);
     for page in plan.pages() {
         bytes.extend_from_slice(page.image().as_bytes());
     }
     Ok(bytes)
+}
+
+fn page(bytes: &[u8], number: usize) -> &[u8] {
+    &bytes[number * PAGE_BYTES..(number + 1) * PAGE_BYTES]
 }
 
 const ID: ColumnSpec<'static> =
@@ -29,43 +36,57 @@ const NAME: ColumnSpec<'static> = ColumnSpec::new(
     ColumnStorageKind::Variable,
     50,
 );
+const CODE: ColumnSpec<'static> = ColumnSpec::new(
+    b"Code",
+    ColumnPhysicalType::Text,
+    ColumnStorageKind::Variable,
+    8,
+);
+const SEQUENCE: ColumnSpec<'static> = ColumnSpec::new(
+    b"Sequence",
+    ColumnPhysicalType::Long,
+    ColumnStorageKind::Fixed,
+    4,
+);
 const NOTE: ColumnSpec<'static> = ColumnSpec::new(
     b"Note",
     ColumnPhysicalType::Memo,
     ColumnStorageKind::Variable,
     0,
 );
-/// Builds a payload with the EXP-0087 framing and empty chunk bodies: the
-/// magic, one names chunk, then one chunk per column. Only Alpha's recorded
-/// payload is established; this exercises the framing check alone.
-fn framed_properties(columns: usize) -> Vec<u8> {
-    let mut payload = b"KKD\x00".to_vec();
-    payload.extend_from_slice(&[6, 0, 0, 0, 0x80, 0x00]);
-    for _ in 0..columns {
-        payload.extend_from_slice(&[6, 0, 0, 0, 0x01, 0x00]);
-    }
-    payload
+
+const fn field(column: u16, direction: IndexDirection) -> IndexFieldSpec {
+    IndexFieldSpec { column, direction }
+}
+
+/// Fixed Long columns with ten-byte names: 70 of them encode to the 2,075-byte
+/// definition `EXP-0105` observed needing one continuation.
+fn wide_names(count: usize) -> Vec<Vec<u8>> {
+    (0..count)
+        .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
+        .collect()
+}
+
+fn wide_columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
+    names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .collect()
 }
 
 #[test]
 fn a_created_memo_table_carries_its_long_value_map_groups_on_its_map_page() -> TestResult {
-    // EXP-0087's Beta shape: two appended pages plus the first-create
-    // long-value page, and one EXP-0077 map group for the Memo column.
+    // EXP-0087's Beta shape as a first create: root, map page, empty LvProp
+    // page, and one EXP-0077 map group for the Memo column.
     let columns = [ID, NAME, NOTE];
-    let bytes = create_bytes(TableCreate {
-        spec: &TableSchemaSpec {
-            name: b"Beta",
-            columns: &columns,
-            indexes: &[],
-        },
-        properties: &framed_properties(3),
+    let bytes = create_bytes(&TableSchemaSpec {
+        name: b"Beta",
+        columns: &columns,
+        indexes: &[],
     })?;
-    assert_eq!(bytes.len(), 23 * crate::PAGE_BYTES);
+    assert_eq!(bytes.len(), 23 * PAGE_BYTES);
     assert_eq!(bytes[1538], 2);
-    assert_eq!(
-        &bytes[22 * crate::PAGE_BYTES + 4..22 * crate::PAGE_BYTES + 8],
-        b"LVAL"
-    );
+    assert_eq!(&page(&bytes, 22)[4..8], b"LVAL");
     assert!(inline_map_bit(&bytes, 6, 10, 22)?);
 
     let mut budget = read_budget(bytes.len());
@@ -95,88 +116,149 @@ fn a_created_memo_table_carries_its_long_value_map_groups_on_its_map_page() -> T
     );
     // The map page holds the table's two maps and the group's two.
     assert_eq!(
-        u16::from_le_bytes([
-            bytes[21 * crate::PAGE_BYTES + 8],
-            bytes[21 * crate::PAGE_BYTES + 9]
-        ]),
+        u16::from_le_bytes([page(&bytes, 21)[8], page(&bytes, 21)[9]]),
         4
     );
     Ok(())
 }
 
 #[test]
-fn an_indexed_first_create_places_its_index_root_before_the_long_value_page() -> TestResult {
-    // EXP-0087's Gamma shape as a first create, which no run observed: the
-    // index root was observed directly after the map page, so the
-    // first-create long-value page can only follow it.
-    let columns = [ID];
-    let indexes = [PlannedIndex {
-        name: b"PrimaryKey",
-        fields: &[IndexFieldSpec {
-            column: 0,
-            direction: IndexDirection::Ascending,
-        }],
-        kind: PlannedIndexKind::Primary,
-    }];
-    let bytes = create_bytes(TableCreate {
-        spec: &TableSchemaSpec {
-            name: b"Gamma",
-            columns: &columns,
-            indexes: &indexes,
+fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> TestResult {
+    // EXP-0093's `three` arm shape: primary, unique, and ordinary indexes
+    // appended in that order, the last one composite with a descending field.
+    let columns = [ID, CODE, SEQUENCE];
+    let indexes = [
+        PlannedIndex {
+            name: b"ZPrimary",
+            fields: &[field(0, IndexDirection::Ascending)],
+            kind: PlannedIndexKind::Primary,
         },
-        properties: &framed_properties(1),
+        PlannedIndex {
+            name: b"MUniqueX",
+            fields: &[field(1, IndexDirection::Ascending)],
+            kind: PlannedIndexKind::Unique,
+        },
+        PlannedIndex {
+            name: b"ASecondx",
+            fields: &[
+                field(1, IndexDirection::Descending),
+                field(2, IndexDirection::Ascending),
+            ],
+            kind: PlannedIndexKind::Ordinary,
+        },
+    ];
+    let bytes = create_bytes(&TableSchemaSpec {
+        name: b"Three",
+        columns: &columns,
+        indexes: &indexes,
     })?;
-    assert_eq!(bytes.len(), 24 * crate::PAGE_BYTES);
-    assert_eq!(bytes[22 * crate::PAGE_BYTES], page_tag(PageKind::LeafIndex));
+    assert_eq!(bytes.len(), 26 * PAGE_BYTES);
+    assert_eq!(page(&bytes, 20)[0], page_tag(PageKind::TableDefinition));
+    assert_eq!(page(&bytes, 21)[0], page_tag(PageKind::Data));
+    assert_eq!(&page(&bytes, 22)[4..8], b"LVAL");
+    for root in 23..26 {
+        assert_eq!(page(&bytes, root)[0], page_tag(PageKind::LeafIndex));
+        assert!(!inline_map_bit(&bytes, 1, 0, root as u64)?);
+    }
+    assert!(inline_map_bit(&bytes, 1, 0, 26)?);
+    assert!(inline_map_bit(&bytes, 6, 10, 22)?);
+    // Map rows 2 through 4 each map exactly their own root.
     assert_eq!(
-        &bytes[23 * crate::PAGE_BYTES + 4..23 * crate::PAGE_BYTES + 8],
-        b"LVAL"
+        u16::from_le_bytes([page(&bytes, 21)[8], page(&bytes, 21)[9]]),
+        5
     );
-    assert!(!inline_map_bit(&bytes, 1, 0, 23)?);
-    assert!(inline_map_bit(&bytes, 1, 0, 24)?);
-    assert!(inline_map_bit(&bytes, 6, 10, 23)?);
+    for (row, root) in [(2, 23), (3, 24), (4, 25)] {
+        for candidate in 23..26 {
+            assert_eq!(
+                inline_map_bit(&bytes, 21, row, candidate)?,
+                candidate == root
+            );
+        }
+    }
 
     let mut budget = read_budget(bytes.len());
     let source = SliceSource::new(&bytes, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;
     let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
-    let [physical] = definition.physical_indexes() else {
-        return Err("expected exactly one physical index".into());
-    };
-    assert_eq!(physical.root(), PageNumber::new(22));
-    assert_eq!(physical.usage_map().page(), PageNumber::new(21));
-    assert_eq!(physical.usage_map().row(), 2);
-    assert!(physical.unique());
-    assert!(physical.required());
-    assert_eq!(definition.indexes()[0].name().raw_bytes(), b"PrimaryKey");
-    assert!(definition.long_value_maps().is_empty());
-    let root = database.index_tree(&definition, 0, &mut budget)?;
-    assert!(root.entries().is_empty());
+    let physical = definition.physical_indexes();
+    assert_eq!(physical.len(), 3);
+    for (ordinal, (root, flags)) in [(23, 0x09), (24, 0x01), (25, 0x00)].into_iter().enumerate() {
+        assert_eq!(physical[ordinal].root(), PageNumber::new(root));
+        assert_eq!(physical[ordinal].usage_map().page(), PageNumber::new(21));
+        assert_eq!(physical[ordinal].usage_map().row(), 2 + ordinal as u8);
+        assert_eq!(physical[ordinal].raw_flags(), flags);
+        assert!(
+            database
+                .index_tree(&definition, ordinal as u16, &mut budget)?
+                .entries()
+                .is_empty()
+        );
+    }
+    let composite = physical[2].fields();
+    assert_eq!(composite.len(), 2);
+    assert_eq!(composite[0].column(), ColumnOrdinal::new(1));
+    assert_eq!(composite[0].direction(), IndexDirection::Descending);
+    assert_eq!(composite[1].column(), ColumnOrdinal::new(2));
+    assert_eq!(composite[1].direction(), IndexDirection::Ascending);
+    // Logical records in name order, referring back to physical ordinals.
+    let logical = definition
+        .indexes()
+        .iter()
+        .map(|index| (index.name().raw_bytes(), index.physical_index()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        logical,
+        [
+            (b"ASecondx".as_slice(), 2),
+            (b"MUniqueX".as_slice(), 1),
+            (b"ZPrimary".as_slice(), 0),
+        ]
+    );
     Ok(())
 }
 
 #[test]
+fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
+    // EXP-0105 established the 2,048/2,040 capacities but placed its
+    // continuations at pages 68 and 219/218 under an unestablished
+    // allocation, so no compact layout can claim to follow it.
+    let names = wide_names(70);
+    let columns = wide_columns(&names);
+    let mut budget = compose_budget();
+    assert!(matches!(
+        compose_table_database(
+            &TableSchemaSpec {
+                name: b"Wide",
+                columns: &columns,
+                indexes: &[],
+            },
+            &mut budget,
+        ),
+        Err(BootstrapComposeError::Schema(
+            TableSchemaPlanError::ContinuationPlacementUnestablished {
+                length: 2075,
+                continuations: 1,
+            }
+        ))
+    ));
+}
+
+#[test]
 fn a_table_with_both_an_index_and_a_long_value_column_is_refused() {
-    // No EXP-0087 create carried both, so their map-page row order is unobserved.
+    // No observed create carried both, so their map-page row order is unobserved.
     let columns = [ID, NOTE];
     let indexes = [PlannedIndex {
         name: b"ById",
-        fields: &[IndexFieldSpec {
-            column: 0,
-            direction: IndexDirection::Ascending,
-        }],
+        fields: &[field(0, IndexDirection::Ascending)],
         kind: PlannedIndexKind::Ordinary,
     }];
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            TableCreate {
-                spec: &TableSchemaSpec {
-                    name: b"Mixed",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                properties: &framed_properties(2),
+            &TableSchemaSpec {
+                name: b"Mixed",
+                columns: &columns,
+                indexes: &indexes,
             },
             &mut budget,
         ),
@@ -190,31 +272,14 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            TableCreate {
-                spec: &TableSchemaSpec {
-                    name: b"",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                properties: &framed_properties(1),
+            &TableSchemaSpec {
+                name: b"",
+                columns: &columns,
+                indexes: &[],
             },
             &mut budget,
         ),
         Err(BootstrapComposeError::Schema(_))
-    ));
-    assert!(matches!(
-        compose_table_database(
-            TableCreate {
-                spec: &TableSchemaSpec {
-                    name: b"Empty",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                properties: b"",
-            },
-            &mut budget,
-        ),
-        Err(BootstrapComposeError::LongValue(_))
     ));
 }
 
@@ -235,89 +300,13 @@ fn a_second_long_value_column_is_refused() {
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
-            TableCreate {
-                spec: &TableSchemaSpec {
-                    name: b"Wide",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                properties: &framed_properties(3),
+            &TableSchemaSpec {
+                name: b"Wide",
+                columns: &columns,
+                indexes: &[],
             },
             &mut budget,
         ),
         Err(BootstrapComposeError::UnobservedLongValueColumnCount { observed: 1 })
     ));
-}
-
-#[test]
-fn a_property_payload_outside_the_pinned_framing_is_refused() {
-    let columns = [ID];
-    let mut budget = compose_budget();
-    let compose = |properties: &[u8], budget: &mut _| {
-        compose_table_database(
-            TableCreate {
-                spec: &TableSchemaSpec {
-                    name: b"Alpha",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                properties,
-            },
-            budget,
-        )
-    };
-    // Wrong magic.
-    assert!(matches!(
-        compose(b"KKE\x00", &mut budget),
-        Err(BootstrapComposeError::PropertyFraming { offset: 0 })
-    ));
-    // A chunk length running past the payload.
-    assert!(matches!(
-        compose(b"KKD\x00\x09\x00\x00\x00\x80\x00", &mut budget),
-        Err(BootstrapComposeError::PropertyFraming { offset: 4 })
-    ));
-    // A chunk shorter than its own header.
-    assert!(matches!(
-        compose(b"KKD\x00\x05\x00\x00\x00\x80\x00", &mut budget),
-        Err(BootstrapComposeError::PropertyFraming { offset: 4 })
-    ));
-    // A leading chunk that is not the names chunk.
-    assert!(matches!(
-        compose(b"KKD\x00\x06\x00\x00\x00\x01\x00", &mut budget),
-        Err(BootstrapComposeError::PropertyFraming { offset: 4 })
-    ));
-    // A names chunk body not exactly covered by length-prefixed entries: a
-    // one-byte body, then an entry whose length runs past the body.
-    assert!(matches!(
-        compose(
-            b"KKD\x00\x07\x00\x00\x00\x80\x00\x00\x06\x00\x00\x00\x01\x00",
-            &mut budget
-        ),
-        Err(BootstrapComposeError::PropertyFraming { offset: 10 })
-    ));
-    assert!(matches!(
-        compose(
-            b"KKD\x00\x09\x00\x00\x00\x80\x00\x02\x00\x41\x06\x00\x00\x00\x01\x00",
-            &mut budget
-        ),
-        Err(BootstrapComposeError::PropertyFraming { offset: 10 })
-    ));
-    // A names chunk with two exactly-covering entries passes.
-    assert!(
-        compose(
-            b"KKD\x00\x0d\x00\x00\x00\x80\x00\x02\x00\x41\x42\x01\x00\x43\x06\x00\x00\x00\x01\x00",
-            &mut budget
-        )
-        .is_ok()
-    );
-    // Chunk count not matching one names chunk plus one per column.
-    assert!(matches!(
-        compose(&framed_properties(2), &mut budget),
-        Err(BootstrapComposeError::PropertyChunkCount {
-            chunks: 3,
-            expected: 2
-        })
-    ));
-    // Alpha's recorded payload passes the framing for its one column.
-    assert!(compose(super::super::ALPHA_LVPROP_PAYLOAD, &mut budget).is_ok());
 }
