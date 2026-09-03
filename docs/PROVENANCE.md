@@ -9872,6 +9872,53 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent review; no acquisition has occurred
 
 
+### EXP-0109 — Multi-table create successor preregistration
+
+- Recorded: 2026-09-03, Claude Fable 5.1
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  experimental acquisition has occurred
+- Question: the single `EXP-0108` `quad` question, unchanged.
+- Origin: after `EXP-0108` merged as commit
+  `cf1e224b0a67515072f94e5c94acef0f5dcddb0c` (PR `#185`) and the user
+  authorized one run, dispatch `20260903T220845Z-multi-table` failed before
+  any experimental DAO mutation: the staged remote runner passed its optional
+  per-job paths as empty native arguments, which Windows PowerShell drops, so
+  the staged dispatcher rejected the invocation for a missing
+  `LvPropNullSchemasJobPath` value and no candidate or control was created,
+  opened, or read. Only the provider probe's disposable readiness database
+  was created. That pre-mutation failure rejects without a report under the
+  `EXP-0108` decision rule and is an infrastructure defect, not a scientific
+  result. This successor pins the corrected runner, which passes each optional
+  path only when it is non-empty, and leaves the plan text, candidate identity,
+  producer, analyzer, decision rule, and evidence boundary of `EXP-0108`
+  unchanged.
+- Protocol: as `EXP-0108`.
+- Decision rule: as `EXP-0108`.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/multi-table-create.plan.json`, SHA-256
+  `5778f3b561de27bc3506fd53b3aea9f6be894b05b205e14743ea49806a14aeb8`; source manifest
+  `oracle/windows-dao/acquisition/multi-table-create.sources.json`, SHA-256
+  `06f483190ecb9351c698d0304bfc20df6b85a77e7db8fda2e72efd15015f5ba8`; corrected runner
+  `oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`, SHA-256
+  `591bea836a5200f2dc0248492cf5b00f6e5758b421c59b262f101f7ef37523b1`; producer
+  `oracle/windows-dao/scripts/dev/MultiTableCreate.DevJob.ps1`, SHA-256
+  `87f46a9d3da3bbf7cae7ecde7c3d797ec9e85b52060ed16df4db925617924c55`; analyzer
+  `oracle/windows-dao/scripts/multi_table_create.py`, SHA-256
+  `8632f1a53aad740f6f8514e8f86bfa813febbe951317f0047365a836b7037037`. The candidate identity remains 63,488 bytes at SHA-256
+  `f4bad46de7c24ba92c0c9472d128eed48a2dbf1469594372d1098068940545ee`.
+- Authorization: acquisition is forbidden until these exact reviewed bytes
+  reach `main` and a human explicitly authorizes one run. Once the first DAO
+  `CreateDatabase` begins, any failure is a scientific result and no retry is
+  permitted without another human decision.
+- Interpretation: as `EXP-0108`; this entry adds no format evidence.
+- Usage: future result for issue `#100`; `EXP-0108`;
+  `file:oracle/windows-dao/acquisition/multi-table-create.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent review; no experimental acquisition has occurred
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
