@@ -145,9 +145,9 @@ it does not establish arbitrary index shapes, writer correctness, compatibility,
 or support.
 
 `definition-continuation` is the development-only experiment for issue #151.
-`EXP-0102` preregisters the current successor after `EXP-0095` and `EXP-0100`
-both produced valid `no_outcome` results. Three replicas each create one fresh
-empty database, identity-check three pre-mutation copies, and retain closed
+`EXP-0104` preregisters the current successor after `EXP-0095`, `EXP-0100`, and
+`EXP-0103` produced valid `no_outcome` results. Three replicas each create one
+fresh empty database, identity-check three pre-mutation copies, and retain closed
 checkpoints for the empty database plus the established `Alpha(Id Long)`
 small-definition control and exact 70- and 140-field wide-definition targets.
 Their predicted logical lengths are 66, 2,075, and 4,105 bytes, with required
@@ -167,11 +167,23 @@ may include the active `empty` checkpoint after `CreateDatabase` marks mutation
 started. Recovery is not opened or decoded, and every post-mutation failure
 remains `no_outcome`.
 The analyzer records chain pointers, logical chunks,
-appended-page roles, map locators, raw `LvProp` framing, its bounded external
+every appended page's decoded role record, owners, raw tag, and globally-free
+status derived from the decoded global allocation map, plus map locators,
+raw `LvProp` framing, its bounded external
 locator chain when present, referenced versus unreferenced appended LVAL pages,
 and the complete page-0 changed-offset set plus counter values. It presumes neither consecutive
 placement nor a single-page `LvProp`, and establishes no broader allocation,
-writer, compatibility, or support claim.
+writer, compatibility, or support claim. An explicit `unassigned` page-role
+record is a bounded observation only when the decoded global map marks that
+page free. Every globally-free page's decoded role and owners describe retained
+bytes only and establish no current owner, purpose, reuse history, or semantic
+role.
+An in-use `unassigned` page, a globally-free definition page, or a missing
+appended-page role record remains `no_outcome`.
+Every appended LVAL page referenced by the catalog `LvProp` must be globally in
+use. A decoder-labeled but unreferenced LVAL page may be globally free and is
+reported as a retained-byte classification without a current owner or purpose
+inference; a referenced globally-free LVAL page remains `no_outcome`.
 
 `EXP-0100` records that the former 2,046-byte `zero` definition used one
 continuation page, invalidating that run's control. Its diagnostic chains are
@@ -180,9 +192,11 @@ the current wide targets. `EXP-0103` records the single authorized `EXP-0102`
 run as a valid `no_outcome`: all three producers completed all checkpoints and
 baselines without recovery, but every analyzer replica reported `one appended
 page 22 is unattributed`. The all-or-`no_outcome` rule promotes no continuation
-count or placement diagnostic. Issue #151 remains evidence-blocked, and any
-further acquisition requires a separately pinned successor plus a new explicit
-human decision.
+count, placement, page role, tag, or ownership diagnostic. That replica-stable
+diagnosis is design input only for `EXP-0104`'s explicit `unassigned` inventory;
+it supplies no format evidence. The user's 2026-09-02 instruction prospectively
+authorizes one run of the exact merged `EXP-0104` successor. No retry is allowed
+after DAO mutation without another explicit human decision.
 
 `extended-names` is the SHA-256-pinned issue #152 successor for every defined
 CP1252 byte above `0x7E`. Three replicas each retained an empty checkpoint, the

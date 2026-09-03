@@ -9458,6 +9458,102 @@ Use `not applicable` explicitly rather than omitting a field.
   and cross-document documentation checks passed
 
 
+### EXP-0104 — Explicit-unassigned definition-continuation preregistration
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has been performed
+- Question: when the exact established `Alpha(Id Long)` small-definition
+  control and the unchanged exact 70- and 140-field wide-definition targets
+  are each created from an independently copied empty first-create image, do
+  their 66-, 2,075-, and 4,105-byte definitions decode to exactly zero, one,
+  and two continuation pages; where do those definition pages land and point;
+  and what bounded decoded page-role record and raw tag does every appended
+  page carry?
+- Prior evidence and design boundary: `EXP-0087` records the exact
+  `Alpha(Id Long)` zero-continuation control, `EXP-0059` records the bounded
+  definition grammar used to predict the two wide target lengths and counts,
+  and `EXP-0065` records the global allocation map's free versus in-use
+  classification and bounded reuse observations.
+  `EXP-0103` records a valid all-or-`no_outcome` result in which every analyzer
+  replica diagnosed `one` appended page 22 as unattributed. That repeated
+  diagnosis is design input only for this successor's reporting rule.
+  `EXP-0103` expressly promotes no page role, tag, owner, continuation count,
+  placement, pointer, counter, or other format fact, and this preregistration
+  does not treat its diagnostic as evidence.
+- Controlled design: the exact `EXP-0102` producer, three-replica execution,
+  `Alpha`/70-field/140-field schemas, logical lengths, required zero/one/two
+  continuation counts, bounds, checkpoints, arm baselines, failure state,
+  recovery, metadata-identity, and publication contracts remain unchanged.
+  Each arm still starts as an identity-checked copy of its replica's retained
+  empty database, and no rows or indexes are added.
+- Analysis and decision rule: every complete arm must still match the exact DAO
+  and decoded schema, logical length, continuation count, chain pointers, and
+  complete logical coverage. The analyzer enumerates every appended page with
+  the role record returned by the bounded decoder, its owners, raw page tag,
+  and globally-free status derived from the decoded global allocation map. An
+  explicit `unassigned` role is reported only when that map marks the page
+  free; it then no longer forces `no_outcome`. Every globally-free page's
+  decoded role and owners describe only the bounded decoder's classification
+  of retained bytes and establish no current owner, reuse history, allocation
+  purpose, or semantic role. Every appended LVAL page referenced by the catalog
+  `LvProp` must be globally in use. An unreferenced decoder-labeled LVAL page may
+  be globally free and is retained as a bounded decoder observation without
+  current ownership or purpose inference. An in-use `unassigned`
+  page, a globally-free definition root or continuation page, absence of an
+  appended page's role record, a referenced globally-free appended LVAL page,
+  any schema/count/chain failure, producer
+  failure, metadata mutation, incomplete arm, or replica disagreement remains
+  `no_outcome`. Malformed producer, artifact, or
+  result contracts remain rejected. Acceptance requires all three replicas to
+  agree on the complete decoded observations, including any explicit
+  `unassigned` records. Page-zero and catalog-root correlation remains
+  observational; exact user-table/root resolution is already enforced, and no
+  further semantic predicate is assigned. No automatic retry follows the first
+  DAO mutation.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/definition-continuation.plan.json`, SHA-256
+  `1ffa5af6bea302d89f61384fcb427dc889df9606e9c5f59db807d069da9b5c6f`;
+  producer `oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`,
+  SHA-256
+  `6971137487734353743879e19e1a4945787599a02fc10d982c9a55ed4a7e0330`;
+  analyzer `oracle/windows-dao/scripts/definition_continuation.py`, SHA-256
+  `be0665c7bab7edf460fa68dd565b00134268360111af8b0033bf443f95f18b2e`.
+  The plan carries exact lowercase SHA-256 pins for all eight staged inputs and
+  does not attempt to pin itself.
+- Authorization: acquisition is forbidden until these exact preregistration
+  bytes are merged. The user's 2026-09-02 instruction prospectively authorizes
+  at most one three-replica acquisition of the exact merged successor. Any
+  failure after the first DAO mutation is a scientific result and consumes that
+  authorization.
+- Interpretation: a later accepted report may establish only the exact three
+  schema shapes, counts, placements, pointers, decoded page-role records, raw
+  page tags, relative counters, and replication described above. A
+  globally-free page record establishes only that bounded decoder output and
+  raw tag; its role and owners do not establish a current owner or purpose. The
+  same evidence boundary applies to an unreferenced decoder-labeled LVAL page.
+  A referenced appended LVAL page is required to be globally in use. The
+  result cannot establish arbitrary boundary placement, other field or name
+  shapes, chains longer than two continuation pages, allocation policy, writer correctness,
+  compatibility, public creation, hosted differential `#102`, or
+  support-matrix movement.
+- Usage: issue `#151`; `EXP-0059`; `EXP-0061`; `EXP-0065`; `EXP-0073`; `EXP-0087`;
+  `EXP-0091`; `EXP-0093`; `EXP-0095`; `EXP-0098`; `EXP-0100`; `EXP-0102`;
+  `EXP-0103`;
+  `file:oracle/windows-dao/acquisition/definition-continuation.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/definition_continuation.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: two independent review/fix passes covered the free-page evidence
+  boundary, appended-page inventory, definition and `LvProp` references,
+  result-state classification, exact pins, and cross-document agreement. They
+  restricted `unassigned` acceptance to globally-free pages, disclaimed current
+  semantics for every globally-free decoded label, and required referenced LVAL
+  pages to be globally in use. Final focused verification found no remaining
+  findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup

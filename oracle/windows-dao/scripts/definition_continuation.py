@@ -457,12 +457,15 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
         raise DecodeError(f"{scenario} definition chain is malformed")
     chunks = definition_chunks(after, pages, definition["logical_length"])
     roles = {entry["page"]: entry for entry in after_analysis["pages"]}
+    globally_free = set(after_analysis["free_pages"])
     owner = f"table {definition['root']} {TABLE_NAMES[scenario]}"
     for position, page in enumerate(pages):
         expected_role = "definition_root" if position == 0 else "definition_continuation"
         role = roles.get(page)
         if role is None or role["role"] != expected_role or owner not in role["owners"]:
             raise DecodeError(f"{scenario} definition page {page} has the wrong role or owner")
+        if page in globally_free:
+            raise DecodeError(f"{scenario} definition page {page} is globally free")
     before_pages = len(before) // PAGE_BYTES
     after_pages = len(after) // PAGE_BYTES
     for chunk in chunks:
@@ -473,15 +476,20 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
     appended = []
     for page in range(before_pages, after_pages):
         role = roles.get(page)
-        if role is None or role["role"] == "unassigned":
-            raise DecodeError(f"{scenario} appended page {page} is unattributed")
+        if role is None:
+            raise DecodeError(f"{scenario} appended page {page} lacks a page-role record")
+        is_globally_free = page in globally_free
+        if role["role"] == "unassigned" and not is_globally_free:
+            raise DecodeError(f"{scenario} unassigned appended page {page} is not globally free")
         appended.append(
             {
                 "delta_from_definition": page - definition["root"],
                 "delta_from_empty": page - before_pages,
+                "globally_free": is_globally_free,
                 "owners": role["owners"],
                 "page": page,
                 "role": role["role"],
+                "tag": role["tag"],
             }
         )
     table_maps = {}
@@ -494,6 +502,14 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
             ),
         }
     lvprop = created_lvprop(after, after_analysis, TABLE_NAMES[scenario], before_pages)
+    referenced_free = sorted(
+        set(lvprop["referenced_appended_lval_pages"]) & globally_free
+    )
+    if referenced_free:
+        raise DecodeError(
+            f"{scenario}.LvProp references globally free appended LVAL page "
+            f"{referenced_free[0]}"
+        )
     return {
         "appended_pages": appended,
         "catalog_object_id": definition["root"],
