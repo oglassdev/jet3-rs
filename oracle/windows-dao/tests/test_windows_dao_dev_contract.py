@@ -1177,6 +1177,34 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         )
         self.assertIn('"lvprop-null-schemas" {', self.publication)
         self.assertIn("unique 18-database bound", self.publication)
+        self.assertIn(
+            "Null-LvProp schema result must not be a reparse point.",
+            self.publication,
+        )
+        self.assertIn(
+            "Null-LvProp schema result exceeds the 4-MiB bound.",
+            self.publication,
+        )
+        publication_start = self.publication.index('"lvprop-null-schemas" {')
+        self.assertLess(
+            self.publication.index(
+                "$jobResultItem.Length -gt 4194304", publication_start
+            ),
+            self.publication.index(
+                "$jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8",
+                publication_start,
+            ),
+        )
+        remote_start = self.remote.rindex('elseif ($Job -ceq "lvprop-null-schemas")')
+        self.assertLess(
+            self.remote.index(
+                "$item.Length -ne [long]$expected.Value.size", remote_start
+            ),
+            self.remote.index(
+                "$digest = (Get-FileHash -LiteralPath $candidate.path -Algorithm SHA256).Hash.ToLowerInvariant()",
+                remote_start,
+            ),
+        )
         for parameter in (
             "-AlphaCandidatePath",
             "-IndexedCandidatePath",

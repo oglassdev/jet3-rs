@@ -594,6 +594,13 @@ switch ($Job) {
         if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
             throw "Null-LvProp schema result is missing."
         }
+        $jobResultItem = Get-Item -LiteralPath $jobResultPath
+        if (($jobResultItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Null-LvProp schema result must not be a reparse point."
+        }
+        if ($jobResultItem.Length -gt 4194304) {
+            throw "Null-LvProp schema result exceeds the 4-MiB bound."
+        }
         $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $referenced = New-Object Collections.ArrayList
         foreach ($replica in @($jobResult.replicas)) {

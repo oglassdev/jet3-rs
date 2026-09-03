@@ -149,6 +149,8 @@ def integer(value: Any, where: str, low: int, high: int) -> int:
 def load(path: Path) -> dict[str, Any]:
     if not path.is_file() or path.is_symlink():
         raise AnalysisError("job result must be a regular non-link file")
+    if path.stat().st_size > MAX_JSON_BYTES:
+        raise AnalysisError("job result exceeds the JSON bound")
     raw = path.read_bytes()
     if len(raw) > MAX_JSON_BYTES:
         raise AnalysisError("job result exceeds the JSON bound")
@@ -244,6 +246,8 @@ def read_endpoints(value: Any, schema: str) -> dict[str, Any]:
         raise AnalysisError("completed endpoints are not an exact prefix")
     if item["status"] == "pass" and completed != list(ENDPOINTS):
         raise AnalysisError("passing endpoints are incomplete")
+    if item["status"] == "fail" and completed == list(ENDPOINTS):
+        raise AnalysisError("failed endpoints claim the complete endpoint sequence")
     detail = bounded_text(item["detail"], "endpoint detail")
     snapshot = item["snapshot"]
     if item["status"] == "pass":
@@ -295,6 +299,8 @@ def read_image(root: Path, value: Any, replica: int, expected_role: str) -> dict
     path = root / item["database"]
     if not path.is_file() or path.is_symlink():
         raise AnalysisError("referenced MDB must be a regular non-link file")
+    if path.stat().st_size != size_after:
+        raise AnalysisError("retained MDB differs from its recorded identity")
     retained = path.read_bytes()
     if len(retained) != size_after or hashlib.sha256(retained).hexdigest() != after:
         raise AnalysisError("retained MDB differs from its recorded identity")
@@ -400,7 +406,8 @@ def evaluate(job_result: Path, expected_plan: str, output: Path) -> dict[str, An
 
     questions = {schema: classify(schema, replicas) for schema in SCHEMA_ORDER}
     accepted = (
-        questions["alpha"]["status"] == "observed_accepted"
+        document["status"] == "pass"
+        and questions["alpha"]["status"] == "observed_accepted"
         and questions["indexed"]["status"] in ("observed_accepted", "not_observed_accepted")
         and questions["wide"]["status"] in ("observed_accepted", "not_observed_accepted")
     )

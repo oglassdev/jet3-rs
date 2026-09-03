@@ -193,6 +193,21 @@ class LvPropNullSchemasTests(unittest.TestCase):
             report = self.evaluate(fixture)
         self.assertEqual(report["status"], "no_outcome")
 
+    def test_failed_job_with_complete_observations_is_a_no_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Fixture(Path(temporary))
+            fixture.replicas[2]["status"] = "fail"
+            fixture.replicas[2]["error"] = "post-observation job failure"
+            fixture.document["status"] = "fail"
+            report = self.evaluate(fixture)
+        self.assertEqual(report["status"], "no_outcome")
+
+    def test_failed_endpoint_cannot_claim_all_endpoints_completed(self) -> None:
+        failed = endpoints("indexed", passed=False)
+        failed["completed"] = list(ANALYZER.ENDPOINTS)
+        with self.assertRaisesRegex(ANALYZER.AnalysisError, "claim the complete"):
+            ANALYZER.read_endpoints(failed, "indexed")
+
     def test_pre_mutation_failure_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Fixture(Path(temporary))
@@ -216,6 +231,34 @@ class LvPropNullSchemasTests(unittest.TestCase):
             duplicate.write_text('{"status":"pass","status":"fail"}', encoding="utf-8")
             with self.assertRaisesRegex(ANALYZER.AnalysisError, "duplicate JSON field"):
                 ANALYZER.load(duplicate)
+
+    def test_file_bounds_are_checked_before_reads(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            oversized = root / "oversized.json"
+            with oversized.open("wb") as stream:
+                stream.truncate(ANALYZER.MAX_JSON_BYTES + 1)
+            with mock.patch.object(
+                Path, "read_bytes", side_effect=AssertionError("oversized JSON was read")
+            ):
+                with self.assertRaisesRegex(ANALYZER.AnalysisError, "JSON bound"):
+                    ANALYZER.load(oversized)
+
+            fixture = Fixture(root)
+            image = copy.deepcopy(fixture.replicas[0]["images"][0])
+            image["size_after"] -= ANALYZER.PAGE_BYTES
+            pins = {
+                role: {key: value for key, value in raw.items() if key != "raw"}
+                for role, raw in fixture.candidates.items()
+            }
+            with (
+                mock.patch.object(ANALYZER, "CANDIDATES", pins),
+                mock.patch.object(
+                    Path, "read_bytes", side_effect=AssertionError("oversized MDB was read")
+                ),
+            ):
+                with self.assertRaisesRegex(ANALYZER.AnalysisError, "recorded identity"):
+                    ANALYZER.read_image(root, image, 1, "candidate_alpha")
 
     def test_index_order_is_normalized_but_index_semantics_are_exact(self) -> None:
         observed = snapshot("indexed")

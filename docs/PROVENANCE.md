@@ -9688,15 +9688,15 @@ Use `not applicable` explicitly rather than omitting a field.
   pre-mutation failure rejects without a report.
 - Preregistration artifacts: plan
   `oracle/windows-dao/acquisition/lvprop-null-schemas.plan.json`, SHA-256
-  `2e68b1d74d16886935702bcb67a52abecf1139c4fce96bd6e5035d66bb307d68`;
+  `47ff5d3d9ac56f5d71a022e9d7221160577a2be1026977abded98b58e7ab40aa`;
   source manifest
   `oracle/windows-dao/acquisition/lvprop-null-schemas.sources.json`, SHA-256
-  `4b0b7682b0820bdd1e7e87155706baba171f1219a2b65f2ff3f054f60cb9fd40`;
+  `ad1cce42ce80031c7554d3cc3c9c5dbcdd7044b7b76d99eeff07888fdbc144b0`;
   producer `oracle/windows-dao/scripts/dev/LvPropNullSchemas.DevJob.ps1`,
   SHA-256
   `4e6f661f275e1ae3d37a52fa069d9423279218104a242e14f327793b1da1d4b6`;
   analyzer `oracle/windows-dao/scripts/lvprop_null_schemas.py`, SHA-256
-  `9eb9d837a09f0e50e8f38302227836c280de6f467c4eae6cd9224719a3ebb44f`.
+  `068fd5de60f74de17a10c4bddd33fa726414e38de9f447d48eb2bc03edb67ad7`.
   Candidate identities are Alpha 47,104 bytes at SHA-256
   `c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21`,
   indexed 53,248 bytes at SHA-256

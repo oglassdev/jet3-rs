@@ -540,10 +540,14 @@ if ($planBoundJobs.ContainsKey($Job)) {
                 [Console]::Error.WriteLine("INVALID: null-LvProp schema candidate is missing or unpinned.")
                 exit 2
             }
-            $size = (Get-Item -LiteralPath $candidate.path).Length
+            $item = Get-Item -LiteralPath $candidate.path
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $item.Length -ne [long]$expected.Value.size) {
+                [Console]::Error.WriteLine("INVALID: null-LvProp schema candidate differs from its plan.")
+                exit 2
+            }
             $digest = (Get-FileHash -LiteralPath $candidate.path -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($size -ne [long]$expected.Value.size -or
-                $digest -cne [string]$expected.Value.sha256) {
+            if ($digest -cne [string]$expected.Value.sha256) {
                 [Console]::Error.WriteLine("INVALID: null-LvProp schema candidate differs from its plan.")
                 exit 2
             }
