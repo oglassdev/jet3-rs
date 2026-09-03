@@ -9659,6 +9659,67 @@ Use `not applicable` explicitly rather than omitting a field.
   canonical report and artifact identities, additive provenance, issue closure,
   and exact-shape limitations and found no remaining findings.
 
+### EXP-0106 — Null-LvProp indexed and continuation preregistration
+
+- Recorded: 2026-09-03, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has occurred
+- Question: does DAO 3.6 read the exact null-`LvProp` indexed candidate and
+  exact compact one-continuation candidate unchanged with the same bounded
+  schema semantics as fresh DAO controls of each exact schema?
+- Origin: issue `#178`, following the bounded Alpha acceptance in `EXP-0091`,
+  the three-index observation in `EXP-0093`, and the continuation observation
+  in `EXP-0105`. The accepted Alpha null-`LvProp` image is the positive
+  candidate gate. The indexed arm uses the exact `IdxTri` schema. The wide arm
+  uses the exact 70-field `ContOneX` schema but deliberately places its one
+  continuation compactly at page 23; that placement is the tested hypothesis,
+  not an admitted allocation rule.
+- Protocol: generate the three candidates only from the manifest-pinned Rust
+  source; stage and identity-check all candidates; copy and identity-check all
+  nine candidate replicas before the first DAO mutation; then create fresh
+  same-schema DAO controls and run the same eight read-only endpoints over six
+  images per replica. Record size and SHA-256 before and after access. The
+  analyzer requires exact roles, filenames, bounds, retained identities,
+  schemas, and replicated outcomes.
+- Decision rule: Alpha must be `observed_accepted`. Each target may be either
+  `observed_accepted` or a stable `not_observed_accepted`; control failure,
+  image mutation, replica disagreement, incomplete work, or an unclassifiable
+  result yields `no_outcome`. Malformed data, pin or inventory failure, or a
+  pre-mutation failure rejects without a report.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/lvprop-null-schemas.plan.json`, SHA-256
+  `47ff5d3d9ac56f5d71a022e9d7221160577a2be1026977abded98b58e7ab40aa`;
+  source manifest
+  `oracle/windows-dao/acquisition/lvprop-null-schemas.sources.json`, SHA-256
+  `ad1cce42ce80031c7554d3cc3c9c5dbcdd7044b7b76d99eeff07888fdbc144b0`;
+  producer `oracle/windows-dao/scripts/dev/LvPropNullSchemas.DevJob.ps1`,
+  SHA-256
+  `4e6f661f275e1ae3d37a52fa069d9423279218104a242e14f327793b1da1d4b6`;
+  analyzer `oracle/windows-dao/scripts/lvprop_null_schemas.py`, SHA-256
+  `068fd5de60f74de17a10c4bddd33fa726414e38de9f447d48eb2bc03edb67ad7`.
+  Candidate identities are Alpha 47,104 bytes at SHA-256
+  `c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21`,
+  indexed 53,248 bytes at SHA-256
+  `bb7e0d408a5e844dd0fbe6eae008a4ca31bd83f376e611339ad5f8385572835e`,
+  and wide 49,152 bytes at SHA-256
+  `81cfd7b86616f9928b71cab4398f26305d5dafdbe4bfa0a514e6f9b4146f1cf6`.
+- Authorization: acquisition is forbidden until these exact reviewed bytes
+  reach `main` and a human explicitly authorizes one run. Once the first DAO
+  `CreateDatabase` begins, any failure is a scientific result and no retry is
+  permitted without another human decision.
+- Interpretation: a later accepted result may establish only whether DAO reads
+  each exact candidate identity unchanged at the preregistered endpoints. It
+  cannot establish null-`LvProp` acceptance for arbitrary schemas, a general
+  property or continuation-allocation grammar, writer or publication
+  correctness, compatibility, hosted differential `#102`, or support movement.
+- Usage: future result for issue `#178`; `EXP-0091`; `EXP-0093`; `EXP-0105`;
+  `file:oracle/windows-dao/acquisition/lvprop-null-schemas.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/LvPropNullSchemas.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/lvprop_null_schemas.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent review; no acquisition has occurred
+
 
 ## Fixtures and black-box results
 

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]
+    [ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$RunRoot,
@@ -41,6 +41,10 @@ param(
     [string]$LvPropFixedAlphaPath,
     [Parameter(Mandatory = $true)]
     [string]$LvPropNullAlphaPath,
+    [string]$LvPropNullSchemasJobPath = "",
+    [string]$LvPropSchemasAlphaPath = "",
+    [string]$LvPropSchemasIndexedPath = "",
+    [string]$LvPropSchemasWidePath = "",
     [string]$PlanSha256 = "",
     [string]$RunId = ""
 )
@@ -76,6 +80,7 @@ $scriptPath = switch ($Job) {
     "definition-continuation" { $DefinitionContinuationJobPath }
     "extended-names" { $ExtendedNamesJobPath }
     "lvprop-null" { $LvPropNullJobPath }
+    "lvprop-null-schemas" { $LvPropNullSchemasJobPath }
 }
 if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     [Console]::Error.WriteLine("INVALID: selected staged job does not exist.")
@@ -111,6 +116,15 @@ elseif ($Job -ceq "lvprop-null") {
         "-NullCandidatePath", $LvPropNullAlphaPath
     )
 }
+elseif ($Job -ceq "lvprop-null-schemas") {
+    $arguments += @(
+        "-PlanSha256", $PlanSha256,
+        "-RunId", $RunId,
+        "-AlphaCandidatePath", $LvPropSchemasAlphaPath,
+        "-IndexedCandidatePath", $LvPropSchemasIndexedPath,
+        "-WideCandidatePath", $LvPropSchemasWidePath
+    )
+}
 elseif ($Job -ceq "bootstrap-composer-validation") {
     $arguments += @(
         "-PlanSha256", $PlanSha256,
@@ -138,6 +152,7 @@ $resultName = switch ($Job) {
     "definition-continuation" { "definition-continuation-job-result.json" }
     "extended-names" { "extended-names-job-result.json" }
     "lvprop-null" { "lvprop-null-job-result.json" }
+    "lvprop-null-schemas" { "lvprop-null-schemas-job-result.json" }
 }
 $resultPath = Join-Path $RunRoot $resultName
 if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -159,6 +174,7 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
         definition_continuation_replicas = @()
         extended_names_replicas = @()
         lvprop_null_replicas = @()
+        lvprop_null_schemas_replicas = @()
     }
     Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
     exit 1
@@ -178,6 +194,7 @@ $multipleIndexesReplicas = @()
 $definitionContinuationReplicas = @()
 $extendedNamesReplicas = @()
 $lvpropNullReplicas = @()
+$lvpropNullSchemasReplicas = @()
 # The system-catalog result carries no detail field; derive one from its status.
 $detail = if ($Job -in @("system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics")) {
     if ([string]$jobResult.status -ceq "pass") {
@@ -227,6 +244,14 @@ elseif ($Job -ceq "lvprop-null") {
         "At least one LvProp-null replica failed; per-replica error records the message."
     }
 }
+elseif ($Job -ceq "lvprop-null-schemas") {
+    if ([string]$jobResult.status -ceq "pass") {
+        "Completed all three null-LvProp schema replicas once without retry."
+    }
+    else {
+        "At least one null-LvProp schema replica failed; per-replica error records the message."
+    }
+}
 elseif ($Job -ceq "bootstrap-composer-validation") {
     if ([string]$jobResult.status -ceq "pass") {
         "Completed all three bootstrap-composer validation replicas once without retry."
@@ -268,6 +293,9 @@ elseif ($Job -ceq "extended-names") {
 elseif ($Job -ceq "lvprop-null") {
     $lvpropNullReplicas = @($jobResult.replicas)
 }
+elseif ($Job -ceq "lvprop-null-schemas") {
+    $lvpropNullSchemasReplicas = @($jobResult.replicas)
+}
 $result = [ordered]@{
     development_only = $true
     job = $Job
@@ -286,6 +314,7 @@ $result = [ordered]@{
     definition_continuation_replicas = @($definitionContinuationReplicas)
     extended_names_replicas = @($extendedNamesReplicas)
     lvprop_null_replicas = @($lvpropNullReplicas)
+    lvprop_null_schemas_replicas = @($lvpropNullSchemasReplicas)
 }
 Write-JsonDocument -Path (Join-Path $RunRoot "dispatch-result.json") -Document $result
 exit $jobExitCode
