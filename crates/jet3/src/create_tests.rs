@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{CreateDatabaseError, create_database};
+use super::{CandidateCheckError, CreateDatabaseError, check_candidate, create_database};
 use crate::table_schema_plan::TableSchemaPlanError;
 use crate::{
     BootstrapComposeError, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, DatabaseReader,
@@ -134,6 +134,54 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
                 .is_empty()
         );
     }
+    Ok(())
+}
+
+#[test]
+fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let columns = [ID];
+    let fields = [field(0, IndexDirection::Ascending)];
+    let unique_indexes = [IndexSpec {
+        name: b"ById",
+        fields: &fields,
+        kind: IndexKind::Unique,
+    }];
+    create_database(
+        &target,
+        &TableSpec {
+            name: b"Items",
+            columns: &columns,
+            indexes: &unique_indexes,
+        },
+        &mut budget(),
+    )?;
+
+    let ordinary_indexes = [IndexSpec {
+        name: b"ById",
+        fields: &fields,
+        kind: IndexKind::Ordinary,
+    }];
+    let page_count = fs::metadata(&target)?.len() / crate::PAGE_BYTES as u64;
+    let error = check_candidate(
+        &target,
+        &TableSpec {
+            name: b"Items",
+            columns: &columns,
+            indexes: &ordinary_indexes,
+        },
+        page_count,
+        &mut budget(),
+    )
+    .err()
+    .ok_or("candidate check accepted mismatched index flags")?;
+    assert!(matches!(
+        error,
+        CandidateCheckError::Mismatch {
+            detail: "index kind"
+        }
+    ));
     Ok(())
 }
 

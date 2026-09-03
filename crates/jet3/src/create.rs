@@ -5,7 +5,7 @@
 //! that file through the ordinary reader to check its structure against the
 //! request, and only then publishes it. A destination that already exists is
 //! left untouched, and a destination that was absent stays absent after any
-//! failure.
+//! pre-publication failure.
 //!
 //! The structural reopen is a publication prerequisite, not compatibility
 //! evidence. Only a recorded DAO differential can establish that Microsoft
@@ -23,7 +23,8 @@ use crate::bootstrap_composer::{BootstrapComposeError, compose_table_database};
 use crate::page_append_plan::PlannedPage;
 use crate::{
     CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, DatabaseOpenError,
-    DatabaseReader, PublishError, ResourceBudget, TableDefinitionError, TableSpec,
+    DatabaseReader, IndexDefinitionKind, IndexKind, PublishError, ResourceBudget,
+    TableDefinitionError, TableSpec,
 };
 
 /// Structured failure of [`create_database`].
@@ -99,10 +100,11 @@ impl StdError for CandidateCheckError {
 
 /// Creates the database at `path` holding one empty user table.
 ///
-/// `path` must not exist; an existing entry fails with an `AlreadyExists`
-/// I/O error at [`crate::PublishStage::PrivateCopyCreation`] and is left
-/// unchanged. Composition, the page writes, and the structural reopen are all
-/// charged to `budget`.
+/// After successful composition, `path` must not exist; an existing entry
+/// fails with an `AlreadyExists` I/O error at
+/// [`crate::PublishStage::PrivateCopyCreation`] and is left unchanged.
+/// Composition, the page writes, and the structural reopen are all charged to
+/// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
 /// anything is written: more than three indexes, more than one Memo or
@@ -212,7 +214,16 @@ fn check_candidate(
         if logical.name().raw_bytes() != requested.name {
             return Err(mismatch("index name"));
         }
-        let fields = definition.physical_indexes()[physical].fields();
+        let physical_definition = &definition.physical_indexes()[physical];
+        let (logical_kind, physical_flags) = match requested.kind {
+            IndexKind::Primary => (IndexDefinitionKind::Primary, 0x09),
+            IndexKind::Unique => (IndexDefinitionKind::Ordinary, 0x01),
+            IndexKind::Ordinary => (IndexDefinitionKind::Ordinary, 0x00),
+        };
+        if logical.kind() != logical_kind || physical_definition.raw_flags() != physical_flags {
+            return Err(mismatch("index kind"));
+        }
+        let fields = physical_definition.fields();
         if fields.len() != requested.fields.len()
             || fields.iter().zip(requested.fields).any(|(field, wanted)| {
                 field.column().get() != wanted.column || field.direction() != wanted.direction

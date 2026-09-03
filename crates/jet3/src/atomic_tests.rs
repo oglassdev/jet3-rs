@@ -331,6 +331,25 @@ fn successful_create_publishes_the_validated_file() -> TestResult {
 }
 
 #[test]
+fn create_directory_sync_fault_reports_the_published_target() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |stage| {
+        if stage == PublishStage::DirectorySync {
+            Err(TestFailure("injected directory-sync failure"))
+        } else {
+            Ok(())
+        }
+    })
+    .err()
+    .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
+    assert_eq!(error.stage(), PublishStage::DirectorySync);
+    assert_eq!(fs::read(&target)?, b"fresh");
+    assert_eq!(directory.private_entries()?, 1);
+    Ok(())
+}
+
+#[test]
 fn create_refuses_an_existing_target_and_leaves_it_untouched() -> TestResult {
     let directory = TestDirectory::create()?;
     let target = directory.target();

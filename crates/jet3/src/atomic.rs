@@ -3,7 +3,7 @@
 //!
 //! A private copy is created in the target's directory, mutated, independently
 //! validated, synchronized, identity-checked against its retained file handle,
-//! and then published with [`std::fs::rename`].
+//! and then published with an operating-system atomic primitive.
 //! Same-directory placement avoids cross-filesystem rename. Atomic replacement
 //! and crash durability remain subject to the operating system and filesystem
 //! guarantees documented for `rename` and `sync_all`; network and unusual
@@ -42,10 +42,11 @@ type BoxError = Box<dyn StdError + Send + Sync + 'static>;
 /// A fault-injection and diagnostic boundary in atomic publication.
 ///
 /// Hooks run immediately before the named work. A hook failure through
-/// [`PublishStage::Publish`] occurs before rename and leaves the original
-/// target in place. [`PublishStage::DirectorySync`] occurs after rename; an
-/// error at that stage reports that the verified replacement was published but
-/// its directory entry may not be durable across a crash. [`Self::Cleanup`] is
+/// [`PublishStage::Publish`] occurs before the target is published and leaves
+/// the original target in place. [`PublishStage::DirectorySync`] occurs after
+/// publication; an error at that stage reports that the verified file was
+/// published but its directory entry may not be durable across a crash.
+/// [`Self::Cleanup`] is
 /// visited only after a pre-publication failure and immediately before
 /// identity-checking and removing the private entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -64,7 +65,7 @@ pub enum PublishStage {
     FileSync,
     /// Final barrier after validation and synchronization.
     PrePublish,
-    /// Atomically rename the private file over the target.
+    /// Atomically publish the private file at the target.
     Publish,
     /// Synchronize the containing directory where supported.
     DirectorySync,
@@ -142,13 +143,13 @@ impl fmt::Display for PublishError {
         if self.stage.is_post_publication() {
             write!(
                 formatter,
-                "{} failed after replacement publication: {}",
+                "{} failed after publication: {}",
                 self.stage, self.source
             )?;
         } else {
             write!(
                 formatter,
-                "{} failed before replacement publication: {}",
+                "{} failed before publication: {}",
                 self.stage, self.source
             )?;
         }
@@ -713,7 +714,7 @@ mod platform_publish {
     fn unsupported() -> io::Error {
         io::Error::new(
             io::ErrorKind::Unsupported,
-            "atomic overwrite-replace publication and directory durability are not implemented for this platform",
+            "atomic publication and directory durability are not implemented for this platform",
         )
     }
 
