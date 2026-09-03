@@ -198,11 +198,41 @@ fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> Te
 }
 
 #[test]
-fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
-    // EXP-0105 established the 2,048/2,040 capacities but placed its
-    // continuations at pages 68 and 219/218 under an unestablished
-    // allocation, so no compact layout can claim to follow it.
+fn a_definition_needing_a_continuation_appends_it_after_the_property_page() -> TestResult {
+    // EXP-0107: the root names page 23 at [4,8), the continuation repeats the
+    // definition prefix with a zero next-page reference, and the payload
+    // starts at offset 8. The reader must decode all 70 columns through it.
     let names = wide_names(70);
+    let columns = wide_columns(&names);
+    let bytes = create_bytes(&TableSpec {
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    assert_eq!(bytes.len(), 24 * PAGE_BYTES);
+    let root = page(&bytes, 20);
+    let continuation = page(&bytes, 23);
+    assert_eq!(&root[4..8], &23_u32.to_le_bytes());
+    assert_eq!(&continuation[..4], &root[..4]);
+    assert_eq!(&continuation[4..8], &[0, 0, 0, 0]);
+    assert!(continuation[8 + 27..].iter().all(|byte| *byte == 0));
+    assert!(!inline_map_bit(&bytes, 1, 0, 23)?);
+    assert_eq!(&page(&bytes, 22)[..4], b"\x01\x01\xf6\x07");
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    assert_eq!(database.geometry().page_count(), 24);
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.columns().len(), 70);
+    assert_eq!(definition.columns()[69].name().raw_bytes(), b"Field00069");
+    Ok(())
+}
+
+#[test]
+fn a_definition_needing_two_continuations_is_refused_before_any_page_is_built() {
+    // 140 ten-byte-named Long columns encode to 4,105 bytes, EXP-0105's
+    // two-continuation arm, whose placement stays unestablished.
+    let names = wide_names(140);
     let columns = wide_columns(&names);
     let mut budget = compose_budget();
     assert!(matches!(
@@ -216,8 +246,8 @@ fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
         ),
         Err(ComposeError::Schema(
             TableSchemaPlanError::ContinuationPlacementUnestablished {
-                length: 2075,
-                continuations: 1,
+                length: 4105,
+                continuations: 2,
             }
         ))
     ));

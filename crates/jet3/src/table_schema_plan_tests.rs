@@ -534,21 +534,57 @@ fn a_definition_that_exactly_fills_its_root_page_needs_no_continuation() -> Plan
 }
 
 #[test]
-fn a_definition_needing_a_continuation_is_refused() {
-    // EXP-0105 left continuation placement unestablished, so the refusal
-    // starts one byte above the root capacity and reports the count.
-    for (length, continuations) in [
-        (DEFINITION_ROOT_CAPACITY + 1, 1),
-        (DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY + 1, 2),
-    ] {
-        let names = names_of_definition_len(length);
-        let columns = long_columns(&names);
-        assert_eq!(
-            plan_table_schema(&spec(b"Wide", &columns, &[]), 20),
-            Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
-                length,
-                continuations,
-            })
-        );
-    }
+fn a_definition_needing_one_continuation_places_it_after_the_property_page() -> PlanResult {
+    // EXP-0107: the accepted ContOneX image appended its single continuation
+    // at page 23, directly after the LvProp page, with no index roots.
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
+    let columns = long_columns(&names);
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?;
+    assert_eq!(plan.definition_len(), DEFINITION_ROOT_CAPACITY + 1);
+    assert_eq!(plan.property_page(), PageNumber::new(22));
+    assert_eq!(plan.continuation_page(), Some(PageNumber::new(23)));
+    assert_eq!(plan.appended_page_count(), 4);
+    let full = names_of_definition_len(DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY);
+    let columns = long_columns(&full);
+    assert_eq!(
+        plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?.appended_page_count(),
+        4
+    );
+    Ok(())
+}
+
+#[test]
+fn a_definition_needing_two_continuations_is_refused() {
+    // EXP-0105 observed two-continuation chains only under the provider's own
+    // allocation, so the refusal starts one byte above the continuation.
+    let length = DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY + 1;
+    let names = names_of_definition_len(length);
+    let columns = long_columns(&names);
+    assert_eq!(
+        plan_table_schema(&spec(b"Wide", &columns, &[]), 20),
+        Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
+            length,
+            continuations: 2,
+        })
+    );
+}
+
+#[test]
+fn a_continuation_beside_an_index_is_refused() {
+    // No observed create carried both, so the order of the continuation and
+    // the index roots is unestablished.
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
+    let columns = long_columns(&names);
+    let indexes = [IndexSpec {
+        name: b"ByFirst",
+        fields: &[key(0)],
+        kind: IndexKind::Ordinary,
+    }];
+    assert_eq!(
+        plan_table_schema(&spec(b"Wide", &columns, &indexes), 20),
+        Err(TableSchemaPlanError::UnobservedContinuationIndexLayout {
+            continuations: 1,
+            indexes: 1,
+        })
+    );
 }

@@ -109,7 +109,8 @@ impl StdError for CandidateCheckError {
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
 /// anything is written: more than three indexes, more than one Memo or
 /// LongBinary column, an index together with such a column, a definition
-/// longer than one page, or a name byte above `0x7E`.
+/// longer than two pages, a definition longer than one page together with an
+/// index, or a name byte above `0x7E`.
 pub fn create_database(
     path: impl AsRef<Path>,
     spec: &TableSpec<'_>,

@@ -10,8 +10,13 @@
 //! index records appear in name order while referring back to the physical
 //! ordinals.
 //!
-//! The planner refuses definitions that need a continuation page, because
-//! `EXP-0105` established their capacities but not their placement.
+//! A definition longer than its root page takes one continuation page directly
+//! after the `LvProp` page, the compact construction `EXP-0107` observed DAO
+//! accept for an unindexed table. The root's bytes `[4,8)` name that page and
+//! the continuation repeats the definition prefix, holds zero at `[4,8)`, and
+//! carries the remaining logical bytes from offset 8 (`EXP-0059`,
+//! `EXP-0105`). Longer chains, and a continuation beside an index, are refused
+//! by the planner.
 //!
 //! `EXP-0091` accepted the exact `Alpha(Id Long)` first create with a null
 //! catalog `LvProp` and a retained, mapped, empty long-value page. Every
@@ -29,8 +34,8 @@
 
 use super::*;
 use crate::table_schema_plan::{
-    AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
-    logical_index_order, plan_table_schema,
+    AVAILABLE_MAP_ROW, CONTINUATION_CAPACITY, DEFINITION_ROOT_CAPACITY, FIRST_INDEX_MAP_ROW,
+    OWNED_MAP_ROW, TableSchemaPlan, TableSpec, logical_index_order, plan_table_schema,
 };
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
@@ -101,17 +106,22 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Appends the create's pages in `EXP-0093` order: definition root, map
-    /// page, long-value page, then the index roots.
+    /// page, long-value page, the `EXP-0107` continuation if the definition
+    /// needs one, then the index roots.
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
         let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
-        plan.append(self.definition_page(budget)?, &mut append_map, budget)?;
+        let (root, continuation) = self.definition_pages(budget)?;
+        plan.append(root, &mut append_map, budget)?;
         plan.append(self.map_page(budget)?, &mut append_map, budget)?;
         let lval = DataPageBuilder::new_long_value(budget)?;
         plan.append(finish_data_builder(lval, budget)?, &mut append_map, budget)?;
+        if let Some(continuation) = continuation {
+            plan.append(continuation, &mut append_map, budget)?;
+        }
         let owner = self.plan.definition_root().get();
         for _ in self.plan.index_placements() {
             plan.append(empty_index_page(owner, budget)?, &mut append_map, budget)?;
@@ -119,7 +129,46 @@ impl<'a> PlannedCreate<'a> {
         Ok(())
     }
 
-    fn definition_page(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
+    /// Encodes the definition and splits it into its root page and, when the
+    /// planner assigned one, its continuation page.
+    fn definition_pages(
+        &self,
+        budget: &mut ResourceBudget,
+    ) -> Result<(PageImage, Option<PageImage>), ComposeError> {
+        let mut logical = [0_u8; DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY];
+        let length = self.encode_definition(&mut logical, budget)?.get() as usize;
+        if length != self.plan.definition_len() {
+            return Err(ComposeError::DefinitionLengthMismatch {
+                planned: self.plan.definition_len(),
+                encoded: length,
+            });
+        }
+        let mut root = [0_u8; PAGE_BYTES];
+        root.copy_from_slice(&logical[..PAGE_BYTES]);
+        let Some(continuation_page) = self.plan.continuation_page() else {
+            return Ok((PageImage::from_bytes(root), None));
+        };
+        let next =
+            u32::try_from(continuation_page.get()).map_err(|_| Error::IntegerConversion {
+                value: u128::from(continuation_page.get()),
+                target: "u32",
+            })?;
+        root[4..8].copy_from_slice(&next.to_le_bytes());
+        let mut continuation = [0_u8; PAGE_BYTES];
+        continuation[..4].copy_from_slice(&logical[..4]);
+        let payload = &logical[DEFINITION_ROOT_CAPACITY..length];
+        continuation[8..8 + payload.len()].copy_from_slice(payload);
+        Ok((
+            PageImage::from_bytes(root),
+            Some(PageImage::from_bytes(continuation)),
+        ))
+    }
+
+    fn encode_definition(
+        &self,
+        output: &mut [u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<ByteCount, ComposeError> {
         let map = self.plan.map_page();
         let spec = self.spec;
         // The planner validated one placement per index, so the zip is exact.
@@ -162,7 +211,7 @@ impl<'a> PlannedCreate<'a> {
             })
             .into_iter()
             .collect::<Vec<_>>();
-        definition_page(
+        encode_table_definition(
             &TableDefinitionSpec {
                 kind: TableDefinitionKind::User,
                 columns: spec.columns,
@@ -174,8 +223,10 @@ impl<'a> PlannedCreate<'a> {
                 row_count: 0,
                 long_value_maps: &long_value_maps,
             },
+            output,
             budget,
         )
+        .map_err(Into::into)
     }
 
     /// Builds the map page with the rows the definition names.

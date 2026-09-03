@@ -20,8 +20,11 @@
 //! on one or two further definition pages, the root holding 2,048 logical
 //! bytes and each continuation 2,040. It observed those pages well past the
 //! appended run (`[20, 68]` and `[20, 219, 218]`) and establishes no
-//! allocation rule for them, so this module measures the continuation count
-//! at the established capacities and refuses any definition that needs one.
+//! allocation rule for them. `EXP-0107` then observed DAO accept an unindexed
+//! composed table whose single continuation was appended directly after the
+//! `LvProp` page. This module admits exactly that shape: one continuation, on
+//! an unindexed table, at the page after `LvProp`. Longer chains and a
+//! continuation beside an index remain refused rather than extrapolated.
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.
@@ -40,6 +43,9 @@ use crate::{
 
 /// Largest index count `EXP-0093` observed on a created table.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
+/// Largest continuation count `EXP-0107` observed DAO accept in the compact
+/// appended position.
+pub(crate) const MAX_OBSERVED_CONTINUATIONS: usize = 1;
 /// `EXP-0057`: usage-map locators hold a three-byte page number.
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// `EXP-0093`: map-page row of the table's owned-page map.
@@ -208,13 +214,23 @@ pub enum TableSchemaPlanError {
         /// The unestablished byte.
         byte: u8,
     },
-    /// The definition needs continuation pages, whose placement `EXP-0105`
-    /// observed only as the provider's own allocation and left unestablished.
+    /// The definition needs more continuation pages than `EXP-0107` observed
+    /// DAO accept in the compact appended position; `EXP-0105` observed longer
+    /// chains only under the provider's own unestablished allocation.
     ContinuationPlacementUnestablished {
         /// Encoded definition length.
         length: usize,
         /// Continuations the definition needs at the established capacities.
         continuations: usize,
+    },
+    /// The definition needs a continuation page and the table declares an
+    /// index; no observed create carried both, so their page order is
+    /// unestablished.
+    UnobservedContinuationIndexLayout {
+        /// Continuations the definition needs.
+        continuations: usize,
+        /// Declared index count.
+        indexes: usize,
     },
     /// `EXP-0093` observed no create carrying this many indexes.
     UnobservedIndexCount {
@@ -274,11 +290,13 @@ impl std::error::Error for TableSchemaPlanError {
 /// The validated page assignment for one new user table.
 ///
 /// The appended run is the definition root, the map page, the `LvProp` page,
-/// then the index roots.
+/// the definition continuation if one is needed, then the index roots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
     definition_root: PageNumber,
+    /// Exact logical length of the encoded definition.
+    definition_len: usize,
     /// Each index's key fields with column references resolved to ordinals.
     index_fields: Vec<Vec<IndexFieldSpec>>,
 }
@@ -304,11 +322,24 @@ impl TableSchemaPlan {
         PageNumber::new(self.definition_root.get() + 2)
     }
 
+    /// Returns the exact logical length of the encoded definition.
+    pub(crate) const fn definition_len(&self) -> usize {
+        self.definition_len
+    }
+
+    /// Returns the page holding the definition's continuation, if the
+    /// definition needs one (`EXP-0107`: directly after the `LvProp` page).
+    pub(crate) fn continuation_page(&self) -> Option<PageNumber> {
+        (continuation_count(self.definition_len) > 0)
+            .then(|| PageNumber::new(self.property_page().get() + 1))
+    }
+
     /// Returns each index's root page and map-page row in physical ordinal
     /// order (`EXP-0093`: roots follow the `LvProp` page, rows follow the
     /// table's own two maps).
     pub(crate) fn index_placements(&self) -> impl Iterator<Item = (PageNumber, u8)> {
-        let first_root = self.property_page().get() + 1;
+        let first_root =
+            self.property_page().get() + 1 + continuation_count(self.definition_len) as u64;
         (0..self.index_fields.len()).map(move |ordinal| {
             (
                 PageNumber::new(first_root + ordinal as u64),
@@ -325,7 +356,7 @@ impl TableSchemaPlan {
 
     /// Returns how many pages the create appends.
     pub(crate) fn appended_page_count(&self) -> u64 {
-        3 + self.index_fields.len() as u64
+        3 + continuation_count(self.definition_len) as u64 + self.index_fields.len() as u64
     }
 }
 
@@ -352,14 +383,20 @@ pub(crate) fn plan_table_schema(
     }
     let length = measure_definition(spec)?;
     let continuations = continuation_count(length);
-    if continuations > 0 {
+    if continuations > MAX_OBSERVED_CONTINUATIONS {
         return Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
             length,
             continuations,
         });
     }
+    if continuations > 0 && !spec.indexes.is_empty() {
+        return Err(TableSchemaPlanError::UnobservedContinuationIndexLayout {
+            continuations,
+            indexes: spec.indexes.len(),
+        });
+    }
     let index_fields = resolve_index_fields(spec)?;
-    let plan = assign_pages(spec, first_page, index_fields)?;
+    let plan = assign_pages(spec, first_page, length, index_fields)?;
     validate_indexes(spec, &plan)?;
     Ok(plan)
 }
@@ -463,9 +500,10 @@ pub(crate) const fn continuation_count(length: usize) -> usize {
 fn assign_pages(
     spec: &TableSpec<'_>,
     first_page: u64,
+    definition_len: usize,
     index_fields: Vec<Vec<IndexFieldSpec>>,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    let needed = 3 + spec.indexes.len() as u64;
+    let needed = 3 + continuation_count(definition_len) as u64 + spec.indexes.len() as u64;
     // `EXP-0093` numbers the object equal to its definition root, and
     // `MSysObjects.Id` is a signed Long, so the run must stay in that range.
     let object_id = i32::try_from(first_page)
@@ -485,6 +523,7 @@ fn assign_pages(
     Ok(TableSchemaPlan {
         object_id,
         definition_root: PageNumber::new(first_page),
+        definition_len,
         index_fields,
     })
 }

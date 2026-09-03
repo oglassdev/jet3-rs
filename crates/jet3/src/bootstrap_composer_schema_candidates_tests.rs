@@ -142,6 +142,39 @@ fn assert_shared_candidate(bytes: &[u8], table_name: &[u8]) -> TestResult {
 }
 
 #[test]
+fn the_composer_reproduces_the_accepted_cont_one_x_candidate() -> TestResult {
+    // EXP-0107 accepted the exact hand-assembled ContOneX image; the general
+    // composer must produce the same 49,152 bytes for the same schema.
+    let names = (0..WIDE_FIELD_COUNT)
+        .map(|ordinal| format!("F{ordinal:03}AAAAAA").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
+        .collect::<Vec<_>>();
+    let mut budget = compose_budget();
+    let composed = compose_table_database(
+        &TableSpec {
+            name: b"ContOneX",
+            columns: &columns,
+            indexes: &[],
+        },
+        &mut budget,
+    )?
+    .pages()
+    .iter()
+    .flat_map(|page| page.image().as_bytes().iter().copied())
+    .collect::<Vec<u8>>();
+    let candidate = wide_candidate_bytes()?;
+    assert_eq!(composed.len(), 24 * crate::PAGE_BYTES);
+    assert!(
+        composed == candidate,
+        "composed image differs from the accepted candidate"
+    );
+    Ok(())
+}
+
+#[test]
 fn the_schema_candidates_decode_to_their_preregistered_shapes() -> TestResult {
     assert_shared_candidate(&bytes(true)?, b"Alpha")?;
     let indexed = indexed_candidate_bytes()?;
