@@ -96,7 +96,7 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
         columns: &columns,
         indexes: &indexes,
     };
-    create_database(&target, &spec, &mut budget())?;
+    create_database(&target, std::slice::from_ref(&spec), &mut budget())?;
     assert_eq!(directory.entries()?, ["created.mdb"]);
     assert_eq!(fs::metadata(&target)?.len(), 26 * crate::PAGE_BYTES as u64);
 
@@ -138,11 +138,11 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     }];
     create_database(
         &target,
-        &TableSpec {
+        &[TableSpec {
             name: b"Items",
             columns: &columns,
             indexes: &unique_indexes,
-        },
+        }],
         &mut budget(),
     )?;
 
@@ -154,11 +154,11 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     let page_count = fs::metadata(&target)?.len() / crate::PAGE_BYTES as u64;
     let error = check_candidate(
         &target,
-        &TableSpec {
+        &[TableSpec {
             name: b"Items",
             columns: &columns,
             indexes: &ordinary_indexes,
-        },
+        }],
         page_count,
         &mut budget(),
     )
@@ -183,7 +183,7 @@ fn a_memo_table_is_created_and_reopens() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    create_database(&target, &spec, &mut budget())?;
+    create_database(&target, std::slice::from_ref(&spec), &mut budget())?;
     assert_eq!(fs::metadata(&target)?.len(), 23 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
@@ -230,7 +230,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         ),
     ];
     for (spec, accepts) in cases {
-        match create_database(&target, &spec, &mut budget()) {
+        match create_database(&target, std::slice::from_ref(&spec), &mut budget()) {
             Err(CreateDatabaseError::Compose(error)) if accepts(&error) => {}
             other => return Err(format!("unexpected result: {other:?}").into()),
         }
@@ -250,7 +250,7 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    match create_database(&target, &spec, &mut budget()) {
+    match create_database(&target, std::slice::from_ref(&spec), &mut budget()) {
         Err(CreateDatabaseError::Publish(error)) => {
             assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
         }
@@ -279,11 +279,77 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
         columns: &columns,
         indexes: &[],
     };
-    create_database(&target, &spec, &mut budget())?;
+    create_database(&target, std::slice::from_ref(&spec), &mut budget())?;
     assert_eq!(fs::metadata(&target)?.len(), 24 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
     let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
     assert_eq!(definition.columns().len(), 70);
+    Ok(())
+}
+
+#[test]
+fn too_many_tables_and_case_folded_duplicates_are_refused_before_writing() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let table = |name: &'static [u8]| TableSpec {
+        name,
+        columns: &[ID],
+        indexes: &[],
+    };
+    let five = [
+        table(b"T1"),
+        table(b"T2"),
+        table(b"T3"),
+        table(b"T4"),
+        table(b"T5"),
+    ];
+    match create_database(&target, &five, &mut budget()) {
+        Err(CreateDatabaseError::Compose(ComposeError::UnobservedTableCount {
+            count: 5,
+            observed: 4,
+        })) => {}
+        other => return Err(format!("unexpected result: {other:?}").into()),
+    }
+    let duplicate = [table(b"Alpha"), table(b"ALPHA")];
+    match create_database(&target, &duplicate, &mut budget()) {
+        Err(CreateDatabaseError::Compose(ComposeError::DuplicateTableName {
+            first: 0,
+            second: 1,
+        })) => {}
+        other => return Err(format!("unexpected result: {other:?}").into()),
+    }
+    assert!(directory.entries()?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn two_tables_are_created_in_order_and_reopen() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let indexes = [IndexSpec {
+        name: b"PrimaryKey",
+        fields: &[IndexColumnSpec::ascending(b"Id")],
+        kind: IndexKind::Primary,
+    }];
+    let tables = [
+        TableSpec {
+            name: b"Alpha",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"Gamma",
+            columns: &[ID, CODE],
+            indexes: &indexes,
+        },
+    ];
+    create_database(&target, &tables, &mut budget())?;
+    assert_eq!(fs::metadata(&target)?.len(), 26 * crate::PAGE_BYTES as u64);
+    let mut budget = budget();
+    let mut database = DatabaseReader::open(&target, &mut budget)?;
+    let gamma = database.table_definition(PageNumber::new(23), &mut budget)?;
+    assert_eq!(gamma.columns().len(), 2);
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(25));
     Ok(())
 }

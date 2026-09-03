@@ -2,7 +2,7 @@
 //! Safe, clean-room primitives for Access 97 / Jet 3 databases.
 //!
 //! Reading starts at [`DatabaseReader`]. Creating a fresh database holding
-//! one empty user table starts at [`create_database`]:
+//! empty user tables starts at [`create_database`]:
 //!
 //! ```no_run
 //! use std::num::NonZeroU8;
@@ -22,13 +22,13 @@
 //!     fields: &[IndexColumnSpec::ascending(b"Id")],
 //!     kind: IndexKind::Primary,
 //! }];
-//! let spec = TableSpec {
+//! let people = TableSpec {
 //!     name: b"People",
 //!     columns: &columns,
 //!     indexes: &indexes,
 //! };
 //! let mut budget = ResourceBudget::new(ResourceLimits::default());
-//! create_database("people.mdb", &spec, &mut budget)?;
+//! create_database("people.mdb", &[people], &mut budget)?;
 //! # Ok::<(), jet3::CreateDatabaseError>(())
 //! ```
 //!
