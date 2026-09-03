@@ -8,8 +8,9 @@
 //! fixed composite keys come from `EXP-0079`; the fixed opaque page-zero
 //! candidate hypothesis is preregistered by `EXP-0084`; the null catalog
 //! `LvProp` with a retained empty long-value page is the `EXP-0091` accepted
-//! construction; first-create page order comes from `EXP-0093` and
-//! definition continuations from `EXP-0105`.
+//! construction for `Alpha(Id Long)` only; first-create page order comes
+//! from `EXP-0093`. Any composed image other than the `Alpha` transition is
+//! an unvalidated candidate until a DAO differential accepts it.
 
 #![allow(
     dead_code,
@@ -423,8 +424,9 @@ fn catalog_seeds<'a>(create: Option<&PlannedCreate<'a>>) -> impl Iterator<Item =
 }
 
 /// Builds the catalog data page. Every `LvProp` is null: the system rows
-/// carry none (`EXP-0073`), and `EXP-0091` accepted a created table whose
-/// catalog `LvProp` is null while its long-value page stays present.
+/// carry none (`EXP-0073`), and `EXP-0091` accepted the exact `Alpha`
+/// create with a null catalog `LvProp` and a retained long-value page. For
+/// any other created table the null form is an unvalidated candidate.
 fn objects_data_page(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,

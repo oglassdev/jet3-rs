@@ -1,10 +1,11 @@
 //! Composition of arbitrary planned user tables, decoded back through the
-//! reader to check each `EXP-0093` and `EXP-0105` structure lands where the
-//! plan says.
+//! reader to check each `EXP-0093` structure lands where the plan says.
 
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
 use super::super::{BootstrapComposeError, compose_table_database};
-use crate::table_schema_plan::{PlannedIndex, PlannedIndexKind, TableSchemaSpec};
+use crate::table_schema_plan::{
+    PlannedIndex, PlannedIndexKind, TableSchemaPlanError, TableSchemaSpec,
+};
 use crate::{
     ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, DatabaseReader,
     IndexDirection, IndexFieldSpec, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource,
@@ -25,15 +26,6 @@ fn create_bytes(spec: &TableSchemaSpec<'_>) -> Result<Vec<u8>, BootstrapComposeE
 
 fn page(bytes: &[u8], number: usize) -> &[u8] {
     &bytes[number * PAGE_BYTES..(number + 1) * PAGE_BYTES]
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes([
-        bytes[offset],
-        bytes[offset + 1],
-        bytes[offset + 2],
-        bytes[offset + 3],
-    ])
 }
 
 const ID: ColumnSpec<'static> =
@@ -68,7 +60,7 @@ const fn field(column: u16, direction: IndexDirection) -> IndexFieldSpec {
 }
 
 /// Fixed Long columns with ten-byte names: 70 of them encode to the 2,075-byte
-/// definition and 140 to the 4,105-byte definition `EXP-0105` observed.
+/// definition `EXP-0105` observed needing one continuation.
 fn wide_names(count: usize) -> Vec<Vec<u8>> {
     (0..count)
         .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
@@ -226,65 +218,29 @@ fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> Te
 }
 
 #[test]
-fn a_definition_needing_one_continuation_chains_root_to_the_next_page() -> TestResult {
-    // EXP-0105's `one` shape: a 2,075-byte definition whose root holds 2,048
-    // bytes and whose one continuation holds the remaining 27.
+fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
+    // EXP-0105 established the 2,048/2,040 capacities but placed its
+    // continuations at pages 68 and 219/218 under an unestablished
+    // allocation, so no compact layout can claim to follow it.
     let names = wide_names(70);
     let columns = wide_columns(&names);
-    let bytes = create_bytes(&TableSchemaSpec {
-        name: b"Wide",
-        columns: &columns,
-        indexes: &[],
-    })?;
-    assert_eq!(bytes.len(), 24 * PAGE_BYTES);
-    assert_eq!(&page(&bytes, 22)[4..8], b"LVAL");
-    assert_eq!(u32_at(page(&bytes, 20), 4), 23);
-    assert_eq!(u32_at(page(&bytes, 20), 8), 2075);
-    assert_eq!(&page(&bytes, 23)[..4], &[0x02, 0x01, 0x56, 0x43]);
-    assert_eq!(u32_at(page(&bytes, 23), 4), 0);
-    assert!(!inline_map_bit(&bytes, 1, 0, 23)?);
-    assert!(inline_map_bit(&bytes, 1, 0, 24)?);
-
-    let mut budget = read_budget(bytes.len());
-    let source = SliceSource::new(&bytes, budget.read_budget())?;
-    let mut database = DatabaseReader::from_source(source, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
-    assert_eq!(definition.logical_length(), 2075);
-    assert_eq!(definition.columns().len(), 70);
-    assert_eq!(definition.columns()[69].name().raw_bytes(), b"Field00069");
-    Ok(())
-}
-
-#[test]
-fn a_definition_needing_two_continuations_chains_the_later_page_first() -> TestResult {
-    // EXP-0105's `two` shape: a 4,105-byte definition whose chain visits the
-    // physically later continuation before the earlier one.
-    let names = wide_names(140);
-    let columns = wide_columns(&names);
-    let bytes = create_bytes(&TableSchemaSpec {
-        name: b"Wider",
-        columns: &columns,
-        indexes: &[],
-    })?;
-    assert_eq!(bytes.len(), 25 * PAGE_BYTES);
-    assert_eq!(u32_at(page(&bytes, 20), 4), 24);
-    assert_eq!(u32_at(page(&bytes, 20), 8), 4105);
-    assert_eq!(u32_at(page(&bytes, 24), 4), 23);
-    assert_eq!(u32_at(page(&bytes, 23), 4), 0);
-    for continuation in [23_usize, 24] {
-        assert_eq!(&page(&bytes, continuation)[..4], &[0x02, 0x01, 0x56, 0x43]);
-        assert!(!inline_map_bit(&bytes, 1, 0, continuation as u64)?);
-    }
-    assert!(inline_map_bit(&bytes, 1, 0, 25)?);
-
-    let mut budget = read_budget(bytes.len());
-    let source = SliceSource::new(&bytes, budget.read_budget())?;
-    let mut database = DatabaseReader::from_source(source, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
-    assert_eq!(definition.logical_length(), 4105);
-    assert_eq!(definition.columns().len(), 140);
-    assert_eq!(definition.columns()[139].name().raw_bytes(), b"Field00139");
-    Ok(())
+    let mut budget = compose_budget();
+    assert!(matches!(
+        compose_table_database(
+            &TableSchemaSpec {
+                name: b"Wide",
+                columns: &columns,
+                indexes: &[],
+            },
+            &mut budget,
+        ),
+        Err(BootstrapComposeError::Schema(
+            TableSchemaPlanError::ContinuationPlacementUnestablished {
+                length: 2075,
+                continuations: 1,
+            }
+        ))
+    ));
 }
 
 #[test]

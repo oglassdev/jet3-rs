@@ -18,9 +18,10 @@
 //!
 //! `EXP-0105` observed that a definition longer than its root page continues
 //! on one or two further definition pages, the root holding 2,048 logical
-//! bytes and each continuation 2,040. It observed the two-continuation chain
-//! pointing to the physically later page first. It observed no create carrying
-//! both an index and a continuation, so that combined page order is refused.
+//! bytes and each continuation 2,040. It observed those pages well past the
+//! appended run (`[20, 68]` and `[20, 219, 218]`) and establishes no
+//! allocation rule for them, so this module measures the continuation count
+//! at the established capacities and refuses any definition that needs one.
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.
@@ -44,8 +45,6 @@ use crate::{
 
 /// Largest index count `EXP-0093` observed on a created table.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
-/// Largest continuation count `EXP-0105` observed on a created table.
-pub(crate) const MAX_OBSERVED_CONTINUATIONS: usize = 2;
 /// `EXP-0057`: usage-map locators hold a three-byte page number.
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// `EXP-0093`: map-page row of the table's owned-page map.
@@ -58,9 +57,7 @@ pub(crate) const FIRST_INDEX_MAP_ROW: u8 = 2;
 pub(crate) const DEFINITION_ROOT_CAPACITY: usize = PAGE_BYTES;
 /// `EXP-0059`, `EXP-0105`: logical definition bytes one continuation holds,
 /// after its four-byte prefix and four-byte next-page reference.
-pub(crate) const CONTINUATION_CAPACITY: usize = PAGE_BYTES - CONTINUATION_PAYLOAD_OFFSET;
-/// `EXP-0059`: continuation payload starts after the prefix and next pointer.
-pub(crate) const CONTINUATION_PAYLOAD_OFFSET: usize = 8;
+pub(crate) const CONTINUATION_CAPACITY: usize = PAGE_BYTES - 8;
 /// `EXP-0087`: highest name byte with an established catalog-key weight.
 /// `EXP-0101` is bounded and does not widen this.
 const LAST_ESTABLISHED_NAME_BYTE: u8 = 0x7e;
@@ -140,15 +137,13 @@ pub(crate) enum TableSchemaPlanError {
         /// The unestablished byte.
         byte: u8,
     },
-    /// The definition needs more continuation pages than `EXP-0105`
-    /// observed.
-    UnobservedContinuationCount {
+    /// The definition needs continuation pages, whose placement `EXP-0105`
+    /// observed only as the provider's own allocation and left unestablished.
+    ContinuationPlacementUnestablished {
         /// Encoded definition length.
         length: usize,
-        /// Continuations the definition needs.
-        count: usize,
-        /// Largest observed continuation count.
-        observed: usize,
+        /// Continuations the definition needs at the established capacities.
+        continuations: usize,
     },
     /// `EXP-0093` observed no create carrying this many indexes.
     UnobservedIndexCount {
@@ -156,14 +151,6 @@ pub(crate) enum TableSchemaPlanError {
         count: usize,
         /// Largest observed index count.
         observed: usize,
-    },
-    /// The table carries both indexes and a definition continuation, a page
-    /// order no experiment has observed together.
-    UnobservedIndexContinuationLayout {
-        /// Declared index count.
-        indexes: usize,
-        /// Continuations the definition needs.
-        continuations: usize,
     },
     /// The table declares more than one primary index.
     MultiplePrimaryIndexes {
@@ -216,15 +203,13 @@ impl std::error::Error for TableSchemaPlanError {
 /// The validated page assignment for one new user table.
 ///
 /// The appended run is the definition root, the map page, the `LvProp` page,
-/// then either the index roots or the continuation pages; a plan never carries
-/// both.
+/// then the index roots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
     definition_root: PageNumber,
     definition_len: usize,
     index_count: usize,
-    continuation_count: usize,
 }
 
 impl TableSchemaPlan {
@@ -266,24 +251,9 @@ impl TableSchemaPlan {
         })
     }
 
-    /// Returns the definition continuation pages in chain order.
-    ///
-    /// The pages are appended in ascending physical order. `EXP-0105`
-    /// observed the two-continuation chain visiting the physically later page
-    /// first, so the two-page chain is reversed relative to file order.
-    pub(crate) fn continuation_chain(&self) -> impl Iterator<Item = PageNumber> {
-        let first = self.property_page().get() + 1;
-        let pages = match self.continuation_count {
-            0 => [None, None],
-            1 => [Some(first), None],
-            _ => [Some(first + 1), Some(first)],
-        };
-        pages.into_iter().flatten().map(PageNumber::new)
-    }
-
     /// Returns how many pages the create appends.
     pub(crate) const fn appended_page_count(&self) -> u64 {
-        3 + self.index_count as u64 + self.continuation_count as u64
+        3 + self.index_count as u64
     }
 }
 
@@ -309,21 +279,14 @@ pub(crate) fn plan_table_schema(
         });
     }
     let definition_len = measure_definition(spec)?;
-    let continuation_count = continuation_count(definition_len);
-    if continuation_count > MAX_OBSERVED_CONTINUATIONS {
-        return Err(TableSchemaPlanError::UnobservedContinuationCount {
+    let continuations = continuation_count(definition_len);
+    if continuations > 0 {
+        return Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
             length: definition_len,
-            count: continuation_count,
-            observed: MAX_OBSERVED_CONTINUATIONS,
+            continuations,
         });
     }
-    if !spec.indexes.is_empty() && continuation_count > 0 {
-        return Err(TableSchemaPlanError::UnobservedIndexContinuationLayout {
-            indexes: spec.indexes.len(),
-            continuations: continuation_count,
-        });
-    }
-    let plan = assign_pages(spec, first_page, definition_len, continuation_count)?;
+    let plan = assign_pages(spec, first_page, definition_len)?;
     validate_indexes(spec, &plan)?;
     Ok(plan)
 }
@@ -378,7 +341,8 @@ fn measure_definition(spec: &TableSchemaSpec<'_>) -> Result<usize, TableSchemaPl
     .map_err(TableSchemaPlanError::Definition)
 }
 
-/// Returns how many continuation pages a definition of `length` bytes needs.
+/// Returns how many continuation pages a definition of `length` bytes needs
+/// at the `EXP-0105` capacities.
 pub(crate) const fn continuation_count(length: usize) -> usize {
     length
         .saturating_sub(DEFINITION_ROOT_CAPACITY)
@@ -390,9 +354,8 @@ fn assign_pages(
     spec: &TableSchemaSpec<'_>,
     first_page: u64,
     definition_len: usize,
-    continuation_count: usize,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    let needed = 3 + spec.indexes.len() as u64 + continuation_count as u64;
+    let needed = 3 + spec.indexes.len() as u64;
     // `EXP-0093` numbers the object equal to its definition root, and
     // `MSysObjects.Id` is a signed Long, so the run must stay in that range.
     let object_id = i32::try_from(first_page)
@@ -414,7 +377,6 @@ fn assign_pages(
         definition_root: PageNumber::new(first_page),
         definition_len,
         index_count: spec.indexes.len(),
-        continuation_count,
     })
 }
 

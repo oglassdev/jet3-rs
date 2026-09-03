@@ -26,13 +26,6 @@ pub(crate) enum BootstrapComposeError {
         /// Largest observed long-value column count.
         observed: usize,
     },
-    /// The encoded definition length differs from the planned length.
-    DefinitionLengthMismatch {
-        /// Length the planner measured.
-        planned: usize,
-        /// Length the encoder produced.
-        encoded: usize,
-    },
 }
 
 impl fmt::Display for BootstrapComposeError {
@@ -54,8 +47,7 @@ impl std::error::Error for BootstrapComposeError {
             Self::Schema(source) => Some(source),
             Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
-            | Self::UnobservedLongValueColumnCount { .. }
-            | Self::DefinitionLengthMismatch { .. } => None,
+            | Self::UnobservedLongValueColumnCount { .. } => None,
         }
     }
 }

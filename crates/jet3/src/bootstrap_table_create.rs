@@ -10,16 +10,17 @@
 //! index records appear in name order while referring back to the physical
 //! ordinals.
 //!
-//! `EXP-0105` observed a definition longer than its root page continuing on
-//! one or two further definition pages, chained through the next-page
-//! reference at `[4,8)`. The root holds 2,048 logical bytes and each
-//! continuation 2,040 after a repeated prefix and its own next-page
-//! reference. Only the pointer order is observed; the continuation pages are
-//! placed directly after the long-value page and marked globally in use.
+//! The planner refuses definitions that need a continuation page, because
+//! `EXP-0105` established their capacities but not their placement.
 //!
-//! `EXP-0091` accepted a first create whose catalog `LvProp` is null while
-//! the long-value page stays present and mapped. That bounded result is the
-//! basis for every composed create here; no `LvProp` payload is written.
+//! `EXP-0091` accepted the exact `Alpha(Id Long)` first create with a null
+//! catalog `LvProp` and a retained, mapped, empty long-value page. Every
+//! create composed here takes that null form, and no `LvProp` payload is
+//! written, because no experiment established a payload grammar a caller
+//! could satisfy. For any schema other than `Alpha` this is an unvalidated
+//! candidate construction: `EXP-0093`'s indexed creates carried a provider
+//! written payload, and `EXP-0091` explicitly does not extend null
+//! acceptance to arbitrary schemas. Only a DAO differential can.
 //!
 //! One Memo or LongBinary column takes one owned/available map-row pair at
 //! rows 2 and 3 (`EXP-0077`). No observed create carried both an index and a
@@ -28,22 +29,14 @@
 
 use super::*;
 use crate::table_schema_plan::{
-    AVAILABLE_MAP_ROW, CONTINUATION_CAPACITY, CONTINUATION_PAYLOAD_OFFSET,
-    DEFINITION_ROOT_CAPACITY, FIRST_INDEX_MAP_ROW, MAX_OBSERVED_CONTINUATIONS, OWNED_MAP_ROW,
-    TableSchemaPlan, TableSchemaSpec, logical_index_order, plan_table_schema,
+    AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSchemaSpec,
+    logical_index_order, plan_table_schema,
 };
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
 const USER_FLAGS: i32 = 0;
 /// Long-value column count `EXP-0087` observed on a created table.
 const MAX_OBSERVED_LONG_VALUE_COLUMNS: usize = 1;
-/// Longest logical definition the planner admits.
-const MAX_DEFINITION_LEN: usize =
-    DEFINITION_ROOT_CAPACITY + MAX_OBSERVED_CONTINUATIONS * CONTINUATION_CAPACITY;
-/// `EXP-0059`: the next-definition-page reference sits at `[4,8)`.
-const NEXT_PAGE_OFFSET: usize = 4;
-/// `EXP-0059`: the four-byte prefix every definition page repeats.
-const PREFIX_LEN: usize = 4;
 
 /// A create with its pages assigned and its map-page rows laid out.
 #[derive(Debug, Clone)]
@@ -112,16 +105,14 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Appends the create's pages in `EXP-0093` order: definition root, map
-    /// page, long-value page, then the index roots; or, per `EXP-0105`, the
-    /// definition continuation pages in ascending physical order.
+    /// page, long-value page, then the index roots.
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
         budget: &mut ResourceBudget,
     ) -> Result<(), BootstrapComposeError> {
         let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
-        let (root, mut continuations) = self.definition_pages(budget)?;
-        plan.append(root, &mut append_map, budget)?;
+        plan.append(self.definition_page(budget)?, &mut append_map, budget)?;
         plan.append(self.map_page(budget)?, &mut append_map, budget)?;
         let lval = DataPageBuilder::new_long_value(budget)?;
         plan.append(finish_data_builder(lval, budget)?, &mut append_map, budget)?;
@@ -129,19 +120,13 @@ impl<'a> PlannedCreate<'a> {
         for _ in self.plan.index_placements() {
             plan.append(empty_index_page(owner, budget)?, &mut append_map, budget)?;
         }
-        continuations.sort_by_key(|(page, _)| *page);
-        for (_, image) in continuations {
-            plan.append(image, &mut append_map, budget)?;
-        }
         Ok(())
     }
 
-    /// Encodes the definition and splits it into its root page and its
-    /// continuation pages, each paired with its planned page number.
-    fn definition_pages(
+    fn definition_page(
         &self,
         budget: &mut ResourceBudget,
-    ) -> Result<(PageImage, Vec<(PageNumber, PageImage)>), BootstrapComposeError> {
+    ) -> Result<PageImage, BootstrapComposeError> {
         let map = self.plan.map_page();
         let spec = self.spec;
         // The planner validated one placement per index, so the zip is exact.
@@ -183,8 +168,7 @@ impl<'a> PlannedCreate<'a> {
             })
             .into_iter()
             .collect::<Vec<_>>();
-        let mut logical_bytes = [0_u8; MAX_DEFINITION_LEN];
-        let length = encode_table_definition(
+        definition_page(
             &TableDefinitionSpec {
                 kind: TableDefinitionKind::User,
                 columns: spec.columns,
@@ -196,17 +180,8 @@ impl<'a> PlannedCreate<'a> {
                 row_count: 0,
                 long_value_maps: &long_value_maps,
             },
-            &mut logical_bytes,
             budget,
-        )?
-        .get() as usize;
-        if length != self.plan.definition_len() {
-            return Err(BootstrapComposeError::DefinitionLengthMismatch {
-                planned: self.plan.definition_len(),
-                encoded: length,
-            });
-        }
-        split_definition(&logical_bytes[..length], self.plan.continuation_chain())
+        )
     }
 
     /// Builds the map page with the rows the definition names.
@@ -223,49 +198,6 @@ impl<'a> PlannedCreate<'a> {
         let rows = rows.iter().map(<[u8; 133]>::as_slice).collect::<Vec<_>>();
         data_page(HEADER_PAGE, &rows, budget)
     }
-}
-
-/// Splits the logical definition across its root page and the continuation
-/// pages `chain` names in pointer order, filling each next-page reference.
-fn split_definition(
-    logical: &[u8],
-    chain: impl Iterator<Item = PageNumber>,
-) -> Result<(PageImage, Vec<(PageNumber, PageImage)>), BootstrapComposeError> {
-    let chain = chain.collect::<Vec<_>>();
-    let root_len = logical.len().min(DEFINITION_ROOT_CAPACITY);
-    let mut root = [0_u8; PAGE_BYTES];
-    root[..root_len].copy_from_slice(&logical[..root_len]);
-    write_next_page(&mut root, chain.first().copied())?;
-    let mut continuations = Vec::with_capacity(chain.len());
-    let mut rest = &logical[root_len..];
-    for (position, page) in chain.iter().enumerate() {
-        let taken = rest.len().min(CONTINUATION_CAPACITY);
-        let mut image = [0_u8; PAGE_BYTES];
-        image[..PREFIX_LEN].copy_from_slice(&logical[..PREFIX_LEN]);
-        write_next_page(&mut image, chain.get(position + 1).copied())?;
-        image[CONTINUATION_PAYLOAD_OFFSET..CONTINUATION_PAYLOAD_OFFSET + taken]
-            .copy_from_slice(&rest[..taken]);
-        rest = &rest[taken..];
-        continuations.push((*page, PageImage::from_bytes(image)));
-    }
-    if !rest.is_empty() {
-        return Err(BootstrapComposeError::DefinitionLengthMismatch {
-            planned: logical.len() - rest.len(),
-            encoded: logical.len(),
-        });
-    }
-    Ok((PageImage::from_bytes(root), continuations))
-}
-
-fn write_next_page(page: &mut [u8; PAGE_BYTES], next: Option<PageNumber>) -> Result<(), Error> {
-    let next = next.map_or(Ok(0), |page| {
-        u32::try_from(page.get()).map_err(|_| Error::IntegerConversion {
-            value: u128::from(page.get()),
-            target: "u32",
-        })
-    })?;
-    page[NEXT_PAGE_OFFSET..NEXT_PAGE_OFFSET + 4].copy_from_slice(&next.to_le_bytes());
-    Ok(())
 }
 
 /// Returns the ordinals of the columns that own long-value map groups.
