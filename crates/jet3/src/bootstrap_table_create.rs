@@ -1,6 +1,6 @@
-//! Pages a planned user-table create appends to the empty database, derived
-//! from the `EXP-0093` and `EXP-0105` first-create observations rather than
-//! recorded bytes.
+//! Pages a planned user-table create appends to the database, derived from
+//! the `EXP-0093` and `EXP-0105` first-create observations and the `EXP-0087`
+//! later-create observations rather than recorded bytes.
 //!
 //! `EXP-0093` observed each first create append a definition root, a page of
 //! usage-map rows, a long-value page for the catalog row's `LvProp`, then one
@@ -54,9 +54,14 @@ pub(super) struct PlannedCreate<'a> {
 }
 
 impl<'a> PlannedCreate<'a> {
-    /// Plans `spec` as the first create in the empty database.
-    pub(super) fn new(spec: &'a TableSpec<'a>) -> Result<Self, ComposeError> {
-        let plan = plan_table_schema(spec, EMPTY_DATABASE_PAGE_COUNT)?;
+    /// Plans `spec` as the create that appends at `first_page`; only the
+    /// database's first create carries the `LvProp` page.
+    pub(super) fn new(
+        spec: &'a TableSpec<'a>,
+        first_page: u64,
+        first_create: bool,
+    ) -> Result<Self, ComposeError> {
+        let plan = plan_table_schema(spec, first_page, first_create)?;
         let mut long_value_columns = long_value_columns(spec);
         let long_value = long_value_columns.next();
         if long_value_columns.next().is_some() {
@@ -74,9 +79,10 @@ impl<'a> PlannedCreate<'a> {
         })
     }
 
-    /// Returns the page holding the catalog row's `LvProp` long value.
-    pub(super) const fn property_page(&self) -> u64 {
-        self.plan.property_page().get()
+    /// Returns the page holding the catalog row's `LvProp` long value, present
+    /// only on the database's first create.
+    pub(super) fn property_page(&self) -> Option<u64> {
+        self.plan.property_page().map(|page| page.get())
     }
 
     /// Returns the page count once every appended page is in place.
@@ -106,25 +112,27 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Appends the create's pages in `EXP-0093` order: definition root, map
-    /// page, long-value page, the `EXP-0107` continuation if the definition
-    /// needs one, then the index roots.
+    /// page, the first create's long-value page, the `EXP-0107` continuation
+    /// if the definition needs one, then the index roots.
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
+        append_map: &mut InlineUsageMapEncoder,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
-        let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
         let (root, continuation) = self.definition_pages(budget)?;
-        plan.append(root, &mut append_map, budget)?;
-        plan.append(self.map_page(budget)?, &mut append_map, budget)?;
-        let lval = DataPageBuilder::new_long_value(budget)?;
-        plan.append(finish_data_builder(lval, budget)?, &mut append_map, budget)?;
+        plan.append(root, append_map, budget)?;
+        plan.append(self.map_page(budget)?, append_map, budget)?;
+        if self.plan.property_page().is_some() {
+            let lval = DataPageBuilder::new_long_value(budget)?;
+            plan.append(finish_data_builder(lval, budget)?, append_map, budget)?;
+        }
         if let Some(continuation) = continuation {
-            plan.append(continuation, &mut append_map, budget)?;
+            plan.append(continuation, append_map, budget)?;
         }
         let owner = self.plan.definition_root().get();
         for _ in self.plan.index_placements() {
-            plan.append(empty_index_page(owner, budget)?, &mut append_map, budget)?;
+            plan.append(empty_index_page(owner, budget)?, append_map, budget)?;
         }
         Ok(())
     }

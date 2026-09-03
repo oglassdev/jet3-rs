@@ -36,6 +36,20 @@ pub enum ComposeError {
         /// Largest observed long-value column count.
         observed: usize,
     },
+    /// `EXP-0087` observed no database receiving this many creates.
+    UnobservedTableCount {
+        /// Requested table count.
+        count: usize,
+        /// Largest observed create count.
+        observed: usize,
+    },
+    /// Two tables share a name under the provider's case-folding comparison.
+    DuplicateTableName {
+        /// Position of the earlier table.
+        first: usize,
+        /// Position of the later table.
+        second: usize,
+    },
     /// The encoded definition length differs from the length the planner
     /// measured, so its page split cannot be trusted.
     DefinitionLengthMismatch {
@@ -66,6 +80,8 @@ impl std::error::Error for ComposeError {
             Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }
+            | Self::UnobservedTableCount { .. }
+            | Self::DuplicateTableName { .. }
             | Self::DefinitionLengthMismatch { .. } => None,
         }
     }

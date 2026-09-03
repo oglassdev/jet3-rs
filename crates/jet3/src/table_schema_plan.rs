@@ -16,6 +16,13 @@
 //! is `2 + physical_ordinal` on the map page. It observed at most three
 //! indexes, so this module refuses more rather than extrapolating.
 //!
+//! `EXP-0087` observed three further creates in the same database, each
+//! appending a definition root numbered equal to its `Id`, then its map page,
+//! then an index root when it carried one index, and no further `LvProp`
+//! page. A later create is therefore planned without the property page. No
+//! later create was observed with more than one index or with a continuation,
+//! so this module refuses those rather than extrapolating.
+//!
 //! `EXP-0105` observed that a definition longer than its root page continues
 //! on one or two further definition pages, the root holding 2,048 logical
 //! bytes and each continuation 2,040. It observed those pages well past the
@@ -46,6 +53,8 @@ pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
 /// Largest continuation count `EXP-0107` observed DAO accept in the compact
 /// appended position.
 pub(crate) const MAX_OBSERVED_CONTINUATIONS: usize = 1;
+/// Largest index count `EXP-0087` observed on a later create.
+pub(crate) const MAX_OBSERVED_LATER_CREATE_INDEXES: usize = 1;
 /// `EXP-0057`: usage-map locators hold a three-byte page number.
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// `EXP-0093`: map-page row of the table's owned-page map.
@@ -232,6 +241,23 @@ pub enum TableSchemaPlanError {
         /// Declared index count.
         indexes: usize,
     },
+    /// `EXP-0087` observed no later create carrying this many indexes; the
+    /// `EXP-0093` three-index layout was observed only on a first create.
+    UnobservedLaterCreateIndexCount {
+        /// Declared index count.
+        count: usize,
+        /// Largest observed later-create index count.
+        observed: usize,
+    },
+    /// A later create needs a continuation page; `EXP-0107` observed the
+    /// compact placement only after a first create's `LvProp` page, and
+    /// `EXP-0087` observed no later create with a continuation.
+    UnobservedLaterCreateContinuation {
+        /// Encoded definition length.
+        length: usize,
+        /// Continuations the definition needs.
+        continuations: usize,
+    },
     /// `EXP-0093` observed no create carrying this many indexes.
     UnobservedIndexCount {
         /// Declared index count.
@@ -289,12 +315,15 @@ impl std::error::Error for TableSchemaPlanError {
 
 /// The validated page assignment for one new user table.
 ///
-/// The appended run is the definition root, the map page, the `LvProp` page,
-/// the definition continuation if one is needed, then the index roots.
+/// The appended run is the definition root, the map page, the `LvProp` page
+/// for the database's first create only, the definition continuation if one
+/// is needed, then the index roots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
     definition_root: PageNumber,
+    /// Whether the run carries the first-create `LvProp` page.
+    property_page: bool,
     /// Exact logical length of the encoded definition.
     definition_len: usize,
     /// Each index's key fields with column references resolved to ordinals.
@@ -317,9 +346,19 @@ impl TableSchemaPlan {
         PageNumber::new(self.definition_root.get() + 1)
     }
 
-    /// Returns the page holding the catalog row's `LvProp` long value.
-    pub(crate) const fn property_page(&self) -> PageNumber {
-        PageNumber::new(self.definition_root.get() + 2)
+    /// Returns the page holding the catalog row's `LvProp` long value, which
+    /// only the database's first create appends (`EXP-0087`, `EXP-0093`).
+    pub(crate) const fn property_page(&self) -> Option<PageNumber> {
+        if self.property_page {
+            Some(PageNumber::new(self.definition_root.get() + 2))
+        } else {
+            None
+        }
+    }
+
+    /// Returns the first page after the root, map, and any `LvProp` page.
+    const fn after_fixed_pages(&self) -> u64 {
+        self.definition_root.get() + 2 + self.property_page as u64
     }
 
     /// Returns the exact logical length of the encoded definition.
@@ -331,15 +370,14 @@ impl TableSchemaPlan {
     /// definition needs one (`EXP-0107`: directly after the `LvProp` page).
     pub(crate) fn continuation_page(&self) -> Option<PageNumber> {
         (continuation_count(self.definition_len) > 0)
-            .then(|| PageNumber::new(self.property_page().get() + 1))
+            .then(|| PageNumber::new(self.after_fixed_pages()))
     }
 
     /// Returns each index's root page and map-page row in physical ordinal
     /// order (`EXP-0093`: roots follow the `LvProp` page, rows follow the
     /// table's own two maps).
     pub(crate) fn index_placements(&self) -> impl Iterator<Item = (PageNumber, u8)> {
-        let first_root =
-            self.property_page().get() + 1 + continuation_count(self.definition_len) as u64;
+        let first_root = self.after_fixed_pages() + continuation_count(self.definition_len) as u64;
         (0..self.index_fields.len()).map(move |ordinal| {
             (
                 PageNumber::new(first_root + ordinal as u64),
@@ -356,15 +394,19 @@ impl TableSchemaPlan {
 
     /// Returns how many pages the create appends.
     pub(crate) fn appended_page_count(&self) -> u64 {
-        3 + continuation_count(self.definition_len) as u64 + self.index_fields.len() as u64
+        self.after_fixed_pages() - self.definition_root.get()
+            + continuation_count(self.definition_len) as u64
+            + self.index_fields.len() as u64
     }
 }
 
-/// Validates `spec` as a first create and assigns its appended pages starting
-/// at `first_page`, the database's current page count.
+/// Validates `spec` and assigns its appended pages starting at `first_page`,
+/// the database's current page count. Only the database's first create
+/// (`first_create`) appends the catalog row's `LvProp` page.
 pub(crate) fn plan_table_schema(
     spec: &TableSpec<'_>,
     first_page: u64,
+    first_create: bool,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     validate_table_name(spec.name)?;
     if spec.columns.is_empty() {
@@ -395,8 +437,22 @@ pub(crate) fn plan_table_schema(
             indexes: spec.indexes.len(),
         });
     }
+    if !first_create {
+        if spec.indexes.len() > MAX_OBSERVED_LATER_CREATE_INDEXES {
+            return Err(TableSchemaPlanError::UnobservedLaterCreateIndexCount {
+                count: spec.indexes.len(),
+                observed: MAX_OBSERVED_LATER_CREATE_INDEXES,
+            });
+        }
+        if continuations > 0 {
+            return Err(TableSchemaPlanError::UnobservedLaterCreateContinuation {
+                length,
+                continuations,
+            });
+        }
+    }
     let index_fields = resolve_index_fields(spec)?;
-    let plan = assign_pages(spec, first_page, length, index_fields)?;
+    let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
     validate_indexes(spec, &plan)?;
     Ok(plan)
 }
@@ -500,10 +556,14 @@ pub(crate) const fn continuation_count(length: usize) -> usize {
 fn assign_pages(
     spec: &TableSpec<'_>,
     first_page: u64,
+    first_create: bool,
     definition_len: usize,
     index_fields: Vec<Vec<IndexFieldSpec>>,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    let needed = 3 + continuation_count(definition_len) as u64 + spec.indexes.len() as u64;
+    let needed = 2
+        + first_create as u64
+        + continuation_count(definition_len) as u64
+        + spec.indexes.len() as u64;
     // `EXP-0093` numbers the object equal to its definition root, and
     // `MSysObjects.Id` is a signed Long, so the run must stay in that range.
     let object_id = i32::try_from(first_page)
@@ -523,6 +583,7 @@ fn assign_pages(
     Ok(TableSchemaPlan {
         object_id,
         definition_root: PageNumber::new(first_page),
+        property_page: first_create,
         definition_len,
         index_fields,
     })

@@ -79,6 +79,12 @@ const ALPHA_SPEC: TableSpec<'static> = TableSpec {
     indexes: &[],
 };
 
+/// `EXP-0073`: catalog and access-control rows of the empty database.
+const SYSTEM_OBJECT_COUNT: usize = 8;
+const SYSTEM_ACE_COUNT: usize = 16;
+/// `EXP-0087`: creates observed in one database.
+const MAX_OBSERVED_TABLES: usize = 4;
+
 const TABLES_ID: i32 = 0x0f00_0001;
 const DATABASES_ID: i32 = 0x0f00_0002;
 const RELATIONSHIPS_ID: i32 = 0x0f00_0003;
@@ -94,7 +100,7 @@ pub use error::ComposeError;
 pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    let images = compose_existing_pages(None, budget)?;
+    let images = compose_existing_pages(&[], budget)?;
     WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
 }
 
@@ -107,51 +113,93 @@ pub(crate) fn compose_alpha_database(
     compose_table_database(&ALPHA_SPEC, budget)
 }
 
-/// Composes the empty database plus one created user table, following the
-/// `EXP-0091`, `EXP-0093`, and `EXP-0105` first-create observations.
+/// Composes the empty database plus one created user table.
 pub(crate) fn compose_table_database(
     spec: &TableSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    let planned = PlannedCreate::new(spec)?;
-    let images = compose_existing_pages(Some(&planned), budget)?;
+    compose_database(std::slice::from_ref(spec), budget)
+}
+
+/// Composes the empty database plus the given user tables created in order.
+///
+/// The first table follows the `EXP-0091`, `EXP-0093`, and `EXP-0105`
+/// first-create observations; each later table follows the `EXP-0087`
+/// later-create observations, appending its pages after the previous table's
+/// and carrying no `LvProp` page. `EXP-0087` observed four creates in one
+/// database, later creates with at most one index, and no later create with a
+/// continuation, so more are refused rather than extrapolated. Every table's
+/// catalog `LvProp` is null, which no experiment has yet observed DAO accept
+/// for a database holding more than one table.
+pub(crate) fn compose_database(
+    specs: &[TableSpec<'_>],
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, ComposeError> {
+    if specs.len() > MAX_OBSERVED_TABLES {
+        return Err(ComposeError::UnobservedTableCount {
+            count: specs.len(),
+            observed: MAX_OBSERVED_TABLES,
+        });
+    }
+    let mut creates: Vec<PlannedCreate<'_>> = Vec::with_capacity(specs.len());
+    let mut next_page = EMPTY_DATABASE_PAGE_COUNT;
+    for (position, spec) in specs.iter().enumerate() {
+        if let Some(first) = specs[..position]
+            .iter()
+            .position(|earlier| earlier.name.eq_ignore_ascii_case(spec.name))
+        {
+            return Err(ComposeError::DuplicateTableName {
+                first,
+                second: position,
+            });
+        }
+        let planned = PlannedCreate::new(spec, next_page, position == 0)?;
+        next_page = planned.page_count();
+        creates.push(planned);
+    }
+    let images = compose_existing_pages(&creates, budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
-    planned.append_pages(&mut plan, budget)?;
+    let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
+    for planned in &creates {
+        planned.append_pages(&mut plan, &mut append_map, budget)?;
+    }
     Ok(plan)
 }
 
 fn compose_existing_pages(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
-    let object_count = if create.is_some() { 9 } else { 8 };
-    let ace_count = if create.is_some() { 18 } else { 16 };
-    let page_count = create.map_or(EMPTY_DATABASE_PAGE_COUNT, PlannedCreate::page_count);
+    let object_count = (SYSTEM_OBJECT_COUNT + creates.len()) as u32;
+    let ace_count = (SYSTEM_ACE_COUNT + 2 * creates.len()) as u32;
+    let page_count = creates
+        .last()
+        .map_or(EMPTY_DATABASE_PAGE_COUNT, PlannedCreate::page_count);
     Ok([
-        header_page(create.is_some(), budget)?,
+        header_page(creates.len(), budget)?,
         global_map_page(page_count, budget)?,
         msys_objects_definition(object_count, budget)?,
         msys_aces_definition(ace_count, object_count, budget)?,
         msys_queries_definition(budget)?,
         msys_relationships_definition(budget)?,
-        objects_map_page(create, budget)?,
+        objects_map_page(creates, budget)?,
         single_map_page(&[], budget)?,
         single_map_page(&[OBJECTS_PARENT_NAME_ROOT], budget)?,
-        objects_parent_name_index(create, budget)?,
+        objects_parent_name_index(creates, budget)?,
         single_map_page(&[OBJECTS_ID_ROOT], budget)?,
-        objects_id_index(create, budget)?,
+        objects_id_index(creates, budget)?,
         shared_map_page(budget)?,
-        aces_index(create, budget)?,
+        aces_index(creates, budget)?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
-        objects_data_page(create, budget)?,
-        aces_data_page(create, budget)?,
+        objects_data_page(creates, budget)?,
+        aces_data_page(creates, budget)?,
     ])
 }
 
-fn header_page(created: bool, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
+fn header_page(table_count: usize, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
     let mut image = PageImage::new(PageKind::DatabaseDefinition);
     image.write_at(PageOffset::new(1), &[1], budget)?;
     image.write_at(PageOffset::new(4), b"Standard Jet DB", budget)?;
@@ -161,8 +209,9 @@ fn header_page(created: bool, budget: &mut ResourceBudget) -> Result<PageImage, 
     for offset in (1..commit_state.len()).step_by(2) {
         commit_state[offset] = 1;
     }
-    // EXP-0087: byte 1538 advanced by 2 per create from 0; no rule beyond that.
-    commit_state[2] = if created { 2 } else { 0 };
+    // EXP-0087: byte 1538 advanced by 2 per create from 0 through four
+    // creates; no rule beyond that.
+    commit_state[2] = 2 * table_count as u8;
     image.write_at(PageOffset::new(1536), &commit_state, budget)?;
     Ok(image)
 }
@@ -209,13 +258,13 @@ fn single_map_page(pages: &[u64], budget: &mut ResourceBudget) -> Result<PageIma
 }
 
 fn objects_map_page(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let owned = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let available = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let empty = inline_map_row(&[], budget)?;
-    let long_value_pages = create.map(PlannedCreate::property_page);
+    let long_value_pages = creates.first().and_then(PlannedCreate::property_page);
     let lvprop = inline_map_row(long_value_pages.as_slice(), budget)?;
     let rows: [&[u8]; 15] = [
         &owned, &available, &empty, &empty, &empty, &empty, &empty, &empty, &empty, &empty,
@@ -401,10 +450,12 @@ const CATALOG_SEEDS: [CatalogSeed<'static>; 8] = [
 ];
 
 /// Returns the catalog rows the composed image holds, in stored row order.
-fn catalog_seeds<'a>(create: Option<&PlannedCreate<'a>>) -> impl Iterator<Item = CatalogSeed<'a>> {
+fn catalog_seeds<'a>(
+    creates: &'a [PlannedCreate<'a>],
+) -> impl Iterator<Item = CatalogSeed<'a>> + 'a {
     CATALOG_SEEDS
         .into_iter()
-        .chain(create.map(PlannedCreate::catalog_seed))
+        .chain(creates.iter().map(PlannedCreate::catalog_seed))
 }
 
 /// Builds the catalog data page. Every `LvProp` is null: the system rows
@@ -412,12 +463,12 @@ fn catalog_seeds<'a>(create: Option<&PlannedCreate<'a>>) -> impl Iterator<Item =
 /// create with a null catalog `LvProp` and a retained long-value page. For
 /// any other created table the null form is an unvalidated candidate.
 fn objects_data_page(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
-    for seed in catalog_seeds(create) {
+    for seed in catalog_seeds(creates) {
         let length = encode_catalog_row(seed, &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
@@ -486,19 +537,19 @@ const fn ace(object: i32, sid: &'static [u8], acm: i32, inheritable: bool) -> Ac
 }
 
 /// Returns the access-control rows the composed image holds, in stored order.
-fn ace_seeds(create: Option<&PlannedCreate<'_>>) -> impl Iterator<Item = AceSeed> {
+fn ace_seeds<'a>(creates: &'a [PlannedCreate<'a>]) -> impl Iterator<Item = AceSeed> + 'a {
     ACE_SEEDS
         .into_iter()
-        .chain(create.map(PlannedCreate::ace_seeds).into_iter().flatten())
+        .chain(creates.iter().flat_map(PlannedCreate::ace_seeds))
 }
 
 fn aces_data_page(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_ACES_ROOT), budget)?;
     let mut row = [0_u8; 64];
-    for seed in ace_seeds(create) {
+    for seed in ace_seeds(creates) {
         let values = [
             RowValue::Long(seed.object),
             RowValue::Binary(seed.sid),
@@ -556,56 +607,37 @@ impl OwnedIndexEntry {
 }
 
 fn objects_parent_name_index(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    let count = if create.is_some() { 9 } else { 8 };
-    for (row, seed) in catalog_seeds(create).enumerate() {
-        entries[row] = OwnedIndexEntry::name(seed.parent, seed.name, row as u8)?;
-    }
-    sort_index_entries(&mut entries[..count]);
-    index_page(
-        MSYS_OBJECTS_ROOT,
-        MSYS_OBJECTS_DATA_PAGE,
-        &entries[..count],
-        budget,
-    )
+    let mut entries = catalog_seeds(creates)
+        .enumerate()
+        .map(|(row, seed)| OwnedIndexEntry::name(seed.parent, seed.name, row as u8))
+        .collect::<Result<Vec<_>, ComposeError>>()?;
+    sort_index_entries(&mut entries);
+    index_page(MSYS_OBJECTS_ROOT, MSYS_OBJECTS_DATA_PAGE, &entries, budget)
 }
 fn objects_id_index(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let mut entries = [OwnedIndexEntry::EMPTY; 9];
-    let count = if create.is_some() { 9 } else { 8 };
-    for (row, seed) in catalog_seeds(create).enumerate() {
-        entries[row] = OwnedIndexEntry::long(seed.id, row as u8);
-    }
-    sort_index_entries(&mut entries[..count]);
-    index_page(
-        MSYS_OBJECTS_ROOT,
-        MSYS_OBJECTS_DATA_PAGE,
-        &entries[..count],
-        budget,
-    )
+    let mut entries = catalog_seeds(creates)
+        .enumerate()
+        .map(|(row, seed)| OwnedIndexEntry::long(seed.id, row as u8))
+        .collect::<Vec<_>>();
+    sort_index_entries(&mut entries);
+    index_page(MSYS_OBJECTS_ROOT, MSYS_OBJECTS_DATA_PAGE, &entries, budget)
 }
 fn aces_index(
-    create: Option<&PlannedCreate<'_>>,
+    creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let mut entries = [OwnedIndexEntry::EMPTY; 18];
-    let mut count = 0;
-    for (row, seed) in ace_seeds(create).enumerate() {
-        entries[row] = OwnedIndexEntry::long(seed.object, row as u8);
-        count = row + 1;
-    }
-    sort_index_entries(&mut entries[..count]);
-    index_page(
-        MSYS_ACES_ROOT,
-        MSYS_ACES_DATA_PAGE,
-        &entries[..count],
-        budget,
-    )
+    let mut entries = ace_seeds(creates)
+        .enumerate()
+        .map(|(row, seed)| OwnedIndexEntry::long(seed.object, row as u8))
+        .collect::<Vec<_>>();
+    sort_index_entries(&mut entries);
+    index_page(MSYS_ACES_ROOT, MSYS_ACES_DATA_PAGE, &entries, budget)
 }
 
 fn sort_index_entries(entries: &mut [OwnedIndexEntry]) {

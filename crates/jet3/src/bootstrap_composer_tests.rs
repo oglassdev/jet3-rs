@@ -595,13 +595,17 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
             indexes: &[],
         },
         EMPTY_DATABASE_PAGE_COUNT,
+        true,
     )?;
     assert_eq!(plan.object_id(), ALPHA_ROOT as i32);
     assert_eq!(plan.definition_root(), PageNumber::new(ALPHA_ROOT));
     assert_eq!(plan.map_page(), PageNumber::new(ALPHA_MAP_PAGE));
     // EXP-0091/EXP-0093: the retained LvProp page follows the map page, so
     // the accepted Alpha image appends exactly the planned three pages.
-    assert_eq!(plan.property_page(), PageNumber::new(ALPHA_MAP_PAGE + 1));
+    assert_eq!(
+        plan.property_page(),
+        Some(PageNumber::new(ALPHA_MAP_PAGE + 1))
+    );
     assert_eq!(plan.index_placements().count(), 0);
     assert_eq!(plan.appended_page_count(), 3);
     let alpha_pages = bytes(true)?.len() as u64 / JET3_PAGE_SIZE.get();
