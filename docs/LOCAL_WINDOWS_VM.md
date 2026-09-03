@@ -145,7 +145,7 @@ it does not establish arbitrary index shapes, writer correctness, compatibility,
 or support.
 
 `definition-continuation` is the development-only experiment for issue #151.
-`EXP-0104` preregisters the current successor after `EXP-0095`, `EXP-0100`, and
+`EXP-0104` preregistered the final successor after `EXP-0095`, `EXP-0100`, and
 `EXP-0103` produced valid `no_outcome` results. Three replicas each create one
 fresh empty database, identity-check three pre-mutation copies, and retain closed
 checkpoints for the empty database plus the established `Alpha(Id Long)`
@@ -194,9 +194,16 @@ baselines without recovery, but every analyzer replica reported `one appended
 page 22 is unattributed`. The all-or-`no_outcome` rule promotes no continuation
 count, placement, page role, tag, or ownership diagnostic. That replica-stable
 diagnosis is design input only for `EXP-0104`'s explicit `unassigned` inventory;
-it supplies no format evidence. The user's 2026-09-02 instruction prospectively
-authorizes one run of the exact merged `EXP-0104` successor. No retry is allowed
-after DAO mutation without another explicit human decision.
+it supplies no format evidence. `EXP-0105` records the exact successor run as
+accepted, with all five questions answered identically across three complete
+replicas. The exact 66-, 2,075-, and 4,105-byte definitions use chains `[20]`,
+`[20, 68]`, and `[20, 219, 218]`; all definition pages are globally in use.
+For both wide shapes, pages 22--47 are globally free `unassigned` pages with
+raw tag 9. The `one` arm's pages 48--65 and the `two` arm's pages 48--214 are
+globally free, decoder-labeled LVAL pages not referenced by the catalog
+`LvProp`; their labels establish no current owner, purpose, reuse history, or
+semantic role. Issue #151 is evidence-complete for these exact shapes and is
+close-ready, without a compatibility or support claim.
 
 `extended-names` is the SHA-256-pinned issue #152 successor for every defined
 CP1252 byte above `0x7E`. Three replicas each retained an empty checkpoint, the
