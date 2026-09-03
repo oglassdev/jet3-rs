@@ -36,6 +36,14 @@ pub enum ComposeError {
         /// Largest observed long-value column count.
         observed: usize,
     },
+    /// The encoded definition length differs from the length the planner
+    /// measured, so its page split cannot be trusted.
+    DefinitionLengthMismatch {
+        /// Length the planner measured.
+        planned: usize,
+        /// Length the encoder produced.
+        encoded: usize,
+    },
 }
 
 impl fmt::Display for ComposeError {
@@ -57,7 +65,8 @@ impl std::error::Error for ComposeError {
             Self::Schema(source) => Some(source),
             Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
-            | Self::UnobservedLongValueColumnCount { .. } => None,
+            | Self::UnobservedLongValueColumnCount { .. }
+            | Self::DefinitionLengthMismatch { .. } => None,
         }
     }
 }

@@ -203,14 +203,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
     }];
     let indexed_memo = [ID, NOTE];
     let high_byte = [ColumnSpec::new(b"Caf\xe9", ColumnType::Long)];
-    let wide_names = (0..70)
-        .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
-        .collect::<Vec<_>>();
-    let wide = wide_names
-        .iter()
-        .map(|name| ColumnSpec::new(name, ColumnType::Long))
-        .collect::<Vec<_>>();
-    let cases: [(TableSpec<'_>, Accepts); 3] = [
+    let cases: [(TableSpec<'_>, Accepts); 2] = [
         (
             TableSpec {
                 name: b"Mixed",
@@ -232,24 +225,6 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
                         byte: 0xe9,
                         ..
                     })
-                )
-            },
-        ),
-        (
-            TableSpec {
-                name: b"Wide",
-                columns: &wide,
-                indexes: &[],
-            },
-            |error| {
-                matches!(
-                    error,
-                    ComposeError::Schema(
-                        TableSchemaPlanError::ContinuationPlacementUnestablished {
-                            continuations: 1,
-                            ..
-                        }
-                    )
                 )
             },
         ),
@@ -283,5 +258,32 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
     }
     assert_eq!(fs::read(&target)?, b"keep me");
     assert_eq!(directory.entries()?, ["created.mdb"]);
+    Ok(())
+}
+
+#[test]
+fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult {
+    // EXP-0107's compact construction: 70 ten-byte-named Long columns take a
+    // root, map page, LvProp page, and one continuation at page 23.
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let names = (0..70)
+        .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
+        .collect::<Vec<_>>();
+    let spec = TableSpec {
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    };
+    create_database(&target, &spec, &mut budget())?;
+    assert_eq!(fs::metadata(&target)?.len(), 24 * crate::PAGE_BYTES as u64);
+    let mut budget = budget();
+    let mut database = DatabaseReader::open(&target, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.columns().len(), 70);
     Ok(())
 }
