@@ -2,7 +2,7 @@
 //! reader to check each `EXP-0093` structure lands where the plan says.
 
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
-use super::super::{ComposeError, compose_table_database};
+use super::super::{ComposeError, compose_database, compose_table_database};
 use crate::column_definition_writer::nz;
 use crate::table_schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
 use crate::{
@@ -309,5 +309,184 @@ fn a_second_long_value_column_is_refused() {
             &mut budget,
         ),
         Err(ComposeError::UnobservedLongValueColumnCount { observed: 1 })
+    ));
+}
+
+/// The exact `EXP-0087` create sequence: Alpha, Beta, Gamma, then Delta.
+fn exp_0087_tables<'a>(
+    gamma_indexes: &'a [IndexSpec<'a>],
+    delta_indexes: &'a [IndexSpec<'a>],
+    label: &'a [ColumnSpec<'a>],
+) -> [TableSpec<'a>; 4] {
+    [
+        TableSpec {
+            name: b"Alpha",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"Beta",
+            columns: &[ID, NAME, NOTE],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"Gamma",
+            columns: &[ID],
+            indexes: gamma_indexes,
+        },
+        TableSpec {
+            name: b"Delta",
+            columns: label,
+            indexes: delta_indexes,
+        },
+    ]
+}
+
+fn database_bytes(specs: &[TableSpec<'_>]) -> Result<Vec<u8>, ComposeError> {
+    let mut budget = compose_budget();
+    let plan = compose_database(specs, &mut budget)?;
+    Ok(plan
+        .pages()
+        .iter()
+        .flat_map(|page| page.image().as_bytes().iter().copied())
+        .collect())
+}
+
+#[test]
+fn later_creates_follow_the_observed_page_and_row_pattern() -> TestResult {
+    // EXP-0087: the alpha, beta, gamma, and delta checkpoints were 23, 25, 28,
+    // and 31 pages; each create added one catalog row and two ACE rows, and
+    // page-zero byte 1538 advanced by two per create.
+    let gamma_indexes = [IndexSpec {
+        name: b"PrimaryKey",
+        fields: &[field(0, IndexDirection::Ascending)],
+        kind: IndexKind::Primary,
+    }];
+    let label = [ColumnSpec::new(
+        b"Label",
+        ColumnType::Text { max_len: nz(30) },
+    )];
+    let delta_indexes = [IndexSpec {
+        name: b"ByLabel",
+        fields: &[field(0, IndexDirection::Ascending)],
+        kind: IndexKind::Ordinary,
+    }];
+    let tables = exp_0087_tables(&gamma_indexes, &delta_indexes, &label);
+    for (count, pages) in [(1, 23), (2, 25), (3, 28), (4, 31)] {
+        let bytes = database_bytes(&tables[..count])?;
+        assert_eq!(bytes.len(), pages * PAGE_BYTES, "{count} tables");
+        assert_eq!(bytes[1538], 2 * count as u8);
+    }
+    let bytes = database_bytes(&tables)?;
+    // Only the first create appends the LvProp page; later roots follow.
+    assert_eq!(&page(&bytes, 22)[..8], b"\x01\x01\xf6\x07LVAL");
+    for root in [20, 23, 25, 28] {
+        assert_eq!(page(&bytes, root)[0], 2, "definition root {root}");
+        assert_eq!(page(&bytes, root + 1)[0], 1, "map page after {root}");
+    }
+    for index_root in [27, 30] {
+        assert_eq!(page(&bytes, index_root)[0], 4, "index root {index_root}");
+    }
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let mut roots = Vec::new();
+    {
+        let mut catalog = database.catalog(&mut budget)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.class() == crate::CatalogObjectClass::User {
+                roots.push((
+                    record.name().raw_bytes().to_vec(),
+                    record.id().get(),
+                    record.table_definition(),
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        roots,
+        [
+            (b"Alpha".to_vec(), 20, Some(PageNumber::new(20))),
+            (b"Beta".to_vec(), 23, Some(PageNumber::new(23))),
+            (b"Gamma".to_vec(), 25, Some(PageNumber::new(25))),
+            (b"Delta".to_vec(), 28, Some(PageNumber::new(28))),
+        ]
+    );
+    let gamma = database.table_definition(PageNumber::new(25), &mut budget)?;
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(27));
+    assert_eq!(
+        gamma.physical_indexes()[0].usage_map().page(),
+        PageNumber::new(26)
+    );
+    let aces = database.table_definition(PageNumber::new(3), &mut budget)?;
+    let mut ace_rows = 0;
+    let mut rows = database.rows(&aces, &mut budget)?;
+    while rows.next_row()?.is_some() {
+        ace_rows += 1;
+    }
+    assert_eq!(ace_rows, 16 + 2 * 4);
+    Ok(())
+}
+
+#[test]
+fn a_fifth_table_and_a_case_folded_duplicate_name_are_refused() {
+    let five = [
+        TableSpec {
+            name: b"T1",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"T2",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"T3",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"T4",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"T5",
+            columns: &[ID],
+            indexes: &[],
+        },
+    ];
+    let mut budget = compose_budget();
+    assert!(matches!(
+        compose_database(&five, &mut budget),
+        Err(ComposeError::UnobservedTableCount {
+            count: 5,
+            observed: 4
+        })
+    ));
+    let duplicate = [
+        TableSpec {
+            name: b"Alpha",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"Beta",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            name: b"ALPHA",
+            columns: &[ID],
+            indexes: &[],
+        },
+    ];
+    assert!(matches!(
+        compose_database(&duplicate, &mut budget),
+        Err(ComposeError::DuplicateTableName {
+            first: 0,
+            second: 2
+        })
     ));
 }
