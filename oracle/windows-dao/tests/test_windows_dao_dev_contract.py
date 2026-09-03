@@ -1251,6 +1251,24 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
             plan["candidate_source_manifest"]["sha256"],
         )
 
+    def test_optional_dispatch_paths_are_omitted_when_empty(self) -> None:
+        # An empty native argument is dropped, so the dispatcher would report a
+        # missing value; every optional per-job path must be passed conditionally.
+        start = self.remote.index("$optionalDispatchArguments = [ordered]@{")
+        end = self.remote.index("}", start)
+        block = self.remote[start:end]
+        for parameter in (
+            "-LvPropNullSchemasJobPath",
+            "-LvPropSchemasAlphaPath",
+            "-LvPropSchemasIndexedPath",
+            "-LvPropSchemasWidePath",
+            "-MultiTableCreateJobPath",
+            "-MultiTableQuadPath",
+        ):
+            self.assertIn(f'"{parameter}" = ${parameter[1:]}', block)
+        self.assertIn("if (-not [string]::IsNullOrEmpty([string]$entry.Value))", self.remote)
+        self.assertIn('& (Join-Path $PSHOME "powershell.exe") @dispatchArguments', self.remote)
+
     def test_multi_table_create_is_bounded_and_exactly_routed(self) -> None:
         job = CLIENT.MULTI_TABLE_CREATE_JOB.read_text(encoding="utf-8")
         plan = json.loads(CLIENT.MULTI_TABLE_CREATE_PLAN.read_text(encoding="utf-8"))

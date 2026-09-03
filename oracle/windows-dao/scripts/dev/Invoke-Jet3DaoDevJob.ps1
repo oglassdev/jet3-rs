@@ -854,30 +854,45 @@ elseif ($Job -in @("catalog", "table-definition", "row", "value", "index", "boot
         $detail = "The ready provider is not DAO.DBEngine.36."
     }
     else {
-        & (Join-Path $PSHOME "powershell.exe") -NoProfile -NonInteractive `
-            -ExecutionPolicy Bypass -File $DispatchPath -Job $Job -RunRoot $runRoot `
-            -CatalogJobPath $CatalogJobPath -TableDefinitionJobPath $TableDefinitionJobPath `
-            -TableDefinitionTypeInputPath $TableDefinitionTypeInputPath -RowJobPath $RowJobPath `
-            -ValueJobPath $ValueJobPath -IndexJobPath $IndexJobPath `
-            -BootstrapLayoutJobPath $BootstrapLayoutJobPath `
-            -SystemCatalogJobPath $SystemCatalogJobPath `
-            -BootstrapComposerValidationJobPath $BootstrapComposerValidationJobPath `
-            -BootstrapComposerEmptyPath $BootstrapComposerEmptyPath `
-            -BootstrapComposerAlphaPath $BootstrapComposerAlphaPath `
-            -SchemaGeneralizationJobPath $SchemaGeneralizationJobPath `
-            -MultipleIndexesJobPath $MultipleIndexesJobPath `
-            -DefinitionContinuationJobPath $DefinitionContinuationJobPath `
-            -ExtendedNamesJobPath $ExtendedNamesJobPath `
-            -LvPropNullJobPath $LvPropNullJobPath `
-            -LvPropFixedAlphaPath $LvPropFixedAlphaPath `
-            -LvPropNullAlphaPath $LvPropNullAlphaPath `
-            -LvPropNullSchemasJobPath $LvPropNullSchemasJobPath `
-            -LvPropSchemasAlphaPath $LvPropSchemasAlphaPath `
-            -LvPropSchemasIndexedPath $LvPropSchemasIndexedPath `
-            -LvPropSchemasWidePath $LvPropSchemasWidePath `
-            -MultiTableCreateJobPath $MultiTableCreateJobPath `
-            -MultiTableQuadPath $MultiTableQuadPath `
-            -PlanSha256 $PlanSha256 -RunId $RunId
+        $dispatchArguments = @(
+            "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+            "-File", $DispatchPath, "-Job", $Job, "-RunRoot", $runRoot,
+            "-CatalogJobPath", $CatalogJobPath,
+            "-TableDefinitionJobPath", $TableDefinitionJobPath,
+            "-TableDefinitionTypeInputPath", $TableDefinitionTypeInputPath,
+            "-RowJobPath", $RowJobPath,
+            "-ValueJobPath", $ValueJobPath,
+            "-IndexJobPath", $IndexJobPath,
+            "-BootstrapLayoutJobPath", $BootstrapLayoutJobPath,
+            "-SystemCatalogJobPath", $SystemCatalogJobPath,
+            "-BootstrapComposerValidationJobPath", $BootstrapComposerValidationJobPath,
+            "-BootstrapComposerEmptyPath", $BootstrapComposerEmptyPath,
+            "-BootstrapComposerAlphaPath", $BootstrapComposerAlphaPath,
+            "-SchemaGeneralizationJobPath", $SchemaGeneralizationJobPath,
+            "-MultipleIndexesJobPath", $MultipleIndexesJobPath,
+            "-DefinitionContinuationJobPath", $DefinitionContinuationJobPath,
+            "-ExtendedNamesJobPath", $ExtendedNamesJobPath,
+            "-LvPropNullJobPath", $LvPropNullJobPath,
+            "-LvPropFixedAlphaPath", $LvPropFixedAlphaPath,
+            "-LvPropNullAlphaPath", $LvPropNullAlphaPath
+        )
+        # Optional per-job paths are omitted when empty: an empty native
+        # argument is dropped and the dispatcher then reports a missing value.
+        $optionalDispatchArguments = [ordered]@{
+            "-LvPropNullSchemasJobPath" = $LvPropNullSchemasJobPath
+            "-LvPropSchemasAlphaPath" = $LvPropSchemasAlphaPath
+            "-LvPropSchemasIndexedPath" = $LvPropSchemasIndexedPath
+            "-LvPropSchemasWidePath" = $LvPropSchemasWidePath
+            "-MultiTableCreateJobPath" = $MultiTableCreateJobPath
+            "-MultiTableQuadPath" = $MultiTableQuadPath
+        }
+        foreach ($entry in $optionalDispatchArguments.GetEnumerator()) {
+            if (-not [string]::IsNullOrEmpty([string]$entry.Value)) {
+                $dispatchArguments += @([string]$entry.Key, [string]$entry.Value)
+            }
+        }
+        $dispatchArguments += @("-PlanSha256", $PlanSha256, "-RunId", $RunId)
+        & (Join-Path $PSHOME "powershell.exe") @dispatchArguments
         $dispatchExitCode = [int]$LASTEXITCODE
         $dispatchResultPath = Join-Path $runRoot "dispatch-result.json"
         if (-not (Test-Path -LiteralPath $dispatchResultPath -PathType Leaf)) {
