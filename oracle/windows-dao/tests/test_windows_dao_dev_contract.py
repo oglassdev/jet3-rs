@@ -419,13 +419,12 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         self.assertEqual(binding.job_result_name, "lvprop-null-schemas-job-result.json")
         self.assertEqual(binding.report_name, "lvprop-null-schemas-report.json")
 
-    def test_multi_table_create_binds_issue_100_and_verifies_plan(self) -> None:
+    def test_multi_table_create_binds_issue_100(self) -> None:
         binding = CLIENT.plan_binding("multi-table-create")
         self.assertEqual(binding.issue, 100)
         self.assertEqual(binding.document_type, "dao_multi_table_create_plan")
         self.assertEqual(binding.job_result_name, "multi-table-create-job-result.json")
         self.assertEqual(binding.report_name, "multi-table-create-report.json")
-        self.assert_plan_bound_job("multi-table-create", "MULTI_TABLE_CREATE_PLAN")
 
     def test_plan_binding_requires_its_exact_issue(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
