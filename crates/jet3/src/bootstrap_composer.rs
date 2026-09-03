@@ -5,9 +5,11 @@
 //! makes no DAO-compatibility claim. Page roles and the empty-to-`Alpha`
 //! transition come from `EXP-0073`; the fixed page-zero transition byte comes
 //! from `EXP-0069` and `EXP-0071`; long-value map groups come from `EXP-0077`;
-//! fixed composite keys and the opaque `Alpha.LvProp` value come from
-//! `EXP-0079`; the fixed opaque page-zero candidate hypothesis is
-//! preregistered by `EXP-0084`.
+//! fixed composite keys come from `EXP-0079`; the fixed opaque page-zero
+//! candidate hypothesis is preregistered by `EXP-0084`; the null catalog
+//! `LvProp` with a retained empty long-value page is the `EXP-0091` accepted
+//! construction; first-create page order comes from `EXP-0093` and
+//! definition continuations from `EXP-0105`.
 
 #![allow(
     dead_code,
@@ -17,7 +19,6 @@
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
-use crate::long_value_writer::LongValueWriteError;
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 use crate::table_schema_plan::{TableSchemaPlanError, TableSchemaSpec};
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
@@ -74,10 +75,6 @@ const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
     0x60, 0x26, 0x5f, 0x95, 0xf8, 0xd0, 0x89, 0x24, 0x85, 0x67, 0xc6, 0x1f, 0x27, 0x44, 0xd2, 0xee,
     0xcf, 0x65, 0xed, 0xff, 0x07, 0xc7, 0x46, 0xa1, 0x78, 0x16, 0x0c, 0xed, 0xe9, 0x2d,
 ];
-// EXP-0079 records this fixed value losslessly; its property grammar remains
-// uninterpreted.
-const ALPHA_LVPROP_PAYLOAD: &[u8] =
-    b"KKD\x00\x10\x00\x00\x00\x80\x00\x08\x00Required\x17\x00\x00\x00\x01\x00\x08\x00\x00\x00\x02\x00Id\x09\x00\x01\x01\x00\x00\x01\x00\x00";
 const ALPHA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
     b"Id",
     ColumnPhysicalType::Long,
@@ -104,65 +101,33 @@ pub(crate) use error::BootstrapComposeError;
 pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    let images = compose_existing_pages(None, CreatedLvProp::External, budget)?;
+    let images = compose_existing_pages(None, budget)?;
     WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
 }
 
-/// Composes the fixed empty-to-`Alpha(Id Long)` transition from `EXP-0073`,
-/// carrying the `LvProp` payload `EXP-0079` recorded for it.
+/// Composes the empty-to-`Alpha(Id Long)` transition from `EXP-0073` in the
+/// null-`LvProp` form `EXP-0091` accepted.
 pub(crate) fn compose_alpha_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    compose_table_database(alpha_create(), budget)
-}
-
-/// Composes the `#149` candidate with a null catalog `LvProp` and an empty
-/// retained LVAL page. This is test-only until DAO evaluates the candidate.
-#[cfg(test)]
-fn compose_alpha_database_with_null_lvprop(
-    budget: &mut ResourceBudget,
-) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    compose_table_database_with_lvprop(alpha_create(), CreatedLvProp::Null, budget)
-}
-
-const fn alpha_create() -> TableCreate<'static> {
-    TableCreate {
-        spec: &ALPHA_SPEC,
-        properties: ALPHA_LVPROP_PAYLOAD,
-    }
+    compose_table_database(&ALPHA_SPEC, budget)
 }
 
 /// Composes the empty database plus one created user table, following the
-/// `EXP-0087` create observations.
+/// `EXP-0091`, `EXP-0093`, and `EXP-0105` first-create observations.
 pub(crate) fn compose_table_database(
-    create: TableCreate<'_>,
+    spec: &TableSchemaSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    compose_table_database_with_lvprop(create, CreatedLvProp::External, budget)
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CreatedLvProp {
-    External,
-    #[cfg(test)]
-    Null,
-}
-
-fn compose_table_database_with_lvprop(
-    create: TableCreate<'_>,
-    lvprop: CreatedLvProp,
-    budget: &mut ResourceBudget,
-) -> Result<WholeFileImagePlan, BootstrapComposeError> {
-    let planned = PlannedCreate::new(create)?;
-    let images = compose_existing_pages(Some(&planned), lvprop, budget)?;
+    let planned = PlannedCreate::new(spec)?;
+    let images = compose_existing_pages(Some(&planned), budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
-    planned.append_pages(&mut plan, lvprop, budget)?;
+    planned.append_pages(&mut plan, budget)?;
     Ok(plan)
 }
 
 fn compose_existing_pages(
     create: Option<&PlannedCreate<'_>>,
-    lvprop: CreatedLvProp,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], BootstrapComposeError> {
     let object_count = if create.is_some() { 9 } else { 8 };
@@ -187,7 +152,7 @@ fn compose_existing_pages(
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
-        objects_data_page(create, lvprop, budget)?,
+        objects_data_page(create, budget)?,
         aces_data_page(create, budget)?,
     ])
 }
@@ -265,7 +230,7 @@ fn objects_map_page(
     let owned = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let available = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let empty = inline_map_row(&[], budget)?;
-    let long_value_pages = create.map(PlannedCreate::long_value_page);
+    let long_value_pages = create.map(PlannedCreate::property_page);
     let lvprop = inline_map_row(long_value_pages.as_slice(), budget)?;
     let rows: [&[u8]; 15] = [
         &owned, &available, &empty, &empty, &empty, &empty, &empty, &empty, &empty, &empty,
@@ -339,7 +304,6 @@ use definitions::{
 #[path = "bootstrap_table_create.rs"]
 mod table_create;
 use table_create::PlannedCreate;
-pub(crate) use table_create::TableCreate;
 
 const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
     fixed(ColumnPhysicalType::Long, 0, 4),
@@ -458,22 +422,17 @@ fn catalog_seeds<'a>(create: Option<&PlannedCreate<'a>>) -> impl Iterator<Item =
         .chain(create.map(PlannedCreate::catalog_seed))
 }
 
+/// Builds the catalog data page. Every `LvProp` is null: the system rows
+/// carry none (`EXP-0073`), and `EXP-0091` accepted a created table whose
+/// catalog `LvProp` is null while its long-value page stays present.
 fn objects_data_page(
     create: Option<&PlannedCreate<'_>>,
-    lvprop: CreatedLvProp,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, BootstrapComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
-    let created_id = create.map(PlannedCreate::object_id);
     for seed in catalog_seeds(create) {
-        let value = match create {
-            Some(planned) if lvprop == CreatedLvProp::External && Some(seed.id) == created_id => {
-                Some(planned.long_value_header()?)
-            }
-            _ => None,
-        };
-        let length = encode_catalog_row(seed, value, &mut row, budget)?;
+        let length = encode_catalog_row(seed, &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
     finish_data_builder(builder, budget)
@@ -481,13 +440,9 @@ fn objects_data_page(
 
 fn encode_catalog_row(
     seed: CatalogSeed<'_>,
-    lvprop: Option<[u8; 12]>,
     output: &mut [u8],
     budget: &mut ResourceBudget,
 ) -> Result<usize, BootstrapComposeError> {
-    let lvprop_value = lvprop
-        .as_ref()
-        .map_or(RowValue::Null, |bytes| RowValue::LongValue(bytes));
     let values = [
         RowValue::Long(seed.id),
         RowValue::Long(seed.parent),
@@ -503,7 +458,7 @@ fn encode_catalog_row(
         RowValue::Null,
         RowValue::Null,
         RowValue::Null,
-        lvprop_value,
+        RowValue::Null,
         RowValue::Null,
         RowValue::Null,
     ];

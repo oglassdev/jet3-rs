@@ -16,8 +16,6 @@ pub(crate) enum BootstrapComposeError {
         available: usize,
     },
     NameKey(CatalogNameKeyError),
-    /// Long-value encoding failed.
-    LongValue(LongValueWriteError),
     /// The table could not be planned.
     Schema(TableSchemaPlanError),
     /// The table carries both an index and a long-value column, a map-page
@@ -28,17 +26,12 @@ pub(crate) enum BootstrapComposeError {
         /// Largest observed long-value column count.
         observed: usize,
     },
-    /// The `LvProp` payload breaks the `EXP-0087` chunk framing.
-    PropertyFraming {
-        /// Offset of the first byte that could not be framed.
-        offset: usize,
-    },
-    /// The `LvProp` payload does not hold one names chunk plus one per column.
-    PropertyChunkCount {
-        /// Chunks the payload holds.
-        chunks: usize,
-        /// Chunks `EXP-0087` observed for this column count.
-        expected: usize,
+    /// The encoded definition length differs from the planned length.
+    DefinitionLengthMismatch {
+        /// Length the planner measured.
+        planned: usize,
+        /// Length the encoder produced.
+        encoded: usize,
     },
 }
 
@@ -58,13 +51,11 @@ impl std::error::Error for BootstrapComposeError {
             Self::WholeFile(source) => Some(source),
             Self::Encoding(source) => Some(source),
             Self::NameKey(source) => Some(source),
-            Self::LongValue(source) => Some(source),
             Self::Schema(source) => Some(source),
             Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }
-            | Self::PropertyFraming { .. }
-            | Self::PropertyChunkCount { .. } => None,
+            | Self::DefinitionLengthMismatch { .. } => None,
         }
     }
 }
@@ -102,12 +93,6 @@ impl From<Error> for BootstrapComposeError {
 impl From<CatalogNameKeyError> for BootstrapComposeError {
     fn from(source: CatalogNameKeyError) -> Self {
         Self::NameKey(source)
-    }
-}
-
-impl From<LongValueWriteError> for BootstrapComposeError {
-    fn from(source: LongValueWriteError) -> Self {
-        Self::LongValue(source)
     }
 }
 

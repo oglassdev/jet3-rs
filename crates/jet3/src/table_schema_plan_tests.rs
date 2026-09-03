@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::physical_index_definition::KEY_SLOT_COUNT;
-use crate::{ColumnPhysicalType, ColumnStorageKind, IndexDirection};
+use crate::{ColumnPhysicalType, ColumnStorageKind, IndexDirection, LogicalIndexKindSpec};
 
 type PlanResult = Result<(), TableSchemaPlanError>;
 
@@ -53,51 +53,157 @@ fn definition_error(spec: &TableSchemaSpec<'_>) -> Option<TableDefinitionWriteEr
     }
 }
 
+/// Fixed Long columns whose definition encodes to exactly `target` bytes.
+fn names_of_definition_len(target: usize) -> Vec<Vec<u8>> {
+    // Header 43 + terminator 2, then 18 record bytes + 1 length byte + 5
+    // name bytes per column; the last name absorbs the remainder.
+    let count = (target - 45) / 24;
+    let remainder = target - 45 - 24 * count;
+    let mut names = (0..count)
+        .map(|ordinal| format!("C{ordinal:04}").into_bytes())
+        .collect::<Vec<_>>();
+    if let Some(last) = names.last_mut() {
+        last.extend(std::iter::repeat_n(b'x', remainder));
+    }
+    names
+}
+
+fn long_columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
+    names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .collect()
+}
+
 #[test]
-fn a_table_without_an_index_appends_a_definition_root_and_a_map_page() -> PlanResult {
-    // EXP-0087's Beta create (Long Id, Text(50) Name, Memo Note): two
-    // appended pages, Id equal to the root page.
+fn a_table_without_an_index_appends_a_root_a_map_page_and_a_property_page() -> PlanResult {
+    // EXP-0093: three appended pages, Id equal to the root page.
     let columns = [ID, NAME, NOTE];
     let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23)?;
     assert_eq!(plan.object_id(), 23);
     assert_eq!(plan.definition_root(), PageNumber::new(23));
     assert_eq!(plan.map_page(), PageNumber::new(24));
-    assert_eq!(plan.index_root(), None);
-    assert_eq!(plan.appended_page_count(), 2);
-    Ok(())
-}
-
-#[test]
-fn an_indexed_table_appends_its_index_root_after_the_map_page() -> PlanResult {
-    // EXP-0087's Delta create: the index root follows the map-rows page.
-    let columns = [LABEL];
-    let indexes = [PlannedIndex {
-        name: b"ByLabel",
-        fields: &[key(0)],
-        kind: PlannedIndexKind::Ordinary,
-    }];
-    let plan = plan_table_schema(&spec(b"Delta", &columns, &indexes), 28)?;
-    assert_eq!(plan.object_id(), 28);
-    assert_eq!(plan.definition_root(), PageNumber::new(28));
-    assert_eq!(plan.map_page(), PageNumber::new(29));
-    assert_eq!(plan.index_root(), Some(PageNumber::new(30)));
+    assert_eq!(plan.property_page(), PageNumber::new(25));
+    assert_eq!(plan.index_placements().count(), 0);
+    assert_eq!(plan.continuation_chain().count(), 0);
     assert_eq!(plan.appended_page_count(), 3);
     Ok(())
 }
 
 #[test]
-fn a_primary_index_plans_the_same_pages_as_an_ordinary_one() -> PlanResult {
-    // EXP-0087's Gamma create carried a primary index and appended three pages.
+fn index_roots_follow_the_property_page_in_physical_order() -> PlanResult {
+    // EXP-0093's `three` arm: one root and one map row per physical ordinal.
+    let columns = [ID, LABEL, NAME];
+    let indexes = [
+        PlannedIndex {
+            name: b"ZPrimary",
+            fields: &[key(0)],
+            kind: PlannedIndexKind::Primary,
+        },
+        PlannedIndex {
+            name: b"MUniqueX",
+            fields: &[key(1)],
+            kind: PlannedIndexKind::Unique,
+        },
+        PlannedIndex {
+            name: b"ASecondx",
+            fields: &[key(2)],
+            kind: PlannedIndexKind::Ordinary,
+        },
+    ];
+    let plan = plan_table_schema(&spec(b"Three", &columns, &indexes), 28)?;
+    assert_eq!(plan.property_page(), PageNumber::new(30));
+    assert_eq!(
+        plan.index_placements().collect::<Vec<_>>(),
+        [
+            (PageNumber::new(31), 2),
+            (PageNumber::new(32), 3),
+            (PageNumber::new(33), 4),
+        ]
+    );
+    assert_eq!(plan.appended_page_count(), 6);
+    assert_eq!(logical_index_order(&indexes), [2, 1, 0]);
+    Ok(())
+}
+
+#[test]
+fn index_kinds_map_to_the_observed_flag_classes() {
+    // EXP-0093: primary 0x09, unique non-primary 0x01, ordinary 0x00.
+    assert_eq!(
+        PlannedIndexKind::Primary.flags(),
+        PhysicalIndexFlagsSpec::UniqueRequired
+    );
+    assert_eq!(
+        PlannedIndexKind::Unique.flags(),
+        PhysicalIndexFlagsSpec::Unique
+    );
+    assert_eq!(
+        PlannedIndexKind::Ordinary.flags(),
+        PhysicalIndexFlagsSpec::Ordinary
+    );
+    assert_eq!(
+        PlannedIndexKind::Unique.logical_kind(),
+        LogicalIndexKindSpec::Ordinary
+    );
+}
+
+#[test]
+fn index_names_whose_order_depends_on_case_folding_are_refused() {
+    // Byte order puts "Banana" first; case-folded order puts "apple" first.
+    let columns = [ID, LABEL];
+    let indexes = [
+        PlannedIndex {
+            name: b"apple",
+            fields: &[key(0)],
+            kind: PlannedIndexKind::Ordinary,
+        },
+        PlannedIndex {
+            name: b"Banana",
+            fields: &[key(1)],
+            kind: PlannedIndexKind::Ordinary,
+        },
+    ];
+    assert_eq!(
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
+        Err(TableSchemaPlanError::UnderdeterminedIndexNameOrder {
+            first: 0,
+            second: 1
+        })
+    );
+}
+
+#[test]
+fn a_name_byte_above_the_established_range_is_refused() {
+    let columns = [ColumnSpec::new(
+        b"Caf\xe9",
+        ColumnPhysicalType::Long,
+        ColumnStorageKind::Fixed,
+        4,
+    )];
+    assert_eq!(
+        plan_table_schema(&spec(b"Beta", &columns, &[]), 20),
+        Err(TableSchemaPlanError::NameByteUnestablished {
+            role: "column",
+            ordinal: 0,
+            position: 3,
+            byte: 0xe9,
+        })
+    );
     let columns = [ID];
     let indexes = [PlannedIndex {
-        name: b"PrimaryKey",
+        name: b"By\x80",
         fields: &[key(0)],
-        kind: PlannedIndexKind::Primary,
+        kind: PlannedIndexKind::Ordinary,
     }];
-    let plan = plan_table_schema(&spec(b"Gamma", &columns, &indexes), 25)?;
-    assert_eq!(plan.object_id(), 25);
-    assert_eq!(plan.index_root(), Some(PageNumber::new(27)));
-    Ok(())
+    assert_eq!(
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
+        Err(TableSchemaPlanError::NameByteUnestablished {
+            role: "logical index",
+            ordinal: 0,
+            position: 2,
+            byte: 0x80,
+        })
+    );
 }
 
 #[test]
@@ -284,25 +390,22 @@ fn an_empty_column_name_is_refused() {
 
 #[test]
 fn more_indexes_than_any_create_carried_are_refused() {
-    // EXP-0087 observed only zero or one index per create, so a two-index
-    // ordering has no evidence behind it.
-    let columns = [ID, LABEL];
-    let indexes = [
-        PlannedIndex {
-            name: b"ById",
-            fields: &[key(0)],
-            kind: PlannedIndexKind::Primary,
-        },
-        PlannedIndex {
-            name: b"ByLabel",
-            fields: &[key(1)],
+    // EXP-0093 observed at most three indexes per create.
+    let columns = [ID, LABEL, NAME];
+    let fields = [key(0), key(1), key(2), key(0)];
+    let indexes = fields
+        .iter()
+        .zip([b"A".as_slice(), b"B", b"C", b"D"])
+        .map(|(field, name)| PlannedIndex {
+            name,
+            fields: std::slice::from_ref(field),
             kind: PlannedIndexKind::Ordinary,
-        },
-    ];
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
         plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
         Err(TableSchemaPlanError::UnobservedIndexCount {
-            count: 2,
+            count: 4,
             observed: MAX_OBSERVED_INDEXES,
         })
     );
@@ -398,7 +501,7 @@ fn a_first_page_above_the_signed_id_range_is_refused() {
     let first = i32::MAX as u64 + 1;
     assert_eq!(
         plan_table_schema(&spec(b"Beta", &columns, &[]), first),
-        Err(TableSchemaPlanError::PageOverflow { first, needed: 2 })
+        Err(TableSchemaPlanError::PageOverflow { first, needed: 3 })
     );
 }
 
@@ -421,36 +524,91 @@ fn a_map_page_no_usage_map_locator_could_name_is_refused() -> PlanResult {
 }
 
 #[test]
-fn a_definition_too_long_for_its_root_page_is_refused() {
-    // EXP-0087 saw no create append a continuation page, so where one would
-    // land is unestablished. 100 fixed Long columns overrun the root page.
-    let names = (0..100)
-        .map(|ordinal| format!("Column{ordinal:03}").into_bytes())
-        .collect::<Vec<_>>();
-    let columns = names
-        .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
-        .collect::<Vec<_>>();
-    assert!(matches!(
-        plan_table_schema(&spec(b"Wide", &columns, &[]), 20),
-        Err(TableSchemaPlanError::DefinitionNeedsContinuation { length, capacity })
-            if length > capacity && capacity == DEFINITION_ROOT_CAPACITY
-    ));
+fn continuation_counts_follow_the_established_capacities() {
+    // EXP-0105: the root holds 2,048 logical bytes and each continuation
+    // 2,040, so the counts change one byte above each capacity.
+    for (length, expected) in [
+        (2048, 0),
+        (2049, 1),
+        (4088, 1),
+        (4089, 2),
+        (6128, 2),
+        (6129, 3),
+    ] {
+        assert_eq!(continuation_count(length), expected, "length {length}");
+    }
 }
 
 #[test]
-fn a_definition_that_exactly_fills_its_root_page_is_accepted() -> PlanResult {
-    // The refusal must start one byte above the root page, not below it.
-    let names = (0..70)
-        .map(|ordinal| format!("Column{ordinal:03}").into_bytes())
-        .collect::<Vec<_>>();
-    let columns = names
-        .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
-        .collect::<Vec<_>>();
-    let length =
-        definition_len(&columns, [].into_iter(), 0, 0).map_err(TableSchemaPlanError::Definition)?;
-    assert!(length <= DEFINITION_ROOT_CAPACITY);
-    plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?;
+fn a_definition_that_exactly_fills_its_root_page_needs_no_continuation() -> PlanResult {
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY);
+    let columns = long_columns(&names);
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?;
+    assert_eq!(plan.definition_len(), DEFINITION_ROOT_CAPACITY);
+    assert_eq!(plan.continuation_chain().count(), 0);
+    assert_eq!(plan.appended_page_count(), 3);
     Ok(())
+}
+
+#[test]
+fn one_continuation_follows_the_property_page() -> PlanResult {
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
+    let columns = long_columns(&names);
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?;
+    assert_eq!(
+        plan.continuation_chain().collect::<Vec<_>>(),
+        [PageNumber::new(23)]
+    );
+    assert_eq!(plan.appended_page_count(), 4);
+    Ok(())
+}
+
+#[test]
+fn two_continuations_chain_the_later_page_first() -> PlanResult {
+    // EXP-0105 observed chain [20, 219, 218]: the root points at the
+    // physically later continuation, which points at the earlier one.
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY + 1);
+    let columns = long_columns(&names);
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20)?;
+    assert_eq!(
+        plan.continuation_chain().collect::<Vec<_>>(),
+        [PageNumber::new(24), PageNumber::new(23)]
+    );
+    assert_eq!(plan.appended_page_count(), 5);
+    Ok(())
+}
+
+#[test]
+fn a_definition_needing_a_third_continuation_is_refused() {
+    let length = DEFINITION_ROOT_CAPACITY + 2 * CONTINUATION_CAPACITY + 1;
+    let names = names_of_definition_len(length);
+    let columns = long_columns(&names);
+    assert_eq!(
+        plan_table_schema(&spec(b"Wide", &columns, &[]), 20),
+        Err(TableSchemaPlanError::UnobservedContinuationCount {
+            length,
+            count: 3,
+            observed: MAX_OBSERVED_CONTINUATIONS,
+        })
+    );
+}
+
+#[test]
+fn an_indexed_definition_needing_a_continuation_is_refused() {
+    // EXP-0093 and EXP-0105 observed index roots and continuations only in
+    // isolation, so their combined page order is unobserved.
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
+    let columns = long_columns(&names);
+    let indexes = [PlannedIndex {
+        name: b"First",
+        fields: &[key(0)],
+        kind: PlannedIndexKind::Ordinary,
+    }];
+    assert!(matches!(
+        plan_table_schema(&spec(b"Wide", &columns, &indexes), 20),
+        Err(TableSchemaPlanError::UnobservedIndexContinuationLayout {
+            indexes: 1,
+            continuations: 1,
+        })
+    ));
 }

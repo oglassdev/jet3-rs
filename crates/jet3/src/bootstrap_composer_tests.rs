@@ -1,7 +1,4 @@
-use super::{
-    ALPHA_LVPROP_PAYLOAD, BootstrapComposeError, compose_alpha_database,
-    compose_alpha_database_with_null_lvprop, compose_empty_database,
-};
+use super::{BootstrapComposeError, compose_alpha_database, compose_empty_database};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 
 // EXP-0073/EXP-0085: the accepted Alpha image's appended page numbers.
@@ -10,10 +7,9 @@ const ALPHA_MAP_PAGE: u64 = 21;
 use crate::table_schema_plan::{TableSchemaSpec, plan_table_schema};
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, ColumnSpec,
-    ColumnStorageKind, DatabaseReader, JET3_PAGE_SIZE, LongValue, LongValueChunkValue,
-    MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
-    ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind, classify_page,
-    locate_usage_map, page_tag,
+    ColumnStorageKind, DatabaseReader, JET3_PAGE_SIZE, MapRowLocator, PageKind, PageNumber,
+    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+    TableDefinitionKind, TextCodePage, ValueKind, classify_page, locate_usage_map, page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -37,17 +33,6 @@ fn bytes(alpha: bool) -> Result<Vec<u8>, BootstrapComposeError> {
     } else {
         compose_empty_database(&mut budget)?
     };
-    let mut bytes = Vec::with_capacity(plan.pages().len() * crate::PAGE_BYTES);
-    for (slot, page) in plan.pages().iter().enumerate() {
-        assert_eq!(page.number(), PageNumber::new(slot as u64));
-        bytes.extend_from_slice(page.image().as_bytes());
-    }
-    Ok(bytes)
-}
-
-fn null_lvprop_bytes() -> Result<Vec<u8>, BootstrapComposeError> {
-    let mut budget = compose_budget();
-    let plan = compose_alpha_database_with_null_lvprop(&mut budget)?;
     let mut bytes = Vec::with_capacity(plan.pages().len() * crate::PAGE_BYTES);
     for (slot, page) in plan.pages().iter().enumerate() {
         assert_eq!(page.number(), PageNumber::new(slot as u64));
@@ -476,43 +461,29 @@ fn alpha_transition_appends_three_pages_and_updates_catalog_counts_and_indexes()
             .next_row()?
             .ok_or("missing initial object row")?;
     }
-    let reference = {
-        let mut alpha_row = object_rows.next_row()?.ok_or("missing Alpha object row")?;
-        assert!(matches!(
-            alpha_row
-                .value(ColumnOrdinal::new(6), TextCodePage::Windows1252)?
-                .ok_or("missing Alpha owner")?
-                .kind(),
-            ValueKind::Binary(actual) if *actual == b"\x03\x01"
-        ));
-        match alpha_row
+    // EXP-0091: the accepted construction carries a null catalog LvProp and
+    // an empty, mapped LVAL page.
+    let mut alpha_row = object_rows.next_row()?.ok_or("missing Alpha object row")?;
+    assert!(matches!(
+        alpha_row
+            .value(ColumnOrdinal::new(6), TextCodePage::Windows1252)?
+            .ok_or("missing Alpha owner")?
+            .kind(),
+        ValueKind::Binary(actual) if *actual == b"\x03\x01"
+    ));
+    assert!(matches!(
+        alpha_row
             .value(ColumnOrdinal::new(14), TextCodePage::Windows1252)?
             .ok_or("missing Alpha LvProp")?
-            .kind()
-        {
-            ValueKind::LongValue(LongValue::External(reference)) => *reference,
-            other => return Err(format!("unexpected Alpha LvProp: {other:?}").into()),
-        }
-    };
-    assert_eq!(
-        reference.raw_header(),
-        [
-            0x2b, 0x00, 0x00, 0x40, 0x00, 0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ]
-    );
-    assert_eq!(reference.length(), 43);
-    assert_eq!(reference.target().page(), PageNumber::new(22));
-    assert_eq!(reference.target().slot(), 0);
-    let mut long_value = object_rows.long_value(reference)?;
-    let chunk = long_value
-        .next_chunk()?
-        .ok_or("missing Alpha LvProp chunk")?;
-    assert_eq!(chunk.raw_row(), ALPHA_LVPROP_PAYLOAD);
-    assert!(matches!(
-        chunk.value(),
-        LongValueChunkValue::Binary(value) if *value == ALPHA_LVPROP_PAYLOAD
+            .kind(),
+        ValueKind::Null
     ));
-    assert!(long_value.next_chunk()?.is_none());
+    assert_eq!(
+        u16::from_le_bytes(
+            bytes[22 * crate::PAGE_BYTES + 8..22 * crate::PAGE_BYTES + 10].try_into()?
+        ),
+        0
+    );
 
     let alpha = database.table_definition(PageNumber::new(20), &mut budget)?;
     assert_eq!(alpha.kind(), TableDefinitionKind::User);
@@ -523,81 +494,9 @@ fn alpha_transition_appends_three_pages_and_updates_catalog_counts_and_indexes()
 }
 
 #[test]
-fn null_lvprop_candidate_changes_only_the_catalog_and_lval_pages() -> TestResult {
-    let fixed = bytes(true)?;
-    let null = null_lvprop_bytes()?;
-    assert_eq!(fixed.len(), 23 * crate::PAGE_BYTES);
-    assert_eq!(null.len(), fixed.len());
-
-    let differing_pages = fixed
-        .chunks_exact(crate::PAGE_BYTES)
-        .zip(null.chunks_exact(crate::PAGE_BYTES))
-        .enumerate()
-        .filter_map(|(page, (left, right))| (left != right).then_some(page))
-        .collect::<Vec<_>>();
-    assert_eq!(differing_pages, [18, 22]);
-
-    for image in [&fixed, &null] {
-        assert_eq!(
-            &image[22 * crate::PAGE_BYTES + 4..22 * crate::PAGE_BYTES + 8],
-            b"LVAL"
-        );
-        assert!(inline_map_bit(image, 6, 10, 22)?);
-        assert!(inline_map_bit(image, 6, 11, 22)?);
-    }
-    assert_eq!(
-        u16::from_le_bytes(
-            fixed[22 * crate::PAGE_BYTES + 8..22 * crate::PAGE_BYTES + 10].try_into()?
-        ),
-        1
-    );
-    assert_eq!(
-        u16::from_le_bytes(
-            null[22 * crate::PAGE_BYTES + 8..22 * crate::PAGE_BYTES + 10].try_into()?
-        ),
-        0
-    );
-
-    for (image, expected_null) in [(&fixed, false), (&null, true)] {
-        let mut budget = read_budget(image.len());
-        let source = SliceSource::new(image, budget.read_budget())?;
-        let mut database = DatabaseReader::from_source(source, &mut budget)?;
-        let objects = database.table_definition(PageNumber::new(2), &mut budget)?;
-        let mut rows = database.rows(&objects, &mut budget)?;
-        for _ in 0..8 {
-            rows.next_row()?.ok_or("missing initial object row")?;
-        }
-        let mut alpha = rows.next_row()?.ok_or("missing Alpha object row")?;
-        assert!(matches!(
-            alpha
-                .value(ColumnOrdinal::new(0), TextCodePage::Windows1252)?
-                .ok_or("missing Alpha id")?
-                .kind(),
-            ValueKind::Long(20)
-        ));
-        assert!(matches!(
-            alpha
-                .value(ColumnOrdinal::new(2), TextCodePage::Windows1252)?
-                .ok_or("missing Alpha name")?
-                .kind(),
-            ValueKind::Text(name) if name.raw_bytes() == b"Alpha"
-        ));
-        let lvprop = alpha
-            .value(ColumnOrdinal::new(14), TextCodePage::Windows1252)?
-            .ok_or("missing Alpha LvProp value")?;
-        assert!(matches!(
-            (expected_null, lvprop.kind()),
-            (true, ValueKind::Null) | (false, ValueKind::LongValue(LongValue::External(_)))
-        ));
-    }
-    Ok(())
-}
-
-#[test]
 fn composition_is_deterministic_and_resource_rejection_is_structured() -> TestResult {
     assert_eq!(bytes(false)?, bytes(false)?);
     assert_eq!(bytes(true)?, bytes(true)?);
-    assert_eq!(null_lvprop_bytes()?, null_lvprop_bytes()?);
 
     let mut budget =
         ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
@@ -623,24 +522,6 @@ fn export_dao_validation_candidates() -> TestResult {
             .ok_or("JET3_BOOTSTRAP_CANDIDATE_DIR is required")?,
     );
     export_candidates(&root)
-}
-
-#[test]
-#[ignore = "writes private deterministic candidates for preregistered DAO validation"]
-fn export_lvprop_null_candidates() -> TestResult {
-    use std::path::PathBuf;
-
-    let root = PathBuf::from(
-        std::env::var_os("JET3_LVPROP_NULL_CANDIDATE_DIR")
-            .ok_or("JET3_LVPROP_NULL_CANDIDATE_DIR is required")?,
-    );
-    export_candidate_set(
-        &root,
-        [
-            ("lvprop-fixed-alpha.mdb", bytes(true)?),
-            ("lvprop-null-alpha.mdb", null_lvprop_bytes()?),
-        ],
-    )
 }
 
 fn export_candidates(root: &std::path::Path) -> TestResult {
@@ -723,16 +604,15 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     assert_eq!(plan.object_id(), ALPHA_ROOT as i32);
     assert_eq!(plan.definition_root(), PageNumber::new(ALPHA_ROOT));
     assert_eq!(plan.map_page(), PageNumber::new(ALPHA_MAP_PAGE));
-    // The accepted Alpha image appends three pages; the planner reports two
-    // because it deliberately plans no long-value page. EXP-0087 observed one
-    // only for a database's first create and establishes no property grammar,
-    // so the composer wiring has to place it.
-    assert_eq!(plan.index_root(), None);
-    assert_eq!(plan.appended_page_count(), 2);
+    // EXP-0091/EXP-0093: the retained LvProp page follows the map page, so
+    // the accepted Alpha image appends exactly the planned three pages.
+    assert_eq!(plan.property_page(), PageNumber::new(ALPHA_MAP_PAGE + 1));
+    assert_eq!(plan.index_placements().count(), 0);
+    assert_eq!(plan.appended_page_count(), 3);
     let alpha_pages = bytes(true)?.len() as u64 / JET3_PAGE_SIZE.get();
     assert_eq!(
         alpha_pages,
-        EMPTY_DATABASE_PAGE_COUNT + plan.appended_page_count() + 1
+        EMPTY_DATABASE_PAGE_COUNT + plan.appended_page_count()
     );
     Ok(())
 }
