@@ -1,8 +1,9 @@
 use super::{
     TableDefinitionSpec, TableDefinitionWriteError, encode_table_definition, table_definition_len,
 };
+use crate::column_definition_writer::nz;
 use crate::{
-    ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
+    ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind, ColumnType,
     DatabaseReader, Error, IndexDefinitionKind, IndexDirection, IndexFieldSpec, JET3_PAGE_SIZE,
     LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PageNumber,
     PhysicalIndexFlagsSpec, PhysicalIndexSpec, ReadLimits, RelationshipSide, ResourceBudget,
@@ -23,23 +24,21 @@ fn budget() -> ResourceBudget {
 }
 
 fn all_type_columns() -> Vec<ColumnSpec<'static>> {
-    use ColumnPhysicalType as T;
-    use ColumnStorageKind::{Fixed, Variable};
     vec![
-        ColumnSpec::new(b"Id", T::Long, Fixed, 4).with_auto_increment(),
-        ColumnSpec::new(b"Flag", T::Boolean, Fixed, 1),
-        ColumnSpec::new(b"Small", T::Byte, Fixed, 1),
-        ColumnSpec::new(b"Short", T::Integer, Fixed, 2),
-        ColumnSpec::new(b"Money", T::Currency, Fixed, 8),
-        ColumnSpec::new(b"Ratio", T::Single, Fixed, 4),
-        ColumnSpec::new(b"Precise", T::Double, Fixed, 8),
-        ColumnSpec::new(b"When", T::DateTime, Fixed, 8),
-        ColumnSpec::new(b"Blob", T::Binary, Variable, 16),
-        ColumnSpec::new(b"Caf\xe9", T::Text, Variable, 50),
-        ColumnSpec::new(b"Code", T::Text, Fixed, 3),
-        ColumnSpec::new(b"Ole", T::LongBinary, Variable, 0),
-        ColumnSpec::new(b"Notes", T::Memo, Variable, 0),
-        ColumnSpec::new(b"Rid", T::Guid, Fixed, 16),
+        ColumnSpec::new(b"Id", ColumnType::AutoIncrement),
+        ColumnSpec::new(b"Flag", ColumnType::Boolean),
+        ColumnSpec::new(b"Small", ColumnType::Byte),
+        ColumnSpec::new(b"Short", ColumnType::Integer),
+        ColumnSpec::new(b"Money", ColumnType::Currency),
+        ColumnSpec::new(b"Ratio", ColumnType::Single),
+        ColumnSpec::new(b"Precise", ColumnType::Double),
+        ColumnSpec::new(b"When", ColumnType::DateTime),
+        ColumnSpec::new(b"Blob", ColumnType::Binary { max_len: nz(16) }),
+        ColumnSpec::new(b"Caf\xe9", ColumnType::Text { max_len: nz(50) }),
+        ColumnSpec::new(b"Code", ColumnType::FixedText { len: nz(3) }),
+        ColumnSpec::new(b"Ole", ColumnType::LongBinary),
+        ColumnSpec::new(b"Notes", ColumnType::Memo),
+        ColumnSpec::new(b"Rid", ColumnType::Guid),
     ]
 }
 
@@ -268,13 +267,8 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
 #[test]
 fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult {
     let columns = [
-        ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
-        ColumnSpec::new(
-            b"Payload",
-            ColumnPhysicalType::LongBinary,
-            ColumnStorageKind::Variable,
-            0,
-        ),
+        ColumnSpec::new(b"Id", ColumnType::Long),
+        ColumnSpec::new(b"Payload", ColumnType::LongBinary),
     ];
     let fields = [IndexFieldSpec {
         column: 0,
@@ -351,12 +345,7 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
 
 #[test]
 fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
-    let columns = [ColumnSpec::new(
-        b"Payload",
-        ColumnPhysicalType::LongBinary,
-        ColumnStorageKind::Variable,
-        0,
-    )];
+    let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let mut missing = spec(&columns, &[], &[]);
     missing.long_value_maps = &[];
     assert_eq!(
@@ -379,12 +368,7 @@ fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
         })
     ));
 
-    let scalar_columns = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let scalar_columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let fields = [IndexFieldSpec {
         column: 0,
         direction: IndexDirection::Ascending,
@@ -430,19 +414,14 @@ fn rejects_structural_errors_before_writing() {
     let long_name = [b'x'; 256];
     let cases: Vec<(Vec<ColumnSpec<'_>>, TableDefinitionWriteError)> = vec![
         (
-            vec![ColumnSpec::new(b"A", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4); 256],
+            vec![ColumnSpec::new(b"A", ColumnType::Long); 256],
             TableDefinitionWriteError::TooManyColumns {
                 count: 256,
                 maximum: 255,
             },
         ),
         (
-            vec![ColumnSpec::new(
-                &long_name,
-                ColumnPhysicalType::Long,
-                ColumnStorageKind::Fixed,
-                4,
-            )],
+            vec![ColumnSpec::new(&long_name, ColumnType::Long)],
             TableDefinitionWriteError::NameTooLong {
                 role: "column",
                 ordinal: 0,
@@ -452,38 +431,12 @@ fn rejects_structural_errors_before_writing() {
         ),
         (
             vec![
-                ColumnSpec::new(b"A", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
-                ColumnSpec::new(b"A", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
+                ColumnSpec::new(b"A", ColumnType::Long),
+                ColumnSpec::new(b"A", ColumnType::Long),
             ],
             TableDefinitionWriteError::DuplicateName {
                 role: "column",
                 ordinal: 1,
-            },
-        ),
-        (
-            vec![ColumnSpec::new(
-                b"A",
-                ColumnPhysicalType::Memo,
-                ColumnStorageKind::Fixed,
-                0,
-            )],
-            TableDefinitionWriteError::UnsupportedColumnClass {
-                ordinal: 0,
-                physical_type: ColumnPhysicalType::Memo,
-                storage: ColumnStorageKind::Fixed,
-            },
-        ),
-        (
-            vec![ColumnSpec::new(
-                b"A",
-                ColumnPhysicalType::Guid,
-                ColumnStorageKind::Fixed,
-                8,
-            )],
-            TableDefinitionWriteError::UnsupportedColumnSize {
-                ordinal: 0,
-                physical_type: ColumnPhysicalType::Guid,
-                size: 8,
             },
         ),
     ];
@@ -503,14 +456,7 @@ fn rejects_structural_errors_before_writing() {
     let names: [&[u8]; 9] = [b"A", b"B", b"C", b"D", b"E", b"F", b"G", b"H", b"I"];
     let oversized_columns: Vec<_> = names
         .into_iter()
-        .map(|name| {
-            ColumnSpec::new(
-                name,
-                ColumnPhysicalType::Text,
-                ColumnStorageKind::Fixed,
-                255,
-            )
-        })
+        .map(|name| ColumnSpec::new(name, ColumnType::FixedText { len: nz(255) }))
         .collect();
     assert_eq!(
         encode_table_definition(
@@ -524,12 +470,7 @@ fn rejects_structural_errors_before_writing() {
         })
     );
 
-    let columns = [ColumnSpec::new(
-        b"Notes",
-        ColumnPhysicalType::Memo,
-        ColumnStorageKind::Variable,
-        0,
-    )];
+    let columns = [ColumnSpec::new(b"Notes", ColumnType::Memo)];
     let fields = [IndexFieldSpec {
         column: 0,
         direction: IndexDirection::Ascending,
@@ -548,12 +489,7 @@ fn rejects_structural_errors_before_writing() {
         })
     );
 
-    let columns = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let mut invalid_map = spec(&columns, &[], &[]);
     invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0), 0);
     assert_eq!(
@@ -573,12 +509,7 @@ fn rejects_structural_errors_before_writing() {
     );
     assert!(output.iter().all(|byte| *byte == 0));
 
-    let columns = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let fields = [IndexFieldSpec {
         column: 0,
         direction: IndexDirection::Ascending,
@@ -609,12 +540,7 @@ fn rejects_structural_errors_before_writing() {
 
 #[test]
 fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error::Error>> {
-    let columns = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let spec = spec(&columns, &[], &[]);
     let needed = table_definition_len(&spec)?;
     let mut output = vec![0_u8; needed];

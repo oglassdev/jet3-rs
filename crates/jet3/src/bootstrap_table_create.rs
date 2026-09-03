@@ -50,17 +50,17 @@ pub(super) struct PlannedCreate<'a> {
 
 impl<'a> PlannedCreate<'a> {
     /// Plans `spec` as the first create in the empty database.
-    pub(super) fn new(spec: &'a TableSpec<'a>) -> Result<Self, BootstrapComposeError> {
+    pub(super) fn new(spec: &'a TableSpec<'a>) -> Result<Self, ComposeError> {
         let plan = plan_table_schema(spec, EMPTY_DATABASE_PAGE_COUNT)?;
         let mut long_value_columns = long_value_columns(spec);
         let long_value = long_value_columns.next();
         if long_value_columns.next().is_some() {
-            return Err(BootstrapComposeError::UnobservedLongValueColumnCount {
+            return Err(ComposeError::UnobservedLongValueColumnCount {
                 observed: MAX_OBSERVED_LONG_VALUE_COLUMNS,
             });
         }
         if long_value.is_some() && !spec.indexes.is_empty() {
-            return Err(BootstrapComposeError::UnobservedMapRowLayout);
+            return Err(ComposeError::UnobservedMapRowLayout);
         }
         Ok(Self {
             spec,
@@ -75,7 +75,7 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Returns the page count once every appended page is in place.
-    pub(super) const fn page_count(&self) -> u64 {
+    pub(super) fn page_count(&self) -> u64 {
         self.plan.definition_root().get() + self.plan.appended_page_count()
     }
 
@@ -106,7 +106,7 @@ impl<'a> PlannedCreate<'a> {
         &self,
         plan: &mut WholeFileImagePlan,
         budget: &mut ResourceBudget,
-    ) -> Result<(), BootstrapComposeError> {
+    ) -> Result<(), ComposeError> {
         let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
         plan.append(self.definition_page(budget)?, &mut append_map, budget)?;
         plan.append(self.map_page(budget)?, &mut append_map, budget)?;
@@ -119,10 +119,7 @@ impl<'a> PlannedCreate<'a> {
         Ok(())
     }
 
-    fn definition_page(
-        &self,
-        budget: &mut ResourceBudget,
-    ) -> Result<PageImage, BootstrapComposeError> {
+    fn definition_page(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
         let map = self.plan.map_page();
         let spec = self.spec;
         // The planner validated one placement per index, so the zip is exact.
@@ -130,8 +127,9 @@ impl<'a> PlannedCreate<'a> {
             .plan
             .index_placements()
             .zip(spec.indexes)
-            .map(|((root, row), index)| PhysicalIndexSpec {
-                fields: index.fields,
+            .zip(self.plan.index_fields())
+            .map(|(((root, row), index), fields)| PhysicalIndexSpec {
+                fields,
                 usage_map_page: map,
                 usage_map_row: row,
                 root,
@@ -154,7 +152,7 @@ impl<'a> PlannedCreate<'a> {
                     kind: index.kind.logical_kind(),
                 })
             })
-            .collect::<Result<Vec<_>, BootstrapComposeError>>()?;
+            .collect::<Result<Vec<_>, ComposeError>>()?;
         let long_value_maps = self
             .long_value
             .map(|column| LongValueMapSpec {
@@ -181,7 +179,7 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Builds the map page with the rows the definition names.
-    fn map_page(&self, budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
+    fn map_page(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
         let empty = inline_map_row(&[], budget)?;
         let mut rows: Vec<[u8; 133]> = vec![empty, empty];
         for (root, _) in self.plan.index_placements() {
@@ -201,12 +199,7 @@ fn long_value_columns<'s>(spec: &'s TableSpec<'_>) -> impl Iterator<Item = u16> 
     spec.columns
         .iter()
         .enumerate()
-        .filter(|(_, column)| {
-            matches!(
-                column.physical_type(),
-                ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
-            )
-        })
+        .filter(|(_, column)| column.column_type().is_long_value())
         .filter_map(|(ordinal, _)| u16::try_from(ordinal).ok())
 }
 

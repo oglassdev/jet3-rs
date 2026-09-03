@@ -5,21 +5,21 @@
 //! one empty user table starts at [`create_database`]:
 //!
 //! ```no_run
+//! use std::num::NonZeroU8;
+//!
 //! use jet3::{
-//!     ColumnPhysicalType, ColumnSpec, ColumnStorageKind, IndexDirection, IndexFieldSpec,
-//!     IndexKind, IndexSpec, ResourceBudget, ResourceLimits, TableSpec, create_database,
+//!     ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
+//!     ResourceLimits, TableSpec, create_database,
 //! };
 //!
+//! const NAME_LEN: NonZeroU8 = NonZeroU8::new(50).unwrap();
 //! let columns = [
-//!     ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
-//!     ColumnSpec::new(b"Name", ColumnPhysicalType::Text, ColumnStorageKind::Variable, 50),
+//!     ColumnSpec::new(b"Id", ColumnType::AutoIncrement),
+//!     ColumnSpec::new(b"Name", ColumnType::Text { max_len: NAME_LEN }),
 //! ];
 //! let indexes = [IndexSpec {
 //!     name: b"PrimaryKey",
-//!     fields: &[IndexFieldSpec {
-//!         column: 0,
-//!         direction: IndexDirection::Ascending,
-//!     }],
+//!     fields: &[IndexColumnSpec::ascending(b"Id")],
 //!     kind: IndexKind::Primary,
 //! }];
 //! let spec = TableSpec {
@@ -105,7 +105,7 @@ pub use atomic::{
 };
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
-pub use bootstrap_composer::BootstrapComposeError;
+pub use bootstrap_composer::ComposeError;
 pub use candidate::{CandidateError, RawJet3Candidate};
 pub use catalog::{CatalogCursor, CatalogError};
 pub use catalog_name_key::CatalogNameKeyError;
@@ -120,8 +120,8 @@ pub use column_definition::{
     ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
 };
 pub use column_definition_writer::{
-    ColumnSpec, ColumnStorageKind, IndexFieldSpec, LogicalIndexKindSpec, LogicalIndexSpec,
-    PhysicalIndexSpec, SystemColumnClassSpec,
+    ColumnSpec, ColumnStorageKind, ColumnType, IndexFieldSpec, LogicalIndexKindSpec,
+    LogicalIndexSpec, PhysicalIndexSpec, SystemColumnClassSpec,
 };
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
@@ -171,7 +171,9 @@ pub use table_definition_writer::{
     LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
     encode_table_definition, table_definition_len,
 };
-pub use table_schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
+pub use table_schema_plan::{
+    ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, TableSchemaPlanError, TableSpec,
+};
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 pub use usage_map_writer::{

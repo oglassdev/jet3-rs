@@ -1,9 +1,10 @@
 use super::{RowColumnLayout, RowValue, RowWriteError, encode_row};
+use crate::column_definition_writer::nz;
 use crate::{
-    ByteCount, ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageClass,
-    ColumnStorageKind, DatabaseReader, Error, JET3_PAGE_SIZE, LongValueMapSpec, MapRowLocator,
-    PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
-    TableDefinitionKind, TableDefinitionSpec, TextCodePage, ValueKind, encode_table_definition,
+    ByteCount, ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType,
+    DatabaseReader, Error, JET3_PAGE_SIZE, LongValueMapSpec, MapRowLocator, PageNumber, ReadLimits,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind,
+    TableDefinitionSpec, TextCodePage, ValueKind, encode_table_definition,
 };
 
 const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
@@ -12,23 +13,21 @@ const MAP_PAGE: usize = 2;
 const DATA_PAGE: usize = 3;
 
 fn all_type_columns() -> Vec<ColumnSpec<'static>> {
-    use ColumnPhysicalType as T;
-    use ColumnStorageKind::{Fixed, Variable};
     vec![
-        ColumnSpec::new(b"Id", T::Long, Fixed, 4),
-        ColumnSpec::new(b"Flag", T::Boolean, Fixed, 1),
-        ColumnSpec::new(b"Small", T::Byte, Fixed, 1),
-        ColumnSpec::new(b"Short", T::Integer, Fixed, 2),
-        ColumnSpec::new(b"Money", T::Currency, Fixed, 8),
-        ColumnSpec::new(b"Ratio", T::Single, Fixed, 4),
-        ColumnSpec::new(b"Precise", T::Double, Fixed, 8),
-        ColumnSpec::new(b"When", T::DateTime, Fixed, 8),
-        ColumnSpec::new(b"Blob", T::Binary, Variable, 16),
-        ColumnSpec::new(b"Name", T::Text, Variable, 50),
-        ColumnSpec::new(b"Code", T::Text, Fixed, 3),
-        ColumnSpec::new(b"Ole", T::LongBinary, Variable, 0),
-        ColumnSpec::new(b"Notes", T::Memo, Variable, 0),
-        ColumnSpec::new(b"Rid", T::Guid, Fixed, 16),
+        ColumnSpec::new(b"Id", ColumnType::Long),
+        ColumnSpec::new(b"Flag", ColumnType::Boolean),
+        ColumnSpec::new(b"Small", ColumnType::Byte),
+        ColumnSpec::new(b"Short", ColumnType::Integer),
+        ColumnSpec::new(b"Money", ColumnType::Currency),
+        ColumnSpec::new(b"Ratio", ColumnType::Single),
+        ColumnSpec::new(b"Precise", ColumnType::Double),
+        ColumnSpec::new(b"When", ColumnType::DateTime),
+        ColumnSpec::new(b"Blob", ColumnType::Binary { max_len: nz(16) }),
+        ColumnSpec::new(b"Name", ColumnType::Text { max_len: nz(50) }),
+        ColumnSpec::new(b"Code", ColumnType::FixedText { len: nz(3) }),
+        ColumnSpec::new(b"Ole", ColumnType::LongBinary),
+        ColumnSpec::new(b"Notes", ColumnType::Memo),
+        ColumnSpec::new(b"Rid", ColumnType::Guid),
     ]
 }
 

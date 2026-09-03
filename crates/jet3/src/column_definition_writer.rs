@@ -6,6 +6,8 @@
 //! `EXP-0073`, and relationship cascade bytes from `EXP-0062`. Names are raw
 //! database-code-page bytes (`EXP-0059`).
 
+use std::num::NonZeroU8;
+
 use crate::table_definition_writer::{PhysicalIndexFlagsSpec, TableDefinitionWriteError};
 use crate::{
     BinaryWriter, ColumnPhysicalType, ColumnStorageClass, Error, IndexDirection, PageNumber,
@@ -75,39 +77,122 @@ pub enum SystemColumnClassSpec {
     Binary,
 }
 
+/// The type of one column to create.
+///
+/// Each variant fixes the physical type, storage class, and size the
+/// `EXP-0059` user-table records carry, so only combinations DAO accepts can
+/// be described. Sizes appear only where DAO lets the caller choose one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColumnType {
+    /// Yes/No value stored in the row presence bitmap.
+    Boolean,
+    /// Unsigned eight-bit integer.
+    Byte,
+    /// Signed 16-bit integer.
+    Integer,
+    /// Signed 32-bit integer.
+    Long,
+    /// Signed 32-bit integer the engine numbers (`EXP-0059` class 7).
+    AutoIncrement,
+    /// Fixed-scale currency value.
+    Currency,
+    /// IEEE-754 single-precision value.
+    Single,
+    /// IEEE-754 double-precision value.
+    Double,
+    /// OLE Automation date/time value.
+    DateTime,
+    /// Replication identifier.
+    Guid,
+    /// Database-code-page text of at most `max_len` bytes, stored through the
+    /// variable table.
+    Text {
+        /// Longest value the column holds.
+        max_len: NonZeroU8,
+    },
+    /// Database-code-page text of exactly `len` bytes at a fixed row offset.
+    FixedText {
+        /// Fixed value length.
+        len: NonZeroU8,
+    },
+    /// Short binary value of at most `max_len` bytes.
+    Binary {
+        /// Longest value the column holds.
+        max_len: NonZeroU8,
+    },
+    /// Memo text stored as a long value.
+    Memo,
+    /// OLE object stored as a long value.
+    LongBinary,
+}
+
+impl ColumnType {
+    /// Returns the physical type the column record carries.
+    #[must_use]
+    pub const fn physical_type(self) -> ColumnPhysicalType {
+        match self {
+            Self::Boolean => ColumnPhysicalType::Boolean,
+            Self::Byte => ColumnPhysicalType::Byte,
+            Self::Integer => ColumnPhysicalType::Integer,
+            Self::Long | Self::AutoIncrement => ColumnPhysicalType::Long,
+            Self::Currency => ColumnPhysicalType::Currency,
+            Self::Single => ColumnPhysicalType::Single,
+            Self::Double => ColumnPhysicalType::Double,
+            Self::DateTime => ColumnPhysicalType::DateTime,
+            Self::Guid => ColumnPhysicalType::Guid,
+            Self::Text { .. } | Self::FixedText { .. } => ColumnPhysicalType::Text,
+            Self::Binary { .. } => ColumnPhysicalType::Binary,
+            Self::Memo => ColumnPhysicalType::Memo,
+            Self::LongBinary => ColumnPhysicalType::LongBinary,
+        }
+    }
+
+    /// Returns whether the column stores at a fixed offset or variably.
+    #[must_use]
+    pub const fn storage(self) -> ColumnStorageKind {
+        match self {
+            Self::Text { .. } | Self::Binary { .. } | Self::Memo | Self::LongBinary => {
+                ColumnStorageKind::Variable
+            }
+            _ => ColumnStorageKind::Fixed,
+        }
+    }
+
+    /// Returns the size the column record carries (`EXP-0059`): the fixed
+    /// width, the declared maximum length, or zero for long values.
+    #[must_use]
+    pub const fn size(self) -> u16 {
+        match self {
+            Self::Boolean | Self::Byte => 1,
+            Self::Integer => 2,
+            Self::Long | Self::AutoIncrement | Self::Single => 4,
+            Self::Currency | Self::Double | Self::DateTime => 8,
+            Self::Guid => 16,
+            Self::Text { max_len } | Self::Binary { max_len } => max_len.get() as u16,
+            Self::FixedText { len } => len.get() as u16,
+            Self::Memo | Self::LongBinary => 0,
+        }
+    }
+
+    /// Returns whether the column is a long value with an external page map.
+    #[must_use]
+    pub const fn is_long_value(self) -> bool {
+        matches!(self, Self::Memo | Self::LongBinary)
+    }
+}
+
 /// One column to encode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnSpec<'a> {
     name: &'a [u8],
-    physical_type: ColumnPhysicalType,
-    storage: ColumnStorageKind,
-    size: u16,
-    auto_increment: bool,
+    column_type: ColumnType,
 }
 
 impl<'a> ColumnSpec<'a> {
     /// Describes a column with raw database-code-page name bytes.
     #[must_use]
-    pub const fn new(
-        name: &'a [u8],
-        physical_type: ColumnPhysicalType,
-        storage: ColumnStorageKind,
-        size: u16,
-    ) -> Self {
-        Self {
-            name,
-            physical_type,
-            storage,
-            size,
-            auto_increment: false,
-        }
-    }
-
-    /// Marks the column as the auto-increment Long (`EXP-0059` class 7).
-    #[must_use]
-    pub const fn with_auto_increment(mut self) -> Self {
-        self.auto_increment = true;
-        self
+    pub const fn new(name: &'a [u8], column_type: ColumnType) -> Self {
+        Self { name, column_type }
     }
 
     /// Returns the raw name bytes.
@@ -116,22 +201,28 @@ impl<'a> ColumnSpec<'a> {
         self.name
     }
 
-    /// Returns the physical type.
+    /// Returns the column type.
+    #[must_use]
+    pub const fn column_type(&self) -> ColumnType {
+        self.column_type
+    }
+
+    /// Returns the physical type the column record carries.
     #[must_use]
     pub const fn physical_type(&self) -> ColumnPhysicalType {
-        self.physical_type
+        self.column_type.physical_type()
     }
 
-    /// Returns the requested storage kind.
+    /// Returns the storage kind the column record carries.
     #[must_use]
     pub const fn storage(&self) -> ColumnStorageKind {
-        self.storage
+        self.column_type.storage()
     }
 
-    /// Returns the declared fixed or maximum size.
+    /// Returns the size the column record carries.
     #[must_use]
     pub const fn size(&self) -> u16 {
-        self.size
+        self.column_type.size()
     }
 }
 
@@ -204,7 +295,7 @@ pub(crate) struct ResolvedColumn {
     pub(crate) class: u8,
 }
 
-/// Validates one column and derives its fixed offset or variable index.
+/// Derives one column's fixed offset or variable index and its record class.
 pub(crate) fn resolve_column(
     ordinal: u16,
     column: &ColumnSpec<'_>,
@@ -213,65 +304,46 @@ pub(crate) fn resolve_column(
     next_fixed_offset: &mut u16,
     variables_seen: &mut u16,
 ) -> Result<ResolvedColumn, TableDefinitionWriteError> {
-    let physical_type = column.physical_type;
-    validate_size(ordinal, physical_type, column.size)?;
-    let long_or_binary = matches!(
-        physical_type,
-        ColumnPhysicalType::Binary | ColumnPhysicalType::LongBinary | ColumnPhysicalType::Memo
-    );
-    let class_error = TableDefinitionWriteError::UnsupportedColumnClass {
+    let physical_type = column.physical_type();
+    let storage = column.storage();
+    let invalid_system_class = || TableDefinitionWriteError::InvalidSystemColumnClass {
         ordinal,
+        class: system_class,
         physical_type,
-        storage: column.storage,
+        storage,
     };
-    let variable_counter = *variables_seen;
-    if definition_kind == TableDefinitionKind::System && column.auto_increment {
-        return Err(class_error);
+    let auto_increment = column.column_type() == ColumnType::AutoIncrement;
+    if definition_kind == TableDefinitionKind::System && auto_increment {
+        return Err(invalid_system_class());
     }
-    match column.storage {
+    let variable_counter = *variables_seen;
+    match storage {
         ColumnStorageKind::Variable => {
-            if !(long_or_binary || physical_type == ColumnPhysicalType::Text)
-                || column.auto_increment
-            {
-                return Err(class_error);
-            }
             let index = *variables_seen;
             *variables_seen = index
                 .checked_add(1)
                 .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
                     operation: "advance variable column count",
                 }))?;
+            let class = match (definition_kind, system_class) {
+                (TableDefinitionKind::User, _) => VARIABLE_CLASS,
+                (TableDefinitionKind::System, Some(SystemColumnClassSpec::Variable)) => {
+                    SYSTEM_VARIABLE_CLASS
+                }
+                (TableDefinitionKind::System, Some(SystemColumnClassSpec::Binary))
+                    if physical_type == ColumnPhysicalType::Binary =>
+                {
+                    SYSTEM_BINARY_CLASS
+                }
+                (TableDefinitionKind::System, _) => return Err(invalid_system_class()),
+            };
             Ok(ResolvedColumn {
                 storage: ColumnStorageClass::Variable { index },
                 variable_counter,
-                class: match definition_kind {
-                    TableDefinitionKind::User => VARIABLE_CLASS,
-                    TableDefinitionKind::System => match system_class {
-                        Some(SystemColumnClassSpec::Variable) => SYSTEM_VARIABLE_CLASS,
-                        Some(SystemColumnClassSpec::Binary)
-                            if physical_type == ColumnPhysicalType::Binary =>
-                        {
-                            SYSTEM_BINARY_CLASS
-                        }
-                        Some(SystemColumnClassSpec::Fixed | SystemColumnClassSpec::Binary)
-                        | None => {
-                            return Err(TableDefinitionWriteError::InvalidSystemColumnClass {
-                                ordinal,
-                                class: system_class,
-                                physical_type,
-                                storage: column.storage,
-                            });
-                        }
-                    },
-                },
+                class,
             })
         }
         ColumnStorageKind::Fixed => {
-            if long_or_binary
-                || (column.auto_increment && physical_type != ColumnPhysicalType::Long)
-            {
-                return Err(class_error);
-            }
             let offset = if definition_kind == TableDefinitionKind::System
                 && physical_type == ColumnPhysicalType::Boolean
             {
@@ -282,59 +354,23 @@ pub(crate) fn resolve_column(
             };
             if physical_type != ColumnPhysicalType::Boolean {
                 *next_fixed_offset = offset
-                    .checked_add(column.size)
+                    .checked_add(column.size())
                     .ok_or(TableDefinitionWriteError::FixedAreaTooLarge { ordinal })?;
             }
+            let class = match (definition_kind, system_class) {
+                (TableDefinitionKind::System, Some(SystemColumnClassSpec::Fixed)) => {
+                    SYSTEM_FIXED_CLASS
+                }
+                (TableDefinitionKind::System, _) => return Err(invalid_system_class()),
+                (TableDefinitionKind::User, _) if auto_increment => AUTO_INCREMENT_CLASS,
+                (TableDefinitionKind::User, _) => FIXED_CLASS,
+            };
             Ok(ResolvedColumn {
                 storage: ColumnStorageClass::Fixed { offset },
                 variable_counter,
-                class: match definition_kind {
-                    TableDefinitionKind::System
-                        if system_class == Some(SystemColumnClassSpec::Fixed) =>
-                    {
-                        SYSTEM_FIXED_CLASS
-                    }
-                    TableDefinitionKind::System => {
-                        return Err(TableDefinitionWriteError::InvalidSystemColumnClass {
-                            ordinal,
-                            class: system_class,
-                            physical_type,
-                            storage: column.storage,
-                        });
-                    }
-                    TableDefinitionKind::User if column.auto_increment => AUTO_INCREMENT_CLASS,
-                    TableDefinitionKind::User => FIXED_CLASS,
-                },
+                class,
             })
         }
-    }
-}
-
-fn validate_size(
-    ordinal: u16,
-    physical_type: ColumnPhysicalType,
-    size: u16,
-) -> Result<(), TableDefinitionWriteError> {
-    // EXP-0059: accepted DAO sizes per physical type.
-    let valid = match physical_type {
-        ColumnPhysicalType::Boolean | ColumnPhysicalType::Byte => size == 1,
-        ColumnPhysicalType::Integer => size == 2,
-        ColumnPhysicalType::Long | ColumnPhysicalType::Single => size == 4,
-        ColumnPhysicalType::Currency
-        | ColumnPhysicalType::Double
-        | ColumnPhysicalType::DateTime => size == 8,
-        ColumnPhysicalType::Guid => size == 16,
-        ColumnPhysicalType::Binary | ColumnPhysicalType::Text => (1..=255).contains(&size),
-        ColumnPhysicalType::LongBinary | ColumnPhysicalType::Memo => size == 0,
-    };
-    if valid {
-        Ok(())
-    } else {
-        Err(TableDefinitionWriteError::UnsupportedColumnSize {
-            ordinal,
-            physical_type,
-            size,
-        })
     }
 }
 
@@ -346,7 +382,7 @@ pub(crate) fn write_column_record(
     resolved: ResolvedColumn,
     definition_kind: TableDefinitionKind,
 ) -> Result<(), Error> {
-    writer.write_u8(column.physical_type.raw())?;
+    writer.write_u8(column.physical_type().raw())?;
     writer.write_u16_le(ordinal)?;
     writer.write_u16_le(resolved.variable_counter)?;
     writer.write_u16_le(match definition_kind {
@@ -365,7 +401,7 @@ pub(crate) fn write_column_record(
         ColumnStorageClass::Variable { .. } => 0,
     };
     writer.write_u16_le(fixed_offset)?;
-    writer.write_u16_le(column.size)
+    writer.write_u16_le(column.size())
 }
 
 /// Validates a definition name and writes its length prefix and bytes.
@@ -544,5 +580,14 @@ pub(crate) fn write_logical_record(
             writer.write_u8(u8::from(cascade_deletes))?;
             writer.write_u8(RELATIONSHIP_CLASS)
         }
+    }
+}
+
+/// Builds a column size from a nonzero test literal.
+#[cfg(test)]
+pub(crate) const fn nz(value: u8) -> NonZeroU8 {
+    match NonZeroU8::new(value) {
+        Some(size) => size,
+        None => NonZeroU8::MIN,
     }
 }

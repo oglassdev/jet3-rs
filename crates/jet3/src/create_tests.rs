@@ -1,3 +1,4 @@
+use crate::column_definition_writer::nz;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -5,14 +6,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use super::{CandidateCheckError, CreateDatabaseError, check_candidate, create_database};
 use crate::table_schema_plan::TableSchemaPlanError;
 use crate::{
-    BootstrapComposeError, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, DatabaseReader,
-    IndexDirection, IndexFieldSpec, IndexKind, IndexSpec, PageNumber, PublishStage, ResourceBudget,
-    ResourceLimits, TableSpec,
+    ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec,
+    IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, ResourceBudget, ResourceLimits,
+    TableSpec,
 };
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 type TestResult = Result<(), Box<dyn std::error::Error>>;
-type Accepts = fn(&BootstrapComposeError) -> bool;
+type Accepts = fn(&ComposeError) -> bool;
 
 struct TestDirectory {
     path: PathBuf,
@@ -53,29 +54,16 @@ fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
 }
 
-const ID: ColumnSpec<'static> =
-    ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4);
-const CODE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Code",
-    ColumnPhysicalType::Text,
-    ColumnStorageKind::Variable,
-    8,
-);
-const SEQUENCE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Sequence",
-    ColumnPhysicalType::Long,
-    ColumnStorageKind::Fixed,
-    4,
-);
-const NOTE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Note",
-    ColumnPhysicalType::Memo,
-    ColumnStorageKind::Variable,
-    0,
-);
+const ID: ColumnSpec<'static> = ColumnSpec::new(b"Id", ColumnType::Long);
+const CODE: ColumnSpec<'static> = ColumnSpec::new(b"Code", ColumnType::Text { max_len: nz(8) });
+const SEQUENCE: ColumnSpec<'static> = ColumnSpec::new(b"Sequence", ColumnType::Long);
+const NOTE: ColumnSpec<'static> = ColumnSpec::new(b"Note", ColumnType::Memo);
 
-const fn field(column: u16, direction: IndexDirection) -> IndexFieldSpec {
-    IndexFieldSpec { column, direction }
+const fn field(column: u16, direction: IndexDirection) -> IndexColumnSpec<'static> {
+    IndexColumnSpec {
+        column: ColumnRef::Ordinal(column),
+        direction,
+    }
 }
 
 #[test]
@@ -91,7 +79,7 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
         },
         IndexSpec {
             name: b"ByCode",
-            fields: &[field(1, IndexDirection::Ascending)],
+            fields: &[IndexColumnSpec::ascending(b"Code")],
             kind: IndexKind::Unique,
         },
         IndexSpec {
@@ -214,18 +202,13 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         kind: IndexKind::Ordinary,
     }];
     let indexed_memo = [ID, NOTE];
-    let high_byte = [ColumnSpec::new(
-        b"Caf\xe9",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let high_byte = [ColumnSpec::new(b"Caf\xe9", ColumnType::Long)];
     let wide_names = (0..70)
         .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
         .collect::<Vec<_>>();
     let wide = wide_names
         .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let cases: [(TableSpec<'_>, Accepts); 3] = [
         (
@@ -234,7 +217,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
                 columns: &indexed_memo,
                 indexes: &by_id,
             },
-            |error| matches!(error, BootstrapComposeError::UnobservedMapRowLayout),
+            |error| matches!(error, ComposeError::UnobservedMapRowLayout),
         ),
         (
             TableSpec {
@@ -245,7 +228,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
             |error| {
                 matches!(
                     error,
-                    BootstrapComposeError::Schema(TableSchemaPlanError::NameByteUnestablished {
+                    ComposeError::Schema(TableSchemaPlanError::NameByteUnestablished {
                         byte: 0xe9,
                         ..
                     })
@@ -261,7 +244,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
             |error| {
                 matches!(
                     error,
-                    BootstrapComposeError::Schema(
+                    ComposeError::Schema(
                         TableSchemaPlanError::ContinuationPlacementUnestablished {
                             continuations: 1,
                             ..

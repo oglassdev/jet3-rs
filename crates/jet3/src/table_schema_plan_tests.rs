@@ -1,34 +1,22 @@
 use super::*;
 
+use crate::column_definition_writer::nz;
 use crate::physical_index_definition::KEY_SLOT_COUNT;
-use crate::{ColumnPhysicalType, ColumnStorageKind, IndexDirection, LogicalIndexKindSpec};
+use crate::{
+    ColumnPhysicalType, ColumnRef, ColumnType, IndexColumnSpec, IndexDirection,
+    LogicalIndexKindSpec,
+};
 
 type PlanResult = Result<(), TableSchemaPlanError>;
 
-const ID: ColumnSpec<'static> =
-    ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4);
-const LABEL: ColumnSpec<'static> = ColumnSpec::new(
-    b"Label",
-    ColumnPhysicalType::Text,
-    ColumnStorageKind::Variable,
-    30,
-);
-const NAME: ColumnSpec<'static> = ColumnSpec::new(
-    b"Name",
-    ColumnPhysicalType::Text,
-    ColumnStorageKind::Variable,
-    50,
-);
-const NOTE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Note",
-    ColumnPhysicalType::Memo,
-    ColumnStorageKind::Variable,
-    0,
-);
+const ID: ColumnSpec<'static> = ColumnSpec::new(b"Id", ColumnType::Long);
+const LABEL: ColumnSpec<'static> = ColumnSpec::new(b"Label", ColumnType::Text { max_len: nz(30) });
+const NAME: ColumnSpec<'static> = ColumnSpec::new(b"Name", ColumnType::Text { max_len: nz(50) });
+const NOTE: ColumnSpec<'static> = ColumnSpec::new(b"Note", ColumnType::Memo);
 
-const fn key(column: u16) -> IndexFieldSpec {
-    IndexFieldSpec {
-        column,
+const fn key(column: u16) -> IndexColumnSpec<'static> {
+    IndexColumnSpec {
+        column: ColumnRef::Ordinal(column),
         direction: IndexDirection::Ascending,
     }
 }
@@ -71,7 +59,7 @@ fn names_of_definition_len(target: usize) -> Vec<Vec<u8>> {
 fn long_columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
     names
         .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect()
 }
 
@@ -170,12 +158,7 @@ fn index_names_whose_order_depends_on_case_folding_are_refused() {
 
 #[test]
 fn a_name_byte_above_the_established_range_is_refused() {
-    let columns = [ColumnSpec::new(
-        b"Caf\xe9",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(b"Caf\xe9", ColumnType::Long)];
     assert_eq!(
         plan_table_schema(&spec(b"Beta", &columns, &[]), 20),
         Err(TableSchemaPlanError::NameByteUnestablished {
@@ -246,12 +229,7 @@ fn a_table_name_too_long_for_a_catalog_row_is_refused() {
 #[test]
 fn a_column_name_too_long_for_the_definition_is_refused() {
     let overlong = vec![b'A'; 256];
-    let columns = [ColumnSpec::new(
-        &overlong,
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(&overlong, ColumnType::Long)];
     assert!(matches!(
         definition_error(&spec(b"Beta", &columns, &[])),
         Some(TableDefinitionWriteError::NameTooLong {
@@ -282,35 +260,55 @@ fn an_index_name_too_long_for_the_definition_is_refused() {
 }
 
 #[test]
-fn a_column_size_its_type_does_not_accept_is_refused() {
-    let columns = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        1,
-    )];
-    assert!(matches!(
-        definition_error(&spec(b"Beta", &columns, &[])),
-        Some(TableDefinitionWriteError::UnsupportedColumnSize {
-            ordinal: 0,
-            size: 1,
-            ..
-        })
-    ));
+fn index_columns_named_by_name_resolve_to_the_same_ordinals() -> PlanResult {
+    let columns = [ID, LABEL, NAME];
+    let by_name = [IndexSpec {
+        name: b"ByLabel",
+        fields: &[
+            IndexColumnSpec::descending(b"Label"),
+            IndexColumnSpec::ascending(b"Id"),
+        ],
+        kind: IndexKind::Ordinary,
+    }];
+    let by_ordinal = [IndexSpec {
+        name: b"ByLabel",
+        fields: &[IndexColumnSpec::descending(1), key(0)],
+        kind: IndexKind::Ordinary,
+    }];
+    let named = plan_table_schema(&spec(b"Beta", &columns, &by_name), 20)?;
+    let ordinal = plan_table_schema(&spec(b"Beta", &columns, &by_ordinal), 20)?;
+    assert_eq!(named, ordinal);
+    assert_eq!(
+        named.index_fields().collect::<Vec<_>>(),
+        [&[
+            IndexFieldSpec {
+                column: 1,
+                direction: IndexDirection::Descending,
+            },
+            IndexFieldSpec {
+                column: 0,
+                direction: IndexDirection::Ascending,
+            },
+        ][..]]
+    );
+    Ok(())
 }
 
 #[test]
-fn a_memo_column_in_fixed_storage_is_refused() {
-    let columns = [ColumnSpec::new(
-        b"Note",
-        ColumnPhysicalType::Memo,
-        ColumnStorageKind::Fixed,
-        0,
-    )];
-    assert!(matches!(
-        definition_error(&spec(b"Beta", &columns, &[])),
-        Some(TableDefinitionWriteError::UnsupportedColumnClass { ordinal: 0, .. })
-    ));
+fn an_index_column_name_the_table_lacks_is_refused() {
+    let columns = [ID, NAME];
+    let indexes = [IndexSpec {
+        name: b"ByLabel",
+        fields: &[
+            IndexColumnSpec::ascending(b"Id"),
+            IndexColumnSpec::ascending(b"Label"),
+        ],
+        kind: IndexKind::Ordinary,
+    }];
+    assert_eq!(
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20),
+        Err(TableSchemaPlanError::UnknownIndexColumn { index: 0, field: 1 })
+    );
 }
 
 #[test]
@@ -321,14 +319,7 @@ fn a_fixed_area_no_row_slot_could_hold_is_refused() {
         .collect::<Vec<_>>();
     let columns = names
         .iter()
-        .map(|name| {
-            ColumnSpec::new(
-                name,
-                ColumnPhysicalType::Text,
-                ColumnStorageKind::Fixed,
-                255,
-            )
-        })
+        .map(|name| ColumnSpec::new(name, ColumnType::FixedText { len: nz(255) }))
         .collect::<Vec<_>>();
     assert!(matches!(
         definition_error(&spec(b"Wide", &columns, &[])),
@@ -369,12 +360,7 @@ fn a_repeated_column_name_is_refused() {
 
 #[test]
 fn an_empty_column_name_is_refused() {
-    let columns = [ColumnSpec::new(
-        b"",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(b"", ColumnType::Long)];
     assert!(matches!(
         definition_error(&spec(b"Beta", &columns, &[])),
         Some(TableDefinitionWriteError::EmptyName {
@@ -474,9 +460,12 @@ fn an_index_field_count_one_above_the_limit_is_refused() {
         .collect::<Vec<_>>();
     let columns = names
         .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
-    let fields = (0..=KEY_SLOT_COUNT as u16).map(key).collect::<Vec<_>>();
+    // An unknown name past the limit must not be reached: the count is
+    // refused before any key is resolved or stored.
+    let mut fields = (0..=KEY_SLOT_COUNT as u16).map(key).collect::<Vec<_>>();
+    fields.push(IndexColumnSpec::ascending(b"Missing"));
     let indexes = [IndexSpec {
         name: b"Wide",
         fields: &fields,
@@ -485,7 +474,7 @@ fn an_index_field_count_one_above_the_limit_is_refused() {
     assert!(matches!(
         definition_error(&spec(b"Wide", &columns, &indexes)),
         Some(TableDefinitionWriteError::TooManyKeyFields { count, .. })
-            if count == KEY_SLOT_COUNT + 1
+            if count == KEY_SLOT_COUNT + 2
     ));
 }
 

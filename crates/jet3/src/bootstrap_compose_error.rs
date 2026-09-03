@@ -4,7 +4,7 @@ use super::*;
 
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BootstrapComposeError {
+pub enum ComposeError {
     /// A table definition could not be encoded.
     Definition(TableDefinitionWriteError),
     /// A usage map could not be encoded.
@@ -38,13 +38,13 @@ pub enum BootstrapComposeError {
     },
 }
 
-impl fmt::Display for BootstrapComposeError {
+impl fmt::Display for ComposeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Jet 3 bootstrap composition failed: {self:?}")
     }
 }
 
-impl std::error::Error for BootstrapComposeError {
+impl std::error::Error for ComposeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Definition(source) => Some(source),
@@ -62,43 +62,43 @@ impl std::error::Error for BootstrapComposeError {
     }
 }
 
-impl From<TableDefinitionWriteError> for BootstrapComposeError {
+impl From<TableDefinitionWriteError> for ComposeError {
     fn from(source: TableDefinitionWriteError) -> Self {
         Self::Definition(source)
     }
 }
-impl From<UsageMapWriteError> for BootstrapComposeError {
+impl From<UsageMapWriteError> for ComposeError {
     fn from(source: UsageMapWriteError) -> Self {
         Self::UsageMap(source)
     }
 }
-impl From<PageImageError> for BootstrapComposeError {
+impl From<PageImageError> for ComposeError {
     fn from(source: PageImageError) -> Self {
         Self::Page(source)
     }
 }
-impl From<RowWriteError> for BootstrapComposeError {
+impl From<RowWriteError> for ComposeError {
     fn from(source: RowWriteError) -> Self {
         Self::Row(source)
     }
 }
-impl From<WholeFilePlanError> for BootstrapComposeError {
+impl From<WholeFilePlanError> for ComposeError {
     fn from(source: WholeFilePlanError) -> Self {
         Self::WholeFile(source)
     }
 }
-impl From<Error> for BootstrapComposeError {
+impl From<Error> for ComposeError {
     fn from(source: Error) -> Self {
         Self::Encoding(source)
     }
 }
-impl From<CatalogNameKeyError> for BootstrapComposeError {
+impl From<CatalogNameKeyError> for ComposeError {
     fn from(source: CatalogNameKeyError) -> Self {
         Self::NameKey(source)
     }
 }
 
-impl From<TableSchemaPlanError> for BootstrapComposeError {
+impl From<TableSchemaPlanError> for ComposeError {
     fn from(source: TableSchemaPlanError) -> Self {
         Self::Schema(source)
     }

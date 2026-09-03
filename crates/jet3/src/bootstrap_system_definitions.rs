@@ -1,30 +1,49 @@
 //! Fixed system-table definition inventory for the bootstrap composer.
 
-use super::*;
+use std::num::NonZeroU8;
 
-const OBJECT_COLUMNS: [ColumnSpec<'static>; 17] = {
-    use ColumnPhysicalType as T;
-    use ColumnStorageKind::{Fixed as F, Variable as V};
-    [
-        ColumnSpec::new(b"Id", T::Long, F, 4),
-        ColumnSpec::new(b"ParentId", T::Long, F, 4),
-        ColumnSpec::new(b"Name", T::Text, V, 255),
-        ColumnSpec::new(b"Type", T::Integer, F, 2),
-        ColumnSpec::new(b"DateCreate", T::DateTime, F, 8),
-        ColumnSpec::new(b"DateUpdate", T::DateTime, F, 8),
-        ColumnSpec::new(b"Owner", T::Binary, V, 255),
-        ColumnSpec::new(b"Flags", T::Long, F, 4),
-        ColumnSpec::new(b"Database", T::Memo, V, 0),
-        ColumnSpec::new(b"Connect", T::Memo, V, 0),
-        ColumnSpec::new(b"ForeignName", T::Text, V, 255),
-        ColumnSpec::new(b"RmtInfoShort", T::Binary, V, 255),
-        ColumnSpec::new(b"RmtInfoLong", T::LongBinary, V, 0),
-        ColumnSpec::new(b"Lv", T::LongBinary, V, 0),
-        ColumnSpec::new(b"LvProp", T::LongBinary, V, 0),
-        ColumnSpec::new(b"LvModule", T::LongBinary, V, 0),
-        ColumnSpec::new(b"LvExtra", T::LongBinary, V, 0),
-    ]
-};
+use super::*;
+use crate::IndexFieldSpec;
+
+const OBJECT_COLUMNS: [ColumnSpec<'static>; 17] = [
+    ColumnSpec::new(b"Id", ColumnType::Long),
+    ColumnSpec::new(b"ParentId", ColumnType::Long),
+    ColumnSpec::new(
+        b"Name",
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
+    ),
+    ColumnSpec::new(b"Type", ColumnType::Integer),
+    ColumnSpec::new(b"DateCreate", ColumnType::DateTime),
+    ColumnSpec::new(b"DateUpdate", ColumnType::DateTime),
+    ColumnSpec::new(
+        b"Owner",
+        ColumnType::Binary {
+            max_len: NonZeroU8::MAX,
+        },
+    ),
+    ColumnSpec::new(b"Flags", ColumnType::Long),
+    ColumnSpec::new(b"Database", ColumnType::Memo),
+    ColumnSpec::new(b"Connect", ColumnType::Memo),
+    ColumnSpec::new(
+        b"ForeignName",
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
+    ),
+    ColumnSpec::new(
+        b"RmtInfoShort",
+        ColumnType::Binary {
+            max_len: NonZeroU8::MAX,
+        },
+    ),
+    ColumnSpec::new(b"RmtInfoLong", ColumnType::LongBinary),
+    ColumnSpec::new(b"Lv", ColumnType::LongBinary),
+    ColumnSpec::new(b"LvProp", ColumnType::LongBinary),
+    ColumnSpec::new(b"LvModule", ColumnType::LongBinary),
+    ColumnSpec::new(b"LvExtra", ColumnType::LongBinary),
+];
 const OBJECT_CLASSES: [SystemColumnClassSpec; 17] = {
     use SystemColumnClassSpec::{Binary as B, Fixed as F, Variable as V};
     [F, F, V, F, F, F, B, F, V, V, V, V, V, V, V, V, V]
@@ -57,7 +76,7 @@ const fn lv_map(
 pub(super) fn msys_objects_definition(
     row_count: u32,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let parent_name_fields = [field(1), field(2)];
     let id_fields = [field(0)];
     let physical = [
@@ -107,30 +126,15 @@ pub(super) fn msys_objects_definition(
 }
 
 const ACE_COLUMNS: [ColumnSpec<'static>; 4] = [
-    ColumnSpec::new(
-        b"ObjectId",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
+    ColumnSpec::new(b"ObjectId", ColumnType::Long),
     ColumnSpec::new(
         b"SID",
-        ColumnPhysicalType::Binary,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Binary {
+            max_len: NonZeroU8::MAX,
+        },
     ),
-    ColumnSpec::new(
-        b"ACM",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
-    ColumnSpec::new(
-        b"FInheritable",
-        ColumnPhysicalType::Boolean,
-        ColumnStorageKind::Fixed,
-        1,
-    ),
+    ColumnSpec::new(b"ACM", ColumnType::Long),
+    ColumnSpec::new(b"FInheritable", ColumnType::Boolean),
 ];
 const ACE_CLASSES: [SystemColumnClassSpec; 4] = [
     SystemColumnClassSpec::Fixed,
@@ -143,7 +147,7 @@ pub(super) fn msys_aces_definition(
     row_count: u32,
     distinct: u32,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let fields = [field(0)];
     let physical = [physical(
         &fields,
@@ -175,48 +179,28 @@ pub(super) fn msys_aces_definition(
 }
 
 const QUERY_COLUMNS: [ColumnSpec<'static>; 7] = [
-    ColumnSpec::new(
-        b"ObjectId",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
-    ColumnSpec::new(
-        b"Attribute",
-        ColumnPhysicalType::Byte,
-        ColumnStorageKind::Fixed,
-        1,
-    ),
+    ColumnSpec::new(b"ObjectId", ColumnType::Long),
+    ColumnSpec::new(b"Attribute", ColumnType::Byte),
     ColumnSpec::new(
         b"Order",
-        ColumnPhysicalType::Binary,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Binary {
+            max_len: NonZeroU8::MAX,
+        },
     ),
     ColumnSpec::new(
         b"Name1",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
     ColumnSpec::new(
         b"Name2",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
-    ColumnSpec::new(
-        b"Expression",
-        ColumnPhysicalType::Memo,
-        ColumnStorageKind::Variable,
-        0,
-    ),
-    ColumnSpec::new(
-        b"Flag",
-        ColumnPhysicalType::Integer,
-        ColumnStorageKind::Fixed,
-        2,
-    ),
+    ColumnSpec::new(b"Expression", ColumnType::Memo),
+    ColumnSpec::new(b"Flag", ColumnType::Integer),
 ];
 const QUERY_CLASSES: [SystemColumnClassSpec; 7] = {
     use SystemColumnClassSpec::{Fixed as F, Variable as V};
@@ -226,7 +210,7 @@ const QUERY_MAPS: [LongValueMapSpec; 1] = [lv_map(5, 5, SHARED_MAP_PAGE, 6, SHAR
 
 pub(super) fn msys_queries_definition(
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let fields = [field(0), field(1), field(2)];
     let physical = [physical(
         &fields,
@@ -260,51 +244,36 @@ pub(super) fn msys_queries_definition(
 const RELATIONSHIP_COLUMNS: [ColumnSpec<'static>; 8] = [
     ColumnSpec::new(
         b"szRelationship",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
-    ColumnSpec::new(
-        b"grbit",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
-    ColumnSpec::new(
-        b"ccolumn",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
-    ColumnSpec::new(
-        b"icolumn",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
+    ColumnSpec::new(b"grbit", ColumnType::Long),
+    ColumnSpec::new(b"ccolumn", ColumnType::Long),
+    ColumnSpec::new(b"icolumn", ColumnType::Long),
     ColumnSpec::new(
         b"szObject",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
     ColumnSpec::new(
         b"szColumn",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
     ColumnSpec::new(
         b"szReferencedObject",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
     ColumnSpec::new(
         b"szReferencedColumn",
-        ColumnPhysicalType::Text,
-        ColumnStorageKind::Variable,
-        255,
+        ColumnType::Text {
+            max_len: NonZeroU8::MAX,
+        },
     ),
 ];
 const RELATIONSHIP_CLASSES: [SystemColumnClassSpec; 8] = {
@@ -314,7 +283,7 @@ const RELATIONSHIP_CLASSES: [SystemColumnClassSpec; 8] = {
 
 pub(super) fn msys_relationships_definition(
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let name_fields = [field(0)];
     let object_fields = [field(4)];
     let referenced_fields = [field(6)];

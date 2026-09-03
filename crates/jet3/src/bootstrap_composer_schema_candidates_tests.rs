@@ -1,42 +1,33 @@
 use super::super::{compose_table_database, global_map_page};
 use super::*;
+use crate::{ColumnRef, IndexColumnSpec};
 
 const IDX_TRI_COLUMNS: [ColumnSpec<'static>; 3] = [
-    ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
-    ColumnSpec::new(
-        b"Code",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
-    ColumnSpec::new(
-        b"Sequence",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    ),
+    ColumnSpec::new(b"Id", ColumnType::Long),
+    ColumnSpec::new(b"Code", ColumnType::Long),
+    ColumnSpec::new(b"Sequence", ColumnType::Long),
 ];
 const IDX_TRI_INDEXES: [IndexSpec<'static>; 3] = [
     IndexSpec {
         name: b"ZPrimary",
-        fields: &[IndexFieldSpec {
-            column: 0,
+        fields: &[IndexColumnSpec {
+            column: ColumnRef::Ordinal(0),
             direction: IndexDirection::Ascending,
         }],
         kind: IndexKind::Primary,
     },
     IndexSpec {
         name: b"MUniqueX",
-        fields: &[IndexFieldSpec {
-            column: 1,
+        fields: &[IndexColumnSpec {
+            column: ColumnRef::Ordinal(1),
             direction: IndexDirection::Descending,
         }],
         kind: IndexKind::Unique,
     },
     IndexSpec {
         name: b"ASecondx",
-        fields: &[IndexFieldSpec {
-            column: 2,
+        fields: &[IndexColumnSpec {
+            column: ColumnRef::Ordinal(2),
             direction: IndexDirection::Ascending,
         }],
         kind: IndexKind::Ordinary,
@@ -49,7 +40,7 @@ const IDX_TRI: TableSpec<'static> = TableSpec {
 };
 const WIDE_FIELD_COUNT: usize = 70;
 
-fn indexed_candidate_bytes() -> Result<Vec<u8>, BootstrapComposeError> {
+fn indexed_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
     let mut budget = compose_budget();
     let plan = compose_table_database(&IDX_TRI, &mut budget)?;
     Ok(plan
@@ -65,7 +56,7 @@ fn wide_candidate_bytes() -> CandidateResult<Vec<u8>> {
         .collect::<Vec<_>>();
     let columns = names
         .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let base = TableSpec {
         name: b"ContOneX",

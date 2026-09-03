@@ -134,24 +134,6 @@ pub enum TableDefinitionWriteError {
         /// Zero-based ordinal of the repeated name.
         ordinal: u16,
     },
-    /// A column size is incompatible with its physical type.
-    UnsupportedColumnSize {
-        /// Zero-based column ordinal.
-        ordinal: u16,
-        /// Physical type.
-        physical_type: ColumnPhysicalType,
-        /// Requested size.
-        size: u16,
-    },
-    /// A storage kind or auto-increment flag is incompatible with the type.
-    UnsupportedColumnClass {
-        /// Zero-based column ordinal.
-        ordinal: u16,
-        /// Physical type.
-        physical_type: ColumnPhysicalType,
-        /// Requested storage kind.
-        storage: ColumnStorageKind,
-    },
     /// The system class inventory does not match the definition kind and columns.
     InvalidSystemColumnClassCount {
         /// Definition marker class.
