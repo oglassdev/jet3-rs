@@ -145,13 +145,14 @@ it does not establish arbitrary index shapes, writer correctness, compatibility,
 or support.
 
 `definition-continuation` is the development-only experiment for issue #151.
-`EXP-0095` records that its first run retained no created-arm bytes after the
-combined 64-page capture check failed. The SHA-256-pinned `EXP-0098` successor
-used three replicas that each created one fresh empty database,
-identity-checked three pre-mutation copies, and retained closed checkpoints for
-the empty database plus exact 2,046-, 2,075-, and 4,105-byte table definitions. The
-controls require zero, one, and two continuation pages under the recorded
-grammar. Publication accepts exactly those 12 MDBs on success and only an
+`EXP-0102` preregisters the current successor after `EXP-0095` and `EXP-0100`
+both produced valid `no_outcome` results. Three replicas each create one fresh
+empty database, identity-check three pre-mutation copies, and retain closed
+checkpoints for the empty database plus the established `Alpha(Id Long)`
+small-definition control and exact 70- and 140-field wide-definition targets.
+Their predicted logical lengths are 66, 2,075, and 4,105 bytes, with required
+continuation counts zero, one, and two. Publication accepts exactly those 12
+MDBs on success and only an
 ordered per-replica prefix plus the active checkpoint's one bounded recovery
 image after failure. Ordered `arm_baselines` record every successfully checked
 working copy before any table append; append and capture phases require all
@@ -172,15 +173,13 @@ and the complete page-0 changed-offset set plus counter values. It presumes neit
 placement nor a single-page `LvProp`, and establishes no broader allocation,
 writer, compatibility, or support claim.
 
-`EXP-0100` records the one authorized successor acquisition as a valid
-`no_outcome`, not a contract rejection. All three replicas completed with the
-exact four-checkpoint inventory and no recovery; the raised bound admitted the
-67-, 69-, and 220-page created images. The analyzer found that the 2,046-byte
-`zero` definition already used one continuation page, contrary to the
-preregistered zero-continuation control, so every question remained
-`no_outcome`. Diagnostic chains `[20, 66]`, `[20, 68]`, and `[20, 219, 218]`
-for the three arms are non-promotable under the all-or-`no_outcome` rule. A new
-run needs a separately pinned successor and a renewed explicit human decision.
+`EXP-0100` records that the former 2,046-byte `zero` definition used one
+continuation page, invalidating that run's control. Its diagnostic chains are
+non-promotable under the all-or-`no_outcome` rule and provide no evidence for
+the current wide targets. Acquisition under `EXP-0102` remains forbidden until
+its exact preregistration bytes merge. The user's 2026-09-02 instruction
+prospectively authorizes one three-replica run after merge; any post-mutation
+failure consumes that authorization and cannot be retried automatically.
 
 `extended-names` is the SHA-256-pinned issue #152 successor for every defined
 CP1252 byte above `0x7E`. Three replicas each retained an empty checkpoint, the

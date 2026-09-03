@@ -100,7 +100,7 @@ def fake_analysis(
     }[scenario]
     if bad_count and scenario == "one":
         pages = [20]
-    logical_length = {"zero": 2046, "one": 2075, "two": 4105}[scenario]
+    logical_length = {"zero": 66, "one": 2075, "two": 4105}[scenario]
     if bad_length and scenario == "one":
         logical_length += 1
     fields = continuation.expected_fields(scenario)
@@ -274,6 +274,14 @@ class DefinitionContinuationTests(unittest.TestCase):
             self.assertEqual([chunk["used"] for chunk in chunks], [2048, 2040, 17])
             counters = report["questions"]["counters"]["scenarios"]
             self.assertEqual(counters["zero"]["changed_offsets"], [1])
+
+    def test_zero_control_is_exact_alpha_schema(self) -> None:
+        self.assertEqual(continuation.TABLE_NAMES["zero"], "Alpha")
+        self.assertEqual(
+            continuation.expected_fields("zero"),
+            [{"ordinal": 0, "name": "Id", "type": 4, "size": 4}],
+        )
+        self.assertEqual(continuation.EXPECTED_LOGICAL_LENGTHS["zero"], 66)
 
     def test_wrong_continuation_count_is_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -800,7 +808,7 @@ class DefinitionContinuationTests(unittest.TestCase):
             mock.patch.object(
                 continuation.catalog,
                 "_discover_catalog",
-                return_value=({}, [], [{"values": ["ContZero", None]}]),
+                return_value=({}, [], [{"values": ["Alpha", None]}]),
             ),
             mock.patch.object(
                 continuation.catalog,
@@ -816,7 +824,7 @@ class DefinitionContinuationTests(unittest.TestCase):
                         for page in range(21)
                     ]
                 },
-                "ContZero",
+                "Alpha",
                 20,
             )
         self.assertEqual(
