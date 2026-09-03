@@ -34,7 +34,7 @@ use crate::column_definition_writer::{PhysicalIndexSpec, validate_physical_index
 use crate::page_image::PAGE_BYTES;
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
-    ColumnPhysicalType, ColumnSpec, IndexFieldSpec, LogicalIndexKindSpec, PageNumber,
+    ColumnSpec, IndexDirection, IndexFieldSpec, LogicalIndexKindSpec, PageNumber,
     PhysicalIndexFlagsSpec, TableDefinitionKind, TableDefinitionWriteError,
 };
 
@@ -87,13 +87,82 @@ impl IndexKind {
     }
 }
 
+/// A reference to one column of a [`TableSpec`], by position or by name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColumnRef<'a> {
+    /// The column at this zero-based position in [`TableSpec::columns`].
+    Ordinal(u16),
+    /// The column whose raw name bytes equal these.
+    Name(&'a [u8]),
+}
+
+impl ColumnRef<'_> {
+    /// Returns the ordinal this reference names among `columns`, if any.
+    pub(crate) fn resolve(self, columns: &[ColumnSpec<'_>]) -> Option<u16> {
+        match self {
+            Self::Ordinal(ordinal) => (usize::from(ordinal) < columns.len()).then_some(ordinal),
+            Self::Name(name) => columns
+                .iter()
+                .position(|column| column.name() == name)
+                .and_then(|position| u16::try_from(position).ok()),
+        }
+    }
+}
+
+impl From<u16> for ColumnRef<'_> {
+    fn from(ordinal: u16) -> Self {
+        Self::Ordinal(ordinal)
+    }
+}
+
+impl<'a> From<&'a [u8]> for ColumnRef<'a> {
+    fn from(name: &'a [u8]) -> Self {
+        Self::Name(name)
+    }
+}
+
+impl<'a, const N: usize> From<&'a [u8; N]> for ColumnRef<'a> {
+    fn from(name: &'a [u8; N]) -> Self {
+        Self::Name(name)
+    }
+}
+
+/// One key column of an [`IndexSpec`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IndexColumnSpec<'a> {
+    /// The table column the key uses.
+    pub column: ColumnRef<'a>,
+    /// Key direction.
+    pub direction: IndexDirection,
+}
+
+impl<'a> IndexColumnSpec<'a> {
+    /// Describes an ascending key on `column`.
+    #[must_use]
+    pub fn ascending(column: impl Into<ColumnRef<'a>>) -> Self {
+        Self {
+            column: column.into(),
+            direction: IndexDirection::Ascending,
+        }
+    }
+
+    /// Describes a descending key on `column`.
+    #[must_use]
+    pub fn descending(column: impl Into<ColumnRef<'a>>) -> Self {
+        Self {
+            column: column.into(),
+            direction: IndexDirection::Descending,
+        }
+    }
+}
+
 /// One index of a [`TableSpec`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IndexSpec<'a> {
     /// Index name; bytes must be at most `0x7E`.
     pub name: &'a [u8],
-    /// Ordered key fields naming table column ordinals.
-    pub fields: &'a [IndexFieldSpec],
+    /// Ordered key columns.
+    pub fields: &'a [IndexColumnSpec<'a>],
     /// The index's uniqueness class.
     pub kind: IndexKind,
 }
@@ -120,6 +189,13 @@ pub enum TableSchemaPlanError {
     Definition(TableDefinitionWriteError),
     /// The table declares no columns.
     NoColumns,
+    /// An index key names a column the table does not declare.
+    UnknownIndexColumn {
+        /// Position of the index in the spec.
+        index: usize,
+        /// Position of the key within the index.
+        field: usize,
+    },
     /// A column or index name holds a byte above the range `EXP-0087`
     /// established weights for.
     NameByteUnestablished {
@@ -203,7 +279,8 @@ impl std::error::Error for TableSchemaPlanError {
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
     definition_root: PageNumber,
-    index_count: usize,
+    /// Each index's key fields with column references resolved to ordinals.
+    index_fields: Vec<Vec<IndexFieldSpec>>,
 }
 
 impl TableSchemaPlan {
@@ -232,7 +309,7 @@ impl TableSchemaPlan {
     /// table's own two maps).
     pub(crate) fn index_placements(&self) -> impl Iterator<Item = (PageNumber, u8)> {
         let first_root = self.property_page().get() + 1;
-        (0..self.index_count).map(move |ordinal| {
+        (0..self.index_fields.len()).map(move |ordinal| {
             (
                 PageNumber::new(first_root + ordinal as u64),
                 FIRST_INDEX_MAP_ROW + ordinal as u8,
@@ -240,9 +317,15 @@ impl TableSchemaPlan {
         })
     }
 
+    /// Returns each index's key fields, resolved to column ordinals, in
+    /// physical ordinal order.
+    pub(crate) fn index_fields(&self) -> impl Iterator<Item = &[IndexFieldSpec]> {
+        self.index_fields.iter().map(Vec::as_slice)
+    }
+
     /// Returns how many pages the create appends.
-    pub(crate) const fn appended_page_count(&self) -> u64 {
-        3 + self.index_count as u64
+    pub(crate) fn appended_page_count(&self) -> u64 {
+        3 + self.index_fields.len() as u64
     }
 }
 
@@ -275,9 +358,42 @@ pub(crate) fn plan_table_schema(
             continuations,
         });
     }
-    let plan = assign_pages(spec, first_page)?;
+    let index_fields = resolve_index_fields(spec)?;
+    let plan = assign_pages(spec, first_page, index_fields)?;
     validate_indexes(spec, &plan)?;
     Ok(plan)
+}
+
+/// Resolves every index key to a column ordinal; ordinal bounds are checked
+/// later by the physical-index encoder.
+fn resolve_index_fields(
+    spec: &TableSpec<'_>,
+) -> Result<Vec<Vec<IndexFieldSpec>>, TableSchemaPlanError> {
+    spec.indexes
+        .iter()
+        .enumerate()
+        .map(|(index, planned)| {
+            planned
+                .fields
+                .iter()
+                .enumerate()
+                .map(|(field, key)| match key.column {
+                    ColumnRef::Ordinal(column) => Ok(IndexFieldSpec {
+                        column,
+                        direction: key.direction,
+                    }),
+                    ColumnRef::Name(_) => key
+                        .column
+                        .resolve(spec.columns)
+                        .map(|column| IndexFieldSpec {
+                            column,
+                            direction: key.direction,
+                        })
+                        .ok_or(TableSchemaPlanError::UnknownIndexColumn { index, field }),
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// Checks the table name against both encodings that will carry it.
@@ -314,12 +430,7 @@ fn measure_definition(spec: &TableSpec<'_>) -> Result<usize, TableSchemaPlanErro
     let long_value_maps = spec
         .columns
         .iter()
-        .filter(|column| {
-            matches!(
-                column.physical_type(),
-                ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
-            )
-        })
+        .filter(|column| column.column_type().is_long_value())
         .count();
     definition_len(
         spec.columns,
@@ -342,6 +453,7 @@ pub(crate) const fn continuation_count(length: usize) -> usize {
 fn assign_pages(
     spec: &TableSpec<'_>,
     first_page: u64,
+    index_fields: Vec<Vec<IndexFieldSpec>>,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     let needed = 3 + spec.indexes.len() as u64;
     // `EXP-0093` numbers the object equal to its definition root, and
@@ -363,7 +475,7 @@ fn assign_pages(
     Ok(TableSchemaPlan {
         object_id,
         definition_root: PageNumber::new(first_page),
-        index_count: spec.indexes.len(),
+        index_fields,
     })
 }
 
@@ -374,7 +486,7 @@ fn validate_indexes(
     plan: &TableSchemaPlan,
 ) -> Result<(), TableSchemaPlanError> {
     let mut primary: Option<usize> = None;
-    for (position, planned) in spec.indexes.iter().enumerate() {
+    for ((position, planned), fields) in spec.indexes.iter().enumerate().zip(plan.index_fields()) {
         let ordinal = position as u16;
         validate_name_bytes("logical index", position, planned.name)?;
         validate_name(
@@ -391,7 +503,7 @@ fn validate_indexes(
             });
         };
         let physical = PhysicalIndexSpec {
-            fields: planned.fields,
+            fields,
             usage_map_page: plan.map_page(),
             usage_map_row: row,
             root,

@@ -2,17 +2,17 @@
 //! reader to check each `EXP-0093` structure lands where the plan says.
 
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
-use super::super::{BootstrapComposeError, compose_table_database};
+use super::super::{ComposeError, compose_table_database};
+use crate::column_definition_writer::nz;
 use crate::table_schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
 use crate::{
-    ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, DatabaseReader,
-    IndexDirection, IndexFieldSpec, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource,
-    page_tag,
+    ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
+    IndexDirection, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource, page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn create_bytes(spec: &TableSpec<'_>) -> Result<Vec<u8>, BootstrapComposeError> {
+fn create_bytes(spec: &TableSpec<'_>) -> Result<Vec<u8>, ComposeError> {
     let mut budget = compose_budget();
     let plan = compose_table_database(spec, &mut budget)?;
     let mut bytes = Vec::with_capacity(plan.pages().len() * PAGE_BYTES);
@@ -26,35 +26,17 @@ fn page(bytes: &[u8], number: usize) -> &[u8] {
     &bytes[number * PAGE_BYTES..(number + 1) * PAGE_BYTES]
 }
 
-const ID: ColumnSpec<'static> =
-    ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4);
-const NAME: ColumnSpec<'static> = ColumnSpec::new(
-    b"Name",
-    ColumnPhysicalType::Text,
-    ColumnStorageKind::Variable,
-    50,
-);
-const CODE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Code",
-    ColumnPhysicalType::Text,
-    ColumnStorageKind::Variable,
-    8,
-);
-const SEQUENCE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Sequence",
-    ColumnPhysicalType::Long,
-    ColumnStorageKind::Fixed,
-    4,
-);
-const NOTE: ColumnSpec<'static> = ColumnSpec::new(
-    b"Note",
-    ColumnPhysicalType::Memo,
-    ColumnStorageKind::Variable,
-    0,
-);
+const ID: ColumnSpec<'static> = ColumnSpec::new(b"Id", ColumnType::Long);
+const NAME: ColumnSpec<'static> = ColumnSpec::new(b"Name", ColumnType::Text { max_len: nz(50) });
+const CODE: ColumnSpec<'static> = ColumnSpec::new(b"Code", ColumnType::Text { max_len: nz(8) });
+const SEQUENCE: ColumnSpec<'static> = ColumnSpec::new(b"Sequence", ColumnType::Long);
+const NOTE: ColumnSpec<'static> = ColumnSpec::new(b"Note", ColumnType::Memo);
 
-const fn field(column: u16, direction: IndexDirection) -> IndexFieldSpec {
-    IndexFieldSpec { column, direction }
+const fn field(column: u16, direction: IndexDirection) -> IndexColumnSpec<'static> {
+    IndexColumnSpec {
+        column: ColumnRef::Ordinal(column),
+        direction,
+    }
 }
 
 /// Fixed Long columns with ten-byte names: 70 of them encode to the 2,075-byte
@@ -68,7 +50,7 @@ fn wide_names(count: usize) -> Vec<Vec<u8>> {
 fn wide_columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
     names
         .iter()
-        .map(|name| ColumnSpec::new(name, ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4))
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect()
 }
 
@@ -232,7 +214,7 @@ fn a_definition_needing_a_continuation_is_refused_before_any_page_is_built() {
             },
             &mut budget,
         ),
-        Err(BootstrapComposeError::Schema(
+        Err(ComposeError::Schema(
             TableSchemaPlanError::ContinuationPlacementUnestablished {
                 length: 2075,
                 continuations: 1,
@@ -260,7 +242,7 @@ fn a_table_with_both_an_index_and_a_long_value_column_is_refused() {
             },
             &mut budget,
         ),
-        Err(BootstrapComposeError::UnobservedMapRowLayout)
+        Err(ComposeError::UnobservedMapRowLayout)
     ));
 }
 
@@ -277,7 +259,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
             },
             &mut budget,
         ),
-        Err(BootstrapComposeError::Schema(_))
+        Err(ComposeError::Schema(_))
     ));
 }
 
@@ -285,16 +267,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
 fn a_second_long_value_column_is_refused() {
     // EXP-0087's only long-value create, Beta, carried one Memo column, and
     // the one multi-group layout on record (MSysObjects) is not consecutive.
-    let columns = [
-        ID,
-        NOTE,
-        ColumnSpec::new(
-            b"Blob",
-            ColumnPhysicalType::LongBinary,
-            ColumnStorageKind::Variable,
-            0,
-        ),
-    ];
+    let columns = [ID, NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
     let mut budget = compose_budget();
     assert!(matches!(
         compose_table_database(
@@ -305,6 +278,6 @@ fn a_second_long_value_column_is_refused() {
             },
             &mut budget,
         ),
-        Err(BootstrapComposeError::UnobservedLongValueColumnCount { observed: 1 })
+        Err(ComposeError::UnobservedLongValueColumnCount { observed: 1 })
     ));
 }

@@ -19,12 +19,12 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::atomic::atomic_create;
-use crate::bootstrap_composer::{BootstrapComposeError, compose_table_database};
+use crate::bootstrap_composer::{ComposeError, compose_table_database};
 use crate::page_append_plan::PlannedPage;
 use crate::{
-    CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, DatabaseOpenError,
-    DatabaseReader, IndexDefinitionKind, IndexKind, PublishError, ResourceBudget,
-    TableDefinitionError, TableSpec,
+    CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, ColumnType,
+    DatabaseOpenError, DatabaseReader, IndexDefinitionKind, IndexKind, PublishError,
+    ResourceBudget, TableDefinitionError, TableSpec,
 };
 
 /// Structured failure of [`create_database`].
@@ -32,7 +32,7 @@ use crate::{
 pub enum CreateDatabaseError {
     /// The table could not be composed into a database image; nothing was
     /// written.
-    Compose(BootstrapComposeError),
+    Compose(ComposeError),
     /// The composed image could not be written, checked, or published.
     Publish(PublishError),
 }
@@ -121,7 +121,7 @@ pub fn create_database(
     let page_count = pages.len() as u64;
     budget
         .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(BootstrapComposeError::Encoding(error)))?;
+        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
@@ -195,6 +195,7 @@ fn check_candidate(
         if column.name().raw_bytes() != requested.name()
             || column.physical_type() != requested.physical_type()
             || column.size() != requested.size()
+            || column.auto_increment() != (requested.column_type() == ColumnType::AutoIncrement)
             || !storage_matches
         {
             return Err(mismatch("column"));
@@ -226,7 +227,8 @@ fn check_candidate(
         let fields = physical_definition.fields();
         if fields.len() != requested.fields.len()
             || fields.iter().zip(requested.fields).any(|(field, wanted)| {
-                field.column().get() != wanted.column || field.direction() != wanted.direction
+                wanted.column.resolve(spec.columns) != Some(field.column().get())
+                    || field.direction() != wanted.direction
             })
         {
             return Err(mismatch("index fields"));

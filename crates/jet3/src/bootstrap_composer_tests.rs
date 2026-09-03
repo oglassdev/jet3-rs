@@ -1,4 +1,4 @@
-use super::{BootstrapComposeError, compose_alpha_database, compose_empty_database};
+use super::{ComposeError, compose_alpha_database, compose_empty_database};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 
 // EXP-0073/EXP-0085: the accepted Alpha image's appended page numbers.
@@ -6,11 +6,10 @@ const ALPHA_ROOT: u64 = 20;
 const ALPHA_MAP_PAGE: u64 = 21;
 use crate::table_schema_plan::{IndexKind, IndexSpec, TableSpec, plan_table_schema};
 use crate::{
-    ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, ColumnSpec,
-    ColumnStorageKind, DatabaseReader, IndexDirection, IndexFieldSpec, JET3_PAGE_SIZE,
-    MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
-    ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind, classify_page,
-    locate_usage_map, page_tag,
+    ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader,
+    IndexDirection, JET3_PAGE_SIZE, MapRowLocator, PageKind, PageNumber, ReadLimits,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind,
+    TextCodePage, ValueKind, classify_page, locate_usage_map, page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -27,7 +26,7 @@ pub(super) fn read_budget(byte_len: usize) -> ResourceBudget {
     )))
 }
 
-fn bytes(alpha: bool) -> Result<Vec<u8>, BootstrapComposeError> {
+fn bytes(alpha: bool) -> Result<Vec<u8>, ComposeError> {
     let mut budget = compose_budget();
     let plan = if alpha {
         compose_alpha_database(&mut budget)?
@@ -503,12 +502,12 @@ fn composition_is_deterministic_and_resource_rejection_is_structured() -> TestRe
         ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
     assert!(matches!(
         compose_empty_database(&mut budget),
-        Err(BootstrapComposeError::UsageMap(
-            crate::UsageMapWriteError::Encoding(crate::Error::ResourceLimitExceeded {
+        Err(ComposeError::UsageMap(crate::UsageMapWriteError::Encoding(
+            crate::Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::AllocationBytes,
                 ..
-            })
-        ))
+            }
+        )))
     ));
     Ok(())
 }
@@ -588,12 +587,7 @@ fn candidate_export_refuses_nonempty_directory() -> TestResult {
 fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     // The Alpha image DAO accepted in EXP-0085 is the fixed case the general
     // EXP-0087 assignment has to agree with.
-    let columns = [ColumnSpec::new(
-        b"Id",
-        ColumnPhysicalType::Long,
-        ColumnStorageKind::Fixed,
-        4,
-    )];
+    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let plan = plan_table_schema(
         &TableSpec {
             name: b"Alpha",

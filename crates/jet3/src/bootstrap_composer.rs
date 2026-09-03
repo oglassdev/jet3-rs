@@ -19,13 +19,12 @@ use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 use crate::table_schema_plan::{TableSchemaPlanError, TableSpec};
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
 use crate::{
-    ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
-    DataPageBuilder, Error, IndexDirection, IndexFieldSpec, InlineUsageMapEncoder,
-    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageImage,
-    PageImageError, PageKind, PageNumber, PageOffset, PhysicalIndexFlagsSpec, PhysicalIndexSpec,
-    ResourceBudget, RowColumnLayout, RowValue, RowWriteError, SystemColumnClassSpec,
-    TableDefinitionKind, TableDefinitionSpec, TableDefinitionWriteError, UsageMapWriteError,
-    encode_row, encode_table_definition,
+    ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType, DataPageBuilder,
+    Error, IndexDirection, InlineUsageMapEncoder, LogicalIndexKindSpec, LogicalIndexSpec,
+    LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageImage, PageImageError, PageKind, PageNumber,
+    PageOffset, PhysicalIndexFlagsSpec, PhysicalIndexSpec, ResourceBudget, RowColumnLayout,
+    RowValue, RowWriteError, SystemColumnClassSpec, TableDefinitionKind, TableDefinitionSpec,
+    TableDefinitionWriteError, UsageMapWriteError, encode_row, encode_table_definition,
 };
 
 const HEADER_PAGE: u64 = 0;
@@ -72,12 +71,7 @@ const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
     0xcf, 0x65, 0xed, 0xff, 0x07, 0xc7, 0x46, 0xa1, 0x78, 0x16, 0x0c, 0xed, 0xe9, 0x2d,
 ];
 #[cfg(test)]
-const ALPHA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
-    b"Id",
-    ColumnPhysicalType::Long,
-    ColumnStorageKind::Fixed,
-    4,
-)];
+const ALPHA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(b"Id", ColumnType::Long)];
 #[cfg(test)]
 const ALPHA_SPEC: TableSpec<'static> = TableSpec {
     name: b"Alpha",
@@ -93,13 +87,13 @@ const MSYS_DB_ID: i32 = 0x1000_0000;
 
 #[path = "bootstrap_compose_error.rs"]
 mod error;
-pub use error::BootstrapComposeError;
+pub use error::ComposeError;
 
 /// Composes the deterministic 20-page empty image established by `EXP-0073`.
 #[cfg(test)]
 pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
-) -> Result<WholeFileImagePlan, BootstrapComposeError> {
+) -> Result<WholeFileImagePlan, ComposeError> {
     let images = compose_existing_pages(None, budget)?;
     WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
 }
@@ -109,7 +103,7 @@ pub(crate) fn compose_empty_database(
 #[cfg(test)]
 pub(crate) fn compose_alpha_database(
     budget: &mut ResourceBudget,
-) -> Result<WholeFileImagePlan, BootstrapComposeError> {
+) -> Result<WholeFileImagePlan, ComposeError> {
     compose_table_database(&ALPHA_SPEC, budget)
 }
 
@@ -118,7 +112,7 @@ pub(crate) fn compose_alpha_database(
 pub(crate) fn compose_table_database(
     spec: &TableSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<WholeFileImagePlan, BootstrapComposeError> {
+) -> Result<WholeFileImagePlan, ComposeError> {
     let planned = PlannedCreate::new(spec)?;
     let images = compose_existing_pages(Some(&planned), budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
@@ -129,7 +123,7 @@ pub(crate) fn compose_table_database(
 fn compose_existing_pages(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], BootstrapComposeError> {
+) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
     let object_count = if create.is_some() { 9 } else { 8 };
     let ace_count = if create.is_some() { 18 } else { 16 };
     let page_count = create.map_or(EMPTY_DATABASE_PAGE_COUNT, PlannedCreate::page_count);
@@ -157,10 +151,7 @@ fn compose_existing_pages(
     ])
 }
 
-fn header_page(
-    created: bool,
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+fn header_page(created: bool, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
     let mut image = PageImage::new(PageKind::DatabaseDefinition);
     image.write_at(PageOffset::new(1), &[1], budget)?;
     image.write_at(PageOffset::new(4), b"Standard Jet DB", budget)?;
@@ -179,7 +170,7 @@ fn header_page(
 fn global_map(
     used_pages: u64,
     budget: &mut ResourceBudget,
-) -> Result<InlineUsageMapEncoder, BootstrapComposeError> {
+) -> Result<InlineUsageMapEncoder, ComposeError> {
     let mut map = InlineUsageMapEncoder::new(
         PageNumber::new(0),
         ByteCount::new(GLOBAL_BITMAP_BYTES),
@@ -194,17 +185,14 @@ fn global_map(
 fn global_map_page(
     used_pages: u64,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let map = global_map(used_pages, budget)?;
     let mut row = [0_u8; 133];
     map.encode_into(&mut row, budget)?;
     data_page(GLOBAL_MAP_PAGE, &[&row, &[0; 133]], budget)
 }
 
-fn inline_map_row(
-    pages: &[u64],
-    budget: &mut ResourceBudget,
-) -> Result<[u8; 133], BootstrapComposeError> {
+fn inline_map_row(pages: &[u64], budget: &mut ResourceBudget) -> Result<[u8; 133], ComposeError> {
     let mut map =
         InlineUsageMapEncoder::new(PageNumber::new(0), ByteCount::new(MAP_BITMAP_BYTES), budget)?;
     for &page in pages {
@@ -215,10 +203,7 @@ fn inline_map_row(
     Ok(row)
 }
 
-fn single_map_page(
-    pages: &[u64],
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+fn single_map_page(pages: &[u64], budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
     let row = inline_map_row(pages, budget)?;
     data_page(HEADER_PAGE, &[&row], budget)
 }
@@ -226,7 +211,7 @@ fn single_map_page(
 fn objects_map_page(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let owned = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let available = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
     let empty = inline_map_row(&[], budget)?;
@@ -239,7 +224,7 @@ fn objects_map_page(
     data_page(HEADER_PAGE, &rows, budget)
 }
 
-fn shared_map_page(budget: &mut ResourceBudget) -> Result<PageImage, BootstrapComposeError> {
+fn shared_map_page(budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
     let ace_owned = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
     let ace_available = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
     let ace_index = inline_map_row(&[ACES_OBJECT_ID_ROOT], budget)?;
@@ -270,7 +255,7 @@ fn data_page(
     owner: u64,
     rows: &[&[u8]],
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(owner), budget)?;
     for row in rows {
         builder.append_row(row, budget)?;
@@ -288,7 +273,7 @@ fn data_page(
 fn definition_page(
     spec: &TableDefinitionSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut bytes = [0_u8; PAGE_BYTES];
     encode_table_definition(spec, &mut bytes, budget)?;
     Ok(PageImage::from_bytes(bytes))
@@ -429,7 +414,7 @@ fn catalog_seeds<'a>(create: Option<&PlannedCreate<'a>>) -> impl Iterator<Item =
 fn objects_data_page(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
     for seed in catalog_seeds(create) {
@@ -443,7 +428,7 @@ fn encode_catalog_row(
     seed: CatalogSeed<'_>,
     output: &mut [u8],
     budget: &mut ResourceBudget,
-) -> Result<usize, BootstrapComposeError> {
+) -> Result<usize, ComposeError> {
     let values = [
         RowValue::Long(seed.id),
         RowValue::Long(seed.parent),
@@ -510,7 +495,7 @@ fn ace_seeds(create: Option<&PlannedCreate<'_>>) -> impl Iterator<Item = AceSeed
 fn aces_data_page(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_ACES_ROOT), budget)?;
     let mut row = [0_u8; 64];
     for seed in ace_seeds(create) {
@@ -529,7 +514,7 @@ fn aces_data_page(
 fn finish_data_builder(
     builder: DataPageBuilder,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let free = u16::try_from(builder.free_bytes().get()).map_err(|_| Error::IntegerConversion {
         value: u128::from(builder.free_bytes().get()),
         target: "u16",
@@ -562,7 +547,7 @@ impl OwnedIndexEntry {
         entry.row = row;
         entry
     }
-    fn name(parent: i32, name: &[u8], row: u8) -> Result<Self, BootstrapComposeError> {
+    fn name(parent: i32, name: &[u8], row: u8) -> Result<Self, ComposeError> {
         let mut entry = Self::EMPTY;
         entry.len = encode_catalog_name_key(parent, name, &mut entry.key)?;
         entry.row = row;
@@ -573,7 +558,7 @@ impl OwnedIndexEntry {
 fn objects_parent_name_index(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
     let count = if create.is_some() { 9 } else { 8 };
     for (row, seed) in catalog_seeds(create).enumerate() {
@@ -590,7 +575,7 @@ fn objects_parent_name_index(
 fn objects_id_index(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 9];
     let count = if create.is_some() { 9 } else { 8 };
     for (row, seed) in catalog_seeds(create).enumerate() {
@@ -607,7 +592,7 @@ fn objects_id_index(
 fn aces_index(
     create: Option<&PlannedCreate<'_>>,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let mut entries = [OwnedIndexEntry::EMPTY; 18];
     let mut count = 0;
     for (row, seed) in ace_seeds(create).enumerate() {
@@ -631,10 +616,7 @@ fn sort_index_entries(entries: &mut [OwnedIndexEntry]) {
     });
 }
 
-fn empty_index_page(
-    owner: u64,
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+fn empty_index_page(owner: u64, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
     index_page(owner, 0, &[], budget)
 }
 
@@ -643,7 +625,7 @@ fn index_page(
     row_page: u64,
     entries: &[OwnedIndexEntry],
     budget: &mut ResourceBudget,
-) -> Result<PageImage, BootstrapComposeError> {
+) -> Result<PageImage, ComposeError> {
     let needed = entries
         .iter()
         .try_fold(0_usize, |total, entry| total.checked_add(entry.len + 4))
@@ -651,7 +633,7 @@ fn index_page(
             operation: "size bootstrap index entries",
         })?;
     if needed > INDEX_ENTRY_AREA_LEN {
-        return Err(BootstrapComposeError::IndexPageFull {
+        return Err(ComposeError::IndexPageFull {
             needed,
             available: INDEX_ENTRY_AREA_LEN,
         });
