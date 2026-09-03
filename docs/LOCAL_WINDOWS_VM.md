@@ -251,10 +251,12 @@ not an infrastructure retry.
 library-composed multi-table database. It compares one deterministic candidate
 holding the exact `EXP-0087` Alpha, Beta, Gamma, and Delta tables, composed with
 null catalog `LvProp` values and no later-create `LvProp` pages, with a fresh
-DAO control that creates the same four tables in the same order. Do not run it
-until its exact plan is merged and a human explicitly authorizes the one
-attempt. Any failure after the first DAO control mutation is a result, not an
-infrastructure retry.
+DAO control that creates the same four tables in the same order. `EXP-0108`
+preregistered it; its first dispatch failed before any experimental DAO
+mutation because the runner dropped empty optional arguments. `EXP-0109`
+pinned the corrected runner and `EXP-0110` records its one authorized run as
+accepted for that exact candidate identity, without a compatibility or support
+claim.
 
 ## Interactive discovery loop
 

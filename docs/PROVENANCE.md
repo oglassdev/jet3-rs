@@ -9919,6 +9919,94 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent review; no experimental acquisition has occurred
 
 
+### EXP-0110 — Accepted multi-table create result
+
+- Recorded: 2026-09-03, Claude Fable 5.1
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from the canonical analyzer report; exact-candidate read observation
+  only, not a general writer, compatibility, or support result
+- Question: does DAO 3.6 read the exact composed database holding the
+  `EXP-0087` Alpha, Beta, Gamma, and Delta tables unchanged, with the same
+  bounded schema semantics as a fresh DAO control that creates the same four
+  tables in the same order?
+- Origin and binding: project-authored clean-room experiment using the exact
+  `EXP-0109` successor preregistration merged as commit
+  `ea493e1020f29045bb1401ec897bcc15dbfa4bfd` (PR `#186`) with plan SHA-256
+  `5778f3b561de27bc3506fd53b3aea9f6be894b05b205e14743ea49806a14aeb8`. The
+  staged runner, probe, dispatcher, publisher, producer, analyzer, and all
+  manifest-pinned candidate source files matched the merged preregistration
+  before staging and again before analysis.
+- Authorization and dispatch: after merge, the user's standing authorization
+  for this required experiment covered one local-VM acquisition. Run
+  `20260903T221303Z-multi-table` was dispatched exactly once and was not
+  retried. The earlier `EXP-0108` dispatch `20260903T220845Z-multi-table`
+  failed before any experimental DAO mutation and produced no observation.
+- Environment: Windows NT 10.0.20348.0 build 20348 on AMD64; x86 Windows
+  PowerShell Desktop 5.1.20348.558; .NET 4.0.30319.42000; culture and UI
+  culture `en-US`; ANSI code page 1252; OEM code page 437; `Pacific Standard
+  Time` at UTC-07:00. The accepted x86 `DAO.DBEngine.36` provider reported
+  version 3.6 from `dao360.dll` file version 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Protocol and validation: before the first experimental DAO mutation, the
+  producer copied and identity-checked all three candidate replicas. It then
+  created three fresh DAO controls holding Alpha, Beta, Gamma, and Delta in
+  create order and ran all eight ordered read-only endpoints, each covering
+  all four user tables, over the candidate and control of each replica. Every
+  replica and image reported `pass`. The pinned analyzer rechecked the exact
+  job-result shape, plan and candidate pins, retained-file identities, bounds,
+  inventory, control size and semantics, field types and sizes, index flags,
+  the unchanged-image gate, and cross-replica agreement before applying the
+  preregistered decision rule. Rerunning the staged analyzer on the host
+  reproduced the report byte for byte.
+- Artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `c26e49147783edc857b79d1dadc7b3b39135c9a0fffd09521bccfd54feb0e33b`;
+  external `multi-table-create-job-result.json`, 88,109 bytes, SHA-256
+  `9aefe3e1f422e1d6ee3d298823e8360fa1c13001292ad473c1ce14b759fea502`;
+  external `result.json`, 104,637 bytes, SHA-256
+  `5ba7139e7183dbb297bec3137e0f923d4d7735b789bc760bb9e01438f39bdfc9`;
+  external canonical `multi-table-create-report.json`, 2,081 bytes, SHA-256
+  `d4f06b024a949fbb68349e4ce539ff50af30fd9ad584e9dab218178a4ee696a9`.
+- Retained candidates: each candidate replica remained 63,488 bytes at SHA-256
+  `f4bad46de7c24ba92c0c9472d128eed48a2dbf1469594372d1098068940545ee`.
+- Retained controls: replicas 1--3 remained 63,488 bytes at SHA-256
+  `25f6a4bcf7f15bfaad460d2dce103017c949326b4ed302a999546c83852fdc0f`,
+  `3a6f6506b9143b6105f66563928c8e2b390eb72b4c3a2a8f6b38ed6530ec35df`, and
+  `80fa4119fb356afc90abbff2e0e97ee32dbb41a1ae24167e4d879cc23f8e4b8e`. All
+  six images had identical size and SHA-256 before and after DAO access; the
+  retained MDB inventory totals 380,928 bytes.
+- Observation: the canonical report has status `accepted`, the `quad`
+  question has status `observed_accepted`, and `compatibility_claim=false`
+  and `support_movement=false`. In all three replicas the candidate and the
+  fresh control completed `open_database`, `version`, `tabledefs`,
+  `direct_lookup`, `fields`, `indexes`, `snapshot`, and `document`. Each
+  candidate's normalized observation matched its control exactly and agreed
+  across replicas: `TableDefs` and the `Tables` documents held exactly Alpha,
+  Beta, Gamma, Delta, and the four system tables; Alpha and Gamma reported
+  `Id` Long size 4; Beta reported `Id` Long size 4, `Name` Text size 50, and
+  `Note` Memo size 0; Delta reported `Label` Text size 30; Gamma's
+  `PrimaryKey` was primary, unique, and required on ascending `Id`; Delta's
+  `ByLabel` was none of those on ascending `Label`; every snapshot was empty.
+- Interpretation: DAO 3.6 consumed unchanged the exact composed 31-page image
+  holding four user tables created from the `EXP-0087` later-create pattern,
+  with a null catalog `LvProp` on every table and a long-value page only for
+  the first create. This answers the `EXP-0108` question for that exact
+  candidate identity and permits a future separately reviewed implementation to
+  target that exact later-create construction, as `EXP-0107` did for the
+  compact continuation. It does not establish acceptance for other table
+  counts, orders, names, or schemas, a general `LvProp` or allocation rule,
+  five or more tables, later creates with more than one index or a
+  continuation, writer or publication correctness, compatibility, hosted
+  differential `#102`, or support-matrix movement. Any implementation built on
+  it must keep refusing layouts outside the observed construction and must not
+  describe its output as DAO-compatible.
+- Usage: issue `#100`; `EXP-0087`; `EXP-0091`; `EXP-0107`; `EXP-0108`;
+  `EXP-0109`; future separately reviewed bounded multi-table implementation
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent outcome, artifact-identity, report-reproduction,
+  decision-rule, evidence-boundary, and false-claim review
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
