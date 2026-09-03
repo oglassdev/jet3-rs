@@ -9721,6 +9721,93 @@ Use `not applicable` explicitly rather than omitting a field.
 - Review: pending independent review; no acquisition has occurred
 
 
+### EXP-0107 — Accepted null-LvProp indexed and compact-continuation result
+
+- Recorded: 2026-09-03, OpenAI Codex
+- Kind: validated SHA-256-pinned, development-only local DAO accepted result
+  derived from the canonical analyzer report; exact-candidate read observation
+  only, not a general writer, compatibility, or support result
+- Question: does DAO 3.6 read the exact null-`LvProp` Alpha, three-index
+  `IdxTri`, and compact one-continuation `ContOneX` candidates unchanged with
+  the same bounded schema semantics as fresh same-schema controls?
+- Origin and binding: project-authored clean-room experiment using the exact
+  `EXP-0106` preregistration merged as commit
+  `c2038cefeca3db18c9eebf8592e6741d39dcac7f` (PR `#179`) with plan SHA-256
+  `47ff5d3d9ac56f5d71a022e9d7221160577a2be1026977abded98b58e7ab40aa`.
+  All seven staged executable inputs and all 101 manifest-pinned candidate
+  source files matched the merged preregistration.
+- Authorization and dispatch: after merge, the user explicitly authorized the
+  single local-VM acquisition. Run `20260903T030100Z-lvprop-schemas` was
+  dispatched exactly once and was not retried. That dispatch count is the
+  observed operator action, not a fact derived from retained artifacts.
+- Environment: Windows NT 10.0.20348.0 build 20348 on AMD64; x86 Windows
+  PowerShell Desktop 5.1.20348.558; .NET 4.0.30319.42000; culture and UI
+  culture `en-US`; ANSI code page 1252; OEM code page 437; `Pacific Standard
+  Time` at UTC-07:00. The accepted x86 `DAO.DBEngine.36` provider reported
+  version 3.6 from `dao360.dll` file version 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Protocol and validation: before the first experimental DAO mutation, the
+  producer copied and identity-checked all nine candidate replicas. It then
+  created nine fresh DAO controls and ran all eight ordered read-only endpoints
+  over candidate and control Alpha, indexed, and wide images in each of three
+  replicas. Every replica and image reported `pass`. The pinned analyzer
+  rechecked the exact job-result shape, plan and candidate pins, retained-file
+  identities, bounds, inventory, controls, schema semantics, unchanged-image
+  gate, and cross-replica agreement before applying the preregistered decision
+  rule. Rerunning the staged analyzer reproduced the report byte-for-byte.
+- Artifacts: external `environment.json`, 4,277 bytes, SHA-256
+  `07cd01ea7cf53aeea79c99e6779960e61e4f039ab1b762d25713c6da6a631291`;
+  external `lvprop-null-schemas-job-result.json`, 287,019 bytes, SHA-256
+  `d0bc2f4c35c67116d18a0f123e51f9a0d920679c0a70a465f39450b80e827a89`;
+  external `result.json`, 343,855 bytes, SHA-256
+  `a755d7cf26a5a1d524cc81e52f2c959970aa3743d9c4af296fa07921f743f0f9`;
+  external canonical `lvprop-null-schemas-report.json`, 5,531 bytes, SHA-256
+  `3fa9328d03cdeb0ef1da412c0be0a846227392f3ad027d64fe81c7b966481f7d`.
+- Retained candidates: each Alpha replica remained 47,104 bytes at SHA-256
+  `c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21`;
+  each indexed replica remained 53,248 bytes at SHA-256
+  `bb7e0d408a5e844dd0fbe6eae008a4ca31bd83f376e611339ad5f8385572835e`;
+  and each wide replica remained 49,152 bytes at SHA-256
+  `81cfd7b86616f9928b71cab4398f26305d5dafdbe4bfa0a514e6f9b4146f1cf6`.
+- Retained controls: Alpha replicas 1--3 remained 47,104 bytes at SHA-256
+  `8f7d96f7cb46929f54790971e53bdf25d5c1ff583a8aaf65e03193098cf3e501`,
+  `c1813e87cdadb0637f547dfa4d8395fc14f3ad5725769870dd93544ee20981fb`,
+  and `495e6dc423360150437aedfb658a3341ddf29cf69d2db617e6192c853b3c15e5`.
+  Indexed controls remained 53,248 bytes at SHA-256
+  `bae6ff198fe5b267ab00522fd246aceb928dac1368bc39b84ec4f7092f743e04`,
+  `d9247ab276f66fecddc5cef5dcdb6c636f2cf0c9990eaff12b9ee12dcc1bf4bf`,
+  and `749f5bda65cd02fc3478de85e5a14e404ac2f336ba18a32c171837cb7b6d2d9a`.
+  Wide controls remained 141,312 bytes at SHA-256
+  `bf0a3100c693656b3e34f6456e300e7c2eb442f31d960b01548b6c1793d741f0`,
+  `a233908a65a7c76aa3a22c0f637c085ec70608f7b34c39065f14cad581ba111d`,
+  and `951abd0a0fba4fd12c74e2c2062f56201c233d82b5a4ac57e8648646ed9934ae`.
+  All eighteen images had identical size and SHA-256 before and after DAO
+  access; the retained MDB inventory totals 1,173,504 bytes.
+- Observation: the canonical report has status `accepted`; `alpha`, `indexed`,
+  and `wide` each have status `observed_accepted`; and
+  `compatibility_claim=false` and `support_movement=false`. In all three
+  replicas every candidate and fresh control completed `open_database`,
+  `version`, `tabledefs`, `direct_lookup`, `fields`, `indexes`, `snapshot`, and
+  `document`. Each candidate's normalized schema observation matched its fresh
+  same-schema control exactly and agreed across replicas.
+- Interpretation: DAO 3.6 consumed unchanged the exact composed `IdxTri` image
+  with three indexes and a null catalog `LvProp`, and the exact composed
+  70-field `ContOneX` image with a null catalog `LvProp` and one compact
+  continuation at page 23. This answers issue `#178` for those exact candidate
+  identities and permits a future separately reviewed implementation to target
+  that exact compact continuation construction. It does not establish null
+  `LvProp` acceptance for arbitrary schemas, page 23 as a general placement
+  rule, other one-continuation sizes or schemas, multiple continuations,
+  allocation policy, writer or publication correctness, compatibility, hosted
+  differential `#102`, or support-matrix movement.
+- Usage: issue `#178`; `EXP-0091`; `EXP-0093`; `EXP-0105`; `EXP-0106`; future
+  separately reviewed bounded continuation implementation
+- Rights: all project-generated MDBs and provider outputs remain outside the
+  repository and are neither committed nor redistributed
+- Review: pending independent outcome, artifact-identity, report-reproduction,
+  decision-rule, evidence-boundary, and false-claim review
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
