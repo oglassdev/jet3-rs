@@ -12,16 +12,11 @@
 //! from `EXP-0093`. Any composed image other than the `Alpha` transition is
 //! an unvalidated candidate until a DAO differential accepts it.
 
-#![allow(
-    dead_code,
-    reason = "crate-private writer slice awaiting DAO validation"
-)]
-
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
-use crate::table_schema_plan::{TableSchemaPlanError, TableSchemaSpec};
+use crate::table_schema_plan::{TableSchemaPlanError, TableSpec};
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
@@ -76,13 +71,15 @@ const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
     0x60, 0x26, 0x5f, 0x95, 0xf8, 0xd0, 0x89, 0x24, 0x85, 0x67, 0xc6, 0x1f, 0x27, 0x44, 0xd2, 0xee,
     0xcf, 0x65, 0xed, 0xff, 0x07, 0xc7, 0x46, 0xa1, 0x78, 0x16, 0x0c, 0xed, 0xe9, 0x2d,
 ];
+#[cfg(test)]
 const ALPHA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
     b"Id",
     ColumnPhysicalType::Long,
     ColumnStorageKind::Fixed,
     4,
 )];
-const ALPHA_SPEC: TableSchemaSpec<'static> = TableSchemaSpec {
+#[cfg(test)]
+const ALPHA_SPEC: TableSpec<'static> = TableSpec {
     name: b"Alpha",
     columns: &ALPHA_COLUMNS,
     indexes: &[],
@@ -96,9 +93,10 @@ const MSYS_DB_ID: i32 = 0x1000_0000;
 
 #[path = "bootstrap_compose_error.rs"]
 mod error;
-pub(crate) use error::BootstrapComposeError;
+pub use error::BootstrapComposeError;
 
 /// Composes the deterministic 20-page empty image established by `EXP-0073`.
+#[cfg(test)]
 pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
@@ -108,6 +106,7 @@ pub(crate) fn compose_empty_database(
 
 /// Composes the empty-to-`Alpha(Id Long)` transition from `EXP-0073` in the
 /// null-`LvProp` form `EXP-0091` accepted.
+#[cfg(test)]
 pub(crate) fn compose_alpha_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
@@ -117,7 +116,7 @@ pub(crate) fn compose_alpha_database(
 /// Composes the empty database plus one created user table, following the
 /// `EXP-0091`, `EXP-0093`, and `EXP-0105` first-create observations.
 pub(crate) fn compose_table_database(
-    spec: &TableSchemaSpec<'_>,
+    spec: &TableSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, BootstrapComposeError> {
     let planned = PlannedCreate::new(spec)?;

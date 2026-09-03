@@ -100,7 +100,7 @@ pub(crate) fn plan_existing_pages(
 
 /// Structured failure while planning one fresh page append.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum AppendPageError {
+pub enum AppendPageError {
     /// The current page count cannot advance after another append.
     PageCountOverflow {
         /// Page count that could not be incremented.

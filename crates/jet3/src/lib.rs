@@ -1,5 +1,40 @@
 #![forbid(unsafe_code)]
-#![doc = "Safe, clean-room primitives for Access 97 / Jet 3 databases."]
+//! Safe, clean-room primitives for Access 97 / Jet 3 databases.
+//!
+//! Reading starts at [`DatabaseReader`]. Creating a fresh database holding
+//! one empty user table starts at [`create_database`]:
+//!
+//! ```no_run
+//! use jet3::{
+//!     ColumnPhysicalType, ColumnSpec, ColumnStorageKind, IndexDirection, IndexFieldSpec,
+//!     IndexKind, IndexSpec, ResourceBudget, ResourceLimits, TableSpec, create_database,
+//! };
+//!
+//! let columns = [
+//!     ColumnSpec::new(b"Id", ColumnPhysicalType::Long, ColumnStorageKind::Fixed, 4),
+//!     ColumnSpec::new(b"Name", ColumnPhysicalType::Text, ColumnStorageKind::Variable, 50),
+//! ];
+//! let indexes = [IndexSpec {
+//!     name: b"PrimaryKey",
+//!     fields: &[IndexFieldSpec {
+//!         column: 0,
+//!         direction: IndexDirection::Ascending,
+//!     }],
+//!     kind: IndexKind::Primary,
+//! }];
+//! let spec = TableSpec {
+//!     name: b"People",
+//!     columns: &columns,
+//!     indexes: &indexes,
+//! };
+//! let mut budget = ResourceBudget::new(ResourceLimits::default());
+//! create_database("people.mdb", &spec, &mut budget)?;
+//! # Ok::<(), jet3::CreateDatabaseError>(())
+//! ```
+//!
+//! The created image is reopened structurally before publication. That
+//! self-check is not evidence of Microsoft Access or DAO compatibility; only
+//! a recorded DAO differential can establish that.
 
 pub mod allocation;
 pub mod allocation_traverse;
@@ -15,6 +50,7 @@ pub mod catalog_record_writer;
 pub mod column_definition;
 pub mod column_definition_writer;
 pub mod commit_state;
+pub mod create;
 mod data_page_directory;
 pub mod database;
 pub mod database_header;
@@ -63,11 +99,16 @@ pub use allocation_traverse::{
     AllocationTraversalError, OwnedPages, PageChainWalker, ReachedMapPage, VisitedPages,
     follow_map_page_reference,
 };
-pub use atomic::{PublishError, PublishStage, atomic_update, atomic_update_with_hook};
+pub use atomic::{
+    PublishError, PublishStage, atomic_create, atomic_create_with_hook, atomic_update,
+    atomic_update_with_hook,
+};
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
+pub use bootstrap_composer::BootstrapComposeError;
 pub use candidate::{CandidateError, RawJet3Candidate};
 pub use catalog::{CatalogCursor, CatalogError};
+pub use catalog_name_key::CatalogNameKeyError;
 pub use catalog_record::{
     CatalogName, CatalogNameEncoding, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
     CatalogRecord, CatalogRecordError,
@@ -87,6 +128,7 @@ pub use commit_state::{
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
     read_commit_region_into,
 };
+pub use create::{CandidateCheckError, CreateDatabaseError, create_database};
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
@@ -114,6 +156,7 @@ pub use long_value_map::{LONG_VALUE_MAP_GROUP_LEN, LongValueMapDefinition, LongV
 pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
 pub use offset::{ByteCount, ByteOffset};
 pub use page::{PageGeometry, PageNumber, PageOffset};
+pub use page_append_plan::AppendPageError;
 pub use page_image::{DataPageBuilder, PAGE_BYTES, PageImage, PageImageError, page_tag};
 pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
@@ -128,6 +171,7 @@ pub use table_definition_writer::{
     LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
     encode_table_definition, table_definition_len,
 };
+pub use table_schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 pub use usage_map_writer::{
@@ -135,6 +179,7 @@ pub use usage_map_writer::{
     encode_indirect_references, indirect_record_len,
 };
 pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
+pub use whole_file_plan::WholeFilePlanError;
 
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";

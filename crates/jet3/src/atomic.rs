@@ -1,4 +1,5 @@
-//! Copy-on-write publication for updates to an existing file.
+//! Copy-on-write publication for updates to an existing file, and
+//! link-on-absent publication for creating a new one.
 //!
 //! A private copy is created in the target's directory, mutated, independently
 //! validated, synchronized, identity-checked against its retained file handle,
@@ -276,6 +277,118 @@ where
     })();
 
     match update_result {
+        Err(mut error) if !error.stage().is_post_publication() => {
+            if let Err(cleanup_error) = private.cleanup(&mut before_stage) {
+                error.attach_cleanup_error(cleanup_error);
+            }
+            Err(error)
+        }
+        result => result,
+    }
+}
+
+/// Creates a new file through a validated same-directory private file.
+///
+/// `target` must not exist; an existing entry of any kind fails at
+/// [`PublishStage::PrivateCopyCreation`] with an `AlreadyExists` I/O error
+/// and is left untouched. `write` receives the empty private file, and
+/// `validate` receives the private path exactly as in [`atomic_update`].
+/// Publication links the private file to `target` without replacing anything
+/// that appeared there in the meantime, then removes the private entry. Any
+/// failure before publication removes the private file, so a target that was
+/// absent stays absent.
+///
+/// [`PublishStage::Copy`] and [`PublishStage::Metadata`] are never visited.
+/// The validator is a publication prerequisite only; it is not independent
+/// verification or compatibility evidence.
+pub fn atomic_create<W, V, WE, VE>(
+    target: impl AsRef<Path>,
+    write: W,
+    validate: V,
+) -> Result<(), PublishError>
+where
+    W: FnOnce(&mut File) -> Result<(), WE>,
+    V: FnOnce(&Path) -> Result<(), VE>,
+    WE: StdError + Send + Sync + 'static,
+    VE: StdError + Send + Sync + 'static,
+{
+    atomic_create_with_hook(target, write, validate, |_| Ok::<(), Infallible>(()))
+}
+
+/// Creates a new file with a hook before every publication stage.
+///
+/// Hook semantics match [`atomic_update_with_hook`]. A failure to remove the
+/// private entry after a successful link is reported at
+/// [`PublishStage::DirectorySync`]: the target is published, but a second
+/// directory entry for it remains.
+pub fn atomic_create_with_hook<W, V, H, WE, VE, HE>(
+    target: impl AsRef<Path>,
+    write: W,
+    validate: V,
+    mut before_stage: H,
+) -> Result<(), PublishError>
+where
+    W: FnOnce(&mut File) -> Result<(), WE>,
+    V: FnOnce(&Path) -> Result<(), VE>,
+    H: FnMut(PublishStage) -> Result<(), HE>,
+    WE: StdError + Send + Sync + 'static,
+    VE: StdError + Send + Sync + 'static,
+    HE: StdError + Send + Sync + 'static,
+{
+    let target = target.as_ref();
+    let parent = normalized_parent(target);
+    match fs::symlink_metadata(target) {
+        Ok(_) => {
+            return Err(PublishError::new(
+                PublishStage::PrivateCopyCreation,
+                io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "atomic create target already exists",
+                ),
+            ));
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(PublishError::new(PublishStage::PrivateCopyCreation, error));
+        }
+    }
+    call_hook(&mut before_stage, PublishStage::PrivateCopyCreation)?;
+    let mut private = PrivateCopy::create(target, parent)
+        .map_err(|error| PublishError::new(PublishStage::PrivateCopyCreation, error))?;
+
+    let create_result: Result<(), PublishError> = (|| {
+        call_hook(&mut before_stage, PublishStage::Mutation)?;
+        write(private.file_mut())
+            .map_err(|error| PublishError::new(PublishStage::Mutation, error))?;
+
+        call_hook(&mut before_stage, PublishStage::Validation)?;
+        validate(private.path())
+            .map_err(|error| PublishError::new(PublishStage::Validation, error))?;
+
+        call_hook(&mut before_stage, PublishStage::FileSync)?;
+        private
+            .file_mut()
+            .sync_all()
+            .map_err(|error| PublishError::new(PublishStage::FileSync, error))?;
+
+        call_hook(&mut before_stage, PublishStage::PrePublish)?;
+        call_hook(&mut before_stage, PublishStage::Publish)?;
+        private
+            .verify_path_identity()
+            .map_err(|error| PublishError::new(PublishStage::Publish, error))?;
+        platform_publish::link_new(private.path(), target)
+            .map_err(|error| PublishError::new(PublishStage::Publish, error))?;
+        private.mark_published();
+
+        call_hook(&mut before_stage, PublishStage::DirectorySync)?;
+        fs::remove_file(private.path())
+            .map_err(|error| PublishError::new(PublishStage::DirectorySync, error))?;
+        platform_publish::sync_directory(parent)
+            .map_err(|error| PublishError::new(PublishStage::DirectorySync, error))?;
+        Ok(())
+    })();
+
+    match create_result {
         Err(mut error) if !error.stage().is_post_publication() => {
             if let Err(cleanup_error) = private.cleanup(&mut before_stage) {
                 error.attach_cleanup_error(cleanup_error);
@@ -582,6 +695,11 @@ mod platform_publish {
         fs::rename(private, target)
     }
 
+    /// Publishes `private` at `target` only if `target` is still absent.
+    pub(super) fn link_new(private: &Path, target: &Path) -> io::Result<()> {
+        fs::hard_link(private, target)
+    }
+
     pub(super) fn sync_directory(parent: &Path) -> io::Result<()> {
         File::open(parent)?.sync_all()
     }
@@ -604,6 +722,10 @@ mod platform_publish {
     }
 
     pub(super) fn replace(_private: &Path, _target: &Path) -> io::Result<()> {
+        Err(unsupported())
+    }
+
+    pub(super) fn link_new(_private: &Path, _target: &Path) -> io::Result<()> {
         Err(unsupported())
     }
 

@@ -4,7 +4,7 @@ use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 // EXP-0073/EXP-0085: the accepted Alpha image's appended page numbers.
 const ALPHA_ROOT: u64 = 20;
 const ALPHA_MAP_PAGE: u64 = 21;
-use crate::table_schema_plan::{TableSchemaSpec, plan_table_schema};
+use crate::table_schema_plan::{TableSpec, plan_table_schema};
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, ColumnSpec,
     ColumnStorageKind, DatabaseReader, JET3_PAGE_SIZE, MapRowLocator, PageKind, PageNumber,
@@ -594,7 +594,7 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
         4,
     )];
     let plan = plan_table_schema(
-        &TableSchemaSpec {
+        &TableSpec {
             name: b"Alpha",
             columns: &columns,
             indexes: &[],
