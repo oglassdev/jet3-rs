@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]
+    [ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]
     [string]$Job,
     [Parameter(Mandatory = $true)]
     [string]$Source,
@@ -587,6 +587,58 @@ switch ($Job) {
         foreach ($name in $actual) {
             [void]$names.Add($name)
         }
+    }
+    "lvprop-null-schemas" {
+        [void]$names.Add("lvprop-null-schemas-job-result.json")
+        $jobResultPath = Join-Path $Source "lvprop-null-schemas-job-result.json"
+        if (-not (Test-Path -LiteralPath $jobResultPath -PathType Leaf)) {
+            throw "Null-LvProp schema result is missing."
+        }
+        $jobResult = Get-Content -LiteralPath $jobResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $referenced = New-Object Collections.ArrayList
+        foreach ($replica in @($jobResult.replicas)) {
+            foreach ($image in @($replica.images)) {
+                [void]$referenced.Add([string]$image.database)
+            }
+        }
+        if ($referenced.Count -gt 18 -or
+            @($referenced | Select-Object -Unique).Count -ne $referenced.Count) {
+            throw "Null-LvProp schema result exceeds its unique 18-database bound."
+        }
+        $allowed = New-Object Collections.ArrayList
+        foreach ($replica in 1..3) {
+            foreach ($kind in @("candidate", "control")) {
+                foreach ($schema in @("alpha", "indexed", "wide")) {
+                    [void]$allowed.Add("$kind-r$replica-$schema.mdb")
+                }
+            }
+        }
+        if (@($referenced | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
+            throw "Null-LvProp schema result references an unexpected database."
+        }
+        $allowedSorted = @($allowed | Sort-Object)
+        if ([string]$jobResult.status -ceq "pass" -and
+            (@($referenced | Sort-Object) -join "`n") -cne ($allowedSorted -join "`n")) {
+            throw "Passing null-LvProp schema result omits a database."
+        }
+        $actualItems = @(Get-ChildItem -LiteralPath $Source -File -Filter "*.mdb")
+        foreach ($item in $actualItems) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $item.Length -lt 2048 -or ($item.Length % 2048) -ne 0 -or
+                $item.Length -gt 163840) {
+                throw "Null-LvProp schema output MDB violates the 80-page bound."
+            }
+        }
+        $actual = @($actualItems | ForEach-Object { $_.Name } | Sort-Object)
+        if (@($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0 -or
+            @($referenced | Where-Object { $_ -cnotin $actual }).Count -ne 0) {
+            throw "Null-LvProp schema MDB inventory differs from its result."
+        }
+        if ([string]$jobResult.status -ceq "pass" -and
+            ($actual -join "`n") -cne ($allowedSorted -join "`n")) {
+            throw "Passing null-LvProp schema output omits an MDB."
+        }
+        foreach ($name in $actual) { [void]$names.Add($name) }
     }
     "bootstrap-composer-validation" {
         [void]$names.Add("bootstrap-composer-validation-job-result.json")

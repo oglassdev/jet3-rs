@@ -79,6 +79,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 "definition-continuation",
                 "extended-names",
                 "lvprop-null",
+                "lvprop-null-schemas",
             ),
         )
         self.assertNotIn("command", {action.dest for action in parser._actions})
@@ -126,6 +127,7 @@ class WindowsDaoDevClientTests(unittest.TestCase):
                 CLIENT.DEFINITION_CONTINUATION_JOB.name,
                 CLIENT.EXTENDED_NAMES_JOB.name,
                 CLIENT.LVPROP_NULL_JOB.name,
+                CLIENT.LVPROP_NULL_SCHEMAS_JOB.name,
             }
             if CLIENT.MULTIPLE_INDEXES_JOB.is_file():
                 expected.add(CLIENT.MULTIPLE_INDEXES_JOB.name)
@@ -403,11 +405,18 @@ class WindowsDaoDevClientTests(unittest.TestCase):
         self.assertEqual(binding.report_name, "extended-names-report.json")
         self.assert_plan_bound_job("extended-names", "EXTENDED_NAMES_PLAN")
 
-    def test_lvprop_null_binds_issue_149_and_verifies_a_pinned_plan(self) -> None:
+    def test_lvprop_null_binds_issue_149(self) -> None:
         binding = CLIENT.plan_binding("lvprop-null")
         self.assertEqual(binding.issue, 149)
         self.assertEqual(binding.document_type, "dao_lvprop_null_plan")
-        self.assert_plan_bound_job("lvprop-null", "LVPROP_NULL_PLAN")
+
+    def test_lvprop_null_schemas_binds_issue_178_and_verifies_plan(self) -> None:
+        binding = CLIENT.plan_binding("lvprop-null-schemas")
+        self.assertEqual(binding.issue, 178)
+        self.assertEqual(binding.document_type, "dao_lvprop_null_schemas_plan")
+        self.assertEqual(binding.job_result_name, "lvprop-null-schemas-job-result.json")
+        self.assertEqual(binding.report_name, "lvprop-null-schemas-report.json")
+        self.assert_plan_bound_job("lvprop-null-schemas", "LVPROP_NULL_SCHEMAS_PLAN")
 
     def test_plan_binding_requires_its_exact_issue(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -498,7 +507,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_remote_is_exploratory_and_allowlisted(self) -> None:
         self.assertIn(
-            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]',
+            '[ValidateSet("provider-probe", "create-empty", "opening-matrix", "allocation-map", "catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]',
             self.remote,
         )
         self.assertIn("development_only = $true", self.remote)
@@ -618,8 +627,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_row_job_is_repeated_bounded_and_never_compacts(self) -> None:
         row = CLIENT.ROW_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]', self.dispatch)
         self.assertIn("$MaximumRows = 64", row)
         self.assertIn("foreach ($replica in 1..3)", row)
         for scenario in (
@@ -639,8 +648,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_value_job_is_repeated_bounded_and_never_compacts(self) -> None:
         value = CLIENT.VALUE_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]', self.dispatch)
         self.assertIn("$MaximumDatabaseBytes = 4MB", value)
         self.assertIn("foreach ($replica in 1..3)", value)
         self.assertIn("$LongLengths = @(32, 512, 2048, 4096)", value)
@@ -651,8 +660,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
 
     def test_index_job_is_staged_bounded_and_never_compacts(self) -> None:
         index = CLIENT.INDEX_JOB.read_text(encoding="utf-8")
-        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")', self.remote)
-        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null")]', self.dispatch)
+        self.assertIn('$Job -in @("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")', self.remote)
+        self.assertIn('[ValidateSet("catalog", "table-definition", "row", "value", "index", "bootstrap-layout", "system-catalog", "long-value-maps", "long-value-maps-followup", "bootstrap-composer-semantics", "bootstrap-composer-validation", "schema-generalization", "multiple-indexes", "definition-continuation", "extended-names", "lvprop-null", "lvprop-null-schemas")]', self.dispatch)
         self.assertIn("$MaximumRows = 4096", index)
         self.assertIn("$MaximumDatabaseBytes = 16MB", index)
         for scenario in (
@@ -993,10 +1002,8 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
                 for value in plan["inputs"].values()
             )
         )
-        self.assertEqual(
-            CLIENT.verified_plan_sha256(binding),
-            "1ffa5af6bea302d89f61384fcb427dc889df9606e9c5f59db807d069da9b5c6f",
-        )
+        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
+            CLIENT.verified_plan_sha256(binding)
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
         self.assertIn('$ScenarioFields = @{ zero = 1; one = 70; two = 140 }', job)
         self.assertIn(
@@ -1148,6 +1155,60 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         )
         self.assertEqual(manifest["document_type"], "lvprop_null_candidate_sources")
         manifest_path = ROOT / plan["candidate_source_manifest"]["path"]
+        self.assertEqual(
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            plan["candidate_source_manifest"]["sha256"],
+        )
+
+    def test_lvprop_null_schemas_is_bounded_and_exactly_routed(self) -> None:
+        job = CLIENT.LVPROP_NULL_SCHEMAS_JOB.read_text(encoding="utf-8")
+        plan = json.loads(CLIENT.LVPROP_NULL_SCHEMAS_PLAN.read_text(encoding="utf-8"))
+        manifest_path = ROOT / plan["candidate_source_manifest"]["path"]
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertIn(
+            '"lvprop-null-schemas" = "oracle/windows-dao/scripts/dev/LvPropNullSchemas.DevJob.ps1"',
+            self.remote,
+        )
+        self.assertIn('"lvprop-null-schemas" { $LvPropNullSchemasJobPath }', self.dispatch)
+        self.assertIn(
+            '"lvprop-null-schemas" { "lvprop-null-schemas-job-result.json" }',
+            self.dispatch,
+        )
+        self.assertIn('"lvprop-null-schemas" {', self.publication)
+        self.assertIn("unique 18-database bound", self.publication)
+        for parameter in (
+            "-AlphaCandidatePath",
+            "-IndexedCandidatePath",
+            "-WideCandidatePath",
+        ):
+            self.assertIn(parameter, self.dispatch)
+        self.assertIn('OpenDatabase($Path, $false, $true)', job)
+        self.assertIn("foreach ($replica in 1..3)", job)
+        self.assertIn("Get-BoundedIdentity", job)
+        self.assertIn("[ref]$MutationStarted", job)
+        self.assertNotIn("CompactDatabase", job)
+        self.assertEqual(plan["document_type"], "dao_lvprop_null_schemas_plan")
+        self.assertEqual(plan["issue"], 178)
+        self.assertEqual(plan["execution"]["replicas"], 3)
+        self.assertEqual(
+            plan["execution"]["bounds"]["maximum_published_databases"], 18
+        )
+        self.assertEqual(
+            set(plan["candidates"]),
+            {"candidate_alpha", "candidate_indexed", "candidate_wide"},
+        )
+        self.assertEqual(
+            {entry["filename"] for entry in plan["candidates"].values()},
+            {
+                "lvprop-schemas-alpha.mdb",
+                "lvprop-schemas-indexed.mdb",
+                "lvprop-schemas-wide.mdb",
+            },
+        )
+        self.assertEqual(
+            manifest["document_type"], "lvprop_null_schemas_candidate_sources"
+        )
         self.assertEqual(
             hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
             plan["candidate_source_manifest"]["sha256"],

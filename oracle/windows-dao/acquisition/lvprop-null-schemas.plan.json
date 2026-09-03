@@ -1,0 +1,103 @@
+{
+  "document_type": "dao_lvprop_null_schemas_plan",
+  "experiment_id": "lvprop-null-schemas",
+  "issue": 178,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0091 accepted the exact null-LvProp Alpha image without repair, but did not establish null-LvProp acceptance for arbitrary schemas. EXP-0093 observed the exact IdxTri three-index schema with a non-null external LvProp. EXP-0105 observed the exact 70-field ContOneX schema with a continuation at page 68 and did not establish arbitrary continuation placement. PR #176 composes indexed null-LvProp candidates but refuses continuations; PR #177 adds publication without adding DAO evidence.",
+    "hypothesis_source": "Issue #178 proposes the smallest bounded discriminator for both open evidence gaps: compare the accepted Alpha null-LvProp control, an exact EXP-0093 schema composed with null LvProp, and an exact EXP-0105 one-continuation schema composed with compact page-23 placement against fresh same-schema DAO controls.",
+    "authorization": "Acquisition is forbidden until this exact plan, candidate source manifest, and every SHA-256-pinned input are reviewed, committed, and merged. A human must then explicitly authorize the one allowed local-VM dispatch.",
+    "attempt_policy": "Copy and identity-check every candidate replica before the first DAO mutation. Dispatch one three-replica run only. Once the first DAO CreateDatabase begins, any failure is a scientific result and must not be retried without another explicit human decision."
+  },
+  "inputs": {
+    "scripts/windows-dao-dev.py": "dd9adc38b0f347776063114a28b9ece772e313ff7bfbde760dc0ce626c2d40f7",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/dev/Invoke-Jet3DaoDevJob.ps1": "7f16bdc29fdd9b7f911b094bf494d69058f85baf7a2e29b887bbbe7725956eda",
+    "oracle/windows-dao/scripts/dev/Dispatch.DevJob.ps1": "b2807dcd20fbac1a05160ec304f27152d5db6aeb33a2da0815a01a61d914ba42",
+    "oracle/windows-dao/scripts/dev/Publish.DevJob.ps1": "27af6bee7bfd00b1601d17f5d827a6f83e9902c4be7bbcdc8f1d674ed242ae23",
+    "oracle/windows-dao/scripts/dev/LvPropNullSchemas.DevJob.ps1": "4e6f661f275e1ae3d37a52fa069d9423279218104a242e14f327793b1da1d4b6",
+    "oracle/windows-dao/scripts/lvprop_null_schemas.py": "9eb9d837a09f0e50e8f38302227836c280de6f467c4eae6cd9224719a3ebb44f"
+  },
+  "candidate_source_manifest": {
+    "path": "oracle/windows-dao/acquisition/lvprop-null-schemas.sources.json",
+    "sha256": "4b0b7682b0820bdd1e7e87155706baba171f1219a2b65f2ff3f054f60cb9fd40"
+  },
+  "candidates": {
+    "candidate_alpha": {
+      "filename": "lvprop-schemas-alpha.mdb",
+      "size": 47104,
+      "sha256": "c9d012d6277a0a35ae4248581fc9458d9b270e56277819e84dc7f1f5e8009e21"
+    },
+    "candidate_indexed": {
+      "filename": "lvprop-schemas-indexed.mdb",
+      "size": 53248,
+      "sha256": "bb7e0d408a5e844dd0fbe6eae008a4ca31bd83f376e611339ad5f8385572835e"
+    },
+    "candidate_wide": {
+      "filename": "lvprop-schemas-wide.mdb",
+      "size": 49152,
+      "sha256": "81cfd7b86616f9928b71cab4398f26305d5dafdbe4bfa0a514e6f9b4146f1cf6"
+    }
+  },
+  "candidate_invariants": {
+    "shared": "Each candidate contains one empty user table, a physically null catalog LvProp, and the retained empty mapped first-create LVAL page. Every candidate is generated deterministically from the manifest-pinned Rust source and checked through the project reader before its identity is admitted.",
+    "alpha": "The exact 23-page EXP-0091 accepted Alpha(Id Long) image is the positive candidate gate.",
+    "indexed": "The 26-page IdxTri candidate has Long fields Id, Code, and Sequence; physical indexes ZPrimary(Id ascending primary unique required), MUniqueX(Code descending unique), and ASecondx(Sequence ascending ordinary); and the EXP-0093 page order with roots 23 through 25.",
+    "wide": "The 24-page ContOneX candidate has the exact 70 Long field names from EXP-0105, a 2075-byte definition, and one test-only continuation placed at page 23 with root 20 pointing to it. This compact placement is the preregistered hypothesis, not an admitted allocation rule."
+  },
+  "execution": {
+    "environment": "The private local Windows development VM documented in docs/LOCAL_WINDOWS_VM.md, using x86 Windows PowerShell and DAO.DBEngine.36.",
+    "replicas": 3,
+    "attempts": 1,
+    "pre_mutation": "Generate the three candidates from manifest-pinned Rust source, stage and identity-check them, then copy and identity-check all nine candidate replicas before creating the first DAO control.",
+    "per_replica": "Create and close fresh DAO Jet 3 controls for Alpha, IdxTri, and ContOneX; then read the three pinned candidate copies and three controls through the same bounded endpoint sequence. Candidate opens are read-only. Record size and SHA-256 immediately before and after endpoint reads.",
+    "bounds": {
+      "maximum_replicas": 3,
+      "maximum_published_databases": 18,
+      "maximum_pages_per_database": 80,
+      "maximum_table_definitions": 16,
+      "maximum_fields_per_table": 80,
+      "maximum_indexes_per_table": 4,
+      "maximum_index_fields": 4,
+      "maximum_detail_characters": 512,
+      "maximum_job_json_bytes": 4194304
+    }
+  },
+  "endpoints": [
+    "OpenDatabase succeeds read-only",
+    "Database.Version is exactly 3.0",
+    "TableDefs is exactly the expected user table plus the four expected system tables",
+    "the user TableDef resolves by name",
+    "all fields enumerate with exact names, order, and Long type",
+    "all indexes enumerate with exact names, flags, key names, and directions after name normalization",
+    "OpenRecordset(snapshot) succeeds and is empty",
+    "the Tables document resolves by name and the document inventory is exact"
+  ],
+  "questions": {
+    "alpha": "Does the exact EXP-0091 null-LvProp Alpha candidate still pass unchanged with the expected fresh-control semantics in all replicas?",
+    "indexed": "Does DAO read the exact null-LvProp IdxTri candidate unchanged with the same bounded schema semantics as fresh DAO IdxTri controls in all replicas?",
+    "wide": "Does DAO read the exact null-LvProp ContOneX candidate with compact page-23 continuation placement unchanged with the same bounded schema semantics as fresh DAO ContOneX controls in all replicas?"
+  },
+  "decision_rule": {
+    "observed_accepted": "All three same-schema controls pass unchanged with exact replicated semantics, and all three selected candidates pass unchanged with the same semantics.",
+    "not_observed_accepted": "All three same-schema controls pass unchanged, while all three selected candidates either stop at the same endpoint with identical bounded observations or complete unchanged with the same semantic mismatch.",
+    "no_outcome": "Use when a control fails or changes, Alpha is not observed accepted, an image changes, replicas disagree, the scientific job is incomplete, or observations cannot be classified under the two rules above.",
+    "validation_rejection": "Reject without a report for any malformed plan or result, pin or retained-identity mismatch, pre-mutation failure, inventory or bound violation, or unexpected file.",
+    "report_status": "accepted only when Alpha is observed_accepted and both indexed and wide are either observed_accepted or not_observed_accepted; otherwise no_outcome."
+  },
+  "evidence_boundary": {
+    "establishes_only": "A replicated read-only DAO observation for each exact candidate identity and schema, including whether DAO consumes the exact compact continuation candidate without repair.",
+    "not_claimed": [
+      "null-LvProp acceptance for arbitrary schemas",
+      "a general property payload or continuation-allocation grammar",
+      "permission to omit the retained LVAL page or its map reference",
+      "writer or filesystem-publication correctness",
+      "hosted write-differential evidence, general compatibility, or support-matrix movement"
+    ]
+  },
+  "retention": {
+    "publish": "environment.json, result.json, the bounded job result, up to eighteen exact-name MDBs including bounded post-mutation recovery artifacts, and the deterministic analyzer report.",
+    "repository": "Never commit MDB bytes or provider binaries. Record the validated report identity and conclusions once as one additive EXP outcome."
+  }
+}

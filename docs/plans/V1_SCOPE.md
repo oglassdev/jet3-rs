@@ -106,15 +106,15 @@ answered identically across three complete replicas. The exact chains are
 The wide arms also retain globally free `unassigned` tag-9 pages and globally
 free decoder-labeled LVAL ranges unreferenced by catalog `LvProp`; those labels
 establish no current owner, purpose, reuse history, or semantic role. Issue
-#151 is evidence-complete for the exact preregistered shapes and close-ready;
-the result does not establish general placement, allocation policy, or chains
-longer than two continuation pages. #150 is evidence-complete. Its bounded implementation slice is
-unblocked but must correct the existing one-index page order while adding
-multiple physical and logical records, name-sorted logical order, and the
-observed primary, unique,
-ordinary, ascending, and descending forms. It cannot infer arbitrary schemas
-or behavior above three indexes. #102 remains the separate hosted write
-differential after database creation is complete.
+#151 is evidence-complete for the exact preregistered shapes; the result does
+not establish general placement, allocation policy, or chains longer than two
+continuation pages. #150 is evidence-complete. The bounded implementation now
+corrects the one-index page order, supports up to three physical and logical
+indexes, and refuses continuation placement because DAO's allocation policy is
+still underdetermined. Issue #178 preregisters exact indexed and compact
+one-continuation null-`LvProp` candidates against fresh same-schema controls.
+It can answer only those two construction questions. #102 remains the separate
+hosted write differential after database creation is complete.
 
 `EXP-0096` is the first SHA-256-pinned #152 preregistration. `EXP-0097` records
 its canonical `no_outcome`: all 2,358 DAO name attempts reported creation and

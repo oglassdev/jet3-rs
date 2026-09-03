@@ -45,6 +45,7 @@ just windows-dev-multiple-indexes
 just windows-dev-definition-continuation
 just windows-dev-extended-names
 just windows-dev-lvprop-null
+just windows-dev-lvprop-null-schemas
 ```
 
 `provider-probe` records the Windows, x86 PowerShell, locale, and registered
@@ -236,6 +237,14 @@ mapped long-value page is empty, and a fresh DAO-created Alpha control. It runs
 the same bounded read-only Alpha endpoints against each image, records file
 identity before and after access, and makes no claim about omitting the mapped
 page, a general property grammar, arbitrary schemas, compatibility, or support.
+
+`lvprop-null-schemas` is the separate SHA-256-pinned issue #178 experiment.
+It compares three deterministic null-`LvProp` candidates—accepted Alpha,
+EXP-0093's exact three-index schema, and EXP-0105's exact 70-field schema with
+a preregistered compact continuation—with fresh DAO controls of each schema.
+Do not run it until its exact plan is merged and a human explicitly authorizes
+the one attempt. Any failure after the first DAO control mutation is a result,
+not an infrastructure retry.
 
 ## Interactive discovery loop
 

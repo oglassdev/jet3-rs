@@ -196,6 +196,24 @@ LVPROP_NULL_PLAN = (
 LVPROP_NULL_ANALYZER = (
     ROOT / "oracle" / "windows-dao" / "scripts" / "lvprop_null.py"
 )
+LVPROP_NULL_SCHEMAS_JOB = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "scripts"
+    / "dev"
+    / "LvPropNullSchemas.DevJob.ps1"
+)
+LVPROP_NULL_SCHEMAS_PLAN = (
+    ROOT
+    / "oracle"
+    / "windows-dao"
+    / "acquisition"
+    / "lvprop-null-schemas.plan.json"
+)
+LVPROP_NULL_SCHEMAS_ANALYZER = (
+    ROOT / "oracle" / "windows-dao" / "scripts" / "lvprop_null_schemas.py"
+)
 SAFE_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 SAFE_USER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
@@ -224,6 +242,7 @@ ALLOWED_JOBS = (
     "definition-continuation",
     "extended-names",
     "lvprop-null",
+    "lvprop-null-schemas",
 )
 
 
@@ -361,6 +380,14 @@ def plan_binding(job: str) -> PlanBinding | None:
             "dao_lvprop_null_plan",
             149,
         )
+    if job == "lvprop-null-schemas":
+        return PlanBinding(
+            job,
+            LVPROP_NULL_SCHEMAS_PLAN,
+            LVPROP_NULL_SCHEMAS_ANALYZER,
+            "dao_lvprop_null_schemas_plan",
+            178,
+        )
     return None
 
 
@@ -395,7 +422,11 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
             raise DevClientError(f"{job} input differs from its plan: {relative}")
     manifest_pin = plan.get("candidate_source_manifest")
     if manifest_pin is None:
-        if job in ("bootstrap-composer-validation", "lvprop-null"):
+        if job in (
+            "bootstrap-composer-validation",
+            "lvprop-null",
+            "lvprop-null-schemas",
+        ):
             raise DevClientError(f"{job} candidate source manifest is missing")
         return hashlib.sha256(plan_bytes).hexdigest()
     if not isinstance(manifest_pin, dict) or set(manifest_pin) != {"path", "sha256"}:
@@ -418,6 +449,7 @@ def verified_plan_sha256(binding: PlanBinding) -> str:
     expected_manifest_type = {
         "bootstrap-composer-validation": "bootstrap_composer_candidate_sources",
         "lvprop-null": "lvprop_null_candidate_sources",
+        "lvprop-null-schemas": "lvprop_null_schemas_candidate_sources",
     }.get(job)
     if (
         expected_manifest_type is None
@@ -579,6 +611,74 @@ def generate_lvprop_null_candidates(staging: Path, plan: dict[str, object]) -> N
     candidate_root.rmdir()
 
 
+def generate_lvprop_null_schema_candidates(
+    staging: Path, plan: dict[str, object]
+) -> None:
+    candidate_root = staging / ".lvprop-null-schema-candidates"
+    candidate_root.mkdir()
+    environment = os.environ.copy()
+    environment["JET3_LVPROP_SCHEMAS_CANDIDATE_DIR"] = str(candidate_root)
+    completed = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "jet3",
+            "--lib",
+            "bootstrap_composer::tests::schema_candidates::export_lvprop_schema_candidates",
+            "--",
+            "--ignored",
+            "--exact",
+        ],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise DevClientError("null-LvProp schema candidate exporter failed")
+    candidates = plan.get("candidates")
+    roles = {"candidate_alpha", "candidate_indexed", "candidate_wide"}
+    expected_names = {
+        "lvprop-schemas-alpha.mdb",
+        "lvprop-schemas-indexed.mdb",
+        "lvprop-schemas-wide.mdb",
+    }
+    if not isinstance(candidates, dict) or set(candidates) != roles:
+        raise DevClientError("null-LvProp schema candidate pins are malformed")
+    names: set[str] = set()
+    for role, raw in candidates.items():
+        if not isinstance(raw, dict) or set(raw) != {"filename", "size", "sha256"}:
+            raise DevClientError(f"null-LvProp schema {role} pin is malformed")
+        filename = raw["filename"]
+        size = raw["size"]
+        expected = raw["sha256"]
+        if (
+            not isinstance(filename, str)
+            or Path(filename).name != filename
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+        ):
+            raise DevClientError(f"null-LvProp schema {role} pin is malformed")
+        names.add(filename)
+        source = candidate_root / filename
+        if (
+            not source.is_file()
+            or source.is_symlink()
+            or source.stat().st_size != size
+            or hashlib.sha256(source.read_bytes()).hexdigest() != expected
+        ):
+            raise DevClientError(
+                f"generated null-LvProp schema {role} candidate differs from its plan"
+            )
+        source.rename(staging / filename)
+    if any(candidate_root.iterdir()) or names != expected_names:
+        raise DevClientError("null-LvProp schema candidate inventory is invalid")
+    candidate_root.rmdir()
+
+
 def canonical_windows_path(value: str, *, label: str) -> str:
     if len(value) > 240 or any(ord(character) < 32 for character in value):
         raise DevClientError(f"{label} is malformed")
@@ -662,6 +762,9 @@ def stage_job(args: argparse.Namespace) -> Path:
         )
         shutil.copyfile(EXTENDED_NAMES_JOB, staging / EXTENDED_NAMES_JOB.name)
         shutil.copyfile(LVPROP_NULL_JOB, staging / LVPROP_NULL_JOB.name)
+        shutil.copyfile(
+            LVPROP_NULL_SCHEMAS_JOB, staging / LVPROP_NULL_SCHEMAS_JOB.name
+        )
         binding = plan_binding(args.job)
         if binding is not None:
             shutil.copyfile(binding.analyzer, staging / binding.analyzer.name)
@@ -682,6 +785,8 @@ def stage_job(args: argparse.Namespace) -> Path:
                 generate_bootstrap_candidates(staging, plan)
             elif args.job == "lvprop-null":
                 generate_lvprop_null_candidates(staging, plan)
+            elif args.job == "lvprop-null-schemas":
+                generate_lvprop_null_schema_candidates(staging, plan)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -749,6 +854,19 @@ def remote_job_command(args: argparse.Namespace) -> list[str]:
         "-LvPropNullAlphaPath",
         ntpath.join(remote_input, "lvprop-null-alpha.mdb"),
     ]
+    if args.job == "lvprop-null-schemas":
+        command.extend(
+            [
+                "-LvPropNullSchemasJobPath",
+                ntpath.join(remote_input, LVPROP_NULL_SCHEMAS_JOB.name),
+                "-LvPropSchemasAlphaPath",
+                ntpath.join(remote_input, "lvprop-schemas-alpha.mdb"),
+                "-LvPropSchemasIndexedPath",
+                ntpath.join(remote_input, "lvprop-schemas-indexed.mdb"),
+                "-LvPropSchemasWidePath",
+                ntpath.join(remote_input, "lvprop-schemas-wide.mdb"),
+            ]
+        )
     if binding is not None:
         command.extend(
             [
@@ -831,7 +949,7 @@ def analyze_plan_bound_output(args: argparse.Namespace, binding: PlanBinding) ->
                 raise DevClientError(
                     "staged bootstrap candidate differs before analysis"
                 )
-    elif job == "lvprop-null":
+    elif job in ("lvprop-null", "lvprop-null-schemas"):
         for raw in plan["candidates"].values():
             staged_candidate = staged_root / raw["filename"]
             if (
@@ -842,7 +960,7 @@ def analyze_plan_bound_output(args: argparse.Namespace, binding: PlanBinding) ->
                 != raw["sha256"]
             ):
                 raise DevClientError(
-                    "staged LvProp-null candidate differs before analysis"
+                    f"staged {job} candidate differs before analysis"
                 )
     output = args.shared_root / "outbox" / args.run_id
     job_result = output / binding.job_result_name

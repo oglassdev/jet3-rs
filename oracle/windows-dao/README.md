@@ -70,6 +70,13 @@ The retained tooling has three purposes:
   fresh DAO Alpha control across three replicas. It tests only the bounded
   structural endpoints and does not establish that the mapped page can be
   omitted or infer a general property grammar.
+- `acquisition/lvprop-null-schemas.plan.json`,
+  `scripts/dev/LvPropNullSchemas.DevJob.ps1`, and
+  `scripts/lvprop_null_schemas.py` define the SHA-256-pinned issue #178
+  experiment. It compares the accepted Alpha null-`LvProp` image and exact
+  indexed and compact-continuation candidates with fresh same-schema controls
+  across three replicas. It is limited to those identities and read-only
+  endpoints and makes no arbitrary-schema, allocation, or compatibility claim.
 
 Concluded A1-A4 and M3-M5 experiment machinery was removed after its results
 were recorded in `docs/PROVENANCE.md`. Git history is the archive.
@@ -92,6 +99,7 @@ python3 -B -m unittest oracle/windows-dao/tests/test_bootstrap_composer_semantic
 python3 -B -m unittest oracle/windows-dao/tests/test_schema_generalization.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_multiple_indexes.py -v
 python3 -B -m unittest oracle/windows-dao/tests/test_lvprop_null.py -v
+python3 -B -m unittest oracle/windows-dao/tests/test_lvprop_null_schemas.py -v
 python3 -B -m unittest discover -s oracle/windows-dao/tests -v
 ```
 
