@@ -30,7 +30,7 @@ use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, validate_catalog_name};
 use crate::catalog_record_writer::{CatalogRecordWriteError, catalog_record_len};
-use crate::column_definition_writer::{PhysicalIndexSpec, validate_physical_index};
+use crate::column_definition_writer::{KEY_SLOT_COUNT, PhysicalIndexSpec, validate_physical_index};
 use crate::page_image::PAGE_BYTES;
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
@@ -364,8 +364,9 @@ pub(crate) fn plan_table_schema(
     Ok(plan)
 }
 
-/// Resolves every index key to a column ordinal; ordinal bounds are checked
-/// later by the physical-index encoder.
+/// Resolves every index key to a column ordinal. The key count is bounded
+/// before anything is allocated; ordinal bounds are checked later by the
+/// physical-index encoder.
 fn resolve_index_fields(
     spec: &TableSpec<'_>,
 ) -> Result<Vec<Vec<IndexFieldSpec>>, TableSchemaPlanError> {
@@ -373,6 +374,15 @@ fn resolve_index_fields(
         .iter()
         .enumerate()
         .map(|(index, planned)| {
+            if planned.fields.len() > KEY_SLOT_COUNT {
+                return Err(TableSchemaPlanError::Definition(
+                    TableDefinitionWriteError::TooManyKeyFields {
+                        physical_index: index as u16,
+                        count: planned.fields.len(),
+                        maximum: KEY_SLOT_COUNT,
+                    },
+                ));
+            }
             planned
                 .fields
                 .iter()

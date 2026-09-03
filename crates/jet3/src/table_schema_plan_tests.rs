@@ -462,7 +462,10 @@ fn an_index_field_count_one_above_the_limit_is_refused() {
         .iter()
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
-    let fields = (0..=KEY_SLOT_COUNT as u16).map(key).collect::<Vec<_>>();
+    // An unknown name past the limit must not be reached: the count is
+    // refused before any key is resolved or stored.
+    let mut fields = (0..=KEY_SLOT_COUNT as u16).map(key).collect::<Vec<_>>();
+    fields.push(IndexColumnSpec::ascending(b"Missing"));
     let indexes = [IndexSpec {
         name: b"Wide",
         fields: &fields,
@@ -471,7 +474,7 @@ fn an_index_field_count_one_above_the_limit_is_refused() {
     assert!(matches!(
         definition_error(&spec(b"Wide", &columns, &indexes)),
         Some(TableDefinitionWriteError::TooManyKeyFields { count, .. })
-            if count == KEY_SLOT_COUNT + 1
+            if count == KEY_SLOT_COUNT + 2
     ));
 }
 
