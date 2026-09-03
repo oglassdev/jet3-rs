@@ -68,8 +68,7 @@ one-index order, which places the first root before `LvProp`.
 Of the two format gaps that needed preregistered DAO validation before the
 planner could widen, definition-continuation placement (#151) remains open and
 catalog name keys for bytes above `0x7E` (#152) now have bounded evidence.
-`EXP-0094`
-contains the SHA-256-pinned #151 preregistration. `EXP-0095` records its
+`EXP-0094` contains the first SHA-256-pinned #151 preregistration. `EXP-0095` records its
 canonical `no_outcome`: every replica reached capture of the 69-field arm, but
 that arm failed the combined 2-KiB geometry/64-page bound and could not be
 retained. No continuation placement was observed, and the 70- and 140-field
@@ -79,9 +78,12 @@ kept the exact scenarios and questions while raising completed checkpoints to
 completed all four checkpoints without recovery, but the analyzer found one
 continuation page in the 2,046-byte `zero` control where the preregistration
 required zero. The diagnostic one-, one-, and two-continuation chains are not
-promotable under the all-or-`no_outcome` decision. #151 remains evidence-blocked
-and another run requires a separately pinned successor plus renewed human
-authorization. #150 is evidence-complete. Its bounded implementation slice is
+promotable under the all-or-`no_outcome` decision. `EXP-0102` preregisters the
+next successor with the established `Alpha(Id Long)` 66-byte, zero-continuation
+control and the unchanged 2,075- and 4,105-byte wide targets. Its exact bytes
+must merge before acquisition; the user's 2026-09-02 instruction prospectively
+authorizes one three-replica run after merge, with no automatic retry after
+mutation. #150 is evidence-complete. Its bounded implementation slice is
 unblocked but must correct the existing one-index page order while adding
 multiple physical and logical records, name-sorted logical order, and the
 observed primary, unique,

@@ -966,7 +966,7 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
         self.assertEqual(plan["issue"], 151)
         self.assertEqual(
             hashlib.sha256(binding.plan.read_bytes()).hexdigest(),
-            "3e7172838bfd7d48b6042e1fe1a1855883be27eb3c2b8f7ad367368daa2c0cd9",
+            "582f8aff6e7a29fae5594fa2819cf0595e0f61695604245c6df1cf5376e62f5b",
         )
         self.assertEqual(plan["execution"]["checkpoints"], ["empty", "zero", "one", "two"])
         self.assertEqual(
@@ -993,10 +993,17 @@ class WindowsDaoDevRemoteContractTests(unittest.TestCase):
                 for value in plan["inputs"].values()
             )
         )
-        with self.assertRaisesRegex(CLIENT.DevClientError, "differs from its plan"):
-            CLIENT.verified_plan_sha256(binding)
+        self.assertEqual(
+            CLIENT.verified_plan_sha256(binding),
+            "582f8aff6e7a29fae5594fa2819cf0595e0f61695604245c6df1cf5376e62f5b",
+        )
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")
-        self.assertIn('$ScenarioFields = @{ zero = 69; one = 70; two = 140 }', job)
+        self.assertIn('$ScenarioFields = @{ zero = 1; one = 70; two = 140 }', job)
+        self.assertIn(
+            '$ScenarioTables = @{ zero = "Alpha"; one = "ContOneX"; two = "ContTwoX" }',
+            job,
+        )
+        self.assertIn('if ($Scenario -ceq "zero")', job)
 
     def test_definition_continuation_cleanup_cannot_pollute_published_inventory(self) -> None:
         job = CLIENT.DEFINITION_CONTINUATION_JOB.read_text(encoding="utf-8")

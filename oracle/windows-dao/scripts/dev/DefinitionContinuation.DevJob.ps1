@@ -23,8 +23,8 @@ $MaximumTables = 16
 $MaximumFields = 140
 $MaximumDetailCharacters = 512
 $ScenarioOrder = @("zero", "one", "two")
-$ScenarioFields = @{ zero = 69; one = 70; two = 140 }
-$ScenarioTables = @{ zero = "ContZero"; one = "ContOneX"; two = "ContTwoX" }
+$ScenarioFields = @{ zero = 1; one = 70; two = 140 }
+$ScenarioTables = @{ zero = "Alpha"; one = "ContOneX"; two = "ContTwoX" }
 
 function Release-ComObject {
     param([object]$Value)
@@ -158,7 +158,11 @@ function New-ScenarioTable {
         try {
             $table = $database.CreateTableDef($tableName)
             for ($ordinal = 0; $ordinal -lt $count; $ordinal++) {
-                $field = $table.CreateField((Get-FieldName -Ordinal $ordinal), $DbLong)
+                $fieldName = if ($Scenario -ceq "zero") {
+                    "Id"
+                }
+                else { Get-FieldName -Ordinal $ordinal }
+                $field = $table.CreateField($fieldName, $DbLong)
                 [void]$fields.Add($field)
                 $table.Fields.Append($field)
             }

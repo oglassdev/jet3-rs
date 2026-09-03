@@ -26,9 +26,9 @@ REPORT_TYPE = "definition_continuation_report"
 CHECKPOINTS = ("empty", "zero", "one", "two")
 SCENARIOS = CHECKPOINTS[1:]
 EXPECTED_CONTINUATIONS = {"zero": 0, "one": 1, "two": 2}
-EXPECTED_LOGICAL_LENGTHS = {"zero": 2046, "one": 2075, "two": 4105}
-FIELD_COUNTS = {"zero": 69, "one": 70, "two": 140}
-TABLE_NAMES = {"zero": "ContZero", "one": "ContOneX", "two": "ContTwoX"}
+EXPECTED_LOGICAL_LENGTHS = {"zero": 66, "one": 2075, "two": 4105}
+FIELD_COUNTS = {"zero": 1, "one": 70, "two": 140}
+TABLE_NAMES = {"zero": "Alpha", "one": "ContOneX", "two": "ContTwoX"}
 SAFE_RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,31}$")
 SAFE_MDB = re.compile(r"^definition-continuation-r[1-3]-(empty|zero|one|two)[.]mdb$")
 HEX_64 = re.compile(r"^[0-9a-f]{64}$")
@@ -240,6 +240,8 @@ def user_tables(dao: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def expected_fields(scenario: str) -> list[dict[str, Any]]:
+    if scenario == "zero":
+        return [{"ordinal": 0, "name": "Id", "type": 4, "size": 4}]
     return [
         {"ordinal": ordinal, "name": field_name(ordinal), "type": 4, "size": 4}
         for ordinal in range(FIELD_COUNTS[scenario])
@@ -433,7 +435,7 @@ def analyze_scenario(before: bytes, after: bytes, scenario: str) -> dict[str, An
         raise DecodeError(
             f"{scenario} logical definition length differs from the boundary control"
         )
-    expected_names = [field_name(value) for value in range(FIELD_COUNTS[scenario])]
+    expected_names = [field["name"] for field in expected_fields(scenario)]
     columns = definition["columns"]
     if (
         [entry["name"] for entry in columns] != expected_names

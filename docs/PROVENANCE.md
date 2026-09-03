@@ -84,7 +84,11 @@ Use `not applicable` explicitly rather than omitting a field.
 - Usage: `file:oracle/windows-dao/scripts/run-dao-gen-probe.ps1`
 - Rights: citation to public Microsoft documentation; no documentation content
   is redistributed
-- Review: pending independent review
+- Review: two independent review/fix passes covered evidence attribution,
+  producer reachability, analyzer/result-state boundaries, capture and
+  publication bounds, artifact identity, exact pins, and operational-doc
+  agreement. They corrected stale-pin test expectations and superseded run
+  instructions; final focused verification found no remaining findings.
 
 ### SRC-0002 — DAO `dbVersion30` numeric value
 
@@ -9302,6 +9306,81 @@ Use `not applicable` explicitly rather than omitting a field.
   boundaries, and cross-document claims. Mapping transcription and
   implementation-scope findings were corrected; final exact-head verification
   found no remaining findings.
+
+
+### EXP-0102 — Established-control definition-continuation preregistration
+
+- Recorded: 2026-09-02, OpenAI Codex
+- Kind: SHA-256-pinned, development-only local DAO preregistration; no
+  acquisition has been performed
+- Question: when the exact established `Alpha(Id Long)` small-definition
+  control and the unchanged exact 70- and 140-field wide-definition targets
+  are each created from an independently copied empty first-create image, do
+  their 66-, 2,075-, and 4,105-byte definitions decode to exactly zero, one,
+  and two continuation pages; and where do those definition pages land and
+  point?
+- Prior evidence and design boundary: `EXP-0087` records the exact
+  `Alpha(Id Long)` first-create shape on one definition root with no
+  continuation page, making it the zero-continuation control. `EXP-0059`
+  records the bounded definition grammar, logical-length field, 2,048-byte
+  root capacity, and 2,040-byte continuation contribution used to predict
+  logical lengths 66, 2,075, and 4,105 and construct the one- and
+  two-continuation hypotheses. `EXP-0100` validates the
+  bounded producer, measurement, recovery, and publication contracts inherited
+  here and diagnoses the former 2,046-byte zero-control premise as false. Its
+  all-or-`no_outcome` decision makes every continuation count, placement,
+  pointer, counter, and other format observation from that run non-promotable;
+  consequently it supplies no evidence for either wide target's expected
+  count or placement.
+- Controlled design: each of three replicas creates and closes one fresh
+  `dbVersion30` CP1252 empty database, retains it, and makes three size-,
+  SHA-256-, and measurement-identical working copies before any table append.
+  The `zero` arm appends only `Alpha` with one `dbLong` field named `Id`; the
+  `one` arm appends only `ContOneX` with 70 `dbLong` fields named
+  `F000AAAAAA` through `F069AAAAAA`; and the `two` arm appends only `ContTwoX`
+  with 140 such fields through `F139AAAAAA`. No arm adds rows or indexes. The
+  exact `EXP-0098` bounded capture, failure measurement, recovery,
+  metadata-identity, root inventory, and state-machine contracts remain in
+  force.
+- Analysis and decision rule: the analyzer independently requires the exact
+  DAO and decoded schema for every complete arm. It requires exact logical
+  lengths 66, 2,075, and 4,105 and exact continuation counts zero, one, and
+  two, respectively; validates chain pointers and complete logical coverage;
+  attributes every appended page; and reports placement, page-zero counters,
+  catalog roots, maps, and bounded `LvProp` framing. An `accepted` report
+  requires all three complete replicas to agree on every relative observation.
+  A complete valid observation contrary to any count hypothesis is
+  `no_outcome`, not evidence promoted under a revised rule. A malformed
+  producer/result/artifact contract is rejected. No automatic retry follows
+  the first DAO mutation.
+- Preregistration artifacts: plan
+  `oracle/windows-dao/acquisition/definition-continuation.plan.json`, SHA-256
+  `582f8aff6e7a29fae5594fa2819cf0595e0f61695604245c6df1cf5376e62f5b`;
+  producer `oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`,
+  SHA-256
+  `6971137487734353743879e19e1a4945787599a02fc10d982c9a55ed4a7e0330`;
+  analyzer `oracle/windows-dao/scripts/definition_continuation.py`, SHA-256
+  `dc40ff5e143344412210eb6ac86ce42bbed478f17de3ec447eee6f184064db4f`.
+  The plan carries exact lowercase SHA-256 pins for all eight staged inputs and
+  does not attempt to pin itself.
+- Authorization: acquisition is forbidden until these exact preregistration
+  bytes are merged. The user's 2026-09-02 instruction prospectively authorizes
+  at most one three-replica acquisition after merge. Any failure after the
+  first DAO mutation is a scientific result and consumes that authorization.
+- Interpretation: a later accepted report may establish only the exact three
+  schema shapes, counts, placements, pointers, page roles, relative counters,
+  and replication described above. It cannot establish arbitrary boundary
+  placement, other field or name shapes, chains longer than two continuation
+  pages, allocation policy, writer correctness, compatibility, public
+  creation, hosted differential `#102`, or support-matrix movement.
+- Usage: issue `#151`; `EXP-0059`; `EXP-0061`; `EXP-0073`; `EXP-0087`;
+  `EXP-0091`; `EXP-0093`; `EXP-0095`; `EXP-0098`; `EXP-0100`;
+  `file:oracle/windows-dao/acquisition/definition-continuation.plan.json`;
+  `file:oracle/windows-dao/scripts/dev/DefinitionContinuation.DevJob.ps1`;
+  `file:oracle/windows-dao/scripts/definition_continuation.py`
+- Rights: future project-generated MDBs and provider outputs remain outside
+  the repository and are neither committed nor redistributed
+- Review: pending independent review
 
 
 ## Fixtures and black-box results
