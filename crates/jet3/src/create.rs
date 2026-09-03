@@ -1,4 +1,4 @@
-//! Creation of a fresh Jet 3 database holding one empty user table.
+//! Creation of a fresh Jet 3 database holding empty user tables.
 //!
 //! [`create_database`] composes the complete image in memory, writes every
 //! page in physical order to a private file beside the destination, reopens
@@ -10,7 +10,10 @@
 //! The structural reopen is a publication prerequisite, not compatibility
 //! evidence. Only a recorded DAO differential can establish that Microsoft
 //! Access or DAO consume a created database; none has been run for schemas
-//! other than the exact `Alpha(Id Long)` construction of `EXP-0091`.
+//! other than the exact `EXP-0091`, `EXP-0107`, and `EXP-0110` constructions.
+//! `EXP-0110` observed DAO read one composed four-table image built from the
+//! `EXP-0087` later-create pattern; it does not establish other table counts,
+//! orders, names, or schemas.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -19,18 +22,18 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::atomic::atomic_create;
-use crate::bootstrap_composer::{ComposeError, compose_table_database};
+use crate::bootstrap_composer::{ComposeError, compose_database};
 use crate::page_append_plan::PlannedPage;
 use crate::{
     CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, ColumnType,
-    DatabaseOpenError, DatabaseReader, IndexDefinitionKind, IndexKind, PublishError,
+    DatabaseOpenError, DatabaseReader, IndexDefinitionKind, IndexKind, PageNumber, PublishError,
     ResourceBudget, TableDefinitionError, TableSpec,
 };
 
 /// Structured failure of [`create_database`].
 #[derive(Debug)]
 pub enum CreateDatabaseError {
-    /// The table could not be composed into a database image; nothing was
+    /// The tables could not be composed into a database image; nothing was
     /// written.
     Compose(ComposeError),
     /// The composed image could not be written, checked, or published.
@@ -65,7 +68,7 @@ pub enum CandidateCheckError {
     Catalog(CatalogError),
     /// The created table's definition could not be read.
     Definition(TableDefinitionError),
-    /// The candidate decodes but does not describe the requested table.
+    /// The candidate decodes but does not describe the requested tables.
     Mismatch {
         /// Which structure differed.
         detail: &'static str,
@@ -98,7 +101,8 @@ impl StdError for CandidateCheckError {
     }
 }
 
-/// Creates the database at `path` holding one empty user table.
+/// Creates the database at `path` holding `tables`, created in order, each
+/// empty.
 ///
 /// After successful composition, `path` must not exist; an existing entry
 /// fails with an `AlreadyExists` I/O error at
@@ -107,16 +111,18 @@ impl StdError for CandidateCheckError {
 /// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: more than three indexes, more than one Memo or
-/// LongBinary column, an index together with such a column, a definition
-/// longer than two pages, a definition longer than one page together with an
-/// index, or a name byte above `0x7E`.
+/// anything is written: more than four tables, two tables whose names differ
+/// only by ASCII case, more than three indexes on the first table or more than
+/// one on a later table, more than one Memo or LongBinary column on a table,
+/// an index together with such a column, a definition longer than two pages,
+/// a definition longer than one page together with an index or on a later
+/// table, or a name byte above `0x7E`.
 pub fn create_database(
     path: impl AsRef<Path>,
-    spec: &TableSpec<'_>,
+    tables: &[TableSpec<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<(), CreateDatabaseError> {
-    let pages = compose_table_database(spec, budget)
+    let pages = compose_database(tables, budget)
         .map_err(CreateDatabaseError::Compose)?
         .into_pages();
     let page_count = pages.len() as u64;
@@ -126,7 +132,7 @@ pub fn create_database(
     atomic_create(
         path,
         |file| write_pages(file, &pages),
-        |candidate| check_candidate(candidate, spec, page_count, budget),
+        |candidate| check_candidate(candidate, tables, page_count, budget),
     )
     .map_err(CreateDatabaseError::Publish)
 }
@@ -147,10 +153,10 @@ fn write_pages(file: &mut File, pages: &[PlannedPage]) -> Result<(), io::Error> 
 }
 
 /// Reopens the candidate through the reader and checks its geometry, catalog
-/// row, columns, and indexes against `spec`.
+/// rows, columns, and indexes against `tables`.
 fn check_candidate(
     candidate: &Path,
-    spec: &TableSpec<'_>,
+    tables: &[TableSpec<'_>],
     page_count: u64,
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
@@ -160,7 +166,8 @@ fn check_candidate(
     if database.geometry().page_count() != page_count {
         return Err(mismatch("page count"));
     }
-    let mut root = None;
+    let mut roots: Vec<Option<PageNumber>> = vec![None; tables.len()];
+    let mut user_rows = 0_usize;
     {
         let mut catalog = database
             .catalog(budget)
@@ -169,15 +176,38 @@ fn check_candidate(
             .next_record()
             .map_err(CandidateCheckError::Catalog)?
         {
-            if record.name().raw_bytes() == spec.name {
-                if record.class() != CatalogObjectClass::User || root.is_some() {
-                    return Err(mismatch("catalog row"));
-                }
-                root = record.table_definition();
+            if record.class() != CatalogObjectClass::User {
+                continue;
             }
+            user_rows += 1;
+            let position = tables
+                .iter()
+                .position(|table| table.name == record.name().raw_bytes())
+                .ok_or(mismatch("catalog row"))?;
+            if roots[position].is_some() {
+                return Err(mismatch("catalog row"));
+            }
+            roots[position] = Some(record.table_definition().ok_or(mismatch("catalog row"))?);
         }
     }
-    let root = root.ok_or(mismatch("catalog row"))?;
+    if user_rows != tables.len() {
+        return Err(mismatch("catalog row"));
+    }
+    for (spec, root) in tables.iter().zip(roots) {
+        let root = root.ok_or(mismatch("catalog row"))?;
+        check_table(&mut database, spec, root, budget)?;
+    }
+    Ok(())
+}
+
+/// Checks one table's definition at `root` against `spec`.
+fn check_table(
+    database: &mut DatabaseReader<crate::FileSource>,
+    spec: &TableSpec<'_>,
+    root: PageNumber,
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
+    let mismatch = |detail: &'static str| CandidateCheckError::Mismatch { detail };
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;

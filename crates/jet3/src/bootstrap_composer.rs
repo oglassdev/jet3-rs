@@ -114,6 +114,7 @@ pub(crate) fn compose_alpha_database(
 }
 
 /// Composes the empty database plus one created user table.
+#[cfg(test)]
 pub(crate) fn compose_table_database(
     spec: &TableSpec<'_>,
     budget: &mut ResourceBudget,
