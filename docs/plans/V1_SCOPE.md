@@ -80,10 +80,13 @@ continuation page in the 2,046-byte `zero` control where the preregistration
 required zero. The diagnostic one-, one-, and two-continuation chains are not
 promotable under the all-or-`no_outcome` decision. `EXP-0102` preregisters the
 next successor with the established `Alpha(Id Long)` 66-byte, zero-continuation
-control and the unchanged 2,075- and 4,105-byte wide targets. Its exact bytes
-must merge before acquisition; the user's 2026-09-02 instruction prospectively
-authorizes one three-replica run after merge, with no automatic retry after
-mutation. #150 is evidence-complete. Its bounded implementation slice is
+control and the unchanged 2,075- and 4,105-byte wide targets. `EXP-0103`
+records its single authorized run as a valid `no_outcome`: all three producers
+completed every checkpoint and baseline without recovery, but every analyzer
+replica reported `one appended page 22 is unattributed`. No continuation count
+or placement diagnostic is promoted. Issue #151 remains evidence-blocked; any
+further acquisition requires a separately pinned successor and a new explicit
+human decision. #150 is evidence-complete. Its bounded implementation slice is
 unblocked but must correct the existing one-index page order while adding
 multiple physical and logical records, name-sorted logical order, and the
 observed primary, unique,
