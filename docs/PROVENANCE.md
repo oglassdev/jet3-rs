@@ -10991,6 +10991,68 @@ Copy this block under the appropriate section and remove this instruction:
   compatibility, updates, and hosted support remain outside this result.
   Report compatibility and support-matrix flags remain false.
 
+### EXP-0130 — Multi-table initial-row candidates accepted locally
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated development-only outcome from the single authorized run
+  `20260905T043600Z-multi-table-rows`; no retry or support movement.
+- Preregistration: EXP-0129, commit `270c3d5`, plan
+  `oracle/windows-dao/acquisition/multi-table-rows.plan.json`, SHA-256
+  `95f5711c27f45fdadef43fd242ae8b06afc75ebf7ad8c2f9fe665ee22eb459f9`.
+  The pinned producer, analyzer, transport and example remained unchanged.
+  Generator source was reviewed implementation `4c4f2b3`.
+- Artifacts: local VM
+  `shared/outbox/20260905T043600Z-multi-table-rows`. `result.json` is
+  1,117,558 bytes, SHA-256
+  `310ef57b73577ffa1fabcda722916a5bfc257479f6350a398d373045e9761c13`;
+  canonical `report.json` is 596 bytes, SHA-256
+  `7e15a6e9bf03222e0ce5780759e8489071c1ffdca99f78defb05d454d1cbec31`.
+  The pinned analyzer reproduced the report byte-for-byte on temporary
+  copies, validating input pins and every retained identity. All retained
+  originals were verified unchanged. Independent outcome review follows.
+- Environment: Windows NT 10.0.20348.0, 32-bit PowerShell, DAO.DBEngine.36.
+  Both `mixed` and `empty-first` report `observed_accepted`, with six complete
+  candidate/control pairs, no job error, and three agreeing candidate
+  observations per arm. Every control passed expected semantics, and all
+  twelve files had matching before/after and retained identities.
+- Candidate replicas: mixed is 77,824 bytes, SHA-256
+  `86a8e79ad23c0610d1c9c1cc70603efbd3186db1dfb6f42295fe857fc16ae17b`;
+  empty-first is 57,344 bytes, SHA-256
+  `fda4ae1e0775762daae9df21e78f36729c550f2c2fcbd700694399af3cf5abca`.
+- Fresh control identities:
+  - mixed r1, 77,824 bytes:
+    `55a7bbadfdd0a86ff530e4c63fc55d2450f863c2424442eae552802dd4be566d`.
+  - mixed r2, 77,824 bytes:
+    `2e40d5f716a0372f711871f0ac4a353857b58e796e13b1d6d1dd15ad366fdc06`.
+  - mixed r3, 77,824 bytes:
+    `e9191b192831dfcec8d7638610f48a7c5e6f4f417578250406333d0134b6a95d`.
+  - empty-first r1, 57,344 bytes:
+    `3e0c2c3aa3b6bf2336753f8d04695fd69b75074c1d8eb0b95a7ac888d9a0508d`.
+  - empty-first r2, 57,344 bytes:
+    `b7217f20b9e9ac0c073ba5af45f59de9cedd39d3e00c281989353212d8ad2168`.
+  - empty-first r3, 57,344 bytes:
+    `140c8ebacd804fedbcdfb626a7b5c7162b9e5e93b14bb04607b849350d3e66bb`.
+- Validated mixed snapshot: DAO version3.0, the four expected system
+  tables, and Numbers/Keys/Notes/Empty. Numbers has all 509 Long values
+  -254 through 254. Keys has Long values 3, -1 and 2; its ById index is
+  primary, unique and required, with Foreign and IgnoreNulls false and one
+  ascending Id field with Attributes0. Complete index traversal and Seek
+  queries return -1, 2 and 3 with the matching row values. Notes has the
+  complete 4096-character Memo `A + (offset mod26)` and a distinct null row;
+  Empty has no rows. Every table's complete field/index inventory matched.
+- Validated empty-first snapshot: exactly the expected system tables plus
+  Empty and Binary, no user indexes. Empty(Id Long) has no rows; Binary has
+  one complete 2048-byte OLE value `byte = offset mod256`. Id fields expose
+  type4/size4, Memo type12/size0, and OLE type11/size0 in the applicable arms.
+  Payload validation compared every character/byte, not just length or prefix.
+- Boundary: these exact multi-table images and read-only endpoints only.
+  This observes their combination of later table placement, initial rows,
+  index traversal and long payloads; it does not establish a general
+  allocator, arbitrary schemas/indexes, relationships with rows,
+  AutoIncrement, empty long payloads, subsequent writes, general
+  compatibility or hosted support. Report compatibility and support flags
+  remain false.
+
 ### EXP-0129 — Multi-table initial-row candidate preregistration
 
 - Recorded: 2026-09-05, OpenAI Codex
