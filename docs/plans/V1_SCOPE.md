@@ -81,11 +81,22 @@ changing existing objects and preserving their unrelated metadata are absent.
 This evidence does not advance existing-row insert/update/delete, index CRUD
 maintenance or atomic failure/rollback verification.
 
+EXP-0160 records the successful hosted update run for three present Long
+replacements: a first field, a later row on another page, and a later table.
+All six before/after DAO and Rust snapshots match, and independent reader checks
+confirm every byte outside the requested field is preserved. The combined
+`rows.insert_update_delete` capability is therefore partial with DAO differential
+evidence for these exact field updates. Hosted insert/delete, other fixed types,
+null transitions, indexed or related targets, variable-width changes and stored
+queries remain unverified. Index CRUD stays unverified; atomic failure/rollback
+verification remains internal-only.
+
 Keep broader index key codecs and allocation beyond inline maps as explicit
 creation limitations; validate the bounded nullable writer next. The bounded
 hosted write leg under #102 now has recorded evidence;
 multi-level boundary recipes and other declared write-inventory deferrals
 remain to be covered. Neither issue is complete merely from this checkpoint.
-Existing-database updates (#112) and their hosted differential (#113) remain
+The broader existing-database update surface (#112) and remaining hosted
+update inventory (#113) remain
 separate work. The release gates above still require each leg's validated bundle
 on the release commit. Keep module cleanup (#182) until creation settles.
