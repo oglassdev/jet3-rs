@@ -12561,6 +12561,28 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0185 — Typed-setter successor for unique Long key validation
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0186. Plan:
+  `oracle/windows-dao/acquisition/single-leaf-key-successor.plan.json`, SHA-256
+  `6e477d14e086696d54309c920f4c0346b7580d3400c42f0bea518b298523e1d9`.
+  EXP-0179 inputs and EXP-0180 `no_outcome` remain unchanged.
+- This distinct experiment uses the same six immutable public images, source
+  `d16d0ed`, three arms and three fresh replicas per arm under a new run ID.
+  It neither resumes nor retries the previous acquisition's partial artifacts.
+- The producer uses separate explicit Int32 and String COM assignment sites,
+  matching the typed-assignment practice of EXP-0171/0177, and retains the field
+  name in an initiating setter failure. This is a proposed mitigation of the
+  localized generic assignment failure, not proof of its underlying cause.
+- An isolated instance of the frozen EXP-0179 host evaluator changes only plan
+  and producer paths. Image binding, request checks, exact field/leaf and all
+  other byte preservation, complete DAO schemas/rows/traversal/Seek, continuation
+  insertions and duplicate-3022 probes retain the original decision rule.
+- Commit and independently review before one fresh dispatch. Require all nine
+  pairs and 45 complete unchanged read-only captures; otherwise record one
+  `no_outcome` without subset promotion. Preserve errors and failure artifacts.
+  No automatic retry, public split/compression claim or hosted support movement.
+
 ## EXP-0180 — Unique Long key validation stopped during continuation assignment
 
 - Outcome: `no_outcome`, recorded 2026-09-05 from the single local run
