@@ -12915,6 +12915,57 @@ Copy this block under the appropriate section and remove this instruction:
   does not claim general compression/split/null/Auto/relationship maintenance,
   arbitrary existing-file compatibility or hosted support before its outcome.
 
+## EXP-0182 — One EOF data-page insertion and DAO continuation accepted
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T083000Z-eof-insert`. All nine cases pass with no reasons or phase
+  errors. Consumed EXP-0181 plan SHA-256 remains
+  `4d1831133df351afbeffc65363a8b8735796ef448b121b365ae32777432aad28`.
+  Acquisition revision: `fc538d8fb5fd473d1609fce2bce72d41775a79fb`;
+  public insertion source: `3db0283ee5b763beaa8cc71bd78d872e8a08e71e`.
+- Report: 36255 bytes, SHA-256
+  `cd17242deda03201292ac78445d6c5b23b63ea9495a9354f32398018de5e104f`.
+  Result: 4071 bytes, SHA-256
+  `a25e875b3d868a95a866c54f21ad6172195b108c7705755e5af54a4f61ccc93a`.
+  Create phase: 337630 bytes, SHA-256
+  `ed93c0f5595ae663af1aa67a58a2dd20e8eb599ca6b49b4d6867bdf5749198cc`;
+  observe phase: 861416 bytes, SHA-256
+  `3a4c26115d67ab1fb51fe1752157f4c5f8b1992d5ff3e0a7592af9b424752530`.
+- Both phases retain x86 `DAO.DBEngine.36`, no retention failures and completed
+  operations: nine initial DAO control insertions and eighteen separate follow-on
+  insertions. All 63 read-only captures have unchanged identities across the
+  45 retained original/control/Rust/continuation images. The pinned analyzer
+  reproduces the exact report on temporary copies. All 129 original retained
+  files remain unchanged: combined outbox60, create21 and observe48.
+- Empty Items starts with zero rows and no owned pages. Rust appends page27,
+  root20/slot0, growing 55296 to 57344 bytes and count0 to1. Dense Items and
+  dense Later each start with ten 180-byte payload rows and 88 free bytes on
+  their existing page, insufficient for the declared 193-byte row plus slot.
+  They append page28, root20 and root24 respectively, growing 57344 to59392
+  bytes and count10 to11. All three profiles repeat across three replicas.
+- Each new row stores `[88,-8800,180 copies of "z"]`, starts at page offset1855
+  and leaves 1843 contiguous free bytes. Complete expected page bytes pass:
+  ordinary data header, correct owner, one slot and the exact encoded payload.
+  New-page SHA-256 for both Items profiles is
+  `ca95e174f2ee706f92e9387821f49ee3f84a45139733423584f514a73cdc7279`;
+  Later's owner-specific page is
+  `e63a3af7bbce598d8978c45597f3c67d8d93982280825e76eec8280d92b13114`.
+- Every original byte remains identical except the table count and three EOF
+  map bits: global-free cleared, owned/available set. Original prefix, page zero,
+  existing data pages, unrelated table and all other map bits stay exact.
+  Resulting owned/available sets are `[27]`, `[23,28]` and `[26,28]` for the three
+  profiles. This acceptance supports the unchanged-page-zero candidate only in
+  these cases; it establishes no general counter or allocation-threshold meaning.
+- DAO readback matches each control's complete schema, expected rows, empty
+  index/relationship inventory and unchanged KeepQuery SQL. Separate control
+  and Rust continuation copies both accept `[99,-9900,"next"]`; complete final
+  states match, with target counts2 or12 and unrelated tables unchanged.
+  Physical DAO control allocation/placement need not match Rust's construction.
+- This is finite local acceptance, with compatibility and support-matrix flags
+  false. It does not validate free-page reuse, map growth/indirection, indexed,
+  related, AutoIncrement or long-value insertion, slot reuse, compaction or general
+  existing-file allocation policy. Original consumed plans and inputs are unchanged.
+
 ## EXP-0181 — One EOF data-page insertion validation preregistration
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0182. Plan:
