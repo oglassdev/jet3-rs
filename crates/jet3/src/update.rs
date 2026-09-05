@@ -1,5 +1,6 @@
 //! Preservation-aware field updates using `EXP-0059` schema, `SRC-0020`/
-//! `EXP-0060` row spans, and the signed Long encoding from `EXP-0061`.
+//! `EXP-0060` row spans, the signed Long encoding from `EXP-0061`, and
+//! `EXP-0073`/`EXP-0114` relationship catalog endpoints.
 
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -98,7 +99,9 @@ conversion!(crate::PublishError, Publish);
 /// Replaces one present Long field in an unindexed, relationship-free user table.
 ///
 /// Null transitions, AutoIncrement columns, hidden/overflow rows and other value
-/// types are unsupported. The exact requested field bytes are the only bytes
+/// types are unsupported. A missing or unreadable relationship catalog and
+/// unresolved non-ASCII relationship endpoint names are also refused.
+/// The exact requested field bytes are the only bytes
 /// changed, including when the database contains opaque pages or unused space.
 /// Locators remain valid only while the source is unchanged: callers must exclude
 /// external writers for this entire operation, as required by [`crate::atomic_update`].
@@ -129,9 +132,18 @@ where
     };
     let mut database = DatabaseReader::open(path, budget)?;
     let mut root = None;
+    let mut relationship_root = None;
     {
         let mut catalog = database.catalog(budget)?;
         while let Some(record) = catalog.next_record()? {
+            if record.class() == CatalogObjectClass::System
+                && record.name().raw_bytes() == b"MSysRelationships"
+            {
+                if relationship_root.is_some() {
+                    return Err(UpdateError::Mismatch("ambiguous relationship catalog"));
+                }
+                relationship_root = record.table_definition();
+            }
             if record.class() == CatalogObjectClass::User
                 && record.name().raw_bytes() == request.table
             {
@@ -152,6 +164,12 @@ where
             "table has indexes or relationships",
         ));
     }
+    reject_catalog_relationships(
+        &mut database,
+        relationship_root.ok_or(UpdateError::Unsupported("missing relationship catalog"))?,
+        request.table,
+        budget,
+    )?;
     let column = definition
         .columns()
         .get(usize::from(request.column.get()))
@@ -266,6 +284,58 @@ where
         },
         hook,
     )?;
+    Ok(())
+}
+
+// EXP-0073/0114 source these endpoint columns independently of user indexes.
+fn reject_catalog_relationships(
+    database: &mut DatabaseReader<FileSource>,
+    root: crate::PageNumber,
+    table: &[u8],
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    let definition = database.table_definition(root, budget)?;
+    if definition.kind() != TableDefinitionKind::System {
+        return Err(UpdateError::Unsupported("relationship catalog kind"));
+    }
+    let mut endpoints = [None; 2];
+    for (position, name) in [b"szObject".as_slice(), b"szReferencedObject".as_slice()]
+        .iter()
+        .enumerate()
+    {
+        for column in definition
+            .columns()
+            .iter()
+            .filter(|column| column.name().raw_bytes() == *name)
+        {
+            if endpoints[position].is_some() || column.physical_type() != ColumnPhysicalType::Text {
+                return Err(UpdateError::Unsupported("relationship endpoint schema"));
+            }
+            endpoints[position] = Some(column.ordinal());
+        }
+    }
+    let [Some(object), Some(referenced)] = endpoints else {
+        return Err(UpdateError::Unsupported("missing relationship endpoint"));
+    };
+    let mut rows = database.rows(&definition, budget)?;
+    while let Some(row) = rows.next_row()? {
+        for ordinal in [object, referenced] {
+            let name = row
+                .field(ordinal)
+                .and_then(|field| field.raw_bytes())
+                .ok_or(UpdateError::Unsupported("null relationship endpoint"))?;
+            if name.is_empty() || !name.is_ascii() || !table.is_ascii() {
+                return Err(UpdateError::Unsupported(
+                    "unresolved relationship endpoint name",
+                ));
+            }
+            if name.eq_ignore_ascii_case(table) {
+                return Err(UpdateError::Unsupported(
+                    "table appears in relationship catalog",
+                ));
+            }
+        }
+    }
     Ok(())
 }
 
