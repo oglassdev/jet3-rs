@@ -752,3 +752,6 @@ fn invalid_row_reference_and_error_sources_remain_structured()
 
 #[path = "index_tree_key_inventory_tests.rs"]
 mod key_inventory;
+
+#[path = "index_tree_marker_tests.rs"]
+mod marker_tests;
