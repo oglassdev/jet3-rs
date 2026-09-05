@@ -60,11 +60,11 @@ records the other bounded writer observations. These establish only the
 pinned candidates and finite probes, with no general compatibility claim
 or hosted support movement.
 
-EXP-0140 records the multi-level candidate matrix as `no_outcome`: the
-preregistered decoder rejected six control index headers. Investigate that
-retained evidence through separately pinned analysis before claiming candidate
-acceptance. Continue broader index keys, null semantics and allocation beyond
-inline maps. After creation is complete, run the hosted write differential
+EXP-0146 records bounded acceptance of all three multi-level candidates from
+separately pinned analysis of the retained files; EXP-0140 preserves the
+original decoder refusal and `no_outcome`. Recognize the newly observed control
+branch header value in the reader, then continue broader index keys, null
+semantics and allocation beyond inline maps. After creation is complete, run the hosted write differential
 (#102), implement updates preserving unrelated data (#112), then run the
 hosted update differential (#113). Keep module cleanup (#182) until the
 creation API settles.
