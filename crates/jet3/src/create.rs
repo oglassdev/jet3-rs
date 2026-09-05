@@ -152,8 +152,10 @@ pub fn create_database(
 
 /// Creates one unindexed table containing scalar initial rows in caller order.
 ///
-/// All rows must fit one data page, leaving a slot and room for one all-null
-/// row. The table definition must fit one page.
+/// Rows are packed in caller order into data pages within the inline usage-map
+/// capacity. Each row and the table definition must fit one page. Pages with
+/// a slot and room for an all-null row are marked available; this construction
+/// policy has not been established as DAO's allocation policy.
 /// AutoIncrement, Memo, and LongBinary columns are refused. Values use the
 /// same database-code-page and physical scalar representations as [`RowValue`].
 /// The existing-destination and atomic publication guarantees of
@@ -208,35 +210,24 @@ fn check_initial_rows(
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
-    let mut ends = [0_usize; 256];
-    let mut used = 0;
-    for (index, row) in rows.iter().enumerate() {
-        let length = crate::encode_row(&layout, row, &mut encoded[used..], budget)
-            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Row(error)))?
-            .get() as usize;
-        used += length;
-        let end = ends.get_mut(index).ok_or(CandidateCheckError::Mismatch {
-            detail: "initial row count",
-        })?;
-        *end = used;
-    }
     let mut cursor = database
         .rows(&definition, budget)
         .map_err(CandidateCheckError::Rows)?;
-    let mut start = 0;
-    for end in ends.into_iter().take(rows.len()) {
+    for row in rows {
+        let length = crate::encode_row(&layout, row, &mut encoded, cursor.owned.budget_mut())
+            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Row(error)))?
+            .get() as usize;
         let actual = cursor
             .next_row()
             .map_err(CandidateCheckError::Rows)?
             .ok_or(CandidateCheckError::Mismatch {
                 detail: "initial row count",
             })?;
-        if actual.raw_bytes() != &encoded[start..end] {
+        if actual.raw_bytes() != &encoded[..length] {
             return Err(CandidateCheckError::Mismatch {
                 detail: "initial row value",
             });
         }
-        start = end;
     }
     if cursor
         .next_row()
