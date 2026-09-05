@@ -10886,3 +10886,61 @@ Copy this block under the appropriate section and remove this instruction:
 - Boundary: development-only, no support-matrix movement or general
   compatibility, storage-cutoff, empty-payload, multi-long-column, indexed
   long-value or mutation claim. Add the validated outcome once as EXP-0124.
+
+### EXP-0124 — Initial Memo/OLE payload candidates accepted locally
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated development-only DAO outcome from the single authorized
+  run `20260905T041400Z-initial-long-values`; no retry or support movement.
+- Preregistration: EXP-0123, committed as
+  `a0b0d9a`, plan `oracle/windows-dao/acquisition/long-value-rows.plan.json`,
+  SHA-256 `d30fa45eee7ec8abf163538680bd5b5818b8fa05a15941422ad55bfd5b45c128`.
+  The pinned producer, analyzer, transport and example were unchanged.
+  Candidate generator source was
+  `2d3adf2e985e28c81f21cf1d9b07fdf52849341f`.
+- Artifacts: retained under local VM
+  `shared/outbox/20260905T041400Z-initial-long-values`. `result.json` is
+  344,430 bytes, SHA-256
+  `22240565e6d0b8e3b12ad975413d8794e56336a7f3cd0e55ad8ade55126d69d6`;
+  canonical `report.json` is 577 bytes, SHA-256
+  `57bfeca97671a8aee106dc3f7f8b24d80fcc185423fe198f150a46dfea84bdd1`.
+  Running the pinned analyzer on temporary copies reproduced the report
+  byte-for-byte, including input-pin and retained-image validation; retained
+  originals were verified unchanged. Independent outcome review follows.
+- Environment: Windows NT 10.0.20348.0, 32-bit PowerShell, DAO.DBEngine.36.
+  The report records `observed_accepted` for both `memo` and `ole`, six
+  complete candidate/control pairs, no job error, and three agreeing
+  candidate observations per arm. Every fresh matched control passed and
+  all twelve before/after identities matched their retained files.
+- Candidate files: every replica is 73,728 bytes. Memo SHA-256
+  `9302db2b9364aad2cf1fe8bf5b6d1ecb161e3f0b29d838990dc9dd2b695e98e5`;
+  OLE SHA-256
+  `8b13bd5cb99a8415fc90dc9c123cfdfcf673b14257affd384e0ed2f56c727d8c`.
+- Fresh control identities (each 73,728 bytes):
+  - memo r1:
+    `f0b4de501ec645171fa7bbe3ea83ed2e51d73525084b2f0582aa1bfc954604c0`.
+  - memo r2:
+    `8f93982a50f92e9367aac41e35a198de9d0c4d3e14c565d935dc42490c03d490`.
+  - memo r3:
+    `261caeee2b4c03e96cb28200092cf62b481a0a32a7950805f65c520a49dcaa46`.
+  - ole r1:
+    `7adb23e766a6a9dfcfb7824730346b12f2f9281e55d65e849f7ffacbfa3df41c`.
+  - ole r2:
+    `80aa49f23ea81dc6291e01dbf90d3ded5dd889dca0049f76aa67dbb332eece3b`.
+  - ole r3:
+    `b449f49898e1e7d226cbc756f1991b2cd6ab575b384346cc63c9db463821c946`.
+- Validated semantics: DAO version 3.0; exactly the four expected system
+  tables and `Rows`; no user-table indexes. Fields are Id/type4/size4 and
+  Payload/type12/size0 for Memo or type11/size0 for OLE. Both snapshots
+  contain the complete expected Id/payload multiset: Id1..9 have lengths
+  1, 32, 33, 512, 2036, 2037, 2048, 4064 and 4096; Id10 has null.
+  At zero-based row position r and payload offset p, Memo character is
+  ASCII `A + ((p+r) mod26)` and OLE byte is `(p+r) mod256`. Validation
+  compared every Memo character and every OLE byte, not just lengths or
+  prefixes; the null payload remained distinct from empty.
+- Boundary: acceptance covers the two exact pinned writer-policy candidates
+  and their read-only endpoints. It does not establish universal inline or
+  external storage thresholds, general allocation/page-zero policy, empty
+  payloads, multiple long columns, indexed long columns, subsequent writes,
+  general compatibility, or hosted support. All report compatibility and
+  support-movement flags are false.
