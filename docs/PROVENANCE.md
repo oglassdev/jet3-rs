@@ -11024,6 +11024,55 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0188 — First, unequal-middle and repeated deletion sequences accepted
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T090000Z-row-delete-compaction`. All nine sequences pass with no
+  reasons or phase errors. Consumed EXP-0187 plan SHA-256:
+  `9a91a0a48793b0b7eca764d893508f7e02d1da118be4e22e7765b2bd9a298279`.
+  Acquisition revision: `d132b34ca1b4b0a3819ce115c088dd06014a1a06`;
+  public deletion source: `963d7aa6014bba9f91bb73405f3b16966ad6f5ea`.
+- Report: 42733 bytes, SHA-256
+  `7aeac3b43992d02d16b67d3ee3091976bd6225382258cb7daaf89155f6a7441e`.
+  Result: 4282 bytes, SHA-256
+  `f83e2866c05a089e56821814664c17e9ebeff767ee0945c1a562e68b3a9f189a`.
+  Create phase: 279290 bytes, SHA-256
+  `1dccc3fc276916b26128212fd13f4f12e7132e04ab874d0c9c01c5cf86a414e3`;
+  observe phase: 690858 bytes, SHA-256
+  `835a1e461089f401888ce9e3cfd0f20d11192f221cf7ace24dcf83a1711e7957`.
+- Both phases retain x86 `DAO.DBEngine.36` with no retention failures. Fifteen
+  DAO control deletions and fifteen public deletions complete, followed by
+  eighteen independent DAO continuation inserts. All 63 read-only captures
+  retain unchanged identities across 45 MDBs, each 57344 bytes. The pinned
+  analyzer reproduces the report byte-for-byte on temporary copies. All 129
+  retained files remain unchanged: combined outbox60, create21, observe48.
+- Every profile has Items root20/data page23, an unrelated Later table and
+  KeepQuery. First-row deletion removes Id1 at slot0, a 16-byte row, leaving
+  Id2/3/4 at their original slots1/2/3. The final slot0 tombstone is `c800`;
+  count4 becomes3 and contiguous free bytes1963 become1979.
+- Unequal-middle deletion removes Id2 at slot1, a 183-byte row including its
+  170-byte Text payload. Id1/3/4 retain slots0/2/3 and complete stored values.
+  Slot1 becomes `c7f2`; count4 becomes3 and free bytes1622 become1805.
+- Repeated deletion `[2,4,1]` uses original slots1/3/0 and removes rows of
+  53,113,16 bytes. Final count5 becomes2, retaining Id3/5 at slots2/4.
+  The five directory words are `c800,c800,07ee,c7ee,07dd`; existing empty
+  tombstone flags survive shifted offsets. Free bytes1811 become1993.
+  These are final candidate states, not separately captured intermediate DAO
+  byte observations. Each complete sequence repeats across three replicas.
+- Each final candidate equals the declared sequence of checked compactions:
+  shifted complete row bytes, updated later offsets/free/table count, stable
+  physical slots and preserved vacated slack. Maps and page zero stay exact;
+  owned/available sets remain `[23]` and match controls. Every byte outside
+  the planned changes remains identical, including unrelated objects.
+- DAO readback matches the controls' complete schema, expected rows, empty
+  index/relationship inventories and stored KeepQuery SQL. Separate Rust and
+  control copies accept `[99,-9900,"next"]` with equal complete final states;
+  target counts become4,4,3 and Later remains unchanged.
+- This is finite local candidate acceptance with compatibility/support flags
+  false. It establishes no general compaction/header policy, sole-row release,
+  page reuse, indexed/related/AutoIncrement/LVAL deletion or hosted support.
+  Consumed plans, runtime inputs and retained artifacts are unchanged.
+
 ## EXP-0187 — First, middle and repeated row deletion candidate plan
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0188.
