@@ -10992,6 +10992,38 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0141 — Hosted write differential preregistration
+
+- Status: preregistered; no hosted acquisition performed by this entry.
+  Plan: `oracle/windows-dao/acquisition/write-v1_2.plan.json`, SHA-256
+  `d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8`.
+- Reviewed scaffold: `622bb14`. The plan pins the workflow, separate write
+  inventory, public fixture generator, canonical snapshot/coverage producers,
+  protocol validators, DAO helpers and evaluator. Both jobs use the same
+  dispatched committed source revision; no build attestation is introduced.
+- One authorized workflow dispatch runs the twelve declared `dao_open_rust`
+  scenarios: empty database, supported scalars/nulls, AutoIncrement, primary,
+  unique/descending, ordinary/composite indexes, multiple data pages/tables,
+  Memo/OLE payload forms and a populated relationship. The existing read
+  inventory remains a separate unchanged contract.
+- Ubuntu creates each fixture with one public API call, captures its identity
+  before reading, and checks the complete requested semantics. Windows 2022
+  downloads those exact files, produces read-only Rust snapshots, probes its
+  stock x86 DAO provider and observes the same files read-only. There is no
+  runtime installation, license acceptance or Windows publication workaround.
+- Require every scenario/source/image/receipt/platform binding and unchanged
+  image hash, full canonical schema/typed-row/relationship agreement, independent
+  request assertions, and every index's complete traversal and full-key Seek.
+  Preserve duplicate payloads; Seek may choose any matching duplicate row.
+- Missing provider, incomplete acquisition or any failed comparison prevents
+  `matched`. Retain preparation/provider diagnostics and failed artifacts;
+  evaluator failures emit `no_outcome`. No automatic retry or redispatch.
+  Record one validated additive EXP-0142 result; no MDB/provider bytes in git.
+- Coverage is explicitly bounded by the write inventory's deferrals. Earlier
+  local `no_outcome` entries remain unchanged, including EXP-0132 and EXP-0139.
+  Neither this plan nor self-validation establishes general compatibility,
+  completion of #100 or support-matrix movement.
+
 ## EXP-0138 — Generated AutoIncrement candidates and subsequent inserts accepted locally
 
 - Status: validated `observed_accepted` for all three EXP-0137 arms and all
