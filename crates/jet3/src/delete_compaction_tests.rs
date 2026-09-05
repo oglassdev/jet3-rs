@@ -153,7 +153,9 @@ fn repeated_deletions_shift_empty_tombstones_until_one_live_row_remains() -> Res
             },
             &mut budget()
         ),
-        Err(UpdateError::Unsupported("sole-row page release"))
+        Err(UpdateError::Unsupported(
+            "sole live row with other physical slots"
+        ))
     ));
     assert_eq!(fs::read(f.path())?, before);
     let inserted = crate::insert_row(
