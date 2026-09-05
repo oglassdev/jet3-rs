@@ -777,7 +777,7 @@
     }
   ],
   "deferred_requirements": [
-    "Multi-level initial index creation (implementation pending)",
+    "Multi-level index write-inventory boundary coverage",
     "General null/composite foreign keys and cascades",
     "Explicit AutoIncrement seeds, overflow and update semantics",
     "Empty LVAL payloads and unsupported schema combinations",
