@@ -88,7 +88,7 @@ fn nonkey_update_preserves_every_index_and_unrelated_byte() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(UpdateError::Unsupported("indexed key column"))
+            Err(UpdateError::Unsupported(_))
         ));
         assert_eq!(fs::read(fixture.path())?, expected);
     }

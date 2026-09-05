@@ -82,15 +82,18 @@ changing existing objects and preserving their unrelated metadata are absent.
 This evidence does not advance existing-row insert/update/delete, index CRUD
 maintenance or atomic failure/rollback verification.
 
-EXP-0160 records the successful hosted update run for three present Long
-replacements: a first field, a later row on another page, and a later table.
-All six before/after DAO and Rust snapshots match, and independent reader checks
-confirm every byte outside the requested field is preserved. The combined
-`rows.insert_update_delete` capability is therefore partial with DAO differential
-evidence for these exact field updates. Hosted insert/delete, other fixed types,
-null transitions, indexed or related targets, variable-width changes and stored
-queries remain unverified. Index CRUD stays unverified; atomic failure/rollback
-verification remains internal-only.
+EXP-0160 records hosted acceptance for three present Long replacements: a first
+field, a later row on another page, and a later table. EXP-0174 adds a successful
+hosted five-case run retaining those exact updates and adding one populated-page
+insertion and one live-tail deletion. All ten before/after DAO and Rust snapshots
+match; independent Windows/Unix readers confirm the exact field or row patches
+and preservation of every other byte, including page zero and allocation maps.
+The combined `rows.insert_update_delete` capability remains partial with DAO
+differential evidence for these finite operations. Page allocation, empty-table
+insertion, non-tail/sole-row deletion, slot reuse, other fixed update types, null
+transitions, indexed or related targets, variable-width changes and stored-query
+preservation remain unverified by this hosted inventory. Index CRUD stays
+unverified; atomic failure/rollback verification remains internal-only.
 
 Keep broader index key codecs and allocation beyond inline maps as explicit
 creation limitations. Prioritize existing-file row insertion/deletion and index
