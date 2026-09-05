@@ -43,10 +43,7 @@ use crate::catalog_record_writer::{CatalogRecordWriteError, catalog_record_len};
 use crate::column_definition_writer::{KEY_SLOT_COUNT, PhysicalIndexSpec, validate_physical_index};
 use crate::page_image::PAGE_BYTES;
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
-use crate::{
-    ColumnSpec, IndexDirection, IndexFieldSpec, PageNumber, TableDefinitionKind,
-    TableDefinitionWriteError,
-};
+use crate::{IndexFieldSpec, PageNumber, TableDefinitionKind, TableDefinitionWriteError};
 
 /// Largest index count `EXP-0093` observed on a created table.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
@@ -72,98 +69,11 @@ pub(crate) const CONTINUATION_CAPACITY: usize = PAGE_BYTES - 8;
 /// `EXP-0101` is bounded and does not widen this.
 const LAST_ESTABLISHED_NAME_BYTE: u8 = 0x7e;
 
-pub use crate::index_options::IndexKind;
-
-/// A reference to one column of a [`TableSpec`], by position or by name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ColumnRef<'a> {
-    /// The column at this zero-based position in [`TableSpec::columns`].
-    Ordinal(u16),
-    /// The column whose raw name bytes equal these.
-    Name(&'a [u8]),
-}
-
-impl ColumnRef<'_> {
-    /// Returns the ordinal this reference names among `columns`, if any.
-    pub(crate) fn resolve(self, columns: &[ColumnSpec<'_>]) -> Option<u16> {
-        match self {
-            Self::Ordinal(ordinal) => (usize::from(ordinal) < columns.len()).then_some(ordinal),
-            Self::Name(name) => columns
-                .iter()
-                .position(|column| column.name() == name)
-                .and_then(|position| u16::try_from(position).ok()),
-        }
-    }
-}
-
-impl From<u16> for ColumnRef<'_> {
-    fn from(ordinal: u16) -> Self {
-        Self::Ordinal(ordinal)
-    }
-}
-
-impl<'a> From<&'a [u8]> for ColumnRef<'a> {
-    fn from(name: &'a [u8]) -> Self {
-        Self::Name(name)
-    }
-}
-
-impl<'a, const N: usize> From<&'a [u8; N]> for ColumnRef<'a> {
-    fn from(name: &'a [u8; N]) -> Self {
-        Self::Name(name)
-    }
-}
-
-/// One key column of an [`IndexSpec`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IndexColumnSpec<'a> {
-    /// The table column the key uses.
-    pub column: ColumnRef<'a>,
-    /// Key direction.
-    pub direction: IndexDirection,
-}
-
-impl<'a> IndexColumnSpec<'a> {
-    /// Describes an ascending key on `column`.
-    #[must_use]
-    pub fn ascending(column: impl Into<ColumnRef<'a>>) -> Self {
-        Self {
-            column: column.into(),
-            direction: IndexDirection::Ascending,
-        }
-    }
-
-    /// Describes a descending key on `column`.
-    #[must_use]
-    pub fn descending(column: impl Into<ColumnRef<'a>>) -> Self {
-        Self {
-            column: column.into(),
-            direction: IndexDirection::Descending,
-        }
-    }
-}
-
-/// One index of a [`TableSpec`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IndexSpec<'a> {
-    /// Index name; bytes must be at most `0x7E`.
-    pub name: &'a [u8],
-    /// Ordered key columns.
-    pub fields: &'a [IndexColumnSpec<'a>],
-    /// The index's uniqueness class.
-    pub kind: IndexKind,
-}
-
-/// One user table to create.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TableSpec<'a> {
-    /// Table name; bytes must be at most `0x7E`.
-    pub name: &'a [u8],
-    /// The table's columns in ordinal order.
-    pub columns: &'a [ColumnSpec<'a>],
-    /// The table's indexes in physical (append) order; at most three.
-    pub indexes: &'a [IndexSpec<'a>],
-}
+#[cfg(test)]
+pub(crate) use super::IndexKind;
+pub(crate) use super::{ColumnRef, IndexSpec, TableSpec};
+#[cfg(test)]
+use crate::ColumnSpec;
 
 /// Structured failure while planning one new user table.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -639,5 +549,5 @@ fn case_folded(name: &[u8]) -> impl Iterator<Item = u8> + '_ {
 }
 
 #[cfg(test)]
-#[path = "table_schema_plan_tests.rs"]
+#[path = "schema_plan_tests.rs"]
 mod tests;

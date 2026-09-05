@@ -4,7 +4,7 @@
 use super::*;
 use crate::{IndexNullPolicy, IndexTree, RowLocator};
 
-#[path = "bootstrap_initial_index_pages.rs"]
+#[path = "initial_index_pages.rs"]
 mod pages;
 use pages::IndexPages;
 

@@ -11143,6 +11143,43 @@ Copy this block under the appropriate section and remove this instruction:
   No such correction or new DAO acquisition is part of EXP-0158. Original
   `no_outcome`, compatibility=false and support-movement=false remain intact.
 
+## EXP-0159 — Hosted before/after field-update preregistration
+
+- Question: do the three declared public `update_field` requests preserve every
+  unrelated byte and complete before/after semantics under hosted stock DAO?
+- Status: preregistered only; no acquisition or compatibility result. The outcome
+  is reserved as `EXP-0160`.
+- Reviewed tooling: `ff65aeb`, integrated with main at `c424a1f`; exact runtime
+  inputs are SHA-256 pinned in
+  `oracle/windows-dao/acquisition/update-v1_2.plan.json`.
+- Plan SHA-256: `974ae15b0bb190ff52921da9b2e33f9f69c88788b5d59f6c2e6aaf7a488ff119`.
+- The separate inventory contains three pairs: first `Items.Id` row 0, later
+  `Items.Value` row 31, and `Items.Value` row 17 after an earlier `Prefix` table.
+  Each image also retains distinct Text/Binary payloads and an unrelated Notes
+  table containing a 2048-byte Memo and null value.
+- Ubuntu creates originals and updates copies through public library APIs.
+  Windows independently locates each requested field with the public reader,
+  rejects ambiguous raw-row matches, verifies the exact four replacement bytes
+  and every byte outside that span, then snapshots both files with Rust and
+  read-only DAO. Full six-image schemas and rows must match the declared request.
+- Both capture and evaluation require retained protocol 1.2 ready x86
+  `DAO.DBEngine.36` / `dbVersion30` environment evidence; its exact bytes are
+  bound by the DAO manifest. Complete source, inventory, image and verification
+  bindings are required. Matching producers alone do not establish correctness.
+- One hosted workflow dispatch after independent review; no rerun of a consumed
+  plan. Missing observations or failed gates prevent `matched`, with available
+  diagnostics retained. No automatic support-matrix movement.
+- Insert/delete, indexed or related targets, null and variable-width transitions,
+  hosted stored-query preservation and general update compatibility are deferred.
+  All earlier outcomes and consumed inputs remain unchanged.
+
+- Pre-acquisition integration refresh: main `ea34a10` adds the independently
+  reviewed fixed-field extension `37bd817`. Only the `update.rs` and
+  `row_writer.rs` input hashes change; the three hosted Long requests and all
+  harness bytes remain unchanged. The unconsumed plan now has SHA-256
+  `0f88f5c8c4b940e7699a779a844a9ba6e31849bb6911e8186965cbf1ed607d04`, superseding
+  the initial plan hash above before any acquisition.
+
 ## EXP-0157 — Ordinary-row deletion transitions preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development discovery plan,
@@ -11228,6 +11265,33 @@ Copy this block under the appropriate section and remove this instruction:
   and later table. It does not establish null/Auto/index/relationship/overflow
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
+
+## EXP-0163 — Typed existing fixed-field update preregistration
+
+- Status: preregistered only, no acquisition; outcome reserved as EXP-0164.
+- Question: can the reviewed public fixed-field extension `37bd817` change
+  exactly the requested present field in existing DAO-created databases while
+  preserving every unrelated byte, full metadata/rows and stored query SQL?
+- Pinned plan: `oracle/windows-dao/acquisition/fixed-field-update.plan.json`,
+  SHA-256 `c6958a5b238c6cee97f877ec12cf53b93ad699db190fb0aceec769045794c564`.
+- Ten arms, three replicas each: Byte 0 to 255; Integer 32767 to -32768;
+  Long 1 to -2147483648 control; Currency zero to scaled i64 minimum; Single
+  and Double 1 to exact negative-zero bits; Date OA 1 to -1.25; zero GUID to
+  `00112233-4455-6677-8899-aabbccddeeff`; fixed Text widths 1 and 255 from
+  ASCII `a` to CP1252 `é`, preserving the declared width.
+- Each original has three Items rows, an unrelated three-row Long/Text Later
+  table, and KeepQuery. Fixed Text must save with fixed attributes and actual
+  fixed storage. Negative-zero bits are compared exactly, never normalized.
+- One coordinated create / Unix public update / read-only DAO acquisition,
+  retaining 30 original/updated pairs and 90 read-only observations. All
+  source/plan/file identities, complete requested rows, unchanged schema/query
+  SQL and independently decoded exact field-span preservation must pass.
+- Actual x86 pure mock-field checks cover all typed conversions and plain CLR
+  array JSON shapes before acquisition; no DAO is invoked by this preflight.
+  Initiating endpoint and stack are retained before best-effort cleanup.
+- Any failure after mutation remains no_outcome, with partial files retained;
+  no same-plan retry. No null, Boolean, AutoIncrement, variable-width, indexed,
+  relationship, overflow or hosted compatibility/support claim is established.
 
 ## EXP-0151 — Existing-file Long field update validation preregistered
 
@@ -12239,6 +12303,100 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0166 — Nullable writer successor accepted in the exact six-arm matrix
+
+- Recorded 2026-09-05 from the single local run
+  `20260905T070529Z-nullable-successor`, source `f0cbd77`, EXP-0165 plan
+  SHA-256 `d765bbf7f7e219147dc15aff0b58a8cac1c6e31e745666495d55da48ffaa50b1`.
+  This is the distinct preregistered successor; EXP-0156's failed acquisition,
+  retention failure, recovered analysis and all six `no_outcome` arms remain.
+- Result: 12486669 bytes, SHA-256
+  `a4dc423a9867098869bb6c41a33b741dca43ec21f3e1588fdd276b9c4ad1d078`.
+  Report: 229085 bytes, SHA-256
+  `da58a1e467443ef9511f138d1ea4996112563bfdb44db6fac4c134d5ccc0c5d5`.
+  The pinned analyzer reproduced this report byte-identically on temporary
+  copies. All 64 retained files, including 60 MDBs, remained unchanged.
+- All six outcomes are `observed_accepted`: 18 complete baseline pairs and
+  24 independent-copy probe observations, no acquisition, cleanup or retention
+  failures. All 36 baseline and 24 probe report checks pass. Every retained
+  identity matches the corresponding recorded before/after or probe-source
+  identity; originals stay unchanged and each candidate starts with its pin.
+- Reviewed library source is `6a0e4537e7986a4b04db7616f5537cb306f17e2c`.
+  The six exact candidate identities remain those in EXP-0165's plan, identical
+  to EXP-0155. Controls are fresh matched DAO files, not reused failed controls.
+- Each arm has an empty first table and later Rows(A, B, Payload), with distinct
+  Long payloads; Auto generates B as position+1. Full schema/Auto/index flags,
+  null-preserving row multisets, complete ordered traversal and every finite
+  non-null Seek comparison match. Seek permits any actual matching duplicate;
+  traversal verifies all duplicate payloads and locators.
+- Physical rows, complete variable-length key/locator bindings, distinct
+  counts, separators, sibling chains, uniform depths and declared map checks
+  all pass. Both controls and candidates have the same following counts in
+  every replica (their page placements need not match):
+  - `unique`: 12 rows, 12 leaf entries, 9 distinct keys, depth 1, flags 1.
+  - `ignore`: 12 rows, 8 leaf entries, 8 distinct keys, depth 1, flags 3.
+  - `required`: 12 rows, 12 leaf entries, 3 distinct keys, depth 1, flags 8.
+  - `composite`: 30000 rows, 30000 leaf entries, 7503 distinct keys, depth 3, flags 1.
+  - `composite-ignore`: 1200 rows, 900 leaf entries, 302 distinct keys, depth 2, flags 2.
+  - `auto`: 1200 rows, 1200 leaf entries, 1200 distinct keys, depth 2, flags 1.
+- In these exact rows, unique indexes retain repeated null-bearing keys;
+  IgnoreAllNull omits only all-null keys and retains partial composite nulls.
+  Ascending null component `00`, descending null `ff`, and full-key distinct
+  counts satisfy the predeclared EXP-0148 correlations. The 30,000-row
+  composite arm exercises three levels and repeated null-bearing entries.
+- Unique/ignore/composite duplicate fully-present-key probes are rejected with
+  native code 3022 and HRESULT -2146825266, matching every control. Required
+  null-key probes are rejected with 3058 and HRESULT -2146825230, also matching
+  every control. Each independent probe preserves the full baseline logical
+  post-state, including traversal and Seek; no original file is made writable.
+- Acceptance is finite to these pinned images, metadata, values and probes.
+  It does not establish null Seek, nullable foreign relationships, other scalar
+  key codecs, indirect writer allocation or general existing-index maintenance.
+  Development-only local evidence: no broad compatibility claim or hosted
+  support-matrix movement. No new writer/reader format rule is introduced.
+
+## EXP-0165 — Distinct nullable index successor preregistration
+
+- Recorded 2026-09-05; no acquisition yet. Plan
+  `oracle/windows-dao/acquisition/nullable-index-successor.plan.json`, SHA-256
+  `d765bbf7f7e219147dc15aff0b58a8cac1c6e31e745666495d55da48ffaa50b1`. Outcome reserved as EXP-0166.
+- EXP-0155/0156 remains unchanged, including all six `no_outcome` arms and
+  failed original retention. This distinct acquisition repeats the full six-arm
+  scope because no arm passed its original validation; it does not resume or
+  retry the consumed script. Reviewed library source remains
+  `6a0e4537e7986a4b04db7616f5537cb306f17e2c`, with exactly the same six pinned
+  candidate images and exporter. No writer or format rule is changed here.
+- Pure x86 PowerShell AST-helper checks reproduced the consumed `New-Object`
+  array JSON wrapper in the successful Seek-row shape. Mock assignments did
+  produce intended values, so they do not establish the initiating COM cause
+  of the original all-null writes or masked transaction exception.
+- New producer uses plain CLR arrays and explicit local-field null/int setters
+  following the already exercised EXP-0147 setter pattern. An actual x86
+  no-DAO helper test checks 30 boundary/sample rows across all six arms,
+  exact mock assignment/read/JSON values, every declared Seek argument, all
+  six complete baseline snapshots and deliberate corrupt-baseline refusal.
+  It also checks that cleanup cannot replace the first initiating error.
+- Same three fresh matched controls per arm, complete metadata/typed row
+  multisets, variable-key ordered traversal, finite non-null Seek probes and
+  raw locator/tree/map/distinct-count checks as EXP-0155. Unique/ignore/
+  composite duplicate-key probes and required-null probes use independent
+  copies. Validate each original baseline before probes or the next control;
+  validate a control probe before its candidate probe and any further mutation.
+- First unexpected failure records arm/replica/endpoint/stack/inner HRESULT
+  before best-effort rollback/close/release. Retention attempts each file once
+  and records copy failures while preserving the original error. Incomplete,
+  cleanup, retention or baseline/probe-failure jobs yield explicit `no_outcome`
+  without requiring missing MDBs merely to write a failure report. No subset
+  promotion, automatic retry or resume. All evidence is retained externally.
+- Plan pins the new producer/analyzer and helper test plus all reused decoder,
+  transport and exporter inputs; both preflight and analysis verify pins.
+  Timeout remains 3,600 seconds; bounds and candidate policies are unchanged.
+  Focused classifier tests, actual x86 helper/parser check and candidate
+  preflight pass. Independent review pending before any acquisition.
+- Development-only writer-policy validation, no compatibility claim or support
+  movement. No nullable relationship expansion, null Seek, broader scalar
+  codec, indirect writer allocation or general update/split claim is tested.
 
 ## EXP-0156 — Nullable index acquisition and retention failure, no outcome
 

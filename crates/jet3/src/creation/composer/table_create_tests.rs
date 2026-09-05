@@ -4,7 +4,7 @@
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
 use super::super::{ComposeError, compose_database, compose_table_database};
 use crate::column_definition_writer::nz;
-use crate::table_schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
+use crate::creation::schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource, page_tag,
