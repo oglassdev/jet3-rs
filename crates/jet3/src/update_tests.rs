@@ -183,7 +183,7 @@ fn bad_requests_and_resource_failures_preserve_original() -> TestResult {
 }
 
 #[test]
-fn auto_and_non_long_columns_are_refused() -> TestResult {
+fn auto_columns_and_mismatched_values_are_refused() -> TestResult {
     for (kind, initial) in [
         (ColumnType::AutoIncrement, RowValue::AutoIncrement),
         (ColumnType::Byte, RowValue::Byte(1)),
@@ -196,7 +196,7 @@ fn auto_and_non_long_columns_are_refused() -> TestResult {
                 request(fixture.locator(0)?, RowValue::Long(2)),
                 &mut budget()
             ),
-            Err(UpdateError::Unsupported(_))
+            Err(UpdateError::Unsupported(_) | UpdateError::Encoding(_))
         ));
         assert_eq!(fs::read(fixture.path())?, original);
     }
@@ -505,3 +505,6 @@ fn relationship_catalog_rows_are_checked_without_user_indexes() -> TestResult {
     }
     Ok(())
 }
+
+#[path = "update_fixed_tests.rs"]
+mod fixed;
