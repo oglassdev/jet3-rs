@@ -14970,3 +14970,33 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   and no automatic retry or diagnostic subset promotion. Record EXP-0218 once
   from the validated report. Local observations make no compatibility claim or
   support-matrix movement and do not complete the lifecycle milestone.
+
+## EXP-0218 — Indexed data-page boundary validation no-outcome
+
+- The one EXP-0217 acquisition, `20260905T145600Z-indexed-boundary`, returned
+  **`no_outcome`** under the frozen all-matrix rule. Preregistration commit
+  `dc4ce4d` was pushed before dispatch; plan SHA-256
+  `04345d7dd0f2a217f4ba74b0662fdcced750ac05976281168a1b5554f8f73c99`.
+- The x86 `DAO.DBEngine.36` producer recorded eight captures, native `space`
+  and `eof` insertion operations, and then failed in the duplicate-control arm
+  at `Mutate` line 51 with `Specified cast is not valid.` That line assigns
+  the nullable Price value through COM; the even Id requests `DBNull.Value`.
+  The expected duplicate-key operation never completed. Mutation had started;
+  the producer retained eleven MDBs with no retention failures. No reacquisition
+  occurred, and neither completed insertions nor capture subsets are promoted.
+- The unchanged analyzer returned `reasons: ["Acquisition failure"]` and no
+  accepted observations. Its report was rebuilt from the retained result and
+  reproduced byte-for-byte; all sixteen retained files remained unchanged.
+  `report.json`: 371 bytes, SHA-256
+  `49ceeead3863c401f2156163034e2190818a9bd06ae54ea72cee1608023c3aed`.
+  `result.json` SHA-256:
+  `ccabd23670d30b6de0a5080816870cdcaa8008b48c3875c2a553c9974207e3c1`.
+- Retained external root:
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T145600Z-indexed-boundary/`.
+  No MDB or provider bytes are committed. The plan and consumed harness remain
+  unchanged. Any corrected acquisition requires a new reviewed plan and human
+  decision; this is not an infrastructure retry.
+- The bounded implementation and focused Rust preservation/refusal checks remain
+  implemented, but this result establishes no DAO compatibility or hosted
+  support. EXP-0214/0216 remain `no_outcome`, the support matrix is unchanged,
+  and the larger practical lifecycle milestone remains incomplete.

@@ -166,3 +166,18 @@ Stop after this bounded insertion deliverable and its recorded validation.
 Index splits/rebalancing, empty indexed-table insertion, indexed variable-width
 replacement, general deletion/reuse, indirect-map growth, relationship mutation,
 and CLI expansion are outside this slice.
+
+### Bounded slice outcome (2026-09-05)
+
+The indexed data-page-boundary insertion above is implemented: one EOF page,
+inline allocation bits, table counts and isolated Long root-leaf maintenance
+publish together. The deterministic Items/Notes grouped matrix covers existing
+space, physical page exhaustion, duplicate refusal and the 200-key leaf limit,
+with unrelated-byte preservation and private-publication corruption checks.
+
+EXP-0217 preregistered one local DAO matrix; EXP-0218 records its **no_outcome**.
+The producer failed assigning null Currency through COM in the duplicate-control
+arm after the two native insertion operations. No subset is accepted, no retry
+occurred and hosted support is unchanged. This bounded implementation and its
+validation outcome finish this slice; the larger lifecycle remains incomplete.
+Any successor validation needs a separate reviewed plan and human decision.
