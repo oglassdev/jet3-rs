@@ -11210,6 +11210,52 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0133 — Populated relationship and integrity preregistration
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: committed development-only DAO preregistration; acquisition has not
+  started and no outcome or support movement is asserted.
+- Plan: `oracle/windows-dao/acquisition/relationship-rows.plan.json`, SHA-256
+  `ddeb3bdc88edc4c57163366fb77dfbf60eb5ed422d9a7943c78617be52ace5d2`. Input pins cover the producer, analyzer,
+  low-level transport and Rust example. Dispatch and analysis verify the
+  same pins; acquisition requires this committed plan and independent review.
+- Generator: `relationship_row_candidate` at reviewed source
+  `77269833fb21b4fdb77c4fab9b6e7d8ec23ac314`. Candidate is
+  65,536 bytes, SHA-256
+  `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b`.
+- Candidate: Accounts7 has three Long-key parent rows. Events9 has twenty
+  repeated child keys with distinct 255-character payloads across three
+  data pages. Account7Events9 links Accounts7.Key1 to Events9.Account4;
+  the child foreign leaf carries twenty entries and three distinct keys.
+  The plan fixes complete schemas, relation/index flags and every row value.
+- Read-only endpoint: three fresh matched DAO controls and three unchanged
+  candidate replicas; complete table/schema/index/relation metadata and all
+  row payloads, plus full parent/child index traversal and Seek1,2,3.
+  Duplicate traversal tie order and which valid duplicate Seek selects are
+  unspecified; every complete expected row must still occur in traversal.
+- Integrity endpoints: separate fresh writable candidate/control copies for
+  each replica and each operation. Insert valid child ('valid',2); attempt
+  orphan child ('orphan',999); attempt duplicate parent (Code2=6,Key1=1).
+  Require the valid insert to add exactly one child and the rejected inserts
+  to leave complete logical state unchanged. Capture actual native rejection
+  numbers/HRESULT and compare matched candidate/control identities without
+  guessed numeric gates. Read both indexes and every full row after each probe.
+  Six originals remain unchanged; retain those and eighteen probe files.
+- Classification: read-only acceptance and each integrity endpoint have
+  separate outcomes. Integrity requires accepted originals, complete probe
+  inventory and all matched controls passing. Three agreeing candidate
+  observations produce `observed_accepted` or `not_observed_accepted`;
+  incomplete jobs, failed controls, changed originals or disagreement give
+  `no_outcome`. Pin/binding/retention failures reject validation. Expected
+  Update rejections are recorded endpoints; unexpected post-mutation failure
+  remains a scientific result, never a redispatch or retry.
+- Preflight: eight focused classifier tests and VM PowerShell
+  `Parser.ParseFile` passed. The parser check executed no producer or DAO.
+- Boundary: this exact image and three finite DAO insert probes only; no
+  nullable/composite relationship keys, cascades, general allocation or
+  enforcement policy, Rust update implementation, general compatibility or
+  hosted support claim. Record one validated outcome as EXP-0134.
+
 ### EXP-0130 — Multi-table initial-row candidates accepted locally
 
 - Recorded: 2026-09-05, OpenAI Codex
