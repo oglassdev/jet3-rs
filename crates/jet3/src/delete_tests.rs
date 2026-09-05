@@ -144,10 +144,6 @@ fn unsupported_locators_pages_and_metadata_preserve_original() -> ResultTest {
             ..f.request()
         },
         RowDelete {
-            row: RowLocator::new(f.row.page(), 1),
-            ..f.request()
-        },
-        RowDelete {
             row: RowLocator::new(f.row.page(), 200),
             ..f.request()
         },
@@ -174,15 +170,7 @@ fn unsupported_locators_pages_and_metadata_preserve_original() -> ResultTest {
         assert!(delete_row(f.path(), f.request(), &mut budget()).is_err());
         assert_eq!(fs::read(f.path())?, bad);
     }
-    let sole = Fixture::new(1)?;
-    let original = fs::read(sole.path())?;
-    assert!(matches!(
-        delete_row(sole.path(), sole.request(), &mut budget()),
-        Err(UpdateError::Unsupported("sole-row page release"))
-    ));
-    assert_eq!(fs::read(sole.path())?, original);
-    f.clean()?;
-    sole.clean()
+    f.clean()
 }
 
 #[test]
@@ -324,3 +312,9 @@ fn generated_long_value_index_and_available_map_states_are_refused() -> ResultTe
     assert_eq!(fs::read(f.path())?, original);
     f.clean()
 }
+
+#[path = "delete_compaction_tests.rs"]
+mod compaction;
+
+#[path = "delete_release_tests.rs"]
+mod release;

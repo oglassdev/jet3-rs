@@ -1,0 +1,57 @@
+{
+  "document_type": "dao_empty_long_values_plan",
+  "provenance": "EXP-0199",
+  "outcome_provenance": "EXP-0200",
+  "replicas": 3,
+  "arms": [
+    {
+      "name": "memo-default",
+      "type": 12,
+      "allow_zero_length": false,
+      "method": "value"
+    },
+    {
+      "name": "memo-allow-empty",
+      "type": 12,
+      "allow_zero_length": true,
+      "method": "value"
+    },
+    {
+      "name": "ole-value",
+      "type": 11,
+      "allow_zero_length": false,
+      "method": "value"
+    },
+    {
+      "name": "ole-append",
+      "type": 11,
+      "allow_zero_length": false,
+      "method": "append"
+    }
+  ],
+  "inputs": {
+    "oracle/windows-dao/scripts/empty_long_values.py": "00f9e76a2aae26317c4cc6ce85bb54c4735722b279f66414559d8f9b3e5b7992",
+    "oracle/windows-dao/scripts/empty_long_values.ps1": "f057ca96ee79c32e8fdca259eaabce60582fc2f95a535db8e9ac1a7b0d249608",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Which empty Memo/OLE operations are accepted, rejected or normalized to Null, and what exact presence/field-span/descriptor and property/map state survives reopen?",
+  "sequence": [
+    "Commit plan/input pins and independently review before one local dispatch; no retry.",
+    "Create12 fresh natural DAO3.0 databases: four arms\u00d73replicas. Each has Id Long and Payload Memo/OLE, no indexes or relationships. Memo arms keep default AllowZeroLength or explicitly set true; OLE uses Value or AppendChunk. No raw image edits.",
+    "Attempt Id1 Null, Id2 empty, Id3 one-byte A(41), in that order. Marshal Memo empty through explicit string assignment and OLE empty through a true CLR byte[0]. For AppendChunk use that same typed array. Keep a local COM field variable for assignments.",
+    "Only planned empty assignment/Update with a captured native DAO error inventory may be an answered negative. Preserve initiating endpoint/type/HRESULT/numbers/stack before CancelUpdate/cleanup. Null and one-byte controls must succeed. Any other failure or failed cancellation/cleanup is no_outcome.",
+    "Close and reopen each database read-only. Retain complete fields and field properties, exact saved rows/IsNull/FieldSize/payload, empty index/relation/query inventory and unchanged image identity. Accepted empty may remain empty or normalizeNull; do not impose an unknown encoding.",
+    "Bind raw Ids to reopened rows. Record exact row/nullmask/fieldspan/descriptor, table maps and long-column maps. Small one-variable rows and existing decoder limits suffice. Require complete stable three-replica observations per arm; stable provider rejection remains answered, not retried.",
+    "Retain all12images and12reopencaptures including rejected empty rows; result/report and partialfiles remain immutable afteracquisition."
+  ],
+  "decision_rule": "answered only if all12captures complete with unchanged identities, required Null/one-byte controls, exact attempt/readback/raw bindings and stable per-arm operation/schema/row/map observations. Empty may be acceptedempty/acceptedNull/nativeproviderrejected; no guessed header formula gate. Otherwise no_outcome with diagnostics, no subset promotion.",
+  "hypothesis": "A present zero-length inline descriptor may be 00000080 followed by eight zero bytes, but this is only a candidate from existing codec grammar. DAO may instead use a present empty field span, normalizeNull, or reject. Do not remove production empty-payload refusal before evidence.",
+  "bounds": "Four small arms only, oneMemo/OLE column/unindexed table, atmost3rows each. No external payload sizes, update/delete/index grammar, general AllowZeroLength property writer or hosted support. Decoder64pages/64columns/64slots. OneSSHcall bounded300seconds; noDAO in preflight.",
+  "source_facts": [
+    "EXP0061 inline header framing and Null/Text distinctions; no empty LVAL observation.",
+    "EXP0124 accepted nonempty1..4096payloads andNull explicitly excludesempty.",
+    "EXP0077 long-column map coverage."
+  ]
+}
