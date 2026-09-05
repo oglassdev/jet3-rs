@@ -11315,6 +11315,80 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
   Sole-live pages with other tombstones, indirect maps, map growth, truncation,
   indexed/related/AutoIncrement/LVAL deletion and public reuse are excluded.
 
+## EXP-0194 — Multiple-index candidate validation has no outcome
+
+- Single local run `20260905T094500Z-multiple-index`, preregistered by
+  EXP-0193 under plan SHA-256
+  `7dab38a9298a978e998ea940cfa995eb8cf2f5ef4a28f5bd5d62589cc81a1451`.
+  Frozen acquisition/analyzer revision `dfaaccddf2fe2ee22160f5a442c1e745b582f8eb`;
+  candidate library source `e514de11962f6a3b089e43a8d04a24e78520c21d`.
+- Original report: **no_outcome**, reason `Distinct full-key count`, zero
+  promoted observations;373bytes SHA-256
+  `668727c71b44f8a00e814a33533a1fc889d3a0cdc5d040fdde032c526401ff92`.
+  Result:21235080bytes SHA-256
+  `0479a5f20723011c0f083e6b12eb5c3189bd2152a09a356ab064ca7f924933ef`.
+  The original pinned analyzer reproduced these exact report bytes on temporary
+  copies. All35retained files and all30captured MDB identities remained
+  unchanged. Raw images/results stay in the external VM shared outbox.
+- Acquisition completed both arms and all six pairs, with no top-level error or
+  retention failure. All30read-only captures report pass and unchanged before/
+  after identities:12baseline images and18independent rejection-probe images.
+  All18probe attempts report rejection with DAO3022. These are retained guest
+  diagnostics; the preregistered all-pairs analyzer did not accept a subset.
+- Read-only diagnosis identifies the first rejected role as three-long replica1
+  candidate-duplicate-secondary. Its primary ZPrimary stored prefix count is202
+  although the complete tree contains201entries and201distinct keys. This same
+  discrepancy occurs in all six three-long secondary-duplicate probe images,
+  including the independent DAO controls. The attempted secondary-unique
+  duplicate had a fresh primary Id999 and failed during DAO Update.
+- Baseline and primary-duplicate three-long images retain primary201/201/201,
+  ordinary AGroup3/201/3 and unique MMixed201/201/201, where each triple is
+  stored count / actual entries / actual distinct keys. Secondary-duplicate
+  images differ only in the diagnosed primary count among these triples:
+  202/201/201; the other two counts remain3and201. All mixed-null images have
+  primary30/30/30 and ordinary AGroup15/30/15. These finite raw-count facts
+  explain the failed gate; they do not establish a general count-maintenance
+  rule, rollback behavior, successful candidate validation or compatibility.
+- No source, consumed plan, original report or retained image was corrected;
+  no redispatch or corrected evaluation occurred. A distinct pinned secondary
+  analysis could compare complete captured semantics and tree inventories while
+  retaining and comparing this same candidate/control post-rejection count
+  discrepancy separately. Such analysis requires its own reviewed plan and
+  cannot replace this no_outcome. No hosted or support-matrix movement.
+
+Retained MDB identities (filename: bytes, SHA-256):
+
+- `mixed-null-r1-candidate-duplicate-primary.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r1-candidate.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r1-control-duplicate-primary.mdb`: 53248, `5738a2bad5fdede6a7c9185854e7b32da3636db0081b073982587bfd0c1fd05f`.
+- `mixed-null-r1-control.mdb`: 53248, `5738a2bad5fdede6a7c9185854e7b32da3636db0081b073982587bfd0c1fd05f`.
+- `mixed-null-r2-candidate-duplicate-primary.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r2-candidate.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r2-control-duplicate-primary.mdb`: 53248, `cbfad4b964a3e021575c2a5382bab87f68fb0754c809cafe3f41b3fa0b4b95f8`.
+- `mixed-null-r2-control.mdb`: 53248, `cbfad4b964a3e021575c2a5382bab87f68fb0754c809cafe3f41b3fa0b4b95f8`.
+- `mixed-null-r3-candidate-duplicate-primary.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r3-candidate.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r3-control-duplicate-primary.mdb`: 53248, `440f9d3ddb870700d7318eea0419467dc358cce6686962b8780035bf5487d0ce`.
+- `mixed-null-r3-control.mdb`: 53248, `440f9d3ddb870700d7318eea0419467dc358cce6686962b8780035bf5487d0ce`.
+- `three-long-r1-candidate-duplicate-primary.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r1-candidate-duplicate-secondary.mdb`: 69632, `d65a7cc3b28e09af64a9d22103180bb682220fba718cf3e0fd868fce20b93be1`.
+- `three-long-r1-candidate.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r1-control-duplicate-primary.mdb`: 63488, `9d166f223eefdb617964cf0068816ac9ce47a594ba1b0fbb5019e0289d4d9c05`.
+- `three-long-r1-control-duplicate-secondary.mdb`: 63488, `f9ee45b46117e3c6c92fdb1ab8c577639b16fb8bab3ce2278a5925be0272c23c`.
+- `three-long-r1-control.mdb`: 63488, `9d166f223eefdb617964cf0068816ac9ce47a594ba1b0fbb5019e0289d4d9c05`.
+- `three-long-r2-candidate-duplicate-primary.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r2-candidate-duplicate-secondary.mdb`: 69632, `d65a7cc3b28e09af64a9d22103180bb682220fba718cf3e0fd868fce20b93be1`.
+- `three-long-r2-candidate.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r2-control-duplicate-primary.mdb`: 63488, `5a834aeccc88edf778765a541c657819219559ea78e3ed90f18c7c837b69a07b`.
+- `three-long-r2-control-duplicate-secondary.mdb`: 63488, `0fd02244a5a8bf43b6489d3700f211ea6908b006063c357c576796a293969fd5`.
+- `three-long-r2-control.mdb`: 63488, `5a834aeccc88edf778765a541c657819219559ea78e3ed90f18c7c837b69a07b`.
+- `three-long-r3-candidate-duplicate-primary.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r3-candidate-duplicate-secondary.mdb`: 69632, `d65a7cc3b28e09af64a9d22103180bb682220fba718cf3e0fd868fce20b93be1`.
+- `three-long-r3-candidate.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r3-control-duplicate-primary.mdb`: 63488, `554fab16aac0cba26121bcd9e1ee37aee9c0783b79d9c729726c68b756002437`.
+- `three-long-r3-control-duplicate-secondary.mdb`: 63488, `1395e5604d34f4147e8268af5e51bd42bfcbfb3450ad69bbb6e6bb4ea7b21fc5`.
+- `three-long-r3-control.mdb`: 63488, `554fab16aac0cba26121bcd9e1ee37aee9c0783b79d9c729726c68b756002437`.
+
 ## EXP-0193 — Multiple populated numeric indexes candidate plan
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0194.
