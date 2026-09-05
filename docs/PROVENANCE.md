@@ -11266,6 +11266,47 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0164 — Fixed-field acquisition stopped at Currency assignment
+
+- Outcome: `no_outcome`, recorded 2026-09-05 from the single local coordinated
+  run `20260905T071241Z-fixed-field-update`, acquisition revision `8364929`
+  and reviewed public implementation `37bd817`. Consumed EXP-0163 plan SHA-256
+  remains `c6958a5b238c6cee97f877ec12cf53b93ad699db190fb0aceec769045794c564`.
+- The original report reproduced byte-identically on temporary copies:
+  440 bytes, SHA-256
+  `f68a41a90c9531a8bd2abe8dd5b34539be61597d0aebda59261a9aaa53b05b7a`.
+  It contains no accepted observations and the reason
+  `Coordinated acquisition failed: ValueError: Phase failed or has wrong identity: create`.
+- Coordinated result: 487 bytes, SHA-256
+  `bb62c9b86d823dc8a45e490bc49598e4e369a51257518f12c2bbcc9a56a05700`.
+  Its phase is `create`, updates are empty, and the retained create result is
+  140474 bytes, SHA-256
+  `c659d4b4df266fdae7a2be45d56c2c6c4128e41604ea85cd0c5fae9422a10fda`.
+- The guest had begun mutations under x86 `DAO.DBEngine.36`. Nine read-only
+  original captures completed: all three replicas of Byte, Integer and the
+  Long control. Each captured original is 57344 bytes; its recorded before/after
+  identity matches both retained phase and coordinated copies.
+- Currency replica 1 failed at `assign/Items/Value`. The retained initiating
+  exception is `System.InvalidCastException`, with message
+  `Unable to cast object of type 'System.Decimal' to type 'System.String'.`
+  The stack identifies `Set-Value` line 29, called by `Create-Original` line 102
+  and the script line 164. That line assigns the Decimal division expression
+  directly to the DAO field's Value property. No Rust update was attempted.
+- Ten original MDBs were retained in both the create-phase and coordinated
+  outboxes, including the partial Currency file (47104 bytes, SHA-256
+  `262ee706a16618ad0a6ab6e372ff85477a5c4a35a5aafdfbc7342084a267b261`).
+  All ten copy identities and the nine complete capture identities agree;
+  the phase result is identical to `create.json`. No phase-2 observations or
+  updated MDBs were produced. Original artifacts and consumed inputs are unchanged.
+- The actual x86 mock-field conversion preflight passed before acquisition,
+  but did not exercise DAO COM property binding. The proven read producer uses
+  an explicit typed Currency assignment; that is a concrete successor candidate,
+  not evidence that the recorded failure has been fixed. The exception does not
+  establish a library encoding or publication defect.
+- No typed-update acceptance, general compatibility or support-state movement
+  follows from these baseline captures. Preserve this failed acquisition without
+  retry; any corrected successor has a distinct reviewed plan and outcome.
+
 ## EXP-0163 — Typed existing fixed-field update preregistration
 
 - Status: preregistered only, no acquisition; outcome reserved as EXP-0164.
