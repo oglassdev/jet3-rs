@@ -11097,6 +11097,36 @@ Copy this block under the appropriate section and remove this instruction:
   No such correction or new DAO acquisition is part of EXP-0158. Original
   `no_outcome`, compatibility=false and support-movement=false remain intact.
 
+## EXP-0159 — Hosted before/after field-update preregistration
+
+- Question: do the three declared public `update_field` requests preserve every
+  unrelated byte and complete before/after semantics under hosted stock DAO?
+- Status: preregistered only; no acquisition or compatibility result. The outcome
+  is reserved as `EXP-0160`.
+- Reviewed tooling: `ff65aeb`, integrated with main at `c424a1f`; exact runtime
+  inputs are SHA-256 pinned in
+  `oracle/windows-dao/acquisition/update-v1_2.plan.json`.
+- Plan SHA-256: `974ae15b0bb190ff52921da9b2e33f9f69c88788b5d59f6c2e6aaf7a488ff119`.
+- The separate inventory contains three pairs: first `Items.Id` row 0, later
+  `Items.Value` row 31, and `Items.Value` row 17 after an earlier `Prefix` table.
+  Each image also retains distinct Text/Binary payloads and an unrelated Notes
+  table containing a 2048-byte Memo and null value.
+- Ubuntu creates originals and updates copies through public library APIs.
+  Windows independently locates each requested field with the public reader,
+  rejects ambiguous raw-row matches, verifies the exact four replacement bytes
+  and every byte outside that span, then snapshots both files with Rust and
+  read-only DAO. Full six-image schemas and rows must match the declared request.
+- Both capture and evaluation require retained protocol 1.2 ready x86
+  `DAO.DBEngine.36` / `dbVersion30` environment evidence; its exact bytes are
+  bound by the DAO manifest. Complete source, inventory, image and verification
+  bindings are required. Matching producers alone do not establish correctness.
+- One hosted workflow dispatch after independent review; no rerun of a consumed
+  plan. Missing observations or failed gates prevent `matched`, with available
+  diagnostics retained. No automatic support-matrix movement.
+- Insert/delete, indexed or related targets, null and variable-width transitions,
+  hosted stored-query preservation and general update compatibility are deferred.
+  All earlier outcomes and consumed inputs remain unchanged.
+
 ## EXP-0157 — Ordinary-row deletion transitions preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development discovery plan,
