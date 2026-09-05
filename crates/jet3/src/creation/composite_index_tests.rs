@@ -163,8 +163,13 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
     changed[23 * crate::PAGE_BYTES + 248 + 9] ^= 1;
     fs::write(directory.target(), changed)?;
     assert!(
-        crate::create::check_initial_rows(&directory.target(), &table, &rows[..128], &mut budget())
-            .is_err()
+        crate::creation::api::check_initial_rows(
+            &directory.target(),
+            &table,
+            &rows[..128],
+            &mut budget()
+        )
+        .is_err()
     );
     Ok(())
 }

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::{CandidateCheckError, CreateDatabaseError, check_candidate, create_database};
-use crate::table_schema_plan::TableSchemaPlanError;
+use crate::creation::schema_plan::TableSchemaPlanError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, ResourceBudget, ResourceLimits,
@@ -354,5 +354,5 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
     Ok(())
 }
 
-#[path = "create_initial_rows_tests.rs"]
+#[path = "initial_rows_tests.rs"]
 mod initial_rows;

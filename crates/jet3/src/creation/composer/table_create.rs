@@ -33,7 +33,7 @@
 //! are refused rather than invented.
 
 use super::*;
-use crate::table_schema_plan::{
+use crate::creation::schema_plan::{
     AVAILABLE_MAP_ROW, CONTINUATION_CAPACITY, DEFINITION_ROOT_CAPACITY, FIRST_INDEX_MAP_ROW,
     OWNED_MAP_ROW, TableSchemaPlan, TableSpec, logical_index_order, plan_table_schema,
 };
@@ -589,7 +589,7 @@ fn long_value_columns<'s>(spec: &'s TableSpec<'_>) -> impl Iterator<Item = u16> 
 }
 
 #[cfg(test)]
-#[path = "bootstrap_table_create_tests.rs"]
+#[path = "table_create_tests.rs"]
 mod tests;
 
 fn initial_index_map(

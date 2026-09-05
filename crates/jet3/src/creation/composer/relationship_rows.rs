@@ -4,7 +4,7 @@
 //! non-null Long values; no nullable-key grammar or insertion counter is guessed.
 
 use super::*;
-use crate::table_schema_plan::plan_table_schema;
+use crate::creation::schema_plan::plan_table_schema;
 use crate::{ColumnRef, TableRows};
 
 pub(crate) fn compose_relationship_with_rows(

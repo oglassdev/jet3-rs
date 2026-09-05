@@ -41,7 +41,6 @@ pub mod allocation_traverse;
 pub mod atomic;
 pub mod binary;
 pub mod binary_writer;
-mod bootstrap_composer;
 pub mod candidate;
 pub mod catalog;
 mod catalog_name_key;
@@ -50,7 +49,8 @@ pub mod catalog_record_writer;
 pub mod column_definition;
 pub mod column_definition_writer;
 pub mod commit_state;
-pub mod create;
+pub mod creation;
+pub use creation as create;
 mod data_page_directory;
 pub mod database;
 pub mod database_header;
@@ -58,10 +58,8 @@ mod definition_name;
 pub mod error;
 pub mod header;
 pub mod index_definition;
-mod index_options;
 pub mod index_tree;
 mod index_tree_page;
-pub use index_options::IndexNullPolicy;
 pub mod delete;
 mod index_tree_rows;
 pub mod jet3_page;
@@ -87,7 +85,6 @@ pub mod source;
 pub mod table_definition;
 mod table_definition_layout;
 pub mod table_definition_writer;
-mod table_schema_plan;
 pub mod text;
 pub mod update;
 mod update_pages;
@@ -111,7 +108,6 @@ pub use atomic::{
 };
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
-pub use bootstrap_composer::{ComposeError, RelationshipColumn, RelationshipSpec, TableRef};
 pub use candidate::{CandidateError, RawJet3Candidate};
 pub use catalog::{CatalogCursor, CatalogError};
 pub use catalog_name_key::CatalogNameKeyError;
@@ -126,19 +122,22 @@ pub use column_definition::{
     ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
 };
 pub use column_definition_writer::{
-    ColumnSpec, ColumnStorageKind, ColumnType, IndexFieldSpec, LogicalIndexKindSpec,
-    LogicalIndexSpec, PhysicalIndexSpec, SystemColumnClassSpec,
+    IndexFieldSpec, LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec,
+    SystemColumnClassSpec,
 };
 pub use commit_state::{
     COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
     read_commit_region_into,
 };
-pub use create::{
-    CandidateCheckError, CreateDatabaseError, TableRows, create_database,
-    create_database_with_relationship, create_database_with_relationship_rows,
+pub use creation::{
+    CandidateCheckError, ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError,
+    CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec,
+    RelationshipColumn, RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec,
+    create_database, create_database_with_relationship, create_database_with_relationship_rows,
     create_database_with_rows, create_database_with_table_rows,
 };
+
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
@@ -181,9 +180,6 @@ pub use table_definition::{TableDefinition, TableDefinitionError, TableDefinitio
 pub use table_definition_writer::{
     LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
     encode_table_definition, table_definition_len,
-};
-pub use table_schema_plan::{
-    ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, TableSchemaPlanError, TableSpec,
 };
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use update::{FieldUpdate, UpdateError, update_field};

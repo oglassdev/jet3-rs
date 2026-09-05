@@ -19,7 +19,7 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::atomic::atomic_create;
-use crate::bootstrap_composer::{
+use crate::creation::composer::{
     ComposeError, InitialAutoIncrement, InitialLongIndex, compose_database,
     compose_database_with_table_rows, encode_initial_row, initial_payload_start,
     initial_row_layout,
@@ -590,9 +590,9 @@ fn check_table(
 }
 
 #[cfg(all(test, unix))]
-#[path = "create_tests.rs"]
+#[path = "tests.rs"]
 mod tests;
 
-#[path = "create_relationship.rs"]
+#[path = "api_relationship.rs"]
 mod relationship;
 pub use relationship::{create_database_with_relationship, create_database_with_relationship_rows};

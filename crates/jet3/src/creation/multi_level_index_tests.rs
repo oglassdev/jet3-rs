@@ -161,8 +161,13 @@ fn branched_corruption_and_index_map_overflow_preserve_publication() -> TestResu
         changed[offset] = 0;
         fs::write(directory.target(), changed)?;
         assert!(
-            crate::create::check_initial_rows(&directory.target(), &table, &rows, &mut budget())
-                .is_err()
+            crate::creation::api::check_initial_rows(
+                &directory.target(),
+                &table,
+                &rows,
+                &mut budget()
+            )
+            .is_err()
         );
     }
     fs::write(directory.target(), &original)?;

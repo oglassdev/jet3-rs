@@ -11266,6 +11266,33 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0163 — Typed existing fixed-field update preregistration
+
+- Status: preregistered only, no acquisition; outcome reserved as EXP-0164.
+- Question: can the reviewed public fixed-field extension `37bd817` change
+  exactly the requested present field in existing DAO-created databases while
+  preserving every unrelated byte, full metadata/rows and stored query SQL?
+- Pinned plan: `oracle/windows-dao/acquisition/fixed-field-update.plan.json`,
+  SHA-256 `c6958a5b238c6cee97f877ec12cf53b93ad699db190fb0aceec769045794c564`.
+- Ten arms, three replicas each: Byte 0 to 255; Integer 32767 to -32768;
+  Long 1 to -2147483648 control; Currency zero to scaled i64 minimum; Single
+  and Double 1 to exact negative-zero bits; Date OA 1 to -1.25; zero GUID to
+  `00112233-4455-6677-8899-aabbccddeeff`; fixed Text widths 1 and 255 from
+  ASCII `a` to CP1252 `é`, preserving the declared width.
+- Each original has three Items rows, an unrelated three-row Long/Text Later
+  table, and KeepQuery. Fixed Text must save with fixed attributes and actual
+  fixed storage. Negative-zero bits are compared exactly, never normalized.
+- One coordinated create / Unix public update / read-only DAO acquisition,
+  retaining 30 original/updated pairs and 90 read-only observations. All
+  source/plan/file identities, complete requested rows, unchanged schema/query
+  SQL and independently decoded exact field-span preservation must pass.
+- Actual x86 pure mock-field checks cover all typed conversions and plain CLR
+  array JSON shapes before acquisition; no DAO is invoked by this preflight.
+  Initiating endpoint and stack are retained before best-effort cleanup.
+- Any failure after mutation remains no_outcome, with partial files retained;
+  no same-plan retry. No null, Boolean, AutoIncrement, variable-width, indexed,
+  relationship, overflow or hosted compatibility/support claim is established.
+
 ## EXP-0151 — Existing-file Long field update validation preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development acquisition plan,
@@ -12276,6 +12303,58 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0166 — Nullable writer successor accepted in the exact six-arm matrix
+
+- Recorded 2026-09-05 from the single local run
+  `20260905T070529Z-nullable-successor`, source `f0cbd77`, EXP-0165 plan
+  SHA-256 `d765bbf7f7e219147dc15aff0b58a8cac1c6e31e745666495d55da48ffaa50b1`.
+  This is the distinct preregistered successor; EXP-0156's failed acquisition,
+  retention failure, recovered analysis and all six `no_outcome` arms remain.
+- Result: 12486669 bytes, SHA-256
+  `a4dc423a9867098869bb6c41a33b741dca43ec21f3e1588fdd276b9c4ad1d078`.
+  Report: 229085 bytes, SHA-256
+  `da58a1e467443ef9511f138d1ea4996112563bfdb44db6fac4c134d5ccc0c5d5`.
+  The pinned analyzer reproduced this report byte-identically on temporary
+  copies. All 64 retained files, including 60 MDBs, remained unchanged.
+- All six outcomes are `observed_accepted`: 18 complete baseline pairs and
+  24 independent-copy probe observations, no acquisition, cleanup or retention
+  failures. All 36 baseline and 24 probe report checks pass. Every retained
+  identity matches the corresponding recorded before/after or probe-source
+  identity; originals stay unchanged and each candidate starts with its pin.
+- Reviewed library source is `6a0e4537e7986a4b04db7616f5537cb306f17e2c`.
+  The six exact candidate identities remain those in EXP-0165's plan, identical
+  to EXP-0155. Controls are fresh matched DAO files, not reused failed controls.
+- Each arm has an empty first table and later Rows(A, B, Payload), with distinct
+  Long payloads; Auto generates B as position+1. Full schema/Auto/index flags,
+  null-preserving row multisets, complete ordered traversal and every finite
+  non-null Seek comparison match. Seek permits any actual matching duplicate;
+  traversal verifies all duplicate payloads and locators.
+- Physical rows, complete variable-length key/locator bindings, distinct
+  counts, separators, sibling chains, uniform depths and declared map checks
+  all pass. Both controls and candidates have the same following counts in
+  every replica (their page placements need not match):
+  - `unique`: 12 rows, 12 leaf entries, 9 distinct keys, depth 1, flags 1.
+  - `ignore`: 12 rows, 8 leaf entries, 8 distinct keys, depth 1, flags 3.
+  - `required`: 12 rows, 12 leaf entries, 3 distinct keys, depth 1, flags 8.
+  - `composite`: 30000 rows, 30000 leaf entries, 7503 distinct keys, depth 3, flags 1.
+  - `composite-ignore`: 1200 rows, 900 leaf entries, 302 distinct keys, depth 2, flags 2.
+  - `auto`: 1200 rows, 1200 leaf entries, 1200 distinct keys, depth 2, flags 1.
+- In these exact rows, unique indexes retain repeated null-bearing keys;
+  IgnoreAllNull omits only all-null keys and retains partial composite nulls.
+  Ascending null component `00`, descending null `ff`, and full-key distinct
+  counts satisfy the predeclared EXP-0148 correlations. The 30,000-row
+  composite arm exercises three levels and repeated null-bearing entries.
+- Unique/ignore/composite duplicate fully-present-key probes are rejected with
+  native code 3022 and HRESULT -2146825266, matching every control. Required
+  null-key probes are rejected with 3058 and HRESULT -2146825230, also matching
+  every control. Each independent probe preserves the full baseline logical
+  post-state, including traversal and Seek; no original file is made writable.
+- Acceptance is finite to these pinned images, metadata, values and probes.
+  It does not establish null Seek, nullable foreign relationships, other scalar
+  key codecs, indirect writer allocation or general existing-index maintenance.
+  Development-only local evidence: no broad compatibility claim or hosted
+  support-matrix movement. No new writer/reader format rule is introduced.
 
 ## EXP-0165 — Distinct nullable index successor preregistration
 
