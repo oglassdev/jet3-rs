@@ -41,7 +41,12 @@ pub enum ComposeError {
         /// The unsupported payload condition.
         detail: &'static str,
     },
-    /// Initial rows require a single-page definition without AutoIncrement.
+    /// Initial generated IDs exceed the supported construction.
+    InitialAutoIncrement {
+        /// Unsupported generation request or counter boundary.
+        detail: &'static str,
+    },
+    /// Initial rows require a single-page definition.
     UnsupportedInitialRowSchema,
     /// A table definition could not be encoded.
     Definition(TableDefinitionWriteError),
@@ -118,6 +123,7 @@ impl std::error::Error for ComposeError {
             Self::UnsupportedRelationship { .. }
             | Self::UnsupportedInitialRowSchema
             | Self::InitialLongValue { .. }
+            | Self::InitialAutoIncrement { .. }
             | Self::OrphanInitialRelationshipKey { .. }
             | Self::UnsupportedInitialIndexSchema
             | Self::NullInitialIndexKey { .. }

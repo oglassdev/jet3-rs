@@ -46,8 +46,11 @@ delivered in this order:
 Continue database creation under #100. Initial-row creation now accepts up to
 four tables with scalar rows across data pages, bounded Long indexes, and
 one unindexed Memo/OLE column per table. Existing schema, single-leaf and
-inline-map bounds still apply. AutoIncrement values and empty long payloads
-remain refused.
+inline-map bounds still apply. One AutoIncrement column per table accepts
+explicit generation requests and persists its last generated ID, including
+when indexed; explicit IDs and empty long payloads remain refused. EXP-0136
+records secondary analysis of DAO state observations. Generated Rust candidates
+and subsequent DAO insertion still need validation.
 
 `EXP-0130` records exact local mixed-table and empty-first candidate acceptance,
 including later-table index traversal and Memo/OLE payloads. Earlier exact
@@ -61,8 +64,8 @@ unique Long index, and an initially unindexed child. Populated relationships
 and referential-integrity mutations remain unvalidated.
 
 Next, combine relationships with initial rows, including the child foreign
-index and initial referential checks. AutoIncrement state needs separate
-observation. After creation is complete, run the hosted write differential
+index and initial referential checks. AutoIncrement creation needs candidate and follow-on insertion
+validation. After creation is complete, run the hosted write differential
 (#102), implement updates preserving unrelated data (#112), then run the
 hosted update differential (#113). Keep module cleanup (#182) until the
 creation API settles.
