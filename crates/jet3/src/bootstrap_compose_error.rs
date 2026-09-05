@@ -22,8 +22,14 @@ pub enum ComposeError {
         /// Repeated Long value.
         value: i32,
     },
-    /// Initial rows require a single-page definition without
-    /// AutoIncrement or long-value columns.
+    /// An initial long value is outside the bounded payload construction.
+    InitialLongValue {
+        /// Zero-based input row.
+        row: usize,
+        /// The unsupported payload condition.
+        detail: &'static str,
+    },
+    /// Initial rows require a single-page definition without AutoIncrement.
     UnsupportedInitialRowSchema,
     /// A table definition could not be encoded.
     Definition(TableDefinitionWriteError),
@@ -99,6 +105,7 @@ impl std::error::Error for ComposeError {
             Self::Schema(source) => Some(source),
             Self::UnsupportedRelationship { .. }
             | Self::UnsupportedInitialRowSchema
+            | Self::InitialLongValue { .. }
             | Self::UnsupportedInitialIndexSchema
             | Self::NullInitialIndexKey { .. }
             | Self::DuplicateInitialIndexKey { .. }

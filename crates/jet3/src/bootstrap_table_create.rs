@@ -52,6 +52,7 @@ pub(super) struct PlannedCreate<'a> {
     /// map-page row and its available map the next.
     long_value: Option<u16>,
     initial_data: Vec<InitialDataPage>,
+    initial_long_values: Option<InitialLongValues>,
     initial_row_count: u32,
     initial_index: Option<InitialLongIndex>,
 }
@@ -86,12 +87,13 @@ impl<'a> PlannedCreate<'a> {
             plan,
             long_value,
             initial_data: Vec::new(),
+            initial_long_values: None,
             initial_row_count: 0,
             initial_index: None,
         })
     }
 
-    /// Packs scalar rows using EXP-0060 encoding and EXP-0065 append placement.
+    /// Packs rows using EXP-0060 encoding and EXP-0065 append placement.
     /// EXP-0057 supplies map roles; EXP-0073 supplies the definition row count.
     /// Multiple pages and their available-map membership remain a candidate
     /// hypothesis, with no generalized page-zero insertion transition.
@@ -101,10 +103,11 @@ impl<'a> PlannedCreate<'a> {
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
         if self.plan.continuation_page().is_some()
-            || self.spec.columns.iter().any(|column| {
-                column.column_type().is_long_value()
-                    || column.column_type() == ColumnType::AutoIncrement
-            })
+            || self
+                .spec
+                .columns
+                .iter()
+                .any(|column| column.column_type() == ColumnType::AutoIncrement)
         {
             return Err(ComposeError::UnsupportedInitialRowSchema);
         }
@@ -118,6 +121,10 @@ impl<'a> PlannedCreate<'a> {
                 target: "u32",
             })?;
         let layout = initial_row_layout(self.spec, budget)?;
+        let mut next_payload = self.plan.definition_root().get() + self.plan.appended_page_count();
+        if self.long_value.is_some() {
+            self.initial_long_values = Some(InitialLongValues::new(next_payload, rows, budget)?);
+        }
         let mut minimum = [0_u8; PAGE_BYTES];
         // EXP-0060 bounds column count to 255; fixed fields retain their width.
         let nulls = [RowValue::Null; u8::MAX as usize];
@@ -126,8 +133,16 @@ impl<'a> PlannedCreate<'a> {
         let minimum = &minimum[..minimum_len];
         let mut builder = DataPageBuilder::new(self.plan.definition_root(), budget)?;
         let mut encoded = [0_u8; PAGE_BYTES];
-        for row in rows {
-            let length = encode_row(&layout, row, &mut encoded, budget)?.get() as usize;
+        for (ordinal, row) in rows.iter().enumerate() {
+            let length = encode_initial_row(
+                &layout,
+                row,
+                ordinal,
+                &mut next_payload,
+                &mut encoded,
+                budget,
+            )?
+            .get() as usize;
             let bytes = &encoded[..length];
             let slot = match builder.append_row(bytes, budget) {
                 Ok(slot) => slot,
@@ -209,6 +224,10 @@ impl<'a> PlannedCreate<'a> {
     pub(super) fn page_count(&self) -> u64 {
         self.plan.definition_root().get()
             + self.plan.appended_page_count()
+            + self
+                .initial_long_values
+                .as_ref()
+                .map_or(0, InitialLongValues::page_count)
             + self.initial_data.len() as u64
     }
 
@@ -260,6 +279,9 @@ impl<'a> PlannedCreate<'a> {
                 empty_index_page(owner, budget)?
             };
             plan.append(image, append_map, budget)?;
+        }
+        if let Some(values) = &self.initial_long_values {
+            values.append_pages(plan, append_map, budget)?;
         }
         for data in &self.initial_data {
             plan.append(data.image.clone(), append_map, budget)?;
@@ -384,7 +406,12 @@ impl<'a> PlannedCreate<'a> {
             ByteCount::new(MAP_BITMAP_BYTES),
             budget,
         )?;
-        let first = self.plan.definition_root().get() + self.plan.appended_page_count();
+        let first = self.plan.definition_root().get()
+            + self.plan.appended_page_count()
+            + self
+                .initial_long_values
+                .as_ref()
+                .map_or(0, InitialLongValues::page_count);
         for (offset, data) in self.initial_data.iter().enumerate() {
             let page = PageNumber::new(first + offset as u64);
             owned.set_page(page)?;
@@ -401,8 +428,11 @@ impl<'a> PlannedCreate<'a> {
             rows.push(inline_map_row(&[root.get()], budget)?);
         }
         if self.long_value.is_some() {
-            rows.push(empty);
-            rows.push(empty);
+            let maps = match &self.initial_long_values {
+                Some(values) => values.maps(budget)?,
+                None => [empty; 2],
+            };
+            rows.extend(maps);
         }
         let rows = rows.iter().map(<[u8; 133]>::as_slice).collect::<Vec<_>>();
         data_page(HEADER_PAGE, &rows, budget)

@@ -106,7 +106,14 @@ pub enum RowValue<'a> {
     Text(&'a [u8]),
     /// Replication ID in conventional display-byte order.
     Guid([u8; 16]),
+    /// Memo payload in database-code-page bytes, for `create_database_with_rows`.
+    /// The standalone row encoder requires the lower-level `LongValue` form.
+    Memo(&'a [u8]),
+    /// OLE payload bytes, for `create_database_with_rows`.
+    /// The standalone row encoder requires the lower-level `LongValue` form.
+    LongBinary(&'a [u8]),
     /// Already-encoded Memo/OLE header plus inline payload.
+    /// Public database creation refuses this form; it assigns its own pointers.
     LongValue(&'a [u8]),
 }
 
@@ -634,9 +641,12 @@ fn write_scalar(writer: &mut BinaryWriter<'_, '_>, value: RowValue<'_>) -> Resul
             d[3], d[2], d[1], d[0], d[5], d[4], d[7], d[6], d[8], d[9], d[10], d[11], d[12], d[13],
             d[14], d[15],
         ]),
-        RowValue::Null | RowValue::Boolean(_) | RowValue::Binary(_) | RowValue::LongValue(_) => {
-            Ok(())
-        }
+        RowValue::Null
+        | RowValue::Boolean(_)
+        | RowValue::Binary(_)
+        | RowValue::LongValue(_)
+        | RowValue::Memo(_)
+        | RowValue::LongBinary(_) => Ok(()),
     }
 }
 
