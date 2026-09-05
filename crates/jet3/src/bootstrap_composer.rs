@@ -158,13 +158,66 @@ pub(crate) fn compose_database(
         next_page = planned.page_count();
         creates.push(planned);
     }
-    let images = compose_existing_pages(&creates, budget)?;
+    compose_planned_creates(&creates, budget)
+}
+
+fn compose_planned_creates(
+    creates: &[PlannedCreate<'_>],
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, ComposeError> {
+    let images = compose_existing_pages(creates, budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
     let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
-    for planned in &creates {
+    for planned in creates {
         planned.append_pages(&mut plan, &mut append_map, budget)?;
     }
     Ok(plan)
+}
+
+/// Composes one unindexed table with a single page of scalar initial rows.
+pub(crate) fn compose_database_with_rows(
+    spec: &TableSpec<'_>,
+    rows: &[&[RowValue<'_>]],
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, ComposeError> {
+    let planned =
+        PlannedCreate::new(spec, EMPTY_DATABASE_PAGE_COUNT, true)?.with_rows(rows, budget)?;
+    compose_planned_creates(&[planned], budget)
+}
+
+/// Resolves precisely the same column placements as the definition encoder.
+pub(crate) fn initial_row_layout(
+    spec: &TableSpec<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<RowColumnLayout>, ComposeError> {
+    budget.charge_allocation(ByteCount::new(
+        (spec.columns.len() * std::mem::size_of::<RowColumnLayout>()) as u64,
+    ))?;
+    let mut layout = Vec::new();
+    layout
+        .try_reserve_exact(spec.columns.len())
+        .map_err(|_| Error::Io {
+            operation: "reserve initial row layout",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })?;
+    let mut fixed = 0;
+    let mut variable = 0;
+    for (ordinal, column) in (0_u16..).zip(spec.columns) {
+        let resolved = crate::column_definition_writer::resolve_column(
+            ordinal,
+            column,
+            TableDefinitionKind::User,
+            None,
+            &mut fixed,
+            &mut variable,
+        )?;
+        layout.push(RowColumnLayout::new(
+            column.physical_type(),
+            resolved.storage,
+            column.size(),
+        ));
+    }
+    Ok(layout)
 }
 
 fn compose_existing_pages(

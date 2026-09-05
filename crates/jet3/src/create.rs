@@ -22,12 +22,14 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::atomic::atomic_create;
-use crate::bootstrap_composer::{ComposeError, compose_database};
+use crate::bootstrap_composer::{
+    ComposeError, compose_database, compose_database_with_rows, initial_row_layout,
+};
 use crate::page_append_plan::PlannedPage;
 use crate::{
     CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, ColumnType,
     DatabaseOpenError, DatabaseReader, IndexDefinitionKind, IndexKind, PageNumber, PublishError,
-    ResourceBudget, TableDefinitionError, TableSpec,
+    ResourceBudget, RowError, RowValue, TableDefinitionError, TableSpec,
 };
 
 /// Structured failure of [`create_database`].
@@ -62,6 +64,10 @@ impl StdError for CreateDatabaseError {
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
 pub enum CandidateCheckError {
+    /// The candidate rows could not be read.
+    Rows(RowError),
+    /// Requested rows could not be encoded for comparison.
+    RowEncoding(ComposeError),
     /// The candidate could not be opened as a Jet 3 database.
     Open(DatabaseOpenError),
     /// The candidate's catalog could not be read.
@@ -78,6 +84,10 @@ pub enum CandidateCheckError {
 impl fmt::Display for CandidateCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
+            Self::RowEncoding(source) => {
+                write!(formatter, "candidate row comparison failed: {source}")
+            }
             Self::Open(source) => write!(formatter, "candidate did not open: {source}"),
             Self::Catalog(source) => write!(formatter, "candidate catalog failed: {source}"),
             Self::Definition(source) => {
@@ -93,6 +103,8 @@ impl fmt::Display for CandidateCheckError {
 impl StdError for CandidateCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::Rows(source) => Some(source),
+            Self::RowEncoding(source) => Some(source),
             Self::Open(source) => Some(source),
             Self::Catalog(source) => Some(source),
             Self::Definition(source) => Some(source),
@@ -135,6 +147,97 @@ pub fn create_database(
         |candidate| check_candidate(candidate, tables, page_count, budget),
     )
     .map_err(CreateDatabaseError::Publish)
+}
+
+/// Creates one unindexed table containing scalar initial rows in caller order.
+///
+/// All rows must fit one data page; the table definition must fit one page.
+/// AutoIncrement, Memo, and LongBinary columns are refused. Values use the
+/// same database-code-page and physical scalar representations as [`RowValue`].
+/// The existing-destination and atomic publication guarantees of
+/// [`create_database`] apply. Composition and the structural row comparison
+/// are charged to `budget`. Unsupported schemas and rows fail before writing.
+///
+/// This is an unvalidated candidate construction. No DAO differential has
+/// established compatibility for databases created with initial rows.
+pub fn create_database_with_rows(
+    path: impl AsRef<Path>,
+    table: &TableSpec<'_>,
+    rows: &[&[RowValue<'_>]],
+    budget: &mut ResourceBudget,
+) -> Result<(), CreateDatabaseError> {
+    let pages = compose_database_with_rows(table, rows, budget)
+        .map_err(CreateDatabaseError::Compose)?
+        .into_pages();
+    let page_count = pages.len() as u64;
+    budget
+        .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
+        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
+    atomic_create(
+        path,
+        |file| write_pages(file, &pages),
+        |candidate| {
+            check_candidate(candidate, std::slice::from_ref(table), page_count, budget)?;
+            check_initial_rows(candidate, table, rows, budget)
+        },
+    )
+    .map_err(CreateDatabaseError::Publish)
+}
+
+fn check_initial_rows(
+    candidate: &Path,
+    table: &TableSpec<'_>,
+    rows: &[&[RowValue<'_>]],
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
+    let layout = initial_row_layout(table, budget).map_err(CandidateCheckError::RowEncoding)?;
+    let mut database =
+        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
+    // EXP-0065 Q2: first user table definition is page 20.
+    let definition = database
+        .table_definition(PageNumber::new(20), budget)
+        .map_err(CandidateCheckError::Definition)?;
+    let mut encoded = [0_u8; crate::PAGE_BYTES];
+    let mut ends = [0_usize; 256];
+    let mut used = 0;
+    for (index, row) in rows.iter().enumerate() {
+        let length = crate::encode_row(&layout, row, &mut encoded[used..], budget)
+            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Row(error)))?
+            .get() as usize;
+        used += length;
+        let end = ends.get_mut(index).ok_or(CandidateCheckError::Mismatch {
+            detail: "initial row count",
+        })?;
+        *end = used;
+    }
+    let mut cursor = database
+        .rows(&definition, budget)
+        .map_err(CandidateCheckError::Rows)?;
+    let mut start = 0;
+    for end in ends.into_iter().take(rows.len()) {
+        let actual = cursor
+            .next_row()
+            .map_err(CandidateCheckError::Rows)?
+            .ok_or(CandidateCheckError::Mismatch {
+                detail: "initial row count",
+            })?;
+        if actual.raw_bytes() != &encoded[start..end] {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "initial row value",
+            });
+        }
+        start = end;
+    }
+    if cursor
+        .next_row()
+        .map_err(CandidateCheckError::Rows)?
+        .is_some()
+    {
+        return Err(CandidateCheckError::Mismatch {
+            detail: "initial row count",
+        });
+    }
+    Ok(())
 }
 
 /// Writes every page in physical order and sets the exact final length.

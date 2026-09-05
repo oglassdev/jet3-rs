@@ -353,3 +353,6 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
     assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(25));
     Ok(())
 }
+
+#[path = "create_initial_rows_tests.rs"]
+mod initial_rows;
