@@ -174,7 +174,7 @@ fn compose_planned_creates(
     Ok(plan)
 }
 
-/// Composes one unindexed table with a single page of scalar initial rows.
+/// Composes one unindexed table with scalar initial rows in inline-mapped pages.
 pub(crate) fn compose_database_with_rows(
     spec: &TableSpec<'_>,
     rows: &[&[RowValue<'_>]],
