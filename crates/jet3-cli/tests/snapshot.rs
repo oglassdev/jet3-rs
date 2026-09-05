@@ -153,3 +153,41 @@ fn rejected_header_writes_only_the_coverage_receipt() -> TestResult {
     validate_document(&out.join("coverage.json"))?;
     validate_pair(&out.join("coverage.json"), None)
 }
+
+#[test]
+#[cfg(unix)]
+fn write_snapshot_uses_separate_inventory_and_public_fixture_creation() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let database = directory.path().join("write.mdb");
+    jet3_testkit::write_fixture("DAO-WRITE-AUTO-PRIMARY", &database)?;
+    let output = directory.path().join("snapshot");
+    let run = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
+        .args(["snapshot"])
+        .arg(&database)
+        .args(["--scenario", "DAO-WRITE-AUTO-PRIMARY", "--out"])
+        .arg(&output)
+        .output()?;
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(output.join("coverage.json"))?)?;
+    assert_eq!(receipt["scenario_id"], "DAO-WRITE-AUTO-PRIMARY");
+    let scenarios = receipt["scenarios"].as_array().ok_or("missing scenarios")?;
+    assert!(scenarios.iter().all(|s| {
+        s["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("DAO-WRITE-"))
+    }));
+    assert!(
+        scenarios
+            .iter()
+            .any(|s| s["id"] == "DAO-WRITE-AUTO-PRIMARY" && s["satisfied"] == true)
+    );
+    let absent = directory.path().join("unknown.mdb");
+    assert!(jet3_testkit::write_fixture("DAO-WRITE-UNKNOWN", &absent).is_err());
+    assert!(!absent.exists());
+    Ok(())
+}

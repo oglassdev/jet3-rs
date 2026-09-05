@@ -62,10 +62,30 @@ or hosted support movement.
 
 EXP-0146 records bounded acceptance of all three multi-level candidates from
 separately pinned analysis of the retained files; EXP-0140 preserves the
-original decoder refusal and `no_outcome`. The reader recognizes the observed branch header values. Nullable one/two-Long
-keys now have typed include/omit-all-null/required options and variable-size
-index packing; their composed writer policy awaits candidate validation. Keep
-broader key codecs and allocation beyond inline maps as explicit limitations. After creation is complete, run the hosted write differential
-(#102), implement updates preserving unrelated data (#112), then run the
-hosted update differential (#113). Keep module cleanup (#182) until the
-creation API settles.
+original decoder refusal and `no_outcome`. The reader recognizes the observed
+branch header values. Nullable one/two-Long keys now have typed
+include/omit-all-null/required options and variable-size index packing; their
+composed writer policy awaits candidate validation.
+
+EXP-0154 records matching canonical results for the twelve hosted write
+recipes in the EXP-0141 inventory, after separately reviewed read-only index
+association under EXP-0153. The original hosted failure remains EXP-0142
+`no_outcome`; the secondary result is not an originally successful workflow.
+The evidence binds the exact generated images and source revision, with all
+schema, row, relationship, coverage, traversal and Seek checks preserved.
+
+The support matrix records empty-database creation as implemented with DAO
+differential evidence. Table create/drop and relationship create/drop/preserve
+remain partial: the hosted recipes demonstrate creation, while dropping or
+changing existing objects and preserving their unrelated metadata are absent.
+This evidence does not advance existing-row insert/update/delete, index CRUD
+maintenance or atomic failure/rollback verification.
+
+Keep broader index key codecs and allocation beyond inline maps as explicit
+creation limitations; validate the bounded nullable writer next. The bounded
+hosted write leg under #102 now has recorded evidence;
+multi-level boundary recipes and other declared write-inventory deferrals
+remain to be covered. Neither issue is complete merely from this checkpoint.
+Existing-database updates (#112) and their hosted differential (#113) remain
+separate work. The release gates above still require each leg's validated bundle
+on the release commit. Keep module cleanup (#182) until creation settles.

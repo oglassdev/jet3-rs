@@ -59,7 +59,8 @@ class SupportCapabilityCatalogTests(unittest.TestCase):
         self.assertTrue(any("requires evidence" in item for item in self.errors(changed)))
 
         changed = copy.deepcopy(self.matrix)
-        changed["capabilities"][1]["verification"] = "internal_only"
+        unstarted = next(row for row in changed["capabilities"] if row["implementation"] == "not_started")
+        unstarted["verification"] = "internal_only"
         self.assertTrue(any("not_started" in item for item in self.errors(changed)))
 
 

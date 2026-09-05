@@ -173,7 +173,7 @@ impl StdError for PublishError {
 ///
 /// `mutate` receives the private file positioned at byte zero. `validate`
 /// receives the private path and must independently reopen or inspect it
-/// without modifying it. Copy work is charged to the caller-owned operation
+/// without modifying it. Copy reads and work are charged to the caller-owned operation
 /// budget before each chunk. The original file's standard-library permissions
 /// are applied to the private copy after mutation and before validation.
 ///
@@ -210,11 +210,35 @@ pub fn atomic_update_with_hook<M, V, H, ME, VE, HE>(
     budget: &mut ResourceBudget,
     mutate: M,
     validate: V,
-    mut before_stage: H,
+    before_stage: H,
 ) -> Result<(), PublishError>
 where
     M: FnOnce(&mut File) -> Result<(), ME>,
     V: FnOnce(&Path) -> Result<(), VE>,
+    H: FnMut(PublishStage) -> Result<(), HE>,
+    ME: StdError + Send + Sync + 'static,
+    VE: StdError + Send + Sync + 'static,
+    HE: StdError + Send + Sync + 'static,
+{
+    atomic_update_budgeted(
+        target,
+        budget,
+        |file, _| mutate(file),
+        |path, _| validate(path),
+        before_stage,
+    )
+}
+
+pub(crate) fn atomic_update_budgeted<M, V, H, ME, VE, HE>(
+    target: impl AsRef<Path>,
+    budget: &mut ResourceBudget,
+    mutate: M,
+    validate: V,
+    mut before_stage: H,
+) -> Result<(), PublishError>
+where
+    M: FnOnce(&mut File, &mut ResourceBudget) -> Result<(), ME>,
+    V: FnOnce(&Path, &mut ResourceBudget) -> Result<(), VE>,
     H: FnMut(PublishStage) -> Result<(), HE>,
     ME: StdError + Send + Sync + 'static,
     VE: StdError + Send + Sync + 'static,
@@ -246,14 +270,15 @@ where
         private_file
             .seek(SeekFrom::Start(0))
             .map_err(|error| PublishError::new(PublishStage::Mutation, error))?;
-        mutate(private_file).map_err(|error| PublishError::new(PublishStage::Mutation, error))?;
+        mutate(private_file, budget)
+            .map_err(|error| PublishError::new(PublishStage::Mutation, error))?;
 
         call_hook(&mut before_stage, PublishStage::Metadata)?;
         fs::set_permissions(private.path(), metadata.permissions())
             .map_err(|error| PublishError::new(PublishStage::Metadata, error))?;
 
         call_hook(&mut before_stage, PublishStage::Validation)?;
-        validate(private.path())
+        validate(private.path(), budget)
             .map_err(|error| PublishError::new(PublishStage::Validation, error))?;
 
         call_hook(&mut before_stage, PublishStage::FileSync)?;
@@ -433,6 +458,10 @@ fn copy_original(
                 },
             )
         })?;
+        budget
+            .read_budget()
+            .charge_read_attempt(crate::ByteCount::new(chunk_u64))
+            .map_err(|error| PublishError::new(PublishStage::Copy, error))?;
         source
             .read_exact(bytes)
             .map_err(|error| PublishError::new(PublishStage::Copy, error))?;

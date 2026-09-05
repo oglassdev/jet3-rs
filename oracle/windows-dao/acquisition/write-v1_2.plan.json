@@ -1,0 +1,99 @@
+{
+  "document_type": "dao_write_acquisition_plan",
+  "experiment_id": "hosted-write-v1_2",
+  "provenance": "EXP-0141",
+  "outcome_provenance": "EXP-0142",
+  "protocol_version": "1.2.0",
+  "mode": "dao_open_rust",
+  "acquisition_started": false,
+  "source": {
+    "reviewed_implementation_commit": "622bb14fb957e2f55d64b32b7e824c2676d85cc9",
+    "execution_source": "Both jobs check out the same dispatched committed Git revision containing this plan. The revision is carried in preparation, reader, DAO and Rust snapshots/receipts. The reviewed source commit identifies the scaffold; input hashes pin meaningful workflow/recipe/snapshot/evaluation sources. No independent build attestation is introduced."
+  },
+  "authorization": "The user authorized DAO experiments and mutations. Commit and independently review this exact plan, merge reviewed tooling, and perform one workflow_dispatch with run_acquisition=true and this plan SHA-256. No additional license acceptance or installation is authorized by this plan.",
+  "question": "Do the exact public-API-created files for the twelve bounded write recipes open read-only under stock hosted Windows DAO and match protocol1.2 full semantic snapshots plus independently asserted request and index behavior?",
+  "inventory": {
+    "path": "oracle/windows-dao/protocol/v1_2/write-scenarios.json",
+    "sha256": "58ed02c1102ca121ec2e22e1eee7820b3a46f36d31315e0a0040f95abc3abb8f",
+    "scenario_ids": [
+      "DAO-WRITE-EMPTY",
+      "DAO-WRITE-SCALARS",
+      "DAO-WRITE-AUTO",
+      "DAO-WRITE-INDEX-PRIMARY",
+      "DAO-WRITE-INDEX-UNIQUE-DESC",
+      "DAO-WRITE-INDEX-ORDINARY",
+      "DAO-WRITE-INDEX-COMPOSITE",
+      "DAO-WRITE-AUTO-PRIMARY",
+      "DAO-WRITE-MULTI",
+      "DAO-WRITE-LVAL-MEMO",
+      "DAO-WRITE-LVAL-LONGBINARY",
+      "DAO-WRITE-RELATIONSHIP"
+    ],
+    "scenario_count": 12,
+    "contract": "Separate explicit write inventory with dao_open_rust operations; exact read-inventory validation is unchanged."
+  },
+  "execution": {
+    "workflow": ".github/workflows/windows-dao-write.yml",
+    "event": "workflow_dispatch",
+    "inputs": {
+      "run_acquisition": true,
+      "plan_sha256": "SHA-256 of these exact committed plan bytes"
+    },
+    "attempts": 1,
+    "producer": "Ubuntu runner builds locked Rust generator and CLI. Each recipe uses exactly one public create call; no raw image dumping or alternate Windows publication path. Snapshot each generated file, bind scenario/source/receipt metadata, assert recipe semantics and retain the generated SHA before reading; reject any reader mutation. Record Linux producer OS/source and upload exact MDBs with preparation/snapshots/logs.",
+    "consumer": "Windows2022 downloads the exact same-run source-revision artifact; builds read-only Rust CLI and verifies downloaded identities. Record Windows reader/source receipt. Probe the untouched x86 provider with probe-provider.ps1 protocol1.2, retaining environment.json. With a ready stock provider, open every file read-only via the accepted provider and capture full snapshots/index observations, closing and rehashing each file.",
+    "helpers": "PowerShell loads only the named snapshot helper function ASTs from the pinned original read script; it never executes its top-level acquisition or changes consumed read files.",
+    "comparison": "Validate protocol snapshots, full current-scenario/source/image/coverage bindings, separate write coverage inventory and unchanged before/after hashes. Independently compare complete declared table/column/index metadata, typed rows including raw bytes and duplicate ordinals, relationships and empty properties. Compare every index complete traversal and Seek for every distinct full key; duplicate-key Seek may return any matching complete row, never an omitted or wrong payload.",
+    "limits": "Existing supported creation API bounds and fixed12recipes. Generation/snapshot subprocess timeout120seconds; Ubuntu job20minutes and Windows job30minutes. No retry, no second provider installation attempt, no expanded recipe or comparison changes after acquisition."
+  },
+  "decision_rule": {
+    "matched": "All12 scenarios generated, both platform/source receipts valid, stock provider ready, all retained identity/schema/row/relationship/coverage/index probes pass and DAO/Rust protocol comparison projections match. Report outcome matched means only this finite acquisition passed; support matrix is not automatically changed.",
+    "no_outcome": "Any provider prerequisite failure, incomplete job, failed generation/read/snapshot, changed image, invalid bindings, recipe mismatch or index comparison failure prevents matched. The evaluator retains report.json no_outcome for evaluation failures; earlier failures retain their preparation/provider/workflow diagnostics without inventing a comparison report. Validate those available JSON artifacts before recording one honest outcome.",
+    "retry": "GitHub attempt must be1; do not rerun jobs or redispatch this scientific acquisition automatically. A post-first-DAO-mutation failure remains a result. Any successor requires a separate decision and plan, never editing this consumed plan."
+  },
+  "retention": {
+    "artifact_names": [
+      "generated-write-SOURCE_REVISION",
+      "windows-dao-write-SOURCE_REVISION-RUN_ATTEMPT"
+    ],
+    "contents": "Exact generated MDBs, preparation.json and stdout/stderr, environment.json, reader.json, all raw/canonical DAO and Rust snapshots, coverage receipts, index probes, per-scenario comparisons and report.json when reached. Preserve failure artifacts and hosted run/job logs. Never commit MDB/provider binaries.",
+    "outcome": "One additive EXP-0142 derived from validated retained JSON, preserving all earlier local outcomes including EXP-0132 and EXP-0139 no_outcome."
+  },
+  "coverage_limits": [
+    "Multi-level index write-inventory boundary coverage",
+    "General null/composite foreign keys and cascades",
+    "Explicit AutoIncrement seeds, overflow and update semantics",
+    "Empty LVAL payloads and unsupported schema combinations",
+    "General allocation policy and arbitrary names/code pages"
+  ],
+  "claims": "No general compatibility, completed #100 claim, automatic support-matrix movement, full write-surface coverage, update/rollback/overflow semantics, or license acceptance. Local multi-level EXP-0139 no_outcome does not alter this independently declared bounded index inventory.",
+  "inputs": {
+    ".github/workflows/windows-dao-write.yml": "4edc8502b3d12e4416f9f0b9502ffef36f67034db847927755a587d963c6c1a0",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "Cargo.lock": "eb8c67b84f06190369a8de28efe2a1fabdd37b2abf894989a9b076d8fe1ba3c0",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3-cli/Cargo.toml": "cb69c0574cf287794a30f37543b9ab385810cc3b038906486c6e99247f2f8c82",
+    "crates/jet3-cli/src/main.rs": "0703a8889162316072be326f4bf09bde7a83fd3c67b9d5efa58ff243ebcacfe5",
+    "crates/jet3-cli/src/snapshot.rs": "cd96db4d22eb4e3ffa26d69d5e285324501d272ca2ef71df87eaee71617a2a96",
+    "crates/jet3-testkit/Cargo.toml": "bb0c43a137688ce5e347569b83fd6086730413f49dccba13f222eddd7501bc0f",
+    "crates/jet3-testkit/src/lib.rs": "2561663978253621724b001996f74716deedcc146ed6c84d4c959c238d0fc7bf",
+    "crates/jet3-testkit/src/bin/jet3-write-fixture.rs": "426e309baecdbfe4b76b5d6bc9ab3cd7ed4a6652a4992915b4982e606c17e282",
+    "crates/jet3-testkit/src/write_fixture.rs": "cdb8431bc97b1adcdd02f6852120e775f7fa4aaf198911a60ffb3f656e076bfb",
+    "crates/jet3-testkit/src/coverage.rs": "7a99e54d15dd2e49e76137468511be518f961adb84adc12d29353c22859f564b",
+    "crates/jet3-testkit/src/semantic_reader.rs": "8c75aacfbc8aeb47fc4b79fe99263c645f2690eb9749c64ee902526351907438",
+    "crates/jet3-testkit/src/semantic_snapshot.rs": "55cbc49c7113054a846d9dc5626c45292fa6474a8b9d5e9dfb9eddd696152cae",
+    "crates/jet3-testkit/src/semantic_values.rs": "95e3674e7aec6e6c7953092cd38256715c7607903acd33f161c78caa111d6a1a",
+    "oracle/windows-dao/scripts/dao_write_diff.py": "0d598b570f8f5a3008a51c8bc6743d7166b7e3b4a49432000ff01055f4e133a7",
+    "oracle/windows-dao/scripts/dao_read_diff.py": "696e3b8192fc8b110b020e00dfdcbf479bd3ca3f83648b7c5a1bb17c4a017d26",
+    "oracle/windows-dao/scripts/protocol_validation.py": "ce857b3f818e2e5298da093e97ef4ceba1e410a77e4f74048af129db504dac50",
+    "oracle/windows-dao/scripts/validate_protocol_v1_2.py": "de8910e207a6774a426ddca90502e1c6a189b799452d7704d46d0c8a7015232e",
+    "oracle/windows-dao/scripts/build_v1_2_inventory.py": "f2c928b11b45ae4f2896526c18a6edf8d4b8fdc19f743d9b0cdff180d9a81561",
+    "oracle/windows-dao/scripts/Invoke-DaoWriteV12.ps1": "410d914d401ee8877a974e8c81a8b201b7e63d8f596d4819804b012ce580e9c2",
+    "oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1": "78fb338668271a23158f0cfc65f0393931e4a04945af0ed84808964b2a073c89",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/protocol/v1_2/write-scenarios.json": "58ed02c1102ca121ec2e22e1eee7820b3a46f36d31315e0a0040f95abc3abb8f",
+    "oracle/windows-dao/protocol/v1_2/branch-registry.json": "a6010fd5649a9476686c5dc70ba038b667a1daeb279bf5a625123cf1fbd6df8c",
+    "oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json": "1c4ed41a01b45fa2357aa2355c2101958e9196d42532386d2e84b393f40066b9",
+    "oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json": "a362c1d63866ed77465e512902c14e8578f1fadda306c8b35dc9e16b5ff809f1"
+  }
+}
