@@ -203,7 +203,7 @@ impl InitialLongIndex {
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
         budget.charge_work_units(
-            u64::from((self.entries.len().max(1) as u64).ilog2() + 1) * COMPONENT_BYTES as u64,
+            u64::from((self.entries.len().max(1) as u64).ilog2() + 2) * COMPONENT_BYTES as u64,
         )?;
         let mut key = [0x7f, 0, 0, 0, 0];
         key[1..].copy_from_slice(&value.to_be_bytes());
@@ -232,5 +232,42 @@ impl InitialLongIndex {
                             ]))
                         && actual.row().slot() == expected[key_bytes + 3]
                 })
+    }
+}
+
+#[cfg(test)]
+mod lookup_tests {
+    use super::*;
+
+    #[test]
+    fn odd_length_lookup_charges_the_final_comparison() -> Result<(), ComposeError> {
+        let table = TableSpec {
+            name: b"Keys",
+            columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
+            indexes: &[crate::IndexSpec {
+                name: b"ById",
+                kind: IndexKind::Primary,
+                fields: &[crate::IndexColumnSpec::ascending(b"Id")],
+            }],
+        };
+        let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
+        let mut index = InitialLongIndex::new(&table, 3, &mut budget)?
+            .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
+        for slot in 0..3 {
+            index.push(
+                &[RowValue::Long(i32::from(slot))],
+                RowLocator::new(PageNumber::new(24), slot),
+                &mut budget,
+            )?;
+        }
+        index.sort(&mut budget)?;
+        let mut insufficient =
+            ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(14));
+        assert!(index.contains_single_long(1, &mut insufficient).is_err());
+        let mut sufficient =
+            ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(15));
+        assert!(index.contains_single_long(1, &mut sufficient)?);
+        assert_eq!(sufficient.total_work_units(), 15);
+        Ok(())
     }
 }
