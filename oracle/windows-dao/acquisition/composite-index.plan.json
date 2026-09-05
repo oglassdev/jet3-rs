@@ -1,0 +1,207 @@
+{
+  "document_type": "dao_composite_index_plan",
+  "experiment_id": "composite-index",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0126 observes exact non-null descending Long and mixed-direction two-Long key bindings/counts. The composed candidates use these source encoders; no DAO acceptance is assumed.",
+    "hypothesis": "DAO reads all three exact pinned candidates unchanged with the same full captured table/field/index metadata, complete rows, directed index traversal, and full-key Seek results as fresh matching DAO controls.",
+    "authorization": "User authorized DAO acquisition/mutations on 2026-09-04. Commit and independently review the SHA256-pinned plan before one dispatch. Once the first CreateDatabase starts, failures are scientific results; another dispatch requires a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/composite_index.py": "6caaff10cd2e7191589eb4aede3b4a79d7ac21b87506c9f1948f0ad309e09225",
+    "oracle/windows-dao/scripts/composite_index.ps1": "12741b1fa0d2f0c8634edc04f8aaff41a58d3155334c9b89d45f1d646066fe85",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/composite_index_candidate.rs": "3dfc1958f2edb1bc35368cdce62945ed5340dd09341934aaa70ce7489f51882e",
+    "crates/jet3/src/bootstrap_initial_index.rs": "6ca68b1f418a381799541a3388f3bf17b6c86f2b86a7b7fd12fdad5cd83cd735"
+  },
+  "candidates": {
+    "descending-unique": {
+      "size": 51200,
+      "sha256": "43ebc902fd654a238ff5abf52671eb79ac37b9083c102cf315d74c72a4dc71f3"
+    },
+    "ascending-descending-unique": {
+      "size": 51200,
+      "sha256": "b1fe69cd81f6895bdee726d44d848236bf11192d6807e77eb09e8c1c3f6ccf55"
+    },
+    "descending-ascending-ordinary": {
+      "size": 51200,
+      "sha256": "50fde5c49bd1c5ca84d033887b1db0423d60a4af5b31fe4bb2637a6488bfb12c"
+    }
+  },
+  "schema": {
+    "version": "3.0",
+    "tables": [
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships",
+      "Rows"
+    ],
+    "table_attributes": 0,
+    "fields": [
+      {
+        "name": "A",
+        "type": 4,
+        "size": 4,
+        "attributes": 1
+      },
+      {
+        "name": "B",
+        "type": 4,
+        "size": 4,
+        "attributes": 1
+      },
+      {
+        "name": "Tag",
+        "type": 4,
+        "size": 4,
+        "attributes": 1
+      }
+    ]
+  },
+  "execution": {
+    "environment": "Private Windows VM, x86 PowerShell, DAO.DBEngine.36; development-only.",
+    "pre_mutation": "Host verifies all input/candidate pins and committed plan. Guest verifies producer and all nine candidate copies before first control CreateDatabase.",
+    "per_replica": "In plan arm order and replicas1..3, create fresh Rows(A Long,B Long,Tag Long), append ByKey with declared field order/directions/uniqueness, insert listed rows, close. Read control and candidate separately read-only; capture version/table inventory/table attributes, all user-field names/types/sizes/attributes, all indexes and primary/unique/required/foreign/ignoreNulls flags plus ordered field attributes/directions, complete row snapshots and directed index traversal. Seek every distinct full key in listed query order; close and rehash.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/composite_index.py run CANDIDATE_DIRECTORY --shared-root VM_SHARED_ROOT --run-id UTC-composite-index",
+    "analysis": "python3 oracle/windows-dao/scripts/composite_index.py analyze OUTBOX; verify input pins again before report publication."
+  },
+  "decision_rule": {
+    "observed_accepted": "Complete nine-pair job, all controls match exact declared semantics, all18 images unchanged, and each arm has three identical complete normalized candidate/control pairs with every candidate passing.",
+    "not_observed_accepted": "Same complete-job/control/unchanged gate, but one arm candidates identically fail at an endpoint or return a stable semantic mismatch.",
+    "no_outcome": "Incomplete job, any control failure or changed image, or disagreement between normalized replicas for an arm.",
+    "semantic_normalization": "Snapshot rows are a multiset. Traversal must contain every complete A/B/Tag row exactly once and follow declared key directions; only equal full-key payload tie order is unspecified. Normalize traversal in directed full-key order with row values as tie-breaker. Seek query inventory must exactly match all distinct full keys; every returned full row must belong to the expected rows and match every queried index component. Only after these checks normalize Seek to query inventory, allowing ordinary duplicates to return either valid Tag. Compare all captured metadata without dropping flags/field bindings.",
+    "validation_rejection": "Reject for input-pin drift during preflight or analysis, malformed binding/inventory, candidate starting-pin mismatch or retained-image mismatch."
+  },
+  "evidence_boundary": "Exact three51200-byte one-leaf candidates only. No null/other-type/more-component rule, arbitrary B-tree allocation, general compatibility, integrity mutation, update or hosted support claim.",
+  "retention": "Retain result/report/logs and all18 candidate/control MDBs externally. Never commit MDB or provider bytes. Record one additive EXP-0128 outcome from the validated report.",
+  "candidate_generation": {
+    "source_commit": "caf60a5ab94c6dac02ca88d1ed2058e512aadfab",
+    "example": "crates/jet3/examples/composite_index_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example composite_index_candidate -- DIRECTORY/ARM.mdb ARM",
+    "notes": "Exact image hashes bind inputs. No source-attestation or equivalence to other builds is claimed."
+  },
+  "arms": {
+    "descending-unique": {
+      "unique": true,
+      "fields": [
+        {
+          "name": "A",
+          "descending": true
+        }
+      ],
+      "rows": [
+        [2147483647, 0, 0],
+        [-2147483648, 0, 1],
+        [0, 0, 2],
+        [-1, 0, 3],
+        [1, 0, 4],
+        [-256, 0, 5],
+        [255, 0, 6],
+        [256, 0, 7],
+        [-65536, 0, 8],
+        [65536, 0, 9]
+      ],
+      "queries": [
+        [-2147483648],
+        [-65536],
+        [-256],
+        [-1],
+        [0],
+        [1],
+        [255],
+        [256],
+        [65536],
+        [2147483647]
+      ]
+    },
+    "ascending-descending-unique": {
+      "unique": true,
+      "fields": [
+        {
+          "name": "A",
+          "descending": false
+        },
+        {
+          "name": "B",
+          "descending": true
+        }
+      ],
+      "rows": [
+        [0, 0, 0],
+        [-2147483648, 2147483647, 1],
+        [2147483647, -2147483648, 2],
+        [-1, -1, 3],
+        [-1, 0, 4],
+        [-1, 1, 5],
+        [0, -2147483648, 6],
+        [0, 2147483647, 7],
+        [1, -256, 8],
+        [1, 255, 9],
+        [256, -65536, 10],
+        [-256, 65536, 11]
+      ],
+      "queries": [
+        [-2147483648, 2147483647],
+        [-256, 65536],
+        [-1, -1],
+        [-1, 0],
+        [-1, 1],
+        [0, -2147483648],
+        [0, 0],
+        [0, 2147483647],
+        [1, -256],
+        [1, 255],
+        [256, -65536],
+        [2147483647, -2147483648]
+      ]
+    },
+    "descending-ascending-ordinary": {
+      "unique": false,
+      "fields": [
+        {
+          "name": "A",
+          "descending": true
+        },
+        {
+          "name": "B",
+          "descending": false
+        }
+      ],
+      "rows": [
+        [0, 0, 0],
+        [-2147483648, 2147483647, 1],
+        [2147483647, -2147483648, 2],
+        [-1, -1, 3],
+        [-1, 0, 4],
+        [-1, 1, 5],
+        [0, -2147483648, 6],
+        [0, 2147483647, 7],
+        [1, -256, 8],
+        [1, 255, 9],
+        [256, -65536, 10],
+        [-256, 65536, 11],
+        [0, 0, 12],
+        [-1, 0, 13]
+      ],
+      "queries": [
+        [-2147483648, 2147483647],
+        [-256, 65536],
+        [-1, -1],
+        [-1, 0],
+        [-1, 1],
+        [0, -2147483648],
+        [0, 0],
+        [0, 2147483647],
+        [1, -256],
+        [1, 255],
+        [256, -65536],
+        [2147483647, -2147483648]
+      ]
+    }
+  }
+}
