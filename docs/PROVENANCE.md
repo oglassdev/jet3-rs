@@ -11186,6 +11186,39 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0209 — Explicit empty Memo public creation candidates
+
+- Status: preregistered local candidate validation; acquisition has not run.
+- Plan: `oracle/windows-dao/acquisition/memo-candidate.plan.json`, SHA-256
+  `9f517d9ae1d8563ccce84c2bfbfc9738acd14ac6f501d0f8aa305b6d970a9097`.
+- Reviewed implementation: `871f71c315938bb7143a07d9f2f428cfef8c11e1`;
+  generator `crates/jet3/examples/memo_allow_empty_candidate.rs` calls the public
+  creation API. The plan pins both generated images and 24 relevant source,
+  producer, decoder and transport inputs. No MDB bytes are committed.
+- Question: do explicit `AllowZeroLength` candidates retain null, present-empty
+  and nonempty Memo values under DAO reads and subsequent native inserts?
+- Two finite profiles are `Rows(Id Long, M Memo)` and
+  `Ledger7(Id Long, Memo42Long Memo)`, each with `(1, Null)`, `(2, "")`, `(3, "A")`.
+  Three independent native DAO controls per profile set `AllowZeroLength = true`.
+  Candidate/control baseline images are opened read-only and must remain unchanged.
+- Each baseline also supplies two separate writable copies: one receives `(4, "")`,
+  the other `(5, "B")`. All are closed before read-only observation. The inventory
+  is six pairs, 36 captures/images and 24 native continuation inserts.
+- Compare complete requested table/column metadata, all field properties including
+  `AllowZeroLength`, full rows with `IsNull` and `FieldSize`, and empty index,
+  relationship and query inventories. Raw checks bind every Id/slot/presence bit
+  and inline descriptor/payload; the catalog external LvProp payload must equal
+  the named true-state bytes from EXP-0208 with valid ownership/availability and
+  global allocation membership. Physical locations may differ across roles.
+- Acceptance requires every planned pair, operation, capture, identity and raw
+  check. Missing data or any failure produces `no_outcome`; subset matches do not
+  promote it. Initiating error endpoints and retained artifacts survive failure.
+  One coordinated dispatch is allowed, without automatic retry or resume.
+- This tests only the two named schemas and the specified small inline values.
+  It establishes no general property grammar, empty OLE behavior or hosted support.
+  EXP-0210 is reserved for the additive validated outcome; EXP-0200 and EXP-0208
+  remain unchanged.
+
 ## EXP-0208 — Named Memo AllowZeroLength property payload transitions
 
 - Single local EXP-0207 run `20260905T111500Z-memo-property`, frozen runtime
