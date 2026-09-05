@@ -11897,3 +11897,71 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0148 — Remaining Date/Binary/null index observations answered
+
+- Recorded: 2026-09-05, OpenAI Codex; validated local development discovery
+  `answered`, not candidate acceptance or hosted support. Consumed EXP-0147
+  plan SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`,
+  producer/analyzer source `9fb6874`, and original EXP-0144 `no_outcome` remain
+  unchanged. The earlier 36 captures were not reacquired or reanalyzed.
+- Retained run: `20260905T060000Z-scalar-index-remaining` in the external VM
+  shared outbox. Result: 900612 bytes, SHA-256
+  `2d078ba65dbab7455f6aacb8408a784d521d09553fdc079cd69c554bf9bcccfd`.
+  Report: 137822 bytes, SHA-256
+  `88a33d7e37f4e45f3a8ad305ff8fc9ff4c2eac4442b26e9765de19208d882fb9`.
+  Pinned analysis reproduced the report byte-for-byte on a temporary copy;
+  every original retained file remained unchanged.
+- All fourteen arms have three complete, agreeing captures: 42 observations,
+  no report reasons or acquisition error. All 42 retained MDB identities equal
+  recorded before/after hashes and sizes. Complete DAO schema, index flags,
+  saved rows, traversal and raw key/row-locator correlations pass. Every saved
+  payload equals its declared value; stable Update rejections are listed below.
+- Date: six OA day values `-10000,-1,0,1,36526,2958465` were saved exactly.
+  Ascending raw keys respectively are `7f3f3c77ffffffffff`,
+  `7f400fffffffffffff`, `7f8000000000000000`, `7fbff0000000000000`,
+  `7fc0e1d5c000000000` and `7fc146924080000000`. For these exact inputs,
+  descending keys complement every ascending byte, including marker `7f` to
+  `80`, and traversal reverses value order. This observes finite Date keys;
+  it does not establish arbitrary Date/floating encodings or explain the
+  original failed producer's unlocalized cast.
+- Four-byte Binary: exact inputs `ffffffff`, `00000000`, `00000001`,
+  `01000000`, `7fffffff`, `80000000` all saved. Ascending keys equal marker
+  `7f`, the four input bytes, four zero padding bytes, then `04`. Descending
+  keys complement every byte, and traversal reverses bytewise order. This
+  is evidence only for these four-byte inputs, not arbitrary-length framing.
+- Nullable Long: ascending null key is `00`, descending null is `ff`.
+  Non-null component bytes agree with prior EXP-0126 observations. Mixed
+  ascending-A/descending-B composite keys concatenate the observed components:
+  `(null,null)` is `00ff`; `(null,1)` is `00807ffffffe`; `(1,null)` is
+  `7f80000001ff`. These repeated full null-bearing keys retain distinct row
+  locators and complete Tag payloads.
+- Per-replica saved rows / leaf entries / physical distinct-key count:
+
+  | Arm | Rows | Entries | Count | Raw flags |
+  | --- | ---: | ---: | ---: | ---: |
+  | null-ordinary / null-descending | 8 | 8 | 6 | 0 |
+  | null-unique | 7 | 7 | 6 | 1 |
+  | null-unique-ignore | 7 | 5 | 5 | 3 |
+  | null-ignore | 8 | 6 | 5 | 2 |
+  | null-required | 6 | 6 | 5 | 8 |
+  | composite-null-ordinary | 12 | 12 | 8 | 0 |
+  | composite-null-unique | 11 | 11 | 8 | 1 |
+  | composite-null-ignore | 12 | 10 | 7 | 2 |
+  | composite-null-required | 6 | 6 | 5 | 8 |
+
+- Unique single indexes accept both null rows and reject only the repeated
+  non-null zero (Tag 6); unique composite accepts repeated `(null,null)`,
+  `(null,1)` and `(1,null)`, rejecting repeated `(1,1)` (Tag 8). Observed
+  rejection is DAO `3022`, HRESULT `-2146825266`, in every replica.
+- IgnoreNulls single indexes omit the two stored null rows; the composite
+  IgnoreNulls arm omits only the two all-null rows, retaining partial-null
+  entries. Required single rejects Tags 1/5; Required composite rejects
+  Tags 1/2/3/5/6/7, namely every attempted null-bearing row. Observed rejection
+  is DAO `3058`, HRESULT `-2146825230`. Ordinary Required retains repeated
+  non-null keys. These statements concern exactly the declared flags/shapes.
+- Boundary: no generalized scalar/type grammar, arbitrary null-component
+  policy, Text/GUID/Memo/OLE indexing, existing-row update behavior, writer
+  acceptance or general compatibility claim. Report support and compatibility
+  flags remain false. Keep all raw images externally, with no provider bytes
+  or MDBs committed.
