@@ -10093,6 +10093,46 @@ Use `not applicable` explicitly rather than omitting a field.
   additive-provenance, and evidence-boundary review completed without findings.
 
 
+### EXP-0115 — Multiple-data-page initial rows preregistration
+
+- Recorded: 2026-09-04, OpenAI Codex
+- Kind: SHA-256-pinned development-only local DAO experiment preregistration
+- Question: does DAO read the exact composed `Rows(Id Long)` image containing
+  every integer from -254 through 254 unchanged, with the same schema and row
+  multiset as fresh DAO controls in all three replicas?
+- Origin: project-authored `multi_page_row_candidate` example at reviewed source
+  commit `826b1318669071afc360659201fd8c012ff07bd0`. `EXP-0060`, `EXP-0065`,
+  and `EXP-0057` supply row, append, and map grammar; `EXP-0112` established
+  only the earlier exact one-page candidate. This candidate packs data pages
+  23, 24, and 25 with 254, 254, and 1 rows. All three are owned; only page 25
+  is marked available because the others lack physical room for an all-null
+  row. That availability policy and retaining the composed page-zero header
+  are experimental hypotheses, not established DAO policies.
+- Environment: private local Windows VM, x86 PowerShell, `DAO.DBEngine.36`.
+- Protocol: `oracle/windows-dao/acquisition/multi-page-rows.plan.json`, SHA-256
+  `997070626c1b1c9f3e2daeae6c9a99333060c47916a2ac46c34e9c60073a50a2`. Commit and review before one
+  dispatch. Host verifies all pins and committed plan; guest verifies producer
+  and prepares all three pinned candidate copies before the first control
+  creation. Controls insert the inclusive preregistered range. Read control
+  and candidate schema and rows read-only, require unchanged identities and
+  exact replicated semantics. The analyzer rechecks input pins before applying
+  the decision rule. Post-mutation failure requires a new human decision before
+  another dispatch.
+- Artifacts: exact candidate is 53,248 bytes, SHA-256
+  `57498e634b9e4e7102efd4f4c2d673cccd42c344b51590177c7704232df675af`. The plan pins
+  the producer, analyzer, imported transport, and Rust candidate example.
+- Observation: acquisition has not started; no DAO result recorded here.
+- Interpretation: exact-candidate schema/row endpoints only. No matching control
+  physical layout, general allocation policy, arbitrary schema or value support,
+  indexes, long values, existing-database mutation, compatibility claim, or
+  hosted support-matrix movement.
+- Usage: issue `#100`; separately validated multiple-data-page initial rows.
+- Rights: all MDB bytes and provider binaries remain outside the repository.
+- Review: independent harness review requested input revalidation during
+  analysis; that fix and a focused rejection test are implemented. Six analyzer
+  tests and a PowerShell parser-only check pass.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
