@@ -13579,6 +13579,46 @@ Retained MDB identities (filename: bytes, SHA-256):
   `development_only=true`, `compatibility_claim=false` and
   `support_matrix_movement=false` remain unchanged.
 
+## EXP-0215 — Unique Long leaf indexed row mutation candidates
+
+- Preregistered local validation; no acquisition has run. Plan
+  `oracle/windows-dao/acquisition/indexed-row-candidate.plan.json`, SHA-256
+  `1fd6426e6e2061d3e2d8ef99c2f3abad0a0f8d31a7b30ed74ff5364fd35b3cb3`. Reviewed parser source
+  `d459298020e5cfa9710eb27b2e6cfc2925366261`; the standalone public exporter,
+  eight image hashes, four preparation receipts and 45 scoped inputs are pinned.
+- Four profiles, each with three fresh native DAO controls: ascending primary
+  insertion, descending unique insertion, the 199-to-200 leaf boundary, and
+  deletions of Ids 1, 4, 0 among six rows. The schema is
+  `Items(Id Long, Value Long)` with the single directed unique `ByKey` index.
+- Public preparation creates four databases, performs six successful mutations
+  and four refused duplicate/capacity requests with unchanged bytes. Its exact
+  original/candidate pairs and action locators are pinned. Native control
+  originals are created independently from the same schemas and seed values.
+- Each of twelve pairs retains eight closed images/captures: public original and
+  candidate, native control original and mutated control, and separate candidate/
+  control copies for successful continuation insertion and duplicate-only rejection.
+  There are 633 native seed inserts, eighteen control mutations, twenty-four
+  successful continuation inserts and twenty-four planned duplicate attempts.
+- Require all 96 unchanged read identities, complete requested schema/rows,
+  full directed index traversal, every declared present/removed/follow/missing Seek,
+  and matched control semantics. Decode complete raw row/key/locator inventories,
+  distinct/table counts, index graphs and maps for non-duplicate roles, permitting
+  native compression/placement while requiring the public root leaf and exact map.
+- Reconstruct every public data-row/directory/free/count patch and its leaf entry/
+  boundary/free/distinct-count changes. Preserve all other bytes, including maps,
+  page zero, unrelated objects and vacated slack. No public index split, EOF data
+  append, null-key or last-row release behavior is claimed.
+- EXP-0190 observed rejected unique-insert count residue. Duplicate-only copies
+  therefore require native 3022 rejection, matched actual error numbers and exact
+  unchanged logical/schema/traversal/Seek state. Their raw table/live/distinct
+  counts are retained separately without requiring unchanged physical counts.
+- Three focused classifier tests, final exporter Clippy, exact image/receipt
+  reproduction, and actual x86 parsing plus 222 mock typed assignments passed.
+  Independent plan review and final repository checks precede one dispatch.
+  Unexpected acquisition/retention/comparison failure is `no_outcome`, with no
+  retry or subset promotion. EXP-0216 records the validated outcome once;
+  this preregistration moves no hosted support status.
+
 ## EXP-0185 — Typed-setter successor for unique Long key validation
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0186. Plan:
@@ -14796,3 +14836,42 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   and DAO continuation mutations remain outside this inventory. The report's
   `support_matrix_movement` remains false; no general update compatibility is
   claimed. Earlier provenance entries and the consumed plan remain unchanged.
+
+### EXP-0215 — Final source integration before acquisition
+
+- Finalize the same unacquired matrix against merged source
+  `0fa4d07b1fc779e67ffb81e996f284abd962feec`. Plan SHA-256
+  `6fbee41dc0d54d7e47568a701b5bcce10dd0aecc5d5883575cf4f1261cbf46ff` supersedes the initial preregistration hash
+  above before any DAO acquisition. Only the source revision and two changed
+  creation-source pins were refreshed; all eight image identities, four public
+  preparation receipts, cases and acceptance rules reproduce unchanged.
+- No matching EXP-0215 plan or result exists in the external shared inbox/outbox.
+  The three focused analyzer tests and exact exporter reproduction passed.
+  Independent review must pass before the one authorized dispatch.
+
+## EXP-0216 — Unique Long leaf indexed row mutation validation outcome
+
+- The one authorized EXP-0215 acquisition,
+  `20260905T135208Z-indexed-row-candidate`, returned **`no_outcome`** under
+  the unchanged all-pairs decision rule. Preregistration commit
+  `c00b0e0728a5e6e179e4e29647f09a52e4953410` was pushed before dispatch;
+  plan SHA-256 `6fbee41dc0d54d7e47568a701b5bcce10dd0aecc5d5883575cf4f1261cbf46ff`.
+- The x86 `DAO.DBEngine.36` producer completed all twelve pairs and 96 captures,
+  with mutation started, no acquisition error, no retention failures, and all
+  96 MDBs retained outside the repository. The frozen analyzer accepted nine
+  pair observations before failing on the first deletions control with
+  `Index coverage or distinct count mismatch`. No subset is promoted.
+- Read-only diagnosis: each native deletions control retains physical distinct
+  count 6 after deleting three of six rows; its independent continuation has
+  count 7 after adding one row. Their live/table counts are respectively 3 and
+  4. The public deletion candidate has count 3 and its continuation count 4.
+  Deletion snapshots match the requested logical rows, traversal and Seek, but
+  these diagnostics are not accepted format or compatibility evidence and do
+  not weaken the frozen raw-count predicate. No reacquisition was attempted.
+- The report was independently rebuilt with the pinned analyzer and matched
+  exactly. Retained `report.json` SHA-256
+  `ca203ec4d46164e03319bc3e6c28c2e909a8f47d90f8c58e48876cadb0adf76f`;
+  retained `result.json` SHA-256
+  `032966c5ecea74fe2be0bc12ca09d2fc36084aff698ac02c2f6e51cdb3e2b914`. Artifacts remain in the external shared
+  outbox under the run identifier above. This local development result makes
+  no compatibility claim or hosted support-matrix movement.
