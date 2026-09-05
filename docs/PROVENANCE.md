@@ -11431,6 +11431,52 @@ Copy this block under the appropriate section and remove this instruction:
   unchanged. No retry, compatibility promotion, or hosted support movement is
   implied; any corrected implementation or retained-data successor is separate.
 
+## EXP-0178 — Indexed non-key Long updates accepted in three layouts
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T075800Z-indexed-payload-update`. All nine pairs passed with no reasons
+  or coordinated error. Acquisition revision
+  `a607460b23ddc05ece33e608ecc8fe9b2abec997`; source
+  `aaa02d7079772ecd846e58614195c12b3159b206` integrates reviewed implementation
+  `0f06a3a`. Consumed EXP-0177 plan SHA-256 remains
+  `0f471e7449cf50466ee0aa62d7e7fca9debe474e26903cf631a2831e8431ffc7`.
+- Validated report: 18359 bytes, SHA-256
+  `8dc22d2774277dd0f306048f79805954783e4358d5ee93436b9916ef04dc4d21`.
+  Coordinated result: 4217 bytes, SHA-256
+  `319c8e32be51e7393ee05aad54e108f48017fae45e76b99e2bd456400084a9c4`.
+  The unchanged pinned analyzer reproduced the report byte-identically on
+  temporary copies; no new DAO call or corrected analysis occurred.
+- Create-phase result: 267087 bytes, SHA-256
+  `a0e6ccc377125aee27d527c61151ea7894f1874b61b41a401957d1c631b9b77c`.
+  Read-only phase result: 533761 bytes, SHA-256
+  `4be17c13a05f8cdacaf474e5f7506373c25f84377a6cc6753fccc5733587defc`.
+  All nine creation captures and eighteen final captures pass, both error fields
+  are null and both retention-failure lists empty. Receipts record 32-bit
+  DAO.DBEngine.36 on Windows NT 10.0.20348.0; final `mutation_started` is false
+  and every database snapshot reports Jet version 3.0.
+- Each of primary ascending Id, ordinary ascending Group with duplicates, and
+  ordinary Group descending / Id ascending composite passes all three replicas.
+  Each original has six Items rows, two unrelated Later rows and stored KeepQuery.
+  The public update changes only non-key Items Id3 / Value from 303 to -2147483648.
+  In every image the independently selected four-byte span begins at 51167,
+  replacing `2f010000` with `00000080`; actual changed bytes are 51167, 51168
+  and 51170. Every other file byte, including all index bytes, remains identical.
+- Full table/field/index properties and directions, all rows and original stored
+  QueryDef SQL match the precise requested post-state. Every traversal contains
+  all six complete rows in declared key order. Primary and composite cases each
+  check six distinct full keys plus a missing key; the duplicate Group case checks
+  three distinct keys plus a missing key. Any matching complete duplicate row is
+  valid for Seek; wrong payloads or incomplete traversal do not pass.
+- All eighteen original/updated images are 59392 bytes. Original identities
+  remain unchanged across phases; every read-only before/after identity matches
+  both the coordinated and phase-retained image. Verification preserves all
+  33 coordinated, 12 create-phase and 21 observe-phase files (66 total).
+- This is finite local non-key update acceptance, not index-key maintenance,
+  multi-index or relationship mutation, arbitrary payload changes, hosted
+  compatibility or support promotion. Consumed inputs and earlier outcomes
+  remain unchanged. Development-only is true; compatibility and support-matrix
+  movement remain false.
+
 ## EXP-0177 — Indexed non-key Long update validation plan
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0178. Plan
