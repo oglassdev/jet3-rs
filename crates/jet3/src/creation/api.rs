@@ -76,6 +76,10 @@ pub enum CandidateCheckError {
     Read(crate::Error),
     /// The candidate index tree could not be read.
     Index(crate::IndexTreeError),
+    /// A candidate index usage-map record could not be located.
+    UsageMap(crate::UsageMapError),
+    /// A candidate index allocation map could not be traversed.
+    Allocation(crate::AllocationMapError),
     /// A candidate long-value field could not be decoded.
     Value(crate::ValueError),
     /// A candidate external payload could not be streamed.
@@ -102,6 +106,10 @@ impl fmt::Display for CandidateCheckError {
         match self {
             Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
             Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
+            Self::UsageMap(source) => write!(formatter, "candidate usage map failed: {source}"),
+            Self::Allocation(source) => {
+                write!(formatter, "candidate allocation map failed: {source}")
+            }
             Self::Value(source) => write!(formatter, "candidate value failed: {source}"),
             Self::LongValue(source) => write!(formatter, "candidate long value failed: {source}"),
             Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
@@ -125,6 +133,8 @@ impl StdError for CandidateCheckError {
         match self {
             Self::Read(source) => Some(source),
             Self::Index(source) => Some(source),
+            Self::UsageMap(source) => Some(source),
+            Self::Allocation(source) => Some(source),
             Self::Value(source) => Some(source),
             Self::LongValue(source) => Some(source),
             Self::Rows(source) => Some(source),
@@ -179,8 +189,11 @@ pub fn create_database(
 /// capacity. Each row and the table definition must fit one page. Pages with
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
-/// At most one index on one or two numeric columns (including a generated
-/// AutoIncrement column) is accepted, with each field ascending or descending.
+/// The first table accepts up to three indexes; later tables accept one. Each
+/// index has one or two numeric columns (including a generated AutoIncrement
+/// column), with each field ascending or descending. Multiple populated indexes
+/// combine the established separate roots/maps with independent trees; this
+/// candidate construction requires separate DAO validation.
 /// Uncompressed branch/leaf trees grow within the existing inline-map and
 /// resource limits. Unique indexes reject repeated fully present keys while
 /// allowing repeated null-bearing keys. The index null policy includes keys,
@@ -329,7 +342,7 @@ fn check_initial_table_rows(
             });
         }
     }
-    let mut expected_index = InitialLongIndex::new(table, rows.len(), budget)
+    let mut expected_indexes = InitialLongIndex::for_table(table, rows.len(), budget)
         .map_err(CandidateCheckError::RowEncoding)?;
     let mut next_payload = initial_payload_start(table, root, first_create)
         .map_err(CandidateCheckError::RowEncoding)?;
@@ -418,7 +431,7 @@ fn check_initial_table_rows(
                 });
             }
         }
-        if let Some(index) = &mut expected_index {
+        for index in &mut expected_indexes {
             index
                 .push(row, locator, cursor.owned.budget_mut())
                 .map_err(CandidateCheckError::RowEncoding)?;
@@ -434,18 +447,81 @@ fn check_initial_table_rows(
         });
     }
     drop(cursor);
-    if let Some(mut expected) = expected_index {
+    for (ordinal, mut expected) in expected_indexes.into_iter().enumerate() {
         expected
             .sort(budget)
             .map_err(CandidateCheckError::RowEncoding)?;
+        let physical =
+            definition
+                .physical_indexes()
+                .get(ordinal)
+                .ok_or(CandidateCheckError::Mismatch {
+                    detail: "initial index count",
+                })?;
+        if physical.distinct_key_count() != expected.distinct_count() {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "initial index distinct count",
+            });
+        }
         let actual = database
-            .index_tree(&definition, 0, budget)
+            .index_tree(&definition, ordinal as u16, budget)
             .map_err(CandidateCheckError::Index)?;
-        if !expected.matches(&actual) {
+        check_initial_index_map(database, physical.usage_map(), &actual, budget)?;
+        if !expected
+            .matches(&actual, budget)
+            .map_err(CandidateCheckError::RowEncoding)?
+        {
             return Err(CandidateCheckError::Mismatch {
                 detail: "initial index entries",
             });
         }
+    }
+    Ok(())
+}
+
+fn check_initial_index_map(
+    database: &mut DatabaseReader<crate::FileSource>,
+    location: crate::IndexUsageMapReference,
+    tree: &crate::IndexTree,
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
+    let mut bytes = [0; crate::PAGE_BYTES];
+    let page = database
+        .read_classified_page(location.page(), &mut bytes, budget)
+        .map_err(|error| CandidateCheckError::Definition(TableDefinitionError::Page(error)))?;
+    let record = crate::locate_usage_map(
+        page,
+        crate::MapRowLocator::new(location.page(), location.row()),
+        budget,
+    )
+    .map_err(CandidateCheckError::UsageMap)?;
+    let crate::AllocationMap::Inline(map) = crate::decode_allocation_map(record.raw(), budget)
+        .map_err(CandidateCheckError::Allocation)?
+    else {
+        return Err(CandidateCheckError::Mismatch {
+            detail: "initial index map kind",
+        });
+    };
+    let mut pages = map.allocated_pages(database.geometry());
+    let mut count = 0;
+    while let Some(page) = pages
+        .next_page(budget)
+        .map_err(CandidateCheckError::Allocation)?
+    {
+        budget
+            .charge_work_units(tree.nodes().len() as u64)
+            .map_err(CandidateCheckError::Read)?;
+        if !tree.nodes().iter().any(|node| node.page() == page) {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "initial index map pages",
+            });
+        }
+        count += 1;
+    }
+    if count != tree.nodes().len() {
+        return Err(CandidateCheckError::Mismatch {
+            detail: "initial index map pages",
+        });
     }
     Ok(())
 }
