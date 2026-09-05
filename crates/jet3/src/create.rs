@@ -21,7 +21,7 @@ use std::path::Path;
 use crate::atomic::atomic_create;
 use crate::bootstrap_composer::{
     ComposeError, InitialLongIndex, compose_database, compose_database_with_rows,
-    initial_row_layout,
+    encode_initial_row, initial_payload_start, initial_row_layout,
 };
 use crate::page_append_plan::PlannedPage;
 use crate::{
@@ -64,6 +64,10 @@ impl StdError for CreateDatabaseError {
 pub enum CandidateCheckError {
     /// The candidate index tree could not be read.
     Index(crate::IndexTreeError),
+    /// A candidate long-value field could not be decoded.
+    Value(crate::ValueError),
+    /// A candidate external payload could not be streamed.
+    LongValue(crate::LongValueError),
     /// The candidate rows could not be read.
     Rows(RowError),
     /// Requested rows could not be encoded for comparison.
@@ -85,6 +89,8 @@ impl fmt::Display for CandidateCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
+            Self::Value(source) => write!(formatter, "candidate value failed: {source}"),
+            Self::LongValue(source) => write!(formatter, "candidate long value failed: {source}"),
             Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
             Self::RowEncoding(source) => {
                 write!(formatter, "candidate row comparison failed: {source}")
@@ -105,6 +111,8 @@ impl StdError for CandidateCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Index(source) => Some(source),
+            Self::Value(source) => Some(source),
+            Self::LongValue(source) => Some(source),
             Self::Rows(source) => Some(source),
             Self::RowEncoding(source) => Some(source),
             Self::Open(source) => Some(source),
@@ -151,7 +159,7 @@ pub fn create_database(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates one table containing scalar initial rows in caller order.
+/// Creates one table containing initial rows in caller order.
 ///
 /// Rows are packed in caller order into data pages within the inline usage-map
 /// capacity. Each row and the table definition must fit one page. Pages with
@@ -161,8 +169,12 @@ pub fn create_database(
 /// 200 non-null keys in a single leaf. Primary and unique indexes reject
 /// duplicate keys; ordinary indexes retain duplicates. Null keys, descending
 /// indexes, and other key types are refused.
-/// AutoIncrement, Memo, and LongBinary columns are refused. Values use the
-/// same database-code-page and physical scalar representations as [`RowValue`].
+/// AutoIncrement is refused. One unindexed Memo or LongBinary column accepts
+/// nonempty typed payloads or null; raw `RowValue::LongValue` headers are refused.
+/// The candidate policy stores up to 32 bytes inline, up to 2,036 on one LVAL
+/// page, and larger payloads in 2,032-byte chained fragments, one per page.
+/// These are construction choices, not established DAO allocation thresholds.
+/// Values use the database-code-page and physical representations of [`RowValue`].
 /// The existing-destination and atomic publication guarantees of
 /// [`create_database`] apply. Composition and the structural row comparison
 /// are charged to `budget`. Unsupported schemas and rows fail before writing.
@@ -215,15 +227,24 @@ fn check_initial_rows(
         .map_err(CandidateCheckError::Definition)?;
     let mut expected_index = InitialLongIndex::new(table, rows.len(), budget)
         .map_err(CandidateCheckError::RowEncoding)?;
+    let mut next_payload =
+        initial_payload_start(table, root).map_err(CandidateCheckError::RowEncoding)?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
     let mut cursor = database
         .rows(&definition, budget)
         .map_err(CandidateCheckError::Rows)?;
-    for row in rows {
-        let length = crate::encode_row(&layout, row, &mut encoded, cursor.owned.budget_mut())
-            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Row(error)))?
-            .get() as usize;
-        let actual = cursor
+    for (ordinal, row) in rows.iter().enumerate() {
+        let length = encode_initial_row(
+            &layout,
+            row,
+            ordinal,
+            &mut next_payload,
+            &mut encoded,
+            cursor.owned.budget_mut(),
+        )
+        .map_err(CandidateCheckError::RowEncoding)?
+        .get() as usize;
+        let mut actual = cursor
             .next_row()
             .map_err(CandidateCheckError::Rows)?
             .ok_or(CandidateCheckError::Mismatch {
@@ -235,6 +256,55 @@ fn check_initial_rows(
             });
         }
         let locator = actual.locator();
+        let mut external = None;
+        for (column, value) in row.iter().enumerate() {
+            let payload = match value {
+                RowValue::Memo(payload) | RowValue::LongBinary(payload) => *payload,
+                _ => continue,
+            };
+            let decoded = actual
+                .value(
+                    crate::ColumnOrdinal::new(column as u16),
+                    crate::TextCodePage::Windows1252,
+                )
+                .map_err(CandidateCheckError::Value)?;
+            if let Some(decoded) = decoded
+                && let crate::ValueKind::LongValue(crate::LongValue::External(reference)) =
+                    decoded.kind()
+            {
+                external = Some((*reference, payload));
+            }
+        }
+        if let Some((reference, expected)) = external {
+            cursor
+                .owned
+                .budget_mut()
+                .charge_work_units(expected.len() as u64)
+                .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Encoding(error)))?;
+            let mut stream = cursor
+                .long_value(reference)
+                .map_err(CandidateCheckError::LongValue)?;
+            let mut remaining = expected;
+            while let Some(chunk) = stream
+                .next_chunk()
+                .map_err(CandidateCheckError::LongValue)?
+            {
+                let bytes = match chunk.value() {
+                    crate::LongValueChunkValue::Text(text) => text.raw_bytes(),
+                    crate::LongValueChunkValue::Binary(bytes) => bytes,
+                };
+                remaining = remaining
+                    .strip_prefix(bytes)
+                    .ok_or(CandidateCheckError::Mismatch {
+                        detail: "initial long-value payload",
+                    })?;
+            }
+            if !remaining.is_empty() {
+                return Err(CandidateCheckError::Mismatch {
+                    detail: "initial long-value length",
+                });
+            }
+        }
         if let Some(index) = &mut expected_index {
             index
                 .push(row, locator, cursor.owned.budget_mut())

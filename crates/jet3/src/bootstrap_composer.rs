@@ -393,6 +393,11 @@ use definitions::{
     msys_relationships_definition,
 };
 
+#[path = "bootstrap_initial_long_values.rs"]
+mod initial_long_values;
+use initial_long_values::InitialLongValues;
+pub(crate) use initial_long_values::{encode_initial_row, initial_payload_start};
+
 #[path = "bootstrap_initial_index.rs"]
 mod initial_index;
 pub(crate) use initial_index::InitialLongIndex;
