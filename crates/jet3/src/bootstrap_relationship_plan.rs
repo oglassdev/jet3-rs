@@ -1,4 +1,4 @@
-//! Typed, bounded inputs for private relationship composition. Schema and
+//! Typed, bounded inputs for relationship composition. Schema and
 //! placement use the existing EXP-0059/0087/0093 planners; only the two hidden
 //! selector/name cases recorded by EXP-0059 and EXP-0114 are admitted.
 
@@ -6,23 +6,52 @@ use super::*;
 use crate::ColumnRef;
 use crate::table_schema_plan::{TableSchemaPlan, plan_table_schema};
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum TableRef<'a> {
+/// A table in the ordered input to [`crate::create_database_with_relationship`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableRef<'a> {
+    /// Zero-based position in the supplied table slice.
     Ordinal(usize),
+    /// Exact database-encoded table name; matching is case-sensitive.
     Name(&'a [u8]),
 }
 
+/// A table and column forming one endpoint of a relationship.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RelationshipColumn<'a> {
-    pub(crate) table: TableRef<'a>,
-    pub(crate) column: ColumnRef<'a>,
+pub struct RelationshipColumn<'a> {
+    /// Table containing the column.
+    pub table: TableRef<'a>,
+    /// Column name or ordinal within that table.
+    pub column: ColumnRef<'a>,
 }
 
+/// One non-cascading relationship between two empty tables.
+///
+/// Names are database-encoded bytes, subject to the bounded creation name
+/// encoder. See [`crate::create_database_with_relationship`] for schema limits.
+///
+/// ```
+/// use jet3::{ColumnRef, RelationshipColumn, RelationshipSpec, TableRef};
+///
+/// let relationship = RelationshipSpec {
+///     name: b"AccountsEvents",
+///     parent: RelationshipColumn {
+///         table: TableRef::Name(b"Accounts"),
+///         column: ColumnRef::Name(b"Id"),
+///     },
+///     child: RelationshipColumn {
+///         table: TableRef::Name(b"Events"),
+///         column: ColumnRef::Name(b"AccountId"),
+///     },
+/// };
+/// ```
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RelationshipSpec<'a> {
-    pub(crate) name: &'a [u8],
-    pub(crate) parent: RelationshipColumn<'a>,
-    pub(crate) child: RelationshipColumn<'a>,
+pub struct RelationshipSpec<'a> {
+    /// Caller-chosen relationship and child foreign-index name.
+    pub name: &'a [u8],
+    /// Referenced primary-key column in the first table.
+    pub parent: RelationshipColumn<'a>,
+    /// Referencing Long column in the second table.
+    pub child: RelationshipColumn<'a>,
 }
 
 pub(super) struct RelationshipPlan<'a> {
