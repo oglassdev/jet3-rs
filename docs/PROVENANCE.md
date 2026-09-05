@@ -10990,3 +10990,46 @@ Copy this block under the appropriate section and remove this instruction:
   more components, arbitrary branches, allocator policy, candidate
   compatibility, updates, and hosted support remain outside this result.
   Report compatibility and support-matrix flags remain false.
+
+
+## EXP-0127 — Preregistered descending/composite initial-index candidates
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: preregistered local development DAO candidate differential; no acquisition
+- Plan: `oracle/windows-dao/acquisition/composite-index.plan.json`, SHA-256
+  `3ee36358cb911f6fb008c591ebb0d061650854bb4d089bb87f1e11c12a9a8b92`.
+  Pins the new host/analyzer and PowerShell scripts, existing transport,
+  reviewed Long index encoder, deterministic example, and all three images.
+- Candidates: reviewed source `caf60a5`, `composite_index_candidate` example;
+  each image is 51,200 bytes. Descending unique SHA-256
+  `43ebc902fd654a238ff5abf52671eb79ac37b9083c102cf315d74c72a4dc71f3`;
+  ascending/descending unique
+  `b1fe69cd81f6895bdee726d44d848236bf11192d6807e77eb09e8c1c3f6ccf55`;
+  descending/ascending ordinary
+  `50fde5c49bd1c5ca84d033887b1db0423d60a4af5b31fe4bb2637a6488bfb12c`.
+  All use `Rows(A Long,B Long,Tag Long)`, `ByKey`, and the exact 10/12/14-row
+  inputs of `EXP-0125`. `EXP-0126` established the observed component bytes;
+  it did not establish candidate acceptance.
+- Question: do the exact candidates match fresh DAO controls at every
+  captured table/field/index flag and ordered binding, full row snapshot,
+  directed index traversal, and Seek for every distinct full key, without
+  modifying either image?
+- Protocol: verify all nine candidate copies before first mutation. Acquire
+  three fresh controls and read-only candidate observations per arm. Require
+  all nine pairs complete, every control to satisfy the declared semantics,
+  and all eighteen files unchanged before classifying an arm. Compare full
+  normalized observations across each arm's three replicas and between
+  candidate/control. Ordinary duplicate payload tie order is unspecified;
+  traversal must contain every complete row. Seek may return either duplicate
+  only after checking the returned complete row and every queried component.
+- Decision: agreeing complete candidate/control semantics are
+  `observed_accepted`; stable candidate rejection/difference after the full
+  control/identity gate is `not_observed_accepted`; incomplete acquisition,
+  failed control, changed bytes, or replica disagreement is `no_outcome`.
+  Analysis rechecks input and retained-image pins; invalid binding rejects
+  validation. Commit and review before one acquisition; no automatic retry
+  after first mutation.
+- Boundary: only these three one-leaf images. No null/other-type/additional-
+  component grammar, branch/allocation policy, general compatibility, updates,
+  or hosted support claim. Retain all MDBs externally and record one validated
+  additive outcome as `EXP-0128`.
