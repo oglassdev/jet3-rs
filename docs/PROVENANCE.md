@@ -14837,6 +14837,64 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `support_matrix_movement` remains false; no general update compatibility is
   claimed. Earlier provenance entries and the consumed plan remain unchanged.
 
+## EXP-0213 — Hosted creation index boundary preregistration
+
+- Plan: `oracle/windows-dao/acquisition/creation-index-v1_2.plan.json`,
+  SHA-256 `1986865162d41394eb6e88d01092c2686fa26f5359a136318c563c49c8aea960`;
+  reviewed runtime `599b9042da97b72828e893bb3b437e5de506b8bf`.
+  Both hosted jobs use one dispatched committed revision and verify the
+  plan's 53 scoped input hashes before acquisition.
+- One grouped matrix covers a 27,801-row three-level Long tree, a 126-row
+  nullable Currency/Double composite tree, and three populated Long indexes
+  over 201 rows. Require full schema/value snapshots, directed traversal,
+  exact tree depths and map membership, and unchanged generated/downloaded MDBs.
+- Seek coverage is nine declared deep-Long boundary keys, all 120 non-null
+  numeric keys, and 201 primary, three ordinary and 201 composite Long keys.
+  Null-bearing rows remain in full traversal and snapshots. No mutation or
+  rejection probe, generalized allocation policy or arbitrary key type is tested.
+- Commit the plan before one authorized `windows-dao-creation-index` dispatch.
+  A failed acquisition is retained without automatic retry. Record EXP-0214
+  once from validated retained JSON; this plan does not move support status.
+
+## EXP-0214 — Hosted creation index comparison no-outcome
+
+- Original hosted run
+  [33970016543](https://github.com/oglassdev/jet3-rs/actions/runs/33970016543),
+  attempt 1, source `3bbf9cf7f38cd8277cee55e97226834c536551a8`, returned
+  **`no_outcome`** under the unchanged EXP-0213 plan, SHA-256
+  `1986865162d41394eb6e88d01092c2686fa26f5359a136318c563c49c8aea960`.
+  The reviewed plan was committed and pushed before dispatch. No retry occurred.
+- Ubuntu generation and all three Windows DAO captures completed. The DAO
+  manifest records pass/no error and unchanged before/after identities for each
+  file; evaluation then failed with `Complete directed traversal`. This is a
+  failed comparison, not accepted hosted creation coverage.
+- Read-only diagnosis identifies `DAO-WRITE-INDEX-NUMERIC-NULL / ByKey`:
+  sidecar Double values are JSON strings while canonical snapshots use numbers.
+  For example Tag 122 has B value `"1"` versus `1.0`, with identical raw bytes.
+  The frozen full-row comparison fails before ordering is tested; Seek queries
+  and returned rows also carry string-valued Double fields. In-memory diagnostic
+  normalization matches the 126 row contents and order, but does not constitute
+  a corrected evaluation or promote any subset of the original run.
+- Retained root:
+  `/home/alex/experiments/jet3-rs/hosted-creation-index-33970016543/`.
+  Frozen report: 139 bytes, SHA-256
+  `2834c6c2308627eac774001217dac825f789e041bb6fefa27e4689587fcde649`.
+  The frozen evaluator reproduced that report byte-for-byte on temporary copies.
+  All 75 retained files stayed unchanged; all three downloaded MDBs exactly match
+  their Unix-generated originals. No MDB or provider bytes are committed.
+- Preparation SHA-256:
+  `1b3df2a87ad6bd59ddc0c3a32768f3cd3c19ebae434e352c121138ca6f0a9b1c`;
+  Windows reader receipt:
+  `d7bafa750aae4f2f977ca8d4ddf5739433fae576171c2be8211f25bdf764ef71`;
+  DAO manifest:
+  `9e92d70a9501f9f6249f26d3e3f861bb89a3b5f7840d03085ee8f508a83c22bb`;
+  environment:
+  `ea98709ccc87c3639d875e620854475748f70c387e758d0b5514f305f78c6e6b`.
+- No compatibility claim or support-matrix movement follows from this result.
+  The earlier twelve-recipe hosted write evidence remains unchanged. Any
+  corrected analysis must preserve this outcome and use a separate reviewed
+  plan for the retained artifacts; it is not an infrastructure retry.
+
 ### EXP-0215 — Final source integration before acquisition
 
 - Finalize the same unacquired matrix against merged source

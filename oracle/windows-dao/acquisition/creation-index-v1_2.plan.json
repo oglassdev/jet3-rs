@@ -1,0 +1,161 @@
+{
+  "document_type": "dao_write_acquisition_plan",
+  "experiment_id": "hosted-creation-index-v1_2",
+  "provenance": "EXP-0213",
+  "outcome_provenance": "EXP-0214",
+  "protocol_version": "1.2.0",
+  "mode": "dao_open_rust",
+  "acquisition_started": false,
+  "source": {
+    "reviewed_implementation_commit": "599b9042da97b72828e893bb3b437e5de506b8bf",
+    "execution_source": "Both jobs check out the same dispatched committed Git revision containing this plan. The revision is carried in preparation, reader, DAO and Rust snapshots/receipts. The reviewed source commit identifies the scaffold; input hashes pin meaningful workflow/recipe/snapshot/evaluation sources. No independent build attestation is introduced."
+  },
+  "authorization": "The user authorized DAO experiments and mutations. Commit and independently review this exact plan, merge reviewed tooling, and perform one workflow_dispatch with run_acquisition=true and this plan SHA-256. No additional license acceptance or installation is authorized by this plan.",
+  "question": "Do three exact public-created deep, nullable numeric and multiple-index recipes match stock hosted DAO full semantic snapshots, complete directed traversal and declared finite Seek observations while every original file stays unchanged?",
+  "inventory": {
+    "path": "oracle/windows-dao/protocol/v1_2/creation-index-scenarios.json",
+    "sha256": "61534a1e82cdac316759f84412d59b1be8e67e06639be63f548af96194d5134d",
+    "scenario_ids": [
+      "DAO-WRITE-INDEX-LONG-DEEP",
+      "DAO-WRITE-INDEX-NUMERIC-NULL",
+      "DAO-WRITE-INDEX-MULTIPLE"
+    ],
+    "scenario_count": 3,
+    "contract": "Separate deterministic recipes; original consumed twelve-case write inventory/runtime remains unchanged.",
+    "recipes": [
+      {
+        "id": "DAO-WRITE-INDEX-LONG-DEEP",
+        "recipe": "long-depth-three",
+        "trees": [
+          {
+            "name": "ById",
+            "depth": 3,
+            "entries": 27801
+          }
+        ]
+      },
+      {
+        "id": "DAO-WRITE-INDEX-NUMERIC-NULL",
+        "recipe": "nullable-numeric",
+        "trees": [
+          {
+            "name": "ByKey",
+            "depth": 2,
+            "entries": 126
+          }
+        ]
+      },
+      {
+        "id": "DAO-WRITE-INDEX-MULTIPLE",
+        "recipe": "multiple-long",
+        "trees": [
+          {
+            "name": "ZPrimary",
+            "depth": 2,
+            "entries": 201
+          },
+          {
+            "name": "AGroup",
+            "depth": 2,
+            "entries": 201
+          },
+          {
+            "name": "MMixed",
+            "depth": 2,
+            "entries": 201
+          }
+        ]
+      }
+    ]
+  },
+  "execution": {
+    "workflow": ".github/workflows/windows-dao-creation-index.yml",
+    "event": "workflow_dispatch",
+    "inputs": {
+      "run_acquisition": true,
+      "plan_sha256": "SHA-256 of these exact committed plan bytes"
+    },
+    "attempts": 1,
+    "producer": "Ubuntu builds the locked public creation fixture and snapshot CLI. Generate each deterministic recipe through create_database_with_rows, inspect actual tree depths and exact inline tree map membership with public reader APIs, retain layout.json and MDB SHA before snapshot. Snapshot all rows and metadata, validate declared recipes/coverage and unchanged identity, retain all logs.",
+    "consumer": "Windows2022 downloads the exact same-run source artifact. Independently verify image/layout identities and actual tree boundaries with public reader APIs, then produce Rust snapshots. Retain the strict ready x86 DAO.DBEngine.36/dbVersion30 environment receipt and its manifest hash. Open all three exact files read-only with stock DAO and retain complete semantic snapshots and index sidecars.",
+    "helpers": "PowerShell loads only the named snapshot helper function ASTs from the pinned original read script; it never executes its top-level acquisition or changes consumed read files.",
+    "comparison": "Require complete schema, typed row multiset, full directed traversal, exact source/scenario/image/coverage/layout/provider bindings and unchanged files. Deep Long: exactly nine declared Seek keys [-13900,-13899,-13701,-13700,-13699,-1,0,13899,13900], never exhaustive Seek. Nullable Currency/Double: every120 non-null full key; exclude six null-bearing rows only from Seek, retaining them in complete traversal/snapshots. Three Long indexes: every201 primary,3 ordinary and201 composite non-null full key; duplicate Seek selects any complete matching row only after complete traversal validation.",
+    "limits": "Three deterministic recipes:27801 Long rows/depth3;126 nullable numeric rows/depth2;201rows/three Long indexes/depth2 each. Generation/snapshot subprocess300seconds, Ubuntu20minutes, Windows30minutes. No acquisition retry or provider installation."
+  },
+  "decision_rule": {
+    "matched": "All three recipes generated; all independent tree/layout, source/provider/identity, full snapshot and traversal, and finite Seek gates pass. Only these three hosted creation cases match; support-state movement is a separate reviewed change.",
+    "no_outcome": "Any provider prerequisite failure, incomplete job, failed generation/read/snapshot, changed image, invalid bindings, recipe mismatch or index comparison failure prevents matched. The evaluator retains report.json no_outcome for evaluation failures; earlier failures retain their preparation/provider/workflow diagnostics without inventing a comparison report. Validate those available JSON artifacts before recording one honest outcome.",
+    "retry": "GitHub attempt must be1; do not rerun jobs or redispatch this scientific acquisition automatically. A post-first-DAO-mutation failure remains a result. Any successor requires a separate decision and plan, never editing this consumed plan."
+  },
+  "retention": {
+    "artifact_names": [
+      "generated-creation-index-SOURCE_REVISION",
+      "windows-dao-creation-index-SOURCE_REVISION-RUN_ATTEMPT"
+    ],
+    "contents": "Exact generated MDBs, preparation.json and stdout/stderr, environment.json, reader.json, all raw/canonical DAO and Rust snapshots, coverage receipts, index probes, per-scenario comparisons and report.json when reached. Preserve failure artifacts and hosted run/job logs. Never commit MDB/provider binaries. Also retain layout.json, independent Windows layout logs and exact9/120/405 Seek query results.",
+    "outcome": "One additive EXP-0214 derived from validated retained JSON. Preserve all consumed local/hosted originals, including EXP-0194 no_outcome and separate EXP-0202 secondary evidence."
+  },
+  "coverage_limits": [
+    "Only declared depths/counts, not arbitrary index depth or allocation policy",
+    "No creation/update duplicate or Required rejection probes in this hosted acquisition",
+    "No Date/Binary/Text/GUID index keys, later-table multiple indexes or generalized nullable combinations",
+    "Deep Long Seek samples exactly nine keys; full traversal remains exhaustive",
+    "No mutation, rollback, query preservation, empty LVAL or whole-v1 completeness claim"
+  ],
+  "claims": "Finite hosted creation comparison only. Prior local evidence EXP-0146/0166/0190/0202 motivates recipes but does not substitute for this acquisition. No automatic support movement, full #100/#102 closure or broad compatibility claim.",
+  "inputs": {
+    ".github/workflows/windows-dao-creation-index.yml": "57136d28aacd669d4840e7568643f433cdbd33591d331cfbe19b3e6684cee460",
+    "Cargo.lock": "862e85e19ae578d9ed7be1113041b1053c30500badccd8b88c29233efc2af5a2",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3-cli/Cargo.toml": "027785d6f6755603bf6ee052d3f9df3e56a76f10930fc72d58352c7b29467d32",
+    "crates/jet3-cli/src/main.rs": "73c996d525b7d39d8ad33c4c1a671a4c48b8a7a372ee71af38fe02d3fc1c4c21",
+    "crates/jet3-cli/src/snapshot.rs": "6ec5ed8f2fa159ddb8f87ae76ab926e79043b2ce3bdd917c969166c361cb0d4f",
+    "crates/jet3-testkit/Cargo.toml": "79d8432043f68c1d419d070e5fb5274a015c6010e73e7c72064ca7a29a99509c",
+    "crates/jet3-testkit/src/bin/jet3-creation-index-fixture.rs": "6fe798322cab32ffc08bd46c15b2e0b005768b6c5083e57a356c66b1c01c22bd",
+    "crates/jet3-testkit/src/coverage.rs": "7a99e54d15dd2e49e76137468511be518f961adb84adc12d29353c22859f564b",
+    "crates/jet3-testkit/src/creation_index_fixture.rs": "44d9b1275c92e70e096b0f251edad7ab7a5b9a6ea0d816454a820947166cb8c4",
+    "crates/jet3-testkit/src/lib.rs": "229fc9d839a7f7d29b3c252868c72d69f4681cba1d38380f0582c0f9982e24b8",
+    "crates/jet3-testkit/src/semantic_reader.rs": "8c75aacfbc8aeb47fc4b79fe99263c645f2690eb9749c64ee902526351907438",
+    "crates/jet3-testkit/src/semantic_snapshot.rs": "55cbc49c7113054a846d9dc5626c45292fa6474a8b9d5e9dfb9eddd696152cae",
+    "crates/jet3-testkit/src/semantic_values.rs": "95e3674e7aec6e6c7953092cd38256715c7607903acd33f161c78caa111d6a1a",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/src/creation/api.rs": "a5b178f1b42a079ba21606fdbe588f214e5ea5601f12fbc89c703e70fdb41be5",
+    "crates/jet3/src/creation/api_relationship.rs": "1a02e82090c74161731f5d61a8dea5784ea16ce4a6fb9e05f862942919cb510b",
+    "crates/jet3/src/creation/columns.rs": "e7dc54eab60544ae5fbcc835f1c0abb9024df2f8b6eb51295fac8f0977c9543e",
+    "crates/jet3/src/creation/composer/autoincrement.rs": "a98a74cb1be8e71737b470ab355f4c004ec10fdbdb5f1bc0131829fbc00255b1",
+    "crates/jet3/src/creation/composer/compose_error.rs": "816734e64eff75c369b320aa4ce9a944d88dbdae0330766ac7bb2d1de3745b01",
+    "crates/jet3/src/creation/composer/initial_index.rs": "ec8ea416ebec5956b3272c9bee120964c318b456fd239079f3721fce554d99af",
+    "crates/jet3/src/creation/composer/initial_index_pages.rs": "b74c06692d4edee4731a30e449e3068f078b9a4e22f47deccb4884d38c046974",
+    "crates/jet3/src/creation/composer/initial_long_values.rs": "61f53ea644ef8c7525d309b86caf32ac8f914a94c7786643fc1fc9225d0b71af",
+    "crates/jet3/src/creation/composer/mod.rs": "b0681c4c3e8c1fd15443e79e6abccfcebcf8f9d622113c82103db1838d4c4e44",
+    "crates/jet3/src/creation/composer/relationship_candidate.rs": "e7e529889a0d7bf7b4eca7376ce5549e4e34d6c26b9f0bb09d26be079fafde88",
+    "crates/jet3/src/creation/composer/relationship_plan.rs": "f57cd8620520c8facef8fc604055a16a5a2d93fdfa86845858b3e7ebb4c767cc",
+    "crates/jet3/src/creation/composer/relationship_rows.rs": "7fceb178da86e9fd6c134107a4499b0249bc18dd0c2301c99c3b83ba62f5b0e0",
+    "crates/jet3/src/creation/composer/system_definitions.rs": "b28d375bc830faaa6f308592c8a3086852cbbfed7983ea39ecd10c8cfa09663f",
+    "crates/jet3/src/creation/composer/table_create.rs": "6b696fb00c229a0517116736339c6b25cc62439fb5514e3514edbd662ca78d93",
+    "crates/jet3/src/creation/index_options.rs": "212d01cf0c62528442c9435eb26de68994a275ed40f0813da8fd71d63a473c9d",
+    "crates/jet3/src/creation/mod.rs": "d59f7c95c29cd41121cd7b6a6596f4dd4543b1961744d404c468eb32d3f4b282",
+    "crates/jet3/src/creation/schema.rs": "b459a76f491b0a9a2ae19d0829bed6c91a130b231cf79e9c0e364c828c203af4",
+    "crates/jet3/src/creation/schema_plan.rs": "a6829efba233b33e1f8d332f7840b5cb4ba0ccbb8919eec46383647bc5552143",
+    "crates/jet3/src/index_key_page.rs": "b12d4c19205ad390cd11aa9546e8a5ffc030545b147b79e6c38cc1fa766392be",
+    "crates/jet3/src/long_index_key.rs": "e036ab5a853cc997571d0fac38dd559edc5203e10e2310fdc89bea11d5202575",
+    "crates/jet3/src/numeric_index_key.rs": "b87f0c88801ce1bf4c034f49e3b1212723b48740e1df44acc5fe958d4d51e20e",
+    "crates/jet3/src/row_writer.rs": "35c8310d027db4321a6251b1b68616d9ae0c6c8f4e82af0b1fd5e36b729420fb",
+    "crates/jet3/src/table_definition_writer.rs": "a8dbb8516a723fdd0cb0b9b73945030bd3213c4fa7457f89e6ae8da0949f4172",
+    "oracle/windows-dao/protocol/v1_2/branch-registry.json": "a6010fd5649a9476686c5dc70ba038b667a1daeb279bf5a625123cf1fbd6df8c",
+    "oracle/windows-dao/protocol/v1_2/branch-registry.schema.json": "dc1a126f4f89ae60c78ec2e099938cc0a743dc9b464d85154e9660db056b525c",
+    "oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json": "1c4ed41a01b45fa2357aa2355c2101958e9196d42532386d2e84b393f40066b9",
+    "oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json": "a362c1d63866ed77465e512902c14e8578f1fadda306c8b35dc9e16b5ff809f1",
+    "oracle/windows-dao/protocol/v1_2/creation-index-scenarios.json": "61534a1e82cdac316759f84412d59b1be8e67e06639be63f548af96194d5134d",
+    "oracle/windows-dao/scripts/Invoke-DaoCreationIndexV12.ps1": "dddb59bb7af71e682813896956088a74782aa9b9b340276fcdc48066ac288a2a",
+    "oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1": "78fb338668271a23158f0cfc65f0393931e4a04945af0ed84808964b2a073c89",
+    "oracle/windows-dao/scripts/build_v1_2_inventory.py": "f2c928b11b45ae4f2896526c18a6edf8d4b8fdc19f743d9b0cdff180d9a81561",
+    "oracle/windows-dao/scripts/dao_creation_index_diff.py": "047864acdd7d0f229d8b16cfb3212a6d6eda0e6e245414b40d3603081de32bd6",
+    "oracle/windows-dao/scripts/dao_read_diff.py": "696e3b8192fc8b110b020e00dfdcbf479bd3ca3f83648b7c5a1bb17c4a017d26",
+    "oracle/windows-dao/scripts/dao_write_diff.py": "0d598b570f8f5a3008a51c8bc6743d7166b7e3b4a49432000ff01055f4e133a7",
+    "oracle/windows-dao/scripts/hosted_write_reanalysis.py": "480fffcbd0a68a4f8bf90e9b9f6c434266cb20626dfd42fec7dc3bfa56a63aa9",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/protocol_validation.py": "ce857b3f818e2e5298da093e97ef4ceba1e410a77e4f74048af129db504dac50",
+    "oracle/windows-dao/scripts/validate_protocol_v1_2.py": "de8910e207a6774a426ddca90502e1c6a189b799452d7704d46d0c8a7015232e"
+  }
+}
