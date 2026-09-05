@@ -41,12 +41,7 @@ fn keyed(
 fn definition(fixture: &Fixture) -> Result<crate::TableDefinition, Box<dyn StdError>> {
     let mut b = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
-    Ok(guarded_table(
-        &mut db,
-        b"Items",
-        Some(ColumnOrdinal::new(0)),
-        &mut b,
-    )?)
+    Ok(guarded_table(&mut db, b"Items", true, &mut b)?)
 }
 
 #[test]

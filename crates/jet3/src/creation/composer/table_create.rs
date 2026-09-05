@@ -18,14 +18,10 @@
 //! `EXP-0105`). Longer chains, and a continuation beside an index, are refused
 //! by the planner.
 //!
-//! `EXP-0091` accepted the exact `Alpha(Id Long)` first create with a null
-//! catalog `LvProp` and a retained, mapped, empty long-value page. Every
-//! create composed here takes that null form, and no `LvProp` payload is
-//! written, because no experiment established a payload grammar a caller
-//! could satisfy. For any schema other than `Alpha` this is an unvalidated
-//! candidate construction: `EXP-0093`'s indexed creates carried a provider
-//! written payload, and `EXP-0091` explicitly does not extend null
-//! acceptance to arbitrary schemas. Only a DAO differential can.
+//! `EXP-0091` supplies the null catalog `LvProp` form with a retained mapped
+//! long-value page. The EXP-0208 Memo opt-in instead populates that page with
+//! its named boolean properties. This composition remains a candidate until
+//! separate DAO validation.
 //!
 //! One Memo or LongBinary column takes one owned/available map-row pair at
 //! rows 2 and 3 (`EXP-0077`). No observed create carried both an index and a
@@ -74,6 +70,20 @@ impl<'a> PlannedCreate<'a> {
         first_create: bool,
     ) -> Result<Self, ComposeError> {
         let plan = plan_table_schema(spec, first_page, first_create)?;
+        if spec.columns.iter().any(ColumnSpec::allow_zero_length)
+            && (!first_create
+                || spec.columns.len() != 2
+                || !spec.indexes.is_empty()
+                || spec.columns[0].column_type() != ColumnType::Long
+                || spec.columns[0].name() != b"Id"
+                || spec.columns[0].allow_zero_length()
+                || spec.columns[1].column_type() != ColumnType::Memo
+                || !spec.columns[1].allow_zero_length()
+                || crate::memo_property::MemoProperty::new(spec.columns[1].name()).is_none())
+        {
+            return Err(ComposeError::UnsupportedMemoOption);
+        }
+
         let mut long_value_columns = long_value_columns(spec);
         let long_value = long_value_columns.next();
         if long_value_columns.next().is_some() {
@@ -142,6 +152,7 @@ impl<'a> PlannedCreate<'a> {
             };
             let length = encode_initial_row(
                 &layout,
+                self.spec.columns.iter().any(ColumnSpec::allow_zero_length),
                 row,
                 ordinal,
                 &mut next_payload,
@@ -220,6 +231,31 @@ impl<'a> PlannedCreate<'a> {
             rows,
         });
         Ok(())
+    }
+
+    pub(super) fn property_header(&self) -> Result<Option<[u8; 12]>, ComposeError> {
+        self.memo_property()
+            .map(|property| {
+                let page = self
+                    .plan
+                    .property_page()
+                    .ok_or(ComposeError::UnsupportedMemoOption)?;
+                crate::long_value_writer::external_long_value_header(
+                    property.len(),
+                    crate::ExternalLongValueStorage::SinglePage,
+                    crate::RowLocator::new(page, 0),
+                )
+                .map_err(|_| ComposeError::UnsupportedMemoOption)
+            })
+            .transpose()
+    }
+
+    pub(super) fn memo_property(&self) -> Option<crate::memo_property::MemoProperty<'a>> {
+        self.spec
+            .columns
+            .iter()
+            .find(|column| column.allow_zero_length())
+            .and_then(|column| crate::memo_property::MemoProperty::new(column.name()))
     }
 
     /// Returns the page holding the catalog row's `LvProp` long value, present
@@ -328,7 +364,12 @@ impl<'a> PlannedCreate<'a> {
         plan.append(root, append_map, budget)?;
         plan.append(self.map_page(None, budget)?, append_map, budget)?;
         if self.plan.property_page().is_some() {
-            let lval = DataPageBuilder::new_long_value(budget)?;
+            let mut lval = DataPageBuilder::new_long_value(budget)?;
+            if let Some(property) = self.memo_property() {
+                let mut payload = [0; crate::memo_property::MAX_PAYLOAD];
+                let length = property.encode(&mut payload, budget)?;
+                lval.append_row(&payload[..length], budget)?;
+            }
             plan.append(finish_data_builder(lval, budget)?, append_map, budget)?;
         }
         if let Some(continuation) = continuation {

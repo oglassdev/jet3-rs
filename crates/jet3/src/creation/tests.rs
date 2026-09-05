@@ -356,3 +356,6 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
 
 #[path = "initial_rows_tests.rs"]
 mod initial_rows;
+
+#[path = "memo_option_tests.rs"]
+mod memo_option_tests;

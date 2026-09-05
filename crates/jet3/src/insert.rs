@@ -11,9 +11,13 @@ use std::path::Path;
 /// Inserts an encoded row on a populated available page or one new EOF page.
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
-/// and Boolean fields. AutoIncrement, long values, indexes and relationships are
-/// refused. If no populated page fits, including an empty table, one EOF page is
-/// appended only within existing inline global/owned/available maps. No reuse,
+/// and Boolean fields. One unique/primary present Long index is supported when
+/// its complete tree is an uncompressed root leaf with capacity for another key.
+/// Indexed insertion requires an existing populated data page; its leaf records,
+/// boundary bitmap, free count and physical distinct-key count are updated too.
+/// Other indexes, AutoIncrement, long values and relationships are refused.
+/// For unindexed tables, if no populated page fits, one EOF page is appended
+/// only within existing inline global/owned/available maps. No reuse,
 /// map growth or compaction is implemented. An existing selected page must
 /// retain capacity for one more equal-sized row and representable directory slot;
 /// this is a candidate restriction, not a DAO free-space threshold.
@@ -65,7 +69,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
-    let definition = crate::update::writable_table(&mut database, table, budget)?;
+    let definition = crate::update::indexed_writable_table(&mut database, table, budget)?;
     if !definition.long_value_maps().is_empty()
         || definition.columns().iter().any(|c| {
             c.auto_increment()
@@ -79,6 +83,13 @@ where
             "AutoIncrement or long-value table",
         ));
     }
+    let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
+        None
+    } else {
+        let leaf = crate::unique_leaf::validate(&mut database, &definition, budget)?;
+        leaf.check_map(&mut database, &definition, budget)?;
+        Some(leaf)
+    };
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) {
         return Err(UpdateError::Unsupported("row column count"));
@@ -112,7 +123,7 @@ where
     }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
-    let patched_definition =
+    let mut patched_definition =
         crate::row_insert_page::increment_count(&source_definition, observed_rows, budget)?;
     let mut owned_bytes = [0; PAGE_BYTES];
     let owned = inline_map(
@@ -161,6 +172,12 @@ where
         }
     };
     let Some(selected) = selected else {
+        if index.is_some() {
+            return Err(UpdateError::Unsupported(
+                "indexed insertion requires populated page capacity",
+            ));
+        }
+
         let mut minimum = [0; PAGE_BYTES];
         let nulls = [RowValue::Null; u8::MAX as usize];
         let minimum_length = crate::encode_row(
@@ -192,6 +209,37 @@ where
         )?;
         return Ok(RowLocator::new(plan.page, 0));
     };
+    if let Some(leaf) = &mut index {
+        let Some(RowValue::Long(value)) = values.get(usize::from(leaf.column.get())) else {
+            return Err(UpdateError::Unsupported("insert requires present Long key"));
+        };
+        let after = leaf.insert(*value, RowLocator::new(selected.0, selected.2), budget)?;
+        crate::index_key_page::set_distinct_count(&mut patched_definition, leaf.count, budget)?;
+        crate::update_pages::publish_changes(
+            path,
+            database.into_source(),
+            &[
+                crate::update_pages::PageChange {
+                    page: selected.0,
+                    before: &source_page,
+                    after: selected.1.as_bytes(),
+                },
+                crate::update_pages::PageChange {
+                    page: definition.root(),
+                    before: &source_definition,
+                    after: patched_definition.as_bytes(),
+                },
+                crate::update_pages::PageChange {
+                    page: leaf.page,
+                    before: &leaf.before,
+                    after: after.as_bytes(),
+                },
+            ],
+            budget,
+            hook,
+        )?;
+        return Ok(RowLocator::new(selected.0, selected.2));
+    }
     crate::update_pages::publish_changes(
         path,
         database.into_source(),
@@ -216,3 +264,7 @@ where
 #[cfg(all(test, unix))]
 #[path = "insert_tests.rs"]
 mod tests;
+
+#[cfg(all(test, unix))]
+#[path = "indexed_row_tests.rs"]
+mod indexed_tests;
