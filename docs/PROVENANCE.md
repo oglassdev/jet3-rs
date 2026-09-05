@@ -10992,6 +10992,55 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0128 — Descending/composite initial-index candidates accepted locally
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated local development DAO differential under `EXP-0127`
+- Plan: `oracle/windows-dao/acquisition/composite-index.plan.json`, SHA-256
+  `3ee36358cb911f6fb008c591ebb0d061650854bb4d089bb87f1e11c12a9a8b92`.
+  One acquisition used the committed reviewed plan; consumed inputs remain
+  unchanged. Candidate generation used reviewed source `caf60a5`.
+- Artifacts: run `20260905T043000Z-composite-index`; 478,899-byte external
+  `result.json`, SHA-256
+  `25d053eb1dd49945276967c4bdac5a96b19efd8a8fe8da3e6b44207cb5d34a21`;
+  19,888-byte `report.json`, SHA-256
+  `000f7758a1a05f5aaf05708cc573f757c5ec09f0454163f20d646849124302cf`.
+  Pinned analysis on temporary artifact copies verified all eighteen retained
+  identities and reproduced the report byte-identically. MDBs remain external.
+- Result: x86 `DAO.DBEngine.36`, Windows NT `10.0.20348.0`; all three arms
+  are `observed_accepted`, nine complete candidate/control pairs, no acquisition
+  error, `controls_ok=true`, `unchanged=true`. Each arm's three normalized
+  candidate/control observations agree, with status `pass` and endpoint
+  `complete`. Every read-only open left the corresponding image unchanged.
+- Exact candidates: all are 51,200 bytes. Descending unique SHA-256
+  `43ebc902fd654a238ff5abf52671eb79ac37b9083c102cf315d74c72a4dc71f3`;
+  ascending/descending unique
+  `b1fe69cd81f6895bdee726d44d848236bf11192d6807e77eb09e8c1c3f6ccf55`;
+  descending/ascending ordinary
+  `50fde5c49bd1c5ca84d033887b1db0423d60a4af5b31fe4bb2637a6488bfb12c`.
+- Schema/index observations: version `3.0`, exactly `Rows` and the four
+  expected system tables; user-table Attributes zero. Fields `A`, `B`, `Tag`
+  occur in that order, each Type 4, Size 4, Attributes 1. Every arm exposes
+  only `ByKey`, with Primary, Foreign, Required, and IgnoreNulls false.
+  Unique is true for the two unique arms and false for the ordinary arm.
+  Fields are descending `A`, ascending `A` then descending `B`, or descending
+  `A` then ascending `B`, respectively; raw field Attributes are 1 for
+  descending and 0 for ascending. All captured metadata matches controls.
+- Row/traversal/Seek observations: the three arms contain every exact planned
+  `A/B/Tag` row, respectively 10, 12, and 14 rows. Full index traversal contains
+  every row once in declared directed key order. Seek succeeds for all 10,
+  12, and 12 distinct full keys, respectively; each returned complete row
+  belongs to the input set and matches every queried index component.
+  The ordinary arm retains both `(0,0)` rows (Tag 0 and 12) and both `(-1,0)`
+  rows (Tag 4 and 13). Duplicate traversal tie order and which matching Tag
+  Seek chooses were intentionally unspecified after full-row validation.
+- Boundary: acceptance covers these exact one-leaf candidates and read-only
+  schema, rows, traversal, and full-key Seek endpoints. It does not establish
+  other names/values, null keys, other types, extra components, composite
+  primary indexes, arbitrary branches/allocation, subsequent mutations,
+  general compatibility, or hosted support. Report compatibility and support
+  movement flags remain false.
+
 ## EXP-0127 — Preregistered descending/composite initial-index candidates
 
 - Recorded: 2026-09-05, OpenAI Codex
