@@ -11024,6 +11024,52 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
+
+- Date: 2026-09-05. Outcome: `answered`, no reasons; all three tail, middle
+  and sole replica groups agree. This is secondary analysis of the existing
+  EXP-0157 acquisition under reviewed EXP-0161, not a new DAO acquisition.
+- Source revision: `da85776`; plan SHA-256
+  `cc9b9ac21f6910dbaf696540a3e5f0b2007fcb80b56506f70c9e4e3aec1c48a5`.
+- Retained secondary report: shared outbox
+  `20260905T065000Z-row-delete-secondary/report.json`, 586751 bytes, SHA-256
+  `e78eed441f9e977d4fbc7502326acd4c530e08fa9c41a74b8c2ad33ba4171322`.
+  Reproduced byte-identically using temporary source copies; input and all 40
+  source artifact pins verified before and after. Original EXP-0158 remains
+  `no_outcome` with its tail replica-disagreement reason and unchanged report.
+- All nine observations and all 27 checkpoint identities are identical to the
+  original report. Full raw images and whole-file changed ranges remain in the
+  secondary report, together with the omitted unchanged unused-byte spans.
+  Only the preregistered secondary comparison differs; changed unused bytes,
+  active rows, directory and header bytes remain comparison-bearing.
+- Each image has 24 pages, Rows definition page 20 and data page 23. Tail and
+  middle deletion change row count 4 to 3; insertion of `(99, -9900)` returns
+  it to 4. Owned and available maps both remain `{23}`, with no global free
+  pages added or removed. Both transitions change only pages 0, 20 and 23.
+- Tail deletion retains four directory slots, changing slot 3 from `07d8`
+  (span `[2008,2018)`) to `c7e2` (empty span `[2018,2018)`). Slots 0 through
+  2 and their stored rows remain unchanged. The free-byte field rises from
+  1990 to 2000. Follow-on insertion appends slot 4 `07d8`, retains the empty
+  slot 3 and stores the new ten-byte row at `[2008,2018)`; free bytes become
+  1988 after the added row and directory entry.
+- Middle deletion retains four slots: `07f6,c7f6,07ec,07e2`. Slot 1 becomes
+  empty at 2038; rows for Id 3 and 4 move upward ten bytes without changing
+  their stored values. Free bytes again change 1990 to 2000. Insertion adds
+  slot 4 `07d8` and preserves the tombstone; free bytes become 1988. These
+  observations do not establish an arbitrary row-compaction algorithm.
+- Sole deletion changes count 1 to 0, removes page 23 from both maps and adds
+  it to the global free map. Tracked page 23 changes tag `01` to `09`, its
+  directory word `07f6` to `c800`, and free bytes 2026 to 2036. Follow-on
+  insertion reuses page 23, reverses these map memberships, restores tag `01`
+  and slot `07f6`, and stores the new row; count returns to 1. Both transitions
+  change only pages 0, 1, 20, 21 and 23.
+- Raw page-0 byte 1538 changes `00→01→02` for tail/middle and `00→02→04`
+  for sole. This records the observed bytes without assigning header semantics.
+- Scope remains exactly two present Long columns, ordinary unindexed rows,
+  three finite deletion positions and one subsequent insert per replica.
+  No general allocation/header rule, indexed or relationship deletion,
+  compatibility claim or support-matrix movement is established.
+
 ## EXP-0161 — Pinned post-acquisition deletion comparison plan
 
 - Date: 2026-09-05.
