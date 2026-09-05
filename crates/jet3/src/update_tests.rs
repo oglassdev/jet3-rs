@@ -420,8 +420,12 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
 }
 
 #[test]
-fn relationship_catalog_rows_are_checked_without_user_indexes() -> TestResult {
-    let fixture = simple()?;
+fn relationship_catalog_rows_are_checked_with_and_without_user_indexes() -> TestResult {
+    relationship_catalog_cases(simple()?, ColumnOrdinal::new(0))?;
+    relationship_catalog_cases(indexed::indexed()?, ColumnOrdinal::new(2))
+}
+
+fn relationship_catalog_cases(fixture: Fixture, column: ColumnOrdinal) -> TestResult {
     let row = fixture.locator(0)?;
     let original = fs::read(fixture.path())?;
     let mut b = budget();
@@ -492,7 +496,10 @@ fn relationship_catalog_rows_are_checked_without_user_indexes() -> TestResult {
         fs::write(fixture.path(), &input)?;
         let result = update_field(
             fixture.path(),
-            request(row, RowValue::Long(3)),
+            FieldUpdate {
+                column,
+                ..request(row, RowValue::Long(3))
+            },
             &mut budget(),
         );
         if refused {
@@ -508,3 +515,6 @@ fn relationship_catalog_rows_are_checked_without_user_indexes() -> TestResult {
 
 #[path = "update_fixed_tests.rs"]
 mod fixed;
+
+#[path = "update_indexed_tests.rs"]
+mod indexed;
