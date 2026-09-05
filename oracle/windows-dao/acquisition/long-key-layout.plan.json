@@ -1,0 +1,120 @@
+{
+  "document_type": "dao_long_key_layout_plan",
+  "experiment_id": "long-key-layout",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0062 supplies leaf framing, row locators and fixed Long component length; EXP-0073 supplies row/layout and distinct-key count observations. Existing retained composite inputs mixed Text/Integer/Long and do not establish the planned two-Long construction.",
+    "question": "What exact raw keys correspond to the planned non-null descending Long and mixed-direction two-Long values, including repeated full ordinary keys?",
+    "hypothesis": "Each ascending Long component is marker 7f then big-endian signed Long with sign bit flipped. Descending complements every component byte, including its marker. Composite keys concatenate components in declared field order. This is a test hypothesis, not a known format rule; a stable different encoding still answers the observation question.",
+    "authorization": "User authorized DAO experiments/mutations. Commit and independently review pinned plan before one acquisition. After first CreateDatabase a failure is a scientific result; no retry or redispatch without another human decision."
+  },
+  "arms": [
+    {
+      "name": "descending-unique",
+      "unique": true,
+      "fields": [
+        {
+          "name": "A",
+          "descending": true
+        }
+      ],
+      "rows": [
+        [2147483647, 0, 0],
+        [-2147483648, 0, 1],
+        [0, 0, 2],
+        [-1, 0, 3],
+        [1, 0, 4],
+        [-256, 0, 5],
+        [255, 0, 6],
+        [256, 0, 7],
+        [-65536, 0, 8],
+        [65536, 0, 9]
+      ]
+    },
+    {
+      "name": "ascending-descending-unique",
+      "unique": true,
+      "fields": [
+        {
+          "name": "A",
+          "descending": false
+        },
+        {
+          "name": "B",
+          "descending": true
+        }
+      ],
+      "rows": [
+        [0, 0, 0],
+        [-2147483648, 2147483647, 1],
+        [2147483647, -2147483648, 2],
+        [-1, -1, 3],
+        [-1, 0, 4],
+        [-1, 1, 5],
+        [0, -2147483648, 6],
+        [0, 2147483647, 7],
+        [1, -256, 8],
+        [1, 255, 9],
+        [256, -65536, 10],
+        [-256, 65536, 11]
+      ]
+    },
+    {
+      "name": "descending-ascending-ordinary",
+      "unique": false,
+      "fields": [
+        {
+          "name": "A",
+          "descending": true
+        },
+        {
+          "name": "B",
+          "descending": false
+        }
+      ],
+      "rows": [
+        [0, 0, 0],
+        [-2147483648, 2147483647, 1],
+        [2147483647, -2147483648, 2],
+        [-1, -1, 3],
+        [-1, 0, 4],
+        [-1, 1, 5],
+        [0, -2147483648, 6],
+        [0, 2147483647, 7],
+        [1, -256, 8],
+        [1, 255, 9],
+        [256, -65536, 10],
+        [-256, 65536, 11],
+        [0, 0, 12],
+        [-1, 0, 13]
+      ]
+    }
+  ],
+  "execution": {
+    "environment": "Private local Windows VM, x86 PowerShell, DAO.DBEngine.36, Jet3 creation options32 and ;LANGID=0x0409;CP=1252;COUNTRY=0; development discovery only.",
+    "per_replica": "In arm order create fresh Rows(A Long,B Long,Tag Long), append ByKey with declared field order/directions and uniqueness, insert exactly plan rows in listed order, then close. Unique arms contain distinct full keys; ordinary arm intentionally repeats two full keys with distinct Tag payloads. No intentional failing insertion or inferred rejection error code.",
+    "capture": "Hash closed image, open read-only and record version/table inventory/field types+sizes, index primary/unique/required/field direction metadata, full snapshot and ordered index traversal. Close, rehash, retain image/result. No compaction or update to retained image.",
+    "analysis": "Verify pinned inputs and result identity, retained after hashes and unchanged before/after. Use existing original system_catalog decoder to discover user root and decode every row with page/slot and values. Use existing original relationship_create leaf decoder to recover prefix-compressed raw keys and locators. Require one owner-correct leaf, one index, declared columns/rows, each locator resolving once and covering all rows. Correlate every key binding to planned and DAO rows and directed semantic order, allowing arbitrary payload order for equal full keys.",
+    "comparison": "Compare exact raw key/value bindings, physical key field records/flags/distinct count and all captured DAO metadata across three replicas per arm. Preserve raw locators, root/map/prefix/record observations but do not require allocator addresses or common-prefix choices to be equal across replicas. No comparison of whole MDB hashes across fresh controls.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/long_key_layout.py run --shared-root VM_SHARED_ROOT --run-id UTC-long-key-layout",
+    "analysis_command": "python3 oracle/windows-dao/scripts/long_key_layout.py analyze OUTBOX; pinned inputs are rechecked before report publication."
+  },
+  "decision_rule": {
+    "answered": "All nine captures complete unchanged; all decoded rows, exact row-locator/key bindings and DAO order/metadata checks pass; each arm has matching question-bearing observations in three replicas. Record hypothesis_matches separately; false does not invalidate a stable observation.",
+    "no_outcome": "Any incomplete or failed acquisition, changed read-only image, decoder/metadata/row correlation failure, unsupported non-leaf shape, or within-arm question-bearing disagreement. Preserve completed observations/errors without another dispatch.",
+    "rejection": "Mismatched plan/environment/result identity, unexpected arm/replica order, changed pinned input, or retained image mismatch rejects validation."
+  },
+  "boundary": "Only exact non-null Long inputs/directions/index shapes observed. No null keys, other types, arbitrary component counts, generalized branch or allocation policy, candidate acceptance, existing-database updates, or hosted support claim.",
+  "retention": "Retain result/report and all MDBs externally; no MDB or provider bytes committed. Record one additive EXP-0126 outcome from validated report JSON.",
+  "inputs": {
+    "oracle/windows-dao/scripts/long_key_layout.py": "336dbd41446d745aba5604238c1631ec7905ba9ab9ff5ab8b0b6f9c6860a0fa4",
+    "oracle/windows-dao/scripts/long_key_layout.ps1": "0ccc6fe88bf66f9c050d9166a948009e68324f51cb47bee4cf47d50f03c25f10",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/scripts/relationship_create.py": "aa267ca957815ecf49abc155bd081dfb7d02d609b414e0efa68600161f3f7740",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  }
+}
