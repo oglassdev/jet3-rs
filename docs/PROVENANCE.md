@@ -11266,6 +11266,28 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0171 — Distinct fixed-field Currency setter successor
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0172. The
+  EXP-0164 Decimal-to-String creation failure and consumed EXP-0163 inputs,
+  original captures and reports remain unchanged.
+- Plan `oracle/windows-dao/acquisition/fixed-field-successor.plan.json`, SHA-256
+  `01929cf68daa5d5bc8dbb4529819634c4017f8b0551a1772d3444eddc2027942`.
+- Correction: compute Currency in a local Decimal, then assign through the
+  dedicated `$field.Value = [decimal]$currencyValue` site. This matches the
+  explicit typed setter in the pinned original read producer's
+  `Set-RecordsetValue` Currency branch; it replaces the direct division RHS.
+- Same ten typed arms and three fresh replicas each, same public exporter and
+  implementation `37bd817`, exact replacement bits, schemas, query preservation,
+  independently decoded field spans and all-other-byte checks. Fresh controls
+  are required because the failed acquisition performed no Rust updates.
+- The actual x86 pure helper test passes 200 exact conversion checks and all
+  CLR row-array JSON roundtrips. It does not exercise DAO COM property binding;
+  success of the correction remains an acquisition question.
+- Root performs one coordinated create / Unix update / DAO read-only run only
+  after independent review and committed pins. Any failure remains no_outcome;
+  no same-plan retry, broad compatibility or hosted support claim.
+
 ## EXP-0164 — Fixed-field acquisition stopped at Currency assignment
 
 - Outcome: `no_outcome`, recorded 2026-09-05 from the single local coordinated
