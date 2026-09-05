@@ -10512,3 +10512,37 @@ Copy this block under the appropriate section and remove this instruction:
 - Review: independent outcome review verified input and retained-image
   identities, byte-identical report reconstruction, all recorded metadata
   claims, and the exact-candidate evidence boundary; no findings.
+
+## EXP-0121 — Preregistered renamed relationship candidate matrix
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: preregistered local development DAO differential; no acquisition yet
+- Plan: `oracle/windows-dao/acquisition/parameterized-relationships.plan.json`,
+  SHA-256 `f4168b5e575303cc52247756d64da072a898e997c84cc7f9253d1f16db8bfe5f`.
+  Pins the new host/analyzer and PowerShell scripts, transport, private
+  composer/plan/export source, and both exact candidate identities.
+- Candidates: reviewed source `6058627` exports one-index `Accounts7` /
+  `Events9` / `Account7Events9` (57,344 bytes, SHA-256
+  `9d6d850ae06b4a4317f2640e468b0afae7ac248808c8c0ac2fbb211f2ce87927`)
+  and two-index `Owners2` / `Details4` / `Owner2_Details4` (59,392 bytes,
+  SHA-256 `25472960e097ac3539a1da8cf7d3d10e588637b209c991a578e095b74c629fd9`).
+  Parent columns are `Code2 Long`, `Key1 Long`, with primary `Primary9` on
+  `Key1` and, in the second arm, unique `Unique8` on `Code2`. Child columns
+  are `Label3 Text(8)`, `Account4 Long`; the relation binds `Key1` to
+  `Account4` with attributes zero. Both user tables are empty.
+- Question: do both exact renamed candidates match fresh DAO controls at
+  every captured table/column/index flag and binding, relation endpoint and
+  option, and empty-row snapshot? Bounded `.rB`/`.rC` placements derive from
+  `EXP-0059`/`EXP-0114`; applying `EXP-0087` standalone name weights remains
+  an explicit candidate hypothesis. `EXP-0118` accepted only the original
+  fixed-name candidate.
+- Protocol: prepare all six hash-checked candidate copies before mutation;
+  acquire three fresh controls and read-only candidate observations per
+  arm, in finite plan order. Require unchanged file identities and exact
+  within-arm replica/control agreement; no cross-arm or control-byte
+  equality. Host analysis rechecks pins and retained identities. Failure
+  after first mutation is an outcome, never an automatic retry.
+- Boundary: commit and review before one acquisition. No public API,
+  generalized relationship grammar, integrity-enforcement mutation,
+  cascade, populated relation, update, or hosted support claim. Record one
+  validated additive outcome as `EXP-0122`; retain MDBs externally.

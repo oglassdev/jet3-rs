@@ -1,0 +1,191 @@
+{
+  "document_type": "dao_parameterized_relationships_plan",
+  "experiment_id": "parameterized-relationships",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0118 accepted the exact original ParentChild candidate. EXP-0059/0114 inform bounded one/two parent index selector placements; applying EXP-0087 standalone name weights to renamed relationship keys remains a candidate hypothesis.",
+    "hypothesis": "Both exact pinned renamed, digit-bearing candidates match their own fresh DAO controls at every captured schema/index/relation/empty-row endpoint without changing either file.",
+    "authorization": "User authorized DAO experiments/mutations in this session. Commit and review this pinned plan before one acquisition. A failure after first CreateDatabase is a scientific result; no redispatch without another human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/parameterized_relationships.py": "6cac2cbb053f7891bdc6399d67956cbee97678c22462fb5914c5053846c1e21a",
+    "oracle/windows-dao/scripts/parameterized_relationships.ps1": "8cbe15ce1ad8bb8de48e43c5e6c8bdc7d383c00788936b92d46cdea84e8a331d",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/src/bootstrap_relationship_candidate.rs": "63fe60b85a0b16f33b6a7d207049213ee936213c402b509f9b8564c02edc919d",
+    "crates/jet3/src/bootstrap_relationship_plan.rs": "467ef3bba64351f7263bbbc56eb1be4b906e797bc36af472cf1aa0fee10e6f57",
+    "crates/jet3/src/bootstrap_relationship_parameterized_tests.rs": "c8ea1cb0b2f746cde66291caa16528d22d3e03948eae1a9f3b7af8faf7d4f43a"
+  },
+  "candidate_generation": {
+    "source_commit": "605862779cb9a7cb51bd20bf4256e75f4abf4b19",
+    "command": "JET3_RELATIONSHIP_CANDIDATE_DIR=/absolute/existing/dir cargo test --locked -p jet3 --lib export_parameterized_relationship_candidates -- --ignored",
+    "notes": "Exact exported image hashes are acquisition inputs; no source-attestation or equivalence to other builds is claimed."
+  },
+  "execution": {
+    "environment": "Local private Windows VM, x86 PowerShell, DAO.DBEngine.36; development discovery only.",
+    "pre_mutation": "Verify host pins and committed plan; guest verifies its script and prepares all six hash-checked candidate replicas before first CreateDatabase.",
+    "per_replica": "In plan arm order, create parent columns Code2 Long then Key1 Long, Primary9 ascending primary on Key1, optionally Unique8 ascending unique on Code2; child Label3 Text(8) then Account4 Long with no indexes. Append named relation Key1 to Account4 with attributes zero. Close. Observe each control and candidate separately read-only, capturing table inventory, user-table/field attributes and types/sizes, every user index flag/ordered binding, all relations/options/bindings and full user rows. Close and rehash.",
+    "comparison": "Within each arm preserve column/index-field order; sort index inventories and relations by name. Compare all captured status/endpoint/error/snapshot values across three replicas and between candidate/control. No comparison across arms or physical-byte equality with controls.",
+    "control_anchor": "Require arm expected_control tables/version/columns/relations, zero user-table attributes, empty rows and specified parent index primary/unique/ascending field bindings. All remaining captured index/field metadata comes from differential controls.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/parameterized_relationships.py run CANDIDATE_DIRECTORY --shared-root VM_SHARED_ROOT --run-id UTC-parameterized-relations",
+    "analysis": "python3 oracle/windows-dao/scripts/parameterized_relationships.py analyze OUTBOX; rechecks input pins."
+  },
+  "decision_rule": {
+    "observed_accepted": "Per arm, all three controls satisfy anchor, six files unchanged, replicas agree, complete candidate/control observations identical. Overall accepted only when both arms accepted.",
+    "not_observed_accepted": "All controls satisfy the anchor unchanged; all candidates unchanged and identically fail at an endpoint or return the same metadata/rows difference.",
+    "no_outcome": "Incomplete/failed acquisition, control failure, changed image or within-arm disagreement. Overall no_outcome if either arm no_outcome, otherwise not_observed_accepted if either differs.",
+    "rejection": "Plan/result identity mismatch, unexpected replica inventory, candidate starting mismatch, or retained image identity mismatch rejects validation."
+  },
+  "boundary": "Only these two exact empty-table images and read-only metadata/rows endpoints. No general name grammar, public API, cascade, populated relation, integrity enforcement mutation, update or hosted support claim.",
+  "retention": "Retain JSON result/report, logs, and control/candidate MDBs externally. Never commit MDB bytes or provider binaries. Record one additive EXP-0122 outcome from the validated report.",
+  "arms": [
+    {
+      "name": "one-index",
+      "parent": "Accounts7",
+      "child": "Events9",
+      "relation": "Account7Events9",
+      "filename": "relationship-one-index.mdb",
+      "candidate": {
+        "size": 57344,
+        "sha256": "9d6d850ae06b4a4317f2640e468b0afae7ac248808c8c0ac2fbb211f2ce87927"
+      },
+      "expected_control": {
+        "version": "3.0",
+        "tables": [
+          "Accounts7",
+          "Events9",
+          "MSysACEs",
+          "MSysObjects",
+          "MSysQueries",
+          "MSysRelationships"
+        ],
+        "relations": [
+          {
+            "name": "Account7Events9",
+            "table": "Accounts7",
+            "foreign_table": "Events9",
+            "attributes": 0,
+            "fields": [
+              {
+                "name": "Key1",
+                "foreign_name": "Account4"
+              }
+            ]
+          }
+        ],
+        "columns": {
+          "Accounts7": [
+            {
+              "name": "Code2",
+              "type": 4,
+              "size": 4
+            },
+            {
+              "name": "Key1",
+              "type": 4,
+              "size": 4
+            }
+          ],
+          "Events9": [
+            {
+              "name": "Label3",
+              "type": 10,
+              "size": 8
+            },
+            {
+              "name": "Account4",
+              "type": 4,
+              "size": 4
+            }
+          ]
+        },
+        "parent": "Accounts7",
+        "parent_indexes": [
+          [
+            "Primary9",
+            "Key1",
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "name": "two-index",
+      "parent": "Owners2",
+      "child": "Details4",
+      "relation": "Owner2_Details4",
+      "filename": "relationship-two-index.mdb",
+      "candidate": {
+        "size": 59392,
+        "sha256": "25472960e097ac3539a1da8cf7d3d10e588637b209c991a578e095b74c629fd9"
+      },
+      "expected_control": {
+        "version": "3.0",
+        "tables": [
+          "Details4",
+          "MSysACEs",
+          "MSysObjects",
+          "MSysQueries",
+          "MSysRelationships",
+          "Owners2"
+        ],
+        "relations": [
+          {
+            "name": "Owner2_Details4",
+            "table": "Owners2",
+            "foreign_table": "Details4",
+            "attributes": 0,
+            "fields": [
+              {
+                "name": "Key1",
+                "foreign_name": "Account4"
+              }
+            ]
+          }
+        ],
+        "columns": {
+          "Owners2": [
+            {
+              "name": "Code2",
+              "type": 4,
+              "size": 4
+            },
+            {
+              "name": "Key1",
+              "type": 4,
+              "size": 4
+            }
+          ],
+          "Details4": [
+            {
+              "name": "Label3",
+              "type": 10,
+              "size": 8
+            },
+            {
+              "name": "Account4",
+              "type": 4,
+              "size": 4
+            }
+          ]
+        },
+        "parent": "Owners2",
+        "parent_indexes": [
+          [
+            "Primary9",
+            "Key1",
+            true
+          ],
+          [
+            "Unique8",
+            "Code2",
+            false
+          ]
+        ]
+      }
+    }
+  ]
+}
