@@ -11024,6 +11024,33 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0167 — Bounded tail deletion and continuation candidate plan
+
+- Date: 2026-09-05. Preregistered only; acquisition pending independent review.
+- Reviewed library source: `eb3d8a8df617e945f0f1723c2d3f6506faf7ccf5`. Plan
+  `oracle/windows-dao/acquisition/row-delete-candidate.plan.json`, SHA-256
+  `8ee26e110283669fb50a4545ea9b71a63139ff950ab2d34ea78a04dad7003a19`; all meaningful source, exporter, producer,
+  analyzer, decoder and transport inputs are pinned in that plan.
+- Three finite cases, three replicas each: first-table tail, later-table tail
+  and mixed Text row widths. Each fresh DAO original contains Items and Later
+  (Id/Value Long and Payload Text), three rows per table, and KeepQuery.
+- One coordinated create→Unix delete→observe acquisition. DAO controls delete
+  the same unique Id on separate original copies. A public Rust reader selects
+  the locator and public `delete_row` updates another closed copy once. Require
+  the exact sourced directory/free-byte/TDEF-count patch, retaining every other
+  byte, including the removed payload, slack, unrelated objects and page zero.
+- Page-zero preservation is explicitly a candidate hypothesis, not an inferred
+  header update rule. Separate Rust/control continuation copies receive one
+  identical DAO insert. Compare complete requested schema/rows and unchanged
+  stored QueryDef SQL, full metadata and table-map memberships as specified.
+- Require all 63 captures, nine public updates, 27 DAO control/continuation
+  operations and 45 retained MDBs, with complete identity chains and read-only
+  hashes. Failures prevent acceptance of any subset; keep artifacts/native
+  diagnostics, never retry or resume after mutation. No MDB bytes are committed.
+- Pure tests and x86 parser-only preflight precede acquisition. Record one
+  additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
+  arbitrary compaction, hosted compatibility or support-state movement is claimed.
+
 ## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
 
 - Date: 2026-09-05. Outcome: `answered`, no reasons; all three tail, middle
