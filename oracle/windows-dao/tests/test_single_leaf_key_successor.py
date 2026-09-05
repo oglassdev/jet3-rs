@@ -1,4 +1,6 @@
+import hashlib
 import json
+import subprocess
 from pathlib import Path
 import sys
 import unittest
@@ -13,6 +15,10 @@ class SuccessorTests(unittest.TestCase):
         self.assertNotEqual(historical.PLAN,successor.original.PLAN)
         self.assertEqual(historical.build_report.__code__.co_code,successor.original.build_report.__code__.co_code)
         self.assertEqual(historical.patch_check.__code__.co_code,successor.original.patch_check.__code__.co_code)
-        successor.original.verify_inputs()
+        # Acquisition pins describe the committed experiment, not later main.
+        for name, expected in new['inputs'].items():
+            saved = subprocess.check_output(
+                ['git', 'show', '450bcd2:' + name], cwd=successor.ROOT)
+            self.assertEqual(hashlib.sha256(saved).hexdigest(), expected, name)
 
 if __name__=='__main__':unittest.main()
