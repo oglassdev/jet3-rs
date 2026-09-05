@@ -1,0 +1,87 @@
+{
+  "document_type": "dao_autoincrement_candidate_plan",
+  "experiment_id": "autoincrement-candidate",
+  "entry": "EXP-0137",
+  "outcome_entry": "EXP-0138",
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "question": "Do exact generated AutoIncrement candidates match fresh DAO controls, and does one generated insertion on an independent writable copy continue each persisted sequence?",
+    "authorization": "Commit and independently review this pinned plan before acquisition. User authorizes DAO; one dispatch only. Post-first-mutation failure is a scientific result, never automatic retry."
+  },
+  "source": {
+    "reviewed_library_commit": "d106f83",
+    "implementation_commit": "9e4fbf7",
+    "state_evidence": "EXP-0136 secondary analysis; original EXP-0132 no_outcome remains preserved. Typed last-generated Long slot at user TDEF[16,20).",
+    "export": "cargo run -p jet3 --example autoincrement_validation_candidate -- OUTPUT.mdb ARM",
+    "exporter": "Dedicated experiment exporter; prior consumed candidates unchanged."
+  },
+  "arms": {
+    "unindexed": [
+      {
+        "name": "Rows",
+        "count": 300,
+        "indexed": false
+      }
+    ],
+    "indexed": [
+      {
+        "name": "Rows",
+        "count": 10,
+        "indexed": true
+      }
+    ],
+    "multi": [
+      {
+        "name": "Rows",
+        "count": 300,
+        "indexed": false
+      },
+      {
+        "name": "Later",
+        "count": 1,
+        "indexed": true
+      }
+    ]
+  },
+  "schema": "Every table has Id AutoIncrement Long then Tag ordinary Long. Indexed tables have ascending PrimaryKey(Id), primary/unique/required, not foreign or IgnoreNulls.",
+  "rows": "Rows inserts Tag1..count in order while omitting Id. Later inserts Tag-1 with generated Id1. Every table receives exactly one further generated insert with Tag1001 on each independent writable copy; expected Id=count+1.",
+  "candidates": {
+    "unindexed": {
+      "size": 51200,
+      "sha256": "2d7e3910f86587a428eab82c0f9f8c46e4d97478bd7b9949a3da7aed7bdd65dc"
+    },
+    "indexed": {
+      "size": 51200,
+      "sha256": "d101881cf90ba1f71906b84b7cbab2473818fbad8551e522e9d868bb2a7ab2d2"
+    },
+    "multi": {
+      "size": 59392,
+      "sha256": "df823f4c3e40b442dc9220303e2ff81c0e669af55a280547c3c720b35dc9b0b2"
+    }
+  },
+  "execution": {
+    "environment": "Local private Windows VM, x86 PowerShell, DAO.DBEngine.36, version3.0, CP1252 creation options32.",
+    "order": "Arms unindexed,indexed,multi; replicas1..3. Prepare and pin all9 candidate copies before first control creation. For each pair create fresh matching control; observe control then candidate read-only, each with before/after hash; copy each closed original to a distinct writable post file; open writable, insert once per table without assigning Id, capture LastModified Id, close; observe post file read-only and hash before/after. Retain all36 originals/post files. No equality required between physical layouts of control/candidate.",
+    "capture": "Complete version/table inventory/table attributes/column name,type,size,raw attributes/all index flags and field bindings; every Id/Tag row, full ascending indexed traversal, Seek every full Id key, exact returned rows and next generated Id for each table.",
+    "decode": "Load original system_catalog in a private instance with declared MAX_ROWS_PER_PAGE256 (original64), sufficient for any one-byte row slot; all other checks unchanged. Decode all retained files and correlate complete rows and TDEF row counts with DAO; read signed little-endian TDEF[16,20) state. Original helper limits otherwise apply. No retrospective bound changes.",
+    "normalization": "Ignore only physical page addresses and ordinary row snapshot order. Preserve exact metadata, complete row/traversal/Seek inventories, per-table counts and state. No reliance on equal allocator locations.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/autoincrement_candidate.py run CANDIDATE_DIRECTORY --shared-root VM_SHARED_ROOT --run-id UTC-autoincrement-candidate"
+  },
+  "decision_rule": {
+    "accepted": "All9 complete pairs, controls pass all initial/post/insert checks, read-only identities unchanged, writable-copy starting identities equal their observed initial source. Each arm repeats exact normalized observations3times and candidate equals control in full checked metadata,rows,index traversal/Seek,last state and actual inserted IDs.",
+    "not_observed_accepted": "Complete valid controls and unchanged identities, repeatable candidate mismatch or candidate failure.",
+    "no_outcome": "Incomplete result, acquisition error, controls fail, changed read-only files or replica disagreement. Retain failure; no retries.",
+    "rejected": "Bad environment/result identity, modified pinned inputs, unexpected inventory or retained identity mismatch."
+  },
+  "limits": "Only exact named/scalar/index/count arms and one follow-on insert per table. No explicit Auto ID assignment, high seed, deletion, rollback, overflow, relationships, LVAL, arbitrary schema or hosted support claim. One additive EXP-0138 outcome; MDB/provider bytes retained externally only.",
+  "inputs": {
+    "oracle/windows-dao/scripts/autoincrement_candidate.py": "1aede4abbe201ee5fa00cf9f6fe2de680d504f596c547efd0c93e393396f251f",
+    "oracle/windows-dao/scripts/autoincrement_candidate.ps1": "2bd4bada82f531b568e2b16dda8563b7d2911485d059ad0132016525d758a78c",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/autoincrement_validation_candidate.rs": "985ca7f8ea84685b5c253994c02e8df92c7704906d8280f6cbceeb6cf9cc95c7"
+  }
+}
