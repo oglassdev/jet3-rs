@@ -302,3 +302,6 @@ mod multi_level;
 
 #[path = "nullable_index_tests.rs"]
 mod nullable;
+
+#[path = "numeric_index_tests.rs"]
+mod numeric;
