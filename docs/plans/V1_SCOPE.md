@@ -100,4 +100,5 @@ remain to be covered. Neither issue is complete merely from this checkpoint.
 The broader existing-database update surface (#112) and remaining hosted
 update inventory (#113) remain
 separate work. The release gates above still require each leg's validated bundle
-on the release commit. Keep module cleanup (#182) until creation settles.
+on the release commit. Creation APIs and composer modules are now grouped under
+`jet3::creation`; the module cleanup in #182 is complete.
