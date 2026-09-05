@@ -31,7 +31,7 @@ fn autoincrement_generates_rows_and_detects_state_or_row_corruption() -> TestRes
     changed[20 * crate::PAGE_BYTES + 16] = 1;
     fs::write(directory.target(), changed)?;
     assert!(matches!(
-        crate::create::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
+        crate::creation::api::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
         Err(CandidateCheckError::Mismatch {
             detail: "initial AutoIncrement state"
         })
@@ -44,7 +44,7 @@ fn autoincrement_generates_rows_and_detects_state_or_row_corruption() -> TestRes
         .map(|row| row.as_slice())
         .collect::<Vec<_>>();
     assert!(matches!(
-        crate::create::check_initial_rows(
+        crate::creation::api::check_initial_rows(
             &directory.target(),
             &table,
             &changed_rows,
@@ -129,7 +129,8 @@ fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> Tes
     let mut operation = budget();
     let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
     let tables = requests.map(|r| r.table);
-    let roots = crate::create::candidate_table_roots(&mut database, &tables, &mut operation)?;
+    let roots =
+        crate::creation::api::candidate_table_roots(&mut database, &tables, &mut operation)?;
     for (root, count) in roots.into_iter().zip([2_i32, 1, 0]) {
         let mut bytes = [0_u8; crate::PAGE_BYTES];
         database.read_raw_page(root.ok_or("missing root")?, &mut bytes, &mut operation)?;

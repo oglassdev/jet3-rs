@@ -3,56 +3,8 @@
 //! selector/name cases recorded by EXP-0059 and EXP-0114 are admitted.
 
 use super::*;
-use crate::ColumnRef;
-use crate::table_schema_plan::{TableSchemaPlan, plan_table_schema};
-
-/// A table in the ordered input to [`crate::create_database_with_relationship`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TableRef<'a> {
-    /// Zero-based position in the supplied table slice.
-    Ordinal(usize),
-    /// Exact database-encoded table name; matching is case-sensitive.
-    Name(&'a [u8]),
-}
-
-/// A table and column forming one endpoint of a relationship.
-#[derive(Debug, Clone, Copy)]
-pub struct RelationshipColumn<'a> {
-    /// Table containing the column.
-    pub table: TableRef<'a>,
-    /// Column name or ordinal within that table.
-    pub column: ColumnRef<'a>,
-}
-
-/// One non-cascading relationship between two tables.
-///
-/// Names are database-encoded bytes, subject to the bounded creation name
-/// encoder. See [`crate::create_database_with_relationship`] for schema limits.
-///
-/// ```
-/// use jet3::{ColumnRef, RelationshipColumn, RelationshipSpec, TableRef};
-///
-/// let relationship = RelationshipSpec {
-///     name: b"AccountsEvents",
-///     parent: RelationshipColumn {
-///         table: TableRef::Name(b"Accounts"),
-///         column: ColumnRef::Name(b"Id"),
-///     },
-///     child: RelationshipColumn {
-///         table: TableRef::Name(b"Events"),
-///         column: ColumnRef::Name(b"AccountId"),
-///     },
-/// };
-/// ```
-#[derive(Debug, Clone, Copy)]
-pub struct RelationshipSpec<'a> {
-    /// Caller-chosen relationship and child foreign-index name.
-    pub name: &'a [u8],
-    /// Referenced primary-key column in the first table.
-    pub parent: RelationshipColumn<'a>,
-    /// Referencing Long column in the second table.
-    pub child: RelationshipColumn<'a>,
-}
+use crate::creation::schema_plan::{TableSchemaPlan, plan_table_schema};
+use crate::{RelationshipSpec, TableRef};
 
 pub(super) struct RelationshipPlan<'a> {
     pub(super) tables: &'a [TableSpec<'a>],

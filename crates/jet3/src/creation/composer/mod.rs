@@ -15,8 +15,8 @@
 use std::fmt;
 
 use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
+use crate::creation::schema_plan::{TableSchemaPlanError, TableSpec};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
-use crate::table_schema_plan::{TableSchemaPlanError, TableSpec};
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType, DataPageBuilder,
@@ -91,7 +91,7 @@ const RELATIONSHIPS_ID: i32 = 0x0f00_0003;
 const ROOT_CONTAINER_ID: i32 = 0x0f00_0000;
 const MSYS_DB_ID: i32 = 0x1000_0000;
 
-#[path = "bootstrap_compose_error.rs"]
+#[path = "compose_error.rs"]
 mod error;
 pub use error::ComposeError;
 
@@ -375,23 +375,23 @@ fn definition_page(
     Ok(PageImage::from_bytes(bytes))
 }
 
-#[path = "bootstrap_system_definitions.rs"]
+#[path = "system_definitions.rs"]
 mod definitions;
 use definitions::{
     msys_aces_definition, msys_objects_definition, msys_queries_definition,
     msys_relationships_definition,
 };
 
-#[path = "bootstrap_initial_long_values.rs"]
+#[path = "initial_long_values.rs"]
 mod initial_long_values;
 use initial_long_values::InitialLongValues;
 pub(crate) use initial_long_values::{encode_initial_row, initial_payload_start};
 
-#[path = "bootstrap_initial_index.rs"]
+#[path = "initial_index.rs"]
 mod initial_index;
 pub(crate) use initial_index::InitialLongIndex;
 
-#[path = "bootstrap_table_create.rs"]
+#[path = "table_create.rs"]
 mod table_create;
 use table_create::PlannedCreate;
 pub(crate) use table_create::compose_database_with_table_rows;
@@ -760,15 +760,14 @@ fn index_page(
 }
 
 #[cfg(test)]
-#[path = "bootstrap_composer_tests.rs"]
+#[path = "composer_tests.rs"]
 mod tests;
 
-#[path = "bootstrap_relationship_candidate.rs"]
+#[path = "relationship_candidate.rs"]
 mod relationship_candidate;
 
-pub use relationship_candidate::{RelationshipColumn, RelationshipSpec, TableRef};
 pub(crate) use relationship_candidate::{compose_relationship, compose_relationship_with_rows};
 
-#[path = "bootstrap_autoincrement.rs"]
+#[path = "autoincrement.rs"]
 mod autoincrement;
 pub(crate) use autoincrement::InitialAutoIncrement;
