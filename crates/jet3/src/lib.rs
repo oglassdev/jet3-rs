@@ -96,6 +96,7 @@ pub mod table_definition;
 mod table_definition_layout;
 pub mod table_definition_writer;
 pub mod text;
+mod unique_leaf;
 pub mod update;
 mod update_index_key;
 mod update_pages;

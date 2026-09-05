@@ -15,16 +15,20 @@ pub struct RowDelete<'a> {
 
 /// Deletes one ordinary row, compacting its page or releasing a single-slot page.
 ///
-/// Supports unindexed, relationship-free tables without AutoIncrement or long
-/// values. Slots must be ordinary live rows or known empty `c000` tombstones;
+/// Supports relationship-free tables without AutoIncrement or long values.
+/// One unique/primary present Long index additionally supports retained-page
+/// deletion when its complete tree is an uncompressed root leaf. The matching
+/// leaf entry is removed, its boundary/free and physical distinct-key count are
+/// updated, and unused leaf bytes remain exact. Other indexed deletions are refused.
+/// Slots must be ordinary live rows or known empty `c000` tombstones;
 /// the page must already appear in its inline available map. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
 /// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
 /// A page containing exactly one physical row is released through its existing
 /// inline global/owned/available maps. A sole live row alongside tombstones and
 /// inconsistent free/count metadata are refused.
-/// Only the shifted row bytes, affected directory offsets, free-byte count and
-/// table row count change. Vacated slack, maps, page zero and unrelated objects
+/// On retained unindexed pages, only shifted row bytes, affected directory offsets,
+/// free-byte count and table row count change. Vacated slack, maps, page zero and unrelated objects
 /// remain exact for retained pages. Released pages change their tag, directory
 /// word and free count, and their three map bits; payload/slack and file length
 /// remain exact.
@@ -54,7 +58,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
-    let definition = crate::update::writable_table(&mut database, request.table, budget)?;
+    let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
     if !definition.long_value_maps().is_empty()
         || definition.columns().iter().any(|c| c.auto_increment())
     {
@@ -62,6 +66,21 @@ where
             "AutoIncrement or long-value table",
         ));
     }
+    let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
+        None
+    } else {
+        if definition.columns().iter().any(|c| {
+            matches!(
+                c.physical_type(),
+                crate::ColumnPhysicalType::Memo | crate::ColumnPhysicalType::LongBinary
+            )
+        }) {
+            return Err(UpdateError::Unsupported("indexed long-value table"));
+        }
+        let leaf = crate::unique_leaf::validate(&mut database, &definition, budget)?;
+        leaf.check_map(&mut database, &definition, budget)?;
+        Some(leaf)
+    };
     let mut source_page = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut source_page, budget)?;
     let patched_page = crate::row_delete_page::remove(
@@ -115,8 +134,40 @@ where
     }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
-    let patched_definition =
+    let mut patched_definition =
         crate::row_delete_page::decrement_count(&source_definition, observed_rows, budget)?;
+    if let Some(leaf) = &mut index {
+        if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
+            return Err(UpdateError::Unsupported(
+                "indexed deletion requires retained data page",
+            ));
+        }
+        let after = leaf.remove(request.row, budget)?;
+        crate::index_key_page::set_distinct_count(&mut patched_definition, leaf.count, budget)?;
+        return crate::update_pages::publish_changes(
+            path,
+            database.into_source(),
+            &[
+                crate::update_pages::PageChange {
+                    page: request.row.page(),
+                    before: &source_page,
+                    after: patched_page.image().as_bytes(),
+                },
+                crate::update_pages::PageChange {
+                    page: definition.root(),
+                    before: &source_definition,
+                    after: patched_definition.as_bytes(),
+                },
+                crate::update_pages::PageChange {
+                    page: leaf.page,
+                    before: &leaf.before,
+                    after: after.as_bytes(),
+                },
+            ],
+            budget,
+            hook,
+        );
+    }
     if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
         if definition.columns().iter().any(|column| {
             matches!(
