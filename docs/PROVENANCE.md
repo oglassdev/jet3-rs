@@ -12556,6 +12556,41 @@ Copy this block under the appropriate section and remove this instruction:
   needs a separately declared analysis; any new DAO acquisition requires a
   separately reviewed successor plan and the repository's human retry decision.
 
+## EXP-0189 — Distinct numeric Currency Seek successor plan
+
+- Preregistered: 2026-09-05, OpenAI Codex; no acquisition yet. This is a new
+  finite acquisition after EXP-0184, preserving the original EXP-0183 consumed
+  inputs, artifacts and `no_outcome` without retry or reinterpretation.
+- Plan: `oracle/windows-dao/acquisition/numeric-index-successor.plan.json`,
+  SHA-256 `348796db2c268f52de530f3417d72960706aecd795a1983076ba41d2b9793998`. Source remains reviewed
+  numeric writer `16e6d57`; all eight candidate identities, exact saved-bit rows,
+  directions, null policies, queries, duplicate/required probes and bounds are
+  identical to EXP-0183. Three fresh pairs per arm, 102 complete retained images,
+  and every original semantic/raw/identity gate remain mandatory.
+- The only value-conversion change wraps exact Decimal Currency Seek arguments in
+  `System.Runtime.InteropServices.CurrencyWrapper`. Microsoft's documented
+  [CurrencyWrapper contract](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.currencywrapper?view=netframework-4.8.1)
+  requests VARIANT `VT_CY`; this is an explicit marshaling hypothesis, not a
+  proven diagnosis of the original unknown-query error or a new Jet format fact.
+  Dedicated field setters and all other scalar conversion branches are unchanged.
+- Capture endpoints now identify the file and metadata/rows/traversal phase, or
+  query ordinal and argument-conversion/Seek-call/row phase. A capture's initiating
+  error is retained as the outer failure rather than replaced by the generic
+  baseline failure. Cleanup and artifact retention remain best effort; any
+  unexpected failure after mutation ends this acquisition without automatic retry.
+- A private wrapper loads the frozen analyzer and changes only plan/producer
+  locations. Input verification, exact requested schema/rows, full traversal/Seek,
+  raw key/locator/count/map checks and all-or-nothing classification are unchanged.
+  New plan pins include the frozen original plan and both new runtime files.
+- Four focused Python tests pass. Actual x86 parser/pure mock checks pass for all
+  463 typed conversions/Seek variants and complete row JSON; native VARIANT
+  inspection confirms each tested Currency argument is `VT_CY` with exactly the
+  requested scaled signed-64-bit payload, including extrema. These checks create
+  no DAO objects or MDBs and do not demonstrate DAO acceptance of the hypothesis.
+- Commit and independently review before one new dispatch. EXP-0190 is reserved
+  for the outcome. No subset acceptance, broadened scalar/float/null bounds,
+  general grammar, compatibility claim or support-matrix movement is authorized.
+
 ## EXP-0184 — Numeric index validation stopped during Currency Seek
 
 - Recorded: 2026-09-05, OpenAI Codex; original validated `no_outcome`.
