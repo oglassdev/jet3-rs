@@ -10799,3 +10799,47 @@ Copy this block under the appropriate section and remove this instruction:
   integrity mutation, cascade, populated relation, existing-database update,
   general compatibility, or hosted support claim. All report compatibility
   and support-matrix flags remain false.
+
+## EXP-0125 — Preregistered descending and composite Long key discovery
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: preregistered local development DAO format observation; no acquisition
+- Plan: `oracle/windows-dao/acquisition/long-key-layout.plan.json`, SHA-256
+  `a5b107359cc713ecb613826745fea1118084d9c6f0cc482a527cdc6f4a0a9f4a`.
+  Pins the new acquisition/analyzer scripts, existing original
+  `system_catalog.py` row/definition decoder, `relationship_create.py` leaf
+  decoder, and SSH transport. The plan contains every input row.
+- Question: which exact raw index keys bind to non-null descending Long and
+  two-Long mixed-direction values, including repeated full ordinary keys?
+  `EXP-0062` supplies bounded leaf framing and locators, but its retained
+  summary JSON contains no raw key-to-row bindings and its composite case
+  mixed Text, Integer, and Long. Those outputs inform design only here.
+- Arms: fresh `Rows(A Long, B Long, Tag Long)` with `ByKey`; ten distinct
+  descending `A` keys in a unique index; twelve distinct ascending `A` /
+  descending `B` pairs in a unique index; fourteen descending `A` / ascending
+  `B` rows in an ordinary index, with two repeated full pairs and distinct
+  Tag payloads. Inputs include both signed extremes, values around zero and
+  byte boundaries, and repeated leading components. No nulls or intentional
+  failing insertions are included.
+- Hypothesis: ascending Long components use `7f` plus big-endian sign-bit-
+  flipped values; descending complements every component byte, and composite
+  keys concatenate components in declared order. This is an explicit test
+  hypothesis; stable differing bytes still answer the observation question.
+- Protocol: three fresh controls per arm; close after insertion, hash, open
+  read-only for declared metadata, full snapshots and ordered index scans,
+  close and rehash. Recover exact raw keys through the established single-
+  leaf decoder, bind every page/slot to decoded values, and require complete
+  one-to-one row coverage and directed DAO/decoded semantic ordering. Compare
+  raw key/value bindings, physical key fields/flags/counts, and captured DAO
+  metadata within each arm. Retain locators and prefix/map/root observations
+  without requiring allocator locations or duplicate payload order to match.
+- Decision: all nine captures must complete unchanged with matching
+  question-bearing observations. Record hypothesis agreement separately.
+  Incomplete acquisition, changed bytes, or correlation disagreement is
+  `no_outcome`; bad pins/result or retained identities reject validation.
+  Commit and independently review before one acquisition. Failure after
+  first mutation never triggers an automatic retry.
+- Boundary: these finite non-null Long cases only; no other key types,
+  arbitrary component counts, general branch/allocation policy, candidate
+  acceptance, updates, compatibility, or hosted support claim. Retain all
+  MDBs externally and record one validated additive outcome as `EXP-0126`.
