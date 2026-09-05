@@ -1,4 +1,5 @@
 use super::*;
+use crate::PhysicalIndexFlagsSpec;
 
 use crate::column_definition_writer::nz;
 use crate::physical_index_definition::KEY_SLOT_COUNT;

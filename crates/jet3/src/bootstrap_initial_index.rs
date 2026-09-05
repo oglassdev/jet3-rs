@@ -1,8 +1,8 @@
 //! Uncompressed trees of one/two Long components: EXP-0062 branch/leaf/locator
-//! grammar, EXP-0126 direction/composition and full-key distinct counts.
+//! grammar, EXP-0126 direction/composition, and EXP-0148 null components/policies.
 
 use super::*;
-use crate::{IndexKind, IndexTree, RowLocator};
+use crate::{IndexNullPolicy, IndexTree, RowLocator};
 
 #[path = "bootstrap_initial_index_pages.rs"]
 mod pages;
@@ -19,12 +19,29 @@ struct LongField {
     direction: IndexDirection,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Entry {
+    bytes: [u8; ENTRY_CAPACITY],
+    key_len: usize,
+    has_null: bool,
+}
+impl Entry {
+    fn key(&self) -> &[u8] {
+        &self.bytes[..self.key_len]
+    }
+    fn record(&self) -> &[u8] {
+        &self.bytes[..self.key_len + LOCATOR_BYTES]
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct InitialLongIndex {
     fields: [LongField; MAX_FIELDS],
     field_count: usize,
     unique: bool,
-    entries: Vec<[u8; ENTRY_CAPACITY]>,
+    entries: Vec<Entry>,
+    null_policy: IndexNullPolicy,
+    next_row: usize,
     distinct: u32,
     pages: IndexPages,
 }
@@ -68,9 +85,13 @@ impl InitialLongIndex {
                 direction: field.direction,
             };
         }
-        let entry_bytes = index.fields.len() * COMPONENT_BYTES + LOCATOR_BYTES;
-        let pages = IndexPages::new(row_count, entry_bytes, budget)?;
-        budget.charge_allocation(ByteCount::new((row_count * ENTRY_CAPACITY) as u64))?;
+        let pages = IndexPages::new(&[], budget)?;
+        let allocation = row_count
+            .checked_mul(size_of::<Entry>())
+            .ok_or(Error::Arithmetic {
+                operation: "size initial index entries",
+            })?;
+        budget.charge_allocation(ByteCount::new(allocation as u64))?;
         let mut entries = Vec::new();
         entries
             .try_reserve_exact(row_count)
@@ -81,7 +102,9 @@ impl InitialLongIndex {
         Ok(Some(Self {
             fields,
             field_count: index.fields.len(),
-            unique: index.kind != IndexKind::Ordinary,
+            unique: index.kind.is_unique(),
+            null_policy: index.kind.null_policy(),
+            next_row: 0,
             entries,
             distinct: 0,
             pages,
@@ -106,27 +129,49 @@ impl InitialLongIndex {
             }
             .into());
         }
-        let mut entry = [0_u8; ENTRY_CAPACITY];
-        for (position, field) in self.fields[..self.field_count].iter().enumerate() {
-            let Some(RowValue::Long(value)) = values.get(field.column) else {
-                return Err(ComposeError::NullInitialIndexKey {
-                    row: self.entries.len(),
-                });
-            };
-            let component =
-                &mut entry[position * COMPONENT_BYTES..(position + 1) * COMPONENT_BYTES];
-            component[0] = 0x7f;
-            component[1..].copy_from_slice(&value.to_be_bytes());
-            component[1] ^= 0x80;
+        let row = self.next_row;
+        self.next_row += 1;
+        let mut entry = Entry {
+            bytes: [0; ENTRY_CAPACITY],
+            key_len: 0,
+            has_null: false,
+        };
+        let mut all_null = true;
+        for field in &self.fields[..self.field_count] {
+            let value = values
+                .get(field.column)
+                .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
+            let start = entry.key_len;
+            match value {
+                RowValue::Null => {
+                    entry.has_null = true;
+                    entry.key_len += 1;
+                }
+                RowValue::Long(value) => {
+                    all_null = false;
+                    entry.bytes[start] = 0x7f;
+                    entry.bytes[start + 1..start + COMPONENT_BYTES]
+                        .copy_from_slice(&value.to_be_bytes());
+                    entry.bytes[start + 1] ^= 0x80;
+                    entry.key_len += COMPONENT_BYTES;
+                }
+                _ => return Err(ComposeError::UnsupportedInitialIndexSchema),
+            }
             if field.direction == IndexDirection::Descending {
-                for byte in component {
+                for byte in &mut entry.bytes[start..entry.key_len] {
                     *byte ^= 0xff;
                 }
             }
         }
-        let key_bytes = self.key_bytes();
-        entry[key_bytes..key_bytes + 3].copy_from_slice(&page.to_be_bytes()[1..]);
-        entry[key_bytes + LOCATOR_BYTES - 1] = locator.slot();
+        if entry.has_null && self.null_policy == IndexNullPolicy::Required {
+            return Err(ComposeError::NullInitialIndexKey { row });
+        }
+        if all_null && self.null_policy == IndexNullPolicy::IgnoreAllNull {
+            return Ok(());
+        }
+        let key_bytes = entry.key_len;
+        entry.bytes[key_bytes..key_bytes + 3].copy_from_slice(&page.to_be_bytes()[1..]);
+        entry.bytes[key_bytes + LOCATOR_BYTES - 1] = locator.slot();
         self.entries.push(entry);
         Ok(())
     }
@@ -137,17 +182,17 @@ impl InitialLongIndex {
         budget.charge_work_units(
             count * u64::from(count.max(1).ilog2() + 1) * 4 * ENTRY_CAPACITY as u64,
         )?;
-        self.entries.sort_unstable();
+        self.entries
+            .sort_unstable_by(|a, b| a.record().cmp(b.record()));
         self.distinct = u32::from(!self.entries.is_empty());
-        let key_bytes = self.key_bytes();
         for pair in self.entries.windows(2) {
-            if pair[0][..key_bytes] == pair[1][..key_bytes] {
-                if self.unique {
+            if pair[0].key() == pair[1].key() {
+                if self.unique && !pair[1].has_null {
                     let mut values = [0_i32; MAX_FIELDS];
                     for (position, value) in values.iter_mut().enumerate().take(self.field_count) {
                         let start = position * COMPONENT_BYTES + 1;
                         let mut raw: [u8; 4] =
-                            pair[1][start..start + 4].try_into().map_err(|_| {
+                            pair[1].bytes[start..start + 4].try_into().map_err(|_| {
                                 Error::Arithmetic {
                                     operation: "decode duplicate Long index component",
                                 }
@@ -170,11 +215,8 @@ impl InitialLongIndex {
                 self.distinct += 1;
             }
         }
+        self.pages = IndexPages::new(&self.entries, budget)?;
         Ok(())
-    }
-
-    const fn key_bytes(&self) -> usize {
-        self.field_count * COMPONENT_BYTES
     }
 
     pub(crate) const fn distinct_count(&self) -> u32 {
@@ -210,27 +252,27 @@ impl InitialLongIndex {
         key[1] ^= 0x80;
         Ok(self
             .entries
-            .binary_search_by(|entry| entry[..COMPONENT_BYTES].cmp(&key))
+            .binary_search_by(|entry| entry.key().cmp(&key))
             .is_ok())
     }
 
     pub(crate) fn matches(&self, tree: &IndexTree) -> bool {
-        let key_bytes = self.key_bytes();
         self.entries.len() == tree.entries().len()
             && self
                 .entries
                 .iter()
                 .zip(tree.entries())
                 .all(|(expected, actual)| {
-                    actual.key().raw_bytes() == &expected[..key_bytes]
+                    let key_bytes = expected.key_len;
+                    actual.key().raw_bytes() == expected.key()
                         && actual.row().page().get()
                             == u64::from(u32::from_be_bytes([
                                 0,
-                                expected[key_bytes],
-                                expected[key_bytes + 1],
-                                expected[key_bytes + 2],
+                                expected.bytes[key_bytes],
+                                expected.bytes[key_bytes + 1],
+                                expected.bytes[key_bytes + 2],
                             ]))
-                        && actual.row().slot() == expected[key_bytes + 3]
+                        && actual.row().slot() == expected.bytes[key_bytes + 3]
                 })
     }
 }
@@ -238,6 +280,7 @@ impl InitialLongIndex {
 #[cfg(test)]
 mod lookup_tests {
     use super::*;
+    use crate::IndexKind;
 
     #[test]
     fn odd_length_lookup_charges_the_final_comparison() -> Result<(), ComposeError> {

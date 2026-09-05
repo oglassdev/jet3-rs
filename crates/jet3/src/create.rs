@@ -566,11 +566,12 @@ fn check_table(
             return Err(mismatch("index name"));
         }
         let physical_definition = &definition.physical_indexes()[physical];
-        let (logical_kind, physical_flags) = match requested.kind {
-            IndexKind::Primary => (IndexDefinitionKind::Primary, 0x09),
-            IndexKind::Unique => (IndexDefinitionKind::Ordinary, 0x01),
-            IndexKind::Ordinary => (IndexDefinitionKind::Ordinary, 0x00),
+        let logical_kind = if requested.kind.is_primary() {
+            IndexDefinitionKind::Primary
+        } else {
+            IndexDefinitionKind::Ordinary
         };
+        let physical_flags = requested.kind.flags().raw();
         if logical.kind() != logical_kind || physical_definition.raw_flags() != physical_flags {
             return Err(mismatch("index kind"));
         }

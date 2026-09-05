@@ -44,8 +44,8 @@ use crate::column_definition_writer::{KEY_SLOT_COUNT, PhysicalIndexSpec, validat
 use crate::page_image::PAGE_BYTES;
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
-    ColumnSpec, IndexDirection, IndexFieldSpec, LogicalIndexKindSpec, PageNumber,
-    PhysicalIndexFlagsSpec, TableDefinitionKind, TableDefinitionWriteError,
+    ColumnSpec, IndexDirection, IndexFieldSpec, PageNumber, TableDefinitionKind,
+    TableDefinitionWriteError,
 };
 
 /// Largest index count `EXP-0093` observed on a created table.
@@ -72,35 +72,7 @@ pub(crate) const CONTINUATION_CAPACITY: usize = PAGE_BYTES - 8;
 /// `EXP-0101` is bounded and does not widen this.
 const LAST_ESTABLISHED_NAME_BYTE: u8 = 0x7e;
 
-/// The uniqueness class of an index in a [`TableSpec`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum IndexKind {
-    /// The table's primary index; `EXP-0093` observed physical flags `0x09`.
-    Primary,
-    /// A unique non-primary index; `EXP-0093` observed physical flags `0x01`.
-    Unique,
-    /// Any other index; `EXP-0093` observed physical flags `0x00`.
-    Ordinary,
-}
-
-impl IndexKind {
-    /// Returns the physical flag class this index kind encodes to.
-    pub(crate) const fn flags(self) -> PhysicalIndexFlagsSpec {
-        match self {
-            Self::Primary => PhysicalIndexFlagsSpec::UniqueRequired,
-            Self::Unique => PhysicalIndexFlagsSpec::Unique,
-            Self::Ordinary => PhysicalIndexFlagsSpec::Ordinary,
-        }
-    }
-
-    /// Returns the logical record class this index kind encodes to.
-    pub(crate) const fn logical_kind(self) -> LogicalIndexKindSpec {
-        match self {
-            Self::Primary => LogicalIndexKindSpec::Primary,
-            Self::Unique | Self::Ordinary => LogicalIndexKindSpec::Ordinary,
-        }
-    }
-}
+pub use crate::index_options::IndexKind;
 
 /// A reference to one column of a [`TableSpec`], by position or by name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -265,6 +237,8 @@ pub enum TableSchemaPlanError {
         /// Largest observed index count.
         observed: usize,
     },
+    /// A primary index requested a policy other than requiring all key components.
+    InvalidPrimaryNullPolicy,
     /// The table declares more than one primary index.
     MultiplePrimaryIndexes {
         /// Position of the earlier primary index.
@@ -612,6 +586,11 @@ fn validate_indexes(
                 observed: MAX_OBSERVED_INDEXES,
             });
         };
+        if planned.kind.is_primary()
+            && planned.kind.null_policy() != crate::IndexNullPolicy::Required
+        {
+            return Err(TableSchemaPlanError::InvalidPrimaryNullPolicy);
+        }
         let physical = PhysicalIndexSpec {
             fields,
             usage_map_page: plan.map_page(),
@@ -622,7 +601,7 @@ fn validate_indexes(
         };
         validate_physical_index(ordinal, &physical, spec.columns)
             .map_err(TableSchemaPlanError::Definition)?;
-        if planned.kind == IndexKind::Primary
+        if planned.kind.is_primary()
             && let Some(first) = primary.replace(position)
         {
             return Err(TableSchemaPlanError::MultiplePrimaryIndexes {
