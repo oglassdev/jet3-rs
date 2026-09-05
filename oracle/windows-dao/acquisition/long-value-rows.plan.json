@@ -1,0 +1,68 @@
+{
+  "document_type": "dao_long_value_rows_plan",
+  "experiment_id": "long-value-rows",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0061 supplies Memo/OLE headers, inline bytes, single rows and chained fragments; EXP-0077 supplies long-column map pairs; EXP-0065 supplies append placement. Those observations do not establish acceptance of this writer policy.",
+    "hypothesis": "DAO reads both exact ten-row candidates unchanged with complete expected schema and per-row payloads. The candidate policy stores lengths 1 and 32 inline, 33/512/2036 in one external row each, and 2037/2048/4064/4096 in 2032-byte chained fragments, one fragment per page. Twelve LVAL pages 23..34 precede data page 35; column owned maps name all twelve, column availability names 23,24,27,29,34, and table maps name 35. Page zero retains the composed empty-database header without insertion-counter transitions. This tests writer-policy acceptance, not DAO storage thresholds.",
+    "authorization": "User authorized DAO experiments/mutations on 2026-09-04. Commit and independently review the SHA256-pinned plan before one dispatch. A failure after the first CreateDatabase begins is a scientific result; another dispatch requires a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/long_value_rows.py": "313e35454f2420b31daa9b6de70549a9f3d35f422064226ddec4a63d44ba04f7",
+    "oracle/windows-dao/scripts/long_value_rows.ps1": "e6d4ec4f18ba75e8f93687d3c45b7ced4014092585ba77917c10a14e93e7c6da",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/initial_long_value_candidate.rs": "9c248ef25b92c00e5321c312940d06332becb3b61cb038b35f23e52729509bd8"
+  },
+  "candidates": {
+    "memo": {
+      "size": 73728,
+      "sha256": "9302db2b9364aad2cf1fe8bf5b6d1ecb161e3f0b29d838990dc9dd2b695e98e5"
+    },
+    "ole": {
+      "size": 73728,
+      "sha256": "8b13bd5cb99a8415fc90dc9c123cfdfcf673b14257affd384e0ed2f56c727d8c"
+    }
+  },
+  "schema": {
+    "version": "3.0",
+    "tables": [
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships",
+      "Rows"
+    ],
+    "indexes": []
+  },
+  "scenarios": {
+    "common": "Rows(Id Long, Payload Memo or OLE), no index. Id 1..9 correspond to payload lengths [1,32,33,512,2036,2037,2048,4064,4096]; Id10 has null payload. Exact field metadata: Id type4 size4, Payload type12 for Memo or type11 for OLE, size0.",
+    "memo": "At zero-based row position r=0..8 and byte offset p, character ASCII A+((p+r) mod26). Compare complete DAO string, preserving case and every character.",
+    "ole": "At zero-based row position r=0..8 and byte offset p, byte (p+r) mod256. Compare complete DAO byte array serialized as lowercase hex.",
+    "empty": "Empty payloads remain an explicit implementation refusal and are not an acquisition arm; null is present in both arms."
+  },
+  "execution": {
+    "environment": "Private Windows VM, x86 PowerShell, DAO.DBEngine.36; development-only.",
+    "pre_mutation": "Host verifies all input/candidate pins and committed plan; guest verifies producer and all six copied candidate replicas before first control creation.",
+    "per_replica": "For memo then ole, replicas1..3: create/close a fresh same-schema DAO control using AppendChunk at type-specific call sites and a null tenth payload. Read control and candidate read-only, capture complete table/field/index metadata and every Id/payload pair, close and compare before/after identities.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/long_value_rows.py run <directory containing memo.mdb ole.mdb> --shared-root <VM shared directory> --run-id <UTC timestamp>-long-value-rows",
+    "analysis": "python3 oracle/windows-dao/scripts/long_value_rows.py analyze <shared directory>/outbox/<run id>"
+  },
+  "decision_rule": {
+    "observed_accepted": "Complete six-pair job, all controls match exact expected semantics, all twelve images unchanged, and three agreeing accepted candidate observations for that arm.",
+    "not_observed_accepted": "Same complete-job/control/unchanged gate, but all three candidates for the arm identically fail an endpoint or produce the same semantic mismatch.",
+    "no_outcome": "Incomplete job, any control failure, any changed image, or candidate replica disagreement for the arm.",
+    "semantic_normalization": "Rows are an exact Id/payload multiset, preserving null versus empty and every Memo character/OLE byte. No prefix, length-only or hash-only payload acceptance.",
+    "validation_rejection": "Input-pin drift at preflight or analysis, malformed result binding/inventory, candidate starting identity mismatch, or retained-file mismatch rejects validation."
+  },
+  "evidence_boundary": "Only these two exact ten-row candidates. No general storage cutoff, indirect allocation, empty-payload, multiple-long-column, long-column-index, insert/update, page-zero, compatibility or hosted support claim.",
+  "retention": "Retain result.json, canonical report.json, logs and all twelve MDBs locally. Never commit MDB bytes/provider binaries. Append EXP-0124 once from the validated report.",
+  "candidate_generation": {
+    "source_commit": "2d3adf2e985e28c81f21cf1d9b07fdf52849341f",
+    "example": "crates/jet3/examples/initial_long_value_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example initial_long_value_candidate -- <directory>/<arm>.mdb <arm>"
+  }
+}
