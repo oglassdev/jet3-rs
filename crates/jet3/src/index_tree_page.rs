@@ -1,4 +1,4 @@
-//! Checked decoding of one physical index page from `EXP-0062`.
+//! Checked decoding of one physical index page from `EXP-0062` and `EXP-0146`.
 
 use crate::index_tree::{IndexNode, IndexNodeKind, IndexTreeError, PendingNode};
 use crate::{JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber, ResourceBudget};
@@ -9,7 +9,8 @@ const ENTRY_AREA_LEN: usize = PAGE_BYTES - ENTRY_AREA_OFFSET;
 const BOUNDARY_BITMAP_OFFSET: usize = 22;
 const HEADER_MARKER: u8 = 1;
 const LEAF_NODE_MARKER: u8 = 0;
-const INTERMEDIATE_NODE_MARKER: u8 = 1;
+// EXP-0146 admits both observed branch classes without treating them as depth.
+const INTERMEDIATE_NODE_MARKERS: [u8; 2] = [1, 2];
 
 #[derive(Debug)]
 pub(crate) struct ParsedNode {
@@ -88,11 +89,11 @@ pub(crate) fn parse_node(
         });
     }
     let marker = page[21];
-    let expected_marker = match node_kind {
-        IndexNodeKind::Intermediate => INTERMEDIATE_NODE_MARKER,
-        IndexNodeKind::Leaf => LEAF_NODE_MARKER,
+    let valid_marker = match node_kind {
+        IndexNodeKind::Intermediate => INTERMEDIATE_NODE_MARKERS.contains(&marker),
+        IndexNodeKind::Leaf => marker == LEAF_NODE_MARKER,
     };
-    if marker != expected_marker {
+    if !valid_marker {
         return Err(IndexTreeError::InvalidHeaderMarker {
             page: pending.page,
             offset: 21,
