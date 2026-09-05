@@ -62,6 +62,7 @@ mod index_options;
 pub mod index_tree;
 mod index_tree_page;
 pub use index_options::IndexNullPolicy;
+pub mod delete;
 mod index_tree_rows;
 pub mod jet3_page;
 pub mod limits;
@@ -79,6 +80,7 @@ pub mod raw_page_stream;
 pub mod relationships;
 pub mod resource;
 pub mod row;
+mod row_delete_page;
 pub mod row_directory;
 pub mod row_writer;
 pub mod source;
@@ -88,6 +90,7 @@ pub mod table_definition_writer;
 mod table_schema_plan;
 pub mod text;
 pub mod update;
+mod update_pages;
 pub mod usage_map;
 pub mod usage_map_writer;
 pub mod value;
@@ -142,6 +145,7 @@ pub use database_header::{
     DatabaseProtection, DatabaseVersion, SupportedDatabaseFormat,
 };
 pub use definition_name::{DefinitionName, DefinitionNameEncoding};
+pub use delete::{RowDelete, delete_row};
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{
     HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
