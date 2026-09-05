@@ -1,0 +1,320 @@
+{
+  "experiment_id": "multi-level-index",
+  "provenance": "EXP-0139",
+  "outcome_provenance": "EXP-0140",
+  "development_only": true,
+  "compatibility_claim": false,
+  "support_movement": false,
+  "replicas": 3,
+  "source_commit": "5cd9e5a49888013059dfb88e8ab0a6ef942a91cd",
+  "hypothesis": "DAO reads the exact uncompressed balanced multi-level Long index candidate policy: fixed root, appended non-contiguous descendants, maximum complete key+locator separators, sibling chains; no DAO split/allocation policy inferred.",
+  "source_facts": [
+    "EXP-0062 branch/leaf grammar",
+    "EXP-0126 Long direction/composition",
+    "EXP-0073 distinct counts",
+    "EXP-0057 and EXP-0065 allocation map roles"
+  ],
+  "controls": "Fresh matched DAO database per candidate replica; same field/index/relation metadata, row values and insertion order; one transaction per table, relation appended after rows. No compaction.",
+  "endpoints": [
+    "read-only full metadata and complete typed rows",
+    "complete ordered index traversal including all duplicate payloads",
+    "finite matching/missing Seek queries in each table spec",
+    "raw row binding, complete child-max separators, sibling chains at each depth, uniform leaf depth, actual index/data/available map membership"
+  ],
+  "classification": "All 9 controls must pass, original candidate/control images remain unchanged, complete inventory and no unexpected job error. Three agreeing candidate semantic/structural observations per arm give observed_accepted or not_observed_accepted; disagreement, incomplete job, failed control or changed read-only file gives no_outcome. Pin/identity mismatches reject report. Retain all 18 MDBs and JSON. No automatic retry after first mutation.",
+  "limits": {
+    "ssh_timeout_seconds": 3600,
+    "image_pages": 8192,
+    "rows_per_page": 1019,
+    "tree_depth": 32,
+    "output": "complete typed snapshots; report retains structural graph and identities, no raw MDBs in git"
+  },
+  "structural_comparison": "Candidate depths are fixed by each table spec (three levels in each main tree; two for Parents). Control depths/locations are observations, not equality gates. Every descendant must belong to its index map; candidates have no extra mapped index pages. Available data maps must be subsets of owned data pages. Indirect control maps decoded from existing grammar. Actual placement and compression are not required to match controls.",
+  "unknowns": "No new scalar/Text/Binary/null key encoding, indirect writer allocation, general B-tree update/split policy, hosted support or general compatibility claim.",
+  "arms": {
+    "primary": [
+      {
+        "name": "Rows",
+        "fields": [
+          {
+            "name": "Id",
+            "type": 4,
+            "size": 4
+          },
+          {
+            "name": "Payload",
+            "type": 4,
+            "size": 4
+          }
+        ],
+        "row_count": 27801,
+        "indexes": [
+          {
+            "name": "ById",
+            "fields": [
+              {
+                "name": "Id",
+                "descending": false,
+                "attributes": 0
+              }
+            ],
+            "primary": true,
+            "unique": true,
+            "required": true,
+            "foreign": false,
+            "ignore_nulls": false
+          }
+        ],
+        "queries": [
+          [
+            -1
+          ],
+          [
+            0
+          ],
+          [
+            199
+          ],
+          [
+            200
+          ],
+          [
+            27799
+          ],
+          [
+            27800
+          ],
+          [
+            27801
+          ]
+        ],
+        "candidate_depth": 3
+      }
+    ],
+    "composite": [
+      {
+        "name": "Empty",
+        "fields": [
+          {
+            "name": "Id",
+            "type": 4,
+            "size": 4
+          },
+          {
+            "name": "Payload",
+            "type": 4,
+            "size": 4
+          }
+        ],
+        "row_count": 0,
+        "indexes": [],
+        "queries": [],
+        "candidate_depth": 0
+      },
+      {
+        "name": "Rows",
+        "fields": [
+          {
+            "name": "A",
+            "type": 4,
+            "size": 4
+          },
+          {
+            "name": "B",
+            "type": 4,
+            "size": 4
+          },
+          {
+            "name": "Payload",
+            "type": 4,
+            "size": 4
+          }
+        ],
+        "row_count": 12929,
+        "indexes": [
+          {
+            "name": "ByKey",
+            "fields": [
+              {
+                "name": "B",
+                "descending": true,
+                "attributes": 1
+              },
+              {
+                "name": "A",
+                "descending": false,
+                "attributes": 0
+              }
+            ],
+            "primary": false,
+            "unique": false,
+            "required": false,
+            "foreign": false,
+            "ignore_nulls": false
+          }
+        ],
+        "queries": [
+          [
+            -9,
+            0
+          ],
+          [
+            -9,
+            1
+          ],
+          [
+            7,
+            32
+          ],
+          [
+            99,
+            99
+          ]
+        ],
+        "candidate_depth": 3
+      }
+    ],
+    "relationship": [
+      {
+        "name": "Parents",
+        "fields": [
+          {
+            "name": "Id",
+            "type": 4,
+            "size": 4
+          },
+          {
+            "name": "Payload",
+            "type": 4,
+            "size": 4
+          }
+        ],
+        "row_count": 201,
+        "indexes": [
+          {
+            "name": "ById",
+            "fields": [
+              {
+                "name": "Id",
+                "descending": false,
+                "attributes": 0
+              }
+            ],
+            "primary": true,
+            "unique": true,
+            "required": true,
+            "foreign": false,
+            "ignore_nulls": false
+          }
+        ],
+        "queries": [
+          [
+            -101
+          ],
+          [
+            -100
+          ],
+          [
+            -1
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            100
+          ],
+          [
+            101
+          ]
+        ],
+        "candidate_depth": 2
+      },
+      {
+        "name": "Children",
+        "fields": [
+          {
+            "name": "Id",
+            "type": 4,
+            "size": 4
+          },
+          {
+            "name": "Payload",
+            "type": 4,
+            "size": 4
+          }
+        ],
+        "row_count": 27801,
+        "indexes": [
+          {
+            "name": "ParentChildren",
+            "fields": [
+              {
+                "name": "Id",
+                "descending": false,
+                "attributes": 0
+              }
+            ],
+            "primary": false,
+            "unique": false,
+            "required": false,
+            "foreign": true,
+            "ignore_nulls": false
+          }
+        ],
+        "queries": [
+          [
+            -100
+          ],
+          [
+            -1
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            100
+          ],
+          [
+            101
+          ]
+        ],
+        "candidate_depth": 3
+      }
+    ]
+  },
+  "candidates": {
+    "primary": {
+      "size": 677888,
+      "sha256": "319337d779bfeceb7971ff133794ef738b5dcf44f3c55885d1c2591b5af15593"
+    },
+    "composite": {
+      "size": 475136,
+      "sha256": "249529faf1161a6a7ceb255794fb65d6fd5080d66c0e8fefdae88a2eba2ae035"
+    },
+    "relationship": {
+      "size": 694272,
+      "sha256": "beec4f2af1e0a84396053ef39ac9b76b5465db822f759cc7c35c1d11a9342147"
+    }
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/multi_level_index.py": "a159a7630725f8d8a82dd781a07e551aee2840f07cc52887781d25bb106a3314",
+    "oracle/windows-dao/scripts/multi_level_index.ps1": "503d6f906bc9e1f58354d362246a8f66d1b15f343cee63f0b3de3e4d6d3b50ec",
+    "oracle/windows-dao/scripts/multi_level_index_structure.py": "a4291fd040cb6a90fb68dfbb5dfe75f9f5990caa1d3cec6893577b118191d928",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/multi_level_index_candidate.rs": "e852d949354eb4ce694589a19d8dd3ef2114340522c694f89230fd5cfbc15eb4"
+  },
+  "row_formulas": {
+    "primary.Rows": "position0..27800: [27800-position, position]",
+    "composite.Empty": "no rows",
+    "composite.Rows": "position0..12928: [floor(position/400), floor(position/800)-9, position]",
+    "relationship.Parents": "position0..200: [position-100, position]",
+    "relationship.Children": "position0..27800: [position%3-1, position]"
+  }
+}
