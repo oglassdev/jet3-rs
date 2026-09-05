@@ -5,15 +5,12 @@
 use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::fmt;
-use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
 
-use crate::atomic::atomic_update_budgeted;
 use crate::row_directory::RowDirectory;
 use crate::{
-    ByteOffset, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, FileSource,
-    PAGE_BYTES, PageImage, PageOffset, PublishStage, ReadAt, ResourceBudget, RowLocator, RowValue,
-    TableDefinitionKind,
+    CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, FileSource, PAGE_BYTES,
+    PageImage, PageOffset, PublishStage, ResourceBudget, RowLocator, RowValue, TableDefinitionKind,
 };
 
 /// One existing field to replace. Obtain the ordinal and locator from the reader.
@@ -55,6 +52,10 @@ pub enum UpdateError {
     Directory(crate::RowDirectoryError),
     /// Replacement value or fixed layout failed checked row encoding.
     Encoding(crate::RowWriteError),
+    /// Available map row is malformed.
+    UsageMap(crate::UsageMapError),
+    /// Allocation bitmap is malformed or exhausted its budget.
+    Allocation(crate::AllocationMapError),
     /// Atomic publication failed; its stage indicates whether publication occurred.
     Publish(crate::PublishError),
 }
@@ -75,6 +76,8 @@ impl StdError for UpdateError {
             Self::Rows(source) => Some(source),
             Self::Directory(source) => Some(source),
             Self::Encoding(source) => Some(source),
+            Self::UsageMap(source) => Some(source),
+            Self::Allocation(source) => Some(source),
             Self::Publish(source) => Some(source),
             Self::NotFound(_) | Self::Unsupported(_) | Self::Mismatch(_) => None,
         }
@@ -137,45 +140,7 @@ where
         return Err(UpdateError::Unsupported("null replacement"));
     }
     let mut database = DatabaseReader::open(path, budget)?;
-    let mut root = None;
-    let mut relationship_root = None;
-    {
-        let mut catalog = database.catalog(budget)?;
-        while let Some(record) = catalog.next_record()? {
-            if record.class() == CatalogObjectClass::System
-                && record.name().raw_bytes() == b"MSysRelationships"
-            {
-                if relationship_root.is_some() {
-                    return Err(UpdateError::Mismatch("ambiguous relationship catalog"));
-                }
-                relationship_root = record.table_definition();
-            }
-            if record.class() == CatalogObjectClass::User
-                && record.name().raw_bytes() == request.table
-            {
-                if root.is_some() {
-                    return Err(UpdateError::Mismatch("ambiguous table name"));
-                }
-                root = record.table_definition();
-            }
-        }
-    }
-    let definition =
-        database.table_definition(root.ok_or(UpdateError::NotFound("table"))?, budget)?;
-    if definition.kind() != TableDefinitionKind::User
-        || !definition.indexes().is_empty()
-        || !definition.physical_indexes().is_empty()
-    {
-        return Err(UpdateError::Unsupported(
-            "table has indexes or relationships",
-        ));
-    }
-    reject_catalog_relationships(
-        &mut database,
-        relationship_root.ok_or(UpdateError::Unsupported("missing relationship catalog"))?,
-        request.table,
-        budget,
-    )?;
+    let definition = writable_table(&mut database, request.table, budget)?;
     let column = definition
         .columns()
         .get(usize::from(request.column.get()))
@@ -244,63 +209,62 @@ where
     }
     let mut patched = PageImage::from_bytes(original_page);
     patched.write_at(PageOffset::new(start as u64), &replacement[..width], budget)?;
-    let page_offset = request
-        .row
-        .page()
-        .get()
-        .checked_mul(PAGE_BYTES as u64)
-        .ok_or(UpdateError::Mismatch("page offset"))?;
-    let offset = page_offset
-        .checked_add(start as u64)
-        .ok_or(UpdateError::Mismatch("file offset"))?;
-    let mut original = database.into_source();
-    let length = original.len();
-    atomic_update_budgeted(
+    crate::update_pages::publish_changes(
         path,
+        database.into_source(),
+        &[crate::update_pages::PageChange {
+            page: request.row.page(),
+            before: &original_page,
+            after: patched.as_bytes(),
+        }],
         budget,
-        |file, budget| -> Result<(), UpdateError> {
-            budget.charge_work_units(width as u64)?;
-            file.seek(SeekFrom::Start(offset))?;
-            file.write_all(&patched.as_bytes()[start..end])?;
-            Ok(())
-        },
-        |private, budget| -> Result<(), UpdateError> {
-            let mut candidate = FileSource::open(private, budget.read_budget())?;
-            if candidate.len() != length {
-                return Err(UpdateError::Mismatch("file length"));
-            }
-            let mut expected = [0; PAGE_BYTES];
-            let mut actual = [0; PAGE_BYTES];
-            let mut position = 0;
-            while position < length.get() {
-                let count = (length.get() - position).min(PAGE_BYTES as u64) as usize;
-                original.read_exact_at(
-                    ByteOffset::new(position),
-                    &mut expected[..count],
-                    budget.read_budget(),
-                )?;
-                candidate.read_exact_at(
-                    ByteOffset::new(position),
-                    &mut actual[..count],
-                    budget.read_budget(),
-                )?;
-                if position == page_offset {
-                    if expected != original_page {
-                        return Err(UpdateError::Mismatch("original page changed"));
-                    }
-                    expected = *patched.as_bytes();
-                }
-                budget.charge_work_units(count as u64)?;
-                if expected[..count] != actual[..count] {
-                    return Err(UpdateError::Mismatch("unrelated or requested bytes"));
-                }
-                position += count as u64;
-            }
-            Ok(())
-        },
         hook,
+    )
+}
+
+pub(crate) fn writable_table(
+    database: &mut DatabaseReader<FileSource>,
+    table: &[u8],
+    budget: &mut ResourceBudget,
+) -> Result<crate::TableDefinition, UpdateError> {
+    let mut root = None;
+    let mut relationship_root = None;
+    {
+        let mut catalog = database.catalog(budget)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.class() == CatalogObjectClass::System
+                && record.name().raw_bytes() == b"MSysRelationships"
+            {
+                if relationship_root.is_some() {
+                    return Err(UpdateError::Mismatch("ambiguous relationship catalog"));
+                }
+                relationship_root = record.table_definition();
+            }
+            if record.class() == CatalogObjectClass::User && record.name().raw_bytes() == table {
+                if root.is_some() {
+                    return Err(UpdateError::Mismatch("ambiguous table name"));
+                }
+                root = record.table_definition();
+            }
+        }
+    }
+    let definition =
+        database.table_definition(root.ok_or(UpdateError::NotFound("table"))?, budget)?;
+    if definition.kind() != TableDefinitionKind::User
+        || !definition.indexes().is_empty()
+        || !definition.physical_indexes().is_empty()
+    {
+        return Err(UpdateError::Unsupported(
+            "table has indexes or relationships",
+        ));
+    }
+    reject_catalog_relationships(
+        database,
+        relationship_root.ok_or(UpdateError::Unsupported("missing relationship catalog"))?,
+        table,
+        budget,
     )?;
-    Ok(())
+    Ok(definition)
 }
 
 // EXP-0073/0114 source these endpoint columns independently of user indexes.

@@ -55,6 +55,7 @@ mod data_page_directory;
 pub mod database;
 pub mod database_header;
 mod definition_name;
+pub mod delete;
 pub mod error;
 pub mod header;
 pub mod index_definition;
@@ -77,6 +78,7 @@ pub mod raw_page_stream;
 pub mod relationships;
 pub mod resource;
 pub mod row;
+mod row_delete_page;
 pub mod row_directory;
 pub mod row_writer;
 pub mod source;
@@ -85,6 +87,7 @@ mod table_definition_layout;
 pub mod table_definition_writer;
 pub mod text;
 pub mod update;
+mod update_pages;
 pub mod usage_map;
 pub mod usage_map_writer;
 pub mod value;
@@ -141,6 +144,7 @@ pub use database_header::{
     DatabaseProtection, DatabaseVersion, SupportedDatabaseFormat,
 };
 pub use definition_name::{DefinitionName, DefinitionNameEncoding};
+pub use delete::{RowDelete, delete_row};
 pub use error::{Error, LimitKind, ResourceLimitKind};
 pub use header::{
     HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
