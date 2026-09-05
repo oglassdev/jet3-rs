@@ -11385,6 +11385,35 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0175 — Distinct validation of retained fixed-field updates
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0176. The
+  original EXP-0172 failed acquisition and consumed EXP-0171 inputs remain
+  unchanged; this is a separate post-acquisition reuse experiment.
+- Plan `oracle/windows-dao/acquisition/fixed-field-reuse.plan.json`, SHA-256
+  `410084e32005ea98748017d3fbd9850c33e28f9f1f3e5e83f6dcc2935301df11`.
+  It pins all 30 retained originals, 27 completed updates, original result,
+  report, create snapshots and initiating Unix error log (61 artifacts), plus
+  meaningful implementation, exporter, observer and diagnostic inputs.
+- Copy the retained images into a fresh exclusive tree. Preserve the original
+  27 update receipts and label them with implementation `37bd817`. Only the
+  missing three `fixed-text-255` updates use the unchanged public exporter and
+  reviewed wide-prefix fix `2c99b3d`; each report observation binds its actual
+  source revision and retained/new origin explicitly.
+- The private diagnostic decoder adds only the EXP-0172 same-second-block,
+  one-variable, zero-jump interpretation, retaining the original decoder and
+  all MDB bytes. Independent row/field selection, exact replacement bytes and
+  every byte outside the target span are checked before guest dispatch.
+- One read-only x86 `DAO.DBEngine.36` job captures all 60 images using the frozen
+  EXP-0171 observer and scalar readback helpers. No DAO creation or mutation
+  occurs. Compare each original to its frozen creation snapshot and each update
+  to the precise requested schema/rows/values, including negative-zero bits,
+  fixed Text width, unrelated tables and original stored QueryDef SQL.
+- All 30 pairs, complete identities, provider and preservation gates are
+  required; failure is `no_outcome`, without partial promotion or retry/resume.
+  This local experiment cannot change hosted support or imply broad
+  compatibility, and cannot turn the original EXP-0172 result into acceptance.
+
 ## EXP-0172 — Fixed-field successor stopped at wide fixed-prefix decoding
 
 - Outcome: `no_outcome`, recorded 2026-09-05 from the single local run
@@ -12531,6 +12560,59 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0170 — Public row insertion and DAO continuation accepted in three cases
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T074100Z-row-insert-candidate`. All nine comparisons pass without
+  acquisition errors, reasons or retention failures. EXP-0169 plan SHA-256
+  remains `c1a902a208baa27c7801aa2131180af008b1a53e4f9ee5ae8ae6f1d73309f413`.
+  Acquisition revision: `92c905bec33aa337202ac8e3d57cea687e766123`;
+  reviewed implementation: `2fdd791cae4ce1649fb634b01c40cac98f2b4340`.
+- Validated report: 32983 bytes, SHA-256
+  `8febd2959910d855a1a780ca951b782c909f79a0687f4963b9462c1c22535133`.
+  Coordinated result: 4041 bytes, SHA-256
+  `a29c3a1fb287be8c312e1bc33bf6fae3efad997f0743c3f219928ebdd44f47df`.
+  The unchanged pinned analyzer reproduces this report byte-identically using
+  temporary copies. No additional DAO operation or corrected analysis occurred.
+- Create-phase result: 328051 bytes, SHA-256
+  `3bf809163a52766a0b460cc21ccc31c15b01c3bc69654262a2ee8471bcc6dcd3`.
+  Observe-phase result: 835949 bytes, SHA-256
+  `4e78e01af9877db3cdd62a1aee7c5b96fa137e01347ed56d3ab5cd63b6b6333f`.
+  Both phase errors are null and both retention-failure lists are empty.
+- The complete inventory contains nine DAO-created originals, nine DAO insertion
+  controls, nine public Unix insertion candidates and eighteen separate DAO
+  continuation copies. The report records all 45 identities (57344 or 59392
+  bytes); the result retains the nine Unix source/candidate identity chains.
+  All 18 creation-phase and 45 observation-phase captures have unchanged
+  read-only before/after identities matching their retained files. Originals,
+  controls and Rust candidates remain unchanged between phases.
+- All 60 coordinated-outbox files, 21 create-outbox files and 48 observe-outbox
+  files remained unchanged during exact reproduction and identity verification.
+- Each case passed three replicas. `first-page` inserts `[88, -8800, "inserted"]`
+  into Items at root20/page23/new slot3, resulting in four rows. `later-page`
+  inserts Id88/Value-8800 with 180 ASCII `z` bytes into Later at root24/page27/new
+  slot2, resulting in thirteen rows. Its owned pages remain `[26,27]` and its
+  available pages `[27]`, demonstrating a later-table, later-data-page locator.
+- `after-tail` inserts the short row at root20/page23/new slot4, resulting in
+  four live rows. The preparatory DAO deletion's hidden/overflow-marked slot3
+  remains zero-length at offset2000. The new physical slot is appended; the
+  tombstone is not reused. Both single-page cases retain owned/available page23.
+- Every candidate passes the independently encoded Long/Long/Text row check and
+  exact appended-slot, free-byte, physical-slot-count and table-count patch.
+  Outside those declared writes, all original bytes remain identical, including
+  page zero, maps, unrelated objects and slack outside the new row's span.
+  These observations do not define a DAO available-space threshold or page-zero
+  bookkeeping rule, and do not require equal DAO/Rust physical row placement.
+- Full DAO schemas, field properties, rows, index/relation absence and original
+  stored KeepQuery SQL match each Rust/control pair. Both independent continuation
+  copies accept `[99, -9900, "next"]` and match the complete expected post-state,
+  including unrelated table/query metadata. The candidate originals are unchanged.
+- This is finite development-only acceptance of bounded populated-page insertion
+  and subsequent DAO use. It does not cover page allocation, empty tables, slot
+  reuse, AutoIncrement, long values, indexed/related insertion, arbitrary existing
+  files or hosted compatibility. Compatibility/support flags remain false; no
+  support-matrix movement follows.
 
 ## EXP-0169 — Existing-row insertion candidate preregistration
 
