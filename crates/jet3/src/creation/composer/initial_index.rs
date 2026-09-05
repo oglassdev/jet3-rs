@@ -153,10 +153,9 @@ impl InitialLongIndex {
                 }
                 RowValue::Long(value) => {
                     all_null = false;
-                    entry.bytes[start] = 0x7f;
-                    entry.bytes[start + 1..start + COMPONENT_BYTES]
-                        .copy_from_slice(&value.to_be_bytes());
-                    entry.bytes[start + 1] ^= 0x80;
+                    entry.bytes[start..start + COMPONENT_BYTES].copy_from_slice(
+                        &crate::long_index_key::encode(*value, IndexDirection::Ascending),
+                    );
                     entry.key_len += COMPONENT_BYTES;
                 }
                 _ => return Err(ComposeError::UnsupportedInitialIndexSchema),
@@ -251,9 +250,7 @@ impl InitialLongIndex {
         budget.charge_work_units(
             u64::from((self.entries.len().max(1) as u64).ilog2() + 2) * COMPONENT_BYTES as u64,
         )?;
-        let mut key = [0x7f, 0, 0, 0, 0];
-        key[1..].copy_from_slice(&value.to_be_bytes());
-        key[1] ^= 0x80;
+        let key = crate::long_index_key::encode(value, IndexDirection::Ascending);
         Ok(self
             .entries
             .binary_search_by(|entry| entry.key().cmp(&key))

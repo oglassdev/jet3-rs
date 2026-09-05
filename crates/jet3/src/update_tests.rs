@@ -275,14 +275,14 @@ fn private_byte_corruption_is_rejected_by_streaming_verification() -> TestResult
 }
 
 #[test]
-fn indexed_tables_are_refused_before_publication() -> TestResult {
+fn nonunique_index_keys_are_refused_before_publication() -> TestResult {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let keys = [crate::IndexColumnSpec::ascending(0)];
     let indexes = [crate::IndexSpec {
         name: b"Pk",
-        kind: crate::IndexKind::Primary,
+        kind: crate::IndexKind::Ordinary,
         fields: &keys,
     }];
     create_database_with_rows(
@@ -518,3 +518,6 @@ mod fixed;
 
 #[path = "update_indexed_tests.rs"]
 mod indexed;
+
+#[path = "update_key_tests.rs"]
+mod keys;
