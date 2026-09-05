@@ -108,3 +108,76 @@ successor analysis; this local result moves no hosted support state.
   stored-query preservation and failure/rollback behavior.
 - Meet all three release gates on a release commit. Current evidence binds its
   recorded revisions and finite recipes; no whole-v1 compatibility is claimed.
+
+## Practical acceptance target
+
+Use one inventory database to measure a workable read/write lifecycle:
+
+- `Items`: `Id` Long primary key (explicit IDs), `Name` Text(80), nullable
+  `Price` Currency, and `Active` Boolean.
+- `Notes`: `Id` Long and `Body` Memo, with retained unrelated rows and payloads.
+
+The target is complete when public library APIs can create the database,
+populate Items beyond both a data-page boundary and an index-leaf boundary,
+reopen it, and read every row with correct index traversal and lookups. Then
+change names, prices and null values, delete scattered rows, insert more rows,
+and reopen again. DAO must observe the complete expected schema and contents
+at the declared checkpoints. Notes metadata, rows and payload bytes must remain
+unchanged through Items mutations. Unsupported requests, validation failures
+and resource failures rejected before publication must preserve the original
+file byte-for-byte; post-publication sync errors retain their documented
+potentially-visible-change semantics.
+
+This is a concrete milestone within v1, not a substitute for the full scope or
+release gates. Several operations require later slices; the next slice below
+does not claim to complete this lifecycle.
+
+## Next implementation slice: indexed insertion across a data-page boundary
+
+Track implementation under #112 and hosted verification under #113. An existing
+populated Items table should accept another row by appending one data page when
+no existing page can admit it, while its unique Long index still fits in one
+isolated, uncompressed root leaf. Reuse existing EOF allocation within inline
+maps and publish data, allocation, table-count and index changes together.
+
+1. Build a deterministic fixture using the target schema, with Notes populated
+   and Items at a data-page boundary while the index retains capacity.
+2. Extend the public insertion path by combining the existing EOF-page planner
+   with unique Long leaf maintenance. Keep checked encoding and format constants
+   in typed low-level modules and cite existing accepted provenance or establish
+   any missing fact before implementation relies on it.
+3. Test one grouped matrix: insertion into existing space, insertion requiring
+   a new page, duplicate-key rejection, and refusal when the index needs a split.
+   Check full rows, key/locator correspondence, index traversal/lookups, unrelated
+   byte preservation, and unchanged originals on pre-publication rejection.
+4. Independently review the change and commit one SHA-256-pinned DAO plan for
+   that matrix before acquisition. Record its single outcome, run final checks,
+   and merge the deliverable. Only hosted accepted evidence may move support.
+
+Start with `crates/jet3/src/insert.rs`, `row_insert_eof.rs`, `unique_leaf.rs`,
+`index_key_page.rs`, and `update_pages.rs`, plus their existing focused tests.
+Review EXP-0214/0216 and the retained artifacts for assumptions this slice
+depends on. Resolve any necessary evidence gap under a distinct reviewed plan;
+do not promote diagnostics from either `no_outcome`, edit a consumed plan, or
+repeat acquisition automatically. Unrelated retained-data questions remain
+separate work.
+
+Stop after this bounded insertion deliverable and its recorded validation.
+Index splits/rebalancing, empty indexed-table insertion, indexed variable-width
+replacement, general deletion/reuse, indirect-map growth, relationship mutation,
+and CLI expansion are outside this slice.
+
+### Bounded slice outcome (2026-09-05)
+
+The indexed data-page-boundary insertion above is implemented: one EOF page,
+inline allocation bits, table counts and isolated Long root-leaf maintenance
+publish together. The deterministic Items/Notes grouped matrix covers existing
+space, physical page exhaustion, duplicate refusal and the 200-key leaf limit,
+with unrelated-byte preservation and private-publication corruption checks.
+
+EXP-0217 preregistered one local DAO matrix; EXP-0218 records its **no_outcome**.
+The producer failed assigning null Currency through COM in the duplicate-control
+arm after the two native insertion operations. No subset is accepted, no retry
+occurred and hosted support is unchanged. This bounded implementation and its
+validation outcome finish this slice; the larger lifecycle remains incomplete.
+Any successor validation needs a separate reviewed plan and human decision.

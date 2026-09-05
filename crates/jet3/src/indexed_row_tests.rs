@@ -401,7 +401,7 @@ fn indexed_rows_private_corruption_preserves_original() -> TestResult {
 }
 
 #[test]
-fn indexed_rows_no_data_capacity_and_multiple_indexes_refuse() -> TestResult {
+fn indexed_rows_no_available_page_appends_and_multiple_indexes_refuse() -> TestResult {
     let f = Fixture::new(3, false, IndexKind::Primary)?;
     let table = f.definition()?;
     let map = table.maps().available();
@@ -418,18 +418,15 @@ fn indexed_rows_no_data_capacity_and_multiple_indexes_refuse() -> TestResult {
     let end = map.page().get() as usize * PAGE_BYTES + range.end;
     bytes[start..end].fill(0);
     fs::write(f.path(), &bytes)?;
-    assert!(matches!(
-        insert_row(
-            f.path(),
-            b"Rows",
-            &[RowValue::Long(-1), RowValue::Long(2)],
-            &mut budget()
-        ),
-        Err(UpdateError::Unsupported(
-            "indexed insertion requires populated page capacity"
-        ))
-    ));
-    assert_eq!(fs::read(f.path())?, bytes);
+    let row = insert_row(
+        f.path(),
+        b"Rows",
+        &[RowValue::Long(-1), RowValue::Long(2)],
+        &mut budget(),
+    )?;
+    assert_eq!(row.page().get() as usize * PAGE_BYTES, bytes.len());
+    assert_eq!(row.slot(), 0);
+    f.validate()?;
     fs::remove_file(f.path())?;
     let columns = [
         ColumnSpec::new(b"Id", ColumnType::Long),
@@ -485,5 +482,54 @@ fn indexed_rows_no_data_capacity_and_multiple_indexes_refuse() -> TestResult {
         .is_err()
     );
     assert_eq!(fs::read(f.path())?, before);
+    Ok(())
+}
+
+#[test]
+fn indexed_eof_private_leaf_and_append_corruption_preserve_original() -> TestResult {
+    let f = Fixture::new(3, false, IndexKind::Primary)?;
+    let table = f.definition()?;
+    let map = table.maps().available();
+    let mut before = fs::read(f.path())?;
+    let raw = page(&before, map.page())?;
+    let directory = crate::row_directory::RowDirectory::validate(
+        map.page(),
+        crate::PageNumber::new(0),
+        raw,
+        &mut budget(),
+    )?;
+    let range = directory.entry(raw, map.row())?.range();
+    let base = map.page().get() as usize * PAGE_BYTES;
+    before[base + range.start + 5..base + range.end].fill(0);
+    fs::write(f.path(), &before)?;
+    for offset in [
+        before.len() + 100,
+        table.physical_indexes()[0].root().get() as usize * PAGE_BYTES + 250,
+    ] {
+        let result = insert_with_hook(
+            &f.path(),
+            b"Rows",
+            &[RowValue::Long(-1), RowValue::Long(5)],
+            &mut budget(),
+            |stage| -> Result<(), std::io::Error> {
+                if stage == PublishStage::Validation {
+                    let private = fs::read_dir(&f.directory)?
+                        .filter_map(Result::ok)
+                        .map(|e| e.path())
+                        .find(|p| *p != f.path())
+                        .ok_or_else(|| std::io::Error::other("private"))?;
+                    let mut bytes = fs::read(&private)?;
+                    bytes[offset] ^= 1;
+                    fs::write(private, bytes)?;
+                }
+                Ok(())
+            },
+        );
+        assert!(
+            matches!(result, Err(UpdateError::Publish(e)) if e.stage() == PublishStage::Validation)
+        );
+        assert_eq!(fs::read(f.path())?, before);
+        assert_eq!(fs::read_dir(&f.directory)?.count(), 1);
+    }
     Ok(())
 }

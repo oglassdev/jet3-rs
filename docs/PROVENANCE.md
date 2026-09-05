@@ -14933,3 +14933,70 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `032966c5ecea74fe2be0bc12ca09d2fc36084aff698ac02c2f6e51cdb3e2b914`. Artifacts remain in the external shared
   outbox under the run identifier above. This local development result makes
   no compatibility claim or hosted support-matrix movement.
+
+## EXP-0217 — Indexed insertion across a data-page boundary preregistration
+
+- Plan: `oracle/windows-dao/acquisition/indexed-boundary.plan.json`, SHA-256
+  `04345d7dd0f2a217f4ba74b0662fdcced750ac05976281168a1b5554f8f73c99`. Implementation source
+  `53a87df61c944ce971a8662932305ac0338eaef2`; commit this plan before acquisition.
+- One local x86 `DAO.DBEngine.36` insertion-only matrix: existing-space
+  insertion (3 to 4 rows), physically exhausted data page (20 to 21 rows),
+  duplicate rejection, and refusal at the 200-key isolated root-leaf capacity.
+  Items has Long primary Id, Text(80) Name, nullable Currency Price and Boolean
+  Active; Notes retains Long Id and a 4,096-byte Memo plus a null Memo row.
+- The eight pinned public original/candidate images are generated on Unix.
+  Native controls are byte-identical original copies, with DAO insertion or
+  duplicate rejection; the split-refusal control remains the original baseline.
+  No native split, deletion, independent DAO creation or continuation is claimed.
+  Capture all twelve images once, with complete user schema/index/rows, table
+  inventory, query/relation inventory, directed traversal and Seek -1..201.
+- Acceptance requires every capture and operation, exact typed full snapshots,
+  candidate/control equality, fresh insertion live/table/distinct-count agreement,
+  complete raw key/locator correlation, and independent reconstruction of every
+  changed byte. EOF allocation, table and leaf changes publish together; Notes
+  metadata and payloads and all unrelated original bytes remain exact.
+- Existing accepted EXP-0057/0059/0060/0061/0062/0065/0073/0126/0162/0186
+  primitives supply the construction; this composition needs its own validation.
+  Read-only inspection of retained EXP-0214/0216 diagnostics confirmed Double
+  strings and deletion live/table count 3 versus distinct count 6. Neither is
+  promoted: this matrix contains no Double or deletion history, and explicitly
+  freezes Currency as invariant four-decimal text and Boolean as JSON Boolean.
+- Independent review found and resolved a mixed-schema assumption in the new
+  analyzer before freezing. The full synthetic-result analyzer test uses real
+  deterministic images and passes its acceptance and corruption/refusal cases;
+  focused Rust insertion and private-EOF corruption checks pass. Actual x86
+  no-DAO checks passed producer parsing, typed rows and nested JSON/Seek roundtrip.
+- Any post-mutation failure is one `no_outcome`, with artifacts retained externally
+  and no automatic retry or diagnostic subset promotion. Record EXP-0218 once
+  from the validated report. Local observations make no compatibility claim or
+  support-matrix movement and do not complete the lifecycle milestone.
+
+## EXP-0218 — Indexed data-page boundary validation no-outcome
+
+- The one EXP-0217 acquisition, `20260905T145600Z-indexed-boundary`, returned
+  **`no_outcome`** under the frozen all-matrix rule. Preregistration commit
+  `dc4ce4d` was pushed before dispatch; plan SHA-256
+  `04345d7dd0f2a217f4ba74b0662fdcced750ac05976281168a1b5554f8f73c99`.
+- The x86 `DAO.DBEngine.36` producer recorded eight captures, native `space`
+  and `eof` insertion operations, and then failed in the duplicate-control arm
+  at `Mutate` line 51 with `Specified cast is not valid.` That line assigns
+  the nullable Price value through COM; the even Id requests `DBNull.Value`.
+  The expected duplicate-key operation never completed. Mutation had started;
+  the producer retained eleven MDBs with no retention failures. No reacquisition
+  occurred, and neither completed insertions nor capture subsets are promoted.
+- The unchanged analyzer returned `reasons: ["Acquisition failure"]` and no
+  accepted observations. Its report was rebuilt from the retained result and
+  reproduced byte-for-byte; all sixteen retained files remained unchanged.
+  `report.json`: 371 bytes, SHA-256
+  `49ceeead3863c401f2156163034e2190818a9bd06ae54ea72cee1608023c3aed`.
+  `result.json` SHA-256:
+  `ccabd23670d30b6de0a5080816870cdcaa8008b48c3875c2a553c9974207e3c1`.
+- Retained external root:
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T145600Z-indexed-boundary/`.
+  No MDB or provider bytes are committed. The plan and consumed harness remain
+  unchanged. Any corrected acquisition requires a new reviewed plan and human
+  decision; this is not an infrastructure retry.
+- The bounded implementation and focused Rust preservation/refusal checks remain
+  implemented, but this result establishes no DAO compatibility or hosted
+  support. EXP-0214/0216 remain `no_outcome`, the support matrix is unchanged,
+  and the larger practical lifecycle milestone remains incomplete.
