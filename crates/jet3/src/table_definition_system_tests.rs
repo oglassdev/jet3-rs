@@ -143,7 +143,7 @@ fn decodes_system_definition_under_exp_0073_relaxations() -> Result<(), Box<dyn 
     assert!(matches!(
         decode(&database_bytes(&user_flags, None)),
         Err(TableDefinitionError::Index(
-            IndexDefinitionError::UnsupportedPhysicalFlags { raw: 2, .. }
+            IndexDefinitionError::InvalidPrimaryFlags { raw: 2, .. }
         ))
     ));
 

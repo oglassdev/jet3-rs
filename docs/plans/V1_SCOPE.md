@@ -62,8 +62,10 @@ or hosted support movement.
 
 EXP-0146 records bounded acceptance of all three multi-level candidates from
 separately pinned analysis of the retained files; EXP-0140 preserves the
-original decoder refusal and `no_outcome`. Recognize the newly observed control
-branch header value in the reader.
+original decoder refusal and `no_outcome`. The reader recognizes the observed
+branch header values. Nullable one/two-Long keys now have typed
+include/omit-all-null/required options and variable-size index packing; their
+composed writer policy awaits candidate validation.
 
 EXP-0154 records matching canonical results for the twelve hosted write
 recipes in the EXP-0141 inventory, after separately reviewed read-only index
@@ -79,8 +81,9 @@ changing existing objects and preserving their unrelated metadata are absent.
 This evidence does not advance existing-row insert/update/delete, index CRUD
 maintenance or atomic failure/rollback verification.
 
-Continue #100 with broader index keys, null semantics and allocation beyond
-inline maps. The bounded hosted write leg under #102 now has recorded evidence;
+Keep broader index key codecs and allocation beyond inline maps as explicit
+creation limitations; validate the bounded nullable writer next. The bounded
+hosted write leg under #102 now has recorded evidence;
 multi-level boundary recipes and other declared write-inventory deferrals
 remain to be covered. Neither issue is complete merely from this checkpoint.
 Existing-database updates (#112) and their hosted differential (#113) remain

@@ -44,8 +44,6 @@ const ENCODING_CONTEXT: [u8; 4] = [0x09, 0x04, 0xe4, 0x04];
 /// `EXP-0059`: unused key slots hold ordinal `0xffff`.
 const UNUSED_SLOT_ORDINAL: u16 = u16::MAX;
 /// `EXP-0059`: physical flag bits `0x01` unique and `0x08` required.
-const UNIQUE_FLAG: u8 = 0x01;
-const REQUIRED_FLAG: u8 = 0x08;
 /// `EXP-0059`: ordinary/primary logical records hold `0xffffffff` at `[9,13)`
 /// and context `04 04` at `[17,19)`.
 const ORDINARY_RELATION_ORDINAL: u32 = u32::MAX;
@@ -488,13 +486,7 @@ pub(crate) fn validate_physical_index(
 
 /// Returns the `EXP-0059` flag byte for one physical index.
 pub(crate) const fn physical_flags(index: &PhysicalIndexSpec<'_>) -> u8 {
-    match index.flags {
-        PhysicalIndexFlagsSpec::Ordinary => 0,
-        PhysicalIndexFlagsSpec::Unique => UNIQUE_FLAG,
-        PhysicalIndexFlagsSpec::SystemUninterpreted => 0x02,
-        PhysicalIndexFlagsSpec::Required => REQUIRED_FLAG,
-        PhysicalIndexFlagsSpec::UniqueRequired => UNIQUE_FLAG | REQUIRED_FLAG,
-    }
+    index.flags.raw()
 }
 
 /// Writes one validated 39-byte physical-index record.
