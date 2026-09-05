@@ -768,3 +768,7 @@ mod relationship_candidate;
 
 pub use relationship_candidate::{RelationshipColumn, RelationshipSpec, TableRef};
 pub(crate) use relationship_candidate::{compose_relationship, compose_relationship_with_rows};
+
+#[path = "bootstrap_autoincrement.rs"]
+mod autoincrement;
+pub(crate) use autoincrement::InitialAutoIncrement;

@@ -78,6 +78,9 @@ impl From<&ColumnDefinition> for RowColumnLayout {
 pub enum RowValue<'a> {
     /// Absent value; for Boolean columns equivalent to `false`.
     Null,
+    /// Generate the next positive ID during initial database creation.
+    /// Required for AutoIncrement columns; standalone row encoding refuses it.
+    AutoIncrement,
     /// Boolean stored as the presence bit.
     Boolean(bool),
     /// Unsigned eight-bit integer.
@@ -642,6 +645,7 @@ fn write_scalar(writer: &mut BinaryWriter<'_, '_>, value: RowValue<'_>) -> Resul
             d[14], d[15],
         ]),
         RowValue::Null
+        | RowValue::AutoIncrement
         | RowValue::Boolean(_)
         | RowValue::Binary(_)
         | RowValue::LongValue(_)

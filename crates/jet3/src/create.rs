@@ -20,8 +20,9 @@ use std::path::Path;
 
 use crate::atomic::atomic_create;
 use crate::bootstrap_composer::{
-    ComposeError, InitialLongIndex, compose_database, compose_database_with_table_rows,
-    encode_initial_row, initial_payload_start, initial_row_layout,
+    ComposeError, InitialAutoIncrement, InitialLongIndex, compose_database,
+    compose_database_with_table_rows, encode_initial_row, initial_payload_start,
+    initial_row_layout,
 };
 use crate::page_append_plan::PlannedPage;
 use crate::{
@@ -178,14 +179,20 @@ pub fn create_database(
 /// capacity. Each row and the table definition must fit one page. Pages with
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
-/// At most one index on one or two Long columns is accepted, with each field
+/// At most one index on one or two Long columns (including a generated
+/// AutoIncrement column) is accepted, with each field
 /// ascending or descending. One leaf holds at most 200 single-column or 128
 /// two-column entries. Primary and unique indexes reject duplicate full keys;
 /// ordinary indexes retain duplicates. Null components and other key types
 /// are refused. `EXP-0126` records the component encoding on exact fresh DAO
 /// controls; composite/descending Rust-created candidates await their own
 /// DAO differential.
-/// AutoIncrement is refused. One unindexed Memo or LongBinary column accepts
+/// One AutoIncrement column requires [`RowValue::AutoIncrement`] in every row;
+/// IDs start at 1 independently per table and the last generated ID is persisted.
+/// Null and explicit IDs are refused, as are counts reaching the signed Long
+/// boundary. DAO state observations cover 256 initial rows and a subsequent 257;
+/// larger counts and this composed generation await candidate validation.
+/// One unindexed Memo or LongBinary column accepts
 /// nonempty typed payloads or null; raw `RowValue::LongValue` headers are refused.
 /// The candidate policy stores up to 32 bytes inline, up to 2,036 on one LVAL
 /// page, and larger payloads in 2,032-byte chained fragments, one per page.
@@ -307,6 +314,19 @@ fn check_initial_table_rows(
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
+    let generated =
+        InitialAutoIncrement::new(table, rows.len()).map_err(CandidateCheckError::RowEncoding)?;
+    if let Some(generated) = generated {
+        let mut raw = [0_u8; crate::PAGE_BYTES];
+        database
+            .read_raw_page(root, &mut raw, budget)
+            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Encoding(error)))?;
+        if !generated.matches(&raw) {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "initial AutoIncrement state",
+            });
+        }
+    }
     let mut expected_index = InitialLongIndex::new(table, rows.len(), budget)
         .map_err(CandidateCheckError::RowEncoding)?;
     let mut next_payload = initial_payload_start(table, root, first_create)
@@ -316,6 +336,15 @@ fn check_initial_table_rows(
         .rows(&definition, budget)
         .map_err(CandidateCheckError::Rows)?;
     for (ordinal, row) in rows.iter().enumerate() {
+        let mut lowered = [RowValue::Null; u8::MAX as usize];
+        let row = if let Some(generated) = generated {
+            generated
+                .lower(row, ordinal, &mut lowered, cursor.owned.budget_mut())
+                .map_err(CandidateCheckError::RowEncoding)?;
+            &lowered[..row.len()]
+        } else {
+            *row
+        };
         let length = encode_initial_row(
             &layout,
             row,
