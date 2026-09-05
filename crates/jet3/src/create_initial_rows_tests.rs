@@ -68,12 +68,8 @@ fn rows_with_wrong_types_leave_no_file() -> TestResult {
 #[test]
 fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
     let directory = TestDirectory::create()?;
-    for column_type in [
-        ColumnType::AutoIncrement,
-        ColumnType::Memo,
-        ColumnType::LongBinary,
-    ] {
-        let columns = [ColumnSpec::new(b"Value", column_type)];
+    {
+        let columns = [ColumnSpec::new(b"Value", ColumnType::AutoIncrement)];
         let table = TableSpec {
             name: b"Items",
             columns: &columns,
@@ -372,3 +368,6 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
 
 #[path = "create_initial_index_tests.rs"]
 mod indexes;
+
+#[path = "create_initial_long_values_tests.rs"]
+mod long_values;
