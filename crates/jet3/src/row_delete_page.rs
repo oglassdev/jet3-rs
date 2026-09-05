@@ -6,6 +6,21 @@ const DIRECTORY: usize = 10;
 const ENTRY_BYTES: usize = 2;
 const TOMBSTONE: u16 = 0xc000;
 const TABLE_COUNT: usize = 12;
+// EXP-0162 sole-row deletion changes only the tag, free bytes and directory word.
+const RELEASED_PAGE_TAG: u8 = 0x09;
+
+pub(crate) enum Deletion {
+    Retained(PageImage),
+    Released(PageImage),
+}
+
+impl Deletion {
+    pub fn image(&self) -> &PageImage {
+        match self {
+            Self::Retained(image) | Self::Released(image) => image,
+        }
+    }
+}
 
 pub(crate) fn remove(
     page: PageNumber,
@@ -13,7 +28,7 @@ pub(crate) fn remove(
     source: &[u8; PAGE_BYTES],
     slot: u8,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, UpdateError> {
+) -> Result<Deletion, UpdateError> {
     let directory = RowDirectory::validate(page, owner, source, budget)?;
     let range = directory.entry(source, slot)?.range();
     let mut live = 0;
@@ -33,8 +48,10 @@ pub(crate) fn remove(
     if range.is_empty() {
         return Err(UpdateError::NotFound("live row slot"));
     }
-    if live < 2 {
-        return Err(UpdateError::Unsupported("sole-row page release"));
+    if live < 2 && directory.row_count() != 1 {
+        return Err(UpdateError::Unsupported(
+            "sole live row with other physical slots",
+        ));
     }
     let lowest = directory
         .entry(source, (directory.row_count() - 1) as u8)?
@@ -52,6 +69,20 @@ pub(crate) fn remove(
     let new_free =
         u16::try_from(free + removed).map_err(|_| UpdateError::Mismatch("free-byte range"))?;
     let mut patched = PageImage::from_bytes(*source);
+    if directory.row_count() == 1 {
+        patched.write_at(PageOffset::new(0), &[RELEASED_PAGE_TAG], budget)?;
+        patched.write_at(
+            PageOffset::new(DIRECTORY as u64),
+            &(TOMBSTONE | PAGE_BYTES as u16).to_le_bytes(),
+            budget,
+        )?;
+        patched.write_at(
+            PageOffset::new(FREE_BYTES as u64),
+            &new_free.to_le_bytes(),
+            budget,
+        )?;
+        return Ok(Deletion::Released(patched));
+    }
     // EXP-0162 moves later row bytes upward and leaves the vacated slack intact.
     budget.charge_work_units((range.start - lowest) as u64)?;
     patched.write_at(
@@ -89,7 +120,7 @@ pub(crate) fn remove(
         &new_free.to_le_bytes(),
         budget,
     )?;
-    Ok(patched)
+    Ok(Deletion::Retained(patched))
 }
 
 pub(crate) fn decrement_count(
