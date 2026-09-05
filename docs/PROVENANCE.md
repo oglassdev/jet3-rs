@@ -10843,3 +10843,46 @@ Copy this block under the appropriate section and remove this instruction:
   arbitrary component counts, general branch/allocation policy, candidate
   acceptance, updates, compatibility, or hosted support claim. Retain all
   MDBs externally and record one validated additive outcome as `EXP-0126`.
+
+### EXP-0123 — Initial Memo/OLE payload candidate preregistration
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: committed preregistration for a development-only DAO validation;
+  acquisition has not started and no outcome is asserted.
+- Question: Does DAO accept both exact writer-policy candidates with the
+  expected complete schema, Memo strings/OLE bytes, and null rows while
+  leaving every candidate unchanged?
+- Plan: `oracle/windows-dao/acquisition/long-value-rows.plan.json`, SHA-256
+  `d30fa45eee7ec8abf163538680bd5b5818b8fa05a15941422ad55bfd5b45c128`. Its input pins cover the producer, analyzer,
+  low-level SSH transport and deterministic Rust example. Both dispatch and
+  analysis verify the same input pins; acquisition requires this committed plan.
+- Generator: `initial_long_value_candidate` from reviewed source
+  `2d3adf2e985e28c81f21cf1d9b07fdf52849341f`.
+- Candidate identities:
+  - Memo: 73728 bytes, SHA-256
+    `9302db2b9364aad2cf1fe8bf5b6d1ecb161e3f0b29d838990dc9dd2b695e98e5`.
+  - OLE: 73728 bytes, SHA-256
+    `8b13bd5cb99a8415fc90dc9c123cfdfcf673b14257affd384e0ed2f56c727d8c`.
+- Both candidates contain unindexed `Rows(Id Long, Payload Memo/OLE)` and
+  ten rows: Id1..9 carry lengths 1, 32, 33, 512, 2036, 2037, 2048, 4064 and
+  4096; Id10 carries null. The plan fixes every payload character/byte.
+  This tests inline/single/chained construction with twelve LVAL pages
+  before one data page and retained composed page-zero bytes. EXP-0061,
+  EXP-0077 and EXP-0065 supply the cited primitive grammar; the cutoffs and
+  placement are candidate choices, not inferred DAO storage thresholds.
+- Acquisition design: one job, three fresh same-schema DAO controls and
+  three unchanged candidate replicas per type. Read complete schema and
+  exact Id/payload multisets. Compare complete Memo strings and lowercase
+  OLE hex, including null versus empty; retain all twelve files and identities.
+- Decision: accept an arm only after the complete six-pair job, every control
+  passes, all twelve images remain unchanged, and its three observations
+  agree. Identical candidate failures yield `not_observed_accepted`; an
+  incomplete job, changed image, control failure or replica disagreement
+  yields `no_outcome`. Binding/pin/retention inconsistencies reject validation.
+  A failure after the first mutation is a result, never an automatic retry.
+- Preflight: six classifier tests passed; x86 VM PowerShell `Parser.ParseFile`
+  accepted the producer without executing it or DAO. Independent experiment
+  review precedes acquisition. Root owns the single authorized dispatch.
+- Boundary: development-only, no support-matrix movement or general
+  compatibility, storage-cutoff, empty-payload, multi-long-column, indexed
+  long-value or mutation claim. Add the validated outcome once as EXP-0124.
