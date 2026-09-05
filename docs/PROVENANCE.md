@@ -11143,6 +11143,48 @@ Copy this block under the appropriate section and remove this instruction:
   No such correction or new DAO acquisition is part of EXP-0158. Original
   `no_outcome`, compatibility=false and support-movement=false remain intact.
 
+## EXP-0160 — Hosted before/after Long updates match with byte preservation
+
+- Outcome: `matched`, from successful hosted workflow run
+  `33952142877`, attempt 1, source revision
+  `96c65132c6256c30a29774bd67205df003bea627`, recorded 2026-09-05.
+  Consumed EXP-0159 plan SHA-256 is
+  `0f88f5c8c4b940e7699a779a844a9ba6e31849bb6911e8186965cbf1ed607d04`.
+- Retained artifact sets are under shared outbox
+  `20260905T072044Z-hosted-update-33952142877`: the source-bound
+  `generated-update-...` and `windows-dao-update-...-1` artifacts, 109 files total.
+  The original report reproduced byte-identically using temporary copies;
+  every retained file remained unchanged. Both artifact sets contain identical
+  bytes for each of the six original/updated MDBs.
+- Report: `dao-update-v1_2/report.json`, 3224 bytes, SHA-256
+  `e3fca4e6b1b96d7aacfd19a9e74a4a17b9b24c730df7b1bb23fecb7e28bb13b7`.
+  All six DAO/Rust comparisons match; all three independent preservation
+  receipts are true. The report's `support_matrix_movement` remains false.
+- Retained environment: 4264 bytes, SHA-256
+  `eb318c7079a55d9567f2234d887945b79d2ab4043a94f10b7f7cd0bcccbec68f`;
+  protocol 1.2, ready, x86 `DAO.DBEngine.36`, `dbVersion30`. Its hash is bound
+  by the DAO manifest (1731 bytes, SHA-256
+  `3acc225ee038cb85df5a5022fdc5a3fb357b95c3740a0b519c4297d90090e94c`).
+- Linux preparation and independent Windows reader receipts bind the same
+  source and complete request inventory. The Windows reader rederived the
+  table/column/row and exact four-byte span for each request:
+  - `DAO-UPDATE-FIRST-FIELD`: Items.Id, row 0, 0 to -42, offset 48935,
+    page 23 slot 0.
+  - `DAO-UPDATE-LATER-ROW`: Items.Value, row 31, 1031 to -2147483648,
+    offset 54211, page 26 slot 4.
+  - `DAO-UPDATE-LATER-TABLE`: Items.Value, row 17, 1017 to 2147483647,
+    offset 55387, page 27 slot 8, following the Prefix table.
+- Every byte outside each requested four-byte span is identical. All images
+  remained unchanged during Rust/DAO reads. Full before/after schemas and rows
+  match the declared recipes, including 33 Items rows with distinct 200-byte
+  Text and four-byte Binary payloads, and the unrelated Notes table's 2048-byte
+  Memo and null row. Empty index and relationship inventories also match.
+- This establishes the exact three hosted Long field-update cases only.
+  Insert/delete, indexed or related targets, null transitions, other fixed types,
+  variable-width replacements and hosted stored-query preservation are not
+  demonstrated. No general rollback/failure claim or automatic support promotion
+  follows. Original local and hosted failed outcomes remain unchanged.
+
 ## EXP-0159 — Hosted before/after field-update preregistration
 
 - Question: do the three declared public `update_field` requests preserve every
