@@ -13529,6 +13529,48 @@ Retained original→updated MDB SHA-256 identities by scenario:
   checks passed; exact integrated five-case public preparation and committed
   plan/input checks precede dispatch. Independent plan review is required.
 
+## EXP-0205 — Retained-original full-row replacement successor preregistration
+
+- Distinct successor to EXP-0197; EXP-0198 remains `no_outcome`. Reviewed
+  corrected source `b66396d` accepts the observed Boolean zero placeholder
+  while retaining scalar offset validation. No DAO acquisition yet.
+- Plan `oracle/windows-dao/acquisition/row-update-successor.plan.json`, SHA-256
+  `fcfc99ffde4bc05d2eb7d7729ea318000131a8e59f08a49c84a4bf7950fc2b06`,
+  pins scoped runtime inputs, all 30 coordinated EXP-0197 artifacts and twelve
+  predetermined Rust candidate identities. Original retained root remains
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T101500Z-row-update`.
+  Original create receipts verify their original plan identity; fresh observation
+  receipts bind this successor. No consumed input or receipt is edited.
+- Reuse exactly twelve unchanged originals and twelve unchanged independent DAO
+  controls from EXP-0197. Revalidate all original source/report/receipt/image
+  identities and declared baseline/control schema/rows. Copy them to a fresh
+  output directory and generate twelve Rust candidates using the corrected public
+  API and unchanged four-profile exporter. Candidate hashes and unchanged exact
+  row/page/slot/free/count/map/page-zero/slack checks must all pass before DAO.
+- Invoke the unchanged explicit typed PowerShell producer once in `observe` mode
+  only. The staging filename is conventional; its actual plan bytes/hash are this
+  committed successor. No baseline recreation or new edits of retained controls.
+  Capture original/control/Rust read-only, and use separate candidate/control
+  copies for 24 declared DAO continuation inserts. Retain 60 fresh captures and
+  60 final MDBs, with the 24 original captures preserved as prior inputs.
+- All twelve cases and continuations must match complete schema/rows/QuerySQL,
+  unchanged source/image identities and the original finite byte-preservation
+  gates. Recheck all original artifact pins before/after. Any failure produces
+  one `no_outcome`; no same-plan retry, subset promotion or original report change.
+  EXP-0206 reserves one additive outcome. Local development only; no support move.
+- Twelve actual candidates generated from retained originals passed the frozen
+  independent byte checker without changing any original artifact. Old/new row
+  lengths remained 19→82, 104→16, 14→26 and 21→14 in all three replicas.
+  Four successor tests cover phase-specific plan identity/restoration, retained
+  drift refusal, exact copied create-receipt binding and candidate identity gates. Scoped source/artifact verification
+  passed. The unchanged producer already passed EXP-0197 x86 parser and 200
+  pure typed assignments; no new PowerShell behavior is introduced. These checks
+  establish preparation only, not DAO acceptance.
+- Hypothesis and limitations remain EXP-0197's exact narrow Long/Text/Binary/
+  Boolean row replacement matrix. The encoder fix addresses a prior refusal;
+  it does not establish row movement, continuation, general offset policy,
+  arbitrary wide rows or unsupported indexed/related/Auto/LVAL behavior.
+
 ## EXP-0198 — Full-row replacement refused the DAO Boolean layout
 
 - Original outcome: **no_outcome**, reason `Coordinated phase/source failure`,
