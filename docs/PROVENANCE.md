@@ -13700,6 +13700,75 @@ Retained original→updated MDB SHA-256 identities by scenario:
   checks passed; exact integrated five-case public preparation and committed
   plan/input checks precede dispatch. Independent plan review is required.
 
+## EXP-0206 — Retained-original full-row replacement successor accepted
+
+- Outcome: **observed_accepted**, all twelve cases, no reasons, from the single
+  local run `20260905T110000Z-row-update-successor`. EXP-0205 plan SHA-256
+  `fcfc99ffde4bc05d2eb7d7729ea318000131a8e59f08a49c84a4bf7950fc2b06`;
+  corrected library source `b66396d2163b8208b3c300268219dff1209c281b`,
+  acquisition revision `a0c8eea6d86a548be2b99268c2eb3e8ce2e872c2`.
+- Retained under `/home/alex/development/vms/jet3-windows/shared/outbox/`,
+  coordinated directory `20260905T110000Z-row-update-successor` and its
+  `-observe` phase directory. Report: 42,484 bytes, SHA-256
+  `3c23188581fa0bb2cf764f539386bcc269f5914cccca8232f6144816e7d1e16a`;
+  result: 5,215 bytes, SHA-256
+  `47120bd6201e73ef028d862b0fa78adbce08950c960befcd7cb7dd469b5f2842`;
+  fresh observe receipt: 1,387,352 bytes, SHA-256
+  `5b872d0a6be604296fd56a2cbe0e075c79ceb6f501a94f21ad4e170e31fc7037`.
+- The original create receipt remains 548,830 bytes, SHA-256
+  `8f8e2d5f4d3e355e3cf5eb88ac7571f08098808aafca3e79c786a50e9cecc31d`.
+  Both coordinated phase identity and copied receipt bytes equal that pinned
+  original. Original EXP-0198 `no_outcome` report remains unchanged, SHA-256
+  `1ebad1af860d484fa4f7a6b687eaa1437fa296f1e0d37146b79192903c4d9bf8`.
+  Original baseline/control receipts bind the original plan; fresh observation
+  receipts bind EXP-0205. This successor does not rewrite the original failure.
+- The unchanged pinned successor analyzer reproduced its report byte-for-byte
+  on temporary copies. All 197 files across original and successor coordinated/
+  phase directories remained unchanged: 57 original, 140 successor (77/63).
+  Every one of the 60 final MDB identities passed; twelve candidates matched
+  their predetermined hashes. Twelve retained originals and twelve retained
+  controls were reused exactly; no baseline recreation or new control edit.
+- Twelve public replacements completed, followed by 60 fresh read-only captures
+  and 24 separate DAO continuation inserts. The original 24 captures remain
+  prior inputs. Complete expected schema/rows/KeepQuery metadata and SQL matched
+  the independent controls, with all unrelated table values preserved. Every
+  read-only identity remained unchanged; no phase or retention failure occurred.
+- In all three replicas, `grow-first` retained root 20/page 23/slot 0 and five
+  rows, changed encoded width 19→82 and free bytes 1846→1783; `shrink-middle`
+  retained root 20/page 23/slot 1 and five rows, width 104→16, free 1846→1934.
+  `null-later` retained root 24/page 26/slot 1 and three rows, width 14→26,
+  free 1979→1967. `tombstone` retained root 20/page 23/slot 2 and four rows,
+  width 21→14, free 1950→1957, with the known empty adjacent tombstone retained.
+- Exact full-image checks admitted only the complete replacement row, shifted
+  later-row bytes, affected directory offsets and free-byte count. Physical row
+  slots, table/slot counts, inline owned/available memberships (`[23]` or `[26]`),
+  vacated slack, page zero, file length and all other bytes remained exact.
+  The declared scalar null transitions, Text/Binary growth/shrink and Boolean
+  changes matched DAO. Separate inserts `[99,-9900,"next","00ff",true]` into
+  Rust and control copies matched complete semantics, giving counts 6/6/4/5.
+- Finite local acceptance only for the four narrow Long/Text/Binary/Boolean
+  profiles and their declared continuation. No arbitrary wide multivariable
+  layout, ignored scalar offsets, index/relationship/Auto/LVAL/overflow targets,
+  allocation/map transition or general DAO row-update policy is established.
+  Development-only; no hosted compatibility claim or support-matrix movement.
+  Independent outcome review follows this record.
+
+Retained SHA-256 identities (original, Rust, DAO control, Rust continuation,
+DAO control continuation; all 57,344 bytes):
+
+- `grow-first` replica 1: `29e3b33b21611493fe43746f655d0c8b8aebfdcea3e4fe4e49b5f46911cdd049`, `fede154278d629da7333adc5c10b26a621e8fb4037a405cd8076c0396bd915d3`, `c88f71047a681ac60570cd5d323d01fce71217d9e536e10de8f004d9f8a1908d`, `3c6c40b38f81e3ba3a65d4e82a07ced9d085bb6e58a5dc3b28e1b9b03fabd0d1`, `6005ed3215028a3111d62d5b6bd5e435b0d8bf3ad5b257a5e632aef1f54d6945`.
+- `grow-first` replica 2: `42481e7fdc3aabaf4424926751b7bcb6491607524c66567c44040b1e52e3859a`, `0fe62f05743d828e5f34ddf25284eb86781a8e9dec33e3457174624b46f40b98`, `f90d9bee09103d8387dbea3b8713f46b028ca6ea34cd25545bba101ceae9d85d`, `799fdb5704b0b03ab571196ac10a2499ba98270c8ba176d965b055388ef438b8`, `85aad8229d2725571233550d263e13354a5d7ebb2030509ba922daedcdbebe72`.
+- `grow-first` replica 3: `41a6c8535bb0886fe6e33012cbb17f50550450d01813e90a0c02765dd304dba7`, `c6fd080c144898a31227d643f34f7ef6007ce57917064840b3bf494dab2f9735`, `186d9e50b26684111042c40e11a6ce263adc090c628467db371cb2571cf70643`, `f175b8caa94f9a5cc67112d42bc4e6aaba38ae206ae358b1f7dd1d9a9a537565`, `20247d75222ed3b119e1e7fd149b3535bd7b268370fbf1a69e64dc3ca4c36ca5`.
+- `shrink-middle` replica 1: `7cda1cf3bf7d42f60e3f482bfbf1c91aaeb57ccc9a0ee0d1d1145f6204b6e9a6`, `31d04a405645e4d6da8430e7ef37b89f5293cc90e18a1b4d0bc3f79c5fbb776e`, `828f5266c6c01a79a74a0ad0bb5fdb1123e7988aed375a781ea561075562d6e0`, `2a92491f19f2333adbcf1cc619c51f9a11290d5d98f84aea2500a3637136573f`, `6e133c5ce03f90fc1f4d0e7f8eeb2e8a5372e29128582b440244e6fc16e6c74b`.
+- `shrink-middle` replica 2: `a5a6ee9a5ead3c68542bba256666e254299577dce3c190cc018155ad6ba4036f`, `4c410a170a755ca4555f4ff2b75e45e3b9baea62d5cfd37aaf8a3e0ae2ee5e67`, `2ddc1ba6a79d7b43f8ac368040e733357ad0c6cdffa0efc6e39b7f6c0965b7b4`, `8293f2f4e12ac3ad942ece3aa3c9ea5610e5772248d8f2c7e500fde7d140b6fa`, `93b19ca5b85afdb8663a5bacd95bb699bb1dac9609d9ed892d79f6d878b0c39f`.
+- `shrink-middle` replica 3: `60223a4027026a4a7a15fcb6788650777f5f1951640704670b9d54b5f77d079a`, `c2fa411e39948d1ef0a37c85c44441832bf0923dca91bc3496e527e20f767a90`, `9bcedce06cdedd1342ac08f8adb2ae48be7ec2899d923db0e7778a4bc203bb8d`, `c0e803ba0b51d59443c98b10f8b2891601ecd47622e92f90f8817dd84082041a`, `ff88171ab9dcbf34d5b998e2382346929e60a8d79464f719dc53c0c96cc00dfd`.
+- `null-later` replica 1: `e2b2c4a7f2c9d015fec4cfe0ff387e9894a41b2df34c7e2f711fef32ee1872ad`, `f5d324e105b4f8b6b40f23a0a984e7737daf45a9de158af741e80eb645a4f001`, `d4dfc11c463942658feafae856a05a086f0e5c80a7405f6dcfd954a2792f678b`, `66029241913dda251edbabc19d1261a3df46799a46da91a74452c086fc399b83`, `df650812d5408bb37b156c32cc09e70a640b29ecf3accdc634556f23ac130c82`.
+- `null-later` replica 2: `ca85ed18af66df277c6942acf3905b9ed26cc12b5edbd7e463e0aa7417952b46`, `d887ac0bdc6c9c36f074c9c042e801b57dbc8f55424e38bfe927a5de39d1f6de`, `215f18fece173031dd5419ed21002142066bceeee9377c0290edf99ec3deace4`, `8b78a10ac43dfd35c327cd1abcb063a1fee1a8d06e0448c27e7cf2df9f4f4acb`, `0bf0f640f8abb36c825087dc61135b7f5133c67ff7e4b78c6bca740747b9eaef`.
+- `null-later` replica 3: `32f306ad0a7d87825308eece0742483e5fd3ae2cd0699649250ca434b2ad1b70`, `2502312b76e540145dd8f9b4e19297e3856020a7374676ac219fe058d4b973be`, `1b3f474357429dc115b606d790ff5b600523cde0fd9e68e3634d7135f3aa2052`, `db5230a73bb6e3715d02fce32bfd7886ad9d0e49dc5843003883feafc652c3ab`, `839542aad64c12f721063d172e3a8fb143d43891d1e1993eab5f2064ec94b51b`.
+- `tombstone` replica 1: `29e44eaae8ff3ba419de15d98fdf0ad70b224d4a71cb78404bc7a15dc4cf0b48`, `b76bb483f78351217293611eb7a32245156b163e18fcd1697113c67254198a67`, `a44433a3b56e3cd3673bcfa98cfd63565f28a39cee34844f3e4eed7f6ac3b89c`, `ce59f8bf51c16fad31912ab366a17bf9c6accfd4415d50804d0adb23875d401b`, `a5ea01b78dfa500970d36d0b5f2eb45e76c4845ea0d0fdc9bcba947ea8564816`.
+- `tombstone` replica 2: `dd5c1c33cfe511ab71c508a4ccbeff58b74bc0f5cbcfae4112df6ef4b9381439`, `7d60f7287e539b23e615ce4104562744e709f9bc0da380a8a714118bdccbc824`, `e560044aeb36f15e2efe5f1ef78e9d7c581b9e6058813e5a4e4ea057b9c971f9`, `54e170eea72ff89d3d40ae9c655518526882dc53f5428b7409ef38108a882427`, `888701d9072b39edd79fc763767244728b8eaaadfaf3c0ed5bd841d4e92e40ed`.
+- `tombstone` replica 3: `165daba8c9b43211cc946e4500884279e28b1c4b2969c7c84e1bad7644b9412d`, `ccc7841324fb146f5df996dcac1dc091d598634363fdf0b600cfb774cef19ebc`, `3b6053aed5eb8fba2666b448d70329fce09557d2fe341ac70b5aedb548063ca1`, `a4fa6cb58de0ae60a321dcb9c72f18aa2525e14bb98507a0116211aa74b8679e`, `4b0830b696430c2e15ee5dedd48a4093cff5576422eb46d699ff6689dd3a379c`.
+
 ## EXP-0205 — Retained-original full-row replacement successor preregistration
 
 - Distinct successor to EXP-0197; EXP-0198 remains `no_outcome`. Reviewed
