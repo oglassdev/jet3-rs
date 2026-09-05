@@ -35,3 +35,6 @@ pub use write_fixture::{WRITE_SCENARIOS, write_fixture};
 
 mod update_fixture;
 pub use update_fixture::{UPDATE_SCENARIOS, update_fixture};
+
+mod row_update_fixture;
+pub use row_update_fixture::{ROW_UPDATE_SCENARIOS, row_update_fixture};

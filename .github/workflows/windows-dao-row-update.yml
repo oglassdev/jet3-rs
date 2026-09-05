@@ -1,0 +1,107 @@
+name: Windows DAO row mutation differential
+on:
+  workflow_dispatch:
+    inputs:
+      run_acquisition:
+        description: Run the reviewed single update acquisition
+        type: boolean
+        default: false
+      plan_sha256:
+        description: SHA-256 of the committed EXP-0173 row update plan
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: windows-dao-row-update-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  generate:
+    if: inputs.run_acquisition
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify reviewed acquisition inputs
+        env:
+          PLAN_SHA256: ${{ inputs.plan_sha256 }}
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python3 oracle/windows-dao/scripts/dao_row_update_diff.py plan "$PLAN_SHA256"
+      - name: Build public fixture and snapshot producers
+        run: cargo build --locked --release -p jet3-cli -p jet3-testkit --bin jet3-cli --bin jet3-row-update-fixture
+      - name: Create requested fixtures on supported publication platform
+        run: python3 oracle/windows-dao/scripts/dao_row_update_diff.py prepare artifacts/dao-row-update-v1_2 target/release/jet3-row-update-fixture target/release/jet3-cli "$GITHUB_SHA"
+      - name: Retain exact generated files and preparation diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: generated-row-update-${{ github.sha }}
+          path: artifacts/dao-row-update-v1_2
+          if-no-files-found: warn
+          retention-days: 14
+  update-differential:
+    needs: generate
+    if: always() && (needs.generate.result == 'success' || !inputs.run_acquisition)
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify reviewed acquisition inputs
+        if: inputs.run_acquisition
+        shell: powershell
+        env:
+          PLAN_SHA256: ${{ inputs.plan_sha256 }}
+        run: |
+          if ($env:GITHUB_RUN_ATTEMPT -ne '1') { throw 'No automatic acquisition retry' }
+          python oracle/windows-dao/scripts/dao_row_update_diff.py plan $env:PLAN_SHA256
+          if ($LASTEXITCODE -ne 0) { throw 'Reviewed update plan verification failed' }
+      - name: Probe stock x86 provider
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $x86 = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+          & $x86 -NoProfile -NonInteractive -ExecutionPolicy Bypass -File oracle/windows-dao/scripts/probe-provider.ps1 -ProtocolVersion 1.2.0 -OutputPath artifacts/environment.json
+          if ($LASTEXITCODE -ne 0) { throw 'Stock provider unavailable; retained probe explains missing prerequisite' }
+      - name: Download the exact Unix-generated candidates
+        if: inputs.run_acquisition
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: generated-row-update-${{ github.sha }}
+          path: artifacts/dao-row-update-v1_2
+      - name: Build the read-only Rust snapshot producer
+        if: inputs.run_acquisition
+        shell: powershell
+        run: cargo build --locked --release -p jet3-cli -p jet3-testkit --bin jet3-cli --bin jet3-row-update-fixture
+      - name: Verify downloads and snapshot them on Windows
+        if: inputs.run_acquisition
+        shell: powershell
+        run: |
+          python oracle/windows-dao/scripts/dao_row_update_diff.py snapshot artifacts/dao-row-update-v1_2 target/release/jet3-row-update-fixture.exe target/release/jet3-cli.exe $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Downloaded fixture snapshot failed' }
+      - name: Observe Rust files read-only with DAO
+        id: dao
+        if: inputs.run_acquisition
+        shell: powershell
+        run: |
+          $x86 = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+          & $x86 -NoProfile -NonInteractive -ExecutionPolicy Bypass -File oracle/windows-dao/scripts/Invoke-DaoUpdateV12.ps1 -InventoryPath oracle/windows-dao/protocol/v1_2/row-update-scenarios.json -EnvironmentPath artifacts/environment.json -OutputRoot artifacts/dao-row-update-v1_2 -SourceRevision $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'DAO update observation failed' }
+      - name: Compare protocol snapshots and recipe semantics
+        if: always() && inputs.run_acquisition && steps.dao.outcome != 'skipped'
+        shell: powershell
+        run: |
+          python oracle/windows-dao/scripts/dao_row_update_diff.py evaluate artifacts/dao-row-update-v1_2
+          if ($LASTEXITCODE -ne 0) { throw 'Update differential failed' }
+      - name: Retain diagnostics including failed files
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-dao-row-update-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 14
