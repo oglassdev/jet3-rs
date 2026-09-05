@@ -139,6 +139,9 @@ def phase_entries(phase, name, plan):
 def build_report(result, outbox, plan):
     observations, reasons = [], []
     try:
+        if (result['document_type'] != 'dao_field_update_result' or result['producer_os'] != 'posix'
+            or result['source_revision'] != plan['source_revision']):
+            raise ValueError('Unexpected result envelope or public Unix source receipt')
         if result['plan_sha256'] != digest(PLAN) or result['error'] is not None or result['phase'] != 'complete':
             raise ValueError('Coordinated acquisition failed: ' + str(result['error']))
         phases = {}
@@ -207,7 +210,8 @@ def dispatch(args):
     transport = importlib.util.module_from_spec(spec); spec.loader.exec_module(transport)
     outbox.mkdir(parents=True)
     result = {'document_type': 'dao_field_update_result', 'plan_sha256': digest(PLAN),
-              'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip(),
+              'source_revision': plan['source_revision'],
+              'acquisition_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip(),
               'producer_os': os.name, 'phase': 'create', 'phases': {}, 'updates': [], 'error': None}
     try:
         for phase in ('create', 'observe'):

@@ -24,7 +24,7 @@ class FieldUpdateTests(unittest.TestCase):
                          'user_tables': [{'name': table['name'], 'attributes': 0, 'indexes': [],
                             'fields': [{**field, 'attributes': 1, 'required': False, 'allow_zero_length': False, 'default_value': ''} for field in self.plan['fields']],
                             'rows': copy.deepcopy(table['rows'])} for table in self.plan['tables']]}
-        self.result = {'plan_sha256': m.digest(m.PLAN), 'phase': 'complete', 'error': None, 'updates': [], 'phases': {}}
+        self.result = {'document_type': 'dao_field_update_result', 'producer_os': 'posix', 'source_revision': self.plan['source_revision'], 'plan_sha256': m.digest(m.PLAN), 'phase': 'complete', 'error': None, 'updates': [], 'phases': {}}
         self.phases = {phase: {'document_type': 'dao_field_update_phase', 'phase': phase, 'plan_sha256': m.digest(m.PLAN),
             'error': None, 'mutation_started': phase == 'create', 'environment': {'process_bits': 32, 'provider': 'DAO.DBEngine.36'}, 'observations': []}
             for phase in ['create', 'observe']}
@@ -74,6 +74,14 @@ class FieldUpdateTests(unittest.TestCase):
             elif change == 'file': entry['file'] = 'unrelated.mdb'
             else: phase['mutation_started'] = True
             self.assertEqual(self.classify()['outcome'], 'no_outcome', change)
+
+    def test_wrong_or_missing_producer_source_receipts_fail(self):
+        original = copy.deepcopy(self.result)
+        for key, value in [('document_type', 'unrelated'), ('producer_os', 'nt'), ('source_revision', 'unrelated')]:
+            self.result = copy.deepcopy(original); self.result[key] = value
+            self.assertEqual(self.classify()['outcome'], 'no_outcome', key)
+            del self.result[key]
+            self.assertEqual(self.classify()['outcome'], 'no_outcome', 'missing ' + key)
 
     def test_byte_preservation_and_locator_binding(self):
         arm = self.plan['arms'][0]

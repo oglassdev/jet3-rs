@@ -11061,6 +11061,14 @@ Copy this block under the appropriate section and remove this instruction:
   insert/delete behavior, arbitrary existing-file compatibility or hosted
   support claim follows from this plan or structural self-verification.
 
+- Pre-acquisition review resolved the Unix result-envelope/source-receipt check
+  and strengthened the public updater's independent relationship-catalog guard.
+  Final reviewed implementation is `40ba58c`; the still-unconsumed EXP-0151
+  plan now has SHA-256
+  `d989a40b80cdfa2f885693cab46765738ef5f02287ca1f040d3a380e756eb326`. Source/input pins
+  were refreshed before acquisition. The result requires the declared reviewed
+  source and POSIX producer, with the harness checkout recorded separately.
+
 ## EXP-0138 — Generated AutoIncrement candidates and subsequent inserts accepted locally
 
 - Status: validated `observed_accepted` for all three EXP-0137 arms and all
