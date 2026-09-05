@@ -12101,7 +12101,7 @@ Copy this block under the appropriate section and remove this instruction:
   unable to copy `required-control-r1.mdb` because another process used it.
   Log: 2066 bytes, SHA-256
   `a79ef14306cb5a00195e29aecd6ecaba627295e7426bdc71b0aac2c819db7a02`.
-  The original outbox contains 26 files (23 MDBs plus result/log/exit), no
+  The original outbox contains 27 files (24 MDBs plus result/log/exit), no
   report. Original analysis stopped on missing `unique-control-r1.mdb`.
 - After process closure, read-only filesystem recovery copied 43 guest MDBs
   into separate `20260905T065000Z-nullable-index-recovered`; no database was
@@ -12114,7 +12114,7 @@ Copy this block under the appropriate section and remove this instruction:
   and recovered files. Its report is separately retained in
   `20260905T065000Z-nullable-index-analysis/report.json`: 10903 bytes, SHA-256
   `ccfa230f8db9443427f49d5754181dea3600cf0c909b5e1eab7676a1f5be1ef0`.
-  All six arm outcomes are `no_outcome`. The original 26 files and all 44
+  All six arm outcomes are `no_outcome`. The original 27 files and all 44
   recovered files (including manifest) remained unchanged. This is original
   preregistered analysis after retention recovery, not a corrected classifier.
 - The report retains 12 baseline structural/semantic summaries and 12 probe
