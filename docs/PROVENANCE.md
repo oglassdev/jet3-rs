@@ -11324,6 +11324,34 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0145 — Retained multi-level index secondary-analysis preregistration
+
+- Plan: `oracle/windows-dao/acquisition/multi-level-index-reanalysis.plan.json`,
+  SHA-256 `a27b80e7745ea2dca35f78053a1b43d29ebb73d4db56d84bd6bd5ab814c454e4`; outcome reserved as EXP-0146.
+- This is explicitly post-acquisition analysis of EXP-0139 run
+  `20260905T054000Z-multi-level-index`, with no DAO execution or new acquisition.
+  EXP-0140 and its original three `no_outcome` classifications remain unchanged.
+  The plan pins the original result/report, all eighteen retained MDB identities,
+  the original plan and consumed inputs, and the separate secondary analyzer.
+- Prior read-only diagnosis identified branch header byte 21 equal to 2 in
+  primary/composite control roots where the original decoder admitted only 1.
+  The secondary decoder admits branch values 1/2 and leaf value 0, retaining
+  existing graph, separator, sibling, locator, map, and full semantic checks.
+  It records each raw byte and independently derived subtree height. The finite
+  byte/height relation is reported separately from candidate acceptance; the
+  candidate's all-branches-1 policy is not rewritten to match controls.
+- All nine original controls must pass and all eighteen source identities remain
+  unchanged. Three agreeing candidate observations per arm classify the separate
+  secondary result. Complete metadata, rows, traversal and original finite Seek
+  probes remain required. Changed pins reject analysis; incomplete observations
+  yield `no_outcome`. The new report must be outside the original outbox and
+  cannot overwrite an existing file.
+- Four focused synthetic tests cover header values and independently computed
+  three-level heights, retained original outcomes and failed-control/error gates,
+  input drift, and refusal to write into the source directory. Independent review
+  is pending before execution. No secondary observation is recorded in this entry;
+  no parser fact, general compatibility, or support-matrix movement is claimed.
+
 ### EXP-0140 — Multi-level candidate run retained as no_outcome
 
 - Recorded: 2026-09-05, OpenAI Codex
