@@ -653,6 +653,17 @@ impl RowLayout {
                 length: row.len(),
                 minimum: minimum + 1 + trailer,
             })?;
+        // EXP-0172: one variable field following a wide fixed prefix stores
+        // same-block boundary low bytes with a zero jump byte.
+        if wide && fixed_boundary >= 256 {
+            let jump = row[offsets_start + low_count];
+            if fixed_boundary >= 512 || offsets_start >= 512 || jump != 0 {
+                return Err(RowError::UnsupportedWideVariableOffsets {
+                    variable_count,
+                    row_length: row.len(),
+                });
+            }
+        }
         let layout = Self {
             fixed_boundary,
             offsets_start,
@@ -715,7 +726,11 @@ impl RowLayout {
             return Ok(low);
         }
         let jump = row[self.offsets_start + usize::from(self.variable_count) + 1];
-        let high = usize::from((jump >> reversed) & 1);
+        let high = if self.fixed_boundary >= 256 {
+            1 // EXP-0172: validate established the second-block, zero-jump shape.
+        } else {
+            usize::from((jump >> reversed) & 1)
+        };
         Ok(low + 256 * high)
     }
 }

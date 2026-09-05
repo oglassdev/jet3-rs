@@ -1,5 +1,5 @@
 //! Checked encoder for one logical Jet 3 data row, the inverse of the layout
-//! validated by `row.rs` (`EXP-0060`) with the scalar encodings of `EXP-0061`.
+//! validated by `row.rs` (`EXP-0060`, `EXP-0172`) with scalars of `EXP-0061`.
 //!
 //! Memo and OLE values are supplied as already-encoded long-value bytes
 //! (12-byte header plus any inline payload); writing external LVAL pages is a
@@ -18,7 +18,7 @@ const MAX_COLUMN_COUNT: usize = u8::MAX as usize;
 /// `EXP-0060`: rows longer than 255 bytes use one jump byte for boundary
 /// high bits; only single-variable-column wide rows were isolated.
 const MAX_NARROW_ROW_LEN: usize = u8::MAX as usize;
-/// `EXP-0060`: a jump bit adds 256 to a boundary, so boundaries stay below 512.
+/// `EXP-0060` / `EXP-0172`: supported single-variable boundaries stay below 512.
 const MAX_WIDE_BOUNDARY: usize = 2 * (u8::MAX as usize + 1) - 1;
 /// `EXP-0061`: every long field begins with a 12-byte header.
 const LONG_VALUE_HEADER_LEN: usize = 12;
@@ -197,7 +197,7 @@ pub enum RowWriteError {
         /// Complete row length.
         row_length: usize,
     },
-    /// A variable boundary exceeds what the jump byte can represent.
+    /// A variable boundary exceeds the supported two-block representation.
     BoundaryTooLarge {
         /// Zero-based variable index whose end boundary overflowed.
         index: u16,
@@ -654,7 +654,8 @@ fn write_row(
             let boundary = boundaries[ordinal];
             writer.write_u8((boundary & 0xff) as u8)?;
             let reversed = shape.variable_count - ordinal;
-            if shape.wide && boundary & 0x100 != 0 {
+            // EXP-0172: same-block wide fixed prefixes use a zero jump byte.
+            if shape.wide && boundaries[0] < 256 && boundary & 0x100 != 0 {
                 jump |= 1 << reversed;
             }
         }

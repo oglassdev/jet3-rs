@@ -212,3 +212,56 @@ fn checked_single_field_encoder_rejects_noop_and_invalid_layouts() -> TestResult
     assert_eq!(output, [0xa5; 3]);
     Ok(())
 }
+
+#[test]
+fn wide_fixed_text_with_variable_payload_preserves_all_other_bytes() -> TestResult {
+    let fixture = Fixture::new(
+        &[
+            ColumnSpec::new(b"Id", ColumnType::Long),
+            ColumnSpec::new(
+                b"Target",
+                ColumnType::FixedText {
+                    len: NonZeroU8::MAX,
+                },
+            ),
+            ColumnSpec::new(
+                b"Payload",
+                ColumnType::Text {
+                    max_len: NonZeroU8::MAX,
+                },
+            ),
+        ],
+        &[
+            &[
+                RowValue::Long(1),
+                RowValue::Text(&[b'a'; 255]),
+                RowValue::Text(b"first"),
+            ],
+            &[
+                RowValue::Long(2),
+                RowValue::Text(&[b'a'; 255]),
+                RowValue::Text(b"second"),
+            ],
+        ],
+    )?;
+    let row = fixture.locator(1)?;
+    let original = fs::read(fixture.path())?;
+    let page_start = row.page().get() as usize * PAGE_BYTES;
+    let slot_offset = page_start + 10 + usize::from(row.slot()) * 2;
+    let row_start = usize::from(u16::from_le_bytes([
+        original[slot_offset],
+        original[slot_offset + 1],
+    ]));
+    let mut expected = original;
+    expected[page_start + row_start + 5..page_start + row_start + 260].fill(0xe9);
+    update_field(
+        fixture.path(),
+        FieldUpdate {
+            column: ColumnOrdinal::new(1),
+            ..request(row, RowValue::Text(&[0xe9; 255]))
+        },
+        &mut budget(),
+    )?;
+    assert_eq!(fs::read(fixture.path())?, expected);
+    fixture.assert_only_original()
+}
