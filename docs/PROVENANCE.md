@@ -10992,6 +10992,32 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0135 — Retained AutoIncrement captures secondary-analysis plan
+
+- Status: post-acquisition secondary analysis planned; expanded analysis has
+  not run. This is not a new preregistered acquisition. EXP-0132 remains an
+  unchanged `no_outcome` from the original EXP-0131 experiment.
+- Plan: `oracle/windows-dao/acquisition/autoincrement-reanalysis.plan.json`,
+  SHA-256 `13ab8dab2f129fa8a859545e896fa3376836cde938c14e673a842d1d87b5c96f`.
+  It pins the original result/report and all 36 retained MDB captures from
+  `20260905T044800Z-autoincrement-layout`, plus the new harness and unchanged
+  original analyzer, decoder and acquisition plan.
+- Known limitation motivating this analysis: the original helper rejected
+  24 captures containing a 169-slot page against its limit of 64. The sole
+  adjustment is `MAX_ROWS_PER_PAGE` from 64 to 256 in a private instance of
+  the original decoder. All structural checks and original schema, row,
+  identity, replica and classification rules remain in effect.
+- Commit and independent review precede expanded decoding. The harness
+  checks pinned artifacts before and after analysis and creates a separate
+  report outside the source outbox. That report identifies the original
+  `no_outcome`, all artifact identities and the exact analysis adjustment.
+  The original finite hypotheses remain hypotheses; stable disagreement is
+  an answered observation under the unchanged decision rule.
+- No DAO call, redispatch, new capture or source mutation is part of this
+  experiment. No additional decoder changes or automatic retry are allowed.
+  Record one validated secondary outcome as EXP-0136; neither this plan nor
+  a successful decode establishes general compatibility or hosted support.
+
 ## EXP-0132 — AutoIncrement discovery produced no outcome
 
 - Status: validated `no_outcome` from the single local EXP-0131 run
