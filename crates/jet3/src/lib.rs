@@ -85,6 +85,7 @@ mod table_definition_layout;
 pub mod table_definition_writer;
 mod table_schema_plan;
 pub mod text;
+pub mod update;
 pub mod usage_map;
 pub mod usage_map_writer;
 pub mod value;
@@ -179,6 +180,7 @@ pub use table_schema_plan::{
     ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, TableSchemaPlanError, TableSpec,
 };
 pub use text::{DecodedText, TextCodePage, TextError};
+pub use update::{FieldUpdate, UpdateError, update_field};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
 pub use usage_map_writer::{
     EXTENDED_BITMAP_BITS, ExtendedUsageMapEncoder, InlineUsageMapEncoder, UsageMapWriteError,

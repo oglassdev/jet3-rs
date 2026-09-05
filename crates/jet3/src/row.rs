@@ -99,6 +99,18 @@ impl<'row> RowView<'row, '_> {
         Some(RawField::Bytes(&self.raw[range]))
     }
 
+    pub(crate) fn present_fixed_field_range(&self, ordinal: ColumnOrdinal) -> Option<Range<usize>> {
+        let column = self.definition.columns().get(usize::from(ordinal.get()))?;
+        let ColumnStorageClass::Fixed { offset } = column.storage() else {
+            return None;
+        };
+        if !self.layout.present(self.raw, ordinal) {
+            return None;
+        }
+        let start = 1 + usize::from(offset);
+        Some(start..start + usize::from(column.size()))
+    }
+
     /// Decodes one field with an explicitly selected text code page.
     ///
     /// The same operation-wide budget used by the row cursor is charged before
