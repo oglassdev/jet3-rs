@@ -1,0 +1,1493 @@
+{
+  "document_type": "dao_update_scenario_inventory",
+  "protocol_version": "1.2.0",
+  "scenarios": [
+    {
+      "id": "DAO-UPDATE-FIRST-FIELD",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "present fixed Long replacement",
+        "unrelated Text/Binary/Memo and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Label",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Blob",
+              "kind": "Binary",
+              "size": 4
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              1000,
+              "row000:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "00!!"
+            ],
+            [
+              1,
+              1001,
+              "row001:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "01!!"
+            ],
+            [
+              2,
+              1002,
+              "row002:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "02!!"
+            ],
+            [
+              3,
+              1003,
+              "row003:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "03!!"
+            ],
+            [
+              4,
+              1004,
+              "row004:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "04!!"
+            ],
+            [
+              5,
+              1005,
+              "row005:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "05!!"
+            ],
+            [
+              6,
+              1006,
+              "row006:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "06!!"
+            ],
+            [
+              7,
+              1007,
+              "row007:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "07!!"
+            ],
+            [
+              8,
+              1008,
+              "row008:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "08!!"
+            ],
+            [
+              9,
+              1009,
+              "row009:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "09!!"
+            ],
+            [
+              10,
+              1010,
+              "row010:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "10!!"
+            ],
+            [
+              11,
+              1011,
+              "row011:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "11!!"
+            ],
+            [
+              12,
+              1012,
+              "row012:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "12!!"
+            ],
+            [
+              13,
+              1013,
+              "row013:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "13!!"
+            ],
+            [
+              14,
+              1014,
+              "row014:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "14!!"
+            ],
+            [
+              15,
+              1015,
+              "row015:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "15!!"
+            ],
+            [
+              16,
+              1016,
+              "row016:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "16!!"
+            ],
+            [
+              17,
+              1017,
+              "row017:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "17!!"
+            ],
+            [
+              18,
+              1018,
+              "row018:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "18!!"
+            ],
+            [
+              19,
+              1019,
+              "row019:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "19!!"
+            ],
+            [
+              20,
+              1020,
+              "row020:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "20!!"
+            ],
+            [
+              21,
+              1021,
+              "row021:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "21!!"
+            ],
+            [
+              22,
+              1022,
+              "row022:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "22!!"
+            ],
+            [
+              23,
+              1023,
+              "row023:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "23!!"
+            ],
+            [
+              24,
+              1024,
+              "row024:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "24!!"
+            ],
+            [
+              25,
+              1025,
+              "row025:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "25!!"
+            ],
+            [
+              26,
+              1026,
+              "row026:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "26!!"
+            ],
+            [
+              27,
+              1027,
+              "row027:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "27!!"
+            ],
+            [
+              28,
+              1028,
+              "row028:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "28!!"
+            ],
+            [
+              29,
+              1029,
+              "row029:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "29!!"
+            ],
+            [
+              30,
+              1030,
+              "row030:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "30!!"
+            ],
+            [
+              31,
+              1031,
+              "row031:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "31!!"
+            ],
+            [
+              32,
+              1032,
+              "row032:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "32!!"
+            ]
+          ]
+        },
+        {
+          "name": "Notes",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Body",
+              "kind": "Memo"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              7,
+              {
+                "repeat_text": "m",
+                "count": 2048
+              }
+            ],
+            [
+              8,
+              null
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "table": "Items",
+        "column": "Id",
+        "row_index": 0,
+        "before": 0,
+        "after": -42
+      }
+    },
+    {
+      "id": "DAO-UPDATE-LATER-ROW",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "present fixed Long replacement",
+        "unrelated Text/Binary/Memo and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Label",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Blob",
+              "kind": "Binary",
+              "size": 4
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              1000,
+              "row000:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "00!!"
+            ],
+            [
+              1,
+              1001,
+              "row001:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "01!!"
+            ],
+            [
+              2,
+              1002,
+              "row002:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "02!!"
+            ],
+            [
+              3,
+              1003,
+              "row003:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "03!!"
+            ],
+            [
+              4,
+              1004,
+              "row004:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "04!!"
+            ],
+            [
+              5,
+              1005,
+              "row005:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "05!!"
+            ],
+            [
+              6,
+              1006,
+              "row006:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "06!!"
+            ],
+            [
+              7,
+              1007,
+              "row007:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "07!!"
+            ],
+            [
+              8,
+              1008,
+              "row008:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "08!!"
+            ],
+            [
+              9,
+              1009,
+              "row009:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "09!!"
+            ],
+            [
+              10,
+              1010,
+              "row010:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "10!!"
+            ],
+            [
+              11,
+              1011,
+              "row011:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "11!!"
+            ],
+            [
+              12,
+              1012,
+              "row012:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "12!!"
+            ],
+            [
+              13,
+              1013,
+              "row013:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "13!!"
+            ],
+            [
+              14,
+              1014,
+              "row014:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "14!!"
+            ],
+            [
+              15,
+              1015,
+              "row015:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "15!!"
+            ],
+            [
+              16,
+              1016,
+              "row016:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "16!!"
+            ],
+            [
+              17,
+              1017,
+              "row017:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "17!!"
+            ],
+            [
+              18,
+              1018,
+              "row018:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "18!!"
+            ],
+            [
+              19,
+              1019,
+              "row019:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "19!!"
+            ],
+            [
+              20,
+              1020,
+              "row020:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "20!!"
+            ],
+            [
+              21,
+              1021,
+              "row021:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "21!!"
+            ],
+            [
+              22,
+              1022,
+              "row022:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "22!!"
+            ],
+            [
+              23,
+              1023,
+              "row023:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "23!!"
+            ],
+            [
+              24,
+              1024,
+              "row024:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "24!!"
+            ],
+            [
+              25,
+              1025,
+              "row025:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "25!!"
+            ],
+            [
+              26,
+              1026,
+              "row026:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "26!!"
+            ],
+            [
+              27,
+              1027,
+              "row027:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "27!!"
+            ],
+            [
+              28,
+              1028,
+              "row028:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "28!!"
+            ],
+            [
+              29,
+              1029,
+              "row029:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "29!!"
+            ],
+            [
+              30,
+              1030,
+              "row030:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "30!!"
+            ],
+            [
+              31,
+              1031,
+              "row031:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "31!!"
+            ],
+            [
+              32,
+              1032,
+              "row032:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "32!!"
+            ]
+          ]
+        },
+        {
+          "name": "Notes",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Body",
+              "kind": "Memo"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              7,
+              {
+                "repeat_text": "m",
+                "count": 2048
+              }
+            ],
+            [
+              8,
+              null
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "table": "Items",
+        "column": "Value",
+        "row_index": 31,
+        "before": 1031,
+        "after": -2147483648
+      }
+    },
+    {
+      "id": "DAO-UPDATE-LATER-TABLE",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "present fixed Long replacement",
+        "unrelated Text/Binary/Memo and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Prefix",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              100
+            ],
+            [
+              101
+            ]
+          ]
+        },
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Label",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Blob",
+              "kind": "Binary",
+              "size": 4
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              1000,
+              "row000:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "00!!"
+            ],
+            [
+              1,
+              1001,
+              "row001:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "01!!"
+            ],
+            [
+              2,
+              1002,
+              "row002:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "02!!"
+            ],
+            [
+              3,
+              1003,
+              "row003:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "03!!"
+            ],
+            [
+              4,
+              1004,
+              "row004:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "04!!"
+            ],
+            [
+              5,
+              1005,
+              "row005:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "05!!"
+            ],
+            [
+              6,
+              1006,
+              "row006:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "06!!"
+            ],
+            [
+              7,
+              1007,
+              "row007:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "07!!"
+            ],
+            [
+              8,
+              1008,
+              "row008:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "08!!"
+            ],
+            [
+              9,
+              1009,
+              "row009:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "09!!"
+            ],
+            [
+              10,
+              1010,
+              "row010:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "10!!"
+            ],
+            [
+              11,
+              1011,
+              "row011:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "11!!"
+            ],
+            [
+              12,
+              1012,
+              "row012:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "12!!"
+            ],
+            [
+              13,
+              1013,
+              "row013:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "13!!"
+            ],
+            [
+              14,
+              1014,
+              "row014:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "14!!"
+            ],
+            [
+              15,
+              1015,
+              "row015:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "15!!"
+            ],
+            [
+              16,
+              1016,
+              "row016:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "16!!"
+            ],
+            [
+              17,
+              1017,
+              "row017:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "17!!"
+            ],
+            [
+              18,
+              1018,
+              "row018:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "18!!"
+            ],
+            [
+              19,
+              1019,
+              "row019:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "19!!"
+            ],
+            [
+              20,
+              1020,
+              "row020:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "20!!"
+            ],
+            [
+              21,
+              1021,
+              "row021:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "21!!"
+            ],
+            [
+              22,
+              1022,
+              "row022:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "22!!"
+            ],
+            [
+              23,
+              1023,
+              "row023:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "23!!"
+            ],
+            [
+              24,
+              1024,
+              "row024:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "24!!"
+            ],
+            [
+              25,
+              1025,
+              "row025:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "25!!"
+            ],
+            [
+              26,
+              1026,
+              "row026:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "26!!"
+            ],
+            [
+              27,
+              1027,
+              "row027:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "27!!"
+            ],
+            [
+              28,
+              1028,
+              "row028:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "28!!"
+            ],
+            [
+              29,
+              1029,
+              "row029:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "29!!"
+            ],
+            [
+              30,
+              1030,
+              "row030:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "30!!"
+            ],
+            [
+              31,
+              1031,
+              "row031:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "31!!"
+            ],
+            [
+              32,
+              1032,
+              "row032:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "32!!"
+            ]
+          ]
+        },
+        {
+          "name": "Notes",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Body",
+              "kind": "Memo"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              7,
+              {
+                "repeat_text": "m",
+                "count": 2048
+              }
+            ],
+            [
+              8,
+              null
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "table": "Items",
+        "column": "Value",
+        "row_index": 17,
+        "before": 1017,
+        "after": 2147483647
+      }
+    },
+    {
+      "id": "DAO-UPDATE-INSERT-ROW",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public row insert",
+        "exact unrelated-byte and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa"
+            ],
+            [
+              2,
+              -202,
+              "bbb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "insert",
+        "table": "Items",
+        "row": [
+          88,
+          -8800,
+          "inserted"
+        ]
+      }
+    },
+    {
+      "id": "DAO-UPDATE-DELETE-TAIL",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public row delete",
+        "exact unrelated-byte and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa"
+            ],
+            [
+              2,
+              -202,
+              "bbb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "delete",
+        "table": "Items",
+        "selected_id": 3
+      }
+    },
+    {
+      "id": "DAO-UPDATE-EMPTY-EOF",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded eof_insert",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": []
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "eof_insert",
+        "row": [
+          88,
+          -8800,
+          "inserted"
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-FULL-EOF",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded eof_insert",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              -1,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              2,
+              -2,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              3,
+              -3,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              4,
+              -4,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              5,
+              -5,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              6,
+              -6,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              7,
+              -7,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "eof_insert",
+        "row": [
+          88,
+          -8800,
+          "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-MIDDLE-COMPACT",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded compact_delete",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "a"
+            ],
+            [
+              2,
+              -202,
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ],
+            [
+              3,
+              303,
+              "short"
+            ],
+            [
+              4,
+              404,
+              "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "compact_delete",
+        "selected_ids": [
+          2
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-REPEATED-COMPACT",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded compact_delete",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "a"
+            ],
+            [
+              2,
+              -202,
+              "bb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ],
+            [
+              4,
+              404,
+              "dddd"
+            ],
+            [
+              5,
+              505,
+              "eeeee"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "compact_delete",
+        "selected_ids": [
+          2,
+          4,
+          1
+        ],
+        "table": "Items"
+      }
+    }
+  ],
+  "deferred_requirements": [
+    "sole-row page release, free-page reuse and indirect allocation maps",
+    "indexed key/nonkey and relationship mutations",
+    "null transitions and variable-length field updates",
+    "hosted stored-query preservation"
+  ]
+}
