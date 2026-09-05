@@ -11186,6 +11186,42 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0199 — Empty Memo/OLE layout discovery plan
+
+- Preregistered2026-09-05; no acquisition. Result reserved as EXP-0200.
+  Plan `oracle/windows-dao/acquisition/empty-long-values.plan.json`, SHA-256
+  `fa2b22d683b3d2f15a9c9849f55ffe9b2ae2349ddd9ed1d1f497e1dadc738b4e`; five scoped producer/analyzer/
+  decoder/transport inputs pinned and checked before dispatch and analysis.
+- Four natural DAO arms, three fresh databases each: Memo with default
+  AllowZeroLength, Memo explicitly allowing zero length, OLE Value assignment
+  and OLE AppendChunk. Each Rows table has Long Id and one long Payload column,
+  no indexes, relations or queries. No raw fixture edits or production changes.
+- Attempt Id1 Null, Id2 empty, Id3 one-byte A/41. Empty Memo uses an explicit
+  string; empty OLE a true CLR byte[0], assigned through a local COM field.
+  Only the declared empty assignment/Update can yield an answered negative with
+  a captured native DAO error inventory. Record initiating endpoint, exception
+  type/HRESULT/numbers/stack before cancellation and cleanup. Null/one-byte
+  controls, cancellation, cleanup and complete reopen must succeed.
+- Reopen read-only and retain complete field properties, Memo AllowZeroLength,
+  exact schema/row inventory, IsNull/FieldSize and complete payload. Bind raw
+  Ids and presence bits to saved rows; retain complete small-row bytes, raw
+  field spans/headers, table maps and long-column maps. All12capture identities
+  must stay unchanged and all three replicas of each arm agree.
+- Accepted empty may remain empty or normalize to Null; stable provider refusal
+  is also an answered result. Existing zero-length inline-header construction
+  is a hypothesis, never an acceptance gate. EXP-0061 supplies existing framing,
+  EXP-0077 column-map coverage; EXP-0124 explicitly did not test empty payloads.
+  No empty-payload production refusal is removed before the observed outcome.
+- One dispatch,300second transport bound; retain12images and12reopen captures
+  plus partial artifacts on failure. Any incomplete/unexpected mutation,
+  observation, binding or replica failure remains no_outcome without retry or
+  subset promotion. Three focused classifier/pin tests and actual x86 parser,
+  twelve typed mock assignments and JSON roundtrips pass without DAO; mocks
+  establish host-language marshalling only, not COM/provider acceptance.
+- Finite local discovery only: no general property writer, index/update/delete
+  grammar, hosted compatibility or support movement. Independent review precedes
+  acquisition; original inputs/results will remain immutable.
+
 ## EXP-0191 — Sole physical-row release candidate plan
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0192.
