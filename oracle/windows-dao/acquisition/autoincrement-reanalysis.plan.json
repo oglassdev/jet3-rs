@@ -1,0 +1,192 @@
+{
+  "document_type": "dao_autoincrement_secondary_plan",
+  "experiment_id": "autoincrement-reanalysis",
+  "entry": "EXP-0135",
+  "outcome_entry": "EXP-0136",
+  "development_only": true,
+  "classification": "Post-acquisition secondary analysis, committed and independently reviewed before expanded decoding. Not a new preregistered acquisition.",
+  "source": {
+    "run": "20260905T044800Z-autoincrement-layout",
+    "plan_entry": "EXP-0131",
+    "outcome_entry": "EXP-0132",
+    "outcome": "no_outcome",
+    "known_failure": "24 dense checkpoints rejected because 169 row slots exceeded analysis helper limit64; original hypotheses empty."
+  },
+  "change": "Load unchanged original analyzer and original decoder as private module instances; set only decoder MAX_ROWS_PER_PAGE from64 to256. Keep all original structural, schema, correlation, identity, replica and classification checks. No format grammar changes.",
+  "question": "Apply the original finite counter and sequence hypotheses to already acquired captures using the declared expanded row-directory limit. Stable hypothesis disagreement remains answered; no assumption about the actual next generated ID.",
+  "inputs": {
+    "oracle/windows-dao/scripts/autoincrement_reanalysis.py": "ca5c13dd9b0167cea189c57d84464cccb71399149808108150bc5bd8f93b8967",
+    "oracle/windows-dao/scripts/autoincrement_layout.py": "efdd6eccaa98900f9d79a14f4942aedf944ee62ad62f861e01405f605728da89",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/acquisition/autoincrement-layout.plan.json": "c27de50741883f787a2280d0e92fde43089288ff284d77c4408f22dcc9f577f5"
+  },
+  "artifacts": {
+    "result.json": {
+      "size": 1678940,
+      "sha256": "91f10571fd8885b860b2a7c58f5ee40bc3050d64c1b14e31886340a367600fcb"
+    },
+    "report.json": {
+      "size": 215446,
+      "sha256": "367f10da6f4966412dc3e02503d8e71cfa2f3d482db3edbab0b600e66319bb65"
+    },
+    "auto-r1-empty.mdb": {
+      "size": 47104,
+      "sha256": "bf6a85a82358218b54d8454caf54af91e108a8bb79d923d5b7601dfd37e8bfd3"
+    },
+    "auto-r1-one.mdb": {
+      "size": 49152,
+      "sha256": "4d8381654ec88436458b37f1b5a5d4b8c3288e554e1d85b381838edbf6dadf1d"
+    },
+    "auto-r1-n255.mdb": {
+      "size": 51200,
+      "sha256": "3a314f9e878fde67fd9da2b27a002e4139a11bcc03d3249446aa7ec80710252f"
+    },
+    "auto-r1-n256.mdb": {
+      "size": 51200,
+      "sha256": "2d60578edd16414ca37a79a8fbba7246e9cc5b889d295cca3cd85ff0bce93c73"
+    },
+    "auto-r1-deleted.mdb": {
+      "size": 51200,
+      "sha256": "34774d98f13a97095ab3dc11622da686998b5db17c2c17438ad88e16dbeffc96"
+    },
+    "auto-r1-next.mdb": {
+      "size": 51200,
+      "sha256": "242c3299d4b0e718a04af682f6ac5b3a84149f292eebfdbb99ffba042efcfd1e"
+    },
+    "long-r1-empty.mdb": {
+      "size": 47104,
+      "sha256": "311a1732285db3ea4ba6a93c9e5969156a545c561c4f3ec48b6d32c968e8c9e2"
+    },
+    "long-r1-one.mdb": {
+      "size": 49152,
+      "sha256": "80f14e06a319a5c53da429204a254513408c152cf87f77b83e6e46f41ecdefe7"
+    },
+    "long-r1-n255.mdb": {
+      "size": 51200,
+      "sha256": "325ee47f8b4cf946fc833c132b39f0d8d76e95962fad58ed1e7ce62b196f8ced"
+    },
+    "long-r1-n256.mdb": {
+      "size": 51200,
+      "sha256": "33a75e6b7335e5d3d926703523f3f8739ee12c5ea621bee4017232c850cf0d92"
+    },
+    "long-r1-deleted.mdb": {
+      "size": 51200,
+      "sha256": "b7c789c4df34237c3c557dc057fda6017588a4ab26d3554e452832b0088cc991"
+    },
+    "long-r1-next.mdb": {
+      "size": 51200,
+      "sha256": "a2bc5e7eb8a89072225af4111b5665c574f1c69eae5b3e0d686633fe46a7c9ad"
+    },
+    "auto-r2-empty.mdb": {
+      "size": 47104,
+      "sha256": "bab2beb2cd653fd5e63399a57ea2012fecb57c20d2c2be9d996bf96ad1b94603"
+    },
+    "auto-r2-one.mdb": {
+      "size": 49152,
+      "sha256": "1f94cf6f1a8079cf2778210722cec42fc9ad7bbc80c7c702360b6c8f52038907"
+    },
+    "auto-r2-n255.mdb": {
+      "size": 51200,
+      "sha256": "137068601a3911c679affc5248f3daf8795af4f1ab08e17600484a023e03b848"
+    },
+    "auto-r2-n256.mdb": {
+      "size": 51200,
+      "sha256": "d38a488f5efe8722ac11fe0731818f4bf89d123895c36833034b7fecfea8b04d"
+    },
+    "auto-r2-deleted.mdb": {
+      "size": 51200,
+      "sha256": "588f9c2df18e4c1f28674755e078bb582e501545d3b412c032a771f09926e491"
+    },
+    "auto-r2-next.mdb": {
+      "size": 51200,
+      "sha256": "fa33b3b5678253b9d58501016196645f7f49045eb15c3456942b5fc66c70d5c8"
+    },
+    "long-r2-empty.mdb": {
+      "size": 47104,
+      "sha256": "e9488f93f953f9c073134465103448f12ab191329b4700254616bac4c6d534d1"
+    },
+    "long-r2-one.mdb": {
+      "size": 49152,
+      "sha256": "2644860a0235c05beb42e2a9a3c4657c451e66c2cd7355012838ce02c6b056be"
+    },
+    "long-r2-n255.mdb": {
+      "size": 51200,
+      "sha256": "4b631ffa43e84f7b09afce1b0ca52e9c55fc37dbe578de01b6cbe25687e46074"
+    },
+    "long-r2-n256.mdb": {
+      "size": 51200,
+      "sha256": "8629c26f313f5abda7a575d51ccd8fa83b00723a293335e3758631dd65320440"
+    },
+    "long-r2-deleted.mdb": {
+      "size": 51200,
+      "sha256": "12e76b9fb17c50ac1dea73a203b944ed7573c18b7535ac89b3f564095ac10959"
+    },
+    "long-r2-next.mdb": {
+      "size": 51200,
+      "sha256": "c318edd089d8cc4228f141026f340338a6da8f57e1d78f68872c9bcc41d11c6f"
+    },
+    "auto-r3-empty.mdb": {
+      "size": 47104,
+      "sha256": "09da70e41405c5275d8aea3b0b2c320cad87350d8c7c8c74685a99e5fe402619"
+    },
+    "auto-r3-one.mdb": {
+      "size": 49152,
+      "sha256": "ee2fba78b8eadee786517c3b78f11b9aedb8bb5b221a2596b01e763f887652e1"
+    },
+    "auto-r3-n255.mdb": {
+      "size": 51200,
+      "sha256": "dde0d4c56d0ca802c092cf75a6ce5960f2d510a622e1b6619b5f291c8afc4aba"
+    },
+    "auto-r3-n256.mdb": {
+      "size": 51200,
+      "sha256": "1ab4af1fd65c8822e8094f64bf1c89fd0895e3af577ab72902979365945f94f0"
+    },
+    "auto-r3-deleted.mdb": {
+      "size": 51200,
+      "sha256": "a6e9a17aa59af6fb9708cb9a4c681e35d1b357fdcec4eeff37e1c1da87abaf23"
+    },
+    "auto-r3-next.mdb": {
+      "size": 51200,
+      "sha256": "b818ae094cb594c09c02ac2d6081ef7a86c9ca13d6ddd49dcc6fb46408e2e2c4"
+    },
+    "long-r3-empty.mdb": {
+      "size": 47104,
+      "sha256": "5e983938bf21162f5956c2f4a68828739459d1f149c34a8257d2ef6da9a7dfa7"
+    },
+    "long-r3-one.mdb": {
+      "size": 49152,
+      "sha256": "ac63f1d3fa201dd78af4fdd8ed5a87faaca7da7b5c0aeb457c1fb8cefe5084c2"
+    },
+    "long-r3-n255.mdb": {
+      "size": 51200,
+      "sha256": "a6e10ef022380693fcde9f01eb5c54e9f556a1bfac9d752be2896bd1996c721c"
+    },
+    "long-r3-n256.mdb": {
+      "size": 51200,
+      "sha256": "a934511971d028fd69cb027543cbf96a3ce57095e3e4351a54198170488cb5b1"
+    },
+    "long-r3-deleted.mdb": {
+      "size": 51200,
+      "sha256": "fafa467daed6e11f2de5ffa9594d9a8b43b6c95f8f4d6f7650bf13ea03461d43"
+    },
+    "long-r3-next.mdb": {
+      "size": 51200,
+      "sha256": "3821fc2f24bee00aceb7c10b06f240f616eb8afe1d8e03a4a8d0a80e8b826ca9"
+    }
+  },
+  "procedure": [
+    "Commit and independently review this plan and harness before expanded analysis.",
+    "Verify all input and artifact pins and the original no_outcome.",
+    "Apply the sole row-limit adjustment in a private decoder instance and call unchanged original build_report.",
+    "Recheck pins after analysis; exclusively create a new report outside source outbox identifying this plan, source no_outcome, all source identities and exact adjustment.",
+    "Record validated secondary result once as EXP-0136; preserve EXP-0132 and all original artifacts."
+  ],
+  "decision_rule": "Unchanged EXP-0131 build_report gates determine answered/no_outcome; input/artifact mismatch rejects secondary analysis. No outcome is inferred from successful raw DAO captures alone.",
+  "prohibitions": [
+    "No DAO invocation, redispatch, fresh captures, MDB generation or mutation.",
+    "No edits to consumed plans, scripts or source result/report.",
+    "No further analysis changes or automatic retry under this plan.",
+    "No general overflow/high-seed/indexed-generation or compatibility/support claim."
+  ],
+  "run": "python3 oracle/windows-dao/scripts/autoincrement_reanalysis.py analyze SOURCE_OUTBOX --output NEW_REPORT_OUTSIDE_SOURCE_OUTBOX"
+}
