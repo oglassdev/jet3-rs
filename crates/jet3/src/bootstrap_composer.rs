@@ -174,7 +174,7 @@ fn compose_planned_creates(
     Ok(plan)
 }
 
-/// Composes one unindexed table with a single page of scalar initial rows.
+/// Composes one unindexed table with scalar initial rows in inline-mapped pages.
 pub(crate) fn compose_database_with_rows(
     spec: &TableSpec<'_>,
     rows: &[&[RowValue<'_>]],
@@ -392,6 +392,10 @@ use definitions::{
     msys_aces_definition, msys_objects_definition, msys_queries_definition,
     msys_relationships_definition,
 };
+
+#[path = "bootstrap_initial_index.rs"]
+mod initial_index;
+pub(crate) use initial_index::InitialLongIndex;
 
 #[path = "bootstrap_table_create.rs"]
 mod table_create;

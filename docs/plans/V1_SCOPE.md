@@ -45,15 +45,15 @@ delivered in this order:
 
 Continue database creation under #100. The public API creates up to four empty
 user tables within its bounded schema restrictions. Initial-row creation now
-accepts one unindexed table with a one-page definition and scalar rows fitting
-one data page, with room left for another all-null row. AutoIncrement, Memo,
-and OLE values remain refused by that entry point.
+accepts one unindexed table with a one-page definition and scalar rows packed
+across data pages within the existing inline-map capacity. AutoIncrement,
+Memo, and OLE values remain refused by that entry point.
 
-`EXP-0110` observed DAO read the exact four-table candidate unchanged.
-`EXP-0112` now records three accepted local replicas of the exact
-`Rows(Id Long, Code Text 8)` candidate containing `(1, "one")`, `(-2, "two")`,
-and `(null, null)`. These observations establish only the pinned candidates;
-they do not establish general compatibility or move the support matrix.
+`EXP-0116` records three accepted local replicas of the exact 26-page
+`Rows(Id Long)` candidate containing integers -254 through 254 across three
+data pages. Earlier exact empty-table and one-page observations remain in the
+provenance ledger. These results establish only the pinned candidates, with no
+general allocation policy, compatibility claim, or support-matrix movement.
 
 Next, broaden initial-row creation in focused implementation and preregistered
 DAO experiment slices, including indexes and long values, and add relationships.

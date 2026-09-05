@@ -10093,6 +10093,144 @@ Use `not applicable` explicitly rather than omitting a field.
   additive-provenance, and evidence-boundary review completed without findings.
 
 
+### EXP-0115 — Multiple-data-page initial rows preregistration
+
+- Recorded: 2026-09-04, OpenAI Codex
+- Kind: SHA-256-pinned development-only local DAO experiment preregistration
+- Question: does DAO read the exact composed `Rows(Id Long)` image containing
+  every integer from -254 through 254 unchanged, with the same schema and row
+  multiset as fresh DAO controls in all three replicas?
+- Origin: project-authored `multi_page_row_candidate` example at reviewed source
+  commit `826b1318669071afc360659201fd8c012ff07bd0`. `EXP-0060`, `EXP-0065`,
+  and `EXP-0057` supply row, append, and map grammar; `EXP-0112` established
+  only the earlier exact one-page candidate. This candidate packs data pages
+  23, 24, and 25 with 254, 254, and 1 rows. All three are owned; only page 25
+  is marked available because the others lack physical room for an all-null
+  row. That availability policy and retaining the composed page-zero header
+  are experimental hypotheses, not established DAO policies.
+- Environment: private local Windows VM, x86 PowerShell, `DAO.DBEngine.36`.
+- Protocol: `oracle/windows-dao/acquisition/multi-page-rows.plan.json`, SHA-256
+  `997070626c1b1c9f3e2daeae6c9a99333060c47916a2ac46c34e9c60073a50a2`. Commit and review before one
+  dispatch. Host verifies all pins and committed plan; guest verifies producer
+  and prepares all three pinned candidate copies before the first control
+  creation. Controls insert the inclusive preregistered range. Read control
+  and candidate schema and rows read-only, require unchanged identities and
+  exact replicated semantics. The analyzer rechecks input pins before applying
+  the decision rule. Post-mutation failure requires a new human decision before
+  another dispatch.
+- Artifacts: exact candidate is 53,248 bytes, SHA-256
+  `57498e634b9e4e7102efd4f4c2d673cccd42c344b51590177c7704232df675af`. The plan pins
+  the producer, analyzer, imported transport, and Rust candidate example.
+- Observation: acquisition has not started; no DAO result recorded here.
+- Interpretation: exact-candidate schema/row endpoints only. No matching control
+  physical layout, general allocation policy, arbitrary schema or value support,
+  indexes, long values, existing-database mutation, compatibility claim, or
+  hosted support-matrix movement.
+- Usage: issue `#100`; separately validated multiple-data-page initial rows.
+- Rights: all MDB bytes and provider binaries remain outside the repository.
+- Review: independent harness review requested input revalidation during
+  analysis; that fix and a focused rejection test are implemented. Six analyzer
+  tests and a PowerShell parser-only check pass.
+
+
+### EXP-0116 — Accepted multiple-data-page initial-row result
+
+- Recorded: 2026-09-04, OpenAI Codex (run timestamp is 2026-09-05 UTC)
+- Kind: validated SHA-256-pinned, development-only local DAO result
+- Question: does DAO read the exact `EXP-0115` candidate containing 509 Long
+  values across three data pages unchanged, matching fresh controls in all
+  three replicas?
+- Origin and binding: `EXP-0115` preregistration committed before acquisition
+  as `513b80e4dfd35124d80c4580c8c905717f7a5b83`; plan
+  `oracle/windows-dao/acquisition/multi-page-rows.plan.json`, SHA-256
+  `997070626c1b1c9f3e2daeae6c9a99333060c47916a2ac46c34e9c60073a50a2`.
+  Candidate source is `826b1318669071afc360659201fd8c012ff07bd0`.
+- Authorization and dispatch: user authorization covered single run
+  `20260905T032600Z-multi-page-rows`, dispatched once after the exact plan was
+  committed and reviewed. No retry occurred.
+- Environment: result records a 32-bit process, `DAO.DBEngine.36`, and
+  `Microsoft Windows NT 10.0.20348.0`.
+- Protocol and validation: the unchanged analyzer rechecked all preregistered
+  input pins, plan/result binding, candidate starting identities, retained
+  image identities, unchanged before/after sizes and hashes, expected control
+  schema and row multiset, and agreement across three replicas. Running it on
+  temporary copies of retained artifacts reproduced the canonical report byte
+  for byte; retained originals were read only.
+- Artifacts: local outbox `20260905T032600Z-multi-page-rows` retains
+  `result.json`, 745,900 bytes, SHA-256
+  `af1189cbe265c5b93871ef84e4570d5cd3804d619091bfb8e716dd515ca8632c`;
+  canonical `report.json`, 466 bytes, SHA-256
+  `c1bb6ac0e2294bccc36dd1c1f31daf7f88785996575333ff2fe914c491680f50`.
+- Retained candidates: each remained 53,248 bytes, SHA-256
+  `57498e634b9e4e7102efd4f4c2d673cccd42c344b51590177c7704232df675af`.
+  Controls also remained 53,248 bytes, with replica hashes respectively
+  `a515b61b4022f403809503051029c7692e77b6421ec466dbe1a9b612989e0fe3`,
+  `500ead2e707f9d1acdfbd1a40538b0e5c888c9dc0bbb1de3ddfb23d98efbe7fe`, and
+  `4bb744e1c1ee6687487c2414be9bf00b3d239a65571b9dc395b5fa09726ba9cf`.
+- Observation: canonical report records `observed_accepted`, three replicas,
+  `compatibility_claim=false`, and `support_movement=false`. All six images
+  completed schema and row endpoints: version `3.0`, exactly `Rows` plus the
+  four expected system tables, one `Id` Long field of size 4, no indexes, and
+  exactly one occurrence of each integer from -254 through 254.
+- Interpretation: DAO consumed unchanged the exact candidate whose three data
+  pages hold 254, 254, and 1 rows, with all three owned, only the final page
+  available, and the composed page-zero header retained. These are the pinned
+  candidate's construction choices; this result establishes no general DAO
+  availability threshold, header-update rule, or matching control layout.
+  Other schemas or values, indexed rows, long values, existing-database
+  mutation, general compatibility, and hosted support coverage remain outside
+  this result. The support matrix does not move.
+- Usage: issue `#100`; bounded multiple-data-page initial-row construction.
+- Rights: MDB bytes and provider binaries remain outside the repository.
+- Review: independent report, input and retained-artifact identity, row
+  snapshot, additive-provenance, and evidence-boundary review completed
+  without findings.
+
+
+### EXP-0119 — Indexed initial-row candidate preregistration
+
+- Recorded: 2026-09-04, OpenAI Codex
+- Kind: SHA-256-pinned development-only local DAO experiment preregistration
+- Question: does DAO read the exact primary, unique, and ordinary-duplicate
+  initial-row candidates unchanged, including full index traversal and Seek?
+- Origin: reviewed `indexed_row_candidate` example at
+  `54d7d22b930b824c48d7afb0d44591f48c5b485d`. `EXP-0062` supplies
+  Long-key and leaf framing; `EXP-0073` supplies distinct-key counts. `EXP-0116`
+  established only an exact unindexed candidate. Each indexed arm creates
+  `Rows(Id Long, Payload Text 255)` with ascending `ById`, 20 rows in caller
+  order, and distinct payloads `a` through `t`, each repeated 255 times.
+  Primary and unique keys are 9 through -10; ordinary keys are 9 through 0
+  twice. The ordinary leaf has 20 entries and a definition distinct count of
+  10; the other arms have 20 distinct keys. All use leaf page 23 and data
+  pages 24--26 with 7, 7, and 6 rows.
+- Environment: private local Windows VM, x86 PowerShell, `DAO.DBEngine.36`.
+- Protocol: `oracle/windows-dao/acquisition/indexed-rows.plan.json`, SHA-256
+  `5d78e83ad3b00f1a460610580d2da42aae793c9f7c143f423525e9cb0a5b812c`. Commit and independently
+  review before one dispatch. Verify input pins on dispatch and analysis;
+  prepare and verify all nine candidate copies before the first control
+  creation. Each arm has three fresh DAO controls and three read-only candidate
+  observations. Verify full schema/index metadata, snapshot row multiset,
+  ordered index traversal containing every Id/payload pair, and Seek for every
+  distinct key. Duplicate traversal tie order is unspecified; ordinary Seek
+  may select either matching payload, while full traversal must contain both.
+  Require every control to pass and all 18 images to remain unchanged before
+  classifying candidate agreement per arm. Post-mutation failure requires a
+  new human decision before another dispatch.
+- Artifacts: each candidate is 55,296 bytes, with SHA-256 values:
+  primary `79b5e6c1a03418a0c6c9a99170cd6c67660b0d57eb56142354c5cbccc63cfa11`;
+  unique `cc4bd47bac0c57d7daa763b4675cb6dbe19dc886be733abf27edeebe7346b3c2`;
+  ordinary `9f517c410f65a3d5ec3ebd7829f7203dffb9594e95846413ef980290c03c5cd9`.
+  The plan pins producer, analyzer, imported transport, and Rust example.
+- Observation: acquisition has not started; no DAO outcome recorded here.
+- Interpretation: these three exact candidates only. No null/descending/
+  composite-key rule, general B-tree allocation, DAO free-space or page-zero
+  policy, update correctness, general compatibility, or hosted support claim.
+- Usage: issue `#100`; bounded indexed initial-row construction.
+- Rights: all MDB bytes and provider binaries remain outside the repository.
+- Review: independent harness review completed without findings; six focused
+  classifier tests and a PowerShell parser-only preflight passed.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
