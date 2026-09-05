@@ -5,23 +5,24 @@
 
 use std::ffi::OsString;
 use std::fmt::Write as _;
-use std::fs;
 use std::path::PathBuf;
 
 use jet3::{
-    ByteCount, DatabaseReader, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimits,
-    SliceSource, TableDefinition, TextCodePage, ValueKind,
+    ByteCount, DatabaseReader, FileSource, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimits, TableDefinition, TextCodePage, ValueKind,
 };
 use serde_json::{Value, json};
 
 pub(crate) const HELP: &str = "\
-  jet3-cli inspect <file> [--rows] [--code-page 1252|1251]
+  jet3-cli inspect <file> [--table <ASCII-name>] [--rows] [--code-page 1252|1251]
   jet3-cli inspect <file> --page <number> [--hex]
 
 inspect classifies every page, lists catalog records, decodes every
 catalogued table definition (system tables included), lists the pages each
 table owns, and names tag-02 pages no catalog record points at. --rows also
-streams every row of every decoded table.
+includes every row of every decoded table. --table restricts table definitions
+and rows to one exact catalog name; page and catalog diagnostics remain present.
+JSON includes ok=false and issues on partial decode failure (exit 1).
 --page dumps one page's classification, and --hex adds its bytes.
 ";
 
@@ -34,6 +35,7 @@ pub(crate) struct InspectCommand {
     hex: bool,
     rows: bool,
     code_page: TextCodePage,
+    table: Option<String>,
 }
 
 pub(crate) fn parse_args(
@@ -49,6 +51,7 @@ pub(crate) fn parse_args(
         hex: false,
         rows: false,
         code_page: TextCodePage::Windows1252,
+        table: None,
     };
     while let Some(option) = arguments.next() {
         if option == "--hex" {
@@ -59,6 +62,16 @@ pub(crate) fn parse_args(
             let value = arguments.next().ok_or("missing_option_value")?;
             let text = value.to_str().ok_or("invalid_option_value")?;
             command.page = Some(text.parse().map_err(|_| "invalid_page")?);
+        } else if option == "--table" {
+            if command.table.is_some() {
+                return Err("duplicate_option");
+            }
+            let value = arguments.next().ok_or("missing_option_value")?;
+            let text = value
+                .to_str()
+                .filter(|text| !text.is_empty() && text.is_ascii())
+                .ok_or("invalid_table_name")?;
+            command.table = Some(text.to_owned());
         } else if option == "--code-page" {
             let value = arguments.next().ok_or("missing_option_value")?;
             command.code_page = match value.to_str() {
@@ -73,6 +86,9 @@ pub(crate) fn parse_args(
     if command.hex && command.page.is_none() {
         return Err("hex_requires_page");
     }
+    if command.page.is_some() && (command.rows || command.table.is_some()) {
+        return Err("page_conflicts_with_table_or_rows");
+    }
     Ok(command)
 }
 
@@ -85,13 +101,16 @@ fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(read))
 }
 
-/// Returns one pretty-printed JSON document.
-pub(crate) fn run(command: &InspectCommand) -> Result<String, String> {
-    let bytes = fs::read(&command.path).map_err(|error| format!("read input: {error}"))?;
+pub(crate) struct InspectOutput {
+    pub json: String,
+    pub complete: bool,
+}
+
+/// Returns a diagnostic document, retaining partial results with explicit issues.
+pub(crate) fn run(command: &InspectCommand) -> Result<InspectOutput, String> {
     let mut budget = budget();
-    let source = SliceSource::new(&bytes, budget.read_budget()).map_err(|e| e.to_string())?;
     let mut database =
-        DatabaseReader::from_source(source, &mut budget).map_err(|e| e.to_string())?;
+        DatabaseReader::open(&command.path, &mut budget).map_err(|e| e.to_string())?;
 
     let document = match command.page {
         Some(page) => inspect_page(&mut database, &mut budget, page, command.hex)?,
@@ -99,11 +118,14 @@ pub(crate) fn run(command: &InspectCommand) -> Result<String, String> {
     };
     let mut text = serde_json::to_string_pretty(&document).map_err(|e| e.to_string())?;
     text.push('\n');
-    Ok(text)
+    Ok(InspectOutput {
+        complete: document["ok"] == true,
+        json: text,
+    })
 }
 
 fn inspect_page(
-    database: &mut DatabaseReader<SliceSource<'_>>,
+    database: &mut DatabaseReader<FileSource>,
     budget: &mut ResourceBudget,
     page: u64,
     hex: bool,
@@ -113,6 +135,7 @@ fn inspect_page(
         .read_classified_page(PageNumber::new(page), &mut raw, budget)
         .map_err(|e| e.to_string())?;
     let mut document = json!({
+        "ok": true,
         "page": page,
         "kind": format!("{:?}", classified.kind()),
         "tag": raw[0],
@@ -135,7 +158,7 @@ fn inspect_page(
 }
 
 fn inspect_database(
-    database: &mut DatabaseReader<SliceSource<'_>>,
+    database: &mut DatabaseReader<FileSource>,
     budget: &mut ResourceBudget,
     command: &InspectCommand,
 ) -> Result<Value, String> {
@@ -155,10 +178,12 @@ fn inspect_database(
 
     let mut catalog = Vec::new();
     let mut roots = Vec::new();
+    let mut table_names = std::collections::BTreeMap::new();
     let mut cursor = database.catalog(budget).map_err(|e| e.to_string())?;
     while let Some(record) = cursor.next_record().map_err(|e| e.to_string())? {
         if let Some(root) = record.table_definition() {
             roots.push(root.get());
+            table_names.insert(root.get(), record.name().raw_bytes().to_vec());
         }
         catalog.push(json!({
             "id": format!("{:?}", record.id()),
@@ -172,20 +197,51 @@ fn inspect_database(
     drop(cursor);
 
     let mut tables = Vec::new();
+    let mut issues = Vec::new();
+    let mut selected = false;
     for &root in &roots {
+        let raw_name = &table_names[&root];
+        if command
+            .table
+            .as_ref()
+            .is_some_and(|name| name.as_bytes() != raw_name)
+        {
+            continue;
+        }
+        selected = true;
+        let name = name_json(
+            std::str::from_utf8(raw_name)
+                .ok()
+                .filter(|name| name.is_ascii()),
+            raw_name,
+        );
+
         let definition = match database.table_definition(PageNumber::new(root), budget) {
             Ok(definition) => definition,
             Err(error) => {
-                tables.push(json!({"root": root, "error": error.to_string()}));
+                issues.push(
+                    json!({"root": root, "operation": "definition", "error": error.to_string()}),
+                );
+                tables.push(json!({"root": root, "name": name, "error": error.to_string()}));
                 continue;
             }
         };
         let mut entry = definition_json(&definition);
-        entry["owned_pages"] = owned_pages_json(database, budget, root);
+        entry["name"] = name;
+        entry["owned_pages"] = owned_pages_json(database, budget, root, &mut issues);
         if command.rows {
-            entry["rows"] = rows_json(database, budget, &definition, command.code_page);
+            entry["rows"] = rows_json(
+                database,
+                budget,
+                &definition,
+                command.code_page,
+                &mut issues,
+            );
         }
         tables.push(entry);
+    }
+    if command.table.is_some() && !selected {
+        return Err("table not found".to_owned());
     }
     // Continuation pages share the definition tag, so these are listed, not decoded.
     let uncatalogued: Vec<u64> = definition_pages
@@ -194,6 +250,8 @@ fn inspect_database(
         .collect();
 
     Ok(json!({
+        "ok": issues.is_empty(),
+        "issues": issues,
         "file": command.path.display().to_string(),
         "page_count": page_count,
         "pages": pages,
@@ -302,13 +360,19 @@ fn definition_json(definition: &TableDefinition) -> Value {
 }
 
 fn owned_pages_json(
-    database: &mut DatabaseReader<SliceSource<'_>>,
+    database: &mut DatabaseReader<FileSource>,
     budget: &mut ResourceBudget,
     root: u64,
+    issues: &mut Vec<Value>,
 ) -> Value {
     let mut owned = match database.owned_pages(PageNumber::new(root), budget) {
         Ok(owned) => owned,
-        Err(error) => return json!({"error": error.to_string()}),
+        Err(error) => {
+            issues.push(
+                json!({"root": root, "operation": "owned_pages", "error": error.to_string()}),
+            );
+            return json!({"error": error.to_string()});
+        }
     };
     let mut pages = Vec::new();
     loop {
@@ -316,6 +380,9 @@ fn owned_pages_json(
             Ok(Some(page)) => pages.push(json!(page.get())),
             Ok(None) => break,
             Err(error) => {
+                issues.push(
+                    json!({"root": root, "operation": "owned_pages", "error": error.to_string()}),
+                );
                 pages.push(json!({"error": error.to_string()}));
                 break;
             }
@@ -325,14 +392,18 @@ fn owned_pages_json(
 }
 
 fn rows_json(
-    database: &mut DatabaseReader<SliceSource<'_>>,
+    database: &mut DatabaseReader<FileSource>,
     budget: &mut ResourceBudget,
     definition: &TableDefinition,
     code_page: TextCodePage,
+    issues: &mut Vec<Value>,
 ) -> Value {
     let mut cursor = match database.rows(definition, budget) {
         Ok(cursor) => cursor,
-        Err(error) => return json!({"error": error.to_string()}),
+        Err(error) => {
+            issues.push(json!({"root": definition.root().get(), "operation": "rows", "error": error.to_string()}));
+            return json!({"error": error.to_string()});
+        }
     };
     let mut rows = Vec::new();
     loop {
@@ -340,6 +411,7 @@ fn rows_json(
             Ok(Some(row)) => row,
             Ok(None) => break,
             Err(error) => {
+                issues.push(json!({"root": definition.root().get(), "operation": "rows", "error": error.to_string()}));
                 rows.push(json!({"error": error.to_string()}));
                 break;
             }
@@ -353,7 +425,10 @@ fn rows_json(
             let value = match row.value(column.ordinal(), code_page) {
                 Ok(Some(decoded)) => value_json(decoded.kind(), decoded.raw_bytes()),
                 Ok(None) => Value::Null,
-                Err(error) => json!({"error": error.to_string()}),
+                Err(error) => {
+                    issues.push(json!({"root": definition.root().get(), "operation": "value", "column": column.ordinal().get(), "error": error.to_string()}));
+                    json!({"error": error.to_string()})
+                }
             };
             fields.insert(key, value);
         }

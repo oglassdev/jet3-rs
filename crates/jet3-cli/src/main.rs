@@ -127,8 +127,8 @@ fn main() -> ExitCode {
             ),
         },
         Command::Inspect(command) => match inspect::run(&command) {
-            Ok(json) => exit_after_write(write_stdout(&json), 0),
-            Err(message) => exit_after_write(write_stderr(&format!("jet3-cli: {message}\n")), 1),
+            Ok(output) => exit_after_write(write_stdout(&output.json), u8::from(!output.complete)),
+            Err(message) => exit_after_write(write_stderr(&(serde_json::json!({"ok": false, "error": "inspect_failed", "message": message}).to_string() + "\n")), 1),
         },
     }
 }
