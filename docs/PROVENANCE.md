@@ -12909,6 +12909,49 @@ Copy this block under the appropriate section and remove this instruction:
   checks passed; exact integrated five-case public preparation and committed
   plan/input checks precede dispatch. Independent plan review is required.
 
+## EXP-0197 — Same-page full-row replacement candidate preregistration
+
+- Preregistered 2026-09-05; no acquisition yet. Reviewed implementation
+  `c255849` supplies public `RowUpdate`/`update_row`. Plan
+  `oracle/windows-dao/acquisition/row-update-candidate.plan.json`, SHA-256
+  `95fa2e50c21230ed27f1c81bda93530b9fd2af460cb5760a984285c56215a0fe`,
+  pins 33 scoped source/exporter/producer/analyzer/transport/helper inputs.
+  Dispatch and retained-data analysis both verify these exact pins.
+- Four natural DAO profiles, three fresh originals each, with Items/Later
+  Long Id, nullable Long Value, Text255, Binary255 and Boolean fields plus
+  KeepQuery. Grow the first row with scalar null transition and Text/Binary
+  growth; shrink an unequal-width middle row; populate a later-table row's
+  null fields; replace a row adjacent to a known empty tombstone created by
+  a separate baseline DAO deletion. Exact seed/final values reside in the plan.
+- Independent DAO copies receive complete-row edits; Unix copies receive the
+  public API replacement. Original slots and all other row values remain stable.
+  The independent checker repacks existing physical slots, replacing only the
+  selected encoded row, with exact offsets/free count and unchanged vacated
+  slack, table/physical counts, maps, page zero and every unrelated byte.
+  Actual ordinary/inline-map/capacity/tombstone gates are checked, not assumed.
+- After all twelve public candidates pass, read original/control/Rust images
+  read-only and insert `[99,-9900,"next","00ff",true]` into separate control
+  and Rust continuation copies. Require complete schema/row/QuerySQL equality,
+  unchanged read-only identities and exact source/operation/image bindings.
+  Retain 60 MDBs and 84 DAO captures: twelve public edits, twelve DAO control
+  edits and 24 continuation inserts, plus baseline creation/three seed deletes.
+- One phased acquisition, no retry/resume or subset promotion. Any acquisition,
+  eligibility, mutation, capture, byte or semantic failure yields `no_outcome`
+  with partial artifacts and initiating endpoint/stack retained. Explicit
+  Int32/String/byte[]/Boolean/DBNull setter sites use plain CLR arrays;
+  cleanup preserves the initiating failure. EXP-0198 reserves one additive result.
+- Three Python classifier/preservation/pin tests, exporter Clippy and actual
+  four-profile public creation/exporter/checker preparations passed. Prepared
+  old/new row lengths were 19→82, 104→16, 14→26 and 21→14 bytes; these are
+  tooling checks, not DAO observations. Actual x86 parser and 200 typed mock
+  assignments plus first-error preservation passed without DAO. Temporary
+  preparation/share files were removed; mocks do not establish COM behavior.
+- Hypothesis: anchored in-page row movement with unchanged maps/counts/page0 is
+  accepted for these exact narrow two-variable rows. Existing EXP-0060/0061,
+  EXP-0162 and EXP-0170 motivate encoding/movement/tombstone construction.
+  No arbitrary wide multivariable shape, index/relationship/Auto/LVAL/overflow,
+  allocation/map transition, general update policy or support movement claimed.
+
 ## EXP-0170 — Public row insertion and DAO continuation accepted in three cases
 
 - Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
