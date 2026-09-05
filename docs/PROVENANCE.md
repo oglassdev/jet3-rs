@@ -12909,6 +12909,68 @@ Copy this block under the appropriate section and remove this instruction:
   checks passed; exact integrated five-case public preparation and committed
   plan/input checks precede dispatch. Independent plan review is required.
 
+## EXP-0198 — Full-row replacement refused the DAO Boolean layout
+
+- Original outcome: **no_outcome**, reason `Coordinated phase/source failure`,
+  from the single run `20260905T101500Z-row-update`. Preregistration EXP-0197
+  plan SHA-256 `95fa2e50c21230ed27f1c81bda93530b9fd2af460cb5760a984285c56215a0fe`;
+  source `c255849a71b26fe5152f35aad58854583513ccd5`, acquisition revision
+  `014f947384b608eee620169b0a9403b34978cd04`.
+- Retained original root:
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T101500Z-row-update`,
+  with the separate `20260905T101500Z-row-update-create` phase directory.
+  Report: 388 bytes, SHA-256
+  `1ebad1af860d484fa4f7a6b687eaa1437fa296f1e0d37146b79192903c4d9bf8`;
+  result: 491 bytes, SHA-256
+  `e4db6bdec3c82c7388f6113217807c2205914160b1885ca6edad23541d65c1af`;
+  create phase: 548,830 bytes, SHA-256
+  `8f8e2d5f4d3e355e3cf5eb88ac7571f08098808aafca3e79c786a50e9cecc31d`.
+- The unchanged pinned analyzer reproduced the original report byte-for-byte on
+  temporary copies. All 57 retained files (30 coordinated, 27 create-phase)
+  remained unchanged. No corrected analysis, retry or additional DAO operation.
+- The create phase completed twelve fresh originals and twelve independent DAO
+  full-row edit controls. All 24 read-only captures passed, with no phase error
+  or retention failure; retained bytes matched every recorded before/after
+  identity. Their declared schemas/rows passed the original expected-value gate.
+  This is completed baseline/control evidence, not candidate acceptance.
+- The first Unix exporter, `grow-first-r1`, failed. Result phase `unix_update`
+  contains no successful update receipts and reports
+  `ValueError: Public row update failed: grow-first-r1`. No observe phase or
+  continuation insertion ran. The retained Rust destination is exactly equal
+  to its original; no public row mutation was published.
+- Retained exporter stderr (`grow-first-r1-unix.txt`, 75 bytes, SHA-256
+  `17a1b9cfeaf39099b5ed7985d60403a87555c135d71d89ceef9b4fa104a05f27`) reports
+  `Encoding(InvalidFixedOffset { ordinal: 4, offset: 0, expected: 8 })`.
+  Read-only diagnosis of that original's Items definition found Long Id/Value
+  at fixed offsets 0/4, variable Text/Binary indices 0/1, and fixed Boolean
+  Flag ordinal 4, size 1, with fixed-offset word 0. Its owned/available page
+  is 23. The row writer's contiguous-offset check precedes its Boolean
+  no-storage exception, explaining this structured refusal. The exact observed
+  metadata is evidence for a separately reviewed bounded Boolean-layout fix;
+  no changed parser behavior or general ignored-offset policy is established here.
+- The preparatory public-created fixtures used a different Boolean offset and
+  therefore did not exercise this DAO schema layout. Pure PowerShell setter
+  mocks likewise did not establish candidate eligibility. All four experimental
+  arms remain unaccepted; no promoted subset, row-byte correctness claim,
+  compatibility claim or support-matrix movement. Any successor requires a
+  distinct reviewed pinned plan. Independent outcome review follows this record.
+
+Retained original/control SHA-256 identities; the sole Rust destination repeats
+`grow-first` replica 1 original exactly (all images 57,344 bytes):
+
+- `grow-first` replica 1: `29e3b33b21611493fe43746f655d0c8b8aebfdcea3e4fe4e49b5f46911cdd049` / `c88f71047a681ac60570cd5d323d01fce71217d9e536e10de8f004d9f8a1908d`.
+- `grow-first` replica 2: `42481e7fdc3aabaf4424926751b7bcb6491607524c66567c44040b1e52e3859a` / `f90d9bee09103d8387dbea3b8713f46b028ca6ea34cd25545bba101ceae9d85d`.
+- `grow-first` replica 3: `41a6c8535bb0886fe6e33012cbb17f50550450d01813e90a0c02765dd304dba7` / `186d9e50b26684111042c40e11a6ce263adc090c628467db371cb2571cf70643`.
+- `shrink-middle` replica 1: `7cda1cf3bf7d42f60e3f482bfbf1c91aaeb57ccc9a0ee0d1d1145f6204b6e9a6` / `828f5266c6c01a79a74a0ad0bb5fdb1123e7988aed375a781ea561075562d6e0`.
+- `shrink-middle` replica 2: `a5a6ee9a5ead3c68542bba256666e254299577dce3c190cc018155ad6ba4036f` / `2ddc1ba6a79d7b43f8ac368040e733357ad0c6cdffa0efc6e39b7f6c0965b7b4`.
+- `shrink-middle` replica 3: `60223a4027026a4a7a15fcb6788650777f5f1951640704670b9d54b5f77d079a` / `9bcedce06cdedd1342ac08f8adb2ae48be7ec2899d923db0e7778a4bc203bb8d`.
+- `null-later` replica 1: `e2b2c4a7f2c9d015fec4cfe0ff387e9894a41b2df34c7e2f711fef32ee1872ad` / `d4dfc11c463942658feafae856a05a086f0e5c80a7405f6dcfd954a2792f678b`.
+- `null-later` replica 2: `ca85ed18af66df277c6942acf3905b9ed26cc12b5edbd7e463e0aa7417952b46` / `215f18fece173031dd5419ed21002142066bceeee9377c0290edf99ec3deace4`.
+- `null-later` replica 3: `32f306ad0a7d87825308eece0742483e5fd3ae2cd0699649250ca434b2ad1b70` / `1b3f474357429dc115b606d790ff5b600523cde0fd9e68e3634d7135f3aa2052`.
+- `tombstone` replica 1: `29e44eaae8ff3ba419de15d98fdf0ad70b224d4a71cb78404bc7a15dc4cf0b48` / `a44433a3b56e3cd3673bcfa98cfd63565f28a39cee34844f3e4eed7f6ac3b89c`.
+- `tombstone` replica 2: `dd5c1c33cfe511ab71c508a4ccbeff58b74bc0f5cbcfae4112df6ef4b9381439` / `e560044aeb36f15e2efe5f1ef78e9d7c581b9e6058813e5a4e4ea057b9c971f9`.
+- `tombstone` replica 3: `165daba8c9b43211cc946e4500884279e28b1c4b2969c7c84e1bad7644b9412d` / `3b6053aed5eb8fba2666b448d70329fce09557d2fe341ac70b5aedb548063ca1`.
+
 ## EXP-0197 — Same-page full-row replacement candidate preregistration
 
 - Preregistered 2026-09-05; no acquisition yet. Reviewed implementation
