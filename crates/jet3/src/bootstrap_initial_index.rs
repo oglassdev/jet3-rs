@@ -55,11 +55,12 @@ impl InitialLongIndex {
                 .resolve(spec.columns)
                 .map(usize::from)
                 .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
-            if spec
-                .columns
-                .get(column)
-                .is_none_or(|column| column.column_type() != ColumnType::Long)
-            {
+            if spec.columns.get(column).is_none_or(|column| {
+                !matches!(
+                    column.column_type(),
+                    ColumnType::Long | ColumnType::AutoIncrement
+                )
+            }) {
                 return Err(ComposeError::UnsupportedInitialIndexSchema);
             }
             *slot = LongField {

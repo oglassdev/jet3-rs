@@ -1,0 +1,71 @@
+{
+  "document_type": "dao_autoincrement_layout_plan",
+  "experiment_id": "autoincrement-layout",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0059 establishes AutoIncrement Long column class7 and DAO attribute16. TDEF [16,20) remains uninterpreted; EXP-0065/A9 supplies row-count/allocation observations, not generated-number state. Existing original system_catalog decoding supplies roots/columns/maps/rows.",
+    "question": "Which persisted TDEF/header/catalog changes accompany generated numbers, and what number does DAO generate after closing/reopening and deleting the last generated row?",
+    "hypotheses": [
+      "TDEF bytes[16,20) encode the last assigned generated Id as signed little-endian Long, including after deletion; ordinary Long controls leave that slot zero.",
+      "Auto-generated Id matches Tag for the finite inputs1..256 and next Tag257; these are tested hypotheses, not assumptions. Record the actual generated ID even if the hypothesis fails."
+    ],
+    "authorization": "User authorized DAO experiments/mutations. Commit and independently review pinned plan before one acquisition. Failure after first CreateDatabase is a scientific result; never automatically retry or redispatch."
+  },
+  "arms": {
+    "auto": "Rows(Id Long with DAO dbAutoIncrField16, Tag Long), no indexes; never assign Id during insertion.",
+    "long": "Same unindexed schema with ordinary Long Id, explicitly assign Id=Tag for every inserted row."
+  },
+  "checkpoints": [
+    {
+      "name": "empty",
+      "mutation": "Create and close fresh table, no rows."
+    },
+    {
+      "name": "one",
+      "mutation": "Reopen; append Tag1; ordinary control sets Id1, Auto omits Id; close."
+    },
+    {
+      "name": "n255",
+      "mutation": "Reopen; append Tag2..255 in order with the same assignment rule; close."
+    },
+    {
+      "name": "n256",
+      "mutation": "Reopen; append Tag256; close."
+    },
+    {
+      "name": "deleted",
+      "mutation": "Reopen; delete the row found by Tag=256, without assuming its generated Id; close."
+    },
+    {
+      "name": "next",
+      "mutation": "Reopen; append Tag257, ordinary control sets Id257, Auto omits Id; close and record actual generated Id."
+    }
+  ],
+  "execution": {
+    "environment": "Local private Windows VM, x86 PowerShell, DAO.DBEngine.36, dbVersion30 creation options32, ;LANGID=0x0409;CP=1252;COUNTRY=0.",
+    "order": "Replica1..3, each auto then long, six checkpoints in listed order. Six fresh working databases,36 closed captures. No explicit Auto Id insertion, rollback, compact, indexed table, reseed or overflow probe.",
+    "capture": "After each closed mutation, copy working MDB to checkpoint path. Hash copy; open read-only for version/table inventory/table attributes, fields/type/size/raw attributes, index count and every signed Id/Tag row; close and rehash. Continue mutations only in working MDB, reopening for each checkpoint.",
+    "decode": "Verify result and retained identities; use pinned original system_catalog decoder for complete schema, active rows with page/slot, table row count, maps, data-page ownership and global free-page observations. Require snapshot/decoded agreement and exact Tag inventory; ordinary Id equals Tag and surviving Id/Tag pairs remain unchanged across checkpoints.",
+    "raw_bytes": "Retain complete page-zero/user-TDEF/catalog-TDEF/catalog-data page hex per capture and exact coalesced changed ranges for each successive available capture. Retain both physical page numbers in each range. Candidate counter interpretation is isolated to raw TDEF[16,20); TDEF[12,16) comes from the existing row-count decoder. No guessed meanings for other changed bytes, including catalog timestamps or allocation fields.",
+    "replica_comparison": "Compare complete DAO metadata and Id/Tag row multisets, physical column records represented by the decoder, row count and exact TDEF[12,35) state/header bytes for every same arm/checkpoint. Retain raw locator/map/page-zero/catalog bytes and changed ranges, but do not require allocator addresses or timestamp bytes equal across replicas. Paired ordinary controls and header observations isolate candidate state from generic row-count/allocation changes; record hypotheses separately.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/autoincrement_layout.py run --shared-root VM_SHARED_ROOT --run-id UTC-autoincrement-layout",
+    "analysis": "python3 oracle/windows-dao/scripts/autoincrement_layout.py analyze OUTBOX; rechecks pinned inputs."
+  },
+  "decision_rule": {
+    "answered": "All36 captures complete unchanged; declared schemas/Tag inventories/row correlations pass and question-bearing observations agree across3replicas. Counter/sequence hypothesis false is still an answered observation; actual next-after-delete Id is always recorded.",
+    "no_outcome": "Incomplete/failed acquisition, changed read-only image, decode/schema/row/surviving-ID inconsistency, or replica disagreement. Retain completed snapshots/ranges and errors; no automatic retry.",
+    "rejection": "Bad plan/result/environment identity, changed pinned input, unexpected checkpoint inventory/order, or retained image identity mismatch rejects validation."
+  },
+  "boundary": "Only finite positive-generation/reopen/deletion cases on fresh unindexed one-AutoIncrement tables. No high seed, explicit Auto ID assignment, negative generation, signed overflow, multiple Auto columns, indexed generation, Rust candidate acceptance, general compatibility, updates or hosted support claim.",
+  "retention": "Retain all working/captured MDBs, result/report and logs externally; no MDB/provider bytes committed. Add one validated EXP-0132 outcome.",
+  "inputs": {
+    "oracle/windows-dao/scripts/autoincrement_layout.py": "efdd6eccaa98900f9d79a14f4942aedf944ee62ad62f861e01405f605728da89",
+    "oracle/windows-dao/scripts/autoincrement_layout.ps1": "36ed4a921622c01f581638320f98264406db265034fac52cd90614bfda1626fb",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  }
+}

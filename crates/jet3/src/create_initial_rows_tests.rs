@@ -83,7 +83,7 @@ fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
                 &mut budget()
             ),
             Err(CreateDatabaseError::Compose(
-                ComposeError::UnsupportedInitialRowSchema
+                ComposeError::InitialAutoIncrement { .. }
             ))
         ));
     }
@@ -374,3 +374,6 @@ mod long_values;
 
 #[path = "create_multi_table_rows_tests.rs"]
 mod multi_table;
+
+#[path = "create_autoincrement_tests.rs"]
+mod autoincrement;

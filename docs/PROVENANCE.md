@@ -10992,6 +10992,133 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0136 — Retained AutoIncrement state observations
+
+- Status: validated `answered` secondary analysis under EXP-0135, not a new
+  acquisition or a revision of EXP-0132's preserved `no_outcome`.
+  Plan SHA-256:
+  `13ab8dab2f129fa8a859545e896fa3376836cde938c14e673a842d1d87b5c96f`.
+- External report: `20260905T045600Z-autoincrement-secondary/report.json`,
+  1,080,091 bytes, SHA-256
+  `670cc25e591afb33a987e6a8c6e26852e0543ab5a24939b903c25e876dfe01e6`.
+  Reproduced byte-identically from temporary copies of the pinned original
+  result/report and all 36 captures; originals remain unchanged. The only
+  decoder adjustment was its private row-directory limit from 64 to 256.
+- All three replicas passed the original correlations and all three finite
+  hypotheses. In the AutoIncrement arm, TDEF `[16,20)` held signed
+  little-endian values 0, 1, 255, 256, 256 and 257 at the empty, one, n255,
+  n256, deleted and next checkpoints respectively. Row counts were 0, 1,
+  255, 256, 255 and 256. Generated IDs matched insertion Tags; the next
+  insertion after deleting Tag 256 generated ID 257 in every replica.
+- Paired ordinary Long controls held zero throughout TDEF `[16,20)` with
+  the same row counts and explicit ID/Tag values. User-definition changes
+  in both arms were confined to existing row-count bytes `[12,16)` and,
+  only for generated inserts in the AutoIncrement arm, `[16,20)`. Deletion
+  changed row count but retained the last generated number. Thus this slot
+  records last-generated state for these finite positive cases, rather than
+  current row count or the largest surviving ID.
+- This supports a bounded initial construction that generates IDs 1 through
+  at most 256 and persists that last generated value. The state observed at
+  257 followed deletion/reopening; no arbitrary high seed, explicit Auto ID,
+  overflow, indexed generation or generalized update grammar was tested.
+  Rust candidate acceptance and subsequent DAO insertion remain separate
+  validation work. No compatibility or hosted support claim follows.
+
+## EXP-0135 — Retained AutoIncrement captures secondary-analysis plan
+
+- Status: post-acquisition secondary analysis planned; expanded analysis has
+  not run. This is not a new preregistered acquisition. EXP-0132 remains an
+  unchanged `no_outcome` from the original EXP-0131 experiment.
+- Plan: `oracle/windows-dao/acquisition/autoincrement-reanalysis.plan.json`,
+  SHA-256 `13ab8dab2f129fa8a859545e896fa3376836cde938c14e673a842d1d87b5c96f`.
+  It pins the original result/report and all 36 retained MDB captures from
+  `20260905T044800Z-autoincrement-layout`, plus the new harness and unchanged
+  original analyzer, decoder and acquisition plan.
+- Known limitation motivating this analysis: the original helper rejected
+  24 captures containing a 169-slot page against its limit of 64. The sole
+  adjustment is `MAX_ROWS_PER_PAGE` from 64 to 256 in a private instance of
+  the original decoder. All structural checks and original schema, row,
+  identity, replica and classification rules remain in effect.
+- Commit and independent review precede expanded decoding. The harness
+  checks pinned artifacts before and after analysis and creates a separate
+  report outside the source outbox. That report identifies the original
+  `no_outcome`, all artifact identities and the exact analysis adjustment.
+  The original finite hypotheses remain hypotheses; stable disagreement is
+  an answered observation under the unchanged decision rule.
+- No DAO call, redispatch, new capture or source mutation is part of this
+  experiment. No additional decoder changes or automatic retry are allowed.
+  Record one validated secondary outcome as EXP-0136; neither this plan nor
+  a successful decode establishes general compatibility or hosted support.
+
+## EXP-0132 — AutoIncrement discovery produced no outcome
+
+- Status: validated `no_outcome` from the single local EXP-0131 run
+  `20260905T044800Z-autoincrement-layout`. Independent review pending.
+- Consumed plan SHA-256:
+  `c27de50741883f787a2280d0e92fde43089288ff284d77c4408f22dcc9f577f5`.
+  Retained `result.json`: 1,678,940 bytes, SHA-256
+  `91f10571fd8885b860b2a7c58f5ee40bc3050d64c1b14e31886340a367600fcb`.
+  Retained `report.json`: 215,446 bytes, SHA-256
+  `367f10da6f4966412dc3e02503d8e71cfa2f3d482db3edbab0b600e66319bb65`.
+  Both remain under the run's external shared outbox. The pinned original
+  analyzer reproduced the complete report byte-identically in memory;
+  validation checked all 36 retained capture identities.
+- Acquisition recorded `mutation_started=true`, no guest error, and 36
+  checkpoint observations with DAO status `pass` and unchanged before/after
+  identities. This does not satisfy the preregistered analysis decision rule.
+- Analysis accepted only the 12 empty/one-row observations. Each of the 24
+  `n255`, `n256`, `deleted` and `next` captures failed original decoding with
+  `page 23 row directory: 169 rows exceed the bound of 64`. The report also
+  records `Acquisition incomplete or failed: None` because its complete
+  observation gate failed. Its hypotheses list is empty.
+- The experiment therefore establishes no persisted-counter interpretation
+  or next-generated-ID result. The original plan, scripts, result and
+  `no_outcome` report are preserved; no retry or redispatch was performed.
+  A separately preregistered analysis of retained artifacts would be a new
+  experiment, not a revision of this result. No compatibility or hosted
+  support claim follows.
+
+## EXP-0131 — AutoIncrement persisted-state discovery preregistration
+
+- Status: preregistered; no acquisition or outcome recorded by this entry.
+- Plan: `oracle/windows-dao/acquisition/autoincrement-layout.plan.json`, SHA-256
+  `c27de50741883f787a2280d0e92fde43089288ff284d77c4408f22dcc9f577f5`.
+  The plan pins its PowerShell acquisition script, Python analyzer, original
+  system-catalog decoder and VM transport. Dispatch requires the committed
+  plan; dispatch and standalone analysis verify these input hashes.
+- Question: identify persisted changes accompanying generated Long IDs and
+  observe the next generated ID after closing, reopening and deleting the
+  last generated row. EXP-0059 establishes AutoIncrement column metadata;
+  neither that evidence nor EXP-0065/A9 establishes persisted counter semantics.
+- Design: three replicas of two fresh unindexed tables, each named `Rows`
+  with Long `Id` and `Tag`. The AutoIncrement arm omits `Id` on every insert;
+  the ordinary Long control explicitly assigns `Id=Tag`. Each database has
+  six closed checkpoints: empty, Tag 1, Tags 1 through 255, append Tag 256,
+  delete Tag 256, then append Tag 257. Every checkpoint reopens the working
+  database; all 36 closed copies are observed read-only and hashed before
+  and after observation.
+- Capture: complete DAO column metadata and signed row values, original
+  decoder row locators/counts/maps/data pages, and complete raw page-zero,
+  user-TDEF and catalog-TDEF/data pages. Successive captures retain exact
+  changed byte ranges with both physical page locations. Replica comparison
+  requires matching question-bearing metadata, rows and TDEF `[12,35)`;
+  allocator addresses and catalog timestamps remain observations rather
+  than requirements for equality.
+- Hypotheses, not format facts: TDEF `[16,20)` contains the last generated
+  signed little-endian Long, remains unchanged after deletion, and stays
+  zero in the ordinary control; generated IDs equal the finite Tag sequence.
+  A stable disagreement is an answered observation. The actual ID generated
+  for Tag 257 is recorded without requiring it to equal 257.
+- Decision: all declared captures, unchanged identities, schema/row
+  correlations, surviving IDs and replica comparisons must pass. An
+  incomplete acquisition or failed observation yields `no_outcome`; invalid
+  input/result identities reject validation. No retry after the first DAO
+  mutation. Retain MDBs and reports externally; record one validated outcome
+  in EXP-0132.
+- Scope: local discovery only. No explicit AutoIncrement ID assignment,
+  high seed, signed overflow, indexed generation, Rust candidate acceptance,
+  general compatibility or hosted support claim.
+
 ## EXP-0128 — Descending/composite initial-index candidates accepted locally
 
 - Recorded: 2026-09-05, OpenAI Codex
