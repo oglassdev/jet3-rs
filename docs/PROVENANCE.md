@@ -11108,7 +11108,7 @@ Copy this block under the appropriate section and remove this instruction:
   acquisition. Original EXP-0194 no_outcome/report and all consumed inputs stay
   unchanged. No DAO, new MDB, mutation or corrected evaluation has run.
 - Plan `oracle/windows-dao/acquisition/multiple-index-reanalysis.plan.json`,
-  SHA-256 `72f151df95dfdd8a6a2396e0a1ebddcf53aee9db72a36b7fdd10edab728aa1f1`; pins all35 retained files,
+  SHA-256 `649e8dba0aa8d0d3bf875231a2c0bebeb0b4de6bd34e397a8f658875bdefae65`; pins all35 retained files,
   including30 MDBs and original result/report, plus29 runtime/plan inputs.
   Source directory remains `20260905T094500Z-multiple-index` under the external
   local VM shared outbox. Hash-only preflight validates all retained artifacts.
@@ -11127,7 +11127,7 @@ Copy this block under the appropriate section and remove this instruction:
   conditions; discrepancies remain no_outcome. Original reports and images are
   never written. A fresh exclusive output must be outside the original outbox
   tree, after input/retention checks; no reuse or replacement of an existing
-  output. Three focused synthetic gate/normalization/preservation tests pass.
+  output. Four focused synthetic gate/normalization/preservation tests pass.
 - Local development evidence only; no hosted support, broad multiple-index
   mutation result or compatibility claim. Independent review precedes execution.
 

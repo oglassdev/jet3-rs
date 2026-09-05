@@ -23,6 +23,12 @@ class SecondaryTests(unittest.TestCase):
         with patch.object(s.frozen,'raw_check',return_value={'unchanged':True}) as old:
             self.assertEqual(s.checked_raw(data,{},{}),{'unchanged':True});old.assert_called_once_with(data,{})
 
+    def test_identical_replica_images_share_only_consistent_normalization(self):
+        values={};first=dict(table_root=20,offset=40999,stored_count=202,actual_distinct=201,replica=1)
+        s.add_override(values,'same',first);s.add_override(values,'same',dict(first,replica=2))
+        self.assertEqual(len(values),1)
+        with self.assertRaisesRegex(ValueError,'Conflicting'):s.add_override(values,'same',dict(first,offset=41000))
+
     def test_native_rejection_gate_and_exact_residue_inventory(self):
         plan=json.loads(s.PLAN.read_text())
         with tempfile.TemporaryDirectory() as tmp:

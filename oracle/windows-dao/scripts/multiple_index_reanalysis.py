@@ -41,6 +41,12 @@ def checked_raw(data,arm,overrides):
     observed['count_residue']=dict(index='ZPrimary',offset=offset,stored_count=202,actual_entries=201,actual_distinct=201,normalization='four private in-memory prefix bytes only')
     return observed
 
+def add_override(overrides,sha,residue):
+    if sha in overrides:
+        fields=('table_root','offset','stored_count','actual_distinct')
+        require(all(overrides[sha][field]==residue[field] for field in fields),'Conflicting residue image metadata')
+    else:overrides[sha]=residue
+
 def compare(plan,source):
     result=json.loads((source/'result.json').read_text());overrides={}
     require(len(plan['count_residues'])==6,'Six declared residue images')
@@ -53,7 +59,7 @@ def compare(plan,source):
         require(operation['accepted'] is False and operation['error'] is not None and 3022 in operation['numbers'],'Exact secondary duplicate rejection')
         path=source/residue['file'];require(identity(path)==plan['artifacts'][residue['file']],'Residue image pin')
         require(pair['captures'][key[2]]['after']==identity(path),'Residue capture binding')
-        sha=identity(path)['sha256'];require(sha not in overrides,'Duplicate residue image');overrides[sha]=residue
+        sha=identity(path)['sha256'];add_override(overrides,sha,residue)
     require(actual==wanted,'Residue role inventory')
     # Private module preserves the original acquisition plan/source and all gates.
     spec=importlib.util.spec_from_file_location('_multiple_secondary',ROOT/'oracle/windows-dao/scripts/multiple_index.py')
