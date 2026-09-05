@@ -389,6 +389,10 @@ use definitions::{
     msys_relationships_definition,
 };
 
+#[path = "bootstrap_initial_index.rs"]
+mod initial_index;
+pub(crate) use initial_index::InitialLongIndex;
+
 #[path = "bootstrap_table_create.rs"]
 mod table_create;
 use table_create::PlannedCreate;
