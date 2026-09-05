@@ -13004,6 +13004,45 @@ Copy this block under the appropriate section and remove this instruction:
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0195 — Hosted nine-case allocation and compaction preregistration
+
+- Preregistered: 2026-09-05, OpenAI Codex; no acquisition yet. Reviewed tooling
+  `4887818`, integrated source `e93879a572dd4dc0e068085c59ca0f970b17cc68`.
+- Plan `oracle/windows-dao/acquisition/row-allocation-v1_2.plan.json`, SHA-256
+  `e7e69071956deb9eaa31c5576b04fe599864894cccdebfc32d444e7f08808294`. Pins bind workflow,
+  nine-case inventory, fixture/CLI, shared parser allocation helper, mutation
+  codecs, read-only provider helpers and independent evaluators to reviewed source.
+  Both hosted jobs use the actual dispatched revision; root verifies its pinned
+  files before the single dispatch. MDB/provider bytes stay external.
+- Retain five historical requests exactly; add empty-table EOF insertion,
+  full-page EOF insertion with 240-byte Text payloads, unequal middle deletion,
+  and three sequential deletions around retained tombstones. Nine before/after
+  pairs receive eleven public mutations; every original starts from public
+  creation APIs. Unrelated tables and all exact values are declared in inventory.
+- One `windows-dao-row-allocation` dispatch with `run_acquisition=true` and exact
+  plan SHA: Ubuntu generates and verifies; Windows independently verifies the
+  same18images and reads them with Rust plus stock x86 DAO.DBEngine.36.
+  Canonical snapshots/coverage must match independently requested schema/rows,
+  exact environment/source/image identities and each other. No provider install
+  or license acceptance; a missing stock provider is retained as a prerequisite
+  failure. Only run attempt1, no automatic retry or partial promotion.
+- Rust and Python independently reconstruct exact patches. EOF adds one2048-byte
+  page and changes table count/three inline-map bits; compaction retains slots
+  and empty tombstones, moves surviving rows, updates offsets/free/table count
+  and preserves vacated slack. Every byte outside the specified patches, including
+  page0 and unrelated payload, stays exact; only EOF changes length. Windows receipts must equal Unix receipts.
+- All nine preparations and18readonly captures must pass; any source/provider,
+  identity/recipe/coverage/byte/semantic failure prevents `matched`. Retain both
+  artifact groups, all images, manifests, receipts, environment, raw/canonical
+  snapshots, report when reached and failure logs. EXP-0196 is reserved for one
+  additive outcome; historical consumed inputs/outcomes remain unchanged.
+- Scoped fixture/CLI/Python tests, full nine-case Linux preparation and synthetic
+  complete/incomplete evaluator checks passed without DAO. These are tooling
+  checks, not acquisition evidence. Indirect maps/reuse/sole release, indexed or
+  related mutations, null/variable replacements, QueryDef preservation and DAO
+  continuation are deferred. No general allocation policy, compatibility beyond
+  this finite hosted matrix, or automatic support movement is established.
+
 ## EXP-0174 — Hosted finite field updates, insertion and tail deletion matched
 
 - Outcome: `matched`, recorded 2026-09-05 from GitHub Actions run
