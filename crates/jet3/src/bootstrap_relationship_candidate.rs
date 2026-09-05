@@ -134,7 +134,12 @@ fn assemble_relationship(
         (HEADER_PAGE, header),
         (
             GLOBAL_MAP_PAGE,
-            global_map_page(relation.index_page() + 1, budget)?,
+            global_map_page(
+                relation.index_page()
+                    + 1
+                    + child_index.map_or(0, InitialLongIndex::extra_page_count),
+                budget,
+            )?,
         ),
         (
             MSYS_OBJECTS_ROOT,
@@ -206,7 +211,13 @@ fn assemble_relationship(
         ),
         (
             relation.child.map_page().get(),
-            creates[1].map_page(Some(PageNumber::new(relation.index_page())), budget)?,
+            creates[1].map_page(
+                Some((
+                    PageNumber::new(relation.index_page()),
+                    child_index.map_or(0, InitialLongIndex::extra_page_count),
+                )),
+                budget,
+            )?,
         ),
     ];
     for (page, image) in replacements {
@@ -220,12 +231,33 @@ fn assemble_relationship(
     )?;
     plan.append(
         match child_index {
-            Some(index) => index.image(relation.child.definition_root(), budget)?,
+            Some(index) => index.image(
+                relation.child.definition_root(),
+                PageNumber::new(relation.index_page()),
+                relation.index_page() + 1,
+                None,
+                budget,
+            )?,
             None => empty_index_page(relation.child.definition_root().get(), budget)?,
         },
         &mut global_free,
         budget,
     )?;
+    if let Some(index) = child_index {
+        for ordinal in 0..index.extra_page_count() {
+            plan.append(
+                index.image(
+                    relation.child.definition_root(),
+                    PageNumber::new(relation.index_page()),
+                    relation.index_page() + 1,
+                    Some(ordinal as usize),
+                    budget,
+                )?,
+                &mut global_free,
+                budget,
+            )?;
+        }
+    }
     Ok(plan)
 }
 

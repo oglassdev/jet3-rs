@@ -180,13 +180,11 @@ pub fn create_database(
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
 /// At most one index on one or two Long columns (including a generated
-/// AutoIncrement column) is accepted, with each field
-/// ascending or descending. One leaf holds at most 200 single-column or 128
-/// two-column entries. Primary and unique indexes reject duplicate full keys;
+/// AutoIncrement column) is accepted, with each field ascending or descending.
+/// Uncompressed branch/leaf trees grow within the existing inline-map and
+/// resource limits. Primary and unique indexes reject duplicate full keys;
 /// ordinary indexes retain duplicates. Null components and other key types
-/// are refused. `EXP-0126` records the component encoding on exact fresh DAO
-/// controls; composite/descending Rust-created candidates await their own
-/// DAO differential.
+/// are refused.
 /// One AutoIncrement column requires [`RowValue::AutoIncrement`] in every row;
 /// IDs start at 1 independently per table and the last generated ID is persisted.
 /// Null and explicit IDs are refused, as are counts reaching the signed Long

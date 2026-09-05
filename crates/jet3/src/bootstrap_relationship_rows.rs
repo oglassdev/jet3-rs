@@ -51,13 +51,11 @@ pub(crate) fn compose_relationship_with_rows(
         foreign.push(row, locator, budget)?;
     }
     foreign.sort(budget)?;
-    // Both one-leaf index plans have already bounded row counts to at most 200.
-    budget.charge_work_units((parent.rows.len() * child.rows.len() * size_of::<i32>()) as u64)?;
     for (row, values) in child.rows.iter().enumerate() {
         let Some(RowValue::Long(value)) = values.get(usize::from(relation.child_column)) else {
             return Err(ComposeError::NullInitialIndexKey { row });
         };
-        if !parent.rows.iter().any(|values| matches!(values.get(usize::from(relation.parent_column)), Some(RowValue::Long(parent)) if parent == value)) {
+        if !parent_create.contains_initial_long(*value, budget)? {
             return Err(ComposeError::OrphanInitialRelationshipKey { row, value: *value });
         }
     }

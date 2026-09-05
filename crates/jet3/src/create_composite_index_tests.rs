@@ -155,14 +155,10 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
         &original[23 * crate::PAGE_BYTES + 2..23 * crate::PAGE_BYTES + 4],
         &8_u16.to_le_bytes()
     );
-    assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &rows, &mut budget()),
-        Err(CreateDatabaseError::Compose(ComposeError::IndexPageFull {
-            needed: 1806,
-            available: 1800
-        }))
-    ));
-    assert_eq!(fs::read(directory.target())?, original);
+    let expanded = TestDirectory::create()?;
+    create_database_with_rows(expanded.target(), &table, &rows, &mut budget())?;
+    assert_eq!(tree(&expanded.target())?.nodes().len(), 3);
+    assert_eq!(tree(&expanded.target())?.entries().len(), 129);
     let mut changed = original;
     changed[23 * crate::PAGE_BYTES + 248 + 9] ^= 1;
     fs::write(directory.target(), changed)?;
