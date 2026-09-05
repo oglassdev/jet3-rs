@@ -10133,6 +10133,58 @@ Use `not applicable` explicitly rather than omitting a field.
   tests and a PowerShell parser-only check pass.
 
 
+### EXP-0116 — Accepted multiple-data-page initial-row result
+
+- Recorded: 2026-09-04, OpenAI Codex (run timestamp is 2026-09-05 UTC)
+- Kind: validated SHA-256-pinned, development-only local DAO result
+- Question: does DAO read the exact `EXP-0115` candidate containing 509 Long
+  values across three data pages unchanged, matching fresh controls in all
+  three replicas?
+- Origin and binding: `EXP-0115` preregistration committed before acquisition
+  as `513b80e4dfd35124d80c4580c8c905717f7a5b83`; plan
+  `oracle/windows-dao/acquisition/multi-page-rows.plan.json`, SHA-256
+  `997070626c1b1c9f3e2daeae6c9a99333060c47916a2ac46c34e9c60073a50a2`.
+  Candidate source is `826b1318669071afc360659201fd8c012ff07bd0`.
+- Authorization and dispatch: user authorization covered single run
+  `20260905T032600Z-multi-page-rows`, dispatched once after the exact plan was
+  committed and reviewed. No retry occurred.
+- Environment: result records a 32-bit process, `DAO.DBEngine.36`, and
+  `Microsoft Windows NT 10.0.20348.0`.
+- Protocol and validation: the unchanged analyzer rechecked all preregistered
+  input pins, plan/result binding, candidate starting identities, retained
+  image identities, unchanged before/after sizes and hashes, expected control
+  schema and row multiset, and agreement across three replicas. Running it on
+  temporary copies of retained artifacts reproduced the canonical report byte
+  for byte; retained originals were read only.
+- Artifacts: local outbox `20260905T032600Z-multi-page-rows` retains
+  `result.json`, 745,900 bytes, SHA-256
+  `af1189cbe265c5b93871ef84e4570d5cd3804d619091bfb8e716dd515ca8632c`;
+  canonical `report.json`, 466 bytes, SHA-256
+  `c1bb6ac0e2294bccc36dd1c1f31daf7f88785996575333ff2fe914c491680f50`.
+- Retained candidates: each remained 53,248 bytes, SHA-256
+  `57498e634b9e4e7102efd4f4c2d673cccd42c344b51590177c7704232df675af`.
+  Controls also remained 53,248 bytes, with replica hashes respectively
+  `a515b61b4022f403809503051029c7692e77b6421ec466dbe1a9b612989e0fe3`,
+  `500ead2e707f9d1acdfbd1a40538b0e5c888c9dc0bbb1de3ddfb23d98efbe7fe`, and
+  `4bb744e1c1ee6687487c2414be9bf00b3d239a65571b9dc395b5fa09726ba9cf`.
+- Observation: canonical report records `observed_accepted`, three replicas,
+  `compatibility_claim=false`, and `support_movement=false`. All six images
+  completed schema and row endpoints: version `3.0`, exactly `Rows` plus the
+  four expected system tables, one `Id` Long field of size 4, no indexes, and
+  exactly one occurrence of each integer from -254 through 254.
+- Interpretation: DAO consumed unchanged the exact candidate whose three data
+  pages hold 254, 254, and 1 rows, with all three owned, only the final page
+  available, and the composed page-zero header retained. These are the pinned
+  candidate's construction choices; this result establishes no general DAO
+  availability threshold, header-update rule, or matching control layout.
+  Other schemas or values, indexed rows, long values, existing-database
+  mutation, general compatibility, and hosted support coverage remain outside
+  this result. The support matrix does not move.
+- Usage: issue `#100`; bounded multiple-data-page initial-row construction.
+- Rights: MDB bytes and provider binaries remain outside the repository.
+- Review: outcome implementation pass complete; independent review pending.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
