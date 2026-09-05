@@ -11024,6 +11024,42 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0187 — First, middle and repeated row deletion candidate plan
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0188.
+  Plan: `oracle/windows-dao/acquisition/row-delete-compaction.plan.json`,
+  SHA-256 `9a91a0a48793b0b7eca764d893508f7e02d1da118be4e22e7765b2bd9a298279`.
+- Reviewed public deletion source: `963d7aa6014bba9f91bb73405f3b16966ad6f5ea`.
+  The plan pins 31 source/exporter/producer/analyzer/transport inputs; shared
+  input verification runs before dispatch and analysis. No prior consumed
+  plan or producer changes.
+- Three natural DAO Long/Long/Text255 profiles, three replicas each: first-row
+  deletion `[1]`; unequal-width middle deletion `[2]`; repeated deletion
+  `[2,4,1]` around newly empty `c000` tombstones. Remaining live counts are
+  three, three and two; sole-row release is excluded. Each original also has
+  an unrelated Later table and stored KeepQuery.
+- DAO controls receive the declared sequence on independent original copies.
+  On Unix the new exporter copies once, resolves each Id through the public
+  reader and invokes public `delete_row`, returning per-step locator receipts.
+  The final image must equal the complete declared compaction sequence:
+  stable physical slots and surviving row bytes, shifted later offsets,
+  changed free/table counts, retained vacated slack and exact maps/page zero.
+  Intermediate candidates are not separate observations.
+- After all nine Unix candidates pass, observe original/control/Rust images
+  read-only and make separate control/Rust copies for `[99,-9900,"next"]`.
+  Require complete schemas, expected rows, index/relationship absence and
+  unchanged stored QuerySQL. Match control map memberships; physical DAO
+  header bookkeeping and unused bytes need not equal the candidate.
+- Retain 45 MDBs and 63 read-only captures. The finite run includes 15 DAO
+  control deletions, 15 public deletions and 18 DAO continuation inserts,
+  in addition to initial profile creation. Any failure after mutation yields
+  one `no_outcome`, partial artifacts retained; no retry/resume or subset
+  promotion. SSH phases are capped at 300 seconds and Unix sequences at 120.
+- Source observations are EXP-0162's finite middle/tail transitions and
+  EXP-0168/0170's known tombstones and continued use. Generalized compaction
+  and unchanged page zero remain candidate choices requiring this comparison.
+  Local development only; no compatibility or hosted support movement.
+
 ## EXP-0168 — Public tail deletion and DAO continuation accepted in three cases
 
 - Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
