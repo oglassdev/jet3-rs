@@ -11324,6 +11324,55 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0146 — Retained multi-level candidates accepted by secondary analysis
+
+- Recorded: 2026-09-05, OpenAI Codex; development-only secondary outcome.
+  EXP-0145 plan SHA-256
+  `a27b80e7745ea2dca35f78053a1b43d29ebb73d4db56d84bd6bd5ab814c454e4`
+  was committed at `a8fe92a` and independently reviewed before execution.
+  No DAO execution or new acquisition occurred.
+- Secondary report: externally retained
+  `20260905T060000Z-multi-level-secondary/report.json`, 362234 bytes,
+  SHA-256 `eb7ac58ea13c48cfd9aa990b2ac69122e0eec2293e75e91898b40eb8204a86ef`.
+  It reuses all eighteen pinned MDBs from
+  `20260905T054000Z-multi-level-index`, the original 9682811-byte result
+  SHA-256 `4adee25ea2276ea8b080441ac6eadf293869a7d5cee881145d82ab602f612718`,
+  and the original 150657-byte report SHA-256
+  `8c665dccb340155c3998022305cefbaa2b590c687167236abb2f18b2dcaf23cb`.
+  Original EXP-0139 plan SHA-256
+  `7d0f368b31e2295b826118cea4e290b8ddc6661d108aea99eb870db84e13ccc2`,
+  candidate source `5cd9e5a49888013059dfb88e8ab0a6ef942a91cd`, individual
+  candidate/control identities and consumed inputs remain pinned by EXP-0145.
+- The validated secondary report classifies primary, composite and relationship
+  arms as `observed_accepted`: all eighteen observations pass full metadata,
+  typed rows, ordered traversal, the original finite Seek probes, complete
+  key/locator separators, sibling chains, leaf depth, and map membership.
+  All nine fresh matched controls pass and all original identities remain
+  unchanged. This covers the exact 27801-row primary candidate, later-table
+  12929-row composite candidate, and 201-parent/27801-child relationship
+  candidate, each with three agreeing replicas.
+- The independent header/height question is `answered`; each arm and role
+  repeats its observed class-height pair set across all three replicas.
+  Heights count edges to leaves. Primary and composite DAO control roots have
+  raw header byte 21 equal to 2 at subtree height 2, lower branches have 1 at
+  height 1, and leaves have 0 at height 0. Candidate primary/composite roots
+  and the candidate child root instead have byte 1 at height 2; their lower
+  branches also have 1 and leaves 0. Those exact candidate policies were
+  accepted without requiring their bytes to equal control heights.
+- Relationship controls have a single parent leaf `(byte 0, height 0)` and
+  a child branch `(1, 1)` above leaves `(0, 0)`. Candidate parents have a
+  branch `(1, 1)` above leaves `(0, 0)`; candidate children additionally have
+  the root pair `(1, 2)`. The report retains every node, raw byte, derived
+  height and per-index counts. These finite observations justify recognizing
+  the observed branch value 2 alongside 1; they do not establish an arbitrary
+  height encoding, require byte/height equality, or prescribe writer updates.
+- The pinned secondary analyzer reproduced the report byte-for-byte using
+  temporary copies. All original outbox files and the secondary report remained
+  unchanged. EXP-0140's original three `no_outcome` classifications are carried
+  verbatim in the secondary report and remain the original experiment outcome.
+  No consumed input or parser code changes accompany this record. Independent
+  outcome review is pending; no general compatibility or support movement.
+
 ### EXP-0145 — Retained multi-level index secondary-analysis preregistration
 
 - Plan: `oracle/windows-dao/acquisition/multi-level-index-reanalysis.plan.json`,
