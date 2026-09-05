@@ -20,7 +20,8 @@ use std::path::Path;
 
 use crate::atomic::atomic_create;
 use crate::bootstrap_composer::{
-    ComposeError, compose_database, compose_database_with_rows, initial_row_layout,
+    ComposeError, InitialLongIndex, compose_database, compose_database_with_rows,
+    initial_row_layout,
 };
 use crate::page_append_plan::PlannedPage;
 use crate::{
@@ -61,6 +62,8 @@ impl StdError for CreateDatabaseError {
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
 pub enum CandidateCheckError {
+    /// The candidate index tree could not be read.
+    Index(crate::IndexTreeError),
     /// The candidate rows could not be read.
     Rows(RowError),
     /// Requested rows could not be encoded for comparison.
@@ -81,6 +84,7 @@ pub enum CandidateCheckError {
 impl fmt::Display for CandidateCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
             Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
             Self::RowEncoding(source) => {
                 write!(formatter, "candidate row comparison failed: {source}")
@@ -100,6 +104,7 @@ impl fmt::Display for CandidateCheckError {
 impl StdError for CandidateCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::Index(source) => Some(source),
             Self::Rows(source) => Some(source),
             Self::RowEncoding(source) => Some(source),
             Self::Open(source) => Some(source),
@@ -146,12 +151,16 @@ pub fn create_database(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates one unindexed table containing scalar initial rows in caller order.
+/// Creates one table containing scalar initial rows in caller order.
 ///
 /// Rows are packed in caller order into data pages within the inline usage-map
 /// capacity. Each row and the table definition must fit one page. Pages with
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
+/// At most one ascending index on one Long column is accepted, with at most
+/// 200 non-null keys in a single leaf. Primary and unique indexes reject
+/// duplicate keys; ordinary indexes retain duplicates. Null keys, descending
+/// indexes, and other key types are refused.
 /// AutoIncrement, Memo, and LongBinary columns are refused. Values use the
 /// same database-code-page and physical scalar representations as [`RowValue`].
 /// The existing-destination and atomic publication guarantees of
@@ -204,6 +213,8 @@ fn check_initial_rows(
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
+    let mut expected_index = InitialLongIndex::new(table, rows.len(), budget)
+        .map_err(CandidateCheckError::RowEncoding)?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
     let mut cursor = database
         .rows(&definition, budget)
@@ -223,6 +234,12 @@ fn check_initial_rows(
                 detail: "initial row value",
             });
         }
+        let locator = actual.locator();
+        if let Some(index) = &mut expected_index {
+            index
+                .push(row, locator, cursor.owned.budget_mut())
+                .map_err(CandidateCheckError::RowEncoding)?;
+        }
     }
     if cursor
         .next_row()
@@ -232,6 +249,20 @@ fn check_initial_rows(
         return Err(CandidateCheckError::Mismatch {
             detail: "initial row count",
         });
+    }
+    drop(cursor);
+    if let Some(mut expected) = expected_index {
+        expected
+            .sort(budget)
+            .map_err(CandidateCheckError::RowEncoding)?;
+        let actual = database
+            .index_tree(&definition, 0, budget)
+            .map_err(CandidateCheckError::Index)?;
+        if !expected.matches(&actual) {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "initial index entries",
+            });
+        }
     }
     Ok(())
 }

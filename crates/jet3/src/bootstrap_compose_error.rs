@@ -5,7 +5,19 @@ use super::*;
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposeError {
-    /// Initial rows require an unindexed, single-page definition without
+    /// Initial rows support at most one ascending, single-Long-column index.
+    UnsupportedInitialIndexSchema,
+    /// Null indexed keys are outside the bounded initial-index construction.
+    NullInitialIndexKey {
+        /// Zero-based input row.
+        row: usize,
+    },
+    /// A primary or unique initial index repeats a key.
+    DuplicateInitialIndexKey {
+        /// Repeated Long value.
+        value: i32,
+    },
+    /// Initial rows require a single-page definition without
     /// AutoIncrement or long-value columns.
     UnsupportedInitialRowSchema,
     /// A table definition could not be encoded.
@@ -81,6 +93,9 @@ impl std::error::Error for ComposeError {
             Self::NameKey(source) => Some(source),
             Self::Schema(source) => Some(source),
             Self::UnsupportedInitialRowSchema
+            | Self::UnsupportedInitialIndexSchema
+            | Self::NullInitialIndexKey { .. }
+            | Self::DuplicateInitialIndexKey { .. }
             | Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }

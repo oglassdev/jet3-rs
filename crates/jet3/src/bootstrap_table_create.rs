@@ -53,6 +53,7 @@ pub(super) struct PlannedCreate<'a> {
     long_value: Option<u16>,
     initial_data: Vec<InitialDataPage>,
     initial_row_count: u32,
+    initial_index: Option<InitialLongIndex>,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +87,7 @@ impl<'a> PlannedCreate<'a> {
             long_value,
             initial_data: Vec::new(),
             initial_row_count: 0,
+            initial_index: None,
         })
     }
 
@@ -98,8 +100,7 @@ impl<'a> PlannedCreate<'a> {
         rows: &[&[RowValue<'_>]],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        if !self.spec.indexes.is_empty()
-            || self.plan.continuation_page().is_some()
+        if self.plan.continuation_page().is_some()
             || self.spec.columns.iter().any(|column| {
                 column.column_type().is_long_value()
                     || column.column_type() == ColumnType::AutoIncrement
@@ -107,6 +108,7 @@ impl<'a> PlannedCreate<'a> {
         {
             return Err(ComposeError::UnsupportedInitialRowSchema);
         }
+        self.initial_index = InitialLongIndex::new(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
             return Ok(self);
         }
@@ -127,17 +129,24 @@ impl<'a> PlannedCreate<'a> {
         for row in rows {
             let length = encode_row(&layout, row, &mut encoded, budget)?.get() as usize;
             let bytes = &encoded[..length];
-            match builder.append_row(bytes, budget) {
-                Ok(_) => {}
+            let slot = match builder.append_row(bytes, budget) {
+                Ok(slot) => slot,
                 Err(PageImageError::PageFull { .. } | PageImageError::RowSlotsExhausted { .. })
                     if builder.row_count() != 0 =>
                 {
                     self.push_initial_page(builder, minimum, budget)?;
                     builder = DataPageBuilder::new(self.plan.definition_root(), budget)?;
-                    builder.append_row(bytes, budget)?;
+                    builder.append_row(bytes, budget)?
                 }
                 Err(error) => return Err(error.into()),
+            };
+            let locator = crate::RowLocator::new(PageNumber::new(self.page_count()), slot);
+            if let Some(index) = &mut self.initial_index {
+                index.push(row, locator, budget)?;
             }
+        }
+        if let Some(index) = &mut self.initial_index {
+            index.sort(budget)?;
         }
         self.push_initial_page(builder, minimum, budget)?;
         Ok(self)
@@ -245,7 +254,12 @@ impl<'a> PlannedCreate<'a> {
         }
         let owner = self.plan.definition_root().get();
         for _ in self.plan.index_placements() {
-            plan.append(empty_index_page(owner, budget)?, append_map, budget)?;
+            let image = if let Some(index) = &self.initial_index {
+                index.image(self.plan.definition_root(), budget)?
+            } else {
+                empty_index_page(owner, budget)?
+            };
+            plan.append(image, append_map, budget)?;
         }
         for data in &self.initial_data {
             plan.append(data.image.clone(), append_map, budget)?;
@@ -307,7 +321,11 @@ impl<'a> PlannedCreate<'a> {
                 usage_map_row: row,
                 root,
                 flags: index.kind.flags(),
-                entry_count: 0,
+                // EXP-0073: the prefix counts distinct keys, not leaf entries.
+                entry_count: self
+                    .initial_index
+                    .as_ref()
+                    .map_or(0, InitialLongIndex::distinct_count),
             })
             .collect::<Vec<_>>();
         let logical = logical_index_order(spec.indexes)

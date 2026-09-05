@@ -91,27 +91,6 @@ fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
             ))
         ));
     }
-    let indexes = [IndexSpec {
-        name: b"ById",
-        fields: &[IndexColumnSpec::ascending(b"Id")],
-        kind: IndexKind::Ordinary,
-    }];
-    let table = TableSpec {
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
-    assert!(matches!(
-        create_database_with_rows(
-            directory.target(),
-            &table,
-            &[&[RowValue::Long(1)]],
-            &mut budget()
-        ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedInitialRowSchema
-        ))
-    ));
     assert!(directory.entries()?.is_empty());
     Ok(())
 }
@@ -390,3 +369,6 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
     assert!(directory.entries()?.is_empty());
     Ok(())
 }
+
+#[path = "create_initial_index_tests.rs"]
+mod indexes;
