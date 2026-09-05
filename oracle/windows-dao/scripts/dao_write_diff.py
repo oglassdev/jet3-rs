@@ -135,7 +135,8 @@ def validate_write_coverage(receipt, scenarios, snapshot):
         raise ValidationError('Invalid write receipt branches')
     if receipt['outcome'] != 'success' or receipt['error_class'] is not None or receipt['producer']['kind'] != 'rust':
         raise ValidationError('Write snapshot did not succeed')
-    if receipt['database_sha256'] != snapshot['database_sha256'] or receipt['scenario_id'] != snapshot['scenario_id']:
+    if (receipt['database_sha256'] != snapshot['database_sha256'] or receipt['scenario_id'] != snapshot['scenario_id']
+            or receipt['producer'] != snapshot['producer']):
         raise ValidationError('Write receipt snapshot mismatch')
     for declaration, actual in zip(scenarios, receipt['scenarios']):
         missing = sorted(set(declaration['required_branches']) - set(branches))
@@ -166,6 +167,12 @@ def assert_indexes(observations, snapshot):
                 raise ValidationError('Seek returned wrong full row')
 
 
+def bind_snapshot(snapshot, scenario_id, revision, kind, identity):
+    if (snapshot['scenario_id'] != scenario_id or snapshot['producer'] != {'kind': kind, 'source_revision': revision}
+            or snapshot['database_sha256'] != identity):
+        raise ValidationError('Snapshot scenario, source or database identity mismatch')
+
+
 def prepare(out, generator, reader, revision):
     scenarios = inventory()['scenarios']
     out.mkdir(parents=True, exist_ok=False)
@@ -182,10 +189,15 @@ def prepare(out, generator, reader, revision):
                     (root / (label + '.stdout.log')).write_text(run.stdout)
                     (root / (label + '.stderr.log')).write_text(run.stderr)
                     if run.returncode: raise ValidationError(label + ' failed')
+                    if label == 'generate':
+                        entry['database_sha256'] = digest(root / 'database.mdb')
+                    elif digest(root / 'database.mdb') != entry['database_sha256']:
+                        raise ValidationError('Initial reader changed generated database')
                 snapshot = load_json(root / 'rust/snapshot.json')
+                bind_snapshot(snapshot, scenario['id'], revision, 'rust', entry['database_sha256'])
                 assert_recipe(snapshot, scenario)
                 validate_write_coverage(load_json(root / 'rust/coverage.json'), scenarios, snapshot)
-                entry.update(status='prepared', database_sha256=digest(root / 'database.mdb'))
+                entry['status'] = 'prepared'
             except Exception as error:
                 entry['error'] = str(error)
                 raise
@@ -214,6 +226,9 @@ def resnapshot(out, reader, revision):
 def evaluate_checked(out):
     scenarios = inventory()['scenarios']; prepared = load_json(out / 'preparation.json'); manifest = load_json(out / 'dao-manifest.raw.json')
     ids = [s['id'] for s in scenarios]
+    reader = load_json(out / 'reader.json')
+    if prepared['producer_os'] != 'Linux' or reader != {'source_revision': prepared['source_revision'], 'reader_os': 'Windows'}:
+        raise ValidationError('Producer/reader source or platform receipt mismatch')
     if manifest['source_revision'] != prepared['source_revision']:
         raise ValidationError('Producer source revision mismatch')
     if prepared['inventory_sha256'] != digest(INVENTORY) or manifest['inventory_sha256'] != digest(INVENTORY):
@@ -228,7 +243,8 @@ def evaluate_checked(out):
         if not identity == initial['database_sha256'] == observation['before'] == observation['after']:
             raise ValidationError('Read-only database identity changed')
         rust = load_json(root / 'rust/snapshot.json'); dao = common.canonicalize_snapshot(load_json(root / 'dao-snapshot.raw.json'))
-        if rust['database_sha256'] != identity: raise ValidationError('Snapshot database mismatch')
+        bind_snapshot(rust, scenario['id'], prepared['source_revision'], 'rust', identity)
+        bind_snapshot(dao, scenario['id'], prepared['source_revision'], 'dao', identity)
         validate_write_coverage(load_json(root / 'rust/coverage.json'), scenarios, rust)
         assert_recipe(rust, scenario); assert_recipe(dao, scenario)
         assert_indexes(load_json(root / 'dao-indexes.raw.json'), dao)
