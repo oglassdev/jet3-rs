@@ -11210,6 +11210,85 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0134 — Populated relationship and bounded integrity probes accepted locally
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated development-only outcome from the single authorized run
+  `20260905T050200Z-relationship-rows`; no retry or support movement.
+- Preregistration: EXP-0133, commit `08f879a`, plan
+  `oracle/windows-dao/acquisition/relationship-rows.plan.json`, SHA-256
+  `ddeb3bdc88edc4c57163366fb77dfbf60eb5ed422d9a7943c78617be52ace5d2`.
+  Pinned producer, analyzer, transport and example remained unchanged.
+  Generator source: `77269833fb21b4fdb77c4fab9b6e7d8ec23ac314`.
+- Artifacts: local VM
+  `shared/outbox/20260905T050200Z-relationship-rows`. `result.json` is
+  1,284,881 bytes, SHA-256
+  `ebdae873bfb4a4618312792dccb52b81f5dbf270b2f4181356483a52a719b942`;
+  canonical `report.json` is 849 bytes, SHA-256
+  `9dfce7f02afddf33cac58607748cce37518b742f0f0891471d2b4a14a6e475b2`.
+  The pinned analyzer reproduced the report byte-for-byte on temporary
+  copies, validating input pins and all 24 retained MDB identities. Retained
+  originals were verified unchanged. Independent outcome review follows.
+- Environment: Windows NT 10.0.20348.0, 32-bit PowerShell, DAO.DBEngine.36.
+  Read-only `populated` acceptance and each of `valid_child`, `orphan_child`
+  and `duplicate_parent` report `observed_accepted`. Three original pairs
+  and nine separate writable probe pairs completed with every matched
+  control passing and no job error.
+- Readback: all three original candidate replicas matched the complete
+  planned table inventory, field metadata, index flags, relationship and
+  every parent/child value. Accounts7 contains three parent rows; Events9
+  contains twenty duplicate-key child rows with distinct 255-character
+  payloads across three data pages. Full parent/child index traversal
+  returned every expected pair; Seek for keys 1, 2 and 3 returned a complete
+  matching row. Duplicate tie order and which matching duplicate Seek
+  selects remain unspecified. All six original files stayed unchanged.
+- Integrity: on independent copies, inserting child ('valid',2) succeeded
+  in all candidate/control pairs, with exactly twenty-one child rows and
+  unchanged parent rows afterward. Orphan child ('orphan',999) and duplicate
+  parent (Code2=6,Key1=1) were rejected at Update, each preserving the full
+  logical state. Every post-state included complete metadata, full payloads,
+  index traversal and Seek. Observed native errors matched each control:
+  orphan 3201 (HRESULT -2146825087), duplicate 3022 (HRESULT -2146825266);
+  successful inserts had no native error or HRESULT. These codes were
+  observations, not guessed acquisition gates. Read-only observations of
+  each writable copy also left its post-operation bytes unchanged.
+- Retention: every file below is 65,536 bytes. The three original candidates
+  share the preregistered SHA-256
+  `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b`.
+  Probe starting identities matched the corresponding original candidate
+  or control. Remaining original and final probe identities follow.
+
+| Retained MDB | SHA-256 |
+| --- | --- |
+| `populated-control-r1.mdb` | `633e60b30c1abaec882562f6e9a84ee188a9ff741fa4626da9abd4d319f84b23` |
+| `populated-control-r2.mdb` | `edd01569a58febab4780b6b47659830435edabb14c39196b5e10606f0115ea0f` |
+| `populated-control-r3.mdb` | `f1f7b597b3bdf3b5908c451eb6972ea6490f5e0afc3b77955d01312107f59188` |
+| `populated-candidate-valid_child-r1.mdb` | `b85df4ab3fb16f90e7e88546c1048247829b028fb22bfa18c54ec7236ee8b9b5` |
+| `populated-control-valid_child-r1.mdb` | `125e6fb230194ec0df8580055f4edb6521e21c61147670d3095050b4b7f16740` |
+| `populated-candidate-orphan_child-r1.mdb` | `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b` |
+| `populated-control-orphan_child-r1.mdb` | `633e60b30c1abaec882562f6e9a84ee188a9ff741fa4626da9abd4d319f84b23` |
+| `populated-candidate-duplicate_parent-r1.mdb` | `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b` |
+| `populated-control-duplicate_parent-r1.mdb` | `633e60b30c1abaec882562f6e9a84ee188a9ff741fa4626da9abd4d319f84b23` |
+| `populated-candidate-valid_child-r2.mdb` | `b85df4ab3fb16f90e7e88546c1048247829b028fb22bfa18c54ec7236ee8b9b5` |
+| `populated-control-valid_child-r2.mdb` | `e952bfbae99866a5e3727db1f7ea0016ed00710f627a2330e89d43afa222cc25` |
+| `populated-candidate-orphan_child-r2.mdb` | `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b` |
+| `populated-control-orphan_child-r2.mdb` | `edd01569a58febab4780b6b47659830435edabb14c39196b5e10606f0115ea0f` |
+| `populated-candidate-duplicate_parent-r2.mdb` | `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b` |
+| `populated-control-duplicate_parent-r2.mdb` | `edd01569a58febab4780b6b47659830435edabb14c39196b5e10606f0115ea0f` |
+| `populated-candidate-valid_child-r3.mdb` | `b85df4ab3fb16f90e7e88546c1048247829b028fb22bfa18c54ec7236ee8b9b5` |
+| `populated-control-valid_child-r3.mdb` | `53b3b3882b83a957711b37c48816eb9b3530738b9be2431ef2c365c761f5dd2d` |
+| `populated-candidate-orphan_child-r3.mdb` | `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b` |
+| `populated-control-orphan_child-r3.mdb` | `f1f7b597b3bdf3b5908c451eb6972ea6490f5e0afc3b77955d01312107f59188` |
+| `populated-candidate-duplicate_parent-r3.mdb` | `5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b` |
+| `populated-control-duplicate_parent-r3.mdb` | `f1f7b597b3bdf3b5908c451eb6972ea6490f5e0afc3b77955d01312107f59188` |
+
+- Boundary: only this pinned multi-page, non-null Long relationship candidate
+  and these three finite DAO insert probes. No nullable/composite keys,
+  cascades, general allocation or integrity policy, Rust update capability,
+  general compatibility claim or hosted support movement follows. The
+  report explicitly keeps `development_only=true`, `compatibility_claim=false`
+  and `support_movement=false`.
+
 ### EXP-0133 — Populated relationship and integrity preregistration
 
 - Recorded: 2026-09-05, OpenAI Codex
