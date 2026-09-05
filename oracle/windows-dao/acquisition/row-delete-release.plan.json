@@ -1,0 +1,236 @@
+{
+  "document_type": "dao_row_delete_release_plan",
+  "provenance": "EXP-0191",
+  "outcome_provenance": "EXP-0192",
+  "replicas": 3,
+  "source_revision": "7ef955dd736d493ed538359f8e3b59eb3687df95",
+  "fields": [
+    {
+      "name": "Id",
+      "type": 4,
+      "size": 4
+    },
+    {
+      "name": "Value",
+      "type": 4,
+      "size": 4
+    },
+    {
+      "name": "Payload",
+      "type": 10,
+      "size": 255
+    }
+  ],
+  "query": {
+    "name": "KeepQuery",
+    "sql": "SELECT [Id], [Value] FROM [Items];"
+  },
+  "insert": [
+    99,
+    -9900,
+    "next"
+  ],
+  "arms": [
+    {
+      "name": "first-sole",
+      "table": "Items",
+      "selected_id": 1,
+      "tables": [
+        {
+          "name": "Items",
+          "rows": [
+            [
+              1,
+              101,
+              "sole"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "rows": [
+            [
+              11,
+              1100,
+              "left"
+            ],
+            [
+              12,
+              1200,
+              "right"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "later-sole",
+      "table": "Later",
+      "selected_id": 11,
+      "tables": [
+        {
+          "name": "Items",
+          "rows": [
+            [
+              1,
+              101,
+              "one"
+            ],
+            [
+              2,
+              202,
+              "two"
+            ],
+            [
+              3,
+              303,
+              "three"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "rows": [
+            [
+              11,
+              1100,
+              "sole"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "last-page-sole",
+      "table": "Items",
+      "selected_id": 11,
+      "tables": [
+        {
+          "name": "Items",
+          "rows": [
+            [
+              1,
+              101,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              2,
+              202,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              3,
+              303,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              4,
+              404,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              5,
+              505,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              6,
+              606,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              7,
+              707,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              8,
+              808,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              9,
+              909,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              10,
+              1010,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            [
+              11,
+              1111,
+              "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "rows": [
+            [
+              21,
+              2100,
+              "left"
+            ],
+            [
+              22,
+              2200,
+              "right"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "inputs": {
+    "Cargo.lock": "862e85e19ae578d9ed7be1113041b1053c30500badccd8b88c29233efc2af5a2",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/examples/field_update_candidate.rs": "867c42c748114e1f0ae19e84d0afdef37ac38bbbf079e332ef5e4df78cb724a0",
+    "crates/jet3/examples/row_delete_candidate.rs": "01170dc617c79d307966f1ebe10f7edf9ddb68337faf81f9552c1fbe58a9b111",
+    "crates/jet3/src/allocation.rs": "c52b7b405280675b97b9316b6f39019a650a7d7800a0334d7ac000c766a4e82f",
+    "crates/jet3/src/allocation_patch.rs": "13f962e9704a3cd7a5bcdd9f132c404e5d6c86c727920ca04da0d162fecd41c1",
+    "crates/jet3/src/atomic.rs": "450e15e7730150b87f936d0bbb207910e225fd1a512f240c98d96e1dfdf9ed6f",
+    "crates/jet3/src/binary_writer.rs": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
+    "crates/jet3/src/catalog.rs": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33",
+    "crates/jet3/src/catalog_record.rs": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144",
+    "crates/jet3/src/column_definition.rs": "f3f0741ce47d48f0fd368bca117f13e773326e4b77ee14bbc18e4a44f10861de",
+    "crates/jet3/src/data_page_directory.rs": "abaf82d51ed71084fe3623f8f6af3cc58f49bba26ad02249c39cd3da74e3bca1",
+    "crates/jet3/src/delete.rs": "adf9b8a85dc058771820479c195ce1a7f80ee360ee2ea6d2549edc0a96e4d187",
+    "crates/jet3/src/map_location.rs": "4fc00ccfaae0ed58e8f6adb82409eb3cf1e6f13fc1475caad519ff419be25c6c",
+    "crates/jet3/src/page_image.rs": "a33211ac27927bab6ddaf773af18c2e8a2de4bb7735fa9e5382ee54322a9c093",
+    "crates/jet3/src/resource.rs": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+    "crates/jet3/src/row.rs": "64647c6c4ed50f88841d6d28fcf170653055e44ec4e3ee61f1ec2aaa50a5d1ae",
+    "crates/jet3/src/row_delete_page.rs": "ab61456a71c46aa6ab8db25afb55dae00a05a915c89ae003b6b129b7d7706de8",
+    "crates/jet3/src/row_directory.rs": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844",
+    "crates/jet3/src/source.rs": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+    "crates/jet3/src/table_definition.rs": "7bc113e3fbd73dbb33d40476feb0e27ef11ddc4fcb9e7ac98dfe8f7dd34793c2",
+    "crates/jet3/src/update.rs": "7804019e1c2b2cbfe0d287f2bdcb6bb40a527b009d28d536f2572d65e4fec534",
+    "crates/jet3/src/update_pages.rs": "431201c558c17c9a19affd0850ddf9591109a3b2b70a51546cbc155013d6d0b5",
+    "crates/jet3/src/usage_map.rs": "091f54f1b7f495215d5ff6c9ef07bdef406cf8171bf64f912f808f35b13ad0ec",
+    "oracle/windows-dao/scripts/field_update.ps1": "9bef9e7e83e6cfd346067e221826937d043d2a31e77ab3df5d9dacd7df29f201",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/row_delete_layout.py": "74c30a55148ec5efe4c04a154917e8780c06a63442d28c0d0b3453b968142088",
+    "oracle/windows-dao/scripts/row_delete_release.ps1": "eb642fc6dd90c679c9ca65130a8c0003aa822eee00c249e0baad30d60b6a1afd",
+    "oracle/windows-dao/scripts/row_delete_release.py": "fd6b24dfb218c445b1864a4fe41d90bbdda6485e21c15941637013b3209226a8",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Does public sole-physical-row deletion release exactly the declared page and memberships while preserving payload/slack/page0 and matching DAO controls and independent continuation inserts?",
+  "source_facts": [
+    "EXP-0162 sole row page01to09/c800/free2036/maprelease and DAO reinsertion; page0 bytes uninterpreted",
+    "SRC-0020/EXP-0057 inline map grammar; EXP-0051 global page1 free polarity; EXP-0065 allocation membership behavior"
+  ],
+  "sequence": [
+    "Commit this source/input-pinned plan and independent review before a single phased run. No retry/resume after any mutation.",
+    "Create natural Long/Long/Text255 Items/Later profiles and KeepQuery, three replicas each: sole first-table row, sole later-table row, and11dense rows whose final page must have exactly one physical row. No raw fixture modification. Independently delete the selected Id from a copy with DAO.",
+    "On Unix copy each original once and invoke public delete_row. Require exactly one ordinary physical/live slot on the selected page, existing inline global/owned/available maps and correct initial memberships. Exact bytes may change only tag01to09, slotwordtoc800, freecountto2036, TDEFcountminus1 and the three map bits; payload, slack, other pages/maps, page0 and file length remain exact.",
+    "After all nine Unix candidates pass, observe original/control/Rust read-only and make separate control/Rust copies for DAO insertion [99,-9900,\"next\"]. Compare complete schemas, expected rows and KeepQuery SQL, including unrelated tables. Provider continuation may choose its own page placement; this does not claim public free-page reuse.",
+    "Retain45 MDBs and63 read-only captures; nine public and nine DAO deletions plus18 DAO continuation inserts, beyond baselinecreation. Any creation/eligibility/mutation/observation/preservation failure yields one no_outcome with partial artifacts retained. No subset promotion or redispatch."
+  ],
+  "decision_rule": "observed_accepted only if all nine cases and continuations pass full expected DAO schema/rows/QuerySQL, exact release/map/count/unrelated-byte preservation, stable surviving row locators, complete source/request/image/operation binding and unchanged read-only identities.",
+  "bounds": "Exactly one physical/live row on the released page; ordinary unindexed relationship-free nonAuto/nonLVAL table. No sole-live-with-tombstones release, indirect maps, map growth, truncation, public page reuse or general allocation/header policy. Natural last-page case is gated on actual observed sole-slot layout. Diagnostic64page/64column/64slot limits suffice. SSH300seconds per phase; Unix120seconds per operation. Local development only, no support movement.",
+  "hypothesis": "Page zero remains unchanged while tag/directory/free/count/map memberships follow the declared release construction; its bookkeeping meaning is not guessed. DAO acceptance and continuation are experimental questions.",
+  "producer": "Existing pinned single-operation Unix public row_delete_candidate exporter; reviewed source7ef955d and scoped runtime pins, separate acquisition revision. No binary/build attestation."
+}
