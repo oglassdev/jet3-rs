@@ -10992,6 +10992,51 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0138 — Generated AutoIncrement candidates and subsequent inserts accepted locally
+
+- Status: validated `observed_accepted` for all three EXP-0137 arms and all
+  nine candidate/control pairs in the single local run
+  `20260905T051300Z-autoincrement-candidate`. Independent review pending.
+  Plan SHA-256:
+  `503fc74b9179c3ea8c33a6f9606e5fdbf7d737c04b6dd9fbe3d9bd7594550cca`.
+- Retained external `result.json`: 3,927,335 bytes, SHA-256
+  `1680bc9f863d8a50757d793bb74bbab2c29931f903f073af11fb1ac7d02421a9`.
+  `report.json`: 95,313 bytes, SHA-256
+  `3610562d87ceabb1aabf2786e71d1722e8478b6a2640bb6d53430844b5cfcd0f`.
+  The pinned analyzer reproduced the report byte-identically from temporary
+  copies and verified all 36 retained initial/post-insert file identities.
+- Accepted candidate identities, before copying for writable insertion:
+  unindexed, 51,200 bytes, SHA-256
+  `2d7e3910f86587a428eab82c0f9f8c46e4d97478bd7b9949a3da7aed7bdd65dc`;
+  indexed, 51,200 bytes, SHA-256
+  `d101881cf90ba1f71906b84b7cbab2473818fbad8551e522e9d868bb2a7ab2d2`;
+  multi, 59,392 bytes, SHA-256
+  `df823f4c3e40b442dc9220303e2ff81c0e669af55a280547c3c720b35dc9b0b2`.
+- All three replicas agreed with fresh DAO controls on complete declared
+  metadata and rows. `Id` was Long, size 4, attributes 17; `Tag` was Long,
+  size 4, attributes 1. Indexed tables exposed ascending `PrimaryKey(Id)`
+  with primary/unique/required true, foreign/IgnoreNulls false, and field
+  attributes zero. Table inventories and attributes also matched exactly.
+- Unindexed `Rows` began with 300 rows and last-generated state 300; one
+  omitted-ID insertion with Tag 1001 generated ID 301 and left 301 rows
+  with state 301. Indexed `Rows` similarly advanced 10 to 11. Complete
+  indexed traversal and Seek inventories contained 10 then 11 matching rows.
+- In the multi-table candidate, unindexed `Rows` independently advanced
+  300 to 301, while indexed `Later` advanced 1 to 2. `Later` began with
+  `(Id=1, Tag=-1)` and added `(Id=2, Tag=1001)`; its complete traversal and
+  Seek inventories contained one then two rows. All other initial rows
+  paired IDs and Tags 1 through the declared count. Decoded complete rows,
+  TDEF counts and signed last-generated states agreed with DAO throughout.
+- Controls passed; every read-only before/after identity was unchanged, and
+  each writable copy started with its observed source's exact identity.
+  Acquisition recorded mutation started and no error. The analysis used
+  the preregistered private 256-slot decoder limit without further changes.
+- This establishes only the three pinned scalar/index/table shapes and one
+  subsequent generated insert per table. No explicit Auto ID assignment,
+  high seed, deletion, overflow, relationship, LVAL, general compatibility
+  or hosted support claim follows. Original EXP-0132 remains `no_outcome`;
+  EXP-0136 remains a separate secondary analysis of that earlier acquisition.
+
 ## EXP-0137 — Generated AutoIncrement candidate preregistration
 
 - Status: preregistered; no acquisition recorded here. Plan:
