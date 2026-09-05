@@ -10231,6 +10231,70 @@ Use `not applicable` explicitly rather than omitting a field.
   classifier tests and a PowerShell parser-only preflight passed.
 
 
+### EXP-0120 — Accepted indexed initial-row matrix
+
+- Recorded: 2026-09-04, OpenAI Codex (run timestamp is 2026-09-05 UTC)
+- Kind: validated SHA-256-pinned, development-only local DAO result
+- Question: does DAO consume the three exact `EXP-0119` indexed initial-row
+  candidates unchanged, with matching schema, full traversal, and Seek results?
+- Origin and binding: `EXP-0119` preregistration committed before acquisition
+  as `aea93f2d6db996a07559e19dae5f90bc0e500c17`; plan
+  `oracle/windows-dao/acquisition/indexed-rows.plan.json`, SHA-256
+  `5d78e83ad3b00f1a460610580d2da42aae793c9f7c143f423525e9cb0a5b812c`.
+  Candidate source is `54d7d22b930b824c48d7afb0d44591f48c5b485d`.
+- Authorization and dispatch: user authorization covered the single run
+  `20260905T034700Z-indexed-rows`, dispatched once after the exact plan was
+  committed and independently reviewed. No retry occurred.
+- Environment: result records a 32-bit process, `DAO.DBEngine.36`, and
+  `Microsoft Windows NT 10.0.20348.0`.
+- Protocol and validation: the unchanged analyzer verified input pins,
+  plan/result binding, candidate starting pins, all retained identities,
+  unchanged-image and complete-control gates, full expected schema and index
+  flags, row multisets, ascending index traversal with every Id/payload pair,
+  and Seek for every distinct key. Running it on temporary artifact copies
+  reproduced the canonical report byte for byte; retained originals were
+  read only.
+- Artifacts: local outbox `20260905T034700Z-indexed-rows` retains
+  `result.json`, 772,830 bytes, SHA-256
+  `5085ce246792bd3985aeac42ea0e496ccd4d5a7dcaef0648a7be5315ea452438`;
+  canonical `report.json`, 719 bytes, SHA-256
+  `48982bdb6e11805fb33c3c7c3bcfeacedc051f8f2ef769ca87b0369e384421ca`.
+- Retained candidates: all three replicas of each arm remained 55,296 bytes;
+  primary SHA-256 `79b5e6c1a03418a0c6c9a99170cd6c67660b0d57eb56142354c5cbccc63cfa11`,
+  unique `cc4bd47bac0c57d7daa763b4675cb6dbe19dc886be733abf27edeebe7346b3c2`,
+  ordinary `9f517c410f65a3d5ec3ebd7829f7203dffb9594e95846413ef980290c03c5cd9`.
+  Controls also remained 55,296 bytes. Their replica 1--3 hashes are:
+  primary: `fe31c485f55d208cc92b4b7d35487b60870a0815ec7ae2b1edd3f77ee977ff72`,
+  `c728febfed944743bf287cc6ec10786c97d0ac081e846593900215dee53b6756`,
+  `2a6e36ff52501623110aed8e99f4e7993cf3f422ca7979411da782e6c015c2da`.
+  unique: `fdadbf9272af30d38734e61bd481af587df92e64a12a017eda8c9c12ffc78598`,
+  `e0881148cc2a39006fbaed4314aa98a2dc55acb2dbacf13ab4ac665d6f9844c5`,
+  `4b6617fb3a313c01875776cc3c4b282f7223b82a2f6ff69b361b5c3396e1b6c8`.
+  ordinary: `c6ce4fb9419a86586bf8972d7ceecb07ac9c06b856f79c05cc7e6b9d887ca21b`,
+  `0c85b2875ce3a0aabfacb131f08fa2f13c73620f228abbed3a6971c4a59e3d62`,
+  `9a8a6c907693e031475bfdc64a9e20d5fe2835b439181d4869ad5887abd0ffb0`.
+- Observation: all three arms record `observed_accepted` with three replicas
+  each; report flags are `compatibility_claim=false` and
+  `support_movement=false`. All 18 images completed the endpoints unchanged.
+  Each had `Rows(Id Long, Payload Text 255)`, one ascending `ById` index, and
+  all 20 expected rows with distinct repeated-character payloads. Primary
+  reported Primary/Unique/Required true; unique reported only Unique true;
+  ordinary reported all three false. Primary and unique traversed keys -10
+  through 9; ordinary traversed two occurrences of each key 0 through 9.
+  Every expected Id/payload pair occurred once during full traversal, and Seek
+  returned an expected matching pair for every distinct key.
+- Interpretation: DAO read these exact one-leaf, three-data-page candidates
+  unchanged, including the ordinary candidate's 20 leaf entries and definition
+  prefix distinct count of 10. This validates those construction choices only;
+  duplicate traversal tie order and which ordinary duplicate Seek selects
+  remain unspecified. No general index, null, descending, composite, B-tree
+  allocation, page-zero, free-space, or update rule is established. There is
+  no general compatibility claim or hosted support-matrix movement.
+- Usage: issue `#100`; bounded indexed initial-row creation.
+- Rights: MDB bytes and provider binaries remain outside the repository.
+- Review: outcome implementation pass complete; independent review pending.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
