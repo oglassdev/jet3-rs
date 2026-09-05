@@ -10992,6 +10992,47 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0131 — AutoIncrement persisted-state discovery preregistration
+
+- Status: preregistered; no acquisition or outcome recorded by this entry.
+- Plan: `oracle/windows-dao/acquisition/autoincrement-layout.plan.json`, SHA-256
+  `c27de50741883f787a2280d0e92fde43089288ff284d77c4408f22dcc9f577f5`.
+  The plan pins its PowerShell acquisition script, Python analyzer, original
+  system-catalog decoder and VM transport. Dispatch requires the committed
+  plan; dispatch and standalone analysis verify these input hashes.
+- Question: identify persisted changes accompanying generated Long IDs and
+  observe the next generated ID after closing, reopening and deleting the
+  last generated row. EXP-0059 establishes AutoIncrement column metadata;
+  neither that evidence nor EXP-0065/A9 establishes persisted counter semantics.
+- Design: three replicas of two fresh unindexed tables, each named `Rows`
+  with Long `Id` and `Tag`. The AutoIncrement arm omits `Id` on every insert;
+  the ordinary Long control explicitly assigns `Id=Tag`. Each database has
+  six closed checkpoints: empty, Tag 1, Tags 1 through 255, append Tag 256,
+  delete Tag 256, then append Tag 257. Every checkpoint reopens the working
+  database; all 36 closed copies are observed read-only and hashed before
+  and after observation.
+- Capture: complete DAO column metadata and signed row values, original
+  decoder row locators/counts/maps/data pages, and complete raw page-zero,
+  user-TDEF and catalog-TDEF/data pages. Successive captures retain exact
+  changed byte ranges with both physical page locations. Replica comparison
+  requires matching question-bearing metadata, rows and TDEF `[12,35)`;
+  allocator addresses and catalog timestamps remain observations rather
+  than requirements for equality.
+- Hypotheses, not format facts: TDEF `[16,20)` contains the last generated
+  signed little-endian Long, remains unchanged after deletion, and stays
+  zero in the ordinary control; generated IDs equal the finite Tag sequence.
+  A stable disagreement is an answered observation. The actual ID generated
+  for Tag 257 is recorded without requiring it to equal 257.
+- Decision: all declared captures, unchanged identities, schema/row
+  correlations, surviving IDs and replica comparisons must pass. An
+  incomplete acquisition or failed observation yields `no_outcome`; invalid
+  input/result identities reject validation. No retry after the first DAO
+  mutation. Retain MDBs and reports externally; record one validated outcome
+  in EXP-0132.
+- Scope: local discovery only. No explicit AutoIncrement ID assignment,
+  high seed, signed overflow, indexed generation, Rust candidate acceptance,
+  general compatibility or hosted support claim.
+
 ## EXP-0128 — Descending/composite initial-index candidates accepted locally
 
 - Recorded: 2026-09-05, OpenAI Codex
