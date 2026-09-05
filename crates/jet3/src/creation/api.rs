@@ -178,7 +178,10 @@ pub fn create_database(
     atomic_create(
         path,
         |file| write_pages(file, &pages),
-        |candidate| check_candidate(candidate, tables, page_count, budget),
+        |candidate| {
+            check_memo_written_pages(candidate, tables, &pages, budget)?;
+            check_candidate(candidate, tables, page_count, budget)
+        },
     )
     .map_err(CreateDatabaseError::Publish)
 }
@@ -209,6 +212,9 @@ pub fn create_database(
 /// larger counts and this composed generation await candidate validation.
 /// One unindexed Memo or LongBinary column accepts
 /// nonempty typed payloads or null; raw `RowValue::LongValue` headers are refused.
+/// [`crate::ColumnSpec::with_allow_zero_length`] enables present-empty Memo on
+/// its bounded first-table schema. Its property construction is a sourced
+/// candidate pending DAO validation; empty OLE remains refused.
 /// The candidate policy stores up to 32 bytes inline, up to 2,036 on one LVAL
 /// page, and larger payloads in 2,032-byte chained fragments, one per page.
 /// These are construction choices, not established DAO allocation thresholds.
@@ -273,6 +279,7 @@ pub fn create_database_with_table_rows(
         path,
         |file| write_pages(file, &pages),
         |candidate| {
+            check_memo_written_pages(candidate, &tables, &pages, budget)?;
             check_candidate(candidate, &tables, page_count, budget)?;
             check_initial_tables(candidate, &tables, requests, budget)
         },
@@ -362,6 +369,10 @@ fn check_initial_table_rows(
         };
         let length = encode_initial_row(
             &layout,
+            table
+                .columns
+                .iter()
+                .any(crate::ColumnSpec::allow_zero_length),
             row,
             ordinal,
             &mut next_payload,
@@ -543,6 +554,39 @@ fn write_pages(file: &mut File, pages: &[PlannedPage]) -> Result<(), io::Error> 
 
 /// Reopens the candidate through the reader and checks its geometry, catalog
 /// rows, columns, and indexes against `tables`.
+fn check_memo_written_pages(
+    candidate: &Path,
+    tables: &[TableSpec<'_>],
+    pages: &[PlannedPage],
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
+    if !tables.iter().any(|table| {
+        table
+            .columns
+            .iter()
+            .any(crate::ColumnSpec::allow_zero_length)
+    }) {
+        return Ok(());
+    }
+    let mut database =
+        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
+    let mut bytes = [0_u8; crate::PAGE_BYTES];
+    for page in pages {
+        database
+            .read_raw_page(page.number(), &mut bytes, budget)
+            .map_err(CandidateCheckError::Read)?;
+        budget
+            .charge_work_units(crate::PAGE_BYTES as u64)
+            .map_err(CandidateCheckError::Read)?;
+        if &bytes != page.image().as_bytes() {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "Memo property written page",
+            });
+        }
+    }
+    Ok(())
+}
+
 fn check_candidate(
     candidate: &Path,
     tables: &[TableSpec<'_>],
