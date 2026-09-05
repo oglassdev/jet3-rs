@@ -10992,6 +10992,34 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0132 — AutoIncrement discovery produced no outcome
+
+- Status: validated `no_outcome` from the single local EXP-0131 run
+  `20260905T044800Z-autoincrement-layout`. Independent review pending.
+- Consumed plan SHA-256:
+  `c27de50741883f787a2280d0e92fde43089288ff284d77c4408f22dcc9f577f5`.
+  Retained `result.json`: 1,678,940 bytes, SHA-256
+  `91f10571fd8885b860b2a7c58f5ee40bc3050d64c1b14e31886340a367600fcb`.
+  Retained `report.json`: 215,446 bytes, SHA-256
+  `367f10da6f4966412dc3e02503d8e71cfa2f3d482db3edbab0b600e66319bb65`.
+  Both remain under the run's external shared outbox. The pinned original
+  analyzer reproduced the complete report byte-identically in memory;
+  validation checked all 36 retained capture identities.
+- Acquisition recorded `mutation_started=true`, no guest error, and 36
+  checkpoint observations with DAO status `pass` and unchanged before/after
+  identities. This does not satisfy the preregistered analysis decision rule.
+- Analysis accepted only the 12 empty/one-row observations. Each of the 24
+  `n255`, `n256`, `deleted` and `next` captures failed original decoding with
+  `page 23 row directory: 169 rows exceed the bound of 64`. The report also
+  records `Acquisition incomplete or failed: None` because its complete
+  observation gate failed. Its hypotheses list is empty.
+- The experiment therefore establishes no persisted-counter interpretation
+  or next-generated-ID result. The original plan, scripts, result and
+  `no_outcome` report are preserved; no retry or redispatch was performed.
+  A separately preregistered analysis of retained artifacts would be a new
+  experiment, not a revision of this result. No compatibility or hosted
+  support claim follows.
+
 ## EXP-0131 — AutoIncrement persisted-state discovery preregistration
 
 - Status: preregistered; no acquisition or outcome recorded by this entry.
