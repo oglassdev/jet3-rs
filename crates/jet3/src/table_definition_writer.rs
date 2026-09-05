@@ -42,12 +42,29 @@ pub enum PhysicalIndexFlagsSpec {
     Ordinary,
     /// Unique keys (`0x01`).
     Unique,
+    /// Omit all-null keys (`0x02`), observed for user indexes in EXP-0148.
+    IgnoreNulls,
+    /// Unique fully present keys and omit all-null keys (`0x03`, EXP-0148).
+    UniqueIgnoreNulls,
     /// The uninterpreted system-only value `0x02` from `EXP-0073`.
     SystemUninterpreted,
     /// Required keys (`0x08`).
     Required,
     /// Unique and required keys (`0x09`), admitted for user definitions only.
     UniqueRequired,
+}
+
+impl PhysicalIndexFlagsSpec {
+    pub(crate) const fn raw(self) -> u8 {
+        match self {
+            Self::Ordinary => 0,
+            Self::Unique => 1,
+            Self::IgnoreNulls | Self::SystemUninterpreted => 2,
+            Self::UniqueIgnoreNulls => 3,
+            Self::Required => 8,
+            Self::UniqueRequired => 9,
+        }
+    }
 }
 
 /// One typed 10-byte Memo/LongBinary map group (`EXP-0077`).

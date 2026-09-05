@@ -170,14 +170,14 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
 }
 
 #[test]
-fn null_second_component_and_three_fields_are_refused_without_publication() -> TestResult {
+fn required_null_second_component_and_three_fields_are_refused_without_publication() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = [IndexSpec {
         fields: &[
             field(0, IndexDirection::Ascending),
             field(1, IndexDirection::Descending),
         ],
-        ..one_index(IndexKind::Ordinary)[0]
+        ..one_index(IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required))[0]
     }];
     let table = TableSpec {
         name: b"Items",

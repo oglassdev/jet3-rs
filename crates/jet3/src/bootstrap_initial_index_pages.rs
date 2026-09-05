@@ -17,66 +17,97 @@ struct Node {
 #[derive(Debug, Clone)]
 pub(super) struct IndexPages {
     nodes: Vec<Node>,
-    entry_bytes: usize,
 }
 
 impl IndexPages {
     pub(super) fn new(
-        count: usize,
-        entry_bytes: usize,
+        entries: &[Entry],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        let leaf_capacity = INDEX_ENTRY_AREA_LEN / entry_bytes;
-        let fanout = INDEX_ENTRY_AREA_LEN / (entry_bytes + CHILD_BYTES) + 1;
-        let leaves = count.div_ceil(leaf_capacity).max(1);
-        let mut total = leaves;
-        let mut level = leaves;
-        while level > 1 {
-            level = level.div_ceil(fanout);
-            total = total.checked_add(level).ok_or(Error::Arithmetic {
-                operation: "count initial index pages",
-            })?;
+        let mut result = Self { nodes: Vec::new() };
+        let mut first = 0;
+        let mut used = 0;
+        for (ordinal, entry) in entries.iter().enumerate() {
+            budget.charge_work_units(1)?;
+            let width = entry.record().len();
+            if used + width > INDEX_ENTRY_AREA_LEN {
+                result.push(first..ordinal, 0..0, budget)?;
+                first = ordinal;
+                used = 0;
+            }
+            used += width;
         }
-        // All creation maps currently use the established inline representation.
-        if total as u64 > MAP_BITMAP_BYTES * 8 {
+        result.push(first..entries.len(), 0..0, budget)?;
+        let mut previous = 0..result.nodes.len();
+        for node in &mut result.nodes {
+            node.siblings = previous.clone();
+        }
+        while previous.len() > 1 {
+            let start = result.nodes.len();
+            let mut first = previous.start;
+            while first < previous.end {
+                // Each separator stores the preceding child's complete maximum.
+                let mut end = first + 1;
+                let mut used = 0;
+                while end < previous.end {
+                    budget.charge_work_units(1)?;
+                    let maximum = result.nodes[end - 1].entries.end - 1;
+                    let width = entries[maximum].record().len() + CHILD_BYTES;
+                    if used + width > INDEX_ENTRY_AREA_LEN {
+                        break;
+                    }
+                    used += width;
+                    end += 1;
+                }
+                // Avoid a final branch with only its tail child.
+                if previous.end - end == 1 {
+                    end -= 1;
+                }
+                let range = result.nodes[first].entries.start..result.nodes[end - 1].entries.end;
+                result.push(range, first..end, budget)?;
+                first = end;
+            }
+            let parents = start..result.nodes.len();
+            for node in &mut result.nodes[parents.clone()] {
+                node.siblings = parents.clone();
+            }
+            previous = parents;
+        }
+        Ok(result)
+    }
+
+    fn push(
+        &mut self,
+        entries: Range<usize>,
+        children: Range<usize>,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), ComposeError> {
+        let maximum = (MAP_BITMAP_BYTES * 8) as usize;
+        if self.nodes.len() == maximum {
             return Err(UsageMapWriteError::PageOutOfMap {
-                page: PageNumber::new(total as u64 - 1),
+                page: PageNumber::new(maximum as u64),
                 first: PageNumber::new(0),
-                page_count: MAP_BITMAP_BYTES * 8,
+                page_count: maximum as u64,
             }
             .into());
         }
-        budget.charge_allocation(ByteCount::new((total * size_of::<Node>()) as u64))?;
-        budget.charge_items(total as u64)?;
-        let mut nodes = Vec::new();
-        nodes.try_reserve_exact(total).map_err(|_| Error::Io {
-            operation: "reserve initial index nodes",
-            kind: std::io::ErrorKind::OutOfMemory,
-        })?;
-        for leaf in 0..leaves {
-            nodes.push(Node {
-                entries: leaf * leaf_capacity..((leaf + 1) * leaf_capacity).min(count),
-                children: 0..0,
-                siblings: 0..leaves,
-            });
+        budget.charge_items(1)?;
+        if self.nodes.len() == self.nodes.capacity() {
+            let additional = self.nodes.capacity().max(1).min(maximum - self.nodes.len());
+            budget.charge_allocation(ByteCount::new((additional * size_of::<Node>()) as u64))?;
+            self.nodes
+                .try_reserve_exact(additional)
+                .map_err(|_| Error::Io {
+                    operation: "reserve initial index nodes",
+                    kind: std::io::ErrorKind::OutOfMemory,
+                })?;
         }
-        let mut previous = 0..leaves;
-        while previous.len() > 1 {
-            let parents = previous.len().div_ceil(fanout);
-            let start = nodes.len();
-            for parent in 0..parents {
-                // Balanced groups avoid a non-root branch with only a tail child.
-                let first = previous.start + parent * previous.len() / parents;
-                let end = previous.start + (parent + 1) * previous.len() / parents;
-                nodes.push(Node {
-                    entries: nodes[first].entries.start..nodes[end - 1].entries.end,
-                    children: first..end,
-                    siblings: start..start + parents,
-                });
-            }
-            previous = start..nodes.len();
-        }
-        Ok(Self { nodes, entry_bytes })
+        self.nodes.push(Node {
+            entries,
+            children,
+            siblings: 0..0,
+        });
+        Ok(())
     }
 
     pub(super) fn extra_count(&self) -> u64 {
@@ -93,7 +124,7 @@ impl IndexPages {
 
     pub(super) fn image(
         &self,
-        entries: &[[u8; ENTRY_CAPACITY]],
+        entries: &[Entry],
         owner: PageNumber,
         root: PageNumber,
         first_extra: u64,
@@ -113,7 +144,6 @@ impl IndexPages {
             }
             .into());
         }
-        let entry_bytes = self.entry_bytes;
         let ordinal = ordinal.unwrap_or(self.nodes.len() - 1);
         let node = &self.nodes[ordinal];
         let branch = !node.children.is_empty();
@@ -144,28 +174,32 @@ impl IndexPages {
         } else {
             node.entries.len()
         };
-        let width = entry_bytes + if branch { CHILD_BYTES } else { 0 };
-        bytes[2..4].copy_from_slice(&((INDEX_ENTRY_AREA_LEN - count * width) as u16).to_le_bytes());
         if branch {
             bytes[16..20].copy_from_slice(
                 &(self.page(node.children.end - 1, root, first_extra) as u32).to_le_bytes(),
             );
         }
+        let mut used = 0;
         for position in 0..count {
             let source = if branch {
                 self.nodes[node.children.start + position].entries.end - 1
             } else {
                 node.entries.start + position
             };
-            let start = INDEX_ENTRY_AREA_OFFSET + position * width;
-            bytes[start..start + entry_bytes].copy_from_slice(&entries[source][..entry_bytes]);
+            let entry = entries[source].record();
+            let entry_bytes = entry.len();
+            let width = entry_bytes + if branch { CHILD_BYTES } else { 0 };
+            let start = INDEX_ENTRY_AREA_OFFSET + used;
+            bytes[start..start + entry_bytes].copy_from_slice(entry);
             if branch {
                 let child = self.page(node.children.start + position, root, first_extra) as u32;
                 bytes[start + entry_bytes..start + width].copy_from_slice(&child.to_be_bytes());
             }
-            let end = (position + 1) * width;
+            used += width;
+            let end = used;
             bytes[INDEX_BOUNDARY_BITMAP_OFFSET + end / 8] |= 1 << (end % 8);
         }
+        bytes[2..4].copy_from_slice(&((INDEX_ENTRY_AREA_LEN - used) as u16).to_le_bytes());
         let mut image = PageImage::new(if branch {
             PageKind::IntermediateIndex
         } else {

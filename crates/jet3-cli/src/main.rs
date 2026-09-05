@@ -13,6 +13,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod create;
 mod inspect;
 mod snapshot;
 
@@ -79,6 +80,7 @@ enum Command {
     Probe(ProbeOptions),
     Snapshot(snapshot::SnapshotCommand),
     Inspect(inspect::InspectCommand),
+    Create(create::CreateCommand),
 }
 
 fn main() -> ExitCode {
@@ -91,7 +93,12 @@ fn main() -> ExitCode {
 
     match command {
         Command::Help => exit_after_write(
-            write_stdout(&format!("{HELP}{}\n{}", snapshot::HELP, inspect::HELP)),
+            write_stdout(&format!(
+                "{HELP}{}\n{}\n{}",
+                snapshot::HELP,
+                inspect::HELP,
+                create::HELP
+            )),
             0,
         ),
         Command::Version => exit_after_write(
@@ -105,6 +112,19 @@ fn main() -> ExitCode {
         Command::Snapshot(command) => match snapshot::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(message) => exit_after_write(write_stderr(&format!("jet3-cli: {message}\n")), 1),
+        },
+        Command::Create(command) => match create::run(&command) {
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(message) => exit_after_write(
+                write_stderr(
+                    &(serde_json::json!({
+                        "ok": false, "error": "create_failed", "message": message,
+                    })
+                    .to_string()
+                        + "\n"),
+                ),
+                1,
+            ),
         },
         Command::Inspect(command) => match inspect::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
@@ -126,6 +146,9 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     }
     if first == "snapshot" {
         return snapshot::parse_args(arguments).map(Command::Snapshot);
+    }
+    if first == "create" {
+        return create::parse_args(arguments).map(Command::Create);
     }
     if first == "inspect" {
         return inspect::parse_args(arguments).map(Command::Inspect);

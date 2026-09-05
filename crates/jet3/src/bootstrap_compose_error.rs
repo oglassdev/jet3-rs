@@ -19,7 +19,7 @@ pub enum ComposeError {
     },
     /// Initial rows support at most one index on one or two Long columns.
     UnsupportedInitialIndexSchema,
-    /// Null indexed keys are outside the bounded initial-index construction.
+    /// A required index or relationship key contains a null component.
     NullInitialIndexKey {
         /// Zero-based input row.
         row: usize,

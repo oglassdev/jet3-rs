@@ -171,9 +171,12 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
 }
 
 #[test]
-fn null_keys_and_unsupported_key_schemas_fail_before_publication() -> TestResult {
+fn required_null_keys_and_unsupported_key_schemas_fail_before_publication() -> TestResult {
     let directory = TestDirectory::create()?;
-    for kind in [IndexKind::Primary, IndexKind::Unique, IndexKind::Ordinary] {
+    for kind in [
+        IndexKind::Primary,
+        IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required),
+    ] {
         let indexes = one_index(kind);
         let table = TableSpec {
             name: b"Items",
@@ -296,3 +299,6 @@ mod composite;
 
 #[path = "create_multi_level_index_tests.rs"]
 mod multi_level;
+
+#[path = "create_nullable_index_tests.rs"]
+mod nullable;
