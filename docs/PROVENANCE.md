@@ -11110,6 +11110,33 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0163 — Typed existing fixed-field update preregistration
+
+- Status: preregistered only, no acquisition; outcome reserved as EXP-0164.
+- Question: can the reviewed public fixed-field extension `37bd817` change
+  exactly the requested present field in existing DAO-created databases while
+  preserving every unrelated byte, full metadata/rows and stored query SQL?
+- Pinned plan: `oracle/windows-dao/acquisition/fixed-field-update.plan.json`,
+  SHA-256 `c6958a5b238c6cee97f877ec12cf53b93ad699db190fb0aceec769045794c564`.
+- Ten arms, three replicas each: Byte 0 to 255; Integer 32767 to -32768;
+  Long 1 to -2147483648 control; Currency zero to scaled i64 minimum; Single
+  and Double 1 to exact negative-zero bits; Date OA 1 to -1.25; zero GUID to
+  `00112233-4455-6677-8899-aabbccddeeff`; fixed Text widths 1 and 255 from
+  ASCII `a` to CP1252 `é`, preserving the declared width.
+- Each original has three Items rows, an unrelated three-row Long/Text Later
+  table, and KeepQuery. Fixed Text must save with fixed attributes and actual
+  fixed storage. Negative-zero bits are compared exactly, never normalized.
+- One coordinated create / Unix public update / read-only DAO acquisition,
+  retaining 30 original/updated pairs and 90 read-only observations. All
+  source/plan/file identities, complete requested rows, unchanged schema/query
+  SQL and independently decoded exact field-span preservation must pass.
+- Actual x86 pure mock-field checks cover all typed conversions and plain CLR
+  array JSON shapes before acquisition; no DAO is invoked by this preflight.
+  Initiating endpoint and stack are retained before best-effort cleanup.
+- Any failure after mutation remains no_outcome, with partial files retained;
+  no same-plan retry. No null, Boolean, AutoIncrement, variable-width, indexed,
+  relationship, overflow or hosted compatibility/support claim is established.
+
 ## EXP-0151 — Existing-file Long field update validation preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development acquisition plan,
