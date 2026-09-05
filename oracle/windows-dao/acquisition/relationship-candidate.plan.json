@@ -1,0 +1,98 @@
+{
+  "document_type": "dao_relationship_candidate_plan",
+  "experiment_id": "relationship-candidate",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0114 observed the exact first/second relationship creation records. This candidate implements only the first relation using the existing null-LvProp bootstrap construction; DAO acceptance is unestablished.",
+    "hypothesis": "DAO reads the exact pinned Parent/Child/ParentChild candidate with the same declared schema, all observed field/index metadata, relation fields/options, and empty user rows as a fresh DAO control, without modifying either file.",
+    "authorization": "User authorized DAO experiments/mutations in this session. Commit and review this pinned plan before one acquisition. A failure after first CreateDatabase is a scientific result; no redispatch without another human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/relationship_candidate.py": "9f1b1a1d1c35389d5e9f709cb3db3aed5dc25575a84e791e7b8119f3a3053c76",
+    "oracle/windows-dao/scripts/relationship_candidate.ps1": "dea3290e070f7a356f441734d1676d6e214f10c57cec7b921b0f7ca048ab1826",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/src/bootstrap_relationship_candidate.rs": "a31a7ecd14bb1cca232c4d8b8a34f79d61737c49ada01b0ad16bf65f5a30826d",
+    "crates/jet3/src/bootstrap_relationship_candidate_tests.rs": "2e2fd683184c0eaaf5cf709e489504b625451fee7a7600c76940f22db3ce6c31"
+  },
+  "candidate": {
+    "size": 59392,
+    "sha256": "9afa3647fc3619cad95002eebdddf0dd14a9fe067a9621dcd0a3635b3582609d"
+  },
+  "candidate_generation": {
+    "source_commit": "1afb82de04dbe343dd55c14b974997b72ac364e3",
+    "command": "JET3_RELATIONSHIP_CANDIDATE=/absolute/new/relationship-candidate.mdb cargo test --locked -p jet3 --lib export_relationship_candidate -- --ignored",
+    "notes": "Exact exported image hash is the acquisition input. No source-attestation or equivalence to other builds is claimed."
+  },
+  "expected_control": {
+    "version": "3.0",
+    "tables": [
+      "Child",
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships",
+      "Parent"
+    ],
+    "relations": [
+      {
+        "name": "ParentChild",
+        "table": "Parent",
+        "foreign_table": "Child",
+        "attributes": 0,
+        "fields": [
+          {
+            "name": "Id",
+            "foreign_name": "ParentId"
+          }
+        ]
+      }
+    ],
+    "columns": {
+      "Parent": [
+        {
+          "name": "Id",
+          "type": 4,
+          "size": 4
+        },
+        {
+          "name": "Alternate",
+          "type": 4,
+          "size": 4
+        }
+      ],
+      "Child": [
+        {
+          "name": "ParentId",
+          "type": 4,
+          "size": 4
+        },
+        {
+          "name": "Alternate",
+          "type": 4,
+          "size": 4
+        }
+      ]
+    }
+  },
+  "execution": {
+    "environment": "Local private Windows VM, x86 PowerShell, DAO.DBEngine.36; development discovery only.",
+    "pre_mutation": "Host verifies inputs, candidate identity, and committed plan. Guest verifies script and prepares three exact hash-checked candidate copies before any CreateDatabase.",
+    "per_replica": "Create Parent(Id Long, Alternate Long), primary ById on Id then unique ByAlternate on Alternate; create Child(ParentId Long, Alternate Long) unindexed; append ParentChild relation Parent.Id to Child.ParentId with attributes zero. Close control. Read control and candidate separately read-only, enumerate all table names, user-table/field attributes and types/sizes, every user-table index and field binding, all relations/options/field pairs, and full user row snapshots. Close and rehash each image.",
+    "comparison": "Preserve column and index-field order. Sort index inventories and relations by name only. Compare complete endpoint/status/error and snapshots between replicas, and complete candidate snapshot to control; ignore no captured flags or bindings. Do not compare candidate bytes with control bytes.",
+    "control_anchor": "Require exactly declared tables/version/columns/relations, attributes zero on user tables, empty user rows, ById primary+unique on ascending Id and ByAlternate unique/nonprimary on ascending Alternate. Remaining DAO-exposed index metadata (including hidden-index visibility) is the differential control, not a guessed constant.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/relationship_candidate.py run CANDIDATE.mdb --shared-root VM_SHARED_ROOT --run-id UTC-relationship-candidate",
+    "analysis": "python3 oracle/windows-dao/scripts/relationship_candidate.py analyze OUTBOX; verifies pinned inputs again before emitting a report."
+  },
+  "decision_rule": {
+    "observed_accepted": "All three controls satisfy the declared anchor; all six files are unchanged by read-only opens; all replicated observations agree; candidate and control complete observations are identical.",
+    "not_observed_accepted": "All controls satisfy the anchor unchanged; all candidates unchanged and identically fail at an endpoint or return the same metadata/rows difference.",
+    "no_outcome": "Incomplete acquisition, control failure, changed image, or disagreement between replicas. Preserve errors and completed snapshots in the canonical report.",
+    "rejection": "Plan/result identity mismatch, unexpected replica inventory, candidate starting mismatch, or retained image identity mismatch rejects validation."
+  },
+  "boundary": "Only this exact 29-page image and metadata/empty-row endpoints. No general relationship composer/API, second relation, cascades, populated tables, integrity-enforcement mutations, existing-database updates, or hosted support claims.",
+  "retention": "Retain JSON result/report, logs, and control/candidate MDBs externally. Never commit MDB bytes or provider binaries. Record one additive EXP-0118 outcome from the validated report."
+}
