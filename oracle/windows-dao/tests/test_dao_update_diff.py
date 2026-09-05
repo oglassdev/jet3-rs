@@ -10,8 +10,10 @@ import dao_update_diff as update
 
 def synthetic_capture(out):
     scenarios = update.inventory()['scenarios']; revision = 'test'
+    update.common.write_canonical(out / 'environment.json', {'document_type': 'dao_environment', 'protocol_version': '1.2.0', 'status': 'ready',
+        'host': {'process_architecture': 'x86'}, 'accepted_provider': {'prog_id': 'DAO.DBEngine.36', 'database_version': 'dbVersion30'}})
     prepared = {'source_revision': revision, 'producer_os': 'Linux', 'inventory_sha256': update.write.digest(update.INVENTORY), 'scenarios': []}
-    manifest = {'source_revision': revision, 'inventory_sha256': prepared['inventory_sha256'], 'scenarios': []}
+    manifest = {'environment_sha256': update.write.digest(out / 'environment.json'), 'source_revision': revision, 'inventory_sha256': prepared['inventory_sha256'], 'scenarios': []}
     for scenario in scenarios:
         root = out / scenario['id']; receipt = dict(scenario['request'], scenario_id=scenario['id'], offset=8, length=4, page=0, slot=0, preserved=True)
         for role in update.ROLES:
@@ -76,6 +78,23 @@ class UpdateTests(unittest.TestCase):
                 update.common.write_canonical(path, value)
                 with self.assertRaises(update.ValidationError): update.evaluate(out)
                 path.write_bytes(original)
+
+    def test_missing_or_wrong_provider_environment_cannot_match(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp); synthetic_capture(out)
+            path = out / 'environment.json'; original = path.read_bytes(); path.unlink()
+            with self.assertRaisesRegex(update.ValidationError, "cannot read JSON"): update.evaluate(out)
+            path.write_bytes(original)
+            for field, wrong in [('document_type', 'wrong'), ('protocol_version', '1.0.0'), ('status', 'unavailable'),
+                    ('host', {'process_architecture': 'x64'}), ('accepted_provider', {'prog_id': 'DAO.DBEngine.120', 'database_version': 'dbVersion30'}),
+                    ('accepted_provider', {'prog_id': 'DAO.DBEngine.36', 'database_version': 'other'})]:
+                environment = update.load_json(path); environment[field] = wrong
+                update.common.write_canonical(path, environment)
+                manifest = update.load_json(out / 'dao-manifest.raw.json'); manifest['environment_sha256'] = update.write.digest(path)
+                update.common.write_canonical(out / 'dao-manifest.raw.json', manifest)
+                with self.assertRaisesRegex(update.ValidationError, 'Expected retained ready'): update.evaluate(out)
+                path.write_bytes(original)
+            self.assertEqual(update.load_json(out / 'report.json')['outcome'], 'no_outcome')
 
 
 if __name__ == '__main__': unittest.main()

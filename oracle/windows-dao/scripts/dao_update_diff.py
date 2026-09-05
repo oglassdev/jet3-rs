@@ -127,10 +127,25 @@ def resnapshot(out, checker, reader, revision):
     common.write_canonical(out / 'reader.json', {'source_revision': revision, 'reader_os': platform.system(), 'verifications': receipts})
 
 
+def validate_environment(environment):
+    provider = environment.get('accepted_provider')
+    if (environment.get('document_type') != 'dao_environment'
+            or environment.get('protocol_version') != '1.2.0'
+            or environment.get('status') != 'ready'
+            or environment.get('host', {}).get('process_architecture') != 'x86'
+            or not isinstance(provider, dict)
+            or provider.get('prog_id') != 'DAO.DBEngine.36'
+            or provider.get('database_version') != 'dbVersion30'):
+        raise ValidationError('Expected retained ready x86 DAO.DBEngine.36 dbVersion30 environment')
+
+
 def evaluate_checked(out):
     scenarios = inventory()['scenarios']; initial = load_json(out / 'preparation.json')
     prepared = preparation(out, initial['source_revision']); revision = prepared['source_revision']
     reader = load_json(out / 'reader.json'); manifest = load_json(out / 'dao-manifest.raw.json')
+    validate_environment(load_json(out / 'environment.json'))
+    if manifest['environment_sha256'] != write.digest(out / 'environment.json'):
+        raise ValidationError('DAO environment identity mismatch')
     if reader != {'source_revision': revision, 'reader_os': 'Windows', 'verifications': [s['verification'] for s in prepared['scenarios']]}:
         raise ValidationError('Independent Windows verification incomplete or mismatched')
     if (manifest['source_revision'] != revision or manifest['inventory_sha256'] != write.digest(INVENTORY)

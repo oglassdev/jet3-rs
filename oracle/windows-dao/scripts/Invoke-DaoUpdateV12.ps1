@@ -27,10 +27,16 @@ $environment = Get-Content -LiteralPath $EnvironmentPath -Raw | ConvertFrom-Json
 $prepared = Get-Content -LiteralPath (Join-Path $OutputRoot 'preparation.json') -Raw | ConvertFrom-Json
 $inventoryHash = Get-FileSha256 $InventoryPath
 if ($inventory.document_type -cne 'dao_update_scenario_inventory' -or $prepared.inventory_sha256 -cne $inventoryHash) { throw 'Update inventory identity mismatch' }
-if ($environment.status -cne 'ready' -or $null -eq $environment.accepted_provider) { throw 'No accepted DAO provider' }
+if ($environment.document_type -cne 'dao_environment' -or $environment.protocol_version -cne '1.2.0' -or $environment.status -cne 'ready' -or
+    $environment.host.process_architecture -cne 'x86' -or $null -eq $environment.accepted_provider -or
+    $environment.accepted_provider.prog_id -cne 'DAO.DBEngine.36' -or $environment.accepted_provider.database_version -cne 'dbVersion30') {
+    throw 'Expected ready x86 DAO.DBEngine.36 dbVersion30 environment'
+}
+Copy-Item -LiteralPath $EnvironmentPath -Destination (Join-Path $OutputRoot 'environment.json')
+$environmentHash = Get-FileSha256 (Join-Path $OutputRoot 'environment.json')
 if ($prepared.source_revision -cne $SourceRevision -or $prepared.producer_os -cne 'Linux') { throw 'Prepared source/platform mismatch' }
 if ($prepared.scenarios.Count -ne $inventory.scenarios.Count) { throw 'Incomplete Rust preparation' }
-$manifest = [ordered]@{document_type='dao_update_manifest'; protocol_version='1.2.0'; inventory_sha256=$inventoryHash; source_revision=$SourceRevision; scenarios=@()}
+$manifest = [ordered]@{document_type='dao_update_manifest'; protocol_version='1.2.0'; inventory_sha256=$inventoryHash; environment_sha256=$environmentHash; source_revision=$SourceRevision; scenarios=@()}
 try {
     for ($n=0; $n -lt $inventory.scenarios.Count; $n++) {
         $scenario = $inventory.scenarios[$n]; $initial = $prepared.scenarios[$n]
