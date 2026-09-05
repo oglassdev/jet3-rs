@@ -1,0 +1,83 @@
+{
+  "document_type": "dao_indexed_rows_plan",
+  "experiment_id": "indexed-rows",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0062 supplies Long key and leaf framing, EXP-0073 supplies distinct-key prefix counts, EXP-0116 accepted one exact unindexed multi-page candidate. No indexed initial-row candidate is assumed accepted.",
+    "hypothesis": "DAO reads the exact primary, unique, and ordinary-duplicate candidates unchanged, with expected schema/index flags, full rows, ordered index traversal and successful Seek for every distinct key. The ordinary candidate has 20 leaf entries but 10 distinct keys in its definition prefix. The primary/unique candidates each have 20 distinct keys. Each has one leaf at page 23 and three data pages 24..26 with 7, 7, 6 rows; availability and page-zero retention remain exact-candidate hypotheses.",
+    "authorization": "User authorized DAO acquisition/mutations on 2026-09-04. Commit and independently review the SHA256-pinned plan before one dispatch. Once the first CreateDatabase starts, failures are scientific results; another dispatch requires a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/indexed_rows.py": "b98185431b43a5eaf9421a15c73084f8323e5c3e1c3aa6901612ac0bf7331753",
+    "oracle/windows-dao/scripts/indexed_rows.ps1": "10e48dca70a5b6b0658ec802baba41fbfd6ef6b6b9dcc8d6a051fd2f4c333c14",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/indexed_row_candidate.rs": "4d514c4a5e8a2ab670fe7a7b7ef11e0d61ff27df4d27ea9511c4fe8456f3dc29"
+  },
+  "candidates": {
+    "primary": {
+      "size": 55296,
+      "sha256": "79b5e6c1a03418a0c6c9a99170cd6c67660b0d57eb56142354c5cbccc63cfa11"
+    },
+    "unique": {
+      "size": 55296,
+      "sha256": "cc4bd47bac0c57d7daa763b4675cb6dbe19dc886be733abf27edeebe7346b3c2"
+    },
+    "ordinary": {
+      "size": 55296,
+      "sha256": "9f517c410f65a3d5ec3ebd7829f7203dffb9594e95846413ef980290c03c5cd9"
+    }
+  },
+  "schema": {
+    "version": "3.0",
+    "tables": [
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships",
+      "Rows"
+    ],
+    "fields": [
+      {
+        "name": "Id",
+        "type": 4,
+        "size": 4
+      },
+      {
+        "name": "Payload",
+        "type": 10,
+        "size": 255
+      }
+    ]
+  },
+  "scenarios": {
+    "common": "Rows(Id Long, Payload Text255), one ascending ById index. Insert 20 rows in position order 0..19, payload ASCII character a+position repeated 255 times.",
+    "primary": "Primary=true, Unique=true, Required=true; Id=9-position.",
+    "unique": "Primary=false, Unique=true, Required=false; Id=9-position.",
+    "ordinary": "Primary=false, Unique=false, Required=false; Id=9-(position mod10), so each key 0..9 appears twice with different payloads."
+  },
+  "execution": {
+    "environment": "Private Windows VM, x86 PowerShell, DAO.DBEngine.36; development-only.",
+    "pre_mutation": "Host verifies all input/candidate pins and committed plan; guest verifies producer and all 9 candidate replicas before first control creation.",
+    "per_replica": "For each arm in primary,unique,ordinary order and replicas 1..3, create and close a fresh same-schema DAO control, then read control and candidate read-only. Record schema/index metadata, snapshot rows, ordered ById traversal, and Seek result for every distinct key; close and compare before/after identities.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/indexed_rows.py run <candidate directory containing primary.mdb unique.mdb ordinary.mdb> --shared-root <VM shared directory> --run-id <UTC timestamp>-indexed-rows",
+    "analysis": "python3 oracle/windows-dao/scripts/indexed_rows.py analyze <shared directory>/outbox/<run id>"
+  },
+  "decision_rule": {
+    "observed_accepted": "Complete 9-pair job with all controls passing expected semantics, all 18 images unchanged, and three agreeing accepted candidate observations for that arm.",
+    "not_observed_accepted": "Same complete-job/control/unchanged gate, but the arm candidates identically fail at one endpoint or produce the same semantic mismatch.",
+    "no_outcome": "Incomplete job, any control failure, any changed image, or disagreement between candidate replicas for the arm.",
+    "semantic_normalization": "Snapshot rows are a multiset. Index traversal must be ascending by Id and contain every expected Id/payload pair exactly once; duplicate tie order is unspecified. Seek queries must be the complete ascending distinct-key inventory; each result must match query Id and one expected payload. Ordinary Seek may return either duplicate; the full traversal must still contain both.",
+    "validation_rejection": "Reject for input-pin drift during preflight or analysis, malformed binding/inventory, candidate starting-pin mismatch or retained-image mismatch."
+  },
+  "evidence_boundary": "Exact three candidates only. No general index/null/descending/composite/key-type rules, B-tree allocation, update correctness, DAO allocation or page-zero policy, general compatibility or hosted support movement.",
+  "retention": "Retain result.json, canonical report.json, logs and all 18 candidate/control MDBs locally; no MDB bytes/provider binaries in git. Add one EXP0120 outcome from validated report.",
+  "candidate_generation": {
+    "source_commit": "54d7d22b930b824c48d7afb0d44591f48c5b485d",
+    "example": "crates/jet3/examples/indexed_row_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example indexed_row_candidate -- <directory>/<arm>.mdb <arm>"
+  }
+}

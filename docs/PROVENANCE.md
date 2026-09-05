@@ -10187,6 +10187,50 @@ Use `not applicable` explicitly rather than omitting a field.
   without findings.
 
 
+### EXP-0119 — Indexed initial-row candidate preregistration
+
+- Recorded: 2026-09-04, OpenAI Codex
+- Kind: SHA-256-pinned development-only local DAO experiment preregistration
+- Question: does DAO read the exact primary, unique, and ordinary-duplicate
+  initial-row candidates unchanged, including full index traversal and Seek?
+- Origin: reviewed `indexed_row_candidate` example at
+  `54d7d22b930b824c48d7afb0d44591f48c5b485d`. `EXP-0062` supplies
+  Long-key and leaf framing; `EXP-0073` supplies distinct-key counts. `EXP-0116`
+  established only an exact unindexed candidate. Each indexed arm creates
+  `Rows(Id Long, Payload Text 255)` with ascending `ById`, 20 rows in caller
+  order, and distinct payloads `a` through `t`, each repeated 255 times.
+  Primary and unique keys are 9 through -10; ordinary keys are 9 through 0
+  twice. The ordinary leaf has 20 entries and a definition distinct count of
+  10; the other arms have 20 distinct keys. All use leaf page 23 and data
+  pages 24--26 with 7, 7, and 6 rows.
+- Environment: private local Windows VM, x86 PowerShell, `DAO.DBEngine.36`.
+- Protocol: `oracle/windows-dao/acquisition/indexed-rows.plan.json`, SHA-256
+  `5d78e83ad3b00f1a460610580d2da42aae793c9f7c143f423525e9cb0a5b812c`. Commit and independently
+  review before one dispatch. Verify input pins on dispatch and analysis;
+  prepare and verify all nine candidate copies before the first control
+  creation. Each arm has three fresh DAO controls and three read-only candidate
+  observations. Verify full schema/index metadata, snapshot row multiset,
+  ordered index traversal containing every Id/payload pair, and Seek for every
+  distinct key. Duplicate traversal tie order is unspecified; ordinary Seek
+  may select either matching payload, while full traversal must contain both.
+  Require every control to pass and all 18 images to remain unchanged before
+  classifying candidate agreement per arm. Post-mutation failure requires a
+  new human decision before another dispatch.
+- Artifacts: each candidate is 55,296 bytes, with SHA-256 values:
+  primary `79b5e6c1a03418a0c6c9a99170cd6c67660b0d57eb56142354c5cbccc63cfa11`;
+  unique `cc4bd47bac0c57d7daa763b4675cb6dbe19dc886be733abf27edeebe7346b3c2`;
+  ordinary `9f517c410f65a3d5ec3ebd7829f7203dffb9594e95846413ef980290c03c5cd9`.
+  The plan pins producer, analyzer, imported transport, and Rust example.
+- Observation: acquisition has not started; no DAO outcome recorded here.
+- Interpretation: these three exact candidates only. No null/descending/
+  composite-key rule, general B-tree allocation, DAO free-space or page-zero
+  policy, update correctness, general compatibility, or hosted support claim.
+- Usage: issue `#100`; bounded indexed initial-row construction.
+- Rights: all MDB bytes and provider binaries remain outside the repository.
+- Review: independent harness review completed without findings; six focused
+  classifier tests and a PowerShell parser-only preflight passed.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
