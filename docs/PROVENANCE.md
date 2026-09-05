@@ -11024,6 +11024,43 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0151 — Existing-file Long field update validation preregistered
+
+- Recorded: 2026-09-05, OpenAI Codex; local development acquisition plan,
+  no acquisition or compatibility outcome yet. Plan
+  `oracle/windows-dao/acquisition/field-update.plan.json`, SHA-256
+  `26ae94929c64304a9cee320846fe441292d781108b982e683385cb4d125085ad`, pins the phased
+  producer/analyzer, transport, decoder, public exporter and relevant source
+  inputs. Reviewed field-update implementation is `7ee3b4a`.
+- One coordinated acquisition has three finite cases and three replicas each.
+  Windows DAO first creates nine originals, each with `Items` and `Later`
+  unindexed tables containing `Id`/`Value` Long and `Payload` Text(20), three
+  declared non-null rows each, plus stored `KeepQuery` SQL. It closes every
+  writable handle before read-only baseline capture and before guest exit.
+- Linux then preserves each original and invokes the public `update_field`
+  API once on a separate copy, using reader-selected row/column references:
+  `Items` Id 1 changes Id to -2147483648; `Items` Id 3 changes Value to
+  2147483647; `Later` Id 12 changes Value to -123456789. No Windows publication
+  workaround or private page-composer bypass is used.
+- Only after successful baseline/request checks and all Unix updates does the
+  second Windows phase open transferred original/updated copies read-only.
+  Compare complete captured table/field/index/relationship metadata and rows,
+  preserve uninterpreted query name/SQL/type, and bind every file to its
+  arm/replica/role and before/after/transfer identity. Independently decode the
+  original catalog, row locator and present Long span; require exact updated
+  bytes in that four-byte span and byte-for-byte preservation everywhere else.
+  Decoder's existing 64-row bound remains unchanged for these three-row tables.
+- Commit and independently review this plan before the first DAO mutation.
+  Neither phase retries or resumes after failure. Missing/failed acquisition,
+  transfer, update, schema/row comparison or preservation checks produce an
+  honest `no_outcome`; retain partial files/results and phase logs externally.
+  A new attempt after mutation requires a human decision. EXP-0152 is reserved
+  for the single validated result; no MDB/provider bytes are committed.
+- This tests only the declared present Long replacements in unindexed,
+  relationship-free tables. No null/Auto/index/relationship/overflow update,
+  insert/delete behavior, arbitrary existing-file compatibility or hosted
+  support claim follows from this plan or structural self-verification.
+
 ## EXP-0138 — Generated AutoIncrement candidates and subsequent inserts accepted locally
 
 - Status: validated `observed_accepted` for all three EXP-0137 arms and all
