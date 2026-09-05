@@ -11101,6 +11101,49 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0202 — Retained multiple-index comparisons accepted under explicit count-residue accounting
+
+- Secondary preregistration EXP-0201, reviewed runtime revision `49a4038`, plan
+  SHA-256 `649e8dba0aa8d0d3bf875231a2c0bebeb0b4de6bd34e397a8f658875bdefae65`.
+  This is post-acquisition read-only evaluation of EXP-0193's retained data;
+  original EXP-0194 remains no_outcome with zero promoted observations.
+  No DAO redispatch, new mutation, source rewrite or original artifact change.
+- Secondary report: **observed_accepted**, six comparisons, no reasons;
+  32255bytes SHA-256
+  `5e22d89a22c2c7153b6e25f41710d3bf8e9c12e518f6887d78d30307c799922d`,
+  retained as `20260905T103000Z-multiple-index-secondary/report.json` in the
+  external VM shared outbox. Exact report bytes reproduced on temporary copies.
+  All35 original files,30 captured MDB identities and the retained secondary
+  report remained unchanged. Original report/result pins match EXP-0194.
+- Both finite arms, three pairs each, pass complete schema/rows, every index's
+  logical/physical name and column binding, flags, directed traversal and every
+  distinct non-null full-key Seek. Complete keys and row locators match each
+  image's separate tree/map inventory. Equal-key ordering and duplicate Seek
+  choices are normalized only after complete row/payload coverage.
+- Three-long has201rows, ascending primary Id, ordinary descending Group and
+  unique descending Group/ascending Value. Candidate roots23/24/25 each have
+  depth2 with maps `[23,28,29]`, `[24,30,31]`, `[25,32,33]`; control roots23/24
+  are leaves with maps `[23]`/`[24]`, while root25 has depth2 and map
+  `[25,28,29,30]`. All have201entries per index and distinct counts201/3/201.
+  Physical order ZPrimary/AGroup/MMixed differs from logical name order and
+  remains correctly bound. These observed layouts do not define packing policy.
+- Mixed-null has30rows, primary Id and ordinary descending Currency/ascending
+  Group with repeated/null keys. Both images use roots23/24, leaf maps `[23]`
+  and `[24]`,30entries per tree and30/15distinct keys. Complete null-bearing
+  rows remain in traversal/raw validation; no null Seek claim is made.
+- All18 independent duplicate probes reject with DAO3022. The six three-long
+  secondary-duplicate probe images, including controls, retain primary stored
+  count202 at absolute byte41007 despite201 actual entries/distinct keys.
+  The separate analysis verifies their exact native rejection/image/role/count
+  bindings, normalizes only those four in-memory prefix bytes for the complete
+  original validator, and explicitly returns the original202/actual201 residue.
+  No retained MDB is patched. Baseline and all other index/count gates are
+  unchanged, including ordinary3 and secondary-unique201 in these probes.
+- Finite local candidate evidence only, including the explicitly declared
+  failed-secondary-insert residue. No general count, rollback, index-maintenance
+  or broader multi-table indexing rule is established. Original failed result
+  is not relabeled; no hosted compatibility or support-matrix movement.
+
 ## EXP-0201 — Retained multiple-index count-residue secondary plan
 
 - Committed before secondary evaluation,2026-09-05; result reserved as EXP-0202.
