@@ -11143,6 +11143,43 @@ Copy this block under the appropriate section and remove this instruction:
   No such correction or new DAO acquisition is part of EXP-0158. Original
   `no_outcome`, compatibility=false and support-movement=false remain intact.
 
+## EXP-0159 — Hosted before/after field-update preregistration
+
+- Question: do the three declared public `update_field` requests preserve every
+  unrelated byte and complete before/after semantics under hosted stock DAO?
+- Status: preregistered only; no acquisition or compatibility result. The outcome
+  is reserved as `EXP-0160`.
+- Reviewed tooling: `ff65aeb`, integrated with main at `c424a1f`; exact runtime
+  inputs are SHA-256 pinned in
+  `oracle/windows-dao/acquisition/update-v1_2.plan.json`.
+- Plan SHA-256: `974ae15b0bb190ff52921da9b2e33f9f69c88788b5d59f6c2e6aaf7a488ff119`.
+- The separate inventory contains three pairs: first `Items.Id` row 0, later
+  `Items.Value` row 31, and `Items.Value` row 17 after an earlier `Prefix` table.
+  Each image also retains distinct Text/Binary payloads and an unrelated Notes
+  table containing a 2048-byte Memo and null value.
+- Ubuntu creates originals and updates copies through public library APIs.
+  Windows independently locates each requested field with the public reader,
+  rejects ambiguous raw-row matches, verifies the exact four replacement bytes
+  and every byte outside that span, then snapshots both files with Rust and
+  read-only DAO. Full six-image schemas and rows must match the declared request.
+- Both capture and evaluation require retained protocol 1.2 ready x86
+  `DAO.DBEngine.36` / `dbVersion30` environment evidence; its exact bytes are
+  bound by the DAO manifest. Complete source, inventory, image and verification
+  bindings are required. Matching producers alone do not establish correctness.
+- One hosted workflow dispatch after independent review; no rerun of a consumed
+  plan. Missing observations or failed gates prevent `matched`, with available
+  diagnostics retained. No automatic support-matrix movement.
+- Insert/delete, indexed or related targets, null and variable-width transitions,
+  hosted stored-query preservation and general update compatibility are deferred.
+  All earlier outcomes and consumed inputs remain unchanged.
+
+- Pre-acquisition integration refresh: main `ea34a10` adds the independently
+  reviewed fixed-field extension `37bd817`. Only the `update.rs` and
+  `row_writer.rs` input hashes change; the three hosted Long requests and all
+  harness bytes remain unchanged. The unconsumed plan now has SHA-256
+  `0f88f5c8c4b940e7699a779a844a9ba6e31849bb6911e8186965cbf1ed607d04`, superseding
+  the initial plan hash above before any acquisition.
+
 ## EXP-0157 — Ordinary-row deletion transitions preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development discovery plan,
@@ -12239,6 +12276,95 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0165 — Distinct nullable index successor preregistration
+
+- Recorded 2026-09-05; no acquisition yet. Plan
+  `oracle/windows-dao/acquisition/nullable-index-successor.plan.json`, SHA-256
+  `d765bbf7f7e219147dc15aff0b58a8cac1c6e31e745666495d55da48ffaa50b1`. Outcome reserved as EXP-0166.
+- EXP-0155/0156 remains unchanged, including all six `no_outcome` arms and
+  failed original retention. This distinct acquisition repeats the full six-arm
+  scope because no arm passed its original validation; it does not resume or
+  retry the consumed script. Reviewed library source remains
+  `6a0e4537e7986a4b04db7616f5537cb306f17e2c`, with exactly the same six pinned
+  candidate images and exporter. No writer or format rule is changed here.
+- Pure x86 PowerShell AST-helper checks reproduced the consumed `New-Object`
+  array JSON wrapper in the successful Seek-row shape. Mock assignments did
+  produce intended values, so they do not establish the initiating COM cause
+  of the original all-null writes or masked transaction exception.
+- New producer uses plain CLR arrays and explicit local-field null/int setters
+  following the already exercised EXP-0147 setter pattern. An actual x86
+  no-DAO helper test checks 30 boundary/sample rows across all six arms,
+  exact mock assignment/read/JSON values, every declared Seek argument, all
+  six complete baseline snapshots and deliberate corrupt-baseline refusal.
+  It also checks that cleanup cannot replace the first initiating error.
+- Same three fresh matched controls per arm, complete metadata/typed row
+  multisets, variable-key ordered traversal, finite non-null Seek probes and
+  raw locator/tree/map/distinct-count checks as EXP-0155. Unique/ignore/
+  composite duplicate-key probes and required-null probes use independent
+  copies. Validate each original baseline before probes or the next control;
+  validate a control probe before its candidate probe and any further mutation.
+- First unexpected failure records arm/replica/endpoint/stack/inner HRESULT
+  before best-effort rollback/close/release. Retention attempts each file once
+  and records copy failures while preserving the original error. Incomplete,
+  cleanup, retention or baseline/probe-failure jobs yield explicit `no_outcome`
+  without requiring missing MDBs merely to write a failure report. No subset
+  promotion, automatic retry or resume. All evidence is retained externally.
+- Plan pins the new producer/analyzer and helper test plus all reused decoder,
+  transport and exporter inputs; both preflight and analysis verify pins.
+  Timeout remains 3,600 seconds; bounds and candidate policies are unchanged.
+  Focused classifier tests, actual x86 helper/parser check and candidate
+  preflight pass. Independent review pending before any acquisition.
+- Development-only writer-policy validation, no compatibility claim or support
+  movement. No nullable relationship expansion, null Seek, broader scalar
+  codec, indirect writer allocation or general update/split claim is tested.
+
+## EXP-0156 — Nullable index acquisition and retention failure, no outcome
+
+- Recorded 2026-09-05 from the single local run
+  `20260905T065000Z-nullable-index`, consumed EXP-0155 source `57ec033`, plan
+  SHA-256 `8caa3cc7417004fedd745dcce28681b21f01c9776361bc73a199fe6764f98829`.
+  No retry or additional DAO operation was performed for this outcome.
+- Original result: 34918 bytes, SHA-256
+  `178a11fc50ef4f7aa4027834ba877268ccb9bda63f73fd808946292a6ccf7426`.
+  It records `mutation_started=true`, six complete pairs (unique/ignore, three
+  each), and `System.Runtime.InteropServices.COMException: Operation not
+  supported in transactions.` No required/composite/composite-ignore/auto pair
+  completed. The initiating statement is unknown: no stack/operation endpoint
+  was recorded, and unguarded cleanup can replace an initiating exception.
+- Retention also failed: the log identifies `Copy-Item` at script line 239,
+  unable to copy `required-control-r1.mdb` because another process used it.
+  Log: 2066 bytes, SHA-256
+  `a79ef14306cb5a00195e29aecd6ecaba627295e7426bdc71b0aac2c819db7a02`.
+  The original outbox contains 27 files (24 MDBs plus result/log/exit), no
+  report. Original analysis stopped on missing `unique-control-r1.mdb`.
+- After process closure, read-only filesystem recovery copied 43 guest MDBs
+  into separate `20260905T065000Z-nullable-index-recovered`; no database was
+  opened through DAO. Recovery manifest: 7427 bytes, SHA-256
+  `ed28569b7e2fa7883cda22597291aee2c5c0bdfb0a81b49de71419a90710f0a9`.
+  All manifest identities, overlap with the original outbox, and every retained
+  identity referenced by the original result were verified. Unobserved copies
+  and the incomplete required control are retained, not evaluated as captures.
+- The unchanged pinned original analyzer ran on a temporary union of original
+  and recovered files. Its report is separately retained in
+  `20260905T065000Z-nullable-index-analysis/report.json`: 10903 bytes, SHA-256
+  `ccfa230f8db9443427f49d5754181dea3600cf0c909b5e1eab7676a1f5be1ef0`.
+  All six arm outcomes are `no_outcome`. The original 27 files and all 44
+  recovered files (including manifest) remained unchanged. This is original
+  preregistered analysis after retention recovery, not a corrected classifier.
+- The report retains 12 baseline structural/semantic summaries and 12 probe
+  observations. All baseline read endpoints reported pass, but no complete
+  baseline comparison passed: controls fail raw row equality, while candidate
+  comparisons fail semantic validation. Original control snapshots contain
+  all-null rows instead of planned values; candidate rows retain their planned
+  values but do not pass the declared Seek check. All copy probes report
+  `updated`, empty native-code lists and null HRESULT, adding all-null rows;
+  the planned rejection endpoints were not successfully exercised.
+- These acquisition/semantic/retention failures prevent acceptance of any
+  subset. They do not establish nullable writer rejection or a storage fact.
+  Original inputs remain unchanged; a separately reviewed successor would
+  need corrected assignment/observation diagnostics and preserved initiating
+  errors. No compatibility claim, support movement or new parser fact follows.
 
 ## EXP-0155 — Nullable initial-index candidate preregistration
 
