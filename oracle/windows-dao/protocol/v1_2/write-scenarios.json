@@ -1,0 +1,786 @@
+{
+  "document_type": "dao_write_scenario_inventory",
+  "protocol_version": "1.2.0",
+  "scenarios": [
+    {
+      "id": "DAO-WRITE-EMPTY",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "empty database"
+      ],
+      "tables": [],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-SCALARS",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "scalar types",
+        "nulls",
+        "signed bounds",
+        "GUID"
+      ],
+      "tables": [
+        {
+          "name": "Scalars",
+          "columns": [
+            {
+              "name": "Boolean",
+              "kind": "Boolean"
+            },
+            {
+              "name": "Byte",
+              "kind": "Byte"
+            },
+            {
+              "name": "Integer",
+              "kind": "Integer"
+            },
+            {
+              "name": "Long",
+              "kind": "Long"
+            },
+            {
+              "name": "Currency",
+              "kind": "Currency"
+            },
+            {
+              "name": "Single",
+              "kind": "Single"
+            },
+            {
+              "name": "Double",
+              "kind": "Double"
+            },
+            {
+              "name": "DateTime",
+              "kind": "DateTime"
+            },
+            {
+              "name": "Guid",
+              "kind": "Guid"
+            },
+            {
+              "name": "Text",
+              "kind": "Text",
+              "size": 8
+            },
+            {
+              "name": "Binary",
+              "kind": "Binary",
+              "size": 8
+            }
+          ],
+          "rows": [
+            [
+              true,
+              255,
+              -32768,
+              -2147483648,
+              -12345,
+              1.5,
+              -2.25,
+              2.5,
+              [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "text",
+              "bytes"
+            ],
+            [
+              false,
+              0,
+              32767,
+              2147483647,
+              0,
+              -1.5,
+              3.5,
+              0,
+              [
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31
+              ],
+              "more",
+              "raw"
+            ],
+            [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ],
+          "indexes": [],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-AUTO",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "AutoIncrement",
+        "multiple data pages"
+      ],
+      "tables": [
+        {
+          "name": "Generated",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "AutoIncrement"
+            },
+            {
+              "name": "Tag",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              {
+                "auto": true
+              },
+              {
+                "sequence": 1
+              }
+            ]
+          ],
+          "indexes": [],
+          "repeat": 300
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-INDEX-PRIMARY",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "index schema",
+        "complete traversal",
+        "full-key Seek"
+      ],
+      "tables": [
+        {
+          "name": "Keys",
+          "columns": [
+            {
+              "name": "A",
+              "kind": "Long"
+            },
+            {
+              "name": "B",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              9
+            ],
+            [
+              -1,
+              8
+            ],
+            [
+              0,
+              7
+            ]
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "primary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-INDEX-UNIQUE-DESC",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "index schema",
+        "complete traversal",
+        "full-key Seek"
+      ],
+      "tables": [
+        {
+          "name": "Keys",
+          "columns": [
+            {
+              "name": "A",
+              "kind": "Long"
+            },
+            {
+              "name": "B",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              9
+            ],
+            [
+              -1,
+              8
+            ],
+            [
+              0,
+              7
+            ]
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "unique",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": true
+                }
+              ]
+            }
+          ],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-INDEX-ORDINARY",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "index schema",
+        "complete traversal",
+        "full-key Seek"
+      ],
+      "tables": [
+        {
+          "name": "Keys",
+          "columns": [
+            {
+              "name": "A",
+              "kind": "Long"
+            },
+            {
+              "name": "B",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              0,
+              7
+            ]
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "ordinary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-INDEX-COMPOSITE",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "index schema",
+        "complete traversal",
+        "full-key Seek"
+      ],
+      "tables": [
+        {
+          "name": "Keys",
+          "columns": [
+            {
+              "name": "A",
+              "kind": "Long"
+            },
+            {
+              "name": "B",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              0,
+              7
+            ],
+            [
+              1,
+              9
+            ]
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "ordinary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": true
+                },
+                {
+                  "column": 1,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-AUTO-PRIMARY",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "indexed AutoIncrement"
+      ],
+      "tables": [
+        {
+          "name": "Generated",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "AutoIncrement"
+            },
+            {
+              "name": "Tag",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              {
+                "auto": true
+              },
+              {
+                "sequence": 1
+              }
+            ]
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "primary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": 10
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-MULTI",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "multiple tables",
+        "multiple data pages",
+        "independent table rows"
+      ],
+      "tables": [
+        {
+          "name": "First",
+          "columns": [
+            {
+              "name": "Value",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              {
+                "sequence": -150
+              }
+            ]
+          ],
+          "indexes": [],
+          "repeat": 300
+        },
+        {
+          "name": "Second",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "AutoIncrement"
+            }
+          ],
+          "rows": [
+            [
+              {
+                "auto": true
+              }
+            ]
+          ],
+          "indexes": [],
+          "repeat": 3
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-LVAL-MEMO",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "inline LVAL",
+        "single-page LVAL",
+        "chained LVAL",
+        "null LVAL"
+      ],
+      "tables": [
+        {
+          "name": "Payloads",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Memo"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              "short"
+            ],
+            [
+              2,
+              {
+                "repeat_text": "L",
+                "count": 512
+              }
+            ],
+            [
+              3,
+              {
+                "repeat_text": "X",
+                "count": 2040
+              }
+            ],
+            [
+              4,
+              null
+            ]
+          ],
+          "indexes": [],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-LVAL-LONGBINARY",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "inline LVAL",
+        "single-page LVAL",
+        "chained LVAL",
+        "null LVAL"
+      ],
+      "tables": [
+        {
+          "name": "Payloads",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "LongBinary"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              "short"
+            ],
+            [
+              2,
+              {
+                "repeat_text": "L",
+                "count": 512
+              }
+            ],
+            [
+              3,
+              {
+                "repeat_text": "X",
+                "count": 2040
+              }
+            ],
+            [
+              4,
+              null
+            ]
+          ],
+          "indexes": [],
+          "repeat": null
+        }
+      ],
+      "relationship": null
+    },
+    {
+      "id": "DAO-WRITE-RELATIONSHIP",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "populated relationship",
+        "foreign index",
+        "duplicate foreign keys"
+      ],
+      "tables": [
+        {
+          "name": "Parent",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "primary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null
+        },
+        {
+          "name": "Child",
+          "columns": [
+            {
+              "name": "ParentId",
+              "kind": "Long"
+            },
+            {
+              "name": "Tag",
+              "kind": "Long"
+            }
+          ],
+          "rows": [
+            [
+              1,
+              10
+            ],
+            [
+              1,
+              11
+            ],
+            [
+              2,
+              12
+            ]
+          ],
+          "indexes": [],
+          "repeat": null
+        }
+      ],
+      "relationship": {
+        "name": "ParentChild",
+        "parent_table": 0,
+        "parent_column": 0,
+        "child_table": 1,
+        "child_column": 0
+      }
+    }
+  ],
+  "deferred_requirements": [
+    "Multi-level initial index creation (implementation pending)",
+    "General null/composite foreign keys and cascades",
+    "Explicit AutoIncrement seeds, overflow and update semantics",
+    "Empty LVAL payloads and unsupported schema combinations",
+    "General allocation policy and arbitrary names/code pages"
+  ]
+}

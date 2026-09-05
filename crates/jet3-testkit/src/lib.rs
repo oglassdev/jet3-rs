@@ -29,3 +29,6 @@ pub use semantic_snapshot::{
 pub const fn fixture_format_name() -> &'static str {
     jet3::FORMAT_NAME
 }
+
+mod write_fixture;
+pub use write_fixture::{WRITE_SCENARIOS, write_fixture};
