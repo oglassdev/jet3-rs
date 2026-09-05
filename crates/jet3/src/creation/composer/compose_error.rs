@@ -17,8 +17,17 @@ pub enum ComposeError {
         /// Unsupported relationship constraint.
         detail: &'static str,
     },
-    /// Initial rows support at most one index on one or two Long columns.
+    /// Initial rows support at most one index on one or two supported numeric columns.
     UnsupportedInitialIndexSchema,
+    /// A scalar key value needs an unsupported encoding (including negative zero).
+    UnsupportedInitialIndexValue {
+        /// Zero-based input row.
+        row: usize,
+        /// Zero-based table column.
+        column: usize,
+    },
+    /// A unique index repeats a non-null scalar key other than an all-Long key.
+    DuplicateInitialScalarIndexKey,
     /// A required index or relationship key contains a null component.
     NullInitialIndexKey {
         /// Zero-based input row.
@@ -126,6 +135,8 @@ impl std::error::Error for ComposeError {
             | Self::InitialAutoIncrement { .. }
             | Self::OrphanInitialRelationshipKey { .. }
             | Self::UnsupportedInitialIndexSchema
+            | Self::UnsupportedInitialIndexValue { .. }
+            | Self::DuplicateInitialScalarIndexKey
             | Self::NullInitialIndexKey { .. }
             | Self::DuplicateInitialIndexKey { .. }
             | Self::DuplicateInitialCompositeIndexKey { .. }

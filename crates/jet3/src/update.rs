@@ -56,6 +56,8 @@ pub enum UpdateError {
     UsageMap(crate::UsageMapError),
     /// Allocation bitmap is malformed or exhausted its budget.
     Allocation(crate::AllocationMapError),
+    /// Index metadata, tree, or row reference is malformed.
+    Index(crate::IndexTreeError),
     /// Atomic publication failed; its stage indicates whether publication occurred.
     Publish(crate::PublishError),
 }
@@ -79,6 +81,7 @@ impl StdError for UpdateError {
             Self::UsageMap(source) => Some(source),
             Self::Allocation(source) => Some(source),
             Self::Publish(source) => Some(source),
+            Self::Index(source) => Some(source),
             Self::NotFound(_) | Self::Unsupported(_) | Self::Mismatch(_) => None,
         }
     }
@@ -102,19 +105,24 @@ conversion!(crate::RowError, Rows);
 conversion!(crate::RowDirectoryError, Directory);
 conversion!(crate::RowWriteError, Encoding);
 conversion!(crate::PublishError, Publish);
+conversion!(crate::IndexTreeError, Index);
 
-/// Replaces one present fixed non-key field in a relationship-free user table.
+/// Replaces one present fixed field in a relationship-free user table.
 ///
 /// Indexed tables are supported when the column is absent from every physical
-/// index. All index bytes remain unchanged; index-key maintenance is unsupported.
+/// index. A key update additionally supports one unique/primary Long index whose
+/// entire tree is one uncompressed root leaf with present keys. It preserves
+/// row and distinct-key counts, allocation maps, leaf header/bitmap and unused
+/// bytes. Other key updates are refused. This bounded key-update construction
+/// has not yet been validated by DAO.
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
 /// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
 /// variable fields and hidden/overflow rows remain unsupported. A missing or
 /// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
 /// names are also refused.
-/// The exact requested field bytes are the only bytes
-/// changed, including when the database contains opaque pages or unused space.
+/// Only the requested field and, for a supported key update, the occupied leaf
+/// entry area change. Opaque pages and unused space remain unchanged.
 /// Locators remain valid only while the source is unchanged: callers must exclude
 /// external writers for this entire operation, as required by [`crate::atomic_update`].
 /// Publication is Unix-only. Any pre-publication failure preserves the original;
@@ -159,6 +167,7 @@ where
         &mut replacement,
         budget,
     )?;
+    let index_change = crate::update_index_key::plan(&mut database, &definition, request, budget)?;
     let mut original_page = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut original_page, budget)?;
     let directory = RowDirectory::validate(
@@ -212,17 +221,35 @@ where
     }
     let mut patched = PageImage::from_bytes(original_page);
     patched.write_at(PageOffset::new(start as u64), &replacement[..width], budget)?;
-    crate::update_pages::publish_changes(
-        path,
-        database.into_source(),
-        &[crate::update_pages::PageChange {
-            page: request.row.page(),
-            before: &original_page,
-            after: patched.as_bytes(),
-        }],
-        budget,
-        hook,
-    )
+    let field_change = crate::update_pages::PageChange {
+        page: request.row.page(),
+        before: &original_page,
+        after: patched.as_bytes(),
+    };
+    if let Some(index) = index_change {
+        crate::update_pages::publish_changes(
+            path,
+            database.into_source(),
+            &[
+                field_change,
+                crate::update_pages::PageChange {
+                    page: index.page,
+                    before: &index.before,
+                    after: index.after.as_bytes(),
+                },
+            ],
+            budget,
+            hook,
+        )
+    } else {
+        crate::update_pages::publish_changes(
+            path,
+            database.into_source(),
+            &[field_change],
+            budget,
+            hook,
+        )
+    }
 }
 
 pub(crate) fn writable_table(
@@ -265,21 +292,13 @@ fn guarded_table(
     if definition.kind() != TableDefinitionKind::User {
         return Err(UpdateError::Unsupported("non-user table"));
     }
-    if let Some(column) = field {
+    if field.is_some() {
         // EXP-0059/0062: the typed decoder validates every logical selector,
         // physical key field and complete logical-to-physical coverage.
         for index in definition.indexes() {
             budget.charge_items(1)?;
             if matches!(index.kind(), crate::IndexDefinitionKind::Relationship(_)) {
                 return Err(UpdateError::Unsupported("relationship index"));
-            }
-        }
-        for index in definition.physical_indexes() {
-            for key in index.fields() {
-                budget.charge_items(1)?;
-                if key.column() == column {
-                    return Err(UpdateError::Unsupported("indexed key column"));
-                }
             }
         }
     } else if !definition.indexes().is_empty() || !definition.physical_indexes().is_empty() {
