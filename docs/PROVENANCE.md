@@ -11781,3 +11781,42 @@ Copy this block under the appropriate section and remove this instruction:
   Retain all 37 raw images externally. Any secondary read-only interpretation
   needs a separately declared analysis; any new DAO acquisition requires a
   separately reviewed successor plan and the repository's human retry decision.
+
+## EXP-0147 — Remaining Date/Binary/null index discovery successor plan
+
+- Recorded: 2026-09-05, OpenAI Codex; unacquired development-only successor.
+  EXP-0143 inputs and EXP-0144 `no_outcome` remain unchanged. Standing user
+  authorization covers DAO experiments/mutations; root dispatches this distinct
+  plan once only after independent review and final checks.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-remaining.plan.json`,
+  SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`.
+  New producer/analyzer files have separate input pins, checked before dispatch
+  and analysis; dispatch requires the exact committed plan. Existing original
+  catalog/leaf decoders and local one-dispatch transport stay unchanged.
+- Scope: exactly the fourteen remaining arms, three fresh controls each:
+  ascending/descending Date and four-byte Binary, plus ten nullable Long
+  ordinary/unique/Required/IgnoreNulls one/two-component arms. Each control
+  has at most twelve attempts. The 36 completed scalar captures from EXP-0143
+  are neither reacquired nor reinterpreted by this plan.
+- Corrections: values use plain CLR arrays instead of PowerShell's decorated
+  `New-Object` array wrapper. Date conversion is precomputed and assigned with
+  the explicit `[datetime]` cast used by the original read producer. Original
+  artifacts do not identify the precise failing cast; this change does not
+  prove DAO Date acceptance. Unexpected errors now retain endpoint and script
+  stack alongside the original error text and completed attempt records.
+- Gates: retain actual Update outcomes, null omissions, complete saved rows,
+  exact raw key-to-row-locator bindings, schema/flag/direction metadata and
+  full DAO traversal. Compare three replicas per arm without guessing nullable
+  uniqueness/omission policies or index transforms. All 42 captures must be
+  complete, unchanged and correlated for `answered`; otherwise preserve an
+  honest `no_outcome`. Binding/pin failures reject validation; no automatic retry.
+- Validation: four focused Python classifier/binding/pin tests and compilation
+  passed. Windows x86 PowerShell parsed the new producer and ran only extracted
+  helper functions against in-memory fake fields: all 120 declared Date/Binary/
+  nullable row conversions and JSON array roundtrips matched exact planned
+  values. The retained test is `tests/check_scalar_index_remaining.ps1` under
+  `oracle/windows-dao`; it instantiates no DAO and executes no acquisition.
+- Boundary: no scalar encoding promotion, completed-capture reanalysis, Text
+  collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
+  updates, candidate acceptance, general compatibility or hosted support claim.
+  Retain raw images/results externally and record one validated EXP-0148 outcome.
