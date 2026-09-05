@@ -1,4 +1,4 @@
-//! Physical index-definition model and decoding from `EXP-0059`.
+//! Physical index-definition decoding from `EXP-0059` and user null flags from `EXP-0148`.
 
 use std::mem::size_of;
 
@@ -18,7 +18,15 @@ const REQUIRED_FLAG: u8 = 0x08;
 const UNINTERPRETED_FLAG: u8 = 0x02;
 pub(crate) const USER_PRIMARY_FLAGS: u8 = UNIQUE_FLAG | REQUIRED_FLAG;
 pub(crate) const SYSTEM_PRIMARY_FLAGS: u8 = UNIQUE_FLAG;
-pub(crate) const USER_SUPPORTED_FLAGS: &[u8] = &[0, UNIQUE_FLAG, REQUIRED_FLAG, USER_PRIMARY_FLAGS];
+const USER_IGNORE_NULLS_FLAG: u8 = 0x02;
+pub(crate) const USER_SUPPORTED_FLAGS: &[u8] = &[
+    0,
+    UNIQUE_FLAG,
+    USER_IGNORE_NULLS_FLAG,
+    UNIQUE_FLAG | USER_IGNORE_NULLS_FLAG,
+    REQUIRED_FLAG,
+    USER_PRIMARY_FLAGS,
+];
 /// `EXP-0073` observed these three complete system-index flag values. The
 /// uninterpreted `0x02` value is not assumed to compose with the others.
 pub(crate) const SYSTEM_SUPPORTED_FLAGS: &[u8] = &[UNIQUE_FLAG, UNINTERPRETED_FLAG, REQUIRED_FLAG];

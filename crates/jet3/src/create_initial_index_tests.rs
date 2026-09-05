@@ -299,3 +299,6 @@ mod composite;
 
 #[path = "create_multi_level_index_tests.rs"]
 mod multi_level;
+
+#[path = "create_nullable_index_tests.rs"]
+mod nullable;

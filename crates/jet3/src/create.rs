@@ -182,9 +182,10 @@ pub fn create_database(
 /// At most one index on one or two Long columns (including a generated
 /// AutoIncrement column) is accepted, with each field ascending or descending.
 /// Uncompressed branch/leaf trees grow within the existing inline-map and
-/// resource limits. Primary and unique indexes reject duplicate full keys;
-/// ordinary indexes retain duplicates. Null components and other key types
-/// are refused.
+/// resource limits. Unique indexes reject repeated fully present keys while
+/// allowing repeated null-bearing keys. The index null policy includes keys,
+/// omits all-null keys, or requires every component; primary indexes require
+/// every component. Other key types are refused.
 /// One AutoIncrement column requires [`RowValue::AutoIncrement`] in every row;
 /// IDs start at 1 independently per table and the last generated ID is persisted.
 /// Null and explicit IDs are refused, as are counts reaching the signed Long
