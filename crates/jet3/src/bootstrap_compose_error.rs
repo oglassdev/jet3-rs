@@ -5,6 +5,11 @@ use super::*;
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposeError {
+    /// The private relationship request exceeds the supported schema or references.
+    UnsupportedRelationship {
+        /// Unsupported relationship constraint.
+        detail: &'static str,
+    },
     /// Initial rows require an unindexed, single-page definition without
     /// AutoIncrement or long-value columns.
     UnsupportedInitialRowSchema,
@@ -80,7 +85,8 @@ impl std::error::Error for ComposeError {
             Self::Encoding(source) => Some(source),
             Self::NameKey(source) => Some(source),
             Self::Schema(source) => Some(source),
-            Self::UnsupportedInitialRowSchema
+            Self::UnsupportedRelationship { .. }
+            | Self::UnsupportedInitialRowSchema
             | Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }

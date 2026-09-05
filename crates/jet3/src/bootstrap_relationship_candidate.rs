@@ -1,10 +1,9 @@
-//! Private candidate for exactly EXP-0114's first ParentChild relationship.
+//! Private bounded relationship composition with caller-supplied schemas.
 //!
-//! All schemas, names, selectors, map placements, catalog IDs/ACEs, and
-//! logical-record fields are bounded to that observation. Bootstrap null
-//! LvProp construction still follows EXP-0091/0110; no DAO result establishes
-//! acceptance of this combined image. No generalized relationship API lives
-//! here, and the second relationship is not composed.
+//! EXP-0118 accepted only the original fixed candidate. Renamed constructions
+//! remain candidates: applying EXP-0087 catalog text weights to standalone
+//! relationship keys is an explicit hypothesis, not an established general
+//! encoding. EXP-0059/0114 supply two bounded hidden-name/selector cases.
 
 #![allow(
     dead_code,
@@ -13,6 +12,10 @@
 
 use super::*;
 use crate::{IndexColumnSpec, IndexFieldSpec, IndexKind, IndexSpec, RelationshipSide};
+
+#[path = "bootstrap_relationship_plan.rs"]
+mod planning;
+use planning::{RelationshipColumn, RelationshipPlan, RelationshipSpec, TableRef};
 
 // EXP-0114 base and first checkpoints.
 const PARENT_ROOT: u64 = 20;
@@ -77,11 +80,38 @@ const RELATION_ACES: [AceSeed; 2] = [
 ];
 
 fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePlan, ComposeError> {
-    let mut plan = compose_database(&TABLES, budget)?;
+    compose_relationship(
+        &TABLES,
+        &RelationshipSpec {
+            name: RELATION.name,
+            parent: RelationshipColumn {
+                table: TableRef::Ordinal(0),
+                column: crate::ColumnRef::Ordinal(0),
+            },
+            child: RelationshipColumn {
+                table: TableRef::Ordinal(1),
+                column: crate::ColumnRef::Ordinal(0),
+            },
+        },
+        budget,
+    )
+}
+
+fn compose_relationship(
+    tables: &[TableSpec<'_>],
+    relationship: &RelationshipSpec<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, ComposeError> {
+    let relation = RelationshipPlan::new(tables, relationship)?;
+    let mut plan = compose_database(tables, budget)?;
     let creates = [
-        PlannedCreate::new(&TABLES[0], PARENT_ROOT, true)?,
-        PlannedCreate::new(&TABLES[1], CHILD_ROOT, false)?,
+        PlannedCreate::new(&tables[0], relation.parent.definition_root().get(), true)?,
+        PlannedCreate::new(&tables[1], relation.child.definition_root().get(), false)?,
     ];
+    let seed = CatalogSeed {
+        name: relationship.name,
+        ..RELATION
+    };
     let object_count = (SYSTEM_OBJECT_COUNT + TABLES.len() + 1) as u32;
     let ace_count = (SYSTEM_ACE_COUNT + 2 * TABLES.len() + RELATION_ACES.len()) as u32;
     let mut header = header_page(TABLES.len(), budget)?;
@@ -95,7 +125,7 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
         (HEADER_PAGE, header),
         (
             GLOBAL_MAP_PAGE,
-            global_map_page(CHILD_INDEX_ROOT + 1, budget)?,
+            global_map_page(relation.index_page() + 1, budget)?,
         ),
         (
             MSYS_OBJECTS_ROOT,
@@ -111,20 +141,23 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
         ),
         (
             OBJECTS_PARENT_NAME_ROOT,
-            objects_parent_name_index(&creates, Some(RELATION), budget)?,
+            objects_parent_name_index(&creates, Some(seed), budget)?,
         ),
         (
             OBJECTS_ID_ROOT,
-            objects_id_index(&creates, Some(RELATION), budget)?,
+            objects_id_index(&creates, Some(seed), budget)?,
         ),
-        (SHARED_MAP_PAGE, shared_map_page(&[RELATION_DATA], budget)?),
+        (
+            SHARED_MAP_PAGE,
+            shared_map_page(&[relation.data_page()], budget)?,
+        ),
         (
             ACES_OBJECT_ID_ROOT,
             aces_index(&creates, &RELATION_ACES, budget)?,
         ),
         (
             MSYS_OBJECTS_DATA_PAGE,
-            objects_data_page(&creates, Some(RELATION), budget)?,
+            objects_data_page(&creates, Some(seed), budget)?,
         ),
         (
             MSYS_ACES_DATA_PAGE,
@@ -132,126 +165,143 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
         ),
         (
             RELATIONSHIPS_NAME_ROOT,
-            relation_index(
-                b"\x7f\x73\x60\x75\x66\x70\x77\x62\x69\x6a\x6d\x64\x00",
-                budget,
-            )?,
+            relation_index_name(relationship.name, relation.data_page(), budget)?,
         ),
         (
             RELATIONSHIPS_OBJECT_ROOT,
-            relation_index(b"\x7f\x62\x69\x6a\x6d\x64\x00", budget)?,
+            relation_index_name(tables[1].name, relation.data_page(), budget)?,
         ),
         (
             RELATIONSHIPS_REFERENCED_ROOT,
-            relation_index(b"\x7f\x73\x60\x75\x66\x70\x77\x00", budget)?,
+            relation_index_name(tables[0].name, relation.data_page(), budget)?,
         ),
-        (PARENT_ROOT, user_definition(true, budget)?),
-        (CHILD_ROOT, user_definition(false, budget)?),
-        (CHILD_MAP, child_map(budget)?),
+        (
+            relation.parent.definition_root().get(),
+            user_definition(&relation, true, budget)?,
+        ),
+        (
+            relation.child.definition_root().get(),
+            user_definition(&relation, false, budget)?,
+        ),
+        (
+            relation.child.map_page().get(),
+            child_map(relation.index_page(), budget)?,
+        ),
     ];
     for (page, image) in replacements {
         plan.replace(PageNumber::new(page), image)?;
     }
-    let mut global_free = global_map(RELATION_DATA, budget)?;
-    plan.append(relationship_data(budget)?, &mut global_free, budget)?;
+    let mut global_free = global_map(relation.data_page(), budget)?;
     plan.append(
-        empty_index_page(CHILD_ROOT, budget)?,
+        relationship_data(&relation, budget)?,
+        &mut global_free,
+        budget,
+    )?;
+    plan.append(
+        empty_index_page(relation.child.definition_root().get(), budget)?,
         &mut global_free,
         budget,
     )?;
     Ok(plan)
 }
 
-fn user_definition(parent: bool, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
-    let id = [IndexFieldSpec {
-        column: 0,
+fn user_definition(
+    relation: &RelationshipPlan<'_>,
+    parent: bool,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, ComposeError> {
+    let child_fields = [IndexFieldSpec {
+        column: relation.child_column,
         direction: IndexDirection::Ascending,
     }];
-    let alternate = [IndexFieldSpec {
-        column: 1,
-        direction: IndexDirection::Ascending,
+    let child_physical = [PhysicalIndexSpec {
+        fields: &child_fields,
+        usage_map_page: relation.child.map_page(),
+        usage_map_row: 2,
+        root: PageNumber::new(relation.index_page()),
+        flags: PhysicalIndexFlagsSpec::Ordinary,
+        entry_count: 0,
     }];
-    let parent_physical = [
-        physical(
-            &id,
-            PARENT_MAP,
-            2,
-            PARENT_ID_ROOT,
-            PhysicalIndexFlagsSpec::UniqueRequired,
-        ),
-        physical(
-            &alternate,
-            PARENT_MAP,
-            3,
-            PARENT_ALTERNATE_ROOT,
-            PhysicalIndexFlagsSpec::Unique,
-        ),
-    ];
-    let child_physical = [physical(
-        &id,
-        CHILD_MAP,
-        2,
-        CHILD_INDEX_ROOT,
-        PhysicalIndexFlagsSpec::Ordinary,
-    )];
-    let parent_logical = [
-        LogicalIndexSpec {
-            name: b".rC",
-            physical_index: 0,
-            kind: LogicalIndexKindSpec::Relationship {
-                side: RelationshipSide::PrimaryTable,
-                related_table: PageNumber::new(CHILD_ROOT),
-                raw_selector: 2,
-                relation_ordinal: 0,
-                cascade_updates: false,
-                cascade_deletes: false,
-            },
+    let mut parent_physical = [child_physical[0]; 2];
+    for (slot, (((root, row), index), fields)) in parent_physical.iter_mut().zip(
+        relation
+            .parent
+            .index_placements()
+            .zip(relation.tables[0].indexes)
+            .zip(relation.parent.index_fields()),
+    ) {
+        *slot = PhysicalIndexSpec {
+            fields,
+            usage_map_page: relation.parent.map_page(),
+            usage_map_row: row,
+            root,
+            flags: index.kind.flags(),
+            entry_count: 0,
+        };
+    }
+    let relationship_index = LogicalIndexSpec {
+        name: if parent {
+            relation.hidden_name
+        } else {
+            relation.spec.name
         },
-        LogicalIndexSpec {
-            name: b"ByAlternate",
-            physical_index: 1,
-            kind: LogicalIndexKindSpec::Ordinary,
-        },
-        LogicalIndexSpec {
-            name: b"ById",
-            physical_index: 0,
-            kind: LogicalIndexKindSpec::Primary,
-        },
-    ];
-    let child_logical = [LogicalIndexSpec {
-        name: b"ParentChild",
         physical_index: 0,
         kind: LogicalIndexKindSpec::Relationship {
-            side: RelationshipSide::ForeignTable,
-            related_table: PageNumber::new(PARENT_ROOT),
-            raw_selector: 0,
-            relation_ordinal: 2,
+            side: if parent {
+                RelationshipSide::PrimaryTable
+            } else {
+                RelationshipSide::ForeignTable
+            },
+            related_table: if parent {
+                relation.child.definition_root()
+            } else {
+                relation.parent.definition_root()
+            },
+            raw_selector: if parent { relation.selector } else { 0 },
+            relation_ordinal: if parent { 0 } else { relation.selector },
             cascade_updates: false,
             cascade_deletes: false,
         },
-    }];
-    let map = if parent { PARENT_MAP } else { CHILD_MAP };
+    };
+    let mut logical = [relationship_index; 3];
+    let logical_count = if parent {
+        relation.tables[0].indexes.len() + 1
+    } else {
+        1
+    };
+    if parent {
+        for (ordinal, index) in relation.tables[0].indexes.iter().enumerate() {
+            logical[ordinal + 1] = LogicalIndexSpec {
+                name: index.name,
+                physical_index: ordinal as u16,
+                kind: index.kind.logical_kind(),
+            };
+        }
+        logical[..logical_count].sort_unstable_by(|left, right| left.name.cmp(right.name));
+    }
+    let table = if parent {
+        &relation.tables[0]
+    } else {
+        &relation.tables[1]
+    };
+    let map = if parent {
+        relation.parent.map_page()
+    } else {
+        relation.child.map_page()
+    };
     definition_page(
         &TableDefinitionSpec {
             kind: TableDefinitionKind::User,
-            columns: if parent {
-                &PARENT_COLUMNS
-            } else {
-                &CHILD_COLUMNS
-            },
+            columns: table.columns,
             system_column_classes: &[],
             physical_indexes: if parent {
-                &parent_physical
+                &parent_physical[..relation.tables[0].indexes.len()]
             } else {
                 &child_physical
             },
-            indexes: if parent {
-                &parent_logical
-            } else {
-                &child_logical
-            },
-            owned_map: MapRowLocator::new(PageNumber::new(map), 0),
-            available_map: MapRowLocator::new(PageNumber::new(map), 1),
+            indexes: &logical[..logical_count],
+            owned_map: MapRowLocator::new(map, 0),
+            available_map: MapRowLocator::new(map, 1),
             row_count: 0,
             long_value_maps: &[],
         },
@@ -259,30 +309,16 @@ fn user_definition(parent: bool, budget: &mut ResourceBudget) -> Result<PageImag
     )
 }
 
-fn physical<'a>(
-    fields: &'a [IndexFieldSpec],
-    map: u64,
-    row: u8,
-    root: u64,
-    flags: PhysicalIndexFlagsSpec,
-) -> PhysicalIndexSpec<'a> {
-    PhysicalIndexSpec {
-        fields,
-        usage_map_page: PageNumber::new(map),
-        usage_map_row: row,
-        root: PageNumber::new(root),
-        flags,
-        entry_count: 0,
-    }
-}
-
-fn child_map(budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
+fn child_map(index_page: u64, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
     let empty = inline_map_row(&[], budget)?;
-    let index = inline_map_row(&[CHILD_INDEX_ROOT], budget)?;
+    let index = inline_map_row(&[index_page], budget)?;
     data_page(HEADER_PAGE, &[&empty, &empty, &index], budget)
 }
 
-fn relationship_data(budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
+fn relationship_data(
+    relation: &RelationshipPlan<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, ComposeError> {
     // EXP-0073 column layout; EXP-0114 first relationship's exact values.
     let layout = [
         variable(ColumnPhysicalType::Text, 0, 255),
@@ -295,36 +331,39 @@ fn relationship_data(budget: &mut ResourceBudget) -> Result<PageImage, ComposeEr
         variable(ColumnPhysicalType::Text, 4, 255),
     ];
     let values = [
-        RowValue::Text(b"ParentChild"),
+        RowValue::Text(relation.spec.name),
         RowValue::Long(0),
         RowValue::Long(1),
         RowValue::Long(0),
-        RowValue::Text(b"Child"),
-        RowValue::Text(b"ParentId"),
-        RowValue::Text(b"Parent"),
-        RowValue::Text(b"Id"),
+        RowValue::Text(relation.tables[1].name),
+        RowValue::Text(relation.tables[1].columns[usize::from(relation.child_column)].name()),
+        RowValue::Text(relation.tables[0].name),
+        RowValue::Text(relation.tables[0].columns[usize::from(relation.parent_column)].name()),
     ];
     let mut row = [0_u8; PAGE_BYTES];
     let length = encode_row(&layout, &values, &mut row, budget)?.get() as usize;
     data_page(MSYS_RELATIONSHIPS_ROOT, &[&row[..length]], budget)
 }
 
-fn relation_index(key: &[u8], budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
-    // Only the three exact EXP-0114 keys above are supplied; no text grammar.
+fn relation_index_name(
+    name: &[u8],
+    row_page: u64,
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, ComposeError> {
+    // Candidate hypothesis: the EXP-0087 text component also serves these
+    // standalone keys. EXP-0114's three original keys reproduce exactly.
     let mut entry = OwnedIndexEntry::EMPTY;
-    let available = entry.key.len();
-    entry
-        .key
-        .get_mut(..key.len())
-        .ok_or(ComposeError::IndexPageFull {
-            needed: key.len(),
-            available,
-        })?
-        .copy_from_slice(key);
-    entry.len = key.len();
-    index_page(MSYS_RELATIONSHIPS_ROOT, RELATION_DATA, &[entry], budget)
+    let length = encode_catalog_name_key(0, name, &mut entry.key)?;
+    let prefix = crate::catalog_name_key::LONG_COMPONENT_LEN;
+    entry.key.copy_within(prefix..length, 0);
+    entry.len = length - prefix;
+    index_page(MSYS_RELATIONSHIPS_ROOT, row_page, &[entry], budget)
 }
 
 #[cfg(test)]
 #[path = "bootstrap_relationship_candidate_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "bootstrap_relationship_parameterized_tests.rs"]
+mod parameterized_tests;
