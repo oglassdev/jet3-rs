@@ -11242,6 +11242,42 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
 
+## EXP-0199 — Empty Memo/OLE layout discovery plan
+
+- Preregistered2026-09-05; no acquisition. Result reserved as EXP-0200.
+  Plan `oracle/windows-dao/acquisition/empty-long-values.plan.json`, SHA-256
+  `fa2b22d683b3d2f15a9c9849f55ffe9b2ae2349ddd9ed1d1f497e1dadc738b4e`; five scoped producer/analyzer/
+  decoder/transport inputs pinned and checked before dispatch and analysis.
+- Four natural DAO arms, three fresh databases each: Memo with default
+  AllowZeroLength, Memo explicitly allowing zero length, OLE Value assignment
+  and OLE AppendChunk. Each Rows table has Long Id and one long Payload column,
+  no indexes, relations or queries. No raw fixture edits or production changes.
+- Attempt Id1 Null, Id2 empty, Id3 one-byte A/41. Empty Memo uses an explicit
+  string; empty OLE a true CLR byte[0], assigned through a local COM field.
+  Only the declared empty assignment/Update can yield an answered negative with
+  a captured native DAO error inventory. Record initiating endpoint, exception
+  type/HRESULT/numbers/stack before cancellation and cleanup. Null/one-byte
+  controls, cancellation, cleanup and complete reopen must succeed.
+- Reopen read-only and retain complete field properties, Memo AllowZeroLength,
+  exact schema/row inventory, IsNull/FieldSize and complete payload. Bind raw
+  Ids and presence bits to saved rows; retain complete small-row bytes, raw
+  field spans/headers, table maps and long-column maps. All12capture identities
+  must stay unchanged and all three replicas of each arm agree.
+- Accepted empty may remain empty or normalize to Null; stable provider refusal
+  is also an answered result. Existing zero-length inline-header construction
+  is a hypothesis, never an acceptance gate. EXP-0061 supplies existing framing,
+  EXP-0077 column-map coverage; EXP-0124 explicitly did not test empty payloads.
+  No empty-payload production refusal is removed before the observed outcome.
+- One dispatch,300second transport bound; retain12images and12reopen captures
+  plus partial artifacts on failure. Any incomplete/unexpected mutation,
+  observation, binding or replica failure remains no_outcome without retry or
+  subset promotion. Three focused classifier/pin tests and actual x86 parser,
+  twelve typed mock assignments and JSON roundtrips pass without DAO; mocks
+  establish host-language marshalling only, not COM/provider acceptance.
+- Finite local discovery only: no general property writer, index/update/delete
+  grammar, hosted compatibility or support movement. Independent review precedes
+  acquisition; original inputs/results will remain immutable.
+
 ## EXP-0191 — Sole physical-row release candidate plan
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0192.
