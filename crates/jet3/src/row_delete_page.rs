@@ -1,4 +1,4 @@
-//! Preservation-aware tail tombstones and counts from EXP-0162 (EXP-0059/0060 layout).
+//! Slot-preserving compaction and tombstones from EXP-0162 (EXP-0059/0060 layout).
 use crate::row_directory::RowDirectory;
 use crate::{PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError};
 const FREE_BYTES: usize = 2;
@@ -7,7 +7,7 @@ const ENTRY_BYTES: usize = 2;
 const TOMBSTONE: u16 = 0xc000;
 const TABLE_COUNT: usize = 12;
 
-pub(crate) fn tail(
+pub(crate) fn remove(
     page: PageNumber,
     owner: PageNumber,
     source: &[u8; PAGE_BYTES],
@@ -15,42 +15,78 @@ pub(crate) fn tail(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, UpdateError> {
     let directory = RowDirectory::validate(page, owner, source, budget)?;
-    if directory.row_count() < 2 {
-        return Err(UpdateError::Unsupported("sole-row page release"));
-    }
-    if u16::from(slot) + 1 != directory.row_count() {
-        return Err(UpdateError::Unsupported("non-tail row compaction"));
-    }
+    let range = directory.entry(source, slot)?.range();
+    let mut live = 0;
+    budget.charge_work_units(2 * u64::from(directory.row_count()))?;
     for ordinal in 0..directory.row_count() {
         let entry = directory.entry(source, ordinal as u8)?;
+        if entry.hidden() && entry.overflow() && entry.range().is_empty() {
+            continue;
+        }
         if entry.hidden() || entry.overflow() || entry.range().is_empty() {
             return Err(UpdateError::Unsupported(
-                "page contains hidden, overflow or deleted slots",
+                "page contains an unsupported row slot",
             ));
         }
+        live += 1;
     }
-    let range = directory.entry(source, slot)?.range();
+    if range.is_empty() {
+        return Err(UpdateError::NotFound("live row slot"));
+    }
+    if live < 2 {
+        return Err(UpdateError::Unsupported("sole-row page release"));
+    }
+    let lowest = directory
+        .entry(source, (directory.row_count() - 1) as u8)?
+        .range()
+        .start;
     let directory_end = DIRECTORY + ENTRY_BYTES * usize::from(directory.row_count());
     let free = usize::from(u16::from_le_bytes([
         source[FREE_BYTES],
         source[FREE_BYTES + 1],
     ]));
-    if free != range.start - directory_end {
+    if free != lowest - directory_end {
         return Err(UpdateError::Mismatch("data page free-byte count"));
     }
-    let new_free = u16::try_from(range.end - directory_end)
-        .map_err(|_| UpdateError::Mismatch("free-byte range"))?;
-    let word = u16::try_from(range.end).map_err(|_| UpdateError::Mismatch("tombstone offset"))?
-        | TOMBSTONE;
+    let removed = range.len();
+    let new_free =
+        u16::try_from(free + removed).map_err(|_| UpdateError::Mismatch("free-byte range"))?;
     let mut patched = PageImage::from_bytes(*source);
+    // EXP-0162 moves later row bytes upward and leaves the vacated slack intact.
+    budget.charge_work_units((range.start - lowest) as u64)?;
+    patched.write_at(
+        PageOffset::new((lowest + removed) as u64),
+        &source[lowest..range.start],
+        budget,
+    )?;
+    for ordinal in u16::from(slot)..directory.row_count() {
+        let entry = directory.entry(source, ordinal as u8)?;
+        let start = if ordinal == u16::from(slot) {
+            range.end
+        } else {
+            entry
+                .range()
+                .start
+                .checked_add(removed)
+                .filter(|v| *v <= PAGE_BYTES)
+                .ok_or(UpdateError::Mismatch("compacted row offset"))?
+        };
+        let flags = if ordinal == u16::from(slot) || entry.hidden() {
+            TOMBSTONE
+        } else {
+            0
+        };
+        let word =
+            u16::try_from(start).map_err(|_| UpdateError::Mismatch("tombstone offset"))? | flags;
+        patched.write_at(
+            PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(ordinal)) as u64),
+            &word.to_le_bytes(),
+            budget,
+        )?;
+    }
     patched.write_at(
         PageOffset::new(FREE_BYTES as u64),
         &new_free.to_le_bytes(),
-        budget,
-    )?;
-    patched.write_at(
-        PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(slot)) as u64),
-        &word.to_le_bytes(),
         budget,
     )?;
     Ok(patched)

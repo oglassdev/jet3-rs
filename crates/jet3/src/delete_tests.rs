@@ -144,10 +144,6 @@ fn unsupported_locators_pages_and_metadata_preserve_original() -> ResultTest {
             ..f.request()
         },
         RowDelete {
-            row: RowLocator::new(f.row.page(), 1),
-            ..f.request()
-        },
-        RowDelete {
             row: RowLocator::new(f.row.page(), 200),
             ..f.request()
         },
@@ -324,3 +320,6 @@ fn generated_long_value_index_and_available_map_states_are_refused() -> ResultTe
     assert_eq!(fs::read(f.path())?, original);
     f.clean()
 }
+
+#[path = "delete_compaction_tests.rs"]
+mod compaction;
