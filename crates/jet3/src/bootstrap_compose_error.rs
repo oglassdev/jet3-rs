@@ -5,7 +5,7 @@ use super::*;
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposeError {
-    /// The private relationship request exceeds the supported schema or references.
+    /// The relationship request exceeds the supported schema or references.
     UnsupportedRelationship {
         /// Unsupported relationship constraint.
         detail: &'static str,

@@ -62,6 +62,8 @@ impl StdError for CreateDatabaseError {
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
 pub enum CandidateCheckError {
+    /// Reading a candidate page or charging comparison work failed.
+    Read(crate::Error),
     /// The candidate index tree could not be read.
     Index(crate::IndexTreeError),
     /// The candidate rows could not be read.
@@ -84,6 +86,7 @@ pub enum CandidateCheckError {
 impl fmt::Display for CandidateCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
             Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
             Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
             Self::RowEncoding(source) => {
@@ -104,6 +107,7 @@ impl fmt::Display for CandidateCheckError {
 impl StdError for CandidateCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::Read(source) => Some(source),
             Self::Index(source) => Some(source),
             Self::Rows(source) => Some(source),
             Self::RowEncoding(source) => Some(source),
@@ -411,3 +415,7 @@ fn check_table(
 #[cfg(all(test, unix))]
 #[path = "create_tests.rs"]
 mod tests;
+
+#[path = "create_relationship.rs"]
+mod relationship;
+pub use relationship::create_database_with_relationship;

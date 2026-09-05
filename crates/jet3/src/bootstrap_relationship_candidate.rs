@@ -1,21 +1,18 @@
-//! Private bounded relationship composition with caller-supplied schemas.
+//! Bounded relationship composition with caller-supplied schemas.
 //!
-//! EXP-0118 accepted only the original fixed candidate. Renamed constructions
-//! remain candidates: applying EXP-0087 catalog text weights to standalone
-//! relationship keys is an explicit hypothesis, not an established general
-//! encoding. EXP-0059/0114 supply two bounded hidden-name/selector cases.
+//! EXP-0118 and EXP-0122 accepted three exact constructions, including the
+//! two renamed one/two-parent-index cases. EXP-0087 supplies name-key weights;
+//! no general name grammar or integrity-enforcement behavior is established.
 
-#![allow(
-    dead_code,
-    reason = "private relationship candidate awaiting DAO validation"
-)]
+#![allow(dead_code, reason = "retained deterministic relationship fixtures")]
 
 use super::*;
 use crate::{IndexColumnSpec, IndexFieldSpec, IndexKind, IndexSpec, RelationshipSide};
 
 #[path = "bootstrap_relationship_plan.rs"]
 mod planning;
-use planning::{RelationshipColumn, RelationshipPlan, RelationshipSpec, TableRef};
+use planning::RelationshipPlan;
+pub use planning::{RelationshipColumn, RelationshipSpec, TableRef};
 
 // EXP-0114 base and first checkpoints.
 const PARENT_ROOT: u64 = 20;
@@ -97,7 +94,7 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
     )
 }
 
-fn compose_relationship(
+pub(crate) fn compose_relationship(
     tables: &[TableSpec<'_>],
     relationship: &RelationshipSpec<'_>,
     budget: &mut ResourceBudget,
@@ -350,8 +347,8 @@ fn relation_index_name(
     row_page: u64,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    // Candidate hypothesis: the EXP-0087 text component also serves these
-    // standalone keys. EXP-0114's three original keys reproduce exactly.
+    // EXP-0118/0122 accepted the original and two renamed constructions
+    // using the EXP-0087 text component as these standalone keys.
     let mut entry = OwnedIndexEntry::EMPTY;
     let length = encode_catalog_name_key(0, name, &mut entry.key)?;
     let prefix = crate::catalog_name_key::LONG_COMPONENT_LEN;

@@ -10684,3 +10684,54 @@ Copy this block under the appropriate section and remove this instruction:
   generalized relationship grammar, integrity-enforcement mutation,
   cascade, populated relation, update, or hosted support claim. Record one
   validated additive outcome as `EXP-0122`; retain MDBs externally.
+
+## EXP-0122 — Accepted two renamed relationship constructions
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated local development DAO differential under `EXP-0121`
+- Plan: `oracle/windows-dao/acquisition/parameterized-relationships.plan.json`,
+  SHA-256 `f4168b5e575303cc52247756d64da072a898e997c84cc7f9253d1f16db8bfe5f`.
+  Acquisition used the committed, reviewed plan and pinned inputs. Outcome
+  validation preceded subsequent public-API source changes; the consumed
+  plan, acquisition script, and analyzer remain unchanged.
+- Artifacts: run `20260905T035000Z-parameterized-relations`, external
+  `result.json` SHA-256
+  `4d7b99001f3829a6fe9d421ab15641e7ab490f968fa4fe0b35f6a54149f23981`,
+  `report.json` SHA-256
+  `8b2527103cb4dc633bb5c82579c3ee40d9ea1da16d90cda2f33e666796a555e9`.
+  Pinned-input analysis of temporary artifact copies verified every retained
+  identity and reproduced the report byte-identically. MDBs remain external.
+- Result: x86 `DAO.DBEngine.36`, Windows NT `10.0.20348.0`; both arms and
+  the matrix report `observed_accepted`, with no reasons. All three fresh
+  controls and three candidate replicas per arm reached `complete` with
+  status `pass`, no errors, and unchanged hashes. Every captured metadata
+  and row observation agreed within each arm and between candidate/control.
+- Exact images: one-index `Accounts7` / `Events9` / `Account7Events9`,
+  57,344 bytes, SHA-256
+  `9d6d850ae06b4a4317f2640e468b0afae7ac248808c8c0ac2fbb211f2ce87927`;
+  two-index `Owners2` / `Details4` / `Owner2_Details4`, 59,392 bytes,
+  SHA-256 `25472960e097ac3539a1da8cf7d3d10e588637b209c991a578e095b74c629fd9`.
+- Common metadata: DAO version `3.0`, exactly the two declared user tables
+  plus `MSysACEs`, `MSysObjects`, `MSysQueries`, `MSysRelationships`. User
+  table Attributes are zero. Parent columns, in order, are `Code2`, `Key1`,
+  each Type 4, Size 4, Attributes 1. Child columns are `Label3` (Type 10,
+  Size 8, Attributes 2), then `Account4` (Type 4, Size 4, Attributes 1).
+  All user row snapshots are empty.
+- Index metadata: parent `Primary9` on ascending `Key1` is primary, unique,
+  and required. The second arm additionally exposes `Unique8` on ascending
+  `Code2`, unique, nonprimary, and not required. Both parent indexes have
+  Foreign and IgnoreNulls false. The child exposes its relationship-named
+  index on ascending `Account4`, Foreign true, with Primary, Unique,
+  Required, and IgnoreNulls false. Every index field has Attributes zero.
+- Relation metadata: exactly the declared named relation in each arm,
+  pointing from its parent table's `Key1` to its child table's `Account4`,
+  Attributes zero. This observes both bounded one/two-parent-index shapes
+  with reordered linked columns and digit-bearing names (including the
+  second relation name's underscore), using the candidate's standalone
+  `EXP-0087` text-key composition. It does not establish all possible name
+  weights, selector formulas, or schema combinations.
+- Boundary: these exact candidates at read-only metadata and empty-row
+  endpoints only. No physical byte equality with controls, referential
+  integrity mutation, cascade, populated relation, existing-database update,
+  general compatibility, or hosted support claim. All report compatibility
+  and support-matrix flags remain false.

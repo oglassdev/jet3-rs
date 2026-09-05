@@ -55,8 +55,14 @@ data pages. Earlier exact empty-table and one-page observations remain in the
 provenance ledger. These results establish only the pinned candidates, with no
 general allocation policy, compatibility claim, or support-matrix movement.
 
+`create_database_with_relationship` creates two empty tables with one
+Long-to-Long relationship, a parent primary index and optional additional
+unique Long index, and an initially unindexed child. `EXP-0118` and `EXP-0122`
+record exact local original/renamed candidate acceptance; cascades and
+referential-integrity mutations remain unvalidated.
+
 Next, broaden initial-row creation in focused implementation and preregistered
-DAO experiment slices, including indexes and long values, and add relationships.
+DAO experiment slices, including indexes and long values.
 After creation is complete, run the hosted write differential (#102), implement
 updates that preserve unrelated data (#112), then run the hosted update
 differential (#113). Keep module cleanup (#182) until the creation API settles.
