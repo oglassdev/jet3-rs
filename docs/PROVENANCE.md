@@ -13764,6 +13764,31 @@ Retained MDB identities (filename: bytes, SHA-256):
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0211 — Hosted seventeen-case row replacement preregistration
+
+- Plan: `oracle/windows-dao/acquisition/row-replacement-v1_2.plan.json`,
+  SHA-256 `f65790c175609db2f8cb9550711cfb1b26257a2ff5713dfa6ff00492f5f7f62e`; reviewed implementation
+  `931032737ca1521697b18ac06d11cf900583dfee`. The actual dispatched commit must satisfy all
+  83 scoped input pins and bind both platform jobs and retained receipts.
+- One hosted run retains the thirteen indexed-update recipes verbatim and adds
+  sole physical-row release, first-row growth, middle-row shrink and later-table
+  replacement beside a known empty tombstone. Exact requests and schemas are in
+  the pinned seventeen-case inventory; Binary recipe strings represent ASCII bytes.
+- Seventeen public creations and twenty public mutation calls are planned:
+  nineteen mutations on final copies plus one deletion preparing the tombstone
+  baseline. Retain thirty-four final images, complete DAO/Rust snapshots and
+  index sidecars, seventeen independent preservation receipts, provider metadata,
+  execution logs and all source/image identities.
+- Acceptance requires every full semantic comparison and exact preservation
+  check, including release map/tag/count/slack changes, replacement slot/free
+  changes, unchanged unrelated bytes, and all historical index traversal/Seek
+  gates. Eight indexed sidecars and twenty-six empty sidecars must match the
+  exact inventory. Neither QueryDef nor continuation behavior is claimed.
+- Tooling independent review and focused checks passed. Commit this exact plan
+  before one authorized dispatch; failure after mutation is a result, without
+  automatic retry. Record EXP-0212 once from the validated retained report.
+  This preregistration moves no support status.
+
 ## EXP-0204 — Hosted indexed field update matrix matched
 
 - Outcome **matched** from hosted GitHub Actions run
@@ -14732,3 +14757,42 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `support_matrix_movement` remains false; no broad compatibility or completed
   creation-surface claim follows automatically. Any support-state integration
   is a separate reviewed change tied to these exact scenarios.
+
+## EXP-0212 — Hosted row replacement and release matrix matched
+
+- Outcome **matched** from hosted GitHub Actions run
+  [33968780678](https://github.com/oglassdev/jet3-rs/actions/runs/33968780678),
+  attempt 1, source `19b5161e1c6bb49c97f0eaa1c33801ecf316d789`.
+  Both jobs succeeded under the unchanged EXP-0211 plan, SHA-256
+  `f65790c175609db2f8cb9550711cfb1b26257a2ff5713dfa6ff00492f5f7f62e`.
+  All 83 scoped input pins matched before acquisition. No retry occurred.
+- Retained artifacts are outside the repository at
+  `/home/alex/experiments/jet3-rs/hosted-row-replacement-33968780678/`.
+  Report: 18,572 bytes, SHA-256
+  `60937c6b73791820e67719b1359fb9b4ee43b2fce3276e74b4f41979a2ef6b57`.
+  The frozen evaluator reproduced it byte-for-byte on temporary copies;
+  all 619 retained files remained unchanged, and all 34 downloaded MDBs
+  matched the corresponding Unix-generated images exactly.
+- All 17 recipes passed, with 34 complete DAO/Rust semantic comparisons and
+  17 independent preservation checks. Stock Windows x86 DAO observations,
+  source and image identities, requested schema/values, coverage, and complete
+  index sidecar checks passed; `index_observations_verified` is true.
+- The original thirteen field, row, allocation and indexed-update cases are
+  retained. Four additions cover sole physical-row page release, scalar row
+  growth and shrinkage with null/Text/Binary/Boolean transitions, and later-table
+  replacement adjacent to a retained tombstone. Independent reconstruction
+  verified the declared changes and preservation of unrelated bytes.
+- Preparation SHA-256:
+  `c8023a93ef44072159132e790056599d2af96ba471605f7fa378cdd81da4b77a`;
+  Windows reader receipt:
+  `880fa543affc22ab755886bc0ad8b2bff3a15040cc6df54fa9fbaa9cbc7c334d`;
+  DAO manifest:
+  `c91c5491489b04cac11463e9b76b042a5d79035a20dd261cfec8b5ae83a1277c`;
+  environment:
+  `ac6864f9681e3e1aea1a0a20af1f1d3ce32954d4951cd50c0e421360da56a69d`.
+- Evidence is limited to these seventeen recipes on the pinned source. Free-page
+  or slot reuse, indirect allocation, indexed insertion/deletion, relationship
+  mutations, arbitrary wide or Auto/LVAL replacements, stored-query preservation
+  and DAO continuation mutations remain outside this inventory. The report's
+  `support_matrix_movement` remains false; no general update compatibility is
+  claimed. Earlier provenance entries and the consumed plan remain unchanged.
