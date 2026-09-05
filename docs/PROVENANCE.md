@@ -12556,6 +12556,45 @@ Copy this block under the appropriate section and remove this instruction:
   needs a separately declared analysis; any new DAO acquisition requires a
   separately reviewed successor plan and the repository's human retry decision.
 
+## EXP-0184 — Numeric index validation stopped during Currency Seek
+
+- Recorded: 2026-09-05, OpenAI Codex; original validated `no_outcome`.
+  EXP-0183 inputs, plan and all retained artifacts remain unchanged. No retry,
+  corrected analysis or subset promotion was performed.
+- Single acquisition `20260905T084500Z-numeric-index`, committed harness
+  `8aa1c85`, plan SHA-256
+  `ba39dfe4d9815d55377ac6c6a5e598d950ef9736a95c33f31d94b2b6aeb22d63`.
+  External `result.json`: 635160 bytes, SHA-256
+  `df13706c0fb342353b8256671d22ec0db0336d100d539a741bd6cc4533b8d6e8`;
+  `report.json`: 375 bytes, SHA-256
+  `fc1189d63eef3fb680a76d1d4995b993e7d4c9d88c5e3622093660d7bbbe6e20`.
+  Frozen analysis reproduced that report byte-for-byte on temporary copies.
+  All 44 retained files, including 39 MDBs, remained unchanged.
+- Report has zero observations and sole reason `Acquisition/source failure`.
+  Result records `mutation_started=true`, no retention failures, and ten started
+  pairs. The first nine Boolean/Byte/Integer pairs contain 36 pass-status captures
+  and their duplicate probes. These incomplete-run diagnostics do not establish
+  accepted arms under the all-24-pair decision rule.
+- Currency descending replica 1 contains only a failed candidate capture. Its
+  snapshot retained full rows/traversal and metadata, but no completed Seek list.
+  The underlying error is `System.Runtime.InteropServices.COMException`, message
+  `Data type conversion error.`, at `Capture` producer line 55, called at line 80.
+  Line 55 includes Variant conversion and DAO Seek calls; no query ordinal or
+  individual call endpoint was recorded, so the exact failing query is unknown.
+  The retained endpoint `capture/open` was stale, not proof of an open failure.
+  The outer error is `Baseline capture failed` at line 81 and does not replace
+  this capture's initiating diagnostic. No HRESULT was retained by this helper.
+- All 37 attempted captures have matching before/after and retained identities.
+  The Currency candidate is 51200 bytes, SHA-256
+  `b5dc73f7b9177e822158d3c558cdbece36973ffdf9acc3a6ee4eaa581d6ade38`;
+  its independently created, uncaptured control is 51200 bytes, SHA-256
+  `e43ae71a095cc1daa4b9f4703fac49c84c65c47890ba446251b5e8bbc29efacc`.
+  The export wildcard also retained the untouched `mixed-required.mdb` input;
+  it is not an additional capture or completed pair. Currency probes and later
+  arms were not reached. No raw-key or compatibility conclusion is drawn from
+  these partial snapshots. Development-only and false compatibility/support
+  flags are preserved.
+
 ## EXP-0183 — Finite numeric initial-index candidate validation plan
 
 - Preregistered: 2026-09-05, OpenAI Codex; no acquisition yet.
