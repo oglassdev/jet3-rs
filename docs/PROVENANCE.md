@@ -11437,3 +11437,50 @@ Copy this block under the appropriate section and remove this instruction:
 - Boundary: exact candidates only; no general allocation, schema/index,
   relationship, AutoIncrement, empty-payload, update, compatibility or hosted
   support claim. Record the validated outcome once as EXP-0130.
+
+## EXP-0143 — Scalar and nullable index-key discovery preregistration
+
+- Recorded: 2026-09-05, OpenAI Codex.
+- Kind: development-only preregistration; acquisition has not started. This
+  entry establishes no format transform or compatibility/support claim.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-layout.plan.json`, SHA-256
+  `138a01ef51eca94da9b94f53e9cfa7497599091e98af3266289e99dc6e6ed1c4`.
+  Pins cover the producer, analyzer, existing original catalog/leaf decoders
+  and local SSH transport. Both dispatch and analysis verify inputs; dispatch
+  also requires the exact plan committed before acquisition.
+- Questions: exact ascending/descending keys for Boolean, Byte, Integer,
+  Currency, Single, Double, Date and four-byte Binary values; nullable Long
+  one/two-component keys, duplicate-null insertion behavior, and the effects
+  of Unique, Required and IgnoreNulls. EXP-0062/0073 supply existing leaf/row
+  framing; EXP-0126 supplies prior non-null Long observations. No scalar key
+  transform, null uniqueness rule or null-omission policy is assumed.
+- Matrix: sixteen scalar direction arms and ten nullable Long arms, each
+  repeated with three fresh controls: 78 images, at most twelve attempts
+  per image. Values include signed endpoints, negative/zero/positive values,
+  finite floating normal/subnormal minima, exact Binary bytes, and repeated
+  null/non-null full keys with distinct Tag payloads. Tag is not indexed.
+- Capture: create declared table/index, attempt each row exactly once, and
+  retain actual Update success or DAO error numbers/HRESULT. A declared
+  rejected insertion is cancelled before the next distinct attempt. Any
+  assignment/setup/cleanup failure aborts acquisition; completed operations
+  and raw images remain retained. Close and reopen read-only for complete
+  schema, index flags/directions, saved rows and ordered index traversal;
+  record unchanged before/after image identities.
+- Analysis: bind uninterpreted raw leaf keys through page/slot locators to
+  every indexed saved row and DAO traversal. Observe null omissions; reject
+  missing non-null bindings. Compare question-bearing raw key/value bindings,
+  saved/omitted rows, index records/flags/counts and actual operation outcomes
+  across three replicas. Provider value normalization is a separate diagnostic;
+  an observation supplies keys only for the values actually saved.
+- Decision: `answered` requires all 78 captures and complete correlations with
+  stable observations. Unexpected acquisition failure, incomplete/changed
+  capture, unsupported decoding or disagreement yields `no_outcome`; identity
+  or pin mismatches reject validation. No automatic retry after first mutation.
+- Bounds: existing decoder limits remain unchanged; each image has at most
+  twelve rows, three fields and one leaf index. No parser edits, Text collation,
+  GUID/Memo/OLE index grammar, candidate acceptance, general Binary lengths,
+  NaN/infinity, existing-row updates or hosted support movement in this slice.
+- Validation: four focused classifier/binding/pin tests and Python compilation
+  passed; Windows `Parser.ParseFile` accepted the producer without executing
+  it or DAO. Independent experiment review precedes acquisition. Retain all
+  raw files externally; record one additive validated EXP-0144 outcome.
