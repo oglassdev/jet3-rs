@@ -11924,3 +11924,45 @@ Copy this block under the appropriate section and remove this instruction:
   identities without corrected evaluation. Independent review precedes analysis;
   no DAO, provider activation, build, installation, retry or workflow dispatch.
   Record one additive validated EXP-0154 outcome; retain originals externally.
+
+## EXP-0154 — Retained hosted write scenarios match after index association
+
+- Recorded: 2026-09-05, OpenAI Codex; validated post-acquisition secondary
+  `matched` result for the twelve bounded hosted write scenarios. This does
+  not change the original hosted run failure or EXP-0142 `no_outcome`.
+- Reviewed EXP-0153 plan SHA-256
+  `6092f41b7793bdf9f40491f0532d8ab3acfc951e0e30c82ef9f88b25625f8e4b`,
+  integrated analyzer source `7074bd2`. Secondary report retained externally
+  at `20260905T061800Z-hosted-write-secondary/report.json`: 4726 bytes,
+  SHA-256 `8e65b09525b2709e5cd384e15ca81e93fc7e9b91722791a6a63bb49759f83282`.
+- Source acquisition remains hosted run `33948345313`, attempt 1, revision
+  `4d8e421b0d618482ac0b7a1589c77a94d293e513`, under consumed EXP-0141 plan
+  SHA-256 `d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8`.
+  The original 191-byte failure report SHA-256
+  `d285609b052ea2e6d29ff7b15ddf5567129d024aa3e82fdf7d60fe9b8513acd9`
+  is carried unchanged in the secondary report. No DAO or hosted retry occurred.
+- All twelve report comparisons have `matched: true`: empty database,
+  scalars/nulls, AutoIncrement, primary/unique-descending/ordinary/composite
+  indexes, AutoIncrement primary, multiple tables, Memo, LongBinary and
+  populated relationship. Their source/image identities and canonical
+  projection hashes are retained in the report.
+- The secondary evaluator associated complete index observations by unique
+  `(table, index)` identity, retaining every original full-schema, typed-row,
+  relationship, requested-recipe, coverage, unchanged-image, directed-traversal
+  and full-key Seek check. The relationship comparison now completes with
+  database SHA-256 `efd3feec378c2486462ed74e738b1e1941e989a2652238fb0cc8ae1d0b94c81d`
+  and projection SHA-256
+  `5fb7cc47b05ea5a89e01b876f0ce76c087bdcb6cec3c253a60b20bc74511d56a`.
+  No missing records or payloads were synthesized.
+- The pinned analyzer independently reproduced the report byte-for-byte on
+  temporary copies. All 244 retained acquisition artifact files, including
+  Linux/Windows MDBs, snapshots, environment, receipts and original report,
+  and the secondary report remained unchanged.
+- Boundary: this is finite hosted evidence interpreted by a separately reviewed
+  post-acquisition correction, not an originally successful workflow verdict.
+  Multi-level boundary inventory, general null/composite foreign keys/cascades,
+  explicit AutoIncrement seeds/overflow/updates, empty long payloads, unsupported
+  schema combinations and general allocation/names/code pages remain deferred.
+  `support_matrix_movement` remains false; no broad compatibility or completed
+  creation-surface claim follows automatically. Any support-state integration
+  is a separate reviewed change tied to these exact scenarios.
