@@ -11435,7 +11435,7 @@ Copy this block under the appropriate section and remove this instruction:
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0178. Plan
   `oracle/windows-dao/acquisition/indexed-payload-update.plan.json`, SHA-256
-  `3f9aa6a27174680dfbd8a1fb04306e709280014f3e60b78be4974ab05a1962ae`.
+  `0f471e7449cf50466ee0aa62d7e7fca9debe474e26903cf631a2831e8431ffc7`.
 - Reviewed implementation `0f06a3a` is integrated without conflicts in source
   `aaa02d7079772ecd846e58614195c12b3159b206`. The existing public
   `field_update_candidate` exporter remains unchanged and receives the declared
