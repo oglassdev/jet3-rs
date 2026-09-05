@@ -6,14 +6,15 @@ use std::path::PathBuf;
 
 use jet3::TextCodePage;
 use jet3_testkit::{
-    INDEXED_UPDATE_SCENARIOS, PROTOCOL_SCENARIOS, Producer, ROW_ALLOCATION_SCENARIOS,
-    ROW_UPDATE_SCENARIOS, SnapshotOptions, SnapshotOutcome, UPDATE_SCENARIOS, WRITE_SCENARIOS,
-    canonical_json, coverage, parse_scenarios, snapshot_bytes,
+    CREATION_INDEX_SCENARIOS, INDEXED_UPDATE_SCENARIOS, PROTOCOL_SCENARIOS, Producer,
+    ROW_ALLOCATION_SCENARIOS, ROW_REPLACEMENT_SCENARIOS, ROW_UPDATE_SCENARIOS, SnapshotOptions,
+    SnapshotOutcome, UPDATE_SCENARIOS, WRITE_SCENARIOS, canonical_json, coverage, parse_scenarios,
+    snapshot_bytes,
 };
 
 pub(crate) const HELP: &str = "\
   jet3-cli snapshot <file> --out <dir> --scenario <DAO-READ-...|DAO-WRITE-...|DAO-UPDATE-...> \
-    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update|row-allocation|indexed-update]
+    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update|row-allocation|indexed-update|row-replacement|creation-index]
 
 snapshot reads the whole database with the jet3 reader and writes
 <dir>/snapshot.json (protocol 1.2 canonical semantic snapshot; omitted when
@@ -56,9 +57,11 @@ pub(crate) fn parse_args(
             source_revision = Some(text.to_owned());
         } else if option == "--inventory" {
             inventory = Some(match text {
+                "creation-index" => CREATION_INDEX_SCENARIOS,
                 "row-update" => ROW_UPDATE_SCENARIOS,
                 "row-allocation" => ROW_ALLOCATION_SCENARIOS,
                 "indexed-update" => INDEXED_UPDATE_SCENARIOS,
+                "row-replacement" => ROW_REPLACEMENT_SCENARIOS,
                 _ => return Err("invalid_inventory"),
             });
         } else if option == "--code-page" {

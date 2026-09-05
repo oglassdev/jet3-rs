@@ -61,6 +61,7 @@ fn advance(next: &mut u64, count: usize) -> Result<(), ComposeError> {
 /// The running page number also makes publication's expected headers deterministic.
 pub(crate) fn encode_initial_row(
     layout: &[RowColumnLayout],
+    allow_empty_memo: bool,
     values: &[RowValue<'_>],
     row: usize,
     next: &mut u64,
@@ -94,7 +95,8 @@ pub(crate) fn encode_initial_row(
             }
             .into());
         }
-        if payload.is_empty() {
+        // EXP-0200: opted-in Memo retains a present zero-length inline value.
+        if payload.is_empty() && !(allow_empty_memo && expected == ColumnPhysicalType::Memo) {
             return Err(refusal(row, "empty payload"));
         }
         budget.check_decoded_value(ByteCount::new(payload.len() as u64))?;

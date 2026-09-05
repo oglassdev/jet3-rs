@@ -45,6 +45,17 @@ resource budgeting outside the parser.
 
 ## DAO experiments
 
+- Plan experiments around a capability or shared format question. Group
+  related types, boundary cases, names, and control variants into one bounded
+  case matrix with one preregistration and one outcome report, rather than
+  registering each small variation separately. State expected observations
+  and acceptance criteria per case so partial results remain explicit.
+- Before adding an experiment, check existing evidence and identify the
+  remaining questions for that deliverable. Batch cases that can be specified
+  up front and share a setup/analyzer; split when a later case depends on an
+  earlier result or answers an unrelated question. Do not expand a frozen plan
+  after acquisition or weaken the post-mutation failure rule to keep a batch
+  moving.
 - Preregister each experiment: commit a SHA-256-pinned plan before acquiring
   data. If the plan is wrong, fix it in the next experiment; do not stack
   revision files.

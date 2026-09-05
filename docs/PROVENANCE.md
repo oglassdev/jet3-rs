@@ -11186,6 +11186,65 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0210 — Explicit empty Memo candidates and native continuations
+
+- Status: local `observed_accepted`, six observations and no reasons, from the
+  single EXP-0209 run `20260905T122000Z-memo-candidate`. This is finite local
+  candidate evidence; `compatibility_claim` and `support_matrix_movement` remain
+  false and `development_only` remains true.
+- Frozen plan SHA-256
+  `9f517d9ae1d8563ccce84c2bfbfc9738acd14ac6f501d0f8aa305b6d970a9097`,
+  committed at `e5a403a`; reviewed public writer source
+  `871f71c315938bb7143a07d9f2f428cfef8c11e1`. The original analyzer and all 24
+  scoped input pins remain unchanged.
+- Retained under local VM `shared/outbox/20260905T122000Z-memo-candidate`:
+  `result.json`, 1,455,243 bytes, SHA-256
+  `abbf00348650a04471040dc4dafc135fe1eedfd20367e9b32bbb7f903d16dbab`;
+  `report.json`, 138,372 bytes, SHA-256
+  `c3bafaff967c8c68d2a8fc69d040e888ec23b4ca917ddafd791260230159ae1d`.
+  The unchanged analyzer reproduced the report byte-for-byte on a temporary copy.
+  All 41 retained files stayed byte-identical; all 36 captured MDB identities
+  matched their before/after receipts. Each MDB is 49,152 bytes.
+- The x86 `DAO.DBEngine.36` result records no acquisition or retention errors.
+  Three replicas each of `Rows(Id Long, M Memo)` and
+  `Ledger7(Id Long, Memo42Long Memo)` matched independent native DAO controls:
+  complete table/field metadata and properties, `AllowZeroLength = true`, empty
+  index/relationship/query inventories, and all baseline rows `(1, Null)`,
+  `(2, "")`, `(3, "A")` agreed.
+- Null remained `IsNull = true`, `FieldSize = 0`, with no Memo descriptor;
+  present-empty remained `IsNull = false`, `FieldSize = 0`, with inline bytes
+  `000000800000000000000000`. `"A"` remained present with `FieldSize = 2` and
+  `01000080000000000000000041`. These distinctions held in both roles.
+- All 24 native continuation inserts completed on separate baseline copies:
+  `(4, "")` or independently `(5, "B")`. Each yielded exactly four rows,
+  preserving the three baseline values and metadata. The added empty descriptor
+  matched the baseline empty descriptor; `"B"` used
+  `01000080000000000000000042` and `FieldSize = 2`. No baseline file was mutated.
+- Across all 36 captures, the table root was 20, data page 23, baseline slots
+  0/1/2 and continuation slot 3. Owned/available data maps were both `[23]`;
+  inline Memo long-value maps were empty. The catalog property maps both included
+  only page 22, which was excluded from the global free map.
+- Named property payloads exactly matched EXP-0208's true-state bytes: 91 bytes
+  for `M`, 100 for `Memo42Long`. Candidate LvProp used page 22 slot 0, controls
+  page 22 slot 2, including after continuation. Corresponding headers were
+  `5b0000400016000000000000` / `5b0000400216000000000000` and
+  `640000400016000000000000` / `640000400216000000000000`. Physical layout equality
+  between roles was not required.
+- This supports only the two tested names, Long-plus-Memo schemas, null/empty/A
+  baseline and separate empty/B continuation. It does not establish general
+  property grammar, other schema combinations, empty OLE behavior or hosted
+  support. EXP-0200 and EXP-0208 remain unchanged.
+
+Captured identities below are ordered candidate, control, candidate-empty-next,
+control-empty-next, candidate-value-next, control-value-next (SHA-256):
+
+- `short` replica 1: `f34785c20fb969f7668ef88ff007c370ef22cfa1d41deda7e1577aa447214a4b`, `adcf37b1984ca4614ca6b502aa723172e66283982917993ab98c36c773f90324`, `edc0f630282b5fedff4c82361af4d797c4bb1f98d13eb19695404efe9d2f81be`, `c0eb5121bd2c181cdc6614a46a1224e549362f8e9a6865af295f93fe38226ea8`, `06c9e32492f2a42cf9cb70ea297762913af169b1e5b67d5de7f316e0ac26c3fb`, `b9fc7e499b32a990f4dbc85eb8a4b344a13eed34d7d93d0f99faecda89560a82`.
+- `short` replica 2: `f34785c20fb969f7668ef88ff007c370ef22cfa1d41deda7e1577aa447214a4b`, `c724a63d23961bf26795e61f7a66dbe5992d8e8fd191e81a00c2700c422c7f65`, `edc0f630282b5fedff4c82361af4d797c4bb1f98d13eb19695404efe9d2f81be`, `ff0ab53103e7c7d4441d5c69a285c6c386645b1c08aafca6b256a5c6fd849e5a`, `06c9e32492f2a42cf9cb70ea297762913af169b1e5b67d5de7f316e0ac26c3fb`, `3dcf8eb2529822348e3b3d4edd1f397dd5a3a8ae77728f464369e7f13fdc4d6e`.
+- `short` replica 3: `f34785c20fb969f7668ef88ff007c370ef22cfa1d41deda7e1577aa447214a4b`, `515ee8d009e96380a3d7fdac6a25b77f1cbd3ed2080c2da3a963c3f048086b2b`, `edc0f630282b5fedff4c82361af4d797c4bb1f98d13eb19695404efe9d2f81be`, `84366b0d0d5f334025cad1a7feb1ed40766848c253bc82a3a593d45297c6ac42`, `06c9e32492f2a42cf9cb70ea297762913af169b1e5b67d5de7f316e0ac26c3fb`, `44d7a1f43dc8bed32031fea6ee5815f7872bd5cd5ab7f0b431f5653cf7600631`.
+- `renamed` replica 1: `fdd01464baab625fac257faa358df8b74af7ebaf4443272dd5348705b680460d`, `7dffc0b7085397e2d6a70c9ddae05e5f98f828804ed4f10fc36739cedd1c2998`, `e4125bd25bf13252f7aaf57bf7673ea27b62739e12ba2c4bcc7e77ecc607081d`, `186d6ce414fe51d3194e796dabffa979f4135c3f6437c633997c57cf236fba6d`, `75c27e952287cff4b987683078733b97f9e664337a937a5ccdaa40f691f23cb3`, `5551c71d84f16a4e539e3a1562353075fb526dda7ac410f1cd6c1e44cb6fc463`.
+- `renamed` replica 2: `fdd01464baab625fac257faa358df8b74af7ebaf4443272dd5348705b680460d`, `661025cea0c6f45cab22f0a5b6449e3fbfc9fd03e70e14dad6b200f8b079fa25`, `e4125bd25bf13252f7aaf57bf7673ea27b62739e12ba2c4bcc7e77ecc607081d`, `c91588662e906d7ec8572719e926410038fb724bd94d6cd8daf29d9a60a6ad46`, `75c27e952287cff4b987683078733b97f9e664337a937a5ccdaa40f691f23cb3`, `b46b39376c2426b1723ac0699c49fda5e72a95bd05950d23b5c5e4fe21d2fd1c`.
+- `renamed` replica 3: `fdd01464baab625fac257faa358df8b74af7ebaf4443272dd5348705b680460d`, `a73e2e46bb698c615935ce92ce159a99cf7c9d0bb4bcd311a11cfa9c08d66916`, `e4125bd25bf13252f7aaf57bf7673ea27b62739e12ba2c4bcc7e77ecc607081d`, `f9b97f9de28317310d65b0f5678331019d68be15377cabfcdde9c8ee8049bc2d`, `75c27e952287cff4b987683078733b97f9e664337a937a5ccdaa40f691f23cb3`, `ff82955570b86e5fc23b2c3ec7f43a7a89ceada7700d4062faaf200df5f9ba01`.
+
 ## EXP-0192 — Sole physical-row release candidate outcome
 
 - Preregistration: EXP-0191, committed plan SHA-256
@@ -11241,6 +11300,39 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 1: `b403305f586d275af1e448f8baad9a9fabd5d3756d8cc08649d360acb3c53fff`, `57b051e99e5e5c18b3cf28ca1f6baa64fd48beed59d627f09e0c38ad8e32121e`, `5ae64a1c2e4761ffea9f2ebfb52ac86a56c76d292c6aff9b0876444523b33cfb`, `f290562045b08f521963d14fbebd07d0d922e12ef980d1c5386aca47c7cd69ac`, `e253fab62690f5adf639d67aece9fe4678098a12240d35476ae3661914236b56`.
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
+
+## EXP-0209 — Explicit empty Memo public creation candidates
+
+- Status: preregistered local candidate validation; acquisition has not run.
+- Plan: `oracle/windows-dao/acquisition/memo-candidate.plan.json`, SHA-256
+  `9f517d9ae1d8563ccce84c2bfbfc9738acd14ac6f501d0f8aa305b6d970a9097`.
+- Reviewed implementation: `871f71c315938bb7143a07d9f2f428cfef8c11e1`;
+  generator `crates/jet3/examples/memo_allow_empty_candidate.rs` calls the public
+  creation API. The plan pins both generated images and 24 relevant source,
+  producer, decoder and transport inputs. No MDB bytes are committed.
+- Question: do explicit `AllowZeroLength` candidates retain null, present-empty
+  and nonempty Memo values under DAO reads and subsequent native inserts?
+- Two finite profiles are `Rows(Id Long, M Memo)` and
+  `Ledger7(Id Long, Memo42Long Memo)`, each with `(1, Null)`, `(2, "")`, `(3, "A")`.
+  Three independent native DAO controls per profile set `AllowZeroLength = true`.
+  Candidate/control baseline images are opened read-only and must remain unchanged.
+- Each baseline also supplies two separate writable copies: one receives `(4, "")`,
+  the other `(5, "B")`. All are closed before read-only observation. The inventory
+  is six pairs, 36 captures/images and 24 native continuation inserts.
+- Compare complete requested table/column metadata, all field properties including
+  `AllowZeroLength`, full rows with `IsNull` and `FieldSize`, and empty index,
+  relationship and query inventories. Raw checks bind every Id/slot/presence bit
+  and inline descriptor/payload; the catalog external LvProp payload must equal
+  the named true-state bytes from EXP-0208 with valid ownership/availability and
+  global allocation membership. Physical locations may differ across roles.
+- Acceptance requires every planned pair, operation, capture, identity and raw
+  check. Missing data or any failure produces `no_outcome`; subset matches do not
+  promote it. Initiating error endpoints and retained artifacts survive failure.
+  One coordinated dispatch is allowed, without automatic retry or resume.
+- This tests only the two named schemas and the specified small inline values.
+  It establishes no general property grammar, empty OLE behavior or hosted support.
+  EXP-0210 is reserved for the additive validated outcome; EXP-0200 and EXP-0208
+  remain unchanged.
 
 ## EXP-0208 — Named Memo AllowZeroLength property payload transitions
 
@@ -13712,6 +13804,31 @@ Retained MDB identities (filename: bytes, SHA-256):
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0211 — Hosted seventeen-case row replacement preregistration
+
+- Plan: `oracle/windows-dao/acquisition/row-replacement-v1_2.plan.json`,
+  SHA-256 `f65790c175609db2f8cb9550711cfb1b26257a2ff5713dfa6ff00492f5f7f62e`; reviewed implementation
+  `931032737ca1521697b18ac06d11cf900583dfee`. The actual dispatched commit must satisfy all
+  83 scoped input pins and bind both platform jobs and retained receipts.
+- One hosted run retains the thirteen indexed-update recipes verbatim and adds
+  sole physical-row release, first-row growth, middle-row shrink and later-table
+  replacement beside a known empty tombstone. Exact requests and schemas are in
+  the pinned seventeen-case inventory; Binary recipe strings represent ASCII bytes.
+- Seventeen public creations and twenty public mutation calls are planned:
+  nineteen mutations on final copies plus one deletion preparing the tombstone
+  baseline. Retain thirty-four final images, complete DAO/Rust snapshots and
+  index sidecars, seventeen independent preservation receipts, provider metadata,
+  execution logs and all source/image identities.
+- Acceptance requires every full semantic comparison and exact preservation
+  check, including release map/tag/count/slack changes, replacement slot/free
+  changes, unchanged unrelated bytes, and all historical index traversal/Seek
+  gates. Eight indexed sidecars and twenty-six empty sidecars must match the
+  exact inventory. Neither QueryDef nor continuation behavior is claimed.
+- Tooling independent review and focused checks passed. Commit this exact plan
+  before one authorized dispatch; failure after mutation is a result, without
+  automatic retry. Record EXP-0212 once from the validated retained report.
+  This preregistration moves no support status.
+
 ## EXP-0204 — Hosted indexed field update matrix matched
 
 - Outcome **matched** from hosted GitHub Actions run
@@ -14680,3 +14797,42 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `support_matrix_movement` remains false; no broad compatibility or completed
   creation-surface claim follows automatically. Any support-state integration
   is a separate reviewed change tied to these exact scenarios.
+
+## EXP-0212 — Hosted row replacement and release matrix matched
+
+- Outcome **matched** from hosted GitHub Actions run
+  [33968780678](https://github.com/oglassdev/jet3-rs/actions/runs/33968780678),
+  attempt 1, source `19b5161e1c6bb49c97f0eaa1c33801ecf316d789`.
+  Both jobs succeeded under the unchanged EXP-0211 plan, SHA-256
+  `f65790c175609db2f8cb9550711cfb1b26257a2ff5713dfa6ff00492f5f7f62e`.
+  All 83 scoped input pins matched before acquisition. No retry occurred.
+- Retained artifacts are outside the repository at
+  `/home/alex/experiments/jet3-rs/hosted-row-replacement-33968780678/`.
+  Report: 18,572 bytes, SHA-256
+  `60937c6b73791820e67719b1359fb9b4ee43b2fce3276e74b4f41979a2ef6b57`.
+  The frozen evaluator reproduced it byte-for-byte on temporary copies;
+  all 619 retained files remained unchanged, and all 34 downloaded MDBs
+  matched the corresponding Unix-generated images exactly.
+- All 17 recipes passed, with 34 complete DAO/Rust semantic comparisons and
+  17 independent preservation checks. Stock Windows x86 DAO observations,
+  source and image identities, requested schema/values, coverage, and complete
+  index sidecar checks passed; `index_observations_verified` is true.
+- The original thirteen field, row, allocation and indexed-update cases are
+  retained. Four additions cover sole physical-row page release, scalar row
+  growth and shrinkage with null/Text/Binary/Boolean transitions, and later-table
+  replacement adjacent to a retained tombstone. Independent reconstruction
+  verified the declared changes and preservation of unrelated bytes.
+- Preparation SHA-256:
+  `c8023a93ef44072159132e790056599d2af96ba471605f7fa378cdd81da4b77a`;
+  Windows reader receipt:
+  `880fa543affc22ab755886bc0ad8b2bff3a15040cc6df54fa9fbaa9cbc7c334d`;
+  DAO manifest:
+  `c91c5491489b04cac11463e9b76b042a5d79035a20dd261cfec8b5ae83a1277c`;
+  environment:
+  `ac6864f9681e3e1aea1a0a20af1f1d3ce32954d4951cd50c0e421360da56a69d`.
+- Evidence is limited to these seventeen recipes on the pinned source. Free-page
+  or slot reuse, indirect allocation, indexed insertion/deletion, relationship
+  mutations, arbitrary wide or Auto/LVAL replacements, stored-query preservation
+  and DAO continuation mutations remain outside this inventory. The report's
+  `support_matrix_movement` remains false; no general update compatibility is
+  claimed. Earlier provenance entries and the consumed plan remain unchanged.
