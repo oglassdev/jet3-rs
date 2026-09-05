@@ -1,0 +1,243 @@
+{
+  "document_type": "dao_indexed_payload_update_plan",
+  "provenance": "EXP-0177",
+  "outcome_provenance": "EXP-0178",
+  "source_revision": "aaa02d7079772ecd846e58614195c12b3159b206",
+  "implementation_revision": "0f06a3a",
+  "replicas": 3,
+  "fields": [
+    {
+      "name": "Id",
+      "type": 4,
+      "size": 4
+    },
+    {
+      "name": "Group",
+      "type": 4,
+      "size": 4
+    },
+    {
+      "name": "Value",
+      "type": 4,
+      "size": 4
+    }
+  ],
+  "tables": [
+    {
+      "name": "Items",
+      "rows": [
+        [
+          1,
+          -2,
+          101
+        ],
+        [
+          2,
+          -2,
+          -202
+        ],
+        [
+          3,
+          0,
+          303
+        ],
+        [
+          4,
+          0,
+          -404
+        ],
+        [
+          5,
+          2,
+          505
+        ],
+        [
+          6,
+          2,
+          -606
+        ]
+      ]
+    },
+    {
+      "name": "Later",
+      "rows": [
+        [
+          11,
+          11,
+          -1100
+        ],
+        [
+          12,
+          12,
+          1200
+        ]
+      ]
+    }
+  ],
+  "query": {
+    "name": "KeepQuery",
+    "sql": "SELECT [Id], [Value] FROM [Items];"
+  },
+  "arms": [
+    {
+      "name": "primary",
+      "table": "Items",
+      "column": "Value",
+      "selected_id": 3,
+      "replacement": -2147483648,
+      "index": {
+        "primary": true,
+        "unique": true,
+        "fields": [
+          {
+            "name": "Id",
+            "descending": false
+          }
+        ]
+      },
+      "queries": [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          99
+        ]
+      ]
+    },
+    {
+      "name": "ordinary-duplicates",
+      "table": "Items",
+      "column": "Value",
+      "selected_id": 3,
+      "replacement": -2147483648,
+      "index": {
+        "primary": false,
+        "unique": false,
+        "fields": [
+          {
+            "name": "Group",
+            "descending": false
+          }
+        ]
+      },
+      "queries": [
+        [
+          -2
+        ],
+        [
+          0
+        ],
+        [
+          2
+        ],
+        [
+          99
+        ]
+      ]
+    },
+    {
+      "name": "composite-directions",
+      "table": "Items",
+      "column": "Value",
+      "selected_id": 3,
+      "replacement": -2147483648,
+      "index": {
+        "primary": false,
+        "unique": false,
+        "fields": [
+          {
+            "name": "Group",
+            "descending": true
+          },
+          {
+            "name": "Id",
+            "descending": false
+          }
+        ]
+      },
+      "queries": [
+        [
+          -2,
+          1
+        ],
+        [
+          -2,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          0,
+          4
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          2,
+          6
+        ],
+        [
+          99,
+          99
+        ]
+      ]
+    }
+  ],
+  "inputs": {
+    "Cargo.lock": "862e85e19ae578d9ed7be1113041b1053c30500badccd8b88c29233efc2af5a2",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/examples/field_update_candidate.rs": "867c42c748114e1f0ae19e84d0afdef37ac38bbbf079e332ef5e4df78cb724a0",
+    "crates/jet3/src/atomic.rs": "450e15e7730150b87f936d0bbb207910e225fd1a512f240c98d96e1dfdf9ed6f",
+    "crates/jet3/src/binary_writer.rs": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
+    "crates/jet3/src/catalog.rs": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33",
+    "crates/jet3/src/catalog_record.rs": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144",
+    "crates/jet3/src/column_definition.rs": "f3f0741ce47d48f0fd368bca117f13e773326e4b77ee14bbc18e4a44f10861de",
+    "crates/jet3/src/data_page_directory.rs": "abaf82d51ed71084fe3623f8f6af3cc58f49bba26ad02249c39cd3da74e3bca1",
+    "crates/jet3/src/index_definition.rs": "8e9c99fd2a0a1441de0fc3e2d897ba64709439a3ea548b4bc845bad48df513d6",
+    "crates/jet3/src/page_image.rs": "a33211ac27927bab6ddaf773af18c2e8a2de4bb7735fa9e5382ee54322a9c093",
+    "crates/jet3/src/physical_index_definition.rs": "d62e2c1b4dcbc903fc7cab6370dc4e485279702df72d7ed66516f68b2305c7c5",
+    "crates/jet3/src/resource.rs": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+    "crates/jet3/src/row.rs": "c0d85ee83c64d063fa80ac2bdb38ac6ea32efc16d8d6961010bf8463bd98ac95",
+    "crates/jet3/src/row_directory.rs": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844",
+    "crates/jet3/src/source.rs": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+    "crates/jet3/src/table_definition.rs": "7bc113e3fbd73dbb33d40476feb0e27ef11ddc4fcb9e7ac98dfe8f7dd34793c2",
+    "crates/jet3/src/update.rs": "48be13eb2180f212a924517ee4b95db2294eff602a17bd54d2d3747818d10425",
+    "crates/jet3/src/update_pages.rs": "df312df67ae1e6d3ef5ec93df53a191918b3f8a79c7b70ae8f2013d063fc68ae",
+    "oracle/windows-dao/scripts/field_update.ps1": "9bef9e7e83e6cfd346067e221826937d043d2a31e77ab3df5d9dacd7df29f201",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/indexed_payload_update.ps1": "b03fbcdfb42228183dfac440935972e3504956496acc7afdc09f43f1fff7f6c5",
+    "oracle/windows-dao/scripts/indexed_payload_update.py": "52caa185aa5bdc7553427bdad57c375e087923b0afccc16f38fe861e44ebe961",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Does updating only a non-key Long payload through the public field API preserve primary, ordinary duplicate, and mixed-direction composite index behavior and every unrelated byte?",
+  "sequence": [
+    "Commit and independently review all pins before one coordinated acquisition. Create nine fresh DAO originals with indexed Items, unrelated Later and KeepQuery, and close/reopen each for complete original observation.",
+    "Only all nine complete schema/row/index/traversal/Seek observations and retained identities permit public Unix updates. The unchanged field_update_candidate exporter resolves Id3/Value with the public reader, copies each original and calls update_field once. No index key is targeted.",
+    "Check independently resolved table/column/row and exact replacement/whole-file preservation, including all original index bytes. Only all nine Unix updates permit one read-only DAO phase with eighteen original/updated captures.",
+    "Validate exact tables/fields/index flags and field directions, every row, complete key-ordered traversal, every distinct full key plus one missing-key Seek. Duplicate Seek may select any complete matching row; no incomplete traversal or payload mismatch is normalized away. Compare complete unrelated metadata and original stored QueryDef SQL.",
+    "Retain initiating endpoint/stack and all partial images on any failure; stop as no_outcome without retry/resume or partial acceptance."
+  ],
+  "decision_rule": "observed_accepted only if all9 pairs and27 total read captures pass x86DAO.DBEngine.36/Jet3.0, complete identities, requested state/index operations and exact full-file-outside-four-byte preservation. Original and updated physical index bytes stay unchanged. No DAO mutation after initial control creation.",
+  "bounds": "Three arms times3replicas; six Items rows and two Later rows, one index each; 18retainedMDBs and27captures. One non-null Long Value change Id3 from303 to i32MIN. No key update, relationship, index maintenance or allocation, multiple-index claim, Text collation, hosted compatibility or support movement. Existing diagnostic64-page/64-row limits suffice; SSH300seconds per phase, Unix120seconds per update."
+}

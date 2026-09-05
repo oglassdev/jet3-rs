@@ -11431,6 +11431,37 @@ Copy this block under the appropriate section and remove this instruction:
   unchanged. No retry, compatibility promotion, or hosted support movement is
   implied; any corrected implementation or retained-data successor is separate.
 
+## EXP-0177 — Indexed non-key Long update validation plan
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0178. Plan
+  `oracle/windows-dao/acquisition/indexed-payload-update.plan.json`, SHA-256
+  `3f9aa6a27174680dfbd8a1fb04306e709280014f3e60b78be4974ab05a1962ae`.
+- Reviewed implementation `0f06a3a` is integrated without conflicts in source
+  `aaa02d7079772ecd846e58614195c12b3159b206`. The existing public
+  `field_update_candidate` exporter remains unchanged and receives the declared
+  table, unique Id, column and replacement; no index-key update is attempted.
+- Three arms times three fresh DAO originals: primary ascending Id, ordinary
+  Group with duplicates, and ordinary Group descending / Id ascending composite.
+  Every original has six indexed Items rows, two unrelated Later rows and stored
+  KeepQuery. Update only Items Id3 / Value Long from 303 to -2147483648.
+- All nine original captures must satisfy full requested schema, exact index
+  flags/directions, rows, complete directed traversal and every distinct key plus
+  a missing-key Seek before Unix updates begin. Each update independently binds
+  its catalog/column/row span and preserves every other file byte, including all
+  original index bytes. Only nine complete updates permit the read-only phase.
+- Capture all eighteen original/updated images in the final DAO phase (27 reads
+  total). Require complete identities, x86 DAO.DBEngine.36 / Jet3.0, full requested
+  rows and original schema/QueryDef SQL, traversal completeness and exact payloads.
+  Duplicate Seek may return any complete matching row; missing rows, wrong payloads
+  or traversal order do not pass. All nine pairs are required for acceptance.
+- Initiating errors, stack/endpoint and partial images are retained; failure is
+  `no_outcome` without retry/resume or subset promotion. Tests include classifier
+  failures, retained input pins and actual x86 pure Read-Row / one- and two-key
+  JSON roundtrips. The pure helper test does not exercise DAO COM calls.
+- Local development only. No index maintenance, actual key updates, multiple-index
+  acceptance, relationship mutation, hosted compatibility or support movement is
+  claimed. Consumed earlier plans and outcomes remain unchanged.
+
 ## EXP-0171 — Distinct fixed-field Currency setter successor
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0172. The
