@@ -103,7 +103,10 @@ conversion!(crate::RowDirectoryError, Directory);
 conversion!(crate::RowWriteError, Encoding);
 conversion!(crate::PublishError, Publish);
 
-/// Replaces one present fixed field in an unindexed, relationship-free user table.
+/// Replaces one present fixed non-key field in a relationship-free user table.
+///
+/// Indexed tables are supported when the column is absent from every physical
+/// index. All index bytes remain unchanged; index-key maintenance is unsupported.
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
 /// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
@@ -140,7 +143,7 @@ where
         return Err(UpdateError::Unsupported("null replacement"));
     }
     let mut database = DatabaseReader::open(path, budget)?;
-    let definition = writable_table(&mut database, request.table, budget)?;
+    let definition = guarded_table(&mut database, request.table, Some(request.column), budget)?;
     let column = definition
         .columns()
         .get(usize::from(request.column.get()))
@@ -227,6 +230,15 @@ pub(crate) fn writable_table(
     table: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<crate::TableDefinition, UpdateError> {
+    guarded_table(database, table, None, budget)
+}
+
+fn guarded_table(
+    database: &mut DatabaseReader<FileSource>,
+    table: &[u8],
+    field: Option<ColumnOrdinal>,
+    budget: &mut ResourceBudget,
+) -> Result<crate::TableDefinition, UpdateError> {
     let mut root = None;
     let mut relationship_root = None;
     {
@@ -250,10 +262,27 @@ pub(crate) fn writable_table(
     }
     let definition =
         database.table_definition(root.ok_or(UpdateError::NotFound("table"))?, budget)?;
-    if definition.kind() != TableDefinitionKind::User
-        || !definition.indexes().is_empty()
-        || !definition.physical_indexes().is_empty()
-    {
+    if definition.kind() != TableDefinitionKind::User {
+        return Err(UpdateError::Unsupported("non-user table"));
+    }
+    if let Some(column) = field {
+        // EXP-0059/0062: the typed decoder validates every logical selector,
+        // physical key field and complete logical-to-physical coverage.
+        for index in definition.indexes() {
+            budget.charge_items(1)?;
+            if matches!(index.kind(), crate::IndexDefinitionKind::Relationship(_)) {
+                return Err(UpdateError::Unsupported("relationship index"));
+            }
+        }
+        for index in definition.physical_indexes() {
+            for key in index.fields() {
+                budget.charge_items(1)?;
+                if key.column() == column {
+                    return Err(UpdateError::Unsupported("indexed key column"));
+                }
+            }
+        }
+    } else if !definition.indexes().is_empty() || !definition.physical_indexes().is_empty() {
         return Err(UpdateError::Unsupported(
             "table has indexes or relationships",
         ));
