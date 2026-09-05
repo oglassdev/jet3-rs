@@ -11324,6 +11324,55 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0146 — Retained multi-level candidates accepted by secondary analysis
+
+- Recorded: 2026-09-05, OpenAI Codex; development-only secondary outcome.
+  EXP-0145 plan SHA-256
+  `a27b80e7745ea2dca35f78053a1b43d29ebb73d4db56d84bd6bd5ab814c454e4`
+  was committed at `a8fe92a` and independently reviewed before execution.
+  No DAO execution or new acquisition occurred.
+- Secondary report: externally retained
+  `20260905T060000Z-multi-level-secondary/report.json`, 362234 bytes,
+  SHA-256 `eb7ac58ea13c48cfd9aa990b2ac69122e0eec2293e75e91898b40eb8204a86ef`.
+  It reuses all eighteen pinned MDBs from
+  `20260905T054000Z-multi-level-index`, the original 9682811-byte result
+  SHA-256 `4adee25ea2276ea8b080441ac6eadf293869a7d5cee881145d82ab602f612718`,
+  and the original 150657-byte report SHA-256
+  `8c665dccb340155c3998022305cefbaa2b590c687167236abb2f18b2dcaf23cb`.
+  Original EXP-0139 plan SHA-256
+  `7d0f368b31e2295b826118cea4e290b8ddc6661d108aea99eb870db84e13ccc2`,
+  candidate source `5cd9e5a49888013059dfb88e8ab0a6ef942a91cd`, individual
+  candidate/control identities and consumed inputs remain pinned by EXP-0145.
+- The validated secondary report classifies primary, composite and relationship
+  arms as `observed_accepted`: all eighteen observations pass full metadata,
+  typed rows, ordered traversal, the original finite Seek probes, complete
+  key/locator separators, sibling chains, leaf depth, and map membership.
+  All nine fresh matched controls pass and all original identities remain
+  unchanged. This covers the exact 27801-row primary candidate, later-table
+  12929-row composite candidate, and 201-parent/27801-child relationship
+  candidate, each with three agreeing replicas.
+- The independent header/height question is `answered`; each arm and role
+  repeats its observed class-height pair set across all three replicas.
+  Heights count edges to leaves. Primary and composite DAO control roots have
+  raw header byte 21 equal to 2 at subtree height 2, lower branches have 1 at
+  height 1, and leaves have 0 at height 0. Candidate primary/composite roots
+  and the candidate child root instead have byte 1 at height 2; their lower
+  branches also have 1 and leaves 0. Those exact candidate policies were
+  accepted without requiring their bytes to equal control heights.
+- Relationship controls have a single parent leaf `(byte 0, height 0)` and
+  a child branch `(1, 1)` above leaves `(0, 0)`. Candidate parents have a
+  branch `(1, 1)` above leaves `(0, 0)`; candidate children additionally have
+  the root pair `(1, 2)`. The report retains every node, raw byte, derived
+  height and per-index counts. These finite observations justify recognizing
+  the observed branch value 2 alongside 1; they do not establish an arbitrary
+  height encoding, require byte/height equality, or prescribe writer updates.
+- The pinned secondary analyzer reproduced the report byte-for-byte using
+  temporary copies. All original outbox files and the secondary report remained
+  unchanged. EXP-0140's original three `no_outcome` classifications are carried
+  verbatim in the secondary report and remain the original experiment outcome.
+  No consumed input or parser code changes accompany this record. Independent
+  outcome review is pending; no general compatibility or support movement.
+
 ### EXP-0145 — Retained multi-level index secondary-analysis preregistration
 
 - Plan: `oracle/windows-dao/acquisition/multi-level-index-reanalysis.plan.json`,
@@ -11810,124 +11859,6 @@ Copy this block under the appropriate section and remove this instruction:
   needs a separately declared analysis; any new DAO acquisition requires a
   separately reviewed successor plan and the repository's human retry decision.
 
-## EXP-0147 — Remaining Date/Binary/null index discovery successor plan
-
-- Recorded: 2026-09-05, OpenAI Codex; unacquired development-only successor.
-  EXP-0143 inputs and EXP-0144 `no_outcome` remain unchanged. Standing user
-  authorization covers DAO experiments/mutations; root dispatches this distinct
-  plan once only after independent review and final checks.
-- Plan: `oracle/windows-dao/acquisition/scalar-index-remaining.plan.json`,
-  SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`.
-  New producer/analyzer files have separate input pins, checked before dispatch
-  and analysis; dispatch requires the exact committed plan. Existing original
-  catalog/leaf decoders and local one-dispatch transport stay unchanged.
-- Scope: exactly the fourteen remaining arms, three fresh controls each:
-  ascending/descending Date and four-byte Binary, plus ten nullable Long
-  ordinary/unique/Required/IgnoreNulls one/two-component arms. Each control
-  has at most twelve attempts. The 36 completed scalar captures from EXP-0143
-  are neither reacquired nor reinterpreted by this plan.
-- Corrections: values use plain CLR arrays instead of PowerShell's decorated
-  `New-Object` array wrapper. Date conversion is precomputed and assigned with
-  the explicit `[datetime]` cast used by the original read producer. Original
-  artifacts do not identify the precise failing cast; this change does not
-  prove DAO Date acceptance. Unexpected errors now retain endpoint and script
-  stack alongside the original error text and completed attempt records.
-- Gates: retain actual Update outcomes, null omissions, complete saved rows,
-  exact raw key-to-row-locator bindings, schema/flag/direction metadata and
-  full DAO traversal. Compare three replicas per arm without guessing nullable
-  uniqueness/omission policies or index transforms. All 42 captures must be
-  complete, unchanged and correlated for `answered`; otherwise preserve an
-  honest `no_outcome`. Binding/pin failures reject validation; no automatic retry.
-- Validation: four focused Python classifier/binding/pin tests and compilation
-  passed. Windows x86 PowerShell parsed the new producer and ran only extracted
-  helper functions against in-memory fake fields: all 120 declared Date/Binary/
-  nullable row conversions and JSON array roundtrips matched exact planned
-  values. The retained test is `tests/check_scalar_index_remaining.ps1` under
-  `oracle/windows-dao`; it instantiates no DAO and executes no acquisition.
-- Boundary: no scalar encoding promotion, completed-capture reanalysis, Text
-  collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
-  updates, candidate acceptance, general compatibility or hosted support claim.
-  Retain raw images/results externally and record one validated EXP-0148 outcome.
-
-## EXP-0142 — Hosted write comparison ended with no outcome
-
-- Recorded: 2026-09-05, OpenAI Codex; hosted `no_outcome`, not a complete
-  matched write acquisition. Consumed EXP-0141 plan SHA-256
-  `d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8`
-  and all pinned inputs remain unchanged.
-- Hosted run: `33948345313`, attempt 1, source revision
-  `4d8e421b0d618482ac0b7a1589c77a94d293e513`. Both artifacts are retained
-  externally under `20260905T055500Z-hosted-write-33948345313`: the exact
-  `generated-write-REVISION` and `windows-dao-write-REVISION-1` directories.
-  No hosted retry or corrected evaluation was performed.
-- Stock Windows Server 2022 x86 provider probe reports `ready` for
-  `DAO.DBEngine.36`, provider 3.6, DAO DLL version `03.60.9765.0`; no provider
-  installation or license acceptance occurred. `environment.json`: 4264 bytes,
-  SHA-256 `1685d43121b85182009919ba269a9bf883d3385c2a192ab284b3a11501c981ed`.
-- Linux preparation completed all twelve recipes; Windows reader and DAO
-  capture completed all twelve files. Every retained Windows MDB hash matches
-  its Linux generated copy, preparation identity, and DAO before/after hashes;
-  all twelve DAO manifest entries report `pass` with no error.
-  `preparation.json`: 2144 bytes, SHA-256
-  `6c38db2659871605e0154746f139989abf72ee75b89978b911c83d7315bab68a`.
-  `reader.json`: 85 bytes, SHA-256
-  `0f899448460cb7df36725c3956c2ddc5ee544afb0a9ddb068c59ef421e85548a`.
-  `dao-manifest.raw.json`: 2863 bytes, SHA-256
-  `c7dc7487ba6d9273c5221828925c090bab152be56e338778076540e781693e15`.
-- Frozen evaluator result: 191 bytes, SHA-256
-  `d285609b052ea2e6d29ff7b15ddf5567129d024aa3e82fdf7d60fe9b8513acd9`,
-  with error `Incomplete index observation inventory`. Eleven earlier
-  per-scenario comparison documents report `matched: true`; no relationship
-  comparison document was emitted. The original evaluator reproduced those
-  eleven documents and the failure report byte-for-byte in a temporary copy.
-  Every original retained file remained unchanged.
-- Diagnosis: the relationship raw snapshot and index probes enumerate
-  `(Parent, ByKey)` before `(Child, ParentChild)`. Snapshot canonicalization
-  sorts Child before Parent, while the frozen index checker requires probe
-  inventory in that same order. Both required probe records are present;
-  the failure is the order-sensitive association gate, not evidence that
-  the provider omitted an index. No reordered evaluation was applied here.
-- Boundary: the all-twelve decision rule was not satisfied. Preserve this
-  honest original result; there is no support-matrix movement or general
-  compatibility claim. Any corrected read-only association of retained probes
-  requires a separately pinned and independently reviewed secondary plan.
-
-## EXP-0149 — Selected completed scalar captures read-only reanalysis plan
-
-- Recorded: 2026-09-05, OpenAI Codex; post-acquisition secondary plan.
-  EXP-0143 consumed inputs and EXP-0144 full-run `no_outcome` remain unchanged.
-  No expanded analysis or new DAO acquisition has occurred under this plan.
-- Plan: `oracle/windows-dao/acquisition/scalar-index-reanalysis.plan.json`,
-  SHA-256 `86264bd70406353e1241e5f5564a54a37ea5b847f8540dd7d44e5b9eec813b20`.
-  Pins cover the original plan/runtime, new analyzer, original result/report,
-  all 36 completed scalar MDBs and the additional partial Date MDB: 39 retained
-  files from `20260905T054700Z-scalar-index-layout`.
-- Explicit selection: twelve completed Boolean/Byte/Integer/Currency/Single/
-  Double direction arms, three replicas each. This is a post-acquisition
-  subset of 36 captures from the failed 78-capture plan, not a replacement
-  full-run outcome. Require the recorded 37th Date attempt with zero Update
-  operations and carry its failure and partial image identity in the report.
-- Correction: on a deep copy of each saved-row/traversal snapshot, unwrap only
-  an object with exactly `value` and `Count`, integer Count 1, and a value array
-  of length 1, for an exactly one-column selected scalar key. Any other shape
-  or arity fails; payloads, raw keys, locators and recorded operations do not
-  change. No corrected interpretation of the separate EXP-0148 successor.
-- Gates: reuse original decoders, row/payload/schema/flag correlation, raw
-  key-to-row-locator binding, complete directed traversal and three-replica
-  comparator unchanged. Secondary `answered` requires all 36 selected
-  captures complete, unchanged and matching; failures yield `no_outcome`.
-  Pin/inventory/source mismatches reject analysis. Carry original `no_outcome`
-  and acquisition error explicitly; no Date failure is silently discarded.
-- Preservation: verify every original retained identity before and after
-  analysis; exclusively write a fresh report outside the original source tree.
-  No DAO, provider activation, retry, new acquisition, corrected original
-  report, candidate acceptance or hosted support movement.
-- Validation: three focused strict-shape/selection/correlation/pin/containment
-  tests and Python compilation passed. Committed preflight checks retained
-  files without expanded analysis; independent review precedes execution.
-  Record one additive validated EXP-0150 outcome, limited to the selected
-  finite saved values and directions, without arbitrary scalar-key grammar.
-
 ## EXP-0150 — Selected completed numeric scalar index observations answered
 
 - Recorded: 2026-09-05, OpenAI Codex; validated post-acquisition selected
@@ -11983,3 +11914,264 @@ Copy this block under the appropriate section and remove this instruction:
 - The pinned analyzer reproduced the exact report in a temporary copy; all
   original retained files and the secondary report remained unchanged. No
   compatibility or hosted support claim; both report flags remain false.
+
+## EXP-0149 — Selected completed scalar captures read-only reanalysis plan
+
+- Recorded: 2026-09-05, OpenAI Codex; post-acquisition secondary plan.
+  EXP-0143 consumed inputs and EXP-0144 full-run `no_outcome` remain unchanged.
+  No expanded analysis or new DAO acquisition has occurred under this plan.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-reanalysis.plan.json`,
+  SHA-256 `86264bd70406353e1241e5f5564a54a37ea5b847f8540dd7d44e5b9eec813b20`.
+  Pins cover the original plan/runtime, new analyzer, original result/report,
+  all 36 completed scalar MDBs and the additional partial Date MDB: 39 retained
+  files from `20260905T054700Z-scalar-index-layout`.
+- Explicit selection: twelve completed Boolean/Byte/Integer/Currency/Single/
+  Double direction arms, three replicas each. This is a post-acquisition
+  subset of 36 captures from the failed 78-capture plan, not a replacement
+  full-run outcome. Require the recorded 37th Date attempt with zero Update
+  operations and carry its failure and partial image identity in the report.
+- Correction: on a deep copy of each saved-row/traversal snapshot, unwrap only
+  an object with exactly `value` and `Count`, integer Count 1, and a value array
+  of length 1, for an exactly one-column selected scalar key. Any other shape
+  or arity fails; payloads, raw keys, locators and recorded operations do not
+  change. No corrected interpretation of the separate EXP-0148 successor.
+- Gates: reuse original decoders, row/payload/schema/flag correlation, raw
+  key-to-row-locator binding, complete directed traversal and three-replica
+  comparator unchanged. Secondary `answered` requires all 36 selected
+  captures complete, unchanged and matching; failures yield `no_outcome`.
+  Pin/inventory/source mismatches reject analysis. Carry original `no_outcome`
+  and acquisition error explicitly; no Date failure is silently discarded.
+- Preservation: verify every original retained identity before and after
+  analysis; exclusively write a fresh report outside the original source tree.
+  No DAO, provider activation, retry, new acquisition, corrected original
+  report, candidate acceptance or hosted support movement.
+- Validation: three focused strict-shape/selection/correlation/pin/containment
+  tests and Python compilation passed. Committed preflight checks retained
+  files without expanded analysis; independent review precedes execution.
+  Record one additive validated EXP-0150 outcome, limited to the selected
+  finite saved values and directions, without arbitrary scalar-key grammar.
+
+## EXP-0147 — Remaining Date/Binary/null index discovery successor plan
+
+- Recorded: 2026-09-05, OpenAI Codex; unacquired development-only successor.
+  EXP-0143 inputs and EXP-0144 `no_outcome` remain unchanged. Standing user
+  authorization covers DAO experiments/mutations; root dispatches this distinct
+  plan once only after independent review and final checks.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-remaining.plan.json`,
+  SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`.
+  New producer/analyzer files have separate input pins, checked before dispatch
+  and analysis; dispatch requires the exact committed plan. Existing original
+  catalog/leaf decoders and local one-dispatch transport stay unchanged.
+- Scope: exactly the fourteen remaining arms, three fresh controls each:
+  ascending/descending Date and four-byte Binary, plus ten nullable Long
+  ordinary/unique/Required/IgnoreNulls one/two-component arms. Each control
+  has at most twelve attempts. The 36 completed scalar captures from EXP-0143
+  are neither reacquired nor reinterpreted by this plan.
+- Corrections: values use plain CLR arrays instead of PowerShell's decorated
+  `New-Object` array wrapper. Date conversion is precomputed and assigned with
+  the explicit `[datetime]` cast used by the original read producer. Original
+  artifacts do not identify the precise failing cast; this change does not
+  prove DAO Date acceptance. Unexpected errors now retain endpoint and script
+  stack alongside the original error text and completed attempt records.
+- Gates: retain actual Update outcomes, null omissions, complete saved rows,
+  exact raw key-to-row-locator bindings, schema/flag/direction metadata and
+  full DAO traversal. Compare three replicas per arm without guessing nullable
+  uniqueness/omission policies or index transforms. All 42 captures must be
+  complete, unchanged and correlated for `answered`; otherwise preserve an
+  honest `no_outcome`. Binding/pin failures reject validation; no automatic retry.
+- Validation: four focused Python classifier/binding/pin tests and compilation
+  passed. Windows x86 PowerShell parsed the new producer and ran only extracted
+  helper functions against in-memory fake fields: all 120 declared Date/Binary/
+  nullable row conversions and JSON array roundtrips matched exact planned
+  values. The retained test is `tests/check_scalar_index_remaining.ps1` under
+  `oracle/windows-dao`; it instantiates no DAO and executes no acquisition.
+- Boundary: no scalar encoding promotion, completed-capture reanalysis, Text
+  collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
+  updates, candidate acceptance, general compatibility or hosted support claim.
+  Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0148 — Remaining Date/Binary/null index observations answered
+
+- Recorded: 2026-09-05, OpenAI Codex; validated local development discovery
+  `answered`, not candidate acceptance or hosted support. Consumed EXP-0147
+  plan SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`,
+  producer/analyzer source `9fb6874`, and original EXP-0144 `no_outcome` remain
+  unchanged. The earlier 36 captures were not reacquired or reanalyzed.
+- Retained run: `20260905T060000Z-scalar-index-remaining` in the external VM
+  shared outbox. Result: 900612 bytes, SHA-256
+  `2d078ba65dbab7455f6aacb8408a784d521d09553fdc079cd69c554bf9bcccfd`.
+  Report: 137822 bytes, SHA-256
+  `88a33d7e37f4e45f3a8ad305ff8fc9ff4c2eac4442b26e9765de19208d882fb9`.
+  Pinned analysis reproduced the report byte-for-byte on a temporary copy;
+  every original retained file remained unchanged.
+- All fourteen arms have three complete, agreeing captures: 42 observations,
+  no report reasons or acquisition error. All 42 retained MDB identities equal
+  recorded before/after hashes and sizes. Complete DAO schema, index flags,
+  saved rows, traversal and raw key/row-locator correlations pass. Every saved
+  payload equals its declared value; stable Update rejections are listed below.
+- Date: six OA day values `-10000,-1,0,1,36526,2958465` were saved exactly.
+  Ascending raw keys respectively are `7f3f3c77ffffffffff`,
+  `7f400fffffffffffff`, `7f8000000000000000`, `7fbff0000000000000`,
+  `7fc0e1d5c000000000` and `7fc146924080000000`. For these exact inputs,
+  descending keys complement every ascending byte, including marker `7f` to
+  `80`, and traversal reverses value order. This observes finite Date keys;
+  it does not establish arbitrary Date/floating encodings or explain the
+  original failed producer's unlocalized cast.
+- Four-byte Binary: exact inputs `ffffffff`, `00000000`, `00000001`,
+  `01000000`, `7fffffff`, `80000000` all saved. Ascending keys equal marker
+  `7f`, the four input bytes, four zero padding bytes, then `04`. Descending
+  keys complement every byte, and traversal reverses bytewise order. This
+  is evidence only for these four-byte inputs, not arbitrary-length framing.
+- Nullable Long: ascending null key is `00`, descending null is `ff`.
+  Non-null component bytes agree with prior EXP-0126 observations. Mixed
+  ascending-A/descending-B composite keys concatenate the observed components:
+  `(null,null)` is `00ff`; `(null,1)` is `00807ffffffe`; `(1,null)` is
+  `7f80000001ff`. These repeated full null-bearing keys retain distinct row
+  locators and complete Tag payloads.
+- Per-replica saved rows / leaf entries / physical distinct-key count:
+
+  | Arm | Rows | Entries | Count | Raw flags |
+  | --- | ---: | ---: | ---: | ---: |
+  | null-ordinary / null-descending | 8 | 8 | 6 | 0 |
+  | null-unique | 7 | 7 | 6 | 1 |
+  | null-unique-ignore | 7 | 5 | 5 | 3 |
+  | null-ignore | 8 | 6 | 5 | 2 |
+  | null-required | 6 | 6 | 5 | 8 |
+  | composite-null-ordinary | 12 | 12 | 8 | 0 |
+  | composite-null-unique | 11 | 11 | 8 | 1 |
+  | composite-null-ignore | 12 | 10 | 7 | 2 |
+  | composite-null-required | 6 | 6 | 5 | 8 |
+
+- Unique single indexes accept both null rows and reject only the repeated
+  non-null zero (Tag 6); unique composite accepts repeated `(null,null)`,
+  `(null,1)` and `(1,null)`, rejecting repeated `(1,1)` (Tag 8). Observed
+  rejection is DAO `3022`, HRESULT `-2146825266`, in every replica.
+- IgnoreNulls single indexes omit the two stored null rows; the composite
+  IgnoreNulls arm omits only the two all-null rows, retaining partial-null
+  entries. Required single rejects Tags 1/5; Required composite rejects
+  Tags 1/2/3/5/6/7, namely every attempted null-bearing row. Observed rejection
+  is DAO `3058`, HRESULT `-2146825230`. Ordinary Required retains repeated
+  non-null keys. These statements concern exactly the declared flags/shapes.
+- Boundary: no generalized scalar/type grammar, arbitrary null-component
+  policy, Text/GUID/Memo/OLE indexing, existing-row update behavior, writer
+  acceptance or general compatibility claim. Report support and compatibility
+  flags remain false. Keep all raw images externally, with no provider bytes
+  or MDBs committed.
+
+## EXP-0142 — Hosted write comparison ended with no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; hosted `no_outcome`, not a complete
+  matched write acquisition. Consumed EXP-0141 plan SHA-256
+  `d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8`
+  and all pinned inputs remain unchanged.
+- Hosted run: `33948345313`, attempt 1, source revision
+  `4d8e421b0d618482ac0b7a1589c77a94d293e513`. Both artifacts are retained
+  externally under `20260905T055500Z-hosted-write-33948345313`: the exact
+  `generated-write-REVISION` and `windows-dao-write-REVISION-1` directories.
+  No hosted retry or corrected evaluation was performed.
+- Stock Windows Server 2022 x86 provider probe reports `ready` for
+  `DAO.DBEngine.36`, provider 3.6, DAO DLL version `03.60.9765.0`; no provider
+  installation or license acceptance occurred. `environment.json`: 4264 bytes,
+  SHA-256 `1685d43121b85182009919ba269a9bf883d3385c2a192ab284b3a11501c981ed`.
+- Linux preparation completed all twelve recipes; Windows reader and DAO
+  capture completed all twelve files. Every retained Windows MDB hash matches
+  its Linux generated copy, preparation identity, and DAO before/after hashes;
+  all twelve DAO manifest entries report `pass` with no error.
+  `preparation.json`: 2144 bytes, SHA-256
+  `6c38db2659871605e0154746f139989abf72ee75b89978b911c83d7315bab68a`.
+  `reader.json`: 85 bytes, SHA-256
+  `0f899448460cb7df36725c3956c2ddc5ee544afb0a9ddb068c59ef421e85548a`.
+  `dao-manifest.raw.json`: 2863 bytes, SHA-256
+  `c7dc7487ba6d9273c5221828925c090bab152be56e338778076540e781693e15`.
+- Frozen evaluator result: 191 bytes, SHA-256
+  `d285609b052ea2e6d29ff7b15ddf5567129d024aa3e82fdf7d60fe9b8513acd9`,
+  with error `Incomplete index observation inventory`. Eleven earlier
+  per-scenario comparison documents report `matched: true`; no relationship
+  comparison document was emitted. The original evaluator reproduced those
+  eleven documents and the failure report byte-for-byte in a temporary copy.
+  Every original retained file remained unchanged.
+- Diagnosis: the relationship raw snapshot and index probes enumerate
+  `(Parent, ByKey)` before `(Child, ParentChild)`. Snapshot canonicalization
+  sorts Child before Parent, while the frozen index checker requires probe
+  inventory in that same order. Both required probe records are present;
+  the failure is the order-sensitive association gate, not evidence that
+  the provider omitted an index. No reordered evaluation was applied here.
+- Boundary: the all-twelve decision rule was not satisfied. Preserve this
+  honest original result; there is no support-matrix movement or general
+  compatibility claim. Any corrected read-only association of retained probes
+  requires a separately pinned and independently reviewed secondary plan.
+
+## EXP-0153 — Retained hosted write index-association reanalysis plan
+
+- Recorded: 2026-09-05, OpenAI Codex; post-acquisition read-only secondary
+  plan, not an original blinded decision or a new hosted run. EXP-0141 inputs
+  and EXP-0142 `no_outcome` remain unchanged; corrected evaluation has not run.
+- Plan: `oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json`,
+  SHA-256 `6092f41b7793bdf9f40491f0532d8ab3acfc951e0e30c82ef9f88b25625f8e4b`.
+  Pins cover the original plan/runtime dependencies, new secondary analyzer,
+  and all 244 files retained in both hosted run `33948345313` artifacts,
+  including Linux/Windows MDBs, snapshots, receipts and original failure report.
+- Prior diagnosis: both relationship index observations exist but use DAO
+  Parent/Child enumeration order; canonical snapshots use Child/Parent order.
+  Secondary association requires an exact unique set of `(table, index)`
+  identities and reorders whole records before calling the unchanged original
+  index checker. It neither changes data nor synthesizes missing probes.
+- Execution: verify original and secondary runtime/artifact pins, ready stock
+  provider receipt, expected source revision and identical Linux/Windows MDBs.
+  Copy the Windows evaluation directory to a temporary directory, run the
+  original full evaluator with only the association function replaced in memory,
+  restore that function and remove the temporary copy. Verify all retained
+  originals again before exclusively writing a new report outside their tree.
+- Decision: secondary `matched` requires every original twelve-scenario gate,
+  including complete typed rows, schema, relationships, coverage, identities,
+  directed index traversal and complete distinct-key Seek payload checks.
+  Missing/duplicate/unknown index identities still fail. Preserve original
+  `no_outcome` in the new report; failed evaluation remains secondary
+  `no_outcome`. No automatic support-matrix movement or broad compatibility claim.
+- Validation: four focused synthetic association/environment/completeness/pin/containment
+  tests and Python compilation passed. Committed preflight checks retained
+  identities without corrected evaluation. Independent review precedes analysis;
+  no DAO, provider activation, build, installation, retry or workflow dispatch.
+  Record one additive validated EXP-0154 outcome; retain originals externally.
+
+## EXP-0154 — Retained hosted write scenarios match after index association
+
+- Recorded: 2026-09-05, OpenAI Codex; validated post-acquisition secondary
+  `matched` result for the twelve bounded hosted write scenarios. This does
+  not change the original hosted run failure or EXP-0142 `no_outcome`.
+- Reviewed EXP-0153 plan SHA-256
+  `6092f41b7793bdf9f40491f0532d8ab3acfc951e0e30c82ef9f88b25625f8e4b`,
+  integrated analyzer source `7074bd2`. Secondary report retained externally
+  at `20260905T061800Z-hosted-write-secondary/report.json`: 4726 bytes,
+  SHA-256 `8e65b09525b2709e5cd384e15ca81e93fc7e9b91722791a6a63bb49759f83282`.
+- Source acquisition remains hosted run `33948345313`, attempt 1, revision
+  `4d8e421b0d618482ac0b7a1589c77a94d293e513`, under consumed EXP-0141 plan
+  SHA-256 `d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8`.
+  The original 191-byte failure report SHA-256
+  `d285609b052ea2e6d29ff7b15ddf5567129d024aa3e82fdf7d60fe9b8513acd9`
+  is carried unchanged in the secondary report. No DAO or hosted retry occurred.
+- All twelve report comparisons have `matched: true`: empty database,
+  scalars/nulls, AutoIncrement, primary/unique-descending/ordinary/composite
+  indexes, AutoIncrement primary, multiple tables, Memo, LongBinary and
+  populated relationship. Their source/image identities and canonical
+  projection hashes are retained in the report.
+- The secondary evaluator associated complete index observations by unique
+  `(table, index)` identity, retaining every original full-schema, typed-row,
+  relationship, requested-recipe, coverage, unchanged-image, directed-traversal
+  and full-key Seek check. The relationship comparison now completes with
+  database SHA-256 `efd3feec378c2486462ed74e738b1e1941e989a2652238fb0cc8ae1d0b94c81d`
+  and projection SHA-256
+  `5fb7cc47b05ea5a89e01b876f0ce76c087bdcb6cec3c253a60b20bc74511d56a`.
+  No missing records or payloads were synthesized.
+- The pinned analyzer independently reproduced the report byte-for-byte on
+  temporary copies. All 244 retained acquisition artifact files, including
+  Linux/Windows MDBs, snapshots, environment, receipts and original report,
+  and the secondary report remained unchanged.
+- Boundary: this is finite hosted evidence interpreted by a separately reviewed
+  post-acquisition correction, not an originally successful workflow verdict.
+  Multi-level boundary inventory, general null/composite foreign keys/cascades,
+  explicit AutoIncrement seeds/overflow/updates, empty long payloads, unsupported
+  schema combinations and general allocation/names/code pages remain deferred.
+  `support_matrix_movement` remains false; no broad compatibility or completed
+  creation-surface claim follows automatically. Any support-state integration
+  is a separate reviewed change tied to these exact scenarios.
