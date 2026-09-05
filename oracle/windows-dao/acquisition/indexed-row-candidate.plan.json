@@ -1,0 +1,1325 @@
+{
+  "document_type": "dao_indexed_row_plan",
+  "provenance": "EXP-0215",
+  "outcome_provenance": "EXP-0216",
+  "source_revision": "d459298020e5cfa9710eb27b2e6cfc2925366261",
+  "replicas": 3,
+  "arms": [
+    {
+      "name": "ascending",
+      "kind": "insert",
+      "descending": false,
+      "primary": true,
+      "rows": [
+        [
+          0,
+          100
+        ],
+        [
+          1,
+          101
+        ],
+        [
+          2,
+          102
+        ]
+      ],
+      "insert": [
+        -2147483648,
+        -777
+      ],
+      "delete": [],
+      "follow": [
+        500000,
+        777
+      ],
+      "duplicate": [
+        0,
+        0
+      ],
+      "queries": [
+        -2147483648,
+        0,
+        1,
+        2,
+        500000,
+        600000
+      ]
+    },
+    {
+      "name": "descending",
+      "kind": "insert",
+      "descending": true,
+      "primary": false,
+      "rows": [
+        [
+          0,
+          100
+        ],
+        [
+          1,
+          101
+        ],
+        [
+          2,
+          102
+        ]
+      ],
+      "insert": [
+        2147483647,
+        -777
+      ],
+      "delete": [],
+      "follow": [
+        500000,
+        777
+      ],
+      "duplicate": [
+        0,
+        0
+      ],
+      "queries": [
+        0,
+        1,
+        2,
+        500000,
+        600000,
+        2147483647
+      ]
+    },
+    {
+      "name": "capacity",
+      "kind": "insert",
+      "descending": false,
+      "primary": true,
+      "rows": [
+        [
+          0,
+          100
+        ],
+        [
+          1,
+          101
+        ],
+        [
+          2,
+          102
+        ],
+        [
+          3,
+          103
+        ],
+        [
+          4,
+          104
+        ],
+        [
+          5,
+          105
+        ],
+        [
+          6,
+          106
+        ],
+        [
+          7,
+          107
+        ],
+        [
+          8,
+          108
+        ],
+        [
+          9,
+          109
+        ],
+        [
+          10,
+          110
+        ],
+        [
+          11,
+          111
+        ],
+        [
+          12,
+          112
+        ],
+        [
+          13,
+          113
+        ],
+        [
+          14,
+          114
+        ],
+        [
+          15,
+          115
+        ],
+        [
+          16,
+          116
+        ],
+        [
+          17,
+          117
+        ],
+        [
+          18,
+          118
+        ],
+        [
+          19,
+          119
+        ],
+        [
+          20,
+          120
+        ],
+        [
+          21,
+          121
+        ],
+        [
+          22,
+          122
+        ],
+        [
+          23,
+          123
+        ],
+        [
+          24,
+          124
+        ],
+        [
+          25,
+          125
+        ],
+        [
+          26,
+          126
+        ],
+        [
+          27,
+          127
+        ],
+        [
+          28,
+          128
+        ],
+        [
+          29,
+          129
+        ],
+        [
+          30,
+          130
+        ],
+        [
+          31,
+          131
+        ],
+        [
+          32,
+          132
+        ],
+        [
+          33,
+          133
+        ],
+        [
+          34,
+          134
+        ],
+        [
+          35,
+          135
+        ],
+        [
+          36,
+          136
+        ],
+        [
+          37,
+          137
+        ],
+        [
+          38,
+          138
+        ],
+        [
+          39,
+          139
+        ],
+        [
+          40,
+          140
+        ],
+        [
+          41,
+          141
+        ],
+        [
+          42,
+          142
+        ],
+        [
+          43,
+          143
+        ],
+        [
+          44,
+          144
+        ],
+        [
+          45,
+          145
+        ],
+        [
+          46,
+          146
+        ],
+        [
+          47,
+          147
+        ],
+        [
+          48,
+          148
+        ],
+        [
+          49,
+          149
+        ],
+        [
+          50,
+          150
+        ],
+        [
+          51,
+          151
+        ],
+        [
+          52,
+          152
+        ],
+        [
+          53,
+          153
+        ],
+        [
+          54,
+          154
+        ],
+        [
+          55,
+          155
+        ],
+        [
+          56,
+          156
+        ],
+        [
+          57,
+          157
+        ],
+        [
+          58,
+          158
+        ],
+        [
+          59,
+          159
+        ],
+        [
+          60,
+          160
+        ],
+        [
+          61,
+          161
+        ],
+        [
+          62,
+          162
+        ],
+        [
+          63,
+          163
+        ],
+        [
+          64,
+          164
+        ],
+        [
+          65,
+          165
+        ],
+        [
+          66,
+          166
+        ],
+        [
+          67,
+          167
+        ],
+        [
+          68,
+          168
+        ],
+        [
+          69,
+          169
+        ],
+        [
+          70,
+          170
+        ],
+        [
+          71,
+          171
+        ],
+        [
+          72,
+          172
+        ],
+        [
+          73,
+          173
+        ],
+        [
+          74,
+          174
+        ],
+        [
+          75,
+          175
+        ],
+        [
+          76,
+          176
+        ],
+        [
+          77,
+          177
+        ],
+        [
+          78,
+          178
+        ],
+        [
+          79,
+          179
+        ],
+        [
+          80,
+          180
+        ],
+        [
+          81,
+          181
+        ],
+        [
+          82,
+          182
+        ],
+        [
+          83,
+          183
+        ],
+        [
+          84,
+          184
+        ],
+        [
+          85,
+          185
+        ],
+        [
+          86,
+          186
+        ],
+        [
+          87,
+          187
+        ],
+        [
+          88,
+          188
+        ],
+        [
+          89,
+          189
+        ],
+        [
+          90,
+          190
+        ],
+        [
+          91,
+          191
+        ],
+        [
+          92,
+          192
+        ],
+        [
+          93,
+          193
+        ],
+        [
+          94,
+          194
+        ],
+        [
+          95,
+          195
+        ],
+        [
+          96,
+          196
+        ],
+        [
+          97,
+          197
+        ],
+        [
+          98,
+          198
+        ],
+        [
+          99,
+          199
+        ],
+        [
+          100,
+          200
+        ],
+        [
+          101,
+          201
+        ],
+        [
+          102,
+          202
+        ],
+        [
+          103,
+          203
+        ],
+        [
+          104,
+          204
+        ],
+        [
+          105,
+          205
+        ],
+        [
+          106,
+          206
+        ],
+        [
+          107,
+          207
+        ],
+        [
+          108,
+          208
+        ],
+        [
+          109,
+          209
+        ],
+        [
+          110,
+          210
+        ],
+        [
+          111,
+          211
+        ],
+        [
+          112,
+          212
+        ],
+        [
+          113,
+          213
+        ],
+        [
+          114,
+          214
+        ],
+        [
+          115,
+          215
+        ],
+        [
+          116,
+          216
+        ],
+        [
+          117,
+          217
+        ],
+        [
+          118,
+          218
+        ],
+        [
+          119,
+          219
+        ],
+        [
+          120,
+          220
+        ],
+        [
+          121,
+          221
+        ],
+        [
+          122,
+          222
+        ],
+        [
+          123,
+          223
+        ],
+        [
+          124,
+          224
+        ],
+        [
+          125,
+          225
+        ],
+        [
+          126,
+          226
+        ],
+        [
+          127,
+          227
+        ],
+        [
+          128,
+          228
+        ],
+        [
+          129,
+          229
+        ],
+        [
+          130,
+          230
+        ],
+        [
+          131,
+          231
+        ],
+        [
+          132,
+          232
+        ],
+        [
+          133,
+          233
+        ],
+        [
+          134,
+          234
+        ],
+        [
+          135,
+          235
+        ],
+        [
+          136,
+          236
+        ],
+        [
+          137,
+          237
+        ],
+        [
+          138,
+          238
+        ],
+        [
+          139,
+          239
+        ],
+        [
+          140,
+          240
+        ],
+        [
+          141,
+          241
+        ],
+        [
+          142,
+          242
+        ],
+        [
+          143,
+          243
+        ],
+        [
+          144,
+          244
+        ],
+        [
+          145,
+          245
+        ],
+        [
+          146,
+          246
+        ],
+        [
+          147,
+          247
+        ],
+        [
+          148,
+          248
+        ],
+        [
+          149,
+          249
+        ],
+        [
+          150,
+          250
+        ],
+        [
+          151,
+          251
+        ],
+        [
+          152,
+          252
+        ],
+        [
+          153,
+          253
+        ],
+        [
+          154,
+          254
+        ],
+        [
+          155,
+          255
+        ],
+        [
+          156,
+          256
+        ],
+        [
+          157,
+          257
+        ],
+        [
+          158,
+          258
+        ],
+        [
+          159,
+          259
+        ],
+        [
+          160,
+          260
+        ],
+        [
+          161,
+          261
+        ],
+        [
+          162,
+          262
+        ],
+        [
+          163,
+          263
+        ],
+        [
+          164,
+          264
+        ],
+        [
+          165,
+          265
+        ],
+        [
+          166,
+          266
+        ],
+        [
+          167,
+          267
+        ],
+        [
+          168,
+          268
+        ],
+        [
+          169,
+          269
+        ],
+        [
+          170,
+          270
+        ],
+        [
+          171,
+          271
+        ],
+        [
+          172,
+          272
+        ],
+        [
+          173,
+          273
+        ],
+        [
+          174,
+          274
+        ],
+        [
+          175,
+          275
+        ],
+        [
+          176,
+          276
+        ],
+        [
+          177,
+          277
+        ],
+        [
+          178,
+          278
+        ],
+        [
+          179,
+          279
+        ],
+        [
+          180,
+          280
+        ],
+        [
+          181,
+          281
+        ],
+        [
+          182,
+          282
+        ],
+        [
+          183,
+          283
+        ],
+        [
+          184,
+          284
+        ],
+        [
+          185,
+          285
+        ],
+        [
+          186,
+          286
+        ],
+        [
+          187,
+          287
+        ],
+        [
+          188,
+          288
+        ],
+        [
+          189,
+          289
+        ],
+        [
+          190,
+          290
+        ],
+        [
+          191,
+          291
+        ],
+        [
+          192,
+          292
+        ],
+        [
+          193,
+          293
+        ],
+        [
+          194,
+          294
+        ],
+        [
+          195,
+          295
+        ],
+        [
+          196,
+          296
+        ],
+        [
+          197,
+          297
+        ],
+        [
+          198,
+          298
+        ]
+      ],
+      "insert": [
+        199,
+        -777
+      ],
+      "delete": [],
+      "follow": [
+        500000,
+        777
+      ],
+      "duplicate": [
+        0,
+        0
+      ],
+      "queries": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        500000,
+        600000
+      ]
+    },
+    {
+      "name": "deletions",
+      "kind": "delete",
+      "descending": false,
+      "primary": true,
+      "rows": [
+        [
+          0,
+          100
+        ],
+        [
+          1,
+          101
+        ],
+        [
+          2,
+          102
+        ],
+        [
+          3,
+          103
+        ],
+        [
+          4,
+          104
+        ],
+        [
+          5,
+          105
+        ]
+      ],
+      "insert": null,
+      "delete": [
+        1,
+        4,
+        0
+      ],
+      "follow": [
+        500000,
+        777
+      ],
+      "duplicate": [
+        2,
+        0
+      ],
+      "queries": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        500000,
+        600000
+      ]
+    }
+  ],
+  "receipts": {
+    "ascending": {
+      "root": 20,
+      "actions": [
+        {
+          "kind": "insert",
+          "page": 24,
+          "slot": 3
+        }
+      ],
+      "public_refusal": "duplicate",
+      "refusal_preserved": true
+    },
+    "descending": {
+      "root": 20,
+      "actions": [
+        {
+          "kind": "insert",
+          "page": 24,
+          "slot": 3
+        }
+      ],
+      "public_refusal": "duplicate",
+      "refusal_preserved": true
+    },
+    "capacity": {
+      "root": 20,
+      "actions": [
+        {
+          "kind": "insert",
+          "page": 25,
+          "slot": 30
+        }
+      ],
+      "public_refusal": "capacity",
+      "refusal_preserved": true
+    },
+    "deletions": {
+      "root": 20,
+      "actions": [
+        {
+          "kind": "delete",
+          "page": 24,
+          "slot": 1
+        },
+        {
+          "kind": "delete",
+          "page": 24,
+          "slot": 4
+        },
+        {
+          "kind": "delete",
+          "page": 24,
+          "slot": 0
+        }
+      ],
+      "public_refusal": "duplicate",
+      "refusal_preserved": true
+    }
+  },
+  "images": {
+    "ascending-candidate.mdb": {
+      "size": 51200,
+      "sha256": "a8160e4723e42c919b66b60ab9211bfc1a1451ffb9b1bfebafcf6ab01f69008c"
+    },
+    "ascending-original.mdb": {
+      "size": 51200,
+      "sha256": "da7943a89ddbe8534bfd2a192eb7ca31d65fb0a9ebd3562d05a211ba46630e0c"
+    },
+    "capacity-candidate.mdb": {
+      "size": 53248,
+      "sha256": "aab4a8fc0ce9d22d55c493b312994d8263b1f189842277fc250f7c87712a2019"
+    },
+    "capacity-original.mdb": {
+      "size": 53248,
+      "sha256": "499c8b10b022899f1672d71b7b0444cef8b4cd831b218766b38d3c017419b0a7"
+    },
+    "deletions-candidate.mdb": {
+      "size": 51200,
+      "sha256": "3c2b078819eaf9fe3a61603a60bd2621c35387a756f3f9eecf7c31613df161ca"
+    },
+    "deletions-original.mdb": {
+      "size": 51200,
+      "sha256": "4a6d7d7c170913e1e3790e5cc53de3d8f3c1f9a8c0d1fe2267bc9e3a7b0ef438"
+    },
+    "descending-candidate.mdb": {
+      "size": 51200,
+      "sha256": "1832e82dae72b7b00f82d749b02861a61549ffa7c48f39e9c457b9d103c3d313"
+    },
+    "descending-original.mdb": {
+      "size": 51200,
+      "sha256": "689335626dcba8810dd80203e8e4c521cbaaca18f46d19a7c611a94e0a5d8abb"
+    }
+  },
+  "inputs": {
+    "Cargo.lock": "862e85e19ae578d9ed7be1113041b1053c30500badccd8b88c29233efc2af5a2",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/examples/indexed_row_mutation_candidate.rs": "643b2c155954cd3b35660ebef32280f0c3899f75f26f3e1717bf525fd228caad",
+    "crates/jet3/src/allocation_patch.rs": "13f962e9704a3cd7a5bcdd9f132c404e5d6c86c727920ca04da0d162fecd41c1",
+    "crates/jet3/src/atomic.rs": "450e15e7730150b87f936d0bbb207910e225fd1a512f240c98d96e1dfdf9ed6f",
+    "crates/jet3/src/catalog.rs": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33",
+    "crates/jet3/src/column_definition.rs": "f3f0741ce47d48f0fd368bca117f13e773326e4b77ee14bbc18e4a44f10861de",
+    "crates/jet3/src/creation/api.rs": "b8bf08eb99dae36180c35f1bdc5158b1e68be091d2bf0069983acf96f9f5a946",
+    "crates/jet3/src/creation/composer/initial_index.rs": "ec8ea416ebec5956b3272c9bee120964c318b456fd239079f3721fce554d99af",
+    "crates/jet3/src/creation/composer/initial_index_pages.rs": "b74c06692d4edee4731a30e449e3068f078b9a4e22f47deccb4884d38c046974",
+    "crates/jet3/src/creation/composer/table_create.rs": "d6a81c7b1b92b07d2b3b5346fddb2f16048ff873a18f207dec7f3705c4e4b00e",
+    "crates/jet3/src/creation/schema_plan.rs": "a6829efba233b33e1f8d332f7840b5cb4ba0ccbb8919eec46383647bc5552143",
+    "crates/jet3/src/delete.rs": "98add115d5a85e5066cef6374189b5d993e3b4d01f70d4cf3add2cfa746aec73",
+    "crates/jet3/src/index_definition.rs": "8e9c99fd2a0a1441de0fc3e2d897ba64709439a3ea548b4bc845bad48df513d6",
+    "crates/jet3/src/index_key_page.rs": "b12d4c19205ad390cd11aa9546e8a5ffc030545b147b79e6c38cc1fa766392be",
+    "crates/jet3/src/index_tree.rs": "40f2d099b6416c09e70b51366d51a4555238ab031d94b51ef1fc416085d679bc",
+    "crates/jet3/src/index_tree_page.rs": "feef6c5b3415bb8d3fc105d81da40c4d5a79599211bb33bdff9dd05a41f933cd",
+    "crates/jet3/src/index_tree_rows.rs": "d702307f87223133f7109ae217e463cb99188c8c494ebcd4efbf27231450409e",
+    "crates/jet3/src/insert.rs": "7dab0fa43e1f459569015edcfe53c2efb719784a3b77491cbeb7fde6353961a3",
+    "crates/jet3/src/long_index_key.rs": "e036ab5a853cc997571d0fac38dd559edc5203e10e2310fdc89bea11d5202575",
+    "crates/jet3/src/page_image.rs": "a33211ac27927bab6ddaf773af18c2e8a2de4bb7735fa9e5382ee54322a9c093",
+    "crates/jet3/src/physical_index_definition.rs": "920f2d0d2e51307781cc18c27693772e1472186630f1e909c7ab135515e96553",
+    "crates/jet3/src/resource.rs": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+    "crates/jet3/src/row.rs": "64647c6c4ed50f88841d6d28fcf170653055e44ec4e3ee61f1ec2aaa50a5d1ae",
+    "crates/jet3/src/row_delete_page.rs": "ab61456a71c46aa6ab8db25afb55dae00a05a915c89ae003b6b129b7d7706de8",
+    "crates/jet3/src/row_directory.rs": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844",
+    "crates/jet3/src/row_insert_eof.rs": "2b33c18de09f377bddf91b19431d7af8b7708e872e59bf2775f420b69629b5de",
+    "crates/jet3/src/row_insert_page.rs": "c338292a412b187b097defc4a4f88fc17dd2a30549c6ee93ad5ce754b7d44a6a",
+    "crates/jet3/src/row_writer.rs": "35c8310d027db4321a6251b1b68616d9ae0c6c8f4e82af0b1fd5e36b729420fb",
+    "crates/jet3/src/source.rs": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+    "crates/jet3/src/table_definition.rs": "7bc113e3fbd73dbb33d40476feb0e27ef11ddc4fcb9e7ac98dfe8f7dd34793c2",
+    "crates/jet3/src/unique_leaf.rs": "9367160561b9509e37ae2f169d5344c31497f8e697c69b5c62ac0d009e1565f5",
+    "crates/jet3/src/update.rs": "e10419cf6c9671b42aa93cff671f00e1a63fde9522853b0b3150f8e98df662fc",
+    "crates/jet3/src/update_index_key.rs": "1e73214c8f5ccd3ca0cdac34495d3e3f90e717c4d9a1c30c76768fc6a3f5b9fa",
+    "crates/jet3/src/update_pages.rs": "431201c558c17c9a19affd0850ddf9591109a3b2b70a51546cbc155013d6d0b5",
+    "oracle/windows-dao/acquisition/single-leaf-key.plan.json": "40a1258ee08926d97df3f3edf8549a752d28b7aaaf58e7b7e9bdc82863c6e656",
+    "oracle/windows-dao/scripts/field_update.ps1": "9bef9e7e83e6cfd346067e221826937d043d2a31e77ab3df5d9dacd7df29f201",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/indexed_row_candidate.ps1": "a39b51879f1488c12aed746b456228dafc198725cb96e2cdc694c8986e52e39f",
+    "oracle/windows-dao/scripts/indexed_row_candidate.py": "beb35fc02c57441efff8275f0e7a23a9aeb3200decaf2bfb33a0f24c61052422",
+    "oracle/windows-dao/scripts/multi_level_index_structure.py": "a4291fd040cb6a90fb68dfbb5dfe75f9f5990caa1d3cec6893577b118191d928",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/tests/check_indexed_row_candidate.ps1": "dd5d445462093b8c78b6bebb434f7d2a7f2744974c139b9ebbcad4ebaa245597",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Do exact bounded public unique Long leaf row inserts/deletes preserve semantics and unrelated bytes under DAO and independent continuation/rejection probes?",
+  "sequence": [
+    "Commit independently reviewed plan and all source/candidate pins before one local dispatch; no retry or resume.",
+    "Four profiles times three: ascending primary insert, descending unique insert,199-to200 root-leaf capacity insert, retained deletions1/4/0 among six initial rows. All table schemas are Items(Id Long, Value Long), indexed ByKey.",
+    "Copy immutable public original/candidate images; create twelve independent native DAO controls from the same seeds/index schema. Retain native control originals, apply equivalent control operations and capture all baselines read-only.",
+    "On separate candidate/control copies insert500000/777; on other separate copies attempt the existing duplicate key with Value0. Capture all copies closed/reopened read-only, complete schema/rows/traversal and every finite present/removed/follow/missing key in queries.",
+    "Ninety-six images/captures: eight roles for each of twelve pairs. Twelve DAO creations with633 seed-row inserts, eighteen successful control row mutations (nine inserts and nine deletes), twenty-four successful continuation inserts and twenty-four planned duplicate attempts.",
+    "Complete raw table/index/rows/locator/count/map/graph checks apply to all non-duplicate roles, permitting native compression and native depth up to32 with declared8192page/1019slot limits. Candidate original/final index graph exactly equals index map and has one root leaf.",
+    "Public exact patches reconstruct row/slot compaction or insertion plus TDEF row/distinct counts and leaf records/bitmap/free count; all other bytes including map pages/page0/vacated slack unchanged. Public duplicate/capacity rejection and unchanged candidate bytes are recorded by the pinned exporter receipts.",
+    "EXP-0190 observed failed unique-insert distinct-count residue. Duplicate-only probes require rejection3022, matched actual native codes and exact unchanged logical/schema/traversal/Seek post-state. Raw table/live/distinct counts are retained separately, without guessing that rejected operations leave physical counts unchanged.",
+    "Any unexpected mutation/observation/identity/retention or comparison failure is no_outcome, no subset promotion. Preserve initiating failure endpoint/stack and all existing MDBs; no automatic reacquisition."
+  ],
+  "decision_rule": "observed_accepted iff all twelve pairs,96 unchanged read identities, complete semantic/control/probe gates and exact public patch/raw structural checks pass; otherwise no_outcome.",
+  "limits": "Local development-only candidate acceptance, no hosted support movement. Public index splits/EOF row insertion/last-row release/null/compressed/multiple-key mutation remain unsupported. Raw native graph checks do not require identical physical placement or writer packing. Single SSH timeout900seconds.",
+  "public_preparation": "Four public creations, six successful row mutations (three inserts/three deletes), four refused duplicate/capacity requests with exact preservation. Eight image hashes and four receipts are pinned; the standalone exporter reproduces all eight images and receipts exactly.",
+  "pure_preflight": "Actual x86 PowerShell parser and222 mock Int32 row assignments passed without executing DAO; repeat via pinned check_indexed_row_candidate.ps1."
+}

@@ -13487,6 +13487,46 @@ Retained MDB identities (filename: bytes, SHA-256):
   `development_only=true`, `compatibility_claim=false` and
   `support_matrix_movement=false` remain unchanged.
 
+## EXP-0215 — Unique Long leaf indexed row mutation candidates
+
+- Preregistered local validation; no acquisition has run. Plan
+  `oracle/windows-dao/acquisition/indexed-row-candidate.plan.json`, SHA-256
+  `1fd6426e6e2061d3e2d8ef99c2f3abad0a0f8d31a7b30ed74ff5364fd35b3cb3`. Reviewed parser source
+  `d459298020e5cfa9710eb27b2e6cfc2925366261`; the standalone public exporter,
+  eight image hashes, four preparation receipts and 45 scoped inputs are pinned.
+- Four profiles, each with three fresh native DAO controls: ascending primary
+  insertion, descending unique insertion, the 199-to-200 leaf boundary, and
+  deletions of Ids 1, 4, 0 among six rows. The schema is
+  `Items(Id Long, Value Long)` with the single directed unique `ByKey` index.
+- Public preparation creates four databases, performs six successful mutations
+  and four refused duplicate/capacity requests with unchanged bytes. Its exact
+  original/candidate pairs and action locators are pinned. Native control
+  originals are created independently from the same schemas and seed values.
+- Each of twelve pairs retains eight closed images/captures: public original and
+  candidate, native control original and mutated control, and separate candidate/
+  control copies for successful continuation insertion and duplicate-only rejection.
+  There are 633 native seed inserts, eighteen control mutations, twenty-four
+  successful continuation inserts and twenty-four planned duplicate attempts.
+- Require all 96 unchanged read identities, complete requested schema/rows,
+  full directed index traversal, every declared present/removed/follow/missing Seek,
+  and matched control semantics. Decode complete raw row/key/locator inventories,
+  distinct/table counts, index graphs and maps for non-duplicate roles, permitting
+  native compression/placement while requiring the public root leaf and exact map.
+- Reconstruct every public data-row/directory/free/count patch and its leaf entry/
+  boundary/free/distinct-count changes. Preserve all other bytes, including maps,
+  page zero, unrelated objects and vacated slack. No public index split, EOF data
+  append, null-key or last-row release behavior is claimed.
+- EXP-0190 observed rejected unique-insert count residue. Duplicate-only copies
+  therefore require native 3022 rejection, matched actual error numbers and exact
+  unchanged logical/schema/traversal/Seek state. Their raw table/live/distinct
+  counts are retained separately without requiring unchanged physical counts.
+- Three focused classifier tests, final exporter Clippy, exact image/receipt
+  reproduction, and actual x86 parsing plus 222 mock typed assignments passed.
+  Independent plan review and final repository checks precede one dispatch.
+  Unexpected acquisition/retention/comparison failure is `no_outcome`, with no
+  retry or subset promotion. EXP-0216 records the validated outcome once;
+  this preregistration moves no hosted support status.
+
 ## EXP-0185 — Typed-setter successor for unique Long key validation
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0186. Plan:
