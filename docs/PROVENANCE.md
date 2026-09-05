@@ -11242,6 +11242,66 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
 
+## EXP-0200 — Empty Memo and OLE operations have distinct retained outcomes
+
+- Single local discovery run `20260905T104500Z-empty-long-values`, acquired
+  from frozen `a0e7126` under EXP-0199 plan SHA-256
+  `fa2b22d683b3d2f15a9c9849f55ffe9b2ae2349ddd9ed1d1f497e1dadc738b4e`.
+  Outcome **answered**,12complete observations, no reasons or acquisition error.
+  Stable planned native empty rejection is part of this answered discovery.
+- Report52485bytes SHA-256
+  `3d790ef5f25d56880ef5df66cd266e12519cd36b177e5ed1a41f61b45ab47b08`;
+  result396906bytes SHA-256
+  `462ff42d47e44c89e3a8642b91b9b9fd4a94ec79df38581b9886b3d18e3fbdec`.
+  Pinned analysis reproduced the exact report on temporary copies. All17retained
+  files and12MDB identity chains remained unchanged. Files remain externally
+  under the local VM shared outbox; no redispatch or corrected analysis.
+- Four arms×3replicas each agree in operations, reopened schema/field properties,
+  IsNull/FieldSize/payload and raw row/span/map observations. Every Id1Null and
+  Id3one-byte control succeeded. Twelve empty attempts produced the following
+  finite results, with each outcome repeating in all three replicas.
+- Memo default AllowZeroLengthFalse: assigning the empty string reaches Update,
+  which rejects with DAO3315, HRESULT-2146824973, COMException at empty/update,
+  message "Field 'Rows.Payload' cannot be a zero-length string." Cancellation
+  completes; reopened rows contain only Id1Null and Id3A. No partial empty row
+  persists. The property is recorded as False both directly and in Properties.
+- Memo explicit AllowZeroLengthTrue: empty Id2 succeeds and reopens as present
+  empty string, IsNullFalse and FieldSize0, distinct from the Null row. At root20,
+  page23/slot1, presence mask03 and field span[5,17) contain exactly the12bytes
+  `000000800000000000000000`: zero declared length, inline flag80000000,
+  eight reserved zero bytes and no payload. Its complete row is
+  `020200000000000080000000000000000011050103`.
+- OLE Value assignment and AppendChunk of a true CLR byte[0] both succeed,
+  but empty Id2 reopens as Null, IsNullTrue and FieldSize0. Both have presence
+  mask01, empty field span[5,5) and no descriptor. Complete row bytes are
+  `020200000005050101`; neither operation establishes a distinct empty OLE
+  value. Recorded OLE AllowZeroLength property is False in Properties.
+- Null Id1 is always mask01 with no descriptor and row
+  `020100000005050101`. One-byte Id3 is mask03, field span[5,18), exact header
+  `010000800000000000000000` and payload41; Memo reopens as A/FieldSize2,
+  OLE as byte41/FieldSize1. No external LVAL page is allocated; long-column
+  owned/available sets remain empty, while table owned/available sets are[23].
+- These facts establish the finite present-empty Memo header and the two tested
+  OLE-empty-to-Null operations. They do not establish an AllowZeroLength
+  property serialization grammar, candidate writer acceptance, other provider
+  conversion behavior, general update policy or hosted support. No production
+  refusal was removed during discovery and no compatibility claim is made.
+
+Retained MDB identities (filename: bytes, SHA-256):
+
+- `memo-allow-empty-r1.mdb`: 49152, `6d9e2a16fbe4dfa647a8adb2ca8d025d290607e70628f395893bf5b8d371195a`.
+- `memo-allow-empty-r2.mdb`: 49152, `5e82f0b5dfa5642102c9c5b6fc93b374d082c990074d3b36f9a8ba73e6602018`.
+- `memo-allow-empty-r3.mdb`: 49152, `a912ec775801998ab34d1779a9541b2f129bfe33f43ae933be0a91c290ce9d85`.
+- `memo-default-r1.mdb`: 49152, `4d53215fa90d6d8e20988f46c1e7f2cda2e8fb3bb38edf9ec3f96638de95d48b`.
+- `memo-default-r2.mdb`: 49152, `33940f82250aa66058624efe175dffc7818dd5cb06eafa180c622e2de4177303`.
+- `memo-default-r3.mdb`: 49152, `023a6f124f9290a0195d027125e1925a82525e8e3ee98572981a075694425f64`.
+- `ole-append-r1.mdb`: 49152, `3abe98fd4a2083f2f0bf2733c567c2e9c440d4c3c4dec1b63bb038b3facbd99a`.
+- `ole-append-r2.mdb`: 49152, `d5269fefbcc759a985ab53b08d96b4779dd8c5d45944c3275329fe6492e59511`.
+- `ole-append-r3.mdb`: 49152, `8658598b98f34d24c1b1a04df463d6cb508c9b2f074b53662f7aa0326eabb6e3`.
+- `ole-value-r1.mdb`: 49152, `441c5188ec726168d3b8568683311e7957fb314bb8ef5b4b51c9261bc40e6f77`.
+- `ole-value-r2.mdb`: 49152, `c69e50f3090f80625ae45c0ae333f978e3a7d7e63433fce888cac342e1e3bf82`.
+- `ole-value-r3.mdb`: 49152, `d07e3b385befa3b4be7a4f9d406b472b27af21fff39c785ff7f5c9e8f78e36aa`.
+
 ## EXP-0199 — Empty Memo/OLE layout discovery plan
 
 - Preregistered2026-09-05; no acquisition. Result reserved as EXP-0200.
