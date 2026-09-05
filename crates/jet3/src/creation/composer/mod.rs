@@ -517,10 +517,8 @@ fn catalog_seeds<'a>(
         .chain(extra)
 }
 
-/// Builds the catalog data page. Every `LvProp` is null: the system rows
-/// carry none (`EXP-0073`), and `EXP-0091` accepted the exact `Alpha`
-/// create with a null catalog `LvProp` and a retained long-value page. For
-/// any other created table the null form is an unvalidated candidate.
+/// Builds catalog rows with optional EXP-0208 Memo properties.
+/// Other rows retain the EXP-0091 null-LvProp form.
 fn objects_data_page(
     creates: &[PlannedCreate<'_>],
     extra: Option<CatalogSeed<'_>>,
@@ -529,7 +527,14 @@ fn objects_data_page(
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
     for seed in catalog_seeds(creates, extra) {
-        let length = encode_catalog_row(seed, &mut row, budget)?;
+        budget.charge_work_units(creates.len() as u64)?;
+        let header = creates
+            .iter()
+            .find(|create| create.catalog_seed().id == seed.id)
+            .map(PlannedCreate::property_header)
+            .transpose()?
+            .flatten();
+        let length = encode_catalog_row(seed, header.as_ref(), &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
     finish_data_builder(builder, budget)
@@ -537,6 +542,7 @@ fn objects_data_page(
 
 fn encode_catalog_row(
     seed: CatalogSeed<'_>,
+    property: Option<&[u8; 12]>,
     output: &mut [u8],
     budget: &mut ResourceBudget,
 ) -> Result<usize, ComposeError> {
@@ -555,7 +561,7 @@ fn encode_catalog_row(
         RowValue::Null,
         RowValue::Null,
         RowValue::Null,
-        RowValue::Null,
+        property.map_or(RowValue::Null, |header| RowValue::LongValue(header)),
         RowValue::Null,
         RowValue::Null,
     ];

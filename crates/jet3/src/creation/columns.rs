@@ -121,13 +121,36 @@ impl ColumnType {
 pub struct ColumnSpec<'a> {
     name: &'a [u8],
     column_type: ColumnType,
+    allow_zero_length: bool,
 }
 
 impl<'a> ColumnSpec<'a> {
     /// Describes a column with raw database-code-page name bytes.
     #[must_use]
     pub const fn new(name: &'a [u8], column_type: ColumnType) -> Self {
-        Self { name, column_type }
+        Self {
+            name,
+            column_type,
+            allow_zero_length: false,
+        }
+    }
+
+    /// Opts this Memo column into distinct empty-string values.
+    ///
+    /// Candidate construction from EXP-0200/0208, awaiting DAO validation.
+    /// Supported only on the first unindexed table with Long `Id` followed by
+    /// one Memo column with an ASCII alphanumeric name. Other combinations
+    /// fail composition. Empty OLE remains unsupported.
+    #[must_use]
+    pub const fn with_allow_zero_length(mut self) -> Self {
+        self.allow_zero_length = true;
+        self
+    }
+
+    /// Whether distinct empty Memo strings were requested.
+    #[must_use]
+    pub const fn allow_zero_length(&self) -> bool {
+        self.allow_zero_length
     }
 
     /// Returns the raw name bytes.
