@@ -10992,6 +10992,43 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0137 — Generated AutoIncrement candidate preregistration
+
+- Status: preregistered; no acquisition recorded here. Plan:
+  `oracle/windows-dao/acquisition/autoincrement-candidate.plan.json`, SHA-256
+  `503fc74b9179c3ea8c33a6f9606e5fdbf7d737c04b6dd9fbe3d9bd7594550cca`.
+  Inputs pin the dedicated exporter, acquisition/analyzer scripts, original
+  system-catalog decoder and transport. Candidate identities are pinned in
+  the plan; source library commit `d106f83` has completed review and checks.
+- Three arms: 300 generated unindexed rows; 10 generated rows with an
+  ascending AutoIncrement primary index; and two tables with independent
+  counters (300 unindexed rows and one indexed row). All tables have
+  `Id AutoIncrement` and `Tag Long`. The dedicated exporter preserves earlier
+  experiment candidates and uses the reviewed public generation API.
+- Three fresh DAO controls per arm match the complete declared schema and
+  insertion order. Observe each control and pinned candidate read-only with
+  unchanged identities, then independently copy each closed file and insert
+  once per table while omitting `Id`. Record its actual generated ID, close,
+  and observe the post-insert copy read-only. Expected successors are 301,
+  11 and, in the two-table arm, independently 301 and 2.
+- Compare complete table/column/index metadata, every row, complete ascending
+  traversal and Seek for every indexed ID, exact last-generated state and
+  row count before and after insertion. Original decoding uses a private
+  instance with its declared row-directory limit raised from 64 to 256;
+  other structural checks remain unchanged. No analysis limit is retrofitted
+  after acquisition. Ordinary row order and allocator locations are excluded
+  from equality; no row, index entry or state is omitted.
+- Require all nine complete pairs, valid controls, unchanged read-only
+  identities, correct copy-start identities and three matching replicas.
+  Repeatable candidate mismatch is `not_observed_accepted`; incomplete or
+  invalid controls, acquisition error or disagreement yields `no_outcome`.
+  Input/result or retained-identity mismatches reject validation. One attempt,
+  no automatic retry after the first mutation; retain all 36 files externally.
+- EXP-0136 supplies the state observation; EXP-0132 remains `no_outcome`.
+  Record one EXP-0138 outcome. This tests only the declared generated starts
+  and one subsequent insert, without explicit Auto ID assignment, high seeds,
+  deletion, overflow, relationships, LVAL or general compatibility/support.
+
 ## EXP-0136 — Retained AutoIncrement state observations
 
 - Status: validated `answered` secondary analysis under EXP-0135, not a new
