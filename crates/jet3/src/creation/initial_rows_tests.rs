@@ -366,14 +366,14 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
     Ok(())
 }
 
-#[path = "create_initial_index_tests.rs"]
+#[path = "initial_index_tests.rs"]
 mod indexes;
 
-#[path = "create_initial_long_values_tests.rs"]
+#[path = "initial_long_values_tests.rs"]
 mod long_values;
 
-#[path = "create_multi_table_rows_tests.rs"]
+#[path = "multi_table_rows_tests.rs"]
 mod multi_table;
 
-#[path = "create_autoincrement_tests.rs"]
+#[path = "autoincrement_tests.rs"]
 mod autoincrement;

@@ -294,11 +294,11 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
     Ok(())
 }
 
-#[path = "create_composite_index_tests.rs"]
+#[path = "composite_index_tests.rs"]
 mod composite;
 
-#[path = "create_multi_level_index_tests.rs"]
+#[path = "multi_level_index_tests.rs"]
 mod multi_level;
 
-#[path = "create_nullable_index_tests.rs"]
+#[path = "nullable_index_tests.rs"]
 mod nullable;
