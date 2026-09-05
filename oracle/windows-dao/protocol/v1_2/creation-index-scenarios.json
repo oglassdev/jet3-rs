@@ -1,0 +1,99 @@
+{
+  "document_type": "dao_write_scenario_inventory",
+  "protocol_version": "1.2.0",
+  "scenarios": [
+    {
+      "id": "DAO-WRITE-INDEX-LONG-DEEP",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page",
+        "index.branch_leaf_traversal"
+      ],
+      "boundary": null,
+      "coverage": [
+        "three-level Long primary",
+        "27801 complete rows",
+        "nine boundary Seeks"
+      ],
+      "recipe": "long-depth-three",
+      "trees": [
+        {
+          "name": "ById",
+          "depth": 3,
+          "entries": 27801
+        }
+      ]
+    },
+    {
+      "id": "DAO-WRITE-INDEX-NUMERIC-NULL",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page",
+        "index.branch_leaf_traversal"
+      ],
+      "boundary": null,
+      "coverage": [
+        "nullable Currency/Double unique composite",
+        "repeated null keys",
+        "120 nonnull fullkey Seeks"
+      ],
+      "recipe": "nullable-numeric",
+      "trees": [
+        {
+          "name": "ByKey",
+          "depth": 2,
+          "entries": 126
+        }
+      ]
+    },
+    {
+      "id": "DAO-WRITE-INDEX-MULTIPLE",
+      "operation": {
+        "mode": "dao_open_rust",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page",
+        "index.branch_leaf_traversal"
+      ],
+      "boundary": null,
+      "coverage": [
+        "three independent populated indexes",
+        "ordinary duplicates",
+        "mixed directions"
+      ],
+      "recipe": "multiple-long",
+      "trees": [
+        {
+          "name": "ZPrimary",
+          "depth": 2,
+          "entries": 201
+        },
+        {
+          "name": "AGroup",
+          "depth": 2,
+          "entries": 201
+        },
+        {
+          "name": "MMixed",
+          "depth": 2,
+          "entries": 201
+        }
+      ]
+    }
+  ],
+  "deferred_requirements": [
+    "All27,801 individual Seek keys are not enumerated; full traversal plus nine declared boundaries only.",
+    "No fresh DAO writes or duplicate rejection probes; prior local failed-insert count residue is not exercised.",
+    "No Date/Binary/Text/GUID index codec or later-table multiple index claim."
+  ]
+}
