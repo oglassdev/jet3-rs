@@ -11741,3 +11741,46 @@ Copy this block under the appropriate section and remove this instruction:
   passed; Windows `Parser.ParseFile` accepted the producer without executing
   it or DAO. Independent experiment review precedes acquisition. Retain all
   raw files externally; record one additive validated EXP-0144 outcome.
+
+## EXP-0142 — Hosted write comparison ended with no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; hosted `no_outcome`, not a complete
+  matched write acquisition. Consumed EXP-0141 plan SHA-256
+  `d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8`
+  and all pinned inputs remain unchanged.
+- Hosted run: `33948345313`, attempt 1, source revision
+  `4d8e421b0d618482ac0b7a1589c77a94d293e513`. Both artifacts are retained
+  externally under `20260905T055500Z-hosted-write-33948345313`: the exact
+  `generated-write-REVISION` and `windows-dao-write-REVISION-1` directories.
+  No hosted retry or corrected evaluation was performed.
+- Stock Windows Server 2022 x86 provider probe reports `ready` for
+  `DAO.DBEngine.36`, provider 3.6, DAO DLL version `03.60.9765.0`; no provider
+  installation or license acceptance occurred. `environment.json`: 4264 bytes,
+  SHA-256 `1685d43121b85182009919ba269a9bf883d3385c2a192ab284b3a11501c981ed`.
+- Linux preparation completed all twelve recipes; Windows reader and DAO
+  capture completed all twelve files. Every retained Windows MDB hash matches
+  its Linux generated copy, preparation identity, and DAO before/after hashes;
+  all twelve DAO manifest entries report `pass` with no error.
+  `preparation.json`: 2144 bytes, SHA-256
+  `6c38db2659871605e0154746f139989abf72ee75b89978b911c83d7315bab68a`.
+  `reader.json`: 85 bytes, SHA-256
+  `0f899448460cb7df36725c3956c2ddc5ee544afb0a9ddb068c59ef421e85548a`.
+  `dao-manifest.raw.json`: 2863 bytes, SHA-256
+  `c7dc7487ba6d9273c5221828925c090bab152be56e338778076540e781693e15`.
+- Frozen evaluator result: 191 bytes, SHA-256
+  `d285609b052ea2e6d29ff7b15ddf5567129d024aa3e82fdf7d60fe9b8513acd9`,
+  with error `Incomplete index observation inventory`. Eleven earlier
+  per-scenario comparison documents report `matched: true`; no relationship
+  comparison document was emitted. The original evaluator reproduced those
+  eleven documents and the failure report byte-for-byte in a temporary copy.
+  Every original retained file remained unchanged.
+- Diagnosis: the relationship raw snapshot and index probes enumerate
+  `(Parent, ByKey)` before `(Child, ParentChild)`. Snapshot canonicalization
+  sorts Child before Parent, while the frozen index checker requires probe
+  inventory in that same order. Both required probe records are present;
+  the failure is the order-sensitive association gate, not evidence that
+  the provider omitted an index. No reordered evaluation was applied here.
+- Boundary: the all-twelve decision rule was not satisfied. Preserve this
+  honest original result; there is no support-matrix movement or general
+  compatibility claim. Any corrected read-only association of retained probes
+  requires a separately pinned and independently reviewed secondary plan.
