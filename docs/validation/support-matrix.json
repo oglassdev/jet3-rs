@@ -21,8 +21,8 @@
         "oracle/windows-dao/acquisition/write-v1_2.plan.json",
         "oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json",
         "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
-        "crates/jet3/src/create.rs",
-        "crates/jet3/src/create_tests.rs"
+        "crates/jet3/src/creation/api.rs",
+        "crates/jet3/src/creation/tests.rs"
       ]
     },
     {
@@ -93,9 +93,9 @@
         "oracle/windows-dao/acquisition/write-v1_2.plan.json",
         "oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json",
         "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
-        "crates/jet3/src/create.rs",
-        "crates/jet3/src/create_tests.rs",
-        "crates/jet3/src/create_multi_table_rows_tests.rs"
+        "crates/jet3/src/creation/api.rs",
+        "crates/jet3/src/creation/tests.rs",
+        "crates/jet3/src/creation/multi_table_rows_tests.rs"
       ]
     },
     {
@@ -227,10 +227,10 @@
         "oracle/windows-dao/acquisition/write-v1_2.plan.json",
         "oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json",
         "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
-        "crates/jet3/src/create.rs",
-        "crates/jet3/src/create_relationship.rs",
-        "crates/jet3/src/create_relationship_tests.rs",
-        "crates/jet3/src/create_relationship_rows_tests.rs"
+        "crates/jet3/src/creation/api.rs",
+        "crates/jet3/src/creation/api_relationship.rs",
+        "crates/jet3/src/creation/relationship_tests.rs",
+        "crates/jet3/src/creation/relationship_rows_tests.rs"
       ]
     },
     {

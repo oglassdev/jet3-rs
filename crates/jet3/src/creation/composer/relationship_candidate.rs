@@ -9,10 +9,10 @@
 use super::*;
 use crate::{IndexColumnSpec, IndexFieldSpec, IndexKind, IndexSpec, RelationshipSide};
 
-#[path = "bootstrap_relationship_plan.rs"]
+#[path = "relationship_plan.rs"]
 mod planning;
+use crate::{RelationshipColumn, RelationshipSpec, TableRef};
 use planning::RelationshipPlan;
-pub use planning::{RelationshipColumn, RelationshipSpec, TableRef};
 
 // EXP-0114 base and first checkpoints.
 const PARENT_ROOT: u64 = 20;
@@ -413,13 +413,13 @@ fn relation_index_name(
 }
 
 #[cfg(test)]
-#[path = "bootstrap_relationship_candidate_tests.rs"]
+#[path = "relationship_candidate_tests.rs"]
 mod tests;
 
 #[cfg(test)]
-#[path = "bootstrap_relationship_parameterized_tests.rs"]
+#[path = "relationship_parameterized_tests.rs"]
 mod parameterized_tests;
 
-#[path = "bootstrap_relationship_rows.rs"]
+#[path = "relationship_rows.rs"]
 mod initial_rows;
 pub(crate) use initial_rows::compose_relationship_with_rows;

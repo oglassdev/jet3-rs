@@ -64,8 +64,9 @@ EXP-0146 records bounded acceptance of all three multi-level candidates from
 separately pinned analysis of the retained files; EXP-0140 preserves the
 original decoder refusal and `no_outcome`. The reader recognizes the observed
 branch header values. Nullable one/two-Long keys now have typed
-include/omit-all-null/required options and variable-size index packing; their
-composed writer policy awaits candidate validation.
+include/omit-all-null/required options and variable-size index packing.
+EXP-0166 records exact six-arm local acceptance, including matched uniqueness
+and required-null rejection probes; EXP-0156 preserves the earlier failure.
 
 EXP-0154 records matching canonical results for the twelve hosted write
 recipes in the EXP-0141 inventory, after separately reviewed read-only index
@@ -92,8 +93,8 @@ queries remain unverified. Index CRUD stays unverified; atomic failure/rollback
 verification remains internal-only.
 
 Keep broader index key codecs and allocation beyond inline maps as explicit
-creation limitations; validate the bounded nullable writer next. The bounded
-hosted write leg under #102 now has recorded evidence;
+creation limitations. Prioritize existing-file row insertion/deletion and index
+maintenance under #112. The bounded hosted write leg under #102 now has recorded evidence;
 multi-level boundary recipes and other declared write-inventory deferrals
 remain to be covered. Neither issue is complete merely from this checkpoint.
 The broader existing-database update surface (#112) and remaining hosted

@@ -1,7 +1,7 @@
 //! Atomic publication of the bounded EXP-0118/0122 relationship construction.
 
 use super::*;
-use crate::bootstrap_composer::{compose_relationship, compose_relationship_with_rows};
+use crate::creation::composer::{compose_relationship, compose_relationship_with_rows};
 use crate::{
     CatalogObjectKind, IndexColumnSpec, IndexDirection, IndexSpec, RelationshipSide,
     RelationshipSpec,
@@ -244,5 +244,5 @@ fn check_relationship_contents(
 }
 
 #[cfg(all(test, unix))]
-#[path = "create_relationship_tests.rs"]
+#[path = "relationship_tests.rs"]
 mod tests;
