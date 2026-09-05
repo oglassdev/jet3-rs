@@ -41,75 +41,70 @@ delivered in this order:
 - Forms, reports, VBA, macros, query execution, passwords, encryption,
   replication semantics, multi-user locking, Jet 4, ACCDB, crash recovery.
 
-## Current next step
+## Current checkpoint
 
-Continue database creation under #100. Initial-row creation accepts up to
-four tables with scalar rows across data pages, bounded Long indexes, and
-one unindexed Memo/OLE column per table. Long indexes now grow through
-multiple branch/leaf levels; existing schema and inline-map bounds still apply. One AutoIncrement column per table accepts
-explicit generation requests and persists its last generated ID, including
-when indexed; explicit IDs and empty long payloads remain refused. EXP-0136
-records the underlying DAO state observations.
+The bounded reader and its hosted differential are complete for the recorded
+inventory. Creation and existing-file updates are implemented in restricted
+forms; #100, #102, #112, #113 and roadmap #75 remain open. The optional CLI
+(#104) and creation module cleanup (#182) are complete.
 
-`create_database_with_relationship_rows` adds two populated scalar tables
-with one non-null Long relationship, a parent primary index and a child
-foreign index. EXP-0134 records exact local candidate acceptance, full index
-and payload readback, and matched valid-child insertion, orphan rejection
-and duplicate-parent rejection on separate DAO copies. The provenance ledger
-records the other bounded writer observations. These establish only the
-pinned candidates and finite probes, with no general compatibility claim
-or hosted support movement.
+### Creation and write evidence (#100, #102)
 
-EXP-0146 records bounded acceptance of all three multi-level candidates from
-separately pinned analysis of the retained files; EXP-0140 preserves the
-original decoder refusal and `no_outcome`. The reader recognizes the observed
-branch header values. Nullable one/two-Long keys now have typed
-include/omit-all-null/required options and variable-size index packing.
-EXP-0166 records exact six-arm local acceptance, including matched uniqueness
-and required-null rejection probes; EXP-0156 preserves the earlier failure.
+Creation supports up to four tables with initial scalar rows across pages,
+bounded one/two-component numeric indexes (including descending, nullable and
+multi-level trees), generated AutoIncrement IDs, and one unindexed Memo/OLE
+column per table. The first table supports up to three indexes, later tables
+one. Schema/name combinations and allocation remain restricted to the existing
+encoders and inline maps. Explicit AutoIncrement IDs and empty OLE are refused.
+Empty Memo requires an explicit option in the restricted Long-ID/Memo schema;
+EXP-0210 records six accepted local candidate/control pairs and their native
+continuations, not hosted support for that option.
 
-EXP-0154 records matching canonical results for the twelve hosted write
-recipes in the EXP-0141 inventory, after separately reviewed read-only index
-association under EXP-0153. The original hosted failure remains EXP-0142
-`no_outcome`; the secondary result is not an originally successful workflow.
-The evidence binds the exact generated images and source revision, with all
-schema, row, relationship, coverage, traversal and Seek checks preserved.
+Relationship creation supports two scalar tables with one non-cascading,
+non-null Long relationship and its parent/child indexes. General relationship
+mutation, existing-table schema changes, and table/relationship dropping remain
+unimplemented.
 
-The support matrix records empty-database creation as implemented with DAO
-differential evidence. Table create/drop and relationship create/drop/preserve
-remain partial: the hosted recipes demonstrate creation, while dropping or
-changing existing objects and preserving their unrelated metadata are absent.
-This evidence does not advance existing-row insert/update/delete, index CRUD
-maintenance or atomic failure/rollback verification.
+EXP-0154 establishes the twelve hosted write recipes through reviewed analysis
+of retained artifacts; EXP-0142 preserves the original comparator failure.
+The grouped deep-Long, nullable numeric and multiple-index expansion ran once
+under EXP-0213. EXP-0214 is **no_outcome**: all three DAO captures completed,
+but string-valued Double fields in index sidecars failed comparison against
+canonical numeric values. This does not extend hosted support or complete #102.
+A separate reviewed analysis of the retained artifacts is the next validation
+step; preserve the original result and plan.
 
-EXP-0196 records a successful nine-case hosted update run retaining the three
-Long replacements, populated-page insertion and tail deletion from EXP-0174,
-and adding empty/full-page EOF insertion, unequal middle deletion and repeated
-deletion around retained tombstones. All eighteen before/after DAO and Rust
-snapshots match; independent Windows/Unix checks confirm exact patches,
-unchanged unrelated bytes and page zero. EOF cases append one page using existing
-inline-map coverage; compaction preserves physical slots and vacated slack.
-The combined `rows.insert_update_delete` capability remains partial with DAO
-differential evidence limited to these recipes. Sole-row release, free-page or
-slot reuse, indirect map growth, other fixed update types, null transitions,
-related targets, variable-width replacement and stored-query preservation
-remain unverified by this hosted inventory. EXP-0204 adds four hosted indexed
-cases: ascending primary and descending unique Long-key reorder, a 200-entry
-isolated leaf reorder, and ordinary indexed non-key Long replacement. Complete
-before/after rows, directed traversal, present/removed/missing Seek results and
-independent exact-byte preservation checks passed. Index CRUD maintenance is
-partial with DAO differential evidence restricted to those unique single-leaf
-key replacements; compressed/branch/composite/nonunique key changes and indexed
-insertion/deletion remain unverified. Atomic failure/rollback verification
-remains internal-only.
+### Existing-file updates and evidence (#112, #113)
 
-Keep broader index key codecs and allocation beyond inline maps as explicit
-creation limitations. Prioritize existing-file row insertion/deletion and index
-maintenance under #112. The bounded hosted write leg under #102 now has recorded evidence;
-multi-level boundary recipes and other declared write-inventory deferrals
-remain to be covered. Neither issue is complete merely from this checkpoint.
-The broader existing-database update surface (#112) and remaining hosted
-update inventory (#113) remain
-separate work. The release gates above still require each leg's validated bundle
-on the release commit. Creation APIs and composer modules are now grouped under
-`jet3::creation`; the module cleanup in #182 is complete.
+Public APIs implement bounded field updates, insertion into populated pages or
+one EOF page, deletion/compaction, sole physical-row page release, same-page
+scalar row replacement, and unique Long index maintenance in an isolated leaf.
+Publication is Unix-only; unsupported layouts return structured errors.
+
+EXP-0212 records seventeen hosted update recipes with 34 matched complete
+DAO/Rust snapshots and independent preservation checks. It retains EXP-0204's
+thirteen cases and adds sole-row release, growth/shrinkage with scalar null,
+Text/Binary/Boolean transitions, and replacement beside a retained tombstone.
+The support matrix adds this evidence while keeping row mutation and index CRUD
+maintenance **partial**. Hosted index maintenance evidence covers the earlier
+unique Long key replacements and indexed non-key update, not indexed insertion
+or deletion.
+
+The grouped local indexed insertion/deletion experiment ran once under
+EXP-0215. EXP-0216 is **no_outcome**: all 96 captures were retained, but native
+DAO deletion controls retained distinct-key counts that failed the frozen
+analyzer's count predicate. Logical-row diagnostics are not accepted subset
+results. Review the retained native count observations before proposing a
+successor analysis; this local result moves no hosted support state.
+
+### Remaining work
+
+- Resolve the two retained-data comparison questions above under distinct
+  reviewed plans, without repeating acquisition automatically.
+- Extend creation beyond current schema/index-key and inline-allocation bounds.
+- Extend updates to broader indexed layouts, relationships, long values,
+  free-page/slot reuse and indirect allocation, with unrelated-data preservation.
+- Cover remaining hosted inventories, including indexed insertion/deletion,
+  stored-query preservation and failure/rollback behavior.
+- Meet all three release gates on a release commit. Current evidence binds its
+  recorded revisions and finite recipes; no whole-v1 compatibility is claimed.

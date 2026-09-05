@@ -18,9 +18,10 @@ experiment outcomes remain in `docs/PROVENANCE.md`.
 
 ## Scope
 
-v1 reads unencrypted Access 97 / Jet 3 databases without a runtime dependency
-on Microsoft Access, DAO, ODBC, Java, or a native C library. DAO is a test
-oracle only. Everything else is listed under "out of v1" in `V1_SCOPE.md`.
+v1 targets reading, creating, and updating unencrypted Access 97 / Jet 3
+databases without a runtime dependency on Microsoft Access, DAO, ODBC, Java,
+or a native C library. DAO is a test oracle only. Deliverables, remaining work,
+and explicit exclusions are defined in [V1_SCOPE.md](../plans/V1_SCOPE.md).
 
 ## Claim rules
 
