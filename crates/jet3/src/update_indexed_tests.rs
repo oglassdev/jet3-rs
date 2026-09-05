@@ -42,7 +42,7 @@ fn nonkey_update_preserves_every_index_and_unrelated_byte() -> TestResult {
     fs::write(fixture.path(), &original)?;
     let mut b = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
-    let definition = guarded_table(&mut db, b"Items", Some(ColumnOrdinal::new(2)), &mut b)?;
+    let definition = guarded_table(&mut db, b"Items", true, &mut b)?;
     assert_eq!(definition.physical_indexes().len(), 1);
     let relative = {
         let mut cursor = db.rows(&definition, &mut b)?;
@@ -102,7 +102,7 @@ fn inconsistent_or_out_of_range_index_mapping_refuses_publication() -> TestResul
     let original = fs::read(fixture.path())?;
     let mut b = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
-    let definition = guarded_table(&mut db, b"Items", Some(ColumnOrdinal::new(2)), &mut b)?;
+    let definition = guarded_table(&mut db, b"Items", true, &mut b)?;
     let record = definition.indexes()[0].raw_record();
     let root_offset = definition.root().get() as usize * PAGE_BYTES;
     let matches: Vec<_> = original[root_offset..root_offset + PAGE_BYTES]

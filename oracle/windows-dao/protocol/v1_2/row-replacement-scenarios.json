@@ -1,0 +1,3530 @@
+{
+  "document_type": "dao_update_scenario_inventory",
+  "protocol_version": "1.2.0",
+  "scenarios": [
+    {
+      "id": "DAO-UPDATE-FIRST-FIELD",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "present fixed Long replacement",
+        "unrelated Text/Binary/Memo and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Label",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Blob",
+              "kind": "Binary",
+              "size": 4
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              1000,
+              "row000:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "00!!"
+            ],
+            [
+              1,
+              1001,
+              "row001:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "01!!"
+            ],
+            [
+              2,
+              1002,
+              "row002:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "02!!"
+            ],
+            [
+              3,
+              1003,
+              "row003:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "03!!"
+            ],
+            [
+              4,
+              1004,
+              "row004:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "04!!"
+            ],
+            [
+              5,
+              1005,
+              "row005:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "05!!"
+            ],
+            [
+              6,
+              1006,
+              "row006:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "06!!"
+            ],
+            [
+              7,
+              1007,
+              "row007:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "07!!"
+            ],
+            [
+              8,
+              1008,
+              "row008:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "08!!"
+            ],
+            [
+              9,
+              1009,
+              "row009:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "09!!"
+            ],
+            [
+              10,
+              1010,
+              "row010:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "10!!"
+            ],
+            [
+              11,
+              1011,
+              "row011:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "11!!"
+            ],
+            [
+              12,
+              1012,
+              "row012:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "12!!"
+            ],
+            [
+              13,
+              1013,
+              "row013:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "13!!"
+            ],
+            [
+              14,
+              1014,
+              "row014:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "14!!"
+            ],
+            [
+              15,
+              1015,
+              "row015:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "15!!"
+            ],
+            [
+              16,
+              1016,
+              "row016:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "16!!"
+            ],
+            [
+              17,
+              1017,
+              "row017:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "17!!"
+            ],
+            [
+              18,
+              1018,
+              "row018:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "18!!"
+            ],
+            [
+              19,
+              1019,
+              "row019:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "19!!"
+            ],
+            [
+              20,
+              1020,
+              "row020:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "20!!"
+            ],
+            [
+              21,
+              1021,
+              "row021:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "21!!"
+            ],
+            [
+              22,
+              1022,
+              "row022:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "22!!"
+            ],
+            [
+              23,
+              1023,
+              "row023:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "23!!"
+            ],
+            [
+              24,
+              1024,
+              "row024:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "24!!"
+            ],
+            [
+              25,
+              1025,
+              "row025:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "25!!"
+            ],
+            [
+              26,
+              1026,
+              "row026:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "26!!"
+            ],
+            [
+              27,
+              1027,
+              "row027:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "27!!"
+            ],
+            [
+              28,
+              1028,
+              "row028:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "28!!"
+            ],
+            [
+              29,
+              1029,
+              "row029:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "29!!"
+            ],
+            [
+              30,
+              1030,
+              "row030:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "30!!"
+            ],
+            [
+              31,
+              1031,
+              "row031:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "31!!"
+            ],
+            [
+              32,
+              1032,
+              "row032:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "32!!"
+            ]
+          ]
+        },
+        {
+          "name": "Notes",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Body",
+              "kind": "Memo"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              7,
+              {
+                "repeat_text": "m",
+                "count": 2048
+              }
+            ],
+            [
+              8,
+              null
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "table": "Items",
+        "column": "Id",
+        "row_index": 0,
+        "before": 0,
+        "after": -42
+      }
+    },
+    {
+      "id": "DAO-UPDATE-LATER-ROW",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "present fixed Long replacement",
+        "unrelated Text/Binary/Memo and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Label",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Blob",
+              "kind": "Binary",
+              "size": 4
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              1000,
+              "row000:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "00!!"
+            ],
+            [
+              1,
+              1001,
+              "row001:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "01!!"
+            ],
+            [
+              2,
+              1002,
+              "row002:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "02!!"
+            ],
+            [
+              3,
+              1003,
+              "row003:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "03!!"
+            ],
+            [
+              4,
+              1004,
+              "row004:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "04!!"
+            ],
+            [
+              5,
+              1005,
+              "row005:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "05!!"
+            ],
+            [
+              6,
+              1006,
+              "row006:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "06!!"
+            ],
+            [
+              7,
+              1007,
+              "row007:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "07!!"
+            ],
+            [
+              8,
+              1008,
+              "row008:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "08!!"
+            ],
+            [
+              9,
+              1009,
+              "row009:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "09!!"
+            ],
+            [
+              10,
+              1010,
+              "row010:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "10!!"
+            ],
+            [
+              11,
+              1011,
+              "row011:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "11!!"
+            ],
+            [
+              12,
+              1012,
+              "row012:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "12!!"
+            ],
+            [
+              13,
+              1013,
+              "row013:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "13!!"
+            ],
+            [
+              14,
+              1014,
+              "row014:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "14!!"
+            ],
+            [
+              15,
+              1015,
+              "row015:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "15!!"
+            ],
+            [
+              16,
+              1016,
+              "row016:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "16!!"
+            ],
+            [
+              17,
+              1017,
+              "row017:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "17!!"
+            ],
+            [
+              18,
+              1018,
+              "row018:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "18!!"
+            ],
+            [
+              19,
+              1019,
+              "row019:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "19!!"
+            ],
+            [
+              20,
+              1020,
+              "row020:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "20!!"
+            ],
+            [
+              21,
+              1021,
+              "row021:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "21!!"
+            ],
+            [
+              22,
+              1022,
+              "row022:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "22!!"
+            ],
+            [
+              23,
+              1023,
+              "row023:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "23!!"
+            ],
+            [
+              24,
+              1024,
+              "row024:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "24!!"
+            ],
+            [
+              25,
+              1025,
+              "row025:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "25!!"
+            ],
+            [
+              26,
+              1026,
+              "row026:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "26!!"
+            ],
+            [
+              27,
+              1027,
+              "row027:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "27!!"
+            ],
+            [
+              28,
+              1028,
+              "row028:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "28!!"
+            ],
+            [
+              29,
+              1029,
+              "row029:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "29!!"
+            ],
+            [
+              30,
+              1030,
+              "row030:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "30!!"
+            ],
+            [
+              31,
+              1031,
+              "row031:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "31!!"
+            ],
+            [
+              32,
+              1032,
+              "row032:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "32!!"
+            ]
+          ]
+        },
+        {
+          "name": "Notes",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Body",
+              "kind": "Memo"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              7,
+              {
+                "repeat_text": "m",
+                "count": 2048
+              }
+            ],
+            [
+              8,
+              null
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "table": "Items",
+        "column": "Value",
+        "row_index": 31,
+        "before": 1031,
+        "after": -2147483648
+      }
+    },
+    {
+      "id": "DAO-UPDATE-LATER-TABLE",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "present fixed Long replacement",
+        "unrelated Text/Binary/Memo and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Prefix",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              100
+            ],
+            [
+              101
+            ]
+          ]
+        },
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Label",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Blob",
+              "kind": "Binary",
+              "size": 4
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              1000,
+              "row000:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "00!!"
+            ],
+            [
+              1,
+              1001,
+              "row001:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "01!!"
+            ],
+            [
+              2,
+              1002,
+              "row002:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "02!!"
+            ],
+            [
+              3,
+              1003,
+              "row003:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "03!!"
+            ],
+            [
+              4,
+              1004,
+              "row004:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "04!!"
+            ],
+            [
+              5,
+              1005,
+              "row005:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "05!!"
+            ],
+            [
+              6,
+              1006,
+              "row006:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "06!!"
+            ],
+            [
+              7,
+              1007,
+              "row007:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "07!!"
+            ],
+            [
+              8,
+              1008,
+              "row008:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "08!!"
+            ],
+            [
+              9,
+              1009,
+              "row009:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "09!!"
+            ],
+            [
+              10,
+              1010,
+              "row010:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "10!!"
+            ],
+            [
+              11,
+              1011,
+              "row011:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "11!!"
+            ],
+            [
+              12,
+              1012,
+              "row012:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "12!!"
+            ],
+            [
+              13,
+              1013,
+              "row013:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "13!!"
+            ],
+            [
+              14,
+              1014,
+              "row014:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "14!!"
+            ],
+            [
+              15,
+              1015,
+              "row015:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "15!!"
+            ],
+            [
+              16,
+              1016,
+              "row016:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "16!!"
+            ],
+            [
+              17,
+              1017,
+              "row017:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "17!!"
+            ],
+            [
+              18,
+              1018,
+              "row018:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "18!!"
+            ],
+            [
+              19,
+              1019,
+              "row019:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "19!!"
+            ],
+            [
+              20,
+              1020,
+              "row020:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "20!!"
+            ],
+            [
+              21,
+              1021,
+              "row021:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "21!!"
+            ],
+            [
+              22,
+              1022,
+              "row022:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "22!!"
+            ],
+            [
+              23,
+              1023,
+              "row023:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "23!!"
+            ],
+            [
+              24,
+              1024,
+              "row024:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "24!!"
+            ],
+            [
+              25,
+              1025,
+              "row025:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "25!!"
+            ],
+            [
+              26,
+              1026,
+              "row026:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "26!!"
+            ],
+            [
+              27,
+              1027,
+              "row027:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "27!!"
+            ],
+            [
+              28,
+              1028,
+              "row028:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "28!!"
+            ],
+            [
+              29,
+              1029,
+              "row029:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "29!!"
+            ],
+            [
+              30,
+              1030,
+              "row030:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "30!!"
+            ],
+            [
+              31,
+              1031,
+              "row031:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "31!!"
+            ],
+            [
+              32,
+              1032,
+              "row032:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "32!!"
+            ]
+          ]
+        },
+        {
+          "name": "Notes",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Body",
+              "kind": "Memo"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              7,
+              {
+                "repeat_text": "m",
+                "count": 2048
+              }
+            ],
+            [
+              8,
+              null
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "table": "Items",
+        "column": "Value",
+        "row_index": 17,
+        "before": 1017,
+        "after": 2147483647
+      }
+    },
+    {
+      "id": "DAO-UPDATE-INSERT-ROW",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public row insert",
+        "exact unrelated-byte and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa"
+            ],
+            [
+              2,
+              -202,
+              "bbb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "insert",
+        "table": "Items",
+        "row": [
+          88,
+          -8800,
+          "inserted"
+        ]
+      }
+    },
+    {
+      "id": "DAO-UPDATE-DELETE-TAIL",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public row delete",
+        "exact unrelated-byte and table preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa"
+            ],
+            [
+              2,
+              -202,
+              "bbb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "delete",
+        "table": "Items",
+        "selected_id": 3
+      }
+    },
+    {
+      "id": "DAO-UPDATE-EMPTY-EOF",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded eof_insert",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": []
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "eof_insert",
+        "row": [
+          88,
+          -8800,
+          "inserted"
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-FULL-EOF",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded eof_insert",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              -1,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              2,
+              -2,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              3,
+              -3,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              4,
+              -4,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              5,
+              -5,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              6,
+              -6,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            [
+              7,
+              -7,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "eof_insert",
+        "row": [
+          88,
+          -8800,
+          "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-MIDDLE-COMPACT",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded compact_delete",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "a"
+            ],
+            [
+              2,
+              -202,
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ],
+            [
+              3,
+              303,
+              "short"
+            ],
+            [
+              4,
+              404,
+              "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "compact_delete",
+        "selected_ids": [
+          2
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-REPEATED-COMPACT",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded compact_delete",
+        "exact unrelated-byte preservation including page zero and maps"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "a"
+            ],
+            [
+              2,
+              -202,
+              "bb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ],
+            [
+              4,
+              404,
+              "dddd"
+            ],
+            [
+              5,
+              505,
+              "eeeee"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "compact_delete",
+        "selected_ids": [
+          2,
+          4,
+          1
+        ],
+        "table": "Items"
+      }
+    },
+    {
+      "id": "DAO-UPDATE-PRIMARY-KEY",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded indexed public field update",
+        "complete index traversal/full-key Seek and exact unrelated-byte preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 8
+            }
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "primary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null,
+          "rows": [
+            [
+              -10,
+              100,
+              "payload"
+            ],
+            [
+              0,
+              101,
+              "payload"
+            ],
+            [
+              10,
+              102,
+              "payload"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "indexed_field",
+        "table": "Items",
+        "column": 0,
+        "selector_column": 0,
+        "selected": 0,
+        "replacement": -2147483648
+      },
+      "index_queries": [
+        -2147483648,
+        -10,
+        0,
+        10,
+        999
+      ]
+    },
+    {
+      "id": "DAO-UPDATE-DESCENDING-KEY",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded indexed public field update",
+        "complete index traversal/full-key Seek and exact unrelated-byte preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 8
+            }
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "unique",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": true
+                }
+              ]
+            }
+          ],
+          "repeat": null,
+          "rows": [
+            [
+              -2147483648,
+              100,
+              "payload"
+            ],
+            [
+              0,
+              101,
+              "payload"
+            ],
+            [
+              2147483647,
+              102,
+              "payload"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "indexed_field",
+        "table": "Items",
+        "column": 0,
+        "selector_column": 0,
+        "selected": 0,
+        "replacement": 2147483646
+      },
+      "index_queries": [
+        -2147483648,
+        0,
+        999,
+        2147483646,
+        2147483647
+      ]
+    },
+    {
+      "id": "DAO-UPDATE-FULL-LEAF-KEY",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded indexed public field update",
+        "complete index traversal/full-key Seek and exact unrelated-byte preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 8
+            }
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "primary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null,
+          "rows": [
+            [
+              0,
+              100,
+              "payload"
+            ],
+            [
+              1,
+              101,
+              "payload"
+            ],
+            [
+              2,
+              102,
+              "payload"
+            ],
+            [
+              3,
+              103,
+              "payload"
+            ],
+            [
+              4,
+              104,
+              "payload"
+            ],
+            [
+              5,
+              105,
+              "payload"
+            ],
+            [
+              6,
+              106,
+              "payload"
+            ],
+            [
+              7,
+              107,
+              "payload"
+            ],
+            [
+              8,
+              108,
+              "payload"
+            ],
+            [
+              9,
+              109,
+              "payload"
+            ],
+            [
+              10,
+              110,
+              "payload"
+            ],
+            [
+              11,
+              111,
+              "payload"
+            ],
+            [
+              12,
+              112,
+              "payload"
+            ],
+            [
+              13,
+              113,
+              "payload"
+            ],
+            [
+              14,
+              114,
+              "payload"
+            ],
+            [
+              15,
+              115,
+              "payload"
+            ],
+            [
+              16,
+              116,
+              "payload"
+            ],
+            [
+              17,
+              117,
+              "payload"
+            ],
+            [
+              18,
+              118,
+              "payload"
+            ],
+            [
+              19,
+              119,
+              "payload"
+            ],
+            [
+              20,
+              120,
+              "payload"
+            ],
+            [
+              21,
+              121,
+              "payload"
+            ],
+            [
+              22,
+              122,
+              "payload"
+            ],
+            [
+              23,
+              123,
+              "payload"
+            ],
+            [
+              24,
+              124,
+              "payload"
+            ],
+            [
+              25,
+              125,
+              "payload"
+            ],
+            [
+              26,
+              126,
+              "payload"
+            ],
+            [
+              27,
+              127,
+              "payload"
+            ],
+            [
+              28,
+              128,
+              "payload"
+            ],
+            [
+              29,
+              129,
+              "payload"
+            ],
+            [
+              30,
+              130,
+              "payload"
+            ],
+            [
+              31,
+              131,
+              "payload"
+            ],
+            [
+              32,
+              132,
+              "payload"
+            ],
+            [
+              33,
+              133,
+              "payload"
+            ],
+            [
+              34,
+              134,
+              "payload"
+            ],
+            [
+              35,
+              135,
+              "payload"
+            ],
+            [
+              36,
+              136,
+              "payload"
+            ],
+            [
+              37,
+              137,
+              "payload"
+            ],
+            [
+              38,
+              138,
+              "payload"
+            ],
+            [
+              39,
+              139,
+              "payload"
+            ],
+            [
+              40,
+              140,
+              "payload"
+            ],
+            [
+              41,
+              141,
+              "payload"
+            ],
+            [
+              42,
+              142,
+              "payload"
+            ],
+            [
+              43,
+              143,
+              "payload"
+            ],
+            [
+              44,
+              144,
+              "payload"
+            ],
+            [
+              45,
+              145,
+              "payload"
+            ],
+            [
+              46,
+              146,
+              "payload"
+            ],
+            [
+              47,
+              147,
+              "payload"
+            ],
+            [
+              48,
+              148,
+              "payload"
+            ],
+            [
+              49,
+              149,
+              "payload"
+            ],
+            [
+              50,
+              150,
+              "payload"
+            ],
+            [
+              51,
+              151,
+              "payload"
+            ],
+            [
+              52,
+              152,
+              "payload"
+            ],
+            [
+              53,
+              153,
+              "payload"
+            ],
+            [
+              54,
+              154,
+              "payload"
+            ],
+            [
+              55,
+              155,
+              "payload"
+            ],
+            [
+              56,
+              156,
+              "payload"
+            ],
+            [
+              57,
+              157,
+              "payload"
+            ],
+            [
+              58,
+              158,
+              "payload"
+            ],
+            [
+              59,
+              159,
+              "payload"
+            ],
+            [
+              60,
+              160,
+              "payload"
+            ],
+            [
+              61,
+              161,
+              "payload"
+            ],
+            [
+              62,
+              162,
+              "payload"
+            ],
+            [
+              63,
+              163,
+              "payload"
+            ],
+            [
+              64,
+              164,
+              "payload"
+            ],
+            [
+              65,
+              165,
+              "payload"
+            ],
+            [
+              66,
+              166,
+              "payload"
+            ],
+            [
+              67,
+              167,
+              "payload"
+            ],
+            [
+              68,
+              168,
+              "payload"
+            ],
+            [
+              69,
+              169,
+              "payload"
+            ],
+            [
+              70,
+              170,
+              "payload"
+            ],
+            [
+              71,
+              171,
+              "payload"
+            ],
+            [
+              72,
+              172,
+              "payload"
+            ],
+            [
+              73,
+              173,
+              "payload"
+            ],
+            [
+              74,
+              174,
+              "payload"
+            ],
+            [
+              75,
+              175,
+              "payload"
+            ],
+            [
+              76,
+              176,
+              "payload"
+            ],
+            [
+              77,
+              177,
+              "payload"
+            ],
+            [
+              78,
+              178,
+              "payload"
+            ],
+            [
+              79,
+              179,
+              "payload"
+            ],
+            [
+              80,
+              180,
+              "payload"
+            ],
+            [
+              81,
+              181,
+              "payload"
+            ],
+            [
+              82,
+              182,
+              "payload"
+            ],
+            [
+              83,
+              183,
+              "payload"
+            ],
+            [
+              84,
+              184,
+              "payload"
+            ],
+            [
+              85,
+              185,
+              "payload"
+            ],
+            [
+              86,
+              186,
+              "payload"
+            ],
+            [
+              87,
+              187,
+              "payload"
+            ],
+            [
+              88,
+              188,
+              "payload"
+            ],
+            [
+              89,
+              189,
+              "payload"
+            ],
+            [
+              90,
+              190,
+              "payload"
+            ],
+            [
+              91,
+              191,
+              "payload"
+            ],
+            [
+              92,
+              192,
+              "payload"
+            ],
+            [
+              93,
+              193,
+              "payload"
+            ],
+            [
+              94,
+              194,
+              "payload"
+            ],
+            [
+              95,
+              195,
+              "payload"
+            ],
+            [
+              96,
+              196,
+              "payload"
+            ],
+            [
+              97,
+              197,
+              "payload"
+            ],
+            [
+              98,
+              198,
+              "payload"
+            ],
+            [
+              99,
+              199,
+              "payload"
+            ],
+            [
+              100,
+              200,
+              "payload"
+            ],
+            [
+              101,
+              201,
+              "payload"
+            ],
+            [
+              102,
+              202,
+              "payload"
+            ],
+            [
+              103,
+              203,
+              "payload"
+            ],
+            [
+              104,
+              204,
+              "payload"
+            ],
+            [
+              105,
+              205,
+              "payload"
+            ],
+            [
+              106,
+              206,
+              "payload"
+            ],
+            [
+              107,
+              207,
+              "payload"
+            ],
+            [
+              108,
+              208,
+              "payload"
+            ],
+            [
+              109,
+              209,
+              "payload"
+            ],
+            [
+              110,
+              210,
+              "payload"
+            ],
+            [
+              111,
+              211,
+              "payload"
+            ],
+            [
+              112,
+              212,
+              "payload"
+            ],
+            [
+              113,
+              213,
+              "payload"
+            ],
+            [
+              114,
+              214,
+              "payload"
+            ],
+            [
+              115,
+              215,
+              "payload"
+            ],
+            [
+              116,
+              216,
+              "payload"
+            ],
+            [
+              117,
+              217,
+              "payload"
+            ],
+            [
+              118,
+              218,
+              "payload"
+            ],
+            [
+              119,
+              219,
+              "payload"
+            ],
+            [
+              120,
+              220,
+              "payload"
+            ],
+            [
+              121,
+              221,
+              "payload"
+            ],
+            [
+              122,
+              222,
+              "payload"
+            ],
+            [
+              123,
+              223,
+              "payload"
+            ],
+            [
+              124,
+              224,
+              "payload"
+            ],
+            [
+              125,
+              225,
+              "payload"
+            ],
+            [
+              126,
+              226,
+              "payload"
+            ],
+            [
+              127,
+              227,
+              "payload"
+            ],
+            [
+              128,
+              228,
+              "payload"
+            ],
+            [
+              129,
+              229,
+              "payload"
+            ],
+            [
+              130,
+              230,
+              "payload"
+            ],
+            [
+              131,
+              231,
+              "payload"
+            ],
+            [
+              132,
+              232,
+              "payload"
+            ],
+            [
+              133,
+              233,
+              "payload"
+            ],
+            [
+              134,
+              234,
+              "payload"
+            ],
+            [
+              135,
+              235,
+              "payload"
+            ],
+            [
+              136,
+              236,
+              "payload"
+            ],
+            [
+              137,
+              237,
+              "payload"
+            ],
+            [
+              138,
+              238,
+              "payload"
+            ],
+            [
+              139,
+              239,
+              "payload"
+            ],
+            [
+              140,
+              240,
+              "payload"
+            ],
+            [
+              141,
+              241,
+              "payload"
+            ],
+            [
+              142,
+              242,
+              "payload"
+            ],
+            [
+              143,
+              243,
+              "payload"
+            ],
+            [
+              144,
+              244,
+              "payload"
+            ],
+            [
+              145,
+              245,
+              "payload"
+            ],
+            [
+              146,
+              246,
+              "payload"
+            ],
+            [
+              147,
+              247,
+              "payload"
+            ],
+            [
+              148,
+              248,
+              "payload"
+            ],
+            [
+              149,
+              249,
+              "payload"
+            ],
+            [
+              150,
+              250,
+              "payload"
+            ],
+            [
+              151,
+              251,
+              "payload"
+            ],
+            [
+              152,
+              252,
+              "payload"
+            ],
+            [
+              153,
+              253,
+              "payload"
+            ],
+            [
+              154,
+              254,
+              "payload"
+            ],
+            [
+              155,
+              255,
+              "payload"
+            ],
+            [
+              156,
+              256,
+              "payload"
+            ],
+            [
+              157,
+              257,
+              "payload"
+            ],
+            [
+              158,
+              258,
+              "payload"
+            ],
+            [
+              159,
+              259,
+              "payload"
+            ],
+            [
+              160,
+              260,
+              "payload"
+            ],
+            [
+              161,
+              261,
+              "payload"
+            ],
+            [
+              162,
+              262,
+              "payload"
+            ],
+            [
+              163,
+              263,
+              "payload"
+            ],
+            [
+              164,
+              264,
+              "payload"
+            ],
+            [
+              165,
+              265,
+              "payload"
+            ],
+            [
+              166,
+              266,
+              "payload"
+            ],
+            [
+              167,
+              267,
+              "payload"
+            ],
+            [
+              168,
+              268,
+              "payload"
+            ],
+            [
+              169,
+              269,
+              "payload"
+            ],
+            [
+              170,
+              270,
+              "payload"
+            ],
+            [
+              171,
+              271,
+              "payload"
+            ],
+            [
+              172,
+              272,
+              "payload"
+            ],
+            [
+              173,
+              273,
+              "payload"
+            ],
+            [
+              174,
+              274,
+              "payload"
+            ],
+            [
+              175,
+              275,
+              "payload"
+            ],
+            [
+              176,
+              276,
+              "payload"
+            ],
+            [
+              177,
+              277,
+              "payload"
+            ],
+            [
+              178,
+              278,
+              "payload"
+            ],
+            [
+              179,
+              279,
+              "payload"
+            ],
+            [
+              180,
+              280,
+              "payload"
+            ],
+            [
+              181,
+              281,
+              "payload"
+            ],
+            [
+              182,
+              282,
+              "payload"
+            ],
+            [
+              183,
+              283,
+              "payload"
+            ],
+            [
+              184,
+              284,
+              "payload"
+            ],
+            [
+              185,
+              285,
+              "payload"
+            ],
+            [
+              186,
+              286,
+              "payload"
+            ],
+            [
+              187,
+              287,
+              "payload"
+            ],
+            [
+              188,
+              288,
+              "payload"
+            ],
+            [
+              189,
+              289,
+              "payload"
+            ],
+            [
+              190,
+              290,
+              "payload"
+            ],
+            [
+              191,
+              291,
+              "payload"
+            ],
+            [
+              192,
+              292,
+              "payload"
+            ],
+            [
+              193,
+              293,
+              "payload"
+            ],
+            [
+              194,
+              294,
+              "payload"
+            ],
+            [
+              195,
+              295,
+              "payload"
+            ],
+            [
+              196,
+              296,
+              "payload"
+            ],
+            [
+              197,
+              297,
+              "payload"
+            ],
+            [
+              198,
+              298,
+              "payload"
+            ],
+            [
+              199,
+              299,
+              "payload"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "indexed_field",
+        "table": "Items",
+        "column": 0,
+        "selector_column": 0,
+        "selected": 100,
+        "replacement": -1
+      },
+      "index_queries": [
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        999
+      ]
+    },
+    {
+      "id": "DAO-UPDATE-INDEXED-PAYLOAD",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded indexed public field update",
+        "complete index traversal/full-key Seek and exact unrelated-byte preservation"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 8
+            }
+          ],
+          "indexes": [
+            {
+              "name": "ByKey",
+              "kind": "ordinary",
+              "fields": [
+                {
+                  "column": 0,
+                  "descending": false
+                }
+              ]
+            }
+          ],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "payload"
+            ],
+            [
+              1,
+              202,
+              "payload"
+            ],
+            [
+              2,
+              303,
+              "payload"
+            ],
+            [
+              2,
+              404,
+              "payload"
+            ],
+            [
+              3,
+              505,
+              "payload"
+            ],
+            [
+              3,
+              606,
+              "payload"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "indexed_field",
+        "table": "Items",
+        "column": 1,
+        "selector_column": 1,
+        "selected": 303,
+        "replacement": -2147483648
+      },
+      "index_queries": [
+        1,
+        2,
+        3,
+        999
+      ]
+    },
+    {
+      "id": "DAO-UPDATE-SOLE-RELEASE",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public sole release",
+        "exact unrelated bytes and row slots"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "sole"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "sole_release",
+        "table": "Items",
+        "selected_id": 1
+      }
+    },
+    {
+      "id": "DAO-UPDATE-ROW-GROW",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public full-row replacement",
+        "exact unrelated bytes and row slots"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Bytes",
+              "kind": "Binary",
+              "size": 255
+            },
+            {
+              "name": "Flag",
+              "kind": "Boolean"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa",
+              "bytes",
+              true
+            ],
+            [
+              2,
+              202,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "bbbbbbbbbbbbbbbbbbbb",
+              false
+            ],
+            [
+              3,
+              303,
+              "ccc",
+              "bytes",
+              true
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Bytes",
+              "kind": "Binary",
+              "size": 255
+            },
+            {
+              "name": "Flag",
+              "kind": "Boolean"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd",
+              "bytes",
+              true
+            ],
+            [
+              12,
+              1202,
+              "eee",
+              "bytes",
+              true
+            ],
+            [
+              13,
+              -1303,
+              "fff",
+              "bytes",
+              true
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "row_replace",
+        "table": "Items",
+        "selected_id": 1,
+        "replacement": [
+          1,
+          null,
+          "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+          "abcdefgh",
+          false
+        ],
+        "tombstone": false
+      }
+    },
+    {
+      "id": "DAO-UPDATE-ROW-SHRINK",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public full-row replacement",
+        "exact unrelated bytes and row slots"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Bytes",
+              "kind": "Binary",
+              "size": 255
+            },
+            {
+              "name": "Flag",
+              "kind": "Boolean"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa",
+              "bytes",
+              true
+            ],
+            [
+              2,
+              202,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "bbbbbbbbbbbbbbbbbbbb",
+              false
+            ],
+            [
+              3,
+              303,
+              "ccc",
+              "bytes",
+              true
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Bytes",
+              "kind": "Binary",
+              "size": 255
+            },
+            {
+              "name": "Flag",
+              "kind": "Boolean"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd",
+              "bytes",
+              true
+            ],
+            [
+              12,
+              1202,
+              "eee",
+              "bytes",
+              true
+            ],
+            [
+              13,
+              -1303,
+              "fff",
+              "bytes",
+              true
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "row_replace",
+        "table": "Items",
+        "selected_id": 2,
+        "replacement": [
+          2,
+          -42,
+          null,
+          "ab",
+          true
+        ],
+        "tombstone": false
+      }
+    },
+    {
+      "id": "DAO-UPDATE-ROW-LATER-TOMBSTONE",
+      "operation": {
+        "mode": "dao_open_rust_update",
+        "expected_outcome": "success",
+        "error_class": null
+      },
+      "required_branches": [
+        "open.header_page"
+      ],
+      "boundary": null,
+      "coverage": [
+        "bounded public full-row replacement",
+        "exact unrelated bytes and row slots"
+      ],
+      "tables": [
+        {
+          "name": "Items",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Bytes",
+              "kind": "Binary",
+              "size": 255
+            },
+            {
+              "name": "Flag",
+              "kind": "Boolean"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              1,
+              101,
+              "aaa",
+              "bytes",
+              true
+            ],
+            [
+              2,
+              202,
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "bbbbbbbbbbbbbbbbbbbb",
+              false
+            ],
+            [
+              3,
+              303,
+              "ccc",
+              "bytes",
+              true
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "columns": [
+            {
+              "name": "Id",
+              "kind": "Long"
+            },
+            {
+              "name": "Value",
+              "kind": "Long"
+            },
+            {
+              "name": "Payload",
+              "kind": "Text",
+              "size": 255
+            },
+            {
+              "name": "Bytes",
+              "kind": "Binary",
+              "size": 255
+            },
+            {
+              "name": "Flag",
+              "kind": "Boolean"
+            }
+          ],
+          "indexes": [],
+          "repeat": null,
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd",
+              "bytes",
+              true
+            ],
+            [
+              13,
+              -1303,
+              "fff",
+              "bytes",
+              true
+            ]
+          ],
+          "seed_rows": [
+            [
+              11,
+              -1101,
+              "ddd",
+              "bytes",
+              true
+            ],
+            [
+              12,
+              1202,
+              "eee",
+              "bytes",
+              true
+            ],
+            [
+              13,
+              -1303,
+              "fff",
+              "bytes",
+              true
+            ]
+          ]
+        }
+      ],
+      "relationship": null,
+      "request": {
+        "kind": "row_replace",
+        "table": "Later",
+        "selected_id": 13,
+        "replacement": [
+          13,
+          null,
+          null,
+          null,
+          false
+        ],
+        "tombstone": true,
+        "seed_delete": 12
+      }
+    }
+  ],
+  "deferred_requirements": [
+    "free-page or slot reuse, indirect allocation maps",
+    "indexed row insertion/deletion and relationship mutations",
+    "arbitrary wide full-row replacement and Auto/LVAL targets",
+    "hosted stored-query preservation and continuation DAO mutations"
+  ]
+}

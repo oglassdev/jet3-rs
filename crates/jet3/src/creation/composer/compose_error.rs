@@ -5,6 +5,8 @@ use super::*;
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposeError {
+    /// Memo empty-string option is outside the supported first-table schema.
+    UnsupportedMemoOption,
     /// A non-null child key has no matching initial parent row.
     OrphanInitialRelationshipKey {
         /// Zero-based child input row.
@@ -132,6 +134,7 @@ impl std::error::Error for ComposeError {
             Self::UnsupportedRelationship { .. }
             | Self::UnsupportedInitialRowSchema
             | Self::InitialLongValue { .. }
+            | Self::UnsupportedMemoOption
             | Self::InitialAutoIncrement { .. }
             | Self::OrphanInitialRelationshipKey { .. }
             | Self::UnsupportedInitialIndexSchema

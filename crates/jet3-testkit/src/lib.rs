@@ -47,3 +47,6 @@ pub use indexed_update_fixture::{INDEXED_UPDATE_SCENARIOS, indexed_update_fixtur
 
 mod creation_index_fixture;
 pub use creation_index_fixture::{CREATION_INDEX_SCENARIOS, creation_index_fixture};
+
+mod row_replacement_fixture;
+pub use row_replacement_fixture::{ROW_REPLACEMENT_SCENARIOS, row_replacement_fixture};

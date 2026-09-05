@@ -151,7 +151,7 @@ where
         return Err(UpdateError::Unsupported("null replacement"));
     }
     let mut database = DatabaseReader::open(path, budget)?;
-    let definition = guarded_table(&mut database, request.table, Some(request.column), budget)?;
+    let definition = guarded_table(&mut database, request.table, true, budget)?;
     let column = definition
         .columns()
         .get(usize::from(request.column.get()))
@@ -257,13 +257,21 @@ pub(crate) fn writable_table(
     table: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<crate::TableDefinition, UpdateError> {
-    guarded_table(database, table, None, budget)
+    guarded_table(database, table, false, budget)
+}
+
+pub(crate) fn indexed_writable_table(
+    database: &mut DatabaseReader<FileSource>,
+    table: &[u8],
+    budget: &mut ResourceBudget,
+) -> Result<crate::TableDefinition, UpdateError> {
+    guarded_table(database, table, true, budget)
 }
 
 fn guarded_table(
     database: &mut DatabaseReader<FileSource>,
     table: &[u8],
-    field: Option<ColumnOrdinal>,
+    allow_indexes: bool,
     budget: &mut ResourceBudget,
 ) -> Result<crate::TableDefinition, UpdateError> {
     let mut root = None;
@@ -292,7 +300,7 @@ fn guarded_table(
     if definition.kind() != TableDefinitionKind::User {
         return Err(UpdateError::Unsupported("non-user table"));
     }
-    if field.is_some() {
+    if allow_indexes {
         // EXP-0059/0062: the typed decoder validates every logical selector,
         // physical key field and complete logical-to-physical coverage.
         for index in definition.indexes() {

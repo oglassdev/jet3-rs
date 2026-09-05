@@ -102,3 +102,50 @@ pub(crate) fn locator(record: &[u8]) -> Option<crate::RowLocator> {
         record[8],
     ))
 }
+
+// EXP-0062 cumulative boundaries and free bytes; retain all vacated entry slack.
+pub(crate) fn resize(
+    original: &[u8; PAGE_BYTES],
+    records: &[[u8; RECORD_BYTES]],
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, UpdateError> {
+    let mut image = replace(original, records, budget)?;
+    let mut bitmap = [0_u8; crate::index_tree_page::ENTRY_AREA_OFFSET - 22];
+    for ordinal in 1..=records.len() {
+        let end = ordinal * RECORD_BYTES;
+        bitmap[end / 8] |= 1 << (end % 8);
+    }
+    image.write_at(PageOffset::new(22), &bitmap, budget)?;
+    let free = (PAGE_BYTES
+        - crate::index_tree_page::ENTRY_AREA_OFFSET
+        - records.len() * RECORD_BYTES) as u16;
+    image.write_at(PageOffset::new(2), &free.to_le_bytes(), budget)?;
+    Ok(image)
+}
+
+pub(crate) fn encode_record(
+    key: [u8; 5],
+    row: crate::RowLocator,
+) -> Result<[u8; RECORD_BYTES], UpdateError> {
+    let page = u32::try_from(row.page().get())
+        .ok()
+        .filter(|p| *p <= 0xff_ffff)
+        .ok_or(UpdateError::Unsupported("index row page reference"))?;
+    let mut record = [0; RECORD_BYTES];
+    record[..5].copy_from_slice(&key);
+    record[5..8].copy_from_slice(&page.to_be_bytes()[1..]);
+    record[8] = row.slot();
+    Ok(record)
+}
+
+// EXP-0059 first physical prefix follows the 43-byte header; EXP-0073 count.
+// Callers require exactly one physical index and have already validated old counts.
+pub(crate) fn set_distinct_count(
+    image: &mut PageImage,
+    count: usize,
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    let count = u32::try_from(count).map_err(|_| UpdateError::Mismatch("distinct key count"))?;
+    image.write_at(PageOffset::new(47), &count.to_le_bytes(), budget)?;
+    Ok(())
+}

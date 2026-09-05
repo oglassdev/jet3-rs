@@ -11,6 +11,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -154,8 +155,8 @@ def _process_tree_rss(root_pid: int) -> int:
     return sum(rows[pid][1] for pid in descendants if pid in rows) * 1024
 
 
-def _rusage_peak_rss_bytes(usage: Any) -> int:
-    peak = int(usage.ru_maxrss)
+def _rusage_peak_rss_bytes(peak: int) -> int:
+    peak = int(peak)
     return peak if sys.platform == "darwin" else peak * 1024
 
 
@@ -180,10 +181,15 @@ def observe_producer(
     peak_rss = 0
     timed_out = False
     wait_status: int | None = None
-    producer_usage: Any | None = None
-    with log_path.open("wb") as log:
+    with log_path.open("wb") as log, tempfile.TemporaryFile() as receipt:
         producer = subprocess.Popen(
-            command,
+            [
+                str(Path(sys.executable).resolve()),
+                str(Path(__file__).with_name("fuzz_process.py")),
+                str(receipt.fileno()),
+                *command,
+            ],
+            pass_fds=(receipt.fileno(),),
             cwd=root,
             env=environment,
             stdout=log,
@@ -193,29 +199,34 @@ def observe_producer(
         deadline = started_clock + timeout_seconds
         try:
             while True:
-                waited_pid, status, usage = os.wait4(producer.pid, os.WNOHANG)
+                waited_pid, status, _ = os.wait4(producer.pid, os.WNOHANG)
                 if waited_pid == producer.pid:
                     wait_status = status
-                    producer_usage = usage
                     break
                 peak_rss = max(peak_rss, _process_tree_rss(producer.pid))
                 if time.monotonic() >= deadline:
                     timed_out = True
                     os.killpg(producer.pid, signal.SIGKILL)
-                    _, wait_status, producer_usage = os.wait4(producer.pid, 0)
+                    _, wait_status, _ = os.wait4(producer.pid, 0)
                     break
                 time.sleep(0.05)
         except BaseException:
             if wait_status is None:
                 os.killpg(producer.pid, signal.SIGKILL)
-                _, wait_status, producer_usage = os.wait4(producer.pid, 0)
+                _, wait_status, _ = os.wait4(producer.pid, 0)
             raise
         finally:
             if wait_status is not None:
                 producer.returncode = os.waitstatus_to_exitcode(wait_status)
-        if producer_usage is not None:
-            peak_rss = max(peak_rss, _rusage_peak_rss_bytes(producer_usage))
         exit_code = None if timed_out else producer.returncode
+        if not timed_out:
+            receipt.seek(0)
+            try:
+                target = json.load(receipt)
+                peak_rss = max(peak_rss, _rusage_peak_rss_bytes(target["maxrss"]))
+                exit_code = os.waitstatus_to_exitcode(target["status"])
+            except (ValueError, KeyError, TypeError) as error:
+                raise EvidenceError("target process did not return resource usage") from error
         log.flush()
         os.fsync(log.fileno())
     finished_clock = time.monotonic()
