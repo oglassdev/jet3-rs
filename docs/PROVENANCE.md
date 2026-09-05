@@ -12610,6 +12610,44 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0181 — One EOF data-page insertion validation preregistration
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0182. Plan:
+  `oracle/windows-dao/acquisition/eof-insert-candidate.plan.json`, SHA-256
+  `4d1831133df351afbeffc65363a8b8735796ef448b121b365ae32777432aad28`.
+  Reviewed public EOF implementation: `3db0283ee5b763beaa8cc71bd78d872e8a08e71e`;
+  the plan pins the reused public exporter, parser/allocator/publication inputs,
+  new producer/analyzer, existing read-only snapshot/decoder helpers and transport.
+- Three natural DAO profiles, three replicas each: empty Items, Items containing
+  ten 180-byte Text payload rows, and the same dense rows in Later after Items.
+  Both tables have Long Id/Value and variable Text Payload(255), with unrelated
+  table data and KeepQuery SQL retained. No raw fixture edits force eligibility.
+- Each closed original is copied separately for DAO's declared insertion and
+  one Unix public `insert_row`. Insert `[88,-8800,180 copies of "z"]` into the
+  target table. The Rust result must append exactly one 2048-byte EOF page at
+  slot zero, containing the independently encoded 193-byte row, with correct
+  owner/directory/free fields. Dense originals must naturally lack row capacity.
+- All original bytes must remain identical except the table row count and the
+  EOF bit in existing inline global-free, owned and available records. EOF must
+  be covered by all three records, originally free globally and absent from both
+  table maps. The new page retains room for a minimum row and is marked available.
+  Page zero stays exact. This is the candidate policy under test; no global
+  counter meaning or general DAO free-space/allocation threshold is inferred.
+- Only nine complete source/patch checks permit the observation phase. Capture
+  original, DAO control and Rust candidate read-only, then use separate control
+  and Rust copies for one DAO insertion `[99,-9900,"next"]` and read them back.
+  Require complete expected schemas, rows, index/relationship absence, retained
+  KeepQuery SQL and unchanged identities. Control allocation/row placement may
+  differ physically. The full matrix retains 45 MDBs and 63 read captures.
+- Any phase, eligibility, conversion, public mutation, continuation, identity,
+  semantic or preservation failure yields `no_outcome`, retaining available
+  partial images and initiating errors. No retry, resume or subset promotion.
+  Existing diagnostic limits are 64 pages/columns/rows per page; the source
+  profiles are finite and small. Original consumed plans and scripts stay frozen.
+- This local experiment supplies no hosted support or general insertion claim.
+  Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
+  compaction and slot reuse remain outside this one-EOF-page validation.
+
 ## EXP-0173 — Hosted five-case public row mutation preregistration
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0174.
